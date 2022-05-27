@@ -1,0 +1,31 @@
+name: GlareDB CI
+
+on: [push, workflow_dispatch]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Taken from: https://github.com/actions/cache/blob/main/examples.md#rust---cargo
+      #
+      # Does not include the "target" directory as running the miri script will
+      # remove it anyways.
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Tests (Stable)
+        run: cargo test
+
+      - name: Tests (Nightly + Miri)
+        run: ./scripts/miri-test.sh
