@@ -1,181 +1,196 @@
-use crate::datatype::{DataType, DataValue, NullableType};
-use bitvec::vec::BitVec;
-use std::fmt::Debug;
+use bitvec::{slice::BitSlice, vec::BitVec};
+use paste::paste;
+use std::fmt;
+use std::iter::Iterator;
 use std::marker::PhantomData;
 
-#[derive(Debug, thiserror::Error)]
-#[error("type error, expected {expected}, got {got}")]
-pub struct TypeError {
-    expected: DataType,
-    got: DataType,
-}
+pub trait NativeType: Sync + Send + fmt::Debug {}
 
-pub trait NativeType: Debug + Sync + Send {
-    const DATATYPE: DataType;
-}
+impl NativeType for bool {}
+impl NativeType for i8 {}
+impl NativeType for i16 {}
+impl NativeType for i32 {}
+impl NativeType for i64 {}
+impl NativeType for f32 {}
+impl NativeType for f64 {}
+impl NativeType for str {}
+impl NativeType for [u8] {}
 
-impl NativeType for bool {
-    const DATATYPE: DataType = DataType::Bool;
-}
+pub trait FixedLengthType: NativeType + Copy {}
 
-impl NativeType for i8 {
-    const DATATYPE: DataType = DataType::Int8;
-}
+impl FixedLengthType for bool {}
+impl FixedLengthType for i8 {}
+impl FixedLengthType for i16 {}
+impl FixedLengthType for i32 {}
+impl FixedLengthType for i64 {}
+impl FixedLengthType for f32 {}
+impl FixedLengthType for f64 {}
 
-impl NativeType for i16 {
-    const DATATYPE: DataType = DataType::Int16;
-}
+pub trait VarLengthType: NativeType {}
 
-impl NativeType for i32 {
-    const DATATYPE: DataType = DataType::Int32;
-}
-
-impl NativeType for i64 {
-    const DATATYPE: DataType = DataType::Int64;
-}
-
-impl NativeType for f32 {
-    const DATATYPE: DataType = DataType::Float32;
-}
-
-impl NativeType for f64 {
-    const DATATYPE: DataType = DataType::Float64;
-}
-
-impl NativeType for str {
-    const DATATYPE: DataType = DataType::Utf8;
-}
-
-impl NativeType for [u8] {
-    const DATATYPE: DataType = DataType::Binary;
-}
-
-pub trait FixedlenType: NativeType + Into<DataValue<'static>> + Copy + Default + PartialEq {}
-
-impl FixedlenType for bool {}
-impl FixedlenType for i8 {}
-impl FixedlenType for i16 {}
-impl FixedlenType for i32 {}
-impl FixedlenType for i64 {}
-impl FixedlenType for f32 {}
-impl FixedlenType for f64 {}
+impl VarLengthType for str {}
+impl VarLengthType for [u8] {}
 
 #[derive(Debug)]
-struct FixedlenColumn<T> {
-    validity: BitVec,
-    values: Vec<T>,
+pub struct FixedLengthVec<T> {
+    vec: Vec<T>,
 }
 
-impl<T: FixedlenType> FixedlenColumn<T> {
-    fn new() -> Self {
-        FixedlenColumn {
-            validity: BitVec::new(),
-            values: Vec::new(),
-        }
+impl<T: FixedLengthType> FixedLengthVec<T> {
+    pub fn copy_insert(&mut self, idx: usize, item: &T) {
+        self.vec.insert(idx, *item)
     }
 
-    fn get_type(&self) -> NullableType {
-        NullableType {
-            datatype: T::DATATYPE,
-            nullable: true,
-        }
-    }
-
-    fn push_native(&mut self, val: T) {
-        self.validity.push(true);
-        self.values.push(val);
-    }
-
-    fn push_null(&mut self) {
-        self.validity.push(false);
-        self.values.push(T::default());
-    }
-
-    fn insert_native(&mut self, idx: usize, val: T) {
-        self.validity.insert(idx, true);
-        self.values.insert(idx, val);
-    }
-
-    fn get_value(&self, idx: usize) -> Option<DataValue<'static>> {
-        let valid = self.validity.get(idx)?;
-        if *valid {
-            let val = *self.values.get(idx).unwrap(); // Validity and values vec must always be equal length.
-            Some(val.into())
-        } else {
-            Some(DataValue::Null)
-        }
+    pub fn get(&self, idx: usize) -> Option<&T> {
+        self.vec.get(idx)
     }
 }
 
-pub trait VarlenType: NativeType + AsRef<[u8]> {
-    /// Convert a slice of bytes to self. The length of bytes should be exact.
-    fn from_bytes(bs: &[u8]) -> &Self;
-
-    /// Convert self into a data value, keeping the lifetime of self.
-    fn as_data_value<'a>(&'a self) -> DataValue<'a>;
-}
-
-impl VarlenType for str {
-    fn from_bytes(bs: &[u8]) -> &Self {
-        // We should only ever be dealing with utf8 strings in the system.
-        std::str::from_utf8(bs).unwrap()
-    }
-
-    fn as_data_value<'a>(&'a self) -> DataValue<'a> {
-        self.into()
+impl<T: FixedLengthType> Default for FixedLengthVec<T> {
+    fn default() -> Self {
+        FixedLengthVec { vec: Vec::new() }
     }
 }
 
-impl VarlenType for [u8] {
-    fn from_bytes(bs: &[u8]) -> &Self {
-        bs
-    }
+pub type BoolVec = FixedLengthVec<bool>;
+pub type I8Vec = FixedLengthVec<i8>;
+pub type I16Vec = FixedLengthVec<i16>;
+pub type I32Vec = FixedLengthVec<i32>;
+pub type I64Vec = FixedLengthVec<i64>;
+pub type F32Vec = FixedLengthVec<f32>;
+pub type F64Vec = FixedLengthVec<f64>;
 
-    fn as_data_value<'a>(&'a self) -> DataValue<'a> {
-        self.into()
+pub trait BytesRef: VarLengthType + AsRef<[u8]> {
+    /// Convert a slice of bytes to a reference to self. The entire slice must
+    /// be used.
+    fn from_bytes(buf: &[u8]) -> &Self;
+}
+
+impl BytesRef for str {
+    fn from_bytes(buf: &[u8]) -> &Self {
+        // System should only ever be dealing with utf8.
+        std::str::from_utf8(buf).unwrap()
+    }
+}
+
+impl BytesRef for [u8] {
+    fn from_bytes(buf: &[u8]) -> &Self {
+        buf
     }
 }
 
 #[derive(Debug)]
-struct VarlenColumn<T> {
-    validity: BitVec,
+pub struct VarLengthVec<T: ?Sized> {
     offsets: Vec<usize>,
-    bytes: Vec<u8>,
-    _phantom: PhantomData<T>,
+    data: Vec<u8>,
+    phantom: PhantomData<T>,
 }
 
-impl<T: VarlenType> VarlenColumn<T> {
-    fn new() -> Self {
-        let validity = BitVec::new();
-        let offsets = vec![0]; // Always starts with at least one element.
-        let bytes = Vec::new();
-        VarlenColumn {
-            validity,
+impl<T: BytesRef + ?Sized> Default for VarLengthVec<T> {
+    fn default() -> Self {
+        // Offsets vector always has one more than the number of items. Helps
+        // with calculating the range of bytes for each item.
+        let offsets = vec![0];
+        VarLengthVec {
             offsets,
-            bytes,
-            _phantom: PhantomData,
+            data: Vec::new(),
+            phantom: PhantomData,
         }
     }
+}
 
-    fn push_native(&mut self, val: T) {
-        self.validity.push(true);
-        let bs = val.as_ref();
-        let next_offset = self.bytes.len() + bs.len();
-        self.offsets.push(next_offset);
-        self.bytes.extend_from_slice(bs);
+impl<T: BytesRef + ?Sized> VarLengthVec<T> {
+    pub fn copy_insert(&mut self, idx: usize, item: &T) {
+        let buf = item.as_ref();
+
+        self.data.resize(self.data.len() + buf.len(), 0);
+
+        let start = self.offsets[idx];
+        let end = start + buf.len();
+
+        self.data.copy_within(start..end, end);
+        self.data[start..end].copy_from_slice(buf);
     }
 
-    fn get_value<'a>(&'a self, idx: usize) -> Option<DataValue<'a>> {
-        let valid = self.validity.get(idx)?;
-        // Offsets always has one more than the number of elements in the
-        // column.
-        let (start, end) = (self.offsets[idx], self.offsets[idx + 1]);
+    pub fn get(&self, idx: usize) -> Option<&T> {
+        let start = *self.offsets.get(idx)?;
+        let end = self.offsets[idx + 1]; // Offsets always has one more than number of items.
 
-        if *valid {
-            let val = T::from_bytes(&self.bytes[start..end]);
-            Some(val.as_data_value())
-        } else {
-            Some(DataValue::Null)
+        let buf = &self.data[start..end];
+        Some(T::from_bytes(buf))
+    }
+}
+
+pub type StrVec = VarLengthVec<str>;
+pub type BinaryVec = VarLengthVec<[u8]>;
+
+#[derive(Debug)]
+pub enum ColumnVec {
+    Bool(BoolVec),
+    I8(I8Vec),
+    I16(I16Vec),
+    I32(I32Vec),
+    I64(I64Vec),
+    F32(F32Vec),
+    F64(F64Vec),
+    Str(StrVec),
+    Binary(BinaryVec),
+}
+
+/// Implement various constructors for each variant.
+macro_rules! impl_constructor {
+    ($variant:ident) => {
+        paste! {
+            pub fn [<new_ $variant:lower _vec>]() -> Self {
+                ColumnVec::$variant([<$variant Vec>]::default())
+            }
         }
-    }
+    };
+}
+
+/// Implement `try_as_..._vec` and `try_as_..._vec_mut` methods to downcast to
+/// the concrete vector type.
+macro_rules! impl_try_as_dispatch {
+    ($variant:ident) => {
+        // Produces:
+        // pub fn try_as_bool_vec(&self) -> Option<&BoolVec>
+        // pub fn try_as_bool_vec_mut(&mut self) -> Option<&mut BoolVec>
+        paste! {
+            pub fn [<try_as_ $variant:lower _vec>](&self) -> Option<&[<$variant Vec>]> {
+                match self {
+                    Self::$variant(v) => Some(v),
+                    _ => None,
+                }
+            }
+
+            pub fn [<try_as_ $variant:lower _vec_mut>](&mut self) -> Option<&mut [<$variant Vec>]> {
+                match self {
+                    Self::$variant(v) => Some(v),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+impl ColumnVec {
+    impl_constructor!(Bool);
+    impl_constructor!(I8);
+    impl_constructor!(I16);
+    impl_constructor!(I32);
+    impl_constructor!(I64);
+    impl_constructor!(F32);
+    impl_constructor!(F64);
+    impl_constructor!(Str);
+    impl_constructor!(Binary);
+
+    impl_try_as_dispatch!(Bool);
+    impl_try_as_dispatch!(I8);
+    impl_try_as_dispatch!(I16);
+    impl_try_as_dispatch!(I32);
+    impl_try_as_dispatch!(I64);
+    impl_try_as_dispatch!(F32);
+    impl_try_as_dispatch!(F64);
+    impl_try_as_dispatch!(Str);
+    impl_try_as_dispatch!(Binary);
 }
