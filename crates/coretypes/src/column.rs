@@ -38,11 +38,19 @@ pub struct FixedLengthVec<T> {
 
 impl<T: FixedLengthType> FixedLengthVec<T> {
     pub fn copy_insert(&mut self, idx: usize, item: &T) {
-        self.vec.insert(idx, *item)
+        self.vec.insert(idx, *item);
+    }
+
+    pub fn copy_push(&mut self, item: &T) {
+        self.vec.push(*item);
     }
 
     pub fn get(&self, idx: usize) -> Option<&T> {
         self.vec.get(idx)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.vec.iter()
     }
 }
 
@@ -103,21 +111,60 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
     pub fn copy_insert(&mut self, idx: usize, item: &T) {
         let buf = item.as_ref();
 
-        self.data.resize(self.data.len() + buf.len(), 0);
+        let data_len = self.data.len();
+        self.data.resize(data_len + buf.len(), 0);
 
         let start = self.offsets[idx];
-        let end = start + buf.len();
+        let new_end = start + buf.len();
 
-        self.data.copy_within(start..end, end);
-        self.data[start..end].copy_from_slice(buf);
+        self.data.copy_within(start..data_len, new_end);
+        self.data[start..new_end].copy_from_slice(buf);
+
+        // Insert new end offset, update existing offsets after this new
+        // insertion.
+        self.offsets.insert(idx + 1, new_end);
+        for offset in self.offsets.iter_mut().skip(idx + 2) {
+            *offset += buf.len();
+        }
+    }
+
+    pub fn copy_push(&mut self, item: &T) {
+        self.data.extend_from_slice(item.as_ref());
+        let next_offset = self.data.len();
+        self.offsets.push(next_offset);
     }
 
     pub fn get(&self, idx: usize) -> Option<&T> {
         let start = *self.offsets.get(idx)?;
-        let end = self.offsets[idx + 1]; // Offsets always has one more than number of items.
+        let end = *self.offsets.get(idx + 1)?;
 
         let buf = &self.data[start..end];
         Some(T::from_bytes(buf))
+    }
+
+    pub fn iter(&self) -> VarLengthIterator<'_, T> {
+        VarLengthIterator::from_vec(self)
+    }
+}
+
+pub struct VarLengthIterator<'a, T: ?Sized> {
+    vec: &'a VarLengthVec<T>,
+    idx: usize,
+}
+
+impl<'a, T: ?Sized> VarLengthIterator<'a, T> {
+    fn from_vec(vec: &'a VarLengthVec<T>) -> Self {
+        VarLengthIterator { vec, idx: 0 }
+    }
+}
+
+impl<'a, T: BytesRef + ?Sized> Iterator for VarLengthIterator<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.vec.get(self.idx)?;
+        self.idx += 1;
+        Some(item)
     }
 }
 
@@ -139,58 +186,95 @@ pub enum ColumnVec {
 
 /// Implement various constructors for each variant.
 macro_rules! impl_constructor {
-    ($variant:ident) => {
-        paste! {
-            pub fn [<new_ $variant:lower _vec>]() -> Self {
-                ColumnVec::$variant([<$variant Vec>]::default())
+    ($($variant:ident),*) => {
+        $(
+            // pub fn new_bool_vec() -> Self
+            paste! {
+                pub fn [<new_ $variant:lower _vec>]() -> Self {
+                    ColumnVec::$variant([<$variant Vec>]::default())
+                }
             }
-        }
+        )*
     };
 }
 
 /// Implement `try_as_..._vec` and `try_as_..._vec_mut` methods to downcast to
 /// the concrete vector type.
 macro_rules! impl_try_as_dispatch {
-    ($variant:ident) => {
-        // Produces:
-        // pub fn try_as_bool_vec(&self) -> Option<&BoolVec>
-        // pub fn try_as_bool_vec_mut(&mut self) -> Option<&mut BoolVec>
-        paste! {
-            pub fn [<try_as_ $variant:lower _vec>](&self) -> Option<&[<$variant Vec>]> {
-                match self {
-                    Self::$variant(v) => Some(v),
-                    _ => None,
+    ($($variant:ident),*) => {
+        $(
+            // pub fn try_as_bool_vec(&self) -> Option<&BoolVec>
+            // pub fn try_as_bool_vec_mut(&mut self) -> Option<&mut BoolVec>
+            paste! {
+                pub fn [<try_as_ $variant:lower _vec>](&self) -> Option<&[<$variant Vec>]> {
+                    match self {
+                        Self::$variant(v) => Some(v),
+                        _ => None,
+                    }
                 }
-            }
 
-            pub fn [<try_as_ $variant:lower _vec_mut>](&mut self) -> Option<&mut [<$variant Vec>]> {
-                match self {
-                    Self::$variant(v) => Some(v),
-                    _ => None,
+                pub fn [<try_as_ $variant:lower _vec_mut>](&mut self) -> Option<&mut [<$variant Vec>]> {
+                    match self {
+                        Self::$variant(v) => Some(v),
+                        _ => None,
+                    }
                 }
             }
-        }
+        )*
     };
 }
 
 impl ColumnVec {
-    impl_constructor!(Bool);
-    impl_constructor!(I8);
-    impl_constructor!(I16);
-    impl_constructor!(I32);
-    impl_constructor!(I64);
-    impl_constructor!(F32);
-    impl_constructor!(F64);
-    impl_constructor!(Str);
-    impl_constructor!(Binary);
+    impl_constructor!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+    impl_try_as_dispatch!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+}
 
-    impl_try_as_dispatch!(Bool);
-    impl_try_as_dispatch!(I8);
-    impl_try_as_dispatch!(I16);
-    impl_try_as_dispatch!(I32);
-    impl_try_as_dispatch!(I64);
-    impl_try_as_dispatch!(F32);
-    impl_try_as_dispatch!(F64);
-    impl_try_as_dispatch!(Str);
-    impl_try_as_dispatch!(Binary);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn primitive_push_get() {
+        let mut v = ColumnVec::new_i32_vec();
+        let v = v.try_as_i32_vec_mut().unwrap();
+
+        v.copy_push(&0);
+        v.copy_push(&1);
+        v.copy_push(&2);
+
+        let item = v.get(1).unwrap();
+        assert_eq!(1, *item);
+    }
+
+    #[test]
+    fn varlen_push_get_insert() {
+        let mut v = ColumnVec::new_str_vec();
+        let v = v.try_as_str_vec_mut().unwrap();
+
+        v.copy_push("one");
+        v.copy_push("two");
+        v.copy_push("three");
+
+        let item = v.get(1).unwrap();
+        assert_eq!("two", item);
+
+        v.copy_insert(1, "four");
+
+        let item = v.get(1).unwrap();
+        assert_eq!("four", item);
+    }
+
+    #[test]
+    fn varlen_iter() {
+        let mut v = ColumnVec::new_str_vec();
+        let v = v.try_as_str_vec_mut().unwrap();
+
+        let vals = vec!["one", "two", "three"];
+        for val in vals.iter() {
+            v.copy_push(val);
+        }
+
+        let got: Vec<_> = v.iter().collect();
+        assert_eq!(vals, got);
+    }
 }
