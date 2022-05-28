@@ -12,6 +12,8 @@ macro_rules! internal {
     };
 }
 
+pub(crate) use internal;
+
 #[cfg(test)]
 mod tests {
     use super::*;

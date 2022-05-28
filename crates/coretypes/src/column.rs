@@ -1,8 +1,15 @@
+use crate::datatype::DataType;
 use bitvec::{slice::BitSlice, vec::BitVec};
 use paste::paste;
 use std::fmt;
 use std::iter::Iterator;
 use std::marker::PhantomData;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ColumnError {
+    #[error("lengths mismatch: {0} != {1}")]
+    LengthMismatch(usize, usize),
+}
 
 pub trait NativeType: Sync + Send + fmt::Debug {}
 
@@ -37,6 +44,12 @@ pub struct FixedLengthVec<T> {
 }
 
 impl<T: FixedLengthType> FixedLengthVec<T> {
+    pub fn with_capacity(cap: usize) -> Self {
+        FixedLengthVec {
+            vec: Vec::with_capacity(cap),
+        }
+    }
+
     pub fn copy_insert(&mut self, idx: usize, item: &T) {
         self.vec.insert(idx, *item);
     }
@@ -47,6 +60,10 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
 
     pub fn get(&self, idx: usize) -> Option<&T> {
         self.vec.get(idx)
+    }
+
+    pub fn len(&self) -> usize {
+        self.vec.len()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
@@ -91,7 +108,7 @@ impl BytesRef for [u8] {
 pub struct VarLengthVec<T: ?Sized> {
     offsets: Vec<usize>,
     data: Vec<u8>,
-    phantom: PhantomData<T>,
+    varlen_type: PhantomData<T>,
 }
 
 impl<T: BytesRef + ?Sized> Default for VarLengthVec<T> {
@@ -102,12 +119,23 @@ impl<T: BytesRef + ?Sized> Default for VarLengthVec<T> {
         VarLengthVec {
             offsets,
             data: Vec::new(),
-            phantom: PhantomData,
+            varlen_type: PhantomData,
         }
     }
 }
 
 impl<T: BytesRef + ?Sized> VarLengthVec<T> {
+    pub fn with_capacity(cap: usize) -> Self {
+        let mut offsets = Vec::with_capacity(cap + 1);
+        offsets.push(0);
+        let data = Vec::with_capacity(cap); // TODO: Determine suitable cap here.
+        VarLengthVec {
+            offsets,
+            data,
+            varlen_type: PhantomData,
+        }
+    }
+
     pub fn copy_insert(&mut self, idx: usize, item: &T) {
         let buf = item.as_ref();
 
@@ -132,6 +160,11 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
         self.data.extend_from_slice(item.as_ref());
         let next_offset = self.data.len();
         self.offsets.push(next_offset);
+    }
+
+    pub fn len(&self) -> usize {
+        // Offsets always has one more than then number of items held.
+        self.offsets.len() - 1
     }
 
     pub fn get(&self, idx: usize) -> Option<&T> {
@@ -171,6 +204,7 @@ impl<'a, T: BytesRef + ?Sized> Iterator for VarLengthIterator<'a, T> {
 pub type StrVec = VarLengthVec<str>;
 pub type BinaryVec = VarLengthVec<[u8]>;
 
+/// Column vector variants for all types supported by the system.
 #[derive(Debug)]
 pub enum ColumnVec {
     Bool(BoolVec),
@@ -185,22 +219,42 @@ pub enum ColumnVec {
 }
 
 /// Implement various constructors for each variant.
-macro_rules! impl_constructor {
+macro_rules! cvec_constructor {
     ($($variant:ident),*) => {
         $(
             // pub fn new_bool_vec() -> Self
+            // pub fn new_bool_vec_with_capacity(cap: usize) -> Self
             paste! {
                 pub fn [<new_ $variant:lower _vec>]() -> Self {
                     ColumnVec::$variant([<$variant Vec>]::default())
+                }
+
+                pub fn [<new_ $variant:lower _vec_with_capacity>](cap: usize) -> Self {
+                    ColumnVec::$variant([<$variant Vec>]::with_capacity(cap))
                 }
             }
         )*
     };
 }
 
+/// Implement common methods across all variants of vectors that each return the
+/// same type.
+macro_rules! cvec_common {
+    ($($variant:ident),*) => {
+        /// Return the length of the vector.
+        pub fn len(&self) -> usize {
+            match self {
+                $(
+                    Self::$variant(v) => v.len(),
+                )*
+            }
+        }
+    };
+}
+
 /// Implement `try_as_..._vec` and `try_as_..._vec_mut` methods to downcast to
 /// the concrete vector type.
-macro_rules! impl_try_as_dispatch {
+macro_rules! cvec_try_as_dispatch {
     ($($variant:ident),*) => {
         $(
             // pub fn try_as_bool_vec(&self) -> Option<&BoolVec>
@@ -225,8 +279,82 @@ macro_rules! impl_try_as_dispatch {
 }
 
 impl ColumnVec {
-    impl_constructor!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
-    impl_try_as_dispatch!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+    cvec_constructor!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+    cvec_common!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+    cvec_try_as_dispatch!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+}
+
+macro_rules! impl_from_typed_vec {
+    ($($variant:ident),*) => {
+        $(
+            paste! {
+                impl From<[<$variant Vec>]> for ColumnVec {
+                    fn from(val: [<$variant Vec>]) -> ColumnVec {
+                        ColumnVec::$variant(val)
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_from_typed_vec!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
+
+/// A wrapper around a column vec allowing for value nullability.
+#[derive(Debug)]
+pub struct NullableColumnVec {
+    /// Validity of each value in the column vector. A '1' indicates not null, a
+    /// '0' indicates null.
+    validity: BitVec,
+    values: ColumnVec,
+}
+
+impl NullableColumnVec {
+    pub fn with_capacity(cap: usize, datatype: &DataType) -> NullableColumnVec {
+        let validity = BitVec::with_capacity(cap);
+        let values = match datatype {
+            DataType::Bool => ColumnVec::new_bool_vec_with_capacity(cap),
+            DataType::Int8 => ColumnVec::new_i8_vec_with_capacity(cap),
+            DataType::Int16 => ColumnVec::new_i16_vec_with_capacity(cap),
+            DataType::Int32 => ColumnVec::new_i32_vec_with_capacity(cap),
+            DataType::Int64 => ColumnVec::new_i64_vec_with_capacity(cap),
+            DataType::Float32 => ColumnVec::new_f32_vec_with_capacity(cap),
+            DataType::Float64 => ColumnVec::new_f64_vec_with_capacity(cap),
+            DataType::Utf8 => ColumnVec::new_str_vec_with_capacity(cap),
+            DataType::Binary => ColumnVec::new_binary_vec_with_capacity(cap),
+        };
+        NullableColumnVec { validity, values }
+    }
+
+    /// Create a new nullable column vec with each value being marked as valid.
+    pub fn new_all_valid(values: ColumnVec) -> NullableColumnVec {
+        let validity = BitVec::repeat(true, values.len());
+        NullableColumnVec { validity, values }
+    }
+
+    /// Create a new nullable column vec from the provides values and validity.
+    /// Their lengths must match.
+    pub fn from_values_and_validity(
+        values: ColumnVec,
+        validity: BitVec,
+    ) -> Result<NullableColumnVec, ColumnError> {
+        if values.len() != validity.len() {
+            return Err(ColumnError::LengthMismatch(values.len(), validity.len()));
+        }
+        Ok(NullableColumnVec { validity, values })
+    }
+
+    pub fn get_values(&self) -> &ColumnVec {
+        &self.values
+    }
+
+    pub fn get_validity(&self) -> &BitVec {
+        &self.validity
+    }
+
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
 }
 
 #[cfg(test)]

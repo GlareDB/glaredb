@@ -49,7 +49,7 @@ impl fmt::Display for NullableType {
 
 /// Possible data values that the system works with.
 #[derive(Debug, Clone, PartialEq)]
-pub enum DataValue<'a> {
+pub enum DataValue {
     /// Unknown value.
     Null,
     Bool(bool),
@@ -59,11 +59,11 @@ pub enum DataValue<'a> {
     Int64(i64),
     Float32(NotNanF32),
     Float64(NotNanF64),
-    Utf8(&'a str),
-    Binary(&'a [u8]),
+    Utf8(String),
+    Binary(Vec<u8>),
 }
 
-impl<'a> DataValue<'a> {
+impl DataValue {
     /// Checks if the value is of the the given `type`.
     pub fn is_of_type(&self, typ: &NullableType) -> bool {
         use DataValue::*;
@@ -83,58 +83,58 @@ impl<'a> DataValue<'a> {
     }
 }
 
-impl From<bool> for DataValue<'_> {
+impl From<bool> for DataValue {
     fn from(val: bool) -> Self {
         DataValue::Bool(val)
     }
 }
 
-impl From<i8> for DataValue<'_> {
+impl From<i8> for DataValue {
     fn from(val: i8) -> Self {
         DataValue::Int8(val)
     }
 }
 
-impl From<i16> for DataValue<'_> {
+impl From<i16> for DataValue {
     fn from(val: i16) -> Self {
         DataValue::Int16(val)
     }
 }
 
-impl From<i32> for DataValue<'_> {
+impl From<i32> for DataValue {
     fn from(val: i32) -> Self {
         DataValue::Int32(val)
     }
 }
 
-impl From<i64> for DataValue<'_> {
+impl From<i64> for DataValue {
     fn from(val: i64) -> Self {
         DataValue::Int64(val)
     }
 }
 
-impl From<f32> for DataValue<'_> {
+impl From<f32> for DataValue {
     fn from(val: f32) -> Self {
         // TODO: Properly handle this.
         DataValue::Float32(val.try_into().unwrap())
     }
 }
 
-impl From<f64> for DataValue<'_> {
+impl From<f64> for DataValue {
     fn from(val: f64) -> Self {
         // TODO: Properly handle this.
         DataValue::Float64(val.try_into().unwrap())
     }
 }
 
-impl<'a> From<&'a str> for DataValue<'a> {
-    fn from(val: &'a str) -> Self {
+impl From<String> for DataValue {
+    fn from(val: String) -> Self {
         DataValue::Utf8(val)
     }
 }
 
-impl<'a> From<&'a [u8]> for DataValue<'a> {
-    fn from(val: &'a [u8]) -> Self {
+impl From<Vec<u8>> for DataValue {
+    fn from(val: Vec<u8>) -> Self {
         DataValue::Binary(val)
     }
 }
