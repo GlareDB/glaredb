@@ -1,5 +1,12 @@
 use crate::totalfloat::{NotNanF32, NotNanF64};
 use std::fmt;
+use std::sync::Arc;
+
+#[derive(Debug, thiserror::Error)]
+pub enum DataTypeError {
+    #[error("invalid schema projection: attempted to project non-existend column index {missing}")]
+    InvalidSchemaProjection { missing: usize },
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataType {
@@ -35,6 +42,15 @@ impl fmt::Display for DataType {
 pub struct NullableType {
     pub datatype: DataType,
     pub nullable: bool,
+}
+
+impl NullableType {
+    pub fn new_nullable(datatype: DataType) -> NullableType {
+        NullableType {
+            datatype,
+            nullable: true,
+        }
+    }
 }
 
 impl fmt::Display for NullableType {
@@ -136,5 +152,43 @@ impl From<String> for DataValue {
 impl From<Vec<u8>> for DataValue {
     fn from(val: Vec<u8>) -> Self {
         DataValue::Binary(val)
+    }
+}
+
+/// Describes the schema of a relation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RelationSchema {
+    pub columns: Vec<NullableType>,
+}
+
+impl RelationSchema {
+    pub fn empty() -> RelationSchema {
+        RelationSchema {
+            columns: Vec::new(),
+        }
+    }
+
+    /// Create a new schema from a list of columns.
+    pub fn new(columns: Vec<NullableType>) -> RelationSchema {
+        RelationSchema { columns }
+    }
+
+    /// Return a new schema containing only the columns in `indices`.
+    pub fn with_projection(&self, indices: &[usize]) -> Result<RelationSchema, DataTypeError> {
+        let mut columns = Vec::with_capacity(indices.len());
+        for &idx in indices {
+            let proj = self
+                .columns
+                .get(idx)
+                .cloned()
+                .ok_or(DataTypeError::InvalidSchemaProjection { missing: idx })?;
+            columns.push(proj);
+        }
+        Ok(RelationSchema { columns })
+    }
+
+    /// The number of columns in the relation.
+    pub fn arity(&self) -> usize {
+        self.columns.len()
     }
 }

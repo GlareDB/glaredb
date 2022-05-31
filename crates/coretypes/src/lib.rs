@@ -1,6 +1,5 @@
-mod column;
-mod datatype;
+pub mod column;
+pub mod datatype;
 mod error;
-mod expr;
-mod relation;
+pub mod expr;
 mod totalfloat;

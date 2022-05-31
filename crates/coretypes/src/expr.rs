@@ -1,4 +1,4 @@
-use crate::datatype::{DataType, DataValue, NullableType};
+use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
 use crate::column::{NullableColumnVec, BoolVec};
 
 /// Scalar expressions that work on columns at a time.
@@ -7,7 +7,7 @@ pub enum ScalarExpr {
     /// Pick a column from the input relation.
     Column(usize),
     /// A constant value.
-    Constant(DataValue),
+    Constant(DataValue, NullableType),
     Unary {
         operation: UnaryOperation,
         expr: Box<ScalarExpr>,
@@ -17,6 +17,30 @@ pub enum ScalarExpr {
         left: Box<ScalarExpr>,
         right: Box<ScalarExpr>,
     },
+}
+
+impl ScalarExpr {
+    /// Given an input with some schema, compute the output type of the expression.
+    pub fn output_type(&self, input: &RelationSchema) -> Option<NullableType> {
+        match self {
+            Self::Column(idx) => input.columns.get(*idx).cloned(),
+            Self::Constant(_, datatype) => Some(datatype.clone()),
+            Self::Unary { operation, expr } => {
+                let expr_type = expr.output_type(input)?;
+                Some(operation.output_type(&expr_type))
+            }
+            Self::Binary {
+                operation,
+                left,
+                right,
+            } => {
+                let left = left.output_type(input)?;
+                let right = right.output_type(input)?;
+                Some(operation.output_type(&left, &right))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -43,6 +67,12 @@ impl UnaryOperation {
 
 #[derive(Debug)]
 pub enum BinaryOperation {}
+
+impl BinaryOperation {
+    pub fn output_type(&self, left_type: &NullableType, right_type: &NullableType) -> NullableType {
+        unimplemented!()
+    }
+}
 
 fn is_null(input: &NullableColumnVec) -> NullableColumnVec {
     let mut out = BoolVec::with_capacity(input.len());
