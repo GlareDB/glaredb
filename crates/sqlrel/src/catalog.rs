@@ -12,7 +12,7 @@ pub enum CatalogError {
 }
 
 /// A fully resolved table reference.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ResolvedTableReference {
     pub catalog: String,
     pub schema: String,
