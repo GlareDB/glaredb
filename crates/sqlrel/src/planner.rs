@@ -1,5 +1,5 @@
 use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableSchema};
-use crate::relational::{CrossJoin, Filter, RelationalPlan, Scan, Values};
+use crate::relational::{CrossJoin, Filter, Project, RelationalPlan, Scan, Values};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::ScalarExpr,
@@ -46,32 +46,40 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
         let body_plan = match query.body {
             ast::SetExpr::Values(values) => self.plan_values(values)?,
+            ast::SetExpr::Select(select) => self.plan_select(*select)?,
             set_expr => return Err(PlanError::Unsupported(set_expr.to_string())),
         };
 
-        unimplemented!()
+        Ok(body_plan)
     }
 
-    fn plan_select(
-        &self,
-        scope: &mut Scope,
-        select: ast::Select,
-    ) -> Result<RelationalPlan, PlanError> {
+    fn plan_select(&self, select: ast::Select) -> Result<RelationalPlan, PlanError> {
+        let mut scope = Scope::new();
+
         // Plan FROM clause.
-        let mut plan = self.plan_from(scope, select.from)?;
+        let mut plan = self.plan_from(&mut scope, select.from)?;
 
         // Plan WHERE clause.
         if let Some(expr) = select.selection {
             plan = RelationalPlan::Filter(Filter {
-                predicate: self.sql_expr_to_scalar(scope, expr)?,
+                predicate: self.sql_expr_to_scalar(&mut scope, expr)?,
                 input: Box::new(plan),
             })
         }
 
         // Plan SELECT clause.
-        // let projections = select.projection.
+        let exprs: Vec<_> = select
+            .projection
+            .into_iter()
+            .map(|item| self.projection_item_to_scalar(&scope, item))
+            .collect::<Result<Vec<_>, _>>()?;
+        let exprs = exprs.into_iter().flatten().collect::<Vec<_>>();
+        plan = RelationalPlan::Project(Project {
+            expressions: exprs,
+            input: Box::new(plan),
+        });
 
-        unimplemented!()
+        Ok(plan)
     }
 
     fn plan_from(
@@ -94,7 +102,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 left: Box::new(plan),
                 right: Box::new(right_plan),
             });
-            scope.merge(right_scope);
+            scope.append(right_scope)?;
         }
 
         Ok(plan)
@@ -194,11 +202,11 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
     fn projection_item_to_scalar(
         &self,
-        scope: Scope,
+        scope: &Scope,
         item: ast::SelectItem,
-    ) -> Result<ScalarExpr, PlanError> {
+    ) -> Result<Vec<ScalarExpr>, PlanError> {
         match item {
-            ast::SelectItem::Wildcard => todo!(),
+            ast::SelectItem::Wildcard => Ok(scope.resolve_wildcard()),
             item => Err(PlanError::Unsupported(format!("select item: {}", item))),
         }
     }
@@ -246,13 +254,16 @@ impl fmt::Display for TableAliasOrReference {
 #[derive(Debug, Clone)]
 struct Scope {
     /// Maps table aliases to a schema.
-    tables: HashMap<TableAliasOrReference, TableSchema>,
+    tables: HashMap<TableAliasOrReference, usize>,
+    /// All table schemas within the scope.
+    schemas: Vec<TableSchema>,
 }
 
 impl Scope {
     fn new() -> Scope {
         Scope {
             tables: HashMap::new(),
+            schemas: Vec::new(),
         }
     }
 
@@ -263,16 +274,46 @@ impl Scope {
         schema: TableSchema,
     ) -> Result<(), PlanError> {
         match self.tables.entry(alias) {
-            Entry::Occupied(ent) => {
-                return Err(PlanError::DuplicateTableReference(ent.key().clone()))
+            Entry::Occupied(ent) => Err(PlanError::DuplicateTableReference(ent.key().clone())),
+            Entry::Vacant(ent) => {
+                let idx = self.schemas.len();
+                self.schemas.push(schema);
+                ent.insert(idx);
+                Ok(())
             }
-            Entry::Vacant(ent) => ent.insert(schema),
-        };
+        }
+    }
+
+    /// Append another scope to the right of this one. Errors if there's any
+    /// duplicate table references.
+    fn append(&mut self, mut other: Scope) -> Result<(), PlanError> {
+        let diff = self.schemas.len();
+        self.schemas.append(&mut other.schemas);
+        for (alias, idx) in other.tables.into_iter() {
+            match self.tables.entry(alias) {
+                Entry::Occupied(ent) => {
+                    return Err(PlanError::DuplicateTableReference(ent.key().clone()))
+                }
+                Entry::Vacant(ent) => ent.insert(idx + diff),
+            };
+        }
+
         Ok(())
     }
 
-    fn merge(&mut self, other: Scope) {
-        unimplemented!()
+    fn resolve_wildcard(&self) -> Vec<ScalarExpr> {
+        let num_cols = self
+            .schemas
+            .iter()
+            .flat_map(|t| t.get_schema().columns.iter())
+            .count();
+
+        let mut exprs = Vec::with_capacity(num_cols);
+        for idx in 0..num_cols {
+            exprs.push(ScalarExpr::Column(idx));
+        }
+
+        exprs
     }
 }
 

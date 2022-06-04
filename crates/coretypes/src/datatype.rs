@@ -105,6 +105,29 @@ impl DataValue {
     }
 }
 
+impl fmt::Display for DataValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DataValue::Null => write!(f, "NULL"),
+            DataValue::Bool(v) => write!(f, "{}", v),
+            DataValue::Int8(v) => write!(f, "{}", v),
+            DataValue::Int16(v) => write!(f, "{}", v),
+            DataValue::Int32(v) => write!(f, "{}", v),
+            DataValue::Int64(v) => write!(f, "{}", v),
+            DataValue::Float32(v) => write!(f, "{}", v),
+            DataValue::Float64(v) => write!(f, "{}", v),
+            DataValue::Utf8(v) => write!(f, "{}", v),
+            DataValue::Binary(v) => {
+                write!(f, "hex:")?;
+                for byte in v.iter() {
+                    write!(f, " {:X}", byte)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 impl From<bool> for DataValue {
     fn from(val: bool) -> Self {
         DataValue::Bool(val)

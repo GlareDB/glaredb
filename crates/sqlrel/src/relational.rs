@@ -3,8 +3,10 @@ use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::ScalarExpr,
 };
+use fmtutil::DisplaySlice;
 use sqlparser::ast;
 use sqlparser::parser::{Parser, ParserError};
+use std::fmt;
 
 #[derive(Debug)]
 pub enum RelationalPlan {
@@ -83,4 +85,74 @@ pub struct CrossJoin {
     pub right: Box<RelationalPlan>,
 }
 
-impl RelationalPlan {}
+impl RelationalPlan {
+    fn format(&self, f: &mut fmt::Formatter<'_>, depth: usize) -> fmt::Result {
+        if depth > 0 {
+            let leading = "| ".repeat(depth - 1);
+            write!(f, "{}", leading)?;
+        }
+        let depth = depth + 1;
+
+        match self {
+            RelationalPlan::Project(project) => {
+                writeln!(
+                    f,
+                    "Project: projections = {}",
+                    DisplaySlice(&project.expressions)
+                )?;
+                project.input.format(f, depth)?;
+            }
+            RelationalPlan::Filter(filter) => {
+                writeln!(f, "Filter: predicate = {}", filter.predicate)?;
+                filter.input.format(f, depth)?;
+            }
+            RelationalPlan::Join(join) => {
+                write!(
+                    f,
+                    "Join: type = {}, ",
+                    match join.join_type {
+                        JoinType::Inner => "inner",
+                        JoinType::Left => "left",
+                        JoinType::Right => "right",
+                    },
+                )?;
+                match &join.operator {
+                    JoinOperator::On(expr) => writeln!(f, "operator = on ({})", expr)?,
+                };
+                join.left.format(f, depth)?;
+                join.right.format(f, depth)?;
+            }
+            RelationalPlan::CrossJoin(join) => {
+                writeln!(f, "Cross join:")?;
+                join.left.format(f, depth)?;
+                join.right.format(f, depth)?;
+            }
+            RelationalPlan::Scan(scan) => {
+                write!(f, "Scan: table = {}, ", scan.table,)?;
+                match &scan.project {
+                    Some(idxs) => write!(f, "projection = {}, ", DisplaySlice(&idxs))?,
+                    None => write!(f, "projection = None, ")?,
+                };
+                match &scan.filters {
+                    Some(filters) => writeln!(f, "filters = {}", DisplaySlice(&filters))?,
+                    None => writeln!(f, "filters = None")?,
+                };
+            }
+            RelationalPlan::Values(values) => {
+                writeln!(f, "Values: values = [")?;
+                for value in values.values.iter() {
+                    writeln!(f, "{}", DisplaySlice(value))?;
+                }
+                writeln!(f, "]")?;
+            }
+        };
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for RelationalPlan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.format(f, 0)
+    }
+}

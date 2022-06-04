@@ -1,8 +1,9 @@
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
 use crate::column::{NullableColumnVec, BoolVec};
+use std::fmt;
 
 /// Scalar expressions that work on columns at a time.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ScalarExpr {
     /// Pick a column from the input relation.
     Column(usize),
@@ -43,7 +44,22 @@ impl ScalarExpr {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Display for ScalarExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ScalarExpr::Column(idx) => write!(f, "#{}", idx),
+            ScalarExpr::Constant(val, typ) => write!(f, "{} ({})", val, typ),
+            ScalarExpr::Unary { operation, expr } => write!(f, "{}({})", operation, expr),
+            ScalarExpr::Binary {
+                operation,
+                left,
+                right,
+            } => write!(f, "{}({}, {})", operation, left, right),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum UnaryOperation {
     IsNull,
     IsNotNull,
@@ -65,11 +81,26 @@ impl UnaryOperation {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Display for UnaryOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnaryOperation::IsNull => write!(f, "is_null"),
+            UnaryOperation::IsNotNull => write!(f, "is_not_null"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum BinaryOperation {}
 
 impl BinaryOperation {
     pub fn output_type(&self, left_type: &NullableType, right_type: &NullableType) -> NullableType {
+        unimplemented!()
+    }
+}
+
+impl fmt::Display for BinaryOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unimplemented!()
     }
 }
