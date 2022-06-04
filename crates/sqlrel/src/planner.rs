@@ -1,12 +1,14 @@
-use crate::catalog::{Catalog, CatalogError, ResolvedTableReference};
-use crate::relational::{CrossJoin, RelationalPlan, Scan, Values};
+use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableSchema};
+use crate::relational::{CrossJoin, Filter, RelationalPlan, Scan, Values};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::ScalarExpr,
 };
 use sqlparser::ast;
 use sqlparser::parser::ParserError;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PlanError {
@@ -16,6 +18,8 @@ pub enum PlanError {
     ParseFail(#[from] ParserError),
     #[error("failed to parse number: {0}")]
     FailedToParseNumber(String),
+    #[error("duplicate table reference: {0}")]
+    DuplicateTableReference(TableAliasOrReference),
 
     #[error(transparent)]
     Catalog(#[from] CatalogError),
@@ -54,7 +58,18 @@ impl<'a, C: Catalog> Planner<'a, C> {
         select: ast::Select,
     ) -> Result<RelationalPlan, PlanError> {
         // Plan FROM clause.
-        let from_plan = self.plan_from(scope, select.from)?;
+        let mut plan = self.plan_from(scope, select.from)?;
+
+        // Plan WHERE clause.
+        if let Some(expr) = select.selection {
+            plan = RelationalPlan::Filter(Filter {
+                predicate: self.sql_expr_to_scalar(scope, expr)?,
+                input: Box::new(plan),
+            })
+        }
+
+        // Plan SELECT clause.
+        // let projections = select.projection.
 
         unimplemented!()
     }
@@ -111,25 +126,24 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 }
                 let tbl_ref = name.try_into()?;
                 let resolved = self.catalog.resolve_table(tbl_ref)?;
-                let schema = self.catalog.table_schema(&resolved)?;
-                scope.add_table(resolved.clone(), schema.clone());
+                let tbl_schema = self.catalog.table_schema(&resolved)?;
+
+                let rel_schema = tbl_schema.get_schema().clone();
+
+                scope.add_table(
+                    TableAliasOrReference::Reference(resolved.clone()),
+                    tbl_schema.clone(),
+                )?;
+
                 RelationalPlan::Scan(Scan {
                     table: resolved,
-                    projected_schema: schema,
+                    projected_schema: rel_schema,
                     project: None,
                     filters: None,
                 })
             }
             factor => return Err(PlanError::Unsupported(format!("table factor: {}", factor))),
         })
-    }
-
-    fn plan_where_selection(
-        &self,
-        scope: &mut Scope,
-        selection: Option<ast::Expr>,
-    ) -> Result<RelationalPlan, PlanError> {
-        unimplemented!()
     }
 
     fn plan_values(&self, values: ast::Values) -> Result<RelationalPlan, PlanError> {
@@ -177,11 +191,62 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
         Ok(RelationalPlan::Values(Values { schema, values }))
     }
+
+    fn projection_item_to_scalar(
+        &self,
+        scope: Scope,
+        item: ast::SelectItem,
+    ) -> Result<ScalarExpr, PlanError> {
+        match item {
+            ast::SelectItem::Wildcard => todo!(),
+            item => Err(PlanError::Unsupported(format!("select item: {}", item))),
+        }
+    }
+
+    /// Get a scalar expression from the ast expression.
+    fn sql_expr_to_scalar(&self, scope: &Scope, expr: ast::Expr) -> Result<ScalarExpr, PlanError> {
+        use coretypes::expr::ScalarExpr::*;
+
+        Ok(match expr {
+            ast::Expr::Value(ast::Value::Null) => panic!("null"), // TODO
+            ast::Expr::Value(ast::Value::Boolean(b)) => {
+                Constant(DataValue::Bool(b), DataType::Bool.into())
+            }
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) => {
+                Constant(DataValue::Utf8(s), DataType::Utf8.into())
+            }
+
+            // Use scope to identifier which column.
+            // ast::Expr::Identifier(ident) =>
+            expr => {
+                return Err(PlanError::Unsupported(format!(
+                    "unsupported expression: {}",
+                    expr
+                )))
+            }
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+enum TableAliasOrReference {
+    Alias(String),
+    Reference(ResolvedTableReference),
+}
+
+impl fmt::Display for TableAliasOrReference {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TableAliasOrReference::Alias(alias) => write!(f, "{} (alias)", alias),
+            TableAliasOrReference::Reference(resolved) => write!(f, "{} (resolved)", resolved),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 struct Scope {
-    tables: HashMap<ResolvedTableReference, RelationSchema>,
+    /// Maps table aliases to a schema.
+    tables: HashMap<TableAliasOrReference, TableSchema>,
 }
 
 impl Scope {
@@ -191,9 +256,19 @@ impl Scope {
         }
     }
 
-    /// Add a table to the scope.
-    fn add_table(&mut self, table: ResolvedTableReference, schema: RelationSchema) {
-        self.tables.insert(table, schema);
+    /// Add a table with the given alias or reference to the scope.
+    fn add_table(
+        &mut self,
+        alias: TableAliasOrReference,
+        schema: TableSchema,
+    ) -> Result<(), PlanError> {
+        match self.tables.entry(alias) {
+            Entry::Occupied(ent) => {
+                return Err(PlanError::DuplicateTableReference(ent.key().clone()))
+            }
+            Entry::Vacant(ent) => ent.insert(schema),
+        };
+        Ok(())
     }
 
     fn merge(&mut self, other: Scope) {

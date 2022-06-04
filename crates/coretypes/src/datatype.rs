@@ -53,6 +53,12 @@ impl NullableType {
     }
 }
 
+impl From<DataType> for NullableType {
+    fn from(dt: DataType) -> Self {
+        Self::new_nullable(dt)
+    }
+}
+
 impl fmt::Display for NullableType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.nullable {

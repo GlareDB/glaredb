@@ -122,10 +122,26 @@ impl From<ResolvedTableReference> for TableReference {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TableSchema {
+    columns: Vec<String>,
+    schema: RelationSchema,
+}
+
+impl TableSchema {
+    pub fn get_columns(&self) -> &[String] {
+        &self.columns
+    }
+
+    pub fn get_schema(&self) -> &RelationSchema {
+        &self.schema
+    }
+}
+
 pub trait Catalog {
     /// Resolve a table reference to its fully qualified name.
     fn resolve_table(&self, tbl: TableReference) -> Result<ResolvedTableReference, CatalogError>;
 
     /// Return the schema for the specified table.
-    fn table_schema(&self, tbl: &ResolvedTableReference) -> Result<RelationSchema, CatalogError>;
+    fn table_schema(&self, tbl: &ResolvedTableReference) -> Result<TableSchema, CatalogError>;
 }
