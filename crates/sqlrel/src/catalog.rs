@@ -9,6 +9,11 @@ pub enum CatalogError {
     InvalidTableReference(String),
     #[error("missing table: {0}")]
     MissingTable(String),
+    #[error("invalid schema: columns: {columns:?}, schema: {schema:?}")]
+    InvalidColumnsForSchema {
+        columns: Vec<String>,
+        schema: RelationSchema,
+    },
 }
 
 /// A fully resolved table reference.
@@ -26,7 +31,7 @@ impl fmt::Display for ResolvedTableReference {
 }
 
 /// Reference to a table.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum TableReference {
     /// Only the base name of the table.
     ///
@@ -47,6 +52,10 @@ pub enum TableReference {
 }
 
 impl TableReference {
+    pub fn new_unqualified(base: String) -> Self {
+        TableReference::Unqualified { base }
+    }
+
     pub fn resolve_with_defaults(self, catalog: &str, schema: &str) -> ResolvedTableReference {
         match self {
             Self::Unqualified { base } => ResolvedTableReference {
@@ -112,23 +121,35 @@ impl TryFrom<ast::ObjectName> for TableReference {
     }
 }
 
-impl From<ResolvedTableReference> for TableReference {
-    fn from(value: ResolvedTableReference) -> Self {
-        TableReference::Full {
-            catalog: value.catalog,
-            schema: value.schema,
-            base: value.base,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TableSchema {
+    reference: ResolvedTableReference,
     columns: Vec<String>,
     schema: RelationSchema,
 }
 
 impl TableSchema {
+    /// Create a new table schema, validating that the number of column names
+    /// lines up with the number of columns in the relation schema.
+    pub fn new(
+        reference: ResolvedTableReference,
+        columns: Vec<String>,
+        schema: RelationSchema,
+    ) -> Result<Self, CatalogError> {
+        if columns.len() != schema.columns.len() {
+            return Err(CatalogError::InvalidColumnsForSchema { columns, schema });
+        }
+        Ok(TableSchema {
+            reference,
+            columns,
+            schema,
+        })
+    }
+
+    pub fn get_reference(&self) -> &ResolvedTableReference {
+        &self.reference
+    }
+
     pub fn get_columns(&self) -> &[String] {
         &self.columns
     }
@@ -139,9 +160,6 @@ impl TableSchema {
 }
 
 pub trait Catalog {
-    /// Resolve a table reference to its fully qualified name.
-    fn resolve_table(&self, tbl: TableReference) -> Result<ResolvedTableReference, CatalogError>;
-
     /// Return the schema for the specified table.
-    fn table_schema(&self, tbl: &ResolvedTableReference) -> Result<TableSchema, CatalogError>;
+    fn table_schema(&self, tbl: &TableReference) -> Result<TableSchema, CatalogError>;
 }

@@ -4,6 +4,7 @@ use coretypes::{
     expr::ScalarExpr,
 };
 use fmtutil::DisplaySlice;
+use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 use sqlparser::parser::{Parser, ParserError};
 use std::fmt;
@@ -88,7 +89,7 @@ pub struct CrossJoin {
 impl RelationalPlan {
     fn format(&self, f: &mut fmt::Formatter<'_>, depth: usize) -> fmt::Result {
         if depth > 0 {
-            let leading = "| ".repeat(depth - 1);
+            let leading = "| ".repeat(depth);
             write!(f, "{}", leading)?;
         }
         let depth = depth + 1;
@@ -128,7 +129,7 @@ impl RelationalPlan {
                 join.right.format(f, depth)?;
             }
             RelationalPlan::Scan(scan) => {
-                write!(f, "Scan: table = {}, ", scan.table,)?;
+                write!(f, "Scan: table = {}, ", scan.table)?;
                 match &scan.project {
                     Some(idxs) => write!(f, "projection = {}, ", DisplaySlice(&idxs))?,
                     None => write!(f, "projection = None, ")?,
@@ -141,7 +142,8 @@ impl RelationalPlan {
             RelationalPlan::Values(values) => {
                 writeln!(f, "Values: values = [")?;
                 for value in values.values.iter() {
-                    writeln!(f, "{}", DisplaySlice(value))?;
+                    let indent = "  ".repeat(depth);
+                    writeln!(f, "{}{}", indent, DisplaySlice(value))?;
                 }
                 writeln!(f, "]")?;
             }

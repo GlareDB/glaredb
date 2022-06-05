@@ -1,4 +1,4 @@
-use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableSchema};
+use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableReference, TableSchema};
 use crate::relational::{CrossJoin, Filter, Project, RelationalPlan, Scan, Values};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
@@ -19,7 +19,7 @@ pub enum PlanError {
     #[error("failed to parse number: {0}")]
     FailedToParseNumber(String),
     #[error("duplicate table reference: {0}")]
-    DuplicateTableReference(TableAliasOrReference),
+    DuplicateTableReference(String),
 
     #[error(transparent)]
     Catalog(#[from] CatalogError),
@@ -133,22 +133,29 @@ impl<'a, C: Catalog> Planner<'a, C> {
                     return Err(PlanError::Unsupported("table alias".to_string()));
                 }
                 let tbl_ref = name.try_into()?;
-                let resolved = self.catalog.resolve_table(tbl_ref)?;
-                let tbl_schema = self.catalog.table_schema(&resolved)?;
+                let tbl_schema = self.catalog.table_schema(&tbl_ref)?;
 
-                let rel_schema = tbl_schema.get_schema().clone();
+                let schema = tbl_schema.get_schema().clone();
+                let resolved = tbl_schema.get_reference().clone();
+                let scan = Scan {
+                    table: resolved,
+                    projected_schema: schema,
+                    project: None,
+                    filters: None,
+                };
 
+                // When adding to scope, use the reference format provided by
+                // the user.
+                //
+                // e.g. if a user references a table "my_table", they can only
+                // reference it with "my_table", not "schema.my_table"
+                // afterwards.
                 scope.add_table(
-                    TableAliasOrReference::Reference(resolved.clone()),
+                    TableAliasOrReference::Reference(tbl_ref),
                     tbl_schema.clone(),
                 )?;
 
-                RelationalPlan::Scan(Scan {
-                    table: resolved,
-                    projected_schema: rel_schema,
-                    project: None,
-                    filters: None,
-                })
+                RelationalPlan::Scan(scan)
             }
             factor => return Err(PlanError::Unsupported(format!("table factor: {}", factor))),
         })
@@ -239,7 +246,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum TableAliasOrReference {
     Alias(String),
-    Reference(ResolvedTableReference),
+    Reference(TableReference),
 }
 
 impl fmt::Display for TableAliasOrReference {
@@ -274,7 +281,7 @@ impl Scope {
         schema: TableSchema,
     ) -> Result<(), PlanError> {
         match self.tables.entry(alias) {
-            Entry::Occupied(ent) => Err(PlanError::DuplicateTableReference(ent.key().clone())),
+            Entry::Occupied(ent) => Err(PlanError::DuplicateTableReference(ent.key().to_string())),
             Entry::Vacant(ent) => {
                 let idx = self.schemas.len();
                 self.schemas.push(schema);
@@ -292,7 +299,7 @@ impl Scope {
         for (alias, idx) in other.tables.into_iter() {
             match self.tables.entry(alias) {
                 Entry::Occupied(ent) => {
-                    return Err(PlanError::DuplicateTableReference(ent.key().clone()))
+                    return Err(PlanError::DuplicateTableReference(ent.key().to_string()))
                 }
                 Entry::Vacant(ent) => ent.insert(idx + diff),
             };
@@ -338,6 +345,7 @@ fn parse_num(s: &str) -> Result<ScalarExpr, PlanError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::TableReference;
 
     fn parse_query(s: &'static str) -> ast::Query {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
@@ -350,9 +358,67 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct FakeCatalog {
+        tables: Vec<TableSchema>,
+    }
+
+    impl FakeCatalog {
+        fn new() -> FakeCatalog {
+            let tables = vec![
+                TableSchema::new(
+                    ResolvedTableReference {
+                        catalog: "db".to_string(),
+                        schema: "schema".to_string(),
+                        base: "table_1".to_string(),
+                    },
+                    vec!["col1".to_string(), "col2".to_string(), "col3".to_string()],
+                    RelationSchema::new(vec![
+                        NullableType::new_nullable(DataType::Int8),
+                        NullableType::new_nullable(DataType::Int8),
+                        NullableType::new_nullable(DataType::Int8),
+                    ]),
+                )
+                .unwrap(),
+                TableSchema::new(
+                    ResolvedTableReference {
+                        catalog: "db".to_string(),
+                        schema: "schema".to_string(),
+                        base: "table_2".to_string(),
+                    },
+                    vec!["col1".to_string(), "col2".to_string(), "col3".to_string()],
+                    RelationSchema::new(vec![
+                        NullableType::new_nullable(DataType::Int8),
+                        NullableType::new_nullable(DataType::Int8),
+                        NullableType::new_nullable(DataType::Int8),
+                    ]),
+                )
+                .unwrap(),
+            ];
+
+            FakeCatalog { tables }
+        }
+    }
+
+    impl Catalog for FakeCatalog {
+        fn table_schema(&self, tbl: &TableReference) -> Result<TableSchema, CatalogError> {
+            let resolved = tbl.clone().resolve_with_defaults("db", "schema");
+            let schema = self
+                .tables
+                .iter()
+                .find(|schema| schema.get_reference() == &resolved)
+                .ok_or(CatalogError::MissingTable(tbl.to_string()))?;
+            Ok(schema.clone())
+        }
+    }
+
     #[test]
-    fn sanity_check() {
-        let query = parse_query("select * from my_table");
-        // let plan =
+    fn queries() {
+        let query = parse_query("select * from table_1, table_2");
+        let catalog = FakeCatalog::new();
+        let planner = Planner::new(&catalog);
+
+        let plan = planner.plan_query(query).unwrap();
+        println!("plan:\n{}", plan);
     }
 }

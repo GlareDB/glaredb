@@ -5,14 +5,15 @@
 ///
 /// Eventually we do want to support NaNs, and it might be best to follow what
 /// Postgres does.
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Deref;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct NotNanF32(f32);
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct NotNanF64(f64);
 
 macro_rules! impl_not_nan {

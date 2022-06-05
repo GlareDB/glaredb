@@ -1,4 +1,5 @@
 use crate::totalfloat::{NotNanF32, NotNanF64};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 
@@ -8,7 +9,7 @@ pub enum DataTypeError {
     InvalidSchemaProjection { missing: usize },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DataType {
     Bool,
     Int8,
@@ -38,7 +39,7 @@ impl fmt::Display for DataType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NullableType {
     pub datatype: DataType,
     pub nullable: bool,
@@ -70,7 +71,7 @@ impl fmt::Display for NullableType {
 }
 
 /// Possible data values that the system works with.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataValue {
     /// Unknown value.
     Null,

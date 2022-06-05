@@ -1,9 +1,10 @@
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
 use crate::column::{NullableColumnVec, BoolVec};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Scalar expressions that work on columns at a time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ScalarExpr {
     /// Pick a column from the input relation.
     Column(usize),
@@ -59,7 +60,7 @@ impl fmt::Display for ScalarExpr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UnaryOperation {
     IsNull,
     IsNotNull,
@@ -90,7 +91,7 @@ impl fmt::Display for UnaryOperation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BinaryOperation {}
 
 impl BinaryOperation {
