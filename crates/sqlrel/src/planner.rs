@@ -2,7 +2,7 @@ use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableReferen
 use crate::relational::{CrossJoin, Filter, Project, RelationalPlan, Scan, Values};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
-    expr::ScalarExpr,
+    expr::{BinaryOperation, ExprError, ScalarExpr, UnaryOperation},
 };
 use sqlparser::ast;
 use sqlparser::parser::ParserError;
@@ -20,9 +20,13 @@ pub enum PlanError {
     FailedToParseNumber(String),
     #[error("duplicate table reference: {0}")]
     DuplicateTableReference(String),
+    #[error("invalid column reference: {0}")]
+    InvalidColumnReference(String),
 
     #[error(transparent)]
     Catalog(#[from] CatalogError),
+    #[error(transparent)]
+    Expr(#[from] ExprError),
 
     #[error("internal: {0}")]
     Internal(String),
@@ -192,13 +196,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
         //
         // TODO: This should probably check that all rows match the schema.
         let schema = if let Some(first) = values.first() {
-            let types: Option<Vec<_>> = first
+            let types = first
                 .iter()
                 .map(|expr| expr.output_type(&RelationSchema::empty()))
-                .collect();
-            let types = types.ok_or(PlanError::Internal(String::from(
-                "unable to determine schema for values",
-            )))?;
+                .collect::<Result<Vec<_>, _>>()?;
             RelationSchema::new(types)
         } else {
             RelationSchema::empty()
@@ -214,7 +215,12 @@ impl<'a, C: Catalog> Planner<'a, C> {
     ) -> Result<Vec<ScalarExpr>, PlanError> {
         match item {
             ast::SelectItem::Wildcard => Ok(scope.resolve_wildcard()),
-            item => Err(PlanError::Unsupported(format!("select item: {}", item))),
+            ast::SelectItem::UnnamedExpr(expr) => Ok(vec![self.sql_expr_to_scalar(scope, expr)?]),
+            ast::SelectItem::ExprWithAlias { expr, .. } => {
+                // TODO: Handle alias.
+                Ok(vec![self.sql_expr_to_scalar(scope, expr)?])
+            }
+            item => Err(PlanError::Unsupported(format!("select item: {:?}", item))),
         }
     }
 
@@ -227,15 +233,53 @@ impl<'a, C: Catalog> Planner<'a, C> {
             ast::Expr::Value(ast::Value::Boolean(b)) => {
                 Constant(DataValue::Bool(b), DataType::Bool.into())
             }
+            ast::Expr::Value(ast::Value::Number(num, _)) => parse_num(&num)?,
             ast::Expr::Value(ast::Value::SingleQuotedString(s)) => {
                 Constant(DataValue::Utf8(s), DataType::Utf8.into())
             }
 
-            // Use scope to identifier which column.
-            // ast::Expr::Identifier(ident) =>
+            ast::Expr::BinaryOp { left, op, right } => {
+                let logical = match op {
+                    ast::BinaryOperator::Eq => BinaryOperation::Eq,
+                    ast::BinaryOperator::NotEq => BinaryOperation::Neq,
+                    ast::BinaryOperator::Gt => BinaryOperation::Gt,
+                    ast::BinaryOperator::Lt => BinaryOperation::Lt,
+                    ast::BinaryOperator::GtEq => BinaryOperation::GtEq,
+                    ast::BinaryOperator::LtEq => BinaryOperation::LtEq,
+                    ast::BinaryOperator::And => BinaryOperation::And,
+                    ast::BinaryOperator::Or => BinaryOperation::Or,
+                    ast::BinaryOperator::Like => BinaryOperation::Like,
+                    ast::BinaryOperator::Plus => BinaryOperation::Add,
+                    ast::BinaryOperator::Minus => BinaryOperation::Sub,
+                    ast::BinaryOperator::Multiply => BinaryOperation::Mul,
+                    ast::BinaryOperator::Divide => BinaryOperation::Div,
+                    op => return Err(PlanError::Unsupported(format!("binary operator: {:?}", op))),
+                };
+
+                let left = self.sql_expr_to_scalar(scope, *left)?;
+                let right = self.sql_expr_to_scalar(scope, *right)?;
+
+                Binary {
+                    operation: logical,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+
+            ast::Expr::Identifier(ident) => scope
+                .resolve_unqualified_column(&ident.value)
+                .ok_or(PlanError::InvalidColumnReference(ident.value))?,
+
+            ast::Expr::TypedString { data_type, value } => Cast {
+                expr: Box::new(Constant(DataValue::Utf8(value), DataType::Utf8.into())),
+                datatype: sql_type_to_data_type(data_type)?.into(),
+            },
+
+            ast::Expr::Function(function) => Window,
+
             expr => {
                 return Err(PlanError::Unsupported(format!(
-                    "unsupported expression: {}",
+                    "unsupported expression: {0}, debug: {0:?}",
                     expr
                 )))
             }
@@ -243,9 +287,31 @@ impl<'a, C: Catalog> Planner<'a, C> {
     }
 }
 
+/// Convert a sql ast type to a datatype we can work with.
+fn sql_type_to_data_type(sql_type: ast::DataType) -> Result<DataType, PlanError> {
+    Ok(match sql_type {
+        ast::DataType::Boolean => DataType::Bool,
+        ast::DataType::SmallInt(_) => DataType::Int16,
+        ast::DataType::Int(_) => DataType::Int32,
+        ast::DataType::BigInt(_) => DataType::Int64,
+        ast::DataType::Float(_) => DataType::Float32,
+        ast::DataType::Real => DataType::Float32,
+        ast::DataType::Double => DataType::Float64,
+        ast::DataType::Char(_)
+        | ast::DataType::Varchar(_)
+        | ast::DataType::Text
+        | ast::DataType::String => DataType::Utf8,
+        ast::DataType::Date => DataType::Date64,
+        other => return Err(PlanError::Unsupported(format!("datatype: {}", other))),
+    })
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum TableAliasOrReference {
+    /// A user provided alias for the table. Once a table is aliased, the table
+    /// can only be reference by that alias.
     Alias(String),
+    /// A table reference, e.g. "my_table" or "schema.my_table".
     Reference(TableReference),
 }
 
@@ -308,6 +374,20 @@ impl Scope {
         Ok(())
     }
 
+    /// Resolve an unqualified column name.
+    fn resolve_unqualified_column(&self, name: &str) -> Option<ScalarExpr> {
+        // TODO: Resolve more efficiently. Also need to make sure that column isn't ambiguous.
+        let (idx, _) = self
+            .schemas
+            .iter()
+            .map(|tbl| tbl.get_columns().iter())
+            .flatten()
+            .enumerate()
+            .find(|(_, col)| *col == name)?;
+
+        Some(ScalarExpr::Column(idx))
+    }
+
     fn resolve_wildcard(&self) -> Vec<ScalarExpr> {
         let num_cols = self
             .schemas
@@ -347,78 +427,56 @@ mod tests {
     use super::*;
     use crate::catalog::TableReference;
 
-    fn parse_query(s: &'static str) -> ast::Query {
-        let dialect = sqlparser::dialect::PostgreSqlDialect {};
-        let mut statements = sqlparser::parser::Parser::parse_sql(&dialect, s).unwrap();
-        assert_eq!(1, statements.len());
-        let statement = statements.pop().unwrap();
-        match statement {
-            ast::Statement::Query(query) => *query,
-            statement => panic!("statement not a query: {:?}", statement),
+    fn create_table(name: &str, cols: Vec<(&str, DataType)>) -> TableSchema {
+        let resolved = ResolvedTableReference {
+            catalog: "db".to_string(),
+            schema: "test".to_string(),
+            base: name.to_string(),
+        };
+
+        let mut names = Vec::new();
+        let mut types = Vec::new();
+        for col in cols.into_iter() {
+            names.push(col.0.to_string());
+            types.push(NullableType::new_nullable(col.1));
         }
-    }
 
-    #[derive(Debug)]
-    struct FakeCatalog {
-        tables: Vec<TableSchema>,
-    }
-
-    impl FakeCatalog {
-        fn new() -> FakeCatalog {
-            let tables = vec![
-                TableSchema::new(
-                    ResolvedTableReference {
-                        catalog: "db".to_string(),
-                        schema: "schema".to_string(),
-                        base: "table_1".to_string(),
-                    },
-                    vec!["col1".to_string(), "col2".to_string(), "col3".to_string()],
-                    RelationSchema::new(vec![
-                        NullableType::new_nullable(DataType::Int8),
-                        NullableType::new_nullable(DataType::Int8),
-                        NullableType::new_nullable(DataType::Int8),
-                    ]),
-                )
-                .unwrap(),
-                TableSchema::new(
-                    ResolvedTableReference {
-                        catalog: "db".to_string(),
-                        schema: "schema".to_string(),
-                        base: "table_2".to_string(),
-                    },
-                    vec!["col1".to_string(), "col2".to_string(), "col3".to_string()],
-                    RelationSchema::new(vec![
-                        NullableType::new_nullable(DataType::Int8),
-                        NullableType::new_nullable(DataType::Int8),
-                        NullableType::new_nullable(DataType::Int8),
-                    ]),
-                )
-                .unwrap(),
-            ];
-
-            FakeCatalog { tables }
-        }
-    }
-
-    impl Catalog for FakeCatalog {
-        fn table_schema(&self, tbl: &TableReference) -> Result<TableSchema, CatalogError> {
-            let resolved = tbl.clone().resolve_with_defaults("db", "schema");
-            let schema = self
-                .tables
-                .iter()
-                .find(|schema| schema.get_reference() == &resolved)
-                .ok_or(CatalogError::MissingTable(tbl.to_string()))?;
-            Ok(schema.clone())
-        }
+        let schema = RelationSchema::new(types);
+        TableSchema::new(resolved, names, schema).unwrap()
     }
 
     #[test]
-    fn queries() {
-        let query = parse_query("select * from table_1, table_2");
-        let catalog = FakeCatalog::new();
-        let planner = Planner::new(&catalog);
+    fn resolve_unqualified_column() {
+        let tables = vec![
+            create_table(
+                "t1",
+                vec![
+                    ("a", DataType::Int8),
+                    ("b", DataType::Int8),
+                    ("c", DataType::Int8),
+                ],
+            ),
+            create_table(
+                "t2",
+                vec![
+                    ("d", DataType::Int8),
+                    ("e", DataType::Int8),
+                    ("f", DataType::Int8),
+                ],
+            ),
+        ];
 
-        let plan = planner.plan_query(query).unwrap();
-        println!("plan:\n{}", plan);
+        let mut scope = Scope::new();
+        for table in tables.into_iter() {
+            let alias = TableAliasOrReference::Reference(TableReference::new_unqualified(
+                table.get_reference().base.clone(),
+            ));
+            scope.add_table(alias, table).unwrap();
+        }
+
+        let expr = scope.resolve_unqualified_column("b").unwrap();
+        assert_eq!(ScalarExpr::Column(1), expr);
+        let expr = scope.resolve_unqualified_column("f").unwrap();
+        assert_eq!(ScalarExpr::Column(5), expr);
     }
 }

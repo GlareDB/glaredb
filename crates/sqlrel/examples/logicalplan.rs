@@ -99,7 +99,7 @@ impl TpchCatalog {
                 ],
             ),
             create_table(
-                "customers",
+                "customer",
                 vec![
                     ("c_custkey", DataType::Int64),
                     ("c_name", DataType::Utf8),

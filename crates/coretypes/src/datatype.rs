@@ -18,8 +18,22 @@ pub enum DataType {
     Int64,
     Float32,
     Float64,
+    /// A 64-bit unix timestamp in milliseconds.
+    Date64,
+    /// Utf-8 strings. No other string types are supported.
     Utf8,
+    /// Opaque binary blob.
     Binary,
+}
+
+impl DataType {
+    pub fn is_numeric(&self) -> bool {
+        use DataType::*;
+        match self {
+            Int8 | Int16 | Int32 | Int64 | Float32 | Float64 | Date64 => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for DataType {
@@ -33,6 +47,7 @@ impl fmt::Display for DataType {
             Int64 => write!(f, "INT64"),
             Float32 => write!(f, "FLOAT32"),
             Float64 => write!(f, "FLOAT64"),
+            Date64 => write!(f, "DATE64"),
             Utf8 => write!(f, "UTF8"),
             Binary => write!(f, "BINARY"),
         }
@@ -51,6 +66,10 @@ impl NullableType {
             datatype,
             nullable: true,
         }
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        self.datatype.is_numeric()
     }
 }
 
@@ -82,6 +101,7 @@ pub enum DataValue {
     Int64(i64),
     Float32(NotNanF32),
     Float64(NotNanF64),
+    Date64(i64), // TODO: Change this to u64.
     Utf8(String),
     Binary(Vec<u8>),
 }
@@ -99,6 +119,7 @@ impl DataValue {
             (Int64(_), DataType::Int64) => true,
             (Float32(_), DataType::Float32) => true,
             (Float64(_), DataType::Float64) => true,
+            (Date64(_), DataType::Date64) => true,
             (Utf8(_), DataType::Utf8) => true,
             (Binary(_), DataType::Binary) => true,
             _ => false,
@@ -117,6 +138,7 @@ impl fmt::Display for DataValue {
             DataValue::Int64(v) => write!(f, "{}", v),
             DataValue::Float32(v) => write!(f, "{}", v),
             DataValue::Float64(v) => write!(f, "{}", v),
+            DataValue::Date64(v) => write!(f, "{}", v),
             DataValue::Utf8(v) => write!(f, "{}", v),
             DataValue::Binary(v) => {
                 write!(f, "hex:")?;

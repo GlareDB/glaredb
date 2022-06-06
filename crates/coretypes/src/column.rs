@@ -320,6 +320,7 @@ impl NullableColumnVec {
             DataType::Int64 => ColumnVec::new_i64_vec_with_capacity(cap),
             DataType::Float32 => ColumnVec::new_f32_vec_with_capacity(cap),
             DataType::Float64 => ColumnVec::new_f64_vec_with_capacity(cap),
+            DataType::Date64 => ColumnVec::new_i64_vec_with_capacity(cap),
             DataType::Utf8 => ColumnVec::new_str_vec_with_capacity(cap),
             DataType::Binary => ColumnVec::new_binary_vec_with_capacity(cap),
         };
