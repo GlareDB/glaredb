@@ -39,7 +39,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
         Planner { catalog }
     }
 
-    fn plan_query(&self, query: ast::Query) -> Result<RelationalPlan, PlanError> {
+    pub fn plan_query(&self, query: ast::Query) -> Result<RelationalPlan, PlanError> {
         if query.with.is_some() {
             return Err(PlanError::Unsupported(String::from("CTEs")));
         }

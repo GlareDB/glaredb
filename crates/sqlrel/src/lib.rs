@@ -1,3 +1,3 @@
-mod catalog;
-mod planner;
-mod relational;
+pub mod catalog;
+pub mod planner;
+pub mod relational;
