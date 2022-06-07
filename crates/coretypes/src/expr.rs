@@ -1,5 +1,6 @@
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
 use crate::column::{NullableColumnVec, BoolVec};
+use fmtutil::DisplaySlice;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -37,8 +38,6 @@ pub enum ScalarExpr {
         expr: Box<ScalarExpr>,
         datatype: NullableType,
     },
-    // TODO: Implement
-    Window,
 }
 
 impl ScalarExpr {
@@ -66,7 +65,6 @@ impl ScalarExpr {
                 operation.output_type(&left, &right)?
             }
             Self::Cast { datatype, .. } => datatype.clone(),
-            Self::Window => unimplemented!(),
         })
     }
 }
@@ -83,7 +81,6 @@ impl fmt::Display for ScalarExpr {
                 right,
             } => write!(f, "{}({}, {})", operation, left, right),
             ScalarExpr::Cast { expr, datatype } => write!(f, "cast({} as {})", expr, datatype),
-            ScalarExpr::Window => write!(f, "window"),
         }
     }
 }
@@ -96,7 +93,7 @@ pub enum UnaryOperation {
 
 impl UnaryOperation {
     /// Given an input, determine what the output type is.
-    pub fn output_type(&self, input_type: &NullableType) -> NullableType {
+    fn output_type(&self, input_type: &NullableType) -> NullableType {
         match self {
             Self::IsNull => NullableType {
                 datatype: DataType::Bool,
@@ -137,7 +134,7 @@ pub enum BinaryOperation {
 }
 
 impl BinaryOperation {
-    pub fn output_type(
+    fn output_type(
         &self,
         left_type: &NullableType,
         right_type: &NullableType,
@@ -193,13 +190,4 @@ impl fmt::Display for BinaryOperation {
             BinaryOperation::Div => write!(f, "div"),
         }
     }
-}
-
-fn is_null(input: &NullableColumnVec) -> NullableColumnVec {
-    let mut out = BoolVec::with_capacity(input.len());
-    let validity = input.get_validity();
-    for val in validity.iter().by_refs() {
-        out.copy_push(val);
-    }
-    NullableColumnVec::new_all_valid(out.into())
 }

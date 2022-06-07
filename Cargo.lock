@@ -37,6 +37,7 @@ name = "coretypes"
 version = "0.1.0"
 dependencies = [
  "bitvec",
+ "fmtutil",
  "paste",
  "serde",
  "thiserror",

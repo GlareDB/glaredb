@@ -1,5 +1,5 @@
 use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableReference, TableSchema};
-use crate::relational::{CrossJoin, Filter, Project, RelationalPlan, Scan, Values};
+use crate::relational::{AggregateFunc, CrossJoin, Filter, Project, RelationalPlan, Scan, Values};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::{BinaryOperation, ExprError, ScalarExpr, UnaryOperation},
@@ -275,14 +275,24 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 datatype: sql_type_to_data_type(data_type)?.into(),
             },
 
-            ast::Expr::Function(function) => Window,
-
             expr => {
                 return Err(PlanError::Unsupported(format!(
                     "unsupported expression: {0}, debug: {0:?}",
                     expr
                 )))
             }
+        })
+    }
+
+    /// Return the appropriate aggregate function for the given name.
+    fn aggregate_func_for_name(&self, name: &str) -> Option<AggregateFunc> {
+        Some(match name {
+            "count" => AggregateFunc::Count,
+            "sum" => AggregateFunc::Sum,
+            "min" => AggregateFunc::Min,
+            "max" => AggregateFunc::Max,
+            "avg" => AggregateFunc::Avg,
+            _ => return None,
         })
     }
 }

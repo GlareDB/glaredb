@@ -21,6 +21,8 @@ pub enum RelationalPlan {
     Project(Project),
     /// Join two plan nodes.
     Join(Join),
+    /// Aggregate over a relation.
+    Aggregates(Aggregates),
     /// Cross join two nodes.
     CrossJoin(CrossJoin),
     /// A base table scan.
@@ -86,6 +88,41 @@ pub struct CrossJoin {
     pub right: Box<RelationalPlan>,
 }
 
+#[derive(Debug)]
+pub struct Aggregates {
+    pub input: Box<RelationalPlan>,
+    pub aggregates: Vec<Aggregate>,
+    pub group_by: Vec<ScalarExpr>,
+}
+
+#[derive(Debug)]
+pub struct Aggregate {
+    pub func: AggregateFunc,
+    pub args: Vec<ScalarExpr>,
+    pub distinct: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AggregateFunc {
+    Count,
+    Min,
+    Max,
+    Sum,
+    Avg,
+}
+
+impl fmt::Display for AggregateFunc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AggregateFunc::Count => write!(f, "count"),
+            AggregateFunc::Min => write!(f, "min"),
+            AggregateFunc::Max => write!(f, "max"),
+            AggregateFunc::Sum => write!(f, "sum"),
+            AggregateFunc::Avg => write!(f, "avg"),
+        }
+    }
+}
+
 impl RelationalPlan {
     fn format(&self, f: &mut fmt::Formatter<'_>, depth: usize) -> fmt::Result {
         if depth > 0 {
@@ -93,6 +130,11 @@ impl RelationalPlan {
             write!(f, "{}", leading)?;
         }
         let depth = depth + 1;
+
+        let write_indent = |f: &mut fmt::Formatter<'_>| {
+            let indent = "  ".repeat(depth);
+            write!(f, "{}", indent)
+        };
 
         match self {
             RelationalPlan::Project(project) => {
@@ -123,6 +165,9 @@ impl RelationalPlan {
                 join.left.format(f, depth)?;
                 join.right.format(f, depth)?;
             }
+            RelationalPlan::Aggregates(aggregates) => {
+                writeln!(f, "aggregates (todo)")?;
+            }
             RelationalPlan::CrossJoin(join) => {
                 writeln!(f, "Cross join:")?;
                 join.left.format(f, depth)?;
@@ -142,8 +187,8 @@ impl RelationalPlan {
             RelationalPlan::Values(values) => {
                 writeln!(f, "Values: values = [")?;
                 for value in values.values.iter() {
-                    let indent = "  ".repeat(depth);
-                    writeln!(f, "{}{}", indent, DisplaySlice(value))?;
+                    write_indent(f)?;
+                    writeln!(f, "{}", DisplaySlice(value))?;
                 }
                 writeln!(f, "]")?;
             }
