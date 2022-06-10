@@ -16,6 +16,12 @@ pub enum AccordError {
     OutboundSend(String),
     #[error("not enough peers to construct a topology")]
     NotEnoughPeers,
+    #[error("this node is not the transaction coordinator")]
+    NodeNotCoordinator,
+    #[error("invalid transaction state: {0}")]
+    InvalidTransactionState(String),
+    #[error("missing transaction: {0}")]
+    MissingTx(transaction::TransactionId),
 }
 
 pub type Result<T, E = AccordError> = std::result::Result<T, E>;

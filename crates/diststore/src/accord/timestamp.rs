@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering, PartialOrd};
+use std::fmt;
 use std::sync::atomic::{self, AtomicU64};
 use std::time::SystemTime;
 
@@ -79,6 +80,12 @@ impl PartialOrd for Timestamp {
 impl Ord for Timestamp {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
+    }
+}
+
+impl fmt::Display for Timestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {}, {})", self.unix_millis, self.logical, self.node)
     }
 }
 

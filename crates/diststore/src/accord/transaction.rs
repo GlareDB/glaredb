@@ -2,6 +2,7 @@
 use super::keys::{Key, KeySet};
 use super::timestamp::Timestamp;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Transaction IDs are derived from their original proposed timestamp.
 ///
@@ -9,6 +10,12 @@ use serde::{Deserialize, Serialize};
 /// globally unique transaction identifier.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct TransactionId(pub Timestamp);
+
+impl fmt::Display for TransactionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[tx]({})", self.0)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TransactionKind {

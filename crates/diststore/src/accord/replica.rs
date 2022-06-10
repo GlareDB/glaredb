@@ -2,7 +2,7 @@ use super::keys::{Key, KeySet};
 use super::timestamp::{Timestamp, TimestampProvider};
 use super::topology::Topology;
 use super::transaction::{Transaction, TransactionId, TransactionKind};
-use super::NodeId;
+use super::{AccordError, NodeId, Result};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
@@ -29,18 +29,30 @@ impl<K: Key> ReplicaState<K> {
         let ts = self.ts_provider.unique_now();
         let id = TransactionId(ts);
         let tx = Transaction::new(id.clone(), kind, keys, command);
-        self.tracker.track_local_tx(tx.clone());
+        self.tracker.track_coordinating_tx(tx.clone());
         tx
     }
 
     /// PreAccept a remote transaction, proposing a new timestamp if necessary.
     pub fn preaccept_tx(&mut self, tx: Transaction<K>) -> Option<Proposal> {
         let prop = self.propose_transaction(&tx);
-        self.tracker.track_remote_tx(tx, prop.clone());
+        self.tracker.track_preaccepted_tx(tx, prop.clone());
         prop
     }
 
-    pub fn preaccept_proposal_from(&mut self, node: NodeId, proposal: Proposal) {}
+    pub fn preaccept_proposal_from(
+        &mut self,
+        node: NodeId,
+        tx: TransactionId,
+        proposal: Proposal,
+    ) -> Result<()> {
+        let tx = self
+            .tracker
+            .get_tx_mut(&tx)
+            .ok_or(AccordError::MissingTx(tx))?;
+        let received_from = tx.merge_preaccept_proposal(node, proposal)?;
+        unimplemented!()
+    }
 
     /// Check if the given transaction has any dependencies, and if it does,
     /// return a proposal with the dependencies and a timestamp that's greater
@@ -61,15 +73,15 @@ impl<K: Key> ReplicaState<K> {
         let mut prop = match iter.next() {
             Some(tx) => Proposal {
                 deps: vec![tx.inner.get_id().clone()],
-                proposed_timestamp: tx.get_current().clone(),
+                proposed_timestamp: tx.proposed.clone(),
             },
             None => return None,
         };
 
         for tx in self.tracker.iter() {
             prop.deps.push(tx.inner.get_id().clone());
-            if tx.get_current() > &prop.proposed_timestamp {
-                prop.proposed_timestamp = tx.get_current().clone();
+            if tx.proposed > prop.proposed_timestamp {
+                prop.proposed_timestamp = tx.proposed.clone();
             }
         }
 
@@ -93,70 +105,93 @@ enum TransactionStatus {
     /// Status immediately set for transactions created by this node.
     Created,
     /// Corresponds to "preaccept" phase in accord.
-    PreAccepted {
-        /// Max timestamp we've received so far.
-        max_proposal: Option<Timestamp>,
-        /// Union of all deps received from all nodes.
-        deps: HashSet<TransactionId>,
-        /// Nodes that we've received messages from.
-        recieved_from: HashSet<NodeId>,
-    },
+    PreAccepted,
     /// Corresponds to "accept" phase in accord.
-    Accepted {
-        /// Timestamp we will be committing with.
-        proposed: Timestamp,
-        /// Union of all deps.
-        deps: HashSet<TransactionId>,
-    },
+    Accepted,
     /// Corresponds to "commit" phase in accord.
-    Committed {
-        /// Timestamp we will be applying with.
-        proposed: Timestamp,
-        /// Union of all deps.
-        deps: HashSet<TransactionId>,
-    },
+    Committed,
     /// Corresponds to "apply" phase in accord.
-    Applied {
-        /// Timestamp we have applied with.
-        proposed: Timestamp,
-        /// Union of all deps.
-        deps: HashSet<TransactionId>,
-    },
+    Applied,
+}
+
+/// Extra state that the coordinator needs to hold.
+#[derive(Debug)]
+enum CoordinatingState {
+    PreAcceptOk { received_from: HashSet<NodeId> },
+    AcceptOk { received_from: HashSet<NodeId> },
 }
 
 /// Source of the transaction.
 #[derive(Debug)]
 enum TransactionSource {
-    /// Transaction created on this node.
-    Local,
+    /// Transaction created on this node. This node is coordinating.
+    Local(CoordinatingState),
     /// Transaction received from another node.
     Peer,
+}
+
+impl TransactionSource {
+    fn insert_for_preaccept(&mut self, node: NodeId) -> Result<()> {
+        match self {
+            Self::Local(CoordinatingState::PreAcceptOk { received_from }) => {
+                received_from.insert(node);
+                Ok(())
+            }
+            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+        }
+    }
+
+    fn get_for_preaccept(&self) -> Result<&HashSet<NodeId>> {
+        match self {
+            Self::Local(CoordinatingState::PreAcceptOk { received_from }) => Ok(received_from),
+            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+        }
+    }
 }
 
 /// A transaction wrapped with some additional info.
 #[derive(Debug)]
 struct TransactionState<K> {
     inner: Transaction<K>,
+    /// Proposed timestamp. Initially set to the original timestamp.
+    proposed: Timestamp,
     /// Current transaction status.
     status: TransactionStatus,
     /// Where this transaction came from.
     source: TransactionSource,
+    /// Union of all deps received from all nodes.
+    deps: HashSet<TransactionId>,
 }
 
-impl<K> TransactionState<K> {
+impl<K: Key> TransactionState<K> {
     fn get_original(&self) -> &Timestamp {
         &self.inner.get_id().0
     }
 
-    /// Get either the current max proposed timestamp, or the original if
-    /// there's no proposed timestamp.
-    fn get_current(&self) -> &Timestamp {
-        match &self.status {
-            TransactionStatus::Created => self.get_original(),
-            TransactionStatus::PreAccepted { max_proposal, .. } => {
-                max_proposal.as_ref().unwrap_or(self.get_original())
-            }
-            _ => unimplemented!(),
+    /// Merge another node's proposal into this transaction state, returning
+    /// the entire set of nodes that we've received proposals from.
+    ///
+    /// "This" node must be coordinating the transaction, and the transaction
+    /// must be in the "preaccept" phase.
+    fn merge_preaccept_proposal(
+        &mut self,
+        from: NodeId,
+        prop: Proposal,
+    ) -> Result<&HashSet<NodeId>> {
+        self.source.insert_for_preaccept(from)?;
+        self.merge_deps(prop.deps);
+        if prop.proposed_timestamp > self.proposed {
+            self.proposed = prop.proposed_timestamp;
+        }
+        self.source.get_for_preaccept()
+    }
+
+    fn merge_deps<I>(&mut self, deps: I)
+    where
+        I: IntoIterator<Item = TransactionId>,
+    {
+        for dep in deps.into_iter() {
+            self.deps.insert(dep);
         }
     }
 }
@@ -169,32 +204,44 @@ struct Tracker<K> {
 }
 
 impl<K: Key> Tracker<K> {
-    fn track_local_tx(&mut self, tx: Transaction<K>) {
+    fn track_coordinating_tx(&mut self, tx: Transaction<K>) {
         let id = tx.get_id().clone();
-        // let wrapped = TransactionState {
-        //     inner: tx,
-        //     proposed: None,
-        //     status: TransactionStatus::Created,
-        //     source: TransactionSource::Local,
-        //     deps: Vec::new(),
-        // };
-        // self.transactions.insert(id, wrapped);
+        let state = TransactionState {
+            inner: tx,
+            proposed: id.0.clone(),
+            status: TransactionStatus::Created,
+            source: TransactionSource::Local(CoordinatingState::PreAcceptOk {
+                received_from: HashSet::new(),
+            }),
+            deps: HashSet::new(),
+        };
+        self.transactions.insert(id, state);
     }
 
-    fn track_remote_tx(&mut self, tx: Transaction<K>, proposal: Option<Proposal>) {
+    /// Track a preaccepted transaction from a peer, and store this node's
+    /// proposal.
+    fn track_preaccepted_tx(&mut self, tx: Transaction<K>, proposal: Option<Proposal>) {
         let id = tx.get_id().clone();
         let (proposed, deps) = match proposal {
-            Some(prop) => (Some(prop.proposed_timestamp), prop.deps),
-            None => (None, Vec::new()),
+            Some(prop) => (prop.proposed_timestamp, prop.deps.into_iter().collect()),
+            None => (id.0.clone(), HashSet::new()),
         };
-        // let wrapped = TransactionState {
-        //     inner: tx,
-        //     proposed,
-        //     status: TransactionStatus::PreAccepted,
-        //     source: TransactionSource::Peer,
-        //     deps,
-        // };
-        // self.transactions.insert(id, wrapped);
+        let state = TransactionState {
+            inner: tx,
+            proposed,
+            status: TransactionStatus::PreAccepted,
+            source: TransactionSource::Peer,
+            deps,
+        };
+        self.transactions.insert(id, state);
+    }
+
+    fn get_tx(&self, id: &TransactionId) -> Option<&TransactionState<K>> {
+        self.transactions.get(id)
+    }
+
+    fn get_tx_mut(&mut self, id: &TransactionId) -> Option<&mut TransactionState<K>> {
+        self.transactions.get_mut(id)
     }
 
     fn iter(&self) -> impl Iterator<Item = &TransactionState<K>> {
