@@ -10,6 +10,8 @@ use tokio::sync::mpsc;
 /// Where to send messages.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Address {
+    /// Broadcast to specific peer.
+    Peer(NodeId),
     /// Broadcast to all peers.
     Peers,
     /// Broadcast only to this node.
@@ -18,7 +20,8 @@ pub enum Address {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message<K> {
-    address: Address,
+    from: NodeId,
+    to: Address,
     proto_msg: ProtocolMessage<K>,
 }
 
@@ -26,15 +29,28 @@ pub struct Message<K> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProtocolMessage<K> {
     /// Begin a read transaction.
-    BeginRead { keys: KeySet<K>, command: Vec<u8> },
+    BeginRead {
+        keys: KeySet<K>,
+        command: Vec<u8>,
+    },
     /// Begin a write transaction.
-    BeginWrite { keys: KeySet<K>, command: Vec<u8> },
+    BeginWrite {
+        keys: KeySet<K>,
+        command: Vec<u8>,
+    },
 
-    /// Accord's "PreAccept" message.
     PreAccept {
-        /// Original proposed timestamp for the transaction.
-        t0: Timestamp,
         tx: Transaction<K>,
+    },
+
+    PreAcceptOk {
+        /// Id of the transaction that this message is concerning.
+        tx_id: TransactionId,
+        /// Proposed timestamp for the transaction. May be the same as the
+        /// original timestamp.
+        proposed: Timestamp,
+        /// Transaction dependencies.
+        deps: Vec<TransactionId>,
     },
 }
 
@@ -48,7 +64,7 @@ pub struct StateMachine<K> {
 }
 
 impl<K: Key> StateMachine<K> {
-    pub async fn handle_msg(&mut self, msg: Message<K>) -> Result<()> {
+    pub async fn handle_msg(&mut self, from: NodeId, msg: Message<K>) -> Result<()> {
         use ProtocolMessage::*;
 
         match msg.proto_msg {
@@ -59,22 +75,37 @@ impl<K: Key> StateMachine<K> {
                     _ => unreachable!(),
                 };
                 let tx = self.replica.new_inflight_tx(kind, keys, command);
-                self.send_outbound(Message {
-                    address: Address::Peers,
-                    proto_msg: ProtocolMessage::PreAccept {
-                        t0: tx.get_id().0.clone(),
-                        tx,
-                    },
-                })
-                .await?;
+                let msg = ProtocolMessage::PreAccept { tx };
+                self.send_outbound(Address::Peers, msg).await?;
             }
+
+            PreAccept { tx } => {
+                let id = tx.get_id().clone();
+                let prop = self.replica.preaccept_tx(tx);
+                let (proposed, deps) = match prop {
+                    Some(prop) => (prop.proposed_timestamp, prop.deps),
+                    None => (id.0.clone(), Vec::new()),
+                };
+                let msg = ProtocolMessage::PreAcceptOk {
+                    tx_id: id,
+                    proposed,
+                    deps,
+                };
+                self.send_outbound(Address::Peer(from), msg).await?;
+            }
+
             _ => todo!(),
         };
 
         Ok(())
     }
 
-    async fn send_outbound(&self, msg: Message<K>) -> Result<()> {
+    async fn send_outbound(&self, to: Address, msg: ProtocolMessage<K>) -> Result<()> {
+        let msg = Message {
+            from: self.replica.get_node_id(),
+            to,
+            proto_msg: msg,
+        };
         match self.outbound.send(msg).await {
             Ok(_) => Ok(()),
             Err(msg) => Err(AccordError::OutboundSend(format!("msg: {:?}", msg))),
