@@ -40,17 +40,73 @@ impl<K: Key> ReplicaState<K> {
         prop
     }
 
-    pub fn preaccept_proposal_from(
+    /// Preaccept a proposal from a node.
+    ///
+    /// If a fast path has been reached, a commit message will be returned. If
+    /// a simple quorum has been reached, an accept message with the highest
+    /// timestamp will be returned. Otherwise no messages will be returned.
+    pub fn coord_preaccept_proposal(
         &mut self,
         node: NodeId,
-        tx: TransactionId,
+        tx: &TransactionId,
         proposal: Proposal,
-    ) -> Result<()> {
+    ) -> Result<Option<CommitOrAccept>> {
         let tx = self
             .tracker
-            .get_tx_mut(&tx)
-            .ok_or(AccordError::MissingTx(tx))?;
+            .get_tx_mut(tx)
+            .ok_or(AccordError::MissingTx(tx.clone()))?;
         let received_from = tx.merge_preaccept_proposal(node, proposal)?;
+
+        let check = self.topology.check_quorum(received_from);
+
+        // No shard has proposed a higher timestamp yet, check if fast path
+        // available.
+        if tx.get_original() == &tx.proposed {
+            if check.have_fast_path {
+                // We have fast path, send out commit.
+                return Ok(Some(CommitOrAccept::Commit {
+                    timestamp: tx.proposed.clone(),
+                    deps: tx.deps.iter().cloned().collect(),
+                }));
+            }
+            // Wait until we have more responses to either.
+            return Ok(None);
+        }
+
+        // Tx has a different proposed timestamp than its original. Use that
+        // and send out to all shards if we have a simple quorum.
+        if check.have_slow_path {
+            return Ok(Some(CommitOrAccept::Accept {
+                timestamp: tx.proposed.clone(),
+                deps: tx.deps.iter().cloned().collect(),
+            }));
+        }
+
+        // No quorum reached yet.
+        return Ok(None);
+    }
+
+    /// Accept the coordinator's timestamp, returning a full set of dependencies
+    /// that this node has witnessed.
+    pub fn accept(
+        &mut self,
+        tx: &TransactionId,
+        timestamp: Timestamp,
+        deps: Vec<TransactionId>,
+    ) -> Result<Vec<TransactionId>> {
+        let tx = self
+            .tracker
+            .get_tx_mut(tx)
+            .ok_or(AccordError::MissingTx(tx.clone()))?;
+        tx.accept(timestamp, deps)?;
+        Ok(tx.deps.iter().cloned().collect())
+    }
+
+    pub fn coord_accept_ok(
+        &mut self,
+        tx: &TransactionId,
+        deps: Vec<TransactionId>,
+    ) -> Result<Vec<TransactionId>> {
         unimplemented!()
     }
 
@@ -89,6 +145,18 @@ impl<K: Key> ReplicaState<K> {
 
         Some(prop)
     }
+}
+
+#[derive(Debug)]
+pub enum CommitOrAccept {
+    Commit {
+        timestamp: Timestamp,
+        deps: Vec<TransactionId>,
+    },
+    Accept {
+        timestamp: Timestamp,
+        deps: Vec<TransactionId>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -147,6 +215,23 @@ impl TransactionSource {
             other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
         }
     }
+
+    fn insert_for_accept(&mut self, node: NodeId) -> Result<()> {
+        match self {
+            Self::Local(CoordinatingState::AcceptOk { received_from }) => {
+                received_from.insert(node);
+                Ok(())
+            }
+            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+        }
+    }
+
+    fn get_for_accept(&self) -> Result<&HashSet<NodeId>> {
+        match self {
+            Self::Local(CoordinatingState::AcceptOk { received_from }) => Ok(received_from),
+            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+        }
+    }
 }
 
 /// A transaction wrapped with some additional info.
@@ -184,6 +269,21 @@ impl<K: Key> TransactionState<K> {
             self.proposed = prop.proposed_timestamp;
         }
         self.source.get_for_preaccept()
+    }
+
+    /// Move this transaction to "accepted", setting the proposed timestamp and
+    /// merging all dependencies.
+    fn accept(&mut self, timestamp: Timestamp, deps: Vec<TransactionId>) -> Result<()> {
+        if timestamp < self.proposed {
+            return Err(AccordError::TimestampWentBackward {
+                have: self.proposed.clone(),
+                accepted: timestamp,
+            });
+        }
+        self.status = TransactionStatus::Accepted;
+        self.proposed = timestamp;
+        self.merge_deps(deps);
+        Ok(())
     }
 
     fn merge_deps<I>(&mut self, deps: I)

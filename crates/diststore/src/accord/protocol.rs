@@ -1,8 +1,8 @@
 use super::keys::{Key, KeySet};
-use super::replica::ReplicaState;
+use super::replica::{CommitOrAccept, Proposal, ReplicaState};
 use super::timestamp::Timestamp;
 use super::transaction::{Transaction, TransactionId, TransactionKind};
-use super::{AccordError, NodeId, Result};
+use super::{AccordError, ComputeData, NodeId, ReadData, Result};
 use log::debug;
 use std::fmt;
 use tokio::sync::mpsc;
@@ -23,6 +23,68 @@ pub struct Message<K> {
     from: NodeId,
     to: Address,
     proto_msg: ProtocolMessage<K>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreAccept<K> {
+    pub tx: Transaction<K>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreAcceptOk {
+    /// Id of the transaction that this message is concerning.
+    pub tx: TransactionId,
+    /// Proposed timestamp for the transaction. May be the same as the
+    /// original timestamp.
+    pub proposed: Timestamp,
+    /// Transaction dependencies as witnessed by the node.
+    pub deps: Vec<TransactionId>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Accept {
+    pub tx: TransactionId,
+    pub timestamp: Timestamp,
+    pub deps: Vec<TransactionId>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AcceptOk {
+    pub tx: TransactionId,
+    pub deps: Vec<TransactionId>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Commit {
+    pub tx: TransactionId,
+    pub timestamp: Timestamp,
+    pub deps: Vec<TransactionId>,
+}
+
+/// Internal message for the coordinator to begin the execution protocol for a
+/// transaction.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StartExecute {
+    pub tx: TransactionId,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Read {
+    pub tx: TransactionId,
+    pub timestamp: Timestamp,
+    pub deps: Vec<TransactionId>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadOk {
+    pub tx: TransactionId,
+    pub data: ReadData,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Apply {
+    pub tx: TransactionId,
+    pub data: ComputeData,
 }
 
 /// Core protocol messages.
@@ -50,6 +112,23 @@ pub enum ProtocolMessage<K> {
         /// original timestamp.
         proposed: Timestamp,
         /// Transaction dependencies.
+        deps: Vec<TransactionId>,
+    },
+
+    Accept {
+        tx_id: TransactionId,
+        timestamp: Timestamp,
+        deps: Vec<TransactionId>,
+    },
+
+    AcceptOk {
+        tx_id: TransactionId,
+        deps: Vec<TransactionId>,
+    },
+
+    Commit {
+        tx_id: TransactionId,
+        timestamp: Timestamp,
         deps: Vec<TransactionId>,
     },
 }
@@ -92,6 +171,55 @@ impl<K: Key> StateMachine<K> {
                     deps,
                 };
                 self.send_outbound(Address::Peer(from), msg).await?;
+            }
+
+            PreAcceptOk {
+                tx_id,
+                proposed,
+                deps,
+            } => {
+                let prop = Proposal {
+                    deps,
+                    proposed_timestamp: proposed,
+                };
+                match self.replica.coord_preaccept_proposal(from, &tx_id, prop)? {
+                    Some(CommitOrAccept::Commit { timestamp, deps }) => {
+                        self.send_outbound(
+                            Address::Peers,
+                            ProtocolMessage::Commit {
+                                tx_id,
+                                timestamp,
+                                deps,
+                            },
+                        )
+                        .await?
+                    }
+                    Some(CommitOrAccept::Accept { timestamp, deps }) => {
+                        self.send_outbound(
+                            Address::Peers,
+                            ProtocolMessage::Accept {
+                                tx_id,
+                                timestamp,
+                                deps,
+                            },
+                        )
+                        .await?
+                    }
+                    None => (), // Nothing to send, waiting for more responses.
+                }
+            }
+
+            Accept {
+                tx_id,
+                timestamp,
+                deps,
+            } => {
+                let deps = self.replica.accept(&tx_id, timestamp, deps)?;
+                self.send_outbound(
+                    Address::Peer(from),
+                    ProtocolMessage::AcceptOk { tx_id, deps },
+                )
+                .await?;
             }
 
             _ => todo!(),
