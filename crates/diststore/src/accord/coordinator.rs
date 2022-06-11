@@ -1,6 +1,6 @@
 use super::keys::{Key, KeySet};
 use super::protocol::{
-    Accept, AcceptOk, Apply, Commit, PreAccept, PreAcceptOk, Read, ReadOk, StartExecute,
+    Accept, AcceptOk, Apply, Commit, PreAccept, PreAcceptOk, Read, ReadOk, StartExecuteInternal,
 };
 use super::timestamp::{Timestamp, TimestampProvider};
 use super::topology::Topology;
@@ -49,7 +49,7 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
         &mut self,
         from: NodeId,
         msg: PreAcceptOk,
-    ) -> Result<Option<AcceptOrCommit>> {
+    ) -> Result<Option<AcceptOrCommit<K>>> {
         let tx = self
             .transactions
             .get_mut(&msg.tx)
@@ -61,7 +61,7 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
         if tx.proposed_is_original() && check.have_fast_path {
             tx.move_to_executing()?;
             return Ok(Some(AcceptOrCommit::Commit(Commit {
-                tx: msg.tx,
+                tx: tx.inner.clone(),
                 timestamp: tx.proposed.clone(),
                 deps: tx.deps.iter().cloned().collect(),
             })));
@@ -77,7 +77,7 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
         if check.have_slow_path {
             tx.move_to_accepting()?;
             return Ok(Some(AcceptOrCommit::Accept(Accept {
-                tx: msg.tx,
+                tx: tx.inner.clone(),
                 timestamp: tx.proposed.clone(),
                 deps: tx.deps.iter().cloned().collect(),
             })));
@@ -89,7 +89,7 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
 
     /// Store an acknowledgement of accept for a node. Returns a commit message
     /// once a simple quorum has been reached.
-    pub fn store_accept_ok(&mut self, from: NodeId, msg: AcceptOk) -> Result<Option<Commit>> {
+    pub fn store_accept_ok(&mut self, from: NodeId, msg: AcceptOk) -> Result<Option<Commit<K>>> {
         let tx = self
             .transactions
             .get_mut(&msg.tx)
@@ -100,7 +100,7 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
         // Only need a simple quorum to commit.
         if check.have_slow_path {
             return Ok(Some(Commit {
-                tx: msg.tx,
+                tx: tx.inner.clone(),
                 timestamp: tx.proposed.clone(),
                 deps: tx.deps.iter().cloned().collect(),
             }));
@@ -110,20 +110,20 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
         Ok(None)
     }
 
-    pub fn start_execute(&mut self, msg: StartExecute) -> Result<Read> {
+    pub fn start_execute(&mut self, msg: StartExecuteInternal) -> Result<Read<K>> {
         let tx = self
             .transactions
             .get(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
         // TODO: Need to track which shards we need to await reads from.
         Ok(Read {
-            tx: msg.tx,
+            tx: tx.inner.clone(),
             timestamp: tx.proposed.clone(),
             deps: tx.deps.iter().cloned().collect(),
         })
     }
 
-    pub fn store_read_ok(&mut self, msg: ReadOk) -> Result<Option<Apply>> {
+    pub fn store_read_ok(&mut self, msg: ReadOk) -> Result<Option<Apply<K>>> {
         let tx = self
             .transactions
             .get(&msg.tx)
@@ -137,16 +137,18 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
             .map_err(|e| AccordError::ExecutorError(Box::new(e)))?;
 
         Ok(Some(Apply {
-            tx: msg.tx,
+            tx: tx.inner.clone(),
+            timestamp: tx.proposed.clone(),
+            deps: tx.deps.iter().cloned().collect(),
             data: compute,
         }))
     }
 }
 
 #[derive(Debug)]
-pub enum AcceptOrCommit {
-    Accept(Accept),
-    Commit(Commit),
+pub enum AcceptOrCommit<K> {
+    Accept(Accept<K>),
+    Commit(Commit<K>),
 }
 
 #[derive(Debug)]

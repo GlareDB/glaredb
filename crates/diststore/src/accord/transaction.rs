@@ -48,6 +48,10 @@ impl<K> Transaction<K> {
         }
     }
 
+    pub fn get_original_ts(&self) -> &Timestamp {
+        &self.id.0
+    }
+
     pub fn get_id(&self) -> &TransactionId {
         &self.id
     }

@@ -58,6 +58,14 @@ impl Timestamp {
             node,
         }
     }
+
+    pub fn max<'a>(&'a self, other: &'a Timestamp) -> &Timestamp {
+        if self > other {
+            self
+        } else {
+            other
+        }
+    }
 }
 
 impl PartialOrd for Timestamp {
