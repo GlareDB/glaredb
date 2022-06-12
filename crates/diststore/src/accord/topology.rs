@@ -1,6 +1,7 @@
 use super::NodeId;
 use super::{AccordError, Result};
-use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 const MIN_NUM_PEERS: usize = 3;
 
@@ -15,6 +16,17 @@ const fn fast_path_quorum_size(peers: usize, electorate: usize) -> usize {
 
 const fn slow_path_quorum_size(peers: usize) -> usize {
     peers - max_tolerator_failures(peers)
+}
+
+/// Where to send messages.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Address {
+    /// Broadcast to specific peer.
+    Peer(NodeId),
+    /// Broadcast to all peers.
+    Peers,
+    /// Broadcast only to this node.
+    Local,
 }
 
 #[derive(Debug)]

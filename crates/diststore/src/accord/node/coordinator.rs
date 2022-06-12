@@ -1,24 +1,23 @@
-use super::keys::{Key, KeySet};
-use super::protocol::{
+use crate::accord::keys::{Key, KeySet};
+use crate::accord::protocol::{
     Accept, AcceptOk, Apply, Commit, PreAccept, PreAcceptOk, Read, ReadOk, StartExecuteInternal,
 };
-use super::timestamp::{Timestamp, TimestampProvider};
-use super::topology::Topology;
-use super::transaction::{Transaction, TransactionId, TransactionKind};
-use super::{AccordError, Executor, NodeId, Result};
+use crate::accord::timestamp::{Timestamp, TimestampProvider};
+use crate::accord::topology::Topology;
+use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
+use crate::accord::{AccordError, Executor, NodeId, Result};
 use std::collections::{HashMap, HashSet};
 
 /// State specific for coordinating transactions.
 #[derive(Debug)]
-pub struct CoordinatorState<K, E> {
+pub struct CoordinatorState<K> {
     topology: Topology,
     /// All transactions initiated by this coordinator.
     transactions: HashMap<TransactionId, CoordinatedTransaction<K>>,
     ts_provider: TimestampProvider,
-    executor: E,
 }
 
-impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
+impl<K: Key> CoordinatorState<K> {
     /// Create a new read transaction.
     pub fn new_read_tx(&mut self, keys: KeySet<K>, command: Vec<u8>) -> PreAccept<K> {
         self.new_tx(keys, command, TransactionKind::Read)
@@ -131,17 +130,18 @@ impl<K: Key, E: Executor<K>> CoordinatorState<K, E> {
 
         // TODO: Only compute if we've gotten messages from all shards. We're
         // only dealing with a single shard now.
-        let compute = self
-            .executor
-            .compute(&msg.data, &tx.proposed, &tx.inner)
-            .map_err(|e| AccordError::ExecutorError(Box::new(e)))?;
+        // let compute = self
+        //     .executor
+        //     .compute(&msg.data, &tx.proposed, &tx.inner)
+        //     .map_err(|e| AccordError::ExecutorError(e.to_string()))?;
 
-        Ok(Some(Apply {
-            tx: tx.inner.clone(),
-            timestamp: tx.proposed.clone(),
-            deps: tx.deps.iter().cloned().collect(),
-            data: compute,
-        }))
+        // Ok(Some(Apply {
+        //     tx: tx.inner.clone(),
+        //     timestamp: tx.proposed.clone(),
+        //     deps: tx.deps.iter().cloned().collect(),
+        //     data: compute,
+        // }))
+        unimplemented!()
     }
 }
 

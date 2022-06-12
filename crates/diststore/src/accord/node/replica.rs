@@ -1,23 +1,24 @@
-use super::keys::{Key, KeySet};
-use super::protocol::{Accept, AcceptOk, Apply, Commit, PreAccept, PreAcceptOk, Read, ReadOk};
-use super::timestamp::{Timestamp, TimestampProvider};
-use super::topology::Topology;
-use super::transaction::{Transaction, TransactionId, TransactionKind};
-use super::{AccordError, Executor, NodeId, Result};
+use crate::accord::keys::{Key, KeySet};
+use crate::accord::protocol::{
+    Accept, AcceptOk, Apply, Commit, PreAccept, PreAcceptOk, Read, ReadOk,
+};
+use crate::accord::timestamp::{Timestamp, TimestampProvider};
+use crate::accord::topology::Topology;
+use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
+use crate::accord::{AccordError, Executor, NodeId, Result};
 use log::{info, warn};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 #[derive(Debug)]
-pub struct ReplicaState<K, E> {
-    node: NodeId,
+pub struct ReplicaState<K> {
     transactions: HashMap<TransactionId, ReplicatedTransaction<K>>,
-    executor: E,
 }
 
-impl<K: Key, E: Executor<K>> ReplicaState<K, E> {
+impl<K: Key> ReplicaState<K> {
     pub fn get_node_id(&self) -> NodeId {
-        self.node
+        // self.node
+        unimplemented!()
     }
 
     pub fn receive_preaccept(&mut self, msg: PreAccept<K>) -> PreAcceptOk {
@@ -59,24 +60,28 @@ impl<K: Key, E: Executor<K>> ReplicaState<K, E> {
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Read);
         let tx = self.transactions.get(&id).unwrap();
-        let data = self
-            .executor
-            .read(&tx.proposed, &tx.inner)
-            .map_err(|e| AccordError::ExecutorError(Box::new(e)))?;
-        Ok(ReadOk {
-            tx: tx.inner.get_id().clone(),
-            data,
-        })
+        unimplemented!()
+        // let data = self
+        //     .executor
+        //     .read(&tx.proposed, &tx.inner)
+        //     .map_err(|e| AccordError::ExecutorError(e.to_string()))?;
+        // Ok(ReadOk {
+        //     tx: tx.inner.get_id().clone(),
+        //     data,
+        // })
     }
 
-    pub fn receive_apply(&mut self, msg: Apply<K>) -> Result<()> {
+    pub fn receive_apply<E>(&mut self, executor: E, msg: Apply<K>) -> Result<()>
+    where
+        E: Executor<K>,
+    {
         // TODO: Await committed and applied.
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Applied);
         let tx = self.transactions.get(&id).unwrap();
-        self.executor
+        executor
             .write(&msg.data, &tx.proposed, &tx.inner)
-            .map_err(|e| AccordError::ExecutorError(Box::new(e)))?;
+            .map_err(|e| AccordError::ExecutorError(e.to_string()))?;
         Ok(())
     }
 
@@ -133,10 +138,11 @@ impl<K: Key, E: Executor<K>> ReplicaState<K, E> {
             max = max.max(&other.proposed);
         }
 
-        Proposal {
-            deps,
-            proposed_timestamp: max.next_logical(self.node),
-        }
+        unimplemented!()
+        // Proposal {
+        //     deps,
+        //     proposed_timestamp: max.next_logical(self.node),
+        // }
     }
 
     /// Get all dependencies for a replicated transaction.

@@ -6,7 +6,18 @@ use std::hash::Hash;
 /// A type that represents a key to either a single entry, or a range of entries
 /// in the system. This key is used when detecting transaction conflicts.
 pub trait Key:
-    Serialize + DeserializeOwned + PartialEq + Eq + PartialOrd + Ord + Hash + Debug + Clone
+    Serialize
+    + DeserializeOwned
+    + PartialEq
+    + Eq
+    + PartialOrd
+    + Ord
+    + Hash
+    + Debug
+    + Clone
+    + Send
+    + Unpin
+    + 'static
 {
     /// Whether or not this key conflicts with another key.
     fn conflicts_with(&self, other: &Self) -> bool;

@@ -1,13 +1,16 @@
 use tokio::sync::mpsc;
 
-mod coordinator;
 pub mod keys;
+mod node;
 pub mod protocol;
-mod replica;
+pub mod server;
 pub mod timestamp;
 mod topology;
 pub mod transaction;
+pub mod wal;
 
+use keys::KeySet;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use timestamp::Timestamp;
 use transaction::{Transaction, TransactionId};
@@ -38,19 +41,47 @@ pub enum AccordError {
         have: Timestamp,
         accepted: Timestamp,
     },
+    #[error("server error: {0}")]
+    ServerError(String),
     #[error("internal executor error: {0}")]
-    ExecutorError(Box<dyn std::error::Error>),
+    ExecutorError(String),
+
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 pub type Result<T, E = AccordError> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Request<K> {
+    Read { keys: KeySet<K>, command: Vec<u8> },
+    Write { keys: KeySet<K>, command: Vec<u8> },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReadResponse {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WriteResponse {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Response {
+    Read(ReadResponse),
+    Write(WriteResponse),
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ReadData {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ComputeData {
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct WriteData {
     pub data: Vec<u8>,
 }
 
@@ -83,5 +114,5 @@ pub trait Executor<K>: Sync + Send {
         data: &ComputeData,
         ts: &Timestamp,
         tx: &Transaction<K>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<WriteData, Self::Error>;
 }
