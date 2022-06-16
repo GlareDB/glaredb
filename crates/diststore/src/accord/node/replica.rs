@@ -7,8 +7,8 @@ use crate::accord::timestamp::{Timestamp, TimestampProvider};
 use crate::accord::topology::Topology;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
 use crate::accord::{AccordError, ComputeData, Executor, NodeId, Result};
-use log::{info, warn};
-use std::collections::{HashMap, HashSet};
+use log::{debug, info, warn};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
 #[derive(Debug)]
@@ -36,9 +36,11 @@ impl<K: Key> ReplicaState<K> {
     }
 
     pub fn receive_preaccept(&mut self, msg: PreAccept<K>) -> PreAcceptOk {
+        debug!("received preaccept: {:?}", msg);
         let id = msg.tx.get_id().clone();
 
         let prop = self.propose_transaction(&msg.tx);
+        debug!("transaction proposal: {:?}", prop);
         self.ensure_tx_state(
             msg.tx,
             prop.proposed_timestamp,
@@ -55,6 +57,7 @@ impl<K: Key> ReplicaState<K> {
     }
 
     pub fn receive_accept(&mut self, msg: Accept<K>) -> AcceptOk {
+        debug!("received accept: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Accepted);
         let tx = self.transactions.get(&id).unwrap();
@@ -63,6 +66,7 @@ impl<K: Key> ReplicaState<K> {
     }
 
     pub fn receive_commit(&mut self, msg: Commit<K>) -> Result<()> {
+        debug!("received commit: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Durable);
         let tx = self.transactions.get_mut(&id).unwrap();
@@ -73,6 +77,7 @@ impl<K: Key> ReplicaState<K> {
     where
         E: Executor<K>,
     {
+        debug!("received read: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Durable);
 
@@ -85,6 +90,7 @@ impl<K: Key> ReplicaState<K> {
     where
         E: Executor<K>,
     {
+        debug!("received apply: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Durable);
 
@@ -261,7 +267,7 @@ impl<K: Key> ReplicatedTransaction<K> {
             TransactionState::PreAccepted | TransactionState::Accepted => {
                 self.state = TransactionState::Durable
             }
-            ref other => info!("ignoring 'committed' state update, current: {}", other),
+            ref other => info!("ignoring 'durable' state update, current: {}", other),
         }
     }
 
@@ -281,7 +287,8 @@ impl<K: Key> ReplicatedTransaction<K> {
             let dep = transactions
                 .get(dep)
                 .ok_or(AccordError::MissingTx(dep.clone()))?;
-            if &dep.proposed < committed_ts || &dep.proposed < applied_ts {
+
+            if &dep.proposed > committed_ts || &dep.proposed > applied_ts {
                 return Ok(false);
             }
         }
@@ -306,6 +313,29 @@ pub enum ExecutionActionOk {
     ApplyOk(ApplyOk),
 }
 
+impl ExecutionActionOk {
+    fn get_tx_id(&self) -> &TransactionId {
+        match self {
+            ExecutionActionOk::ReadOk(msg) => &msg.tx,
+            ExecutionActionOk::ApplyOk(msg) => &msg.tx,
+        }
+    }
+
+    fn unwrap_read_ok(self) -> ReadOk {
+        match self {
+            ExecutionActionOk::ReadOk(msg) => msg,
+            action => panic!("exection action not 'read ok': {:?}", action),
+        }
+    }
+
+    fn unwrap_apply_ok(self) -> ApplyOk {
+        match self {
+            ExecutionActionOk::ApplyOk(msg) => msg,
+            action => panic!("exection action not 'apply ok': {:?}", action),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum BlockedAction {
     Read,
@@ -314,13 +344,18 @@ enum BlockedAction {
 
 #[derive(Debug)]
 struct BlockedTransactions {
-    transactions: HashMap<TransactionId, BlockedAction>,
+    /// Transactions currently waiting for dependencies to commit and apply.
+    ///
+    /// Note that this is a btree so we can iterator in order of original
+    /// timestamps. This allows us to more easily assert number and order of
+    /// executions in tests for each call to `drain_execute`.
+    transactions: BTreeMap<TransactionId, BlockedAction>,
 }
 
 impl BlockedTransactions {
     fn new() -> BlockedTransactions {
         BlockedTransactions {
-            transactions: HashMap::new(),
+            transactions: BTreeMap::new(),
         }
     }
 
@@ -388,15 +423,26 @@ mod tests {
     use crate::accord::timestamp::TimestampProvider;
     use crate::accord::{ReadData, WriteData};
 
-    const TEST_NODE: NodeId = 1;
+    struct TestCoordinator {
+        node: NodeId,
+        ts_provider: TimestampProvider,
+    }
 
-    fn new_tx(kind: TransactionKind) -> Transaction<ExactString> {
-        let provider = TimestampProvider::new(TEST_NODE);
-        let ts = provider.unique_now();
-        let id = TransactionId(ts);
-        let ks = KeySet::from_keys(vec![ExactString("test".to_string())]);
-        let tx = Transaction::new(id, kind, ks, "command".to_string().into_bytes());
-        tx
+    impl TestCoordinator {
+        fn new() -> TestCoordinator {
+            TestCoordinator {
+                node: 1,
+                ts_provider: TimestampProvider::new(1),
+            }
+        }
+
+        fn new_tx(&self, kind: TransactionKind) -> Transaction<ExactString> {
+            let ts = self.ts_provider.unique_now();
+            let id = TransactionId(ts);
+            let ks = KeySet::from_keys(vec![ExactString("test".to_string())]);
+            let tx = Transaction::new(id, kind, ks, "command".to_string().into_bytes());
+            tx
+        }
     }
 
     struct EchoExecutor;
@@ -439,8 +485,11 @@ mod tests {
 
     #[test]
     fn simple_flow_no_deps() {
-        let tx = new_tx(TransactionKind::Read);
-        let mut replica = ReplicaState::<ExactString>::new(TEST_NODE, Log::new());
+        logutil::init_test();
+
+        let c = TestCoordinator::new();
+        let tx = c.new_tx(TransactionKind::Read);
+        let mut replica = ReplicaState::<ExactString>::new(c.node, Log::new());
 
         let preaccept = PreAccept { tx: tx.clone() };
         let ok = replica.receive_preaccept(preaccept);
@@ -490,7 +539,94 @@ mod tests {
 
     #[test]
     fn simple_flow_conflict() {
-        let tx1 = new_tx(TransactionKind::Write);
-        let tx2 = new_tx(TransactionKind::Write);
+        logutil::init_test();
+
+        let c = TestCoordinator::new();
+
+        let tx1 = c.new_tx(TransactionKind::Write);
+        let tx2 = c.new_tx(TransactionKind::Write);
+        let mut replica = ReplicaState::<ExactString>::new(c.node, Log::new());
+
+        let preaccept1 = PreAccept { tx: tx1.clone() };
+        let ok1 = replica.receive_preaccept(preaccept1);
+        let ts1 = ok1.proposed;
+        assert_eq!(ts1, tx1.get_original_ts().clone());
+
+        let preaccept2 = PreAccept { tx: tx2.clone() };
+        let ok2 = replica.receive_preaccept(preaccept2);
+        let ts2 = ok2.proposed;
+        let deps2 = ok2.deps;
+        assert!(&ts2 > tx2.get_original_ts());
+        assert_eq!(1, deps2.len());
+
+        let accept1 = Accept {
+            tx: tx1.clone(),
+            timestamp: ts1.clone(),
+            deps: Vec::new(),
+        };
+        let _ = replica.receive_accept(accept1);
+
+        let accept2 = Accept {
+            tx: tx2.clone(),
+            timestamp: ts2.clone(),
+            deps: deps2.clone(),
+        };
+        let _ = replica.receive_accept(accept2);
+
+        // Try to commit and read tx1 before tx2. Commit should be successful,
+        // but reading will be blocked until tx1 is committed and applied.
+
+        let commit2 = Commit {
+            tx: tx2.clone(),
+            timestamp: ts2.clone(),
+            deps: deps2.clone(),
+        };
+        replica.receive_commit(commit2).unwrap();
+
+        let read2 = Read {
+            tx: tx2.clone(),
+            timestamp: ts2.clone(),
+            deps: deps2.clone(),
+        };
+        let results = replica.receive_read(EchoExecutor, read2).unwrap();
+        assert_eq!(0, results.len());
+
+        // Commit and read for tx1.
+        let commit1 = Commit {
+            tx: tx1.clone(),
+            timestamp: ts1.clone(),
+            deps: Vec::new(),
+        };
+        replica.receive_commit(commit1).unwrap();
+
+        let read1 = Read {
+            tx: tx1.clone(),
+            timestamp: ts1.clone(),
+            deps: Vec::new(),
+        };
+        let results = replica.receive_read(EchoExecutor, read1).unwrap();
+        assert_eq!(1, results.len());
+        assert_eq!(tx1.get_id(), results[0].get_tx_id());
+
+        let apply1 = Apply {
+            tx: tx1.clone(),
+            timestamp: ts1.clone(),
+            deps: Vec::new(),
+            data: ComputeData { data: Vec::new() },
+        };
+        let results = replica.receive_apply(EchoExecutor, apply1).unwrap();
+        assert_eq!(2, results.len());
+
+        // Transaction 2 can now finish applying.
+
+        let apply2 = Apply {
+            tx: tx2.clone(),
+            timestamp: ts2.clone(),
+            deps: deps2.clone(),
+            data: ComputeData { data: Vec::new() },
+        };
+        let results = replica.receive_apply(EchoExecutor, apply2).unwrap();
+        assert_eq!(1, results.len());
+        assert_eq!(tx2.get_id(), results[0].get_tx_id());
     }
 }

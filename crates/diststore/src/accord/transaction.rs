@@ -8,7 +8,7 @@ use std::fmt;
 ///
 /// Generated timestamps are always unique, so it's safe to use this as a
 /// globally unique transaction identifier.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TransactionId(pub Timestamp);
 
 impl fmt::Display for TransactionId {
@@ -34,7 +34,7 @@ pub struct Transaction<K> {
 }
 
 impl<K> Transaction<K> {
-    pub fn new(
+    pub const fn new(
         id: TransactionId,
         kind: TransactionKind,
         keys: KeySet<K>,
