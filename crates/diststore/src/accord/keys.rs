@@ -56,7 +56,7 @@ impl<K: Key> KeySet<K> {
 /// A simple implementation of `Key` on a string where conflicts only occur when
 /// two strings equal each other.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone)]
-pub struct ExactString(String);
+pub struct ExactString(pub String);
 
 impl Key for ExactString {
     fn conflicts_with(&self, other: &Self) -> bool {

@@ -1,17 +1,17 @@
 use tokio::sync::mpsc;
 
 pub mod keys;
+pub mod log;
 mod node;
 pub mod protocol;
 pub mod server;
 pub mod timestamp;
 mod topology;
 pub mod transaction;
-pub mod wal;
 
 use keys::KeySet;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::fmt::Debug;
 use timestamp::Timestamp;
 use transaction::{Transaction, TransactionId};
 
@@ -86,7 +86,7 @@ pub struct WriteData {
 }
 
 pub trait Executor<K>: Sync + Send {
-    type Error: std::error::Error + 'static;
+    type Error: Debug + 'static;
 
     /// Execute the read portion of a transaction, the output being fed into
     /// `compute`.

@@ -33,6 +33,14 @@ impl Timestamp {
         }
     }
 
+    pub fn zero() -> Timestamp {
+        Timestamp {
+            unix_millis: 0,
+            logical: 0,
+            node: 0,
+        }
+    }
+
     /// Create a new timestamp for a given node.
     pub fn now(node: NodeId) -> Timestamp {
         // 1. Millisecond precision can safely be fit into a u64.

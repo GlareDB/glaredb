@@ -4,7 +4,7 @@ use super::node::replica::ReplicaState;
 use super::timestamp::Timestamp;
 use super::topology::Address;
 use super::transaction::{Transaction, TransactionId};
-use super::{AccordError, ComputeData, Executor, NodeId, ReadData, Result};
+use super::{AccordError, ComputeData, Executor, NodeId, ReadData, Result, WriteData};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -81,6 +81,12 @@ pub struct Apply<K> {
     pub data: ComputeData,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApplyOk {
+    pub tx: TransactionId,
+    pub data: WriteData,
+}
+
 /// Core protocol messages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ProtocolMessage<K> {
@@ -107,6 +113,7 @@ pub enum ProtocolMessage<K> {
     Read(Read<K>),
     ReadOk(ReadOk),
     Apply(Apply<K>),
+    ApplyOk(ApplyOk),
 }
 
 #[derive(Debug)]

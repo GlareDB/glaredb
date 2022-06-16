@@ -56,6 +56,10 @@ impl<K> Transaction<K> {
         &self.id
     }
 
+    pub fn get_command(&self) -> &[u8] {
+        &self.command
+    }
+
     pub fn is_read_tx(&self) -> bool {
         matches!(self.kind, TransactionKind::Read)
     }

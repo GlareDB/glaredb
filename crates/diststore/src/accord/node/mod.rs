@@ -113,9 +113,9 @@ impl<K: Key> StateDriver<K> {
                 self.replica.receive_commit(msg);
             }
             Read(msg) => {
-                let msg = self.replica.receive_read(msg)?;
-                self.send_outbound(Address::Peer(from), ProtocolMessage::ReadOk(msg))
-                    .await?;
+                // let msg = self.replica.receive_read(msg)?;
+                // self.send_outbound(Address::Peer(from), ProtocolMessage::ReadOk(msg))
+                //     .await?;
             }
             ReadOk(msg) => {
                 let msg = self.coordinator.store_read_ok(msg)?;
@@ -125,6 +125,7 @@ impl<K: Key> StateDriver<K> {
                 }
             }
             Apply(msg) => (), // self.replica.receive_apply(msg)?,
+            _ => unimplemented!(),
         };
 
         Ok(())
