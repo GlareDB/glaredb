@@ -48,6 +48,10 @@ pub enum AccordError {
 
     #[error("internal error: {0}")]
     Internal(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 pub type Result<T, E = AccordError> = std::result::Result<T, E>;
@@ -85,7 +89,7 @@ pub struct WriteData {
     pub data: Vec<u8>,
 }
 
-pub trait Executor<K>: Sync + Send {
+pub trait Executor<K>: Sync + Send + 'static {
     type Error: Debug + 'static;
 
     /// Execute the read portion of a transaction, the output being fed into

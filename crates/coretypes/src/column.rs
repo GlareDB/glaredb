@@ -1,4 +1,4 @@
-use crate::datatype::DataType;
+use crate::datatype::{DataType, DataValue};
 use bitvec::{slice::BitSlice, vec::BitVec};
 use paste::paste;
 use std::fmt;
@@ -9,6 +9,8 @@ use std::marker::PhantomData;
 pub enum ColumnError {
     #[error("lengths mismatch: {0} != {1}")]
     LengthMismatch(usize, usize),
+    #[error("invalid value")]
+    InvalidValue,
 }
 
 pub trait NativeType: Sync + Send + fmt::Debug {}
@@ -23,7 +25,7 @@ impl NativeType for f64 {}
 impl NativeType for str {}
 impl NativeType for [u8] {}
 
-pub trait FixedLengthType: NativeType + Copy {}
+pub trait FixedLengthType: NativeType + Default + Copy {}
 
 impl FixedLengthType for bool {}
 impl FixedLengthType for i8 {}
@@ -38,7 +40,7 @@ pub trait VarLengthType: NativeType {}
 impl VarLengthType for str {}
 impl VarLengthType for [u8] {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FixedLengthVec<T> {
     vec: Vec<T>,
 }
@@ -56,6 +58,10 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
 
     pub fn copy_push(&mut self, item: &T) {
         self.vec.push(*item);
+    }
+
+    pub fn push_default(&mut self) {
+        self.vec.push(T::default())
     }
 
     pub fn get(&self, idx: usize) -> Option<&T> {
@@ -162,6 +168,11 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
         self.offsets.push(next_offset);
     }
 
+    pub fn push_default(&mut self) {
+        let next_offset = self.data.len();
+        self.offsets.push(next_offset);
+    }
+
     pub fn len(&self) -> usize {
         // Offsets always has one more than then number of items held.
         self.offsets.len() - 1
@@ -177,6 +188,16 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
 
     pub fn iter(&self) -> VarLengthIterator<'_, T> {
         VarLengthIterator::from_vec(self)
+    }
+}
+
+impl<T: ?Sized> Clone for VarLengthVec<T> {
+    fn clone(&self) -> Self {
+        VarLengthVec {
+            offsets: self.offsets.clone(),
+            data: self.data.clone(),
+            varlen_type: PhantomData,
+        }
     }
 }
 
@@ -205,7 +226,7 @@ pub type StrVec = VarLengthVec<str>;
 pub type BinaryVec = VarLengthVec<[u8]>;
 
 /// Column vector variants for all types supported by the system.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ColumnVec {
     Bool(BoolVec),
     I8(I8Vec),
@@ -246,6 +267,14 @@ macro_rules! cvec_common {
             match self {
                 $(
                     Self::$variant(v) => v.len(),
+                )*
+            }
+        }
+
+        pub fn push_default(&mut self) {
+            match self {
+                $(
+                    Self::$variant(v) => v.push_default(),
                 )*
             }
         }
@@ -301,7 +330,7 @@ macro_rules! impl_from_typed_vec {
 impl_from_typed_vec!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
 
 /// A wrapper around a column vec allowing for value nullability.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NullableColumnVec {
     /// Validity of each value in the column vector. A '1' indicates not null, a
     /// '0' indicates null.
@@ -343,6 +372,29 @@ impl NullableColumnVec {
             return Err(ColumnError::LengthMismatch(values.len(), validity.len()));
         }
         Ok(NullableColumnVec { validity, values })
+    }
+
+    pub fn push_value(&mut self, value: &DataValue) -> Result<(), ColumnError> {
+        if value.is_null() {
+            self.validity.push(false);
+            self.values.push_default();
+            return Ok(());
+        }
+        match (&mut self.values, value) {
+            (ColumnVec::Bool(vec), DataValue::Bool(val)) => vec.copy_push(val),
+            (ColumnVec::I8(vec), DataValue::Int8(val)) => vec.copy_push(val),
+            (ColumnVec::I16(vec), DataValue::Int16(val)) => vec.copy_push(val),
+            (ColumnVec::I32(vec), DataValue::Int32(val)) => vec.copy_push(val),
+            (ColumnVec::I64(vec), DataValue::Int64(val)) => vec.copy_push(val),
+            (ColumnVec::F32(vec), DataValue::Float32(val)) => vec.copy_push(val),
+            (ColumnVec::F64(vec), DataValue::Float64(val)) => vec.copy_push(val),
+            (ColumnVec::I64(vec), DataValue::Date64(val)) => vec.copy_push(val),
+            (ColumnVec::Str(vec), DataValue::Utf8(val)) => vec.copy_push(val),
+            (ColumnVec::Binary(vec), DataValue::Binary(val)) => vec.copy_push(val),
+            _ => return Err(ColumnError::InvalidValue),
+        }
+        self.validity.push(true);
+        Ok(())
     }
 
     pub fn get_values(&self) -> &ColumnVec {

@@ -1,15 +1,20 @@
 use super::keys::{Key, KeySet};
-use super::protocol::{Message, StateMachine};
-use super::topology::{Address, Topology};
+use super::log::Log;
+use super::node::Node;
+use super::protocol::Message;
+use super::topology::{Address, TopologyManagerRef};
 use super::{
     AccordError, Executor, NodeId, ReadResponse, Request, Response, Result, WriteResponse,
 };
 use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
 use log::{debug, error, info};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::marker::Unpin;
+use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 use tokio_serde::formats::SymmetricalBincode;
 use tokio_serde::SymmetricallyFramed;
@@ -56,159 +61,146 @@ impl<K: Key> Client<K> {
 
 #[derive(Debug)]
 pub struct Server<K> {
-    requests: mpsc::Receiver<(Request<K>, oneshot::Sender<Response>)>,
-    peers: HashMap<NodeId, String>,
-    // state: StateMachine<K, E>,
     local: NodeId,
+    tm: TopologyManagerRef,
+    requests: mpsc::Receiver<(Request<K>, oneshot::Sender<Response>)>,
+    inbound: mpsc::UnboundedSender<Message<K>>,
+    outbound: mpsc::UnboundedReceiver<Message<K>>,
 }
 
 impl<K: Key> Server<K> {
-    /// Create a new server and client for that server.
     pub fn new(
         local: NodeId,
-        // state: StateMachine<K, E>,
-        peers: HashMap<NodeId, String>,
-    ) -> (Client<K>, Server<K>) {
-        let (reqs_tx, reqs_rx) = mpsc::channel(DEFAULT_BUFFER);
-        (
-            Client { requests: reqs_tx },
-            Server {
-                requests: reqs_rx,
-                peers,
-                // state,
-                local,
-            },
-        )
+        tm: TopologyManagerRef,
+        requests: mpsc::Receiver<(Request<K>, oneshot::Sender<Response>)>,
+        inbound: mpsc::UnboundedSender<Message<K>>,
+        outbound: mpsc::UnboundedReceiver<Message<K>>,
+    ) -> Result<Self> {
+        Ok(Server {
+            local,
+            tm,
+            requests,
+            inbound,
+            outbound,
+        })
     }
 
-    pub async fn serve(self, listener: TcpListener) -> Result<()> {
-        let (msg_in_tx, msg_in_rx) = mpsc::channel::<Message<K>>(DEFAULT_BUFFER);
-        let (msg_out_tx, msg_out_rx) = mpsc::channel::<Message<K>>(DEFAULT_BUFFER);
+    pub async fn serve(self, bind: SocketAddr) -> Result<()> {
+        let listener = TcpListener::bind(bind).await?;
 
-        let listen_handle = tokio::spawn(listen(listener, msg_in_tx));
-        let outbound_handle = tokio::spawn(connect_all(self.local, self.peers, msg_out_rx));
+        let (incoming_tx, incoming_rx) = mpsc::channel::<Message<K>>(DEFAULT_BUFFER);
+        let listen_handle = tokio::spawn(tcp_listen(listener, incoming_tx));
 
-        unimplemented!()
+        let (outgoing_tx, outgoing_rx) = mpsc::channel::<Message<K>>(DEFAULT_BUFFER);
+        let send_handle = tokio::spawn(open_tcp_session_all(
+            self.local,
+            self.tm.clone(),
+            outgoing_rx,
+        ));
+
+        let eventloop_handle = tokio::spawn(self.eventloop(incoming_rx, outgoing_tx));
+
+        // TODO: Handle errors other than the join error.
+        let _ = tokio::try_join!(listen_handle, send_handle, eventloop_handle)?;
+
+        Ok(())
     }
 
-    // async fn handle_messages(requests: mpsc::Rece)
+    async fn eventloop(
+        mut self,
+        mut incoming_rx: mpsc::Receiver<Message<K>>,
+        outgoing_tx: mpsc::Sender<Message<K>>,
+    ) -> Result<()> {
+        loop {
+            select! {
+                Some(msg) = incoming_rx.recv() => self.inbound.send(msg).map_err(|_| AccordError::ServerError("failed send inbound".to_string()))?,
+                Some(msg) = self.outbound.recv() => outgoing_tx.send(msg).await.map_err(|_| AccordError::ServerError("failed send outgoing".to_string()))?,
+            }
+        }
+    }
 }
 
-async fn listen<K>(listener: TcpListener, messages: mpsc::Sender<Message<K>>) -> Result<()>
-where
-    K: Key,
-{
+/// Continually accept connections from the listener, and send messages to the
+/// provided channel.
+async fn tcp_listen<K: Key>(
+    listener: TcpListener,
+    incoming: mpsc::Sender<Message<K>>,
+) -> Result<()> {
     loop {
-        let (socket, _) = listener
-            .accept()
-            .await
-            .map_err(|e| AccordError::ServerError(format!("failed to accept: {}", e)))?;
-
-        let messages = messages.clone();
+        let (socket, addr) = listener.accept().await?;
+        let incoming = incoming.clone();
         tokio::spawn(async move {
-            match listen_received_messages(socket, messages).await {
-                Ok(()) => info!("peer disconnected"),
-                Err(e) => error!("peer error: {}", e),
+            debug!("peer connected: {}", addr);
+            let mut framed = SymmetricallyFramed::<_, Message<K>, _>::new(
+                Framed::new(socket, LengthDelimitedCodec::new()),
+                SymmetricalBincode::<Message<K>>::default(),
+            );
+            while let Some(msg) = framed.next().await {
+                match msg {
+                    Ok(msg) => {
+                        if let Err(e) = incoming.send(msg).await {
+                            error!("failed to send");
+                        }
+                    }
+                    Err(e) => error!("failed to get next message: {}", e),
+                };
             }
         });
     }
 }
 
-async fn listen_received_messages<K>(
-    socket: TcpStream,
-    messages: mpsc::Sender<Message<K>>,
-) -> Result<()>
-where
-    K: Key,
-{
-    let mut stream = SymmetricallyFramed::new(
-        Framed::new(socket, LengthDelimitedCodec::new()),
-        SymmetricalBincode::<Message<K>>::default(),
-    );
-    // TODO: Handle error
-    while let Some(msg) = stream.try_next().await.unwrap() {
-        messages
-            .send(msg)
-            .await
-            .map_err(|e| AccordError::ServerError(format!("message send: {:?}", e)))?;
-    }
-    Ok(())
-}
-
-async fn connect_all<K>(
+async fn open_tcp_session_all<K: Key>(
     local: NodeId,
-    peers: HashMap<NodeId, String>,
-    mut messages: mpsc::Receiver<Message<K>>,
-) -> Result<()>
-where
-    K: Key,
-{
-    let mut peer_txs = HashMap::with_capacity(peers.len());
-    for (node, addr) in peers.into_iter() {
-        let (tx, rx) = mpsc::channel::<Message<K>>(DEFAULT_BUFFER);
-        peer_txs.insert(node, tx);
-        tokio::spawn(connect(addr, rx));
+    tm: TopologyManagerRef,
+    mut outgoing: mpsc::Receiver<Message<K>>,
+) -> Result<()> {
+    let mut peers = HashMap::new();
+    for (id, addr) in tm.get_current().iter_peers() {
+        let (tx, rx) = mpsc::channel(DEFAULT_BUFFER);
+        peers.insert(*id, tx);
+        tokio::spawn(open_tcp_session(addr.clone(), rx));
     }
 
-    while let Some(msg) = messages.recv().await {
-        let nodes = match msg.to {
-            Address::Local => vec![local.clone()],
-            Address::Peer(peer) => vec![peer],
-            Address::Peers => peer_txs.keys().cloned().collect(),
+    while let Some(msg) = outgoing.recv().await {
+        let to = match &msg.to {
+            Address::Local => vec![local],
+            Address::Peer(id) => vec![*id],
+            Address::Peers => peers.keys().cloned().collect(),
         };
 
-        for node in nodes.into_iter() {
+        for id in to.into_iter() {
             let msg = msg.clone();
-            match peer_txs.get_mut(&node) {
-                Some(tx) => match tx.send(msg).await {
-                    Ok(()) => (),
-                    Err(e) => error!("failed to send message: {}", e),
+            match peers.get_mut(&id) {
+                Some(tx) => match tx.try_send(msg) {
+                    Ok(_) => (),
+                    Err(e) => error!("failed to send for peer {}: {}", id, e),
                 },
-                None => error!("missing channel for node: {}", node),
+                None => error!("unknown peer {}", id),
             }
         }
     }
-
     Ok(())
 }
 
-async fn connect<K>(addr: String, mut messages: mpsc::Receiver<Message<K>>)
-where
-    K: Key,
-{
+/// Continually open tcp connections to a node, sending messages from the
+/// provided channel.
+async fn open_tcp_session<K: Key>(addr: SocketAddr, mut outgoing: mpsc::Receiver<Message<K>>) {
     loop {
-        match TcpStream::connect(&addr).await {
+        match TcpStream::connect(addr).await {
             Ok(socket) => {
-                info!("connected to peer: {}", addr);
-                match stream_sent_messages(socket, &mut messages).await {
-                    Ok(()) => {
-                        info!("messages channel closes");
-                        return;
+                debug!("connected to peer {}", addr);
+                let mut framed = SymmetricallyFramed::<_, Message<K>, _>::new(
+                    Framed::new(socket, LengthDelimitedCodec::new()),
+                    SymmetricalBincode::<Message<K>>::default(),
+                );
+                while let Some(msg) = outgoing.recv().await {
+                    match framed.send(msg).await {
+                        Ok(_) => (),
+                        Err(e) => error!("failed to send: {}", e),
                     }
-                    Err(e) => error!("failed to send to peer: {}", e), // Continue on
                 }
             }
-            Err(err) => error!("failed to connect to peer: {}, {}", addr, err),
+            Err(e) => error!("failed to connect to peer: {}", e),
         }
     }
-}
-
-async fn stream_sent_messages<K>(
-    socket: TcpStream,
-    messages: &mut mpsc::Receiver<Message<K>>,
-) -> Result<()>
-where
-    K: Key,
-{
-    let mut stream = SymmetricallyFramed::new(
-        Framed::new(socket, LengthDelimitedCodec::new()),
-        SymmetricalBincode::<Message<K>>::default(),
-    );
-    while let Some(msg) = messages.recv().await {
-        stream
-            .send(msg)
-            .await
-            .map_err(|e| AccordError::ServerError(format!("tcp stream send: {:?}", e)))?;
-    }
-    Ok(())
 }

@@ -22,7 +22,7 @@ pub struct ReplicaState<K> {
 }
 
 impl<K: Key> ReplicaState<K> {
-    pub fn new(node: NodeId, log: Log) -> Self {
+    pub fn new(log: Log, node: NodeId) -> Self {
         ReplicaState {
             node,
             log,
@@ -73,7 +73,7 @@ impl<K: Key> ReplicaState<K> {
         self.log.write_committed(&tx.inner, &tx.proposed)
     }
 
-    pub fn receive_read<E>(&mut self, executor: E, msg: Read<K>) -> Result<Vec<ExecutionActionOk>>
+    pub fn receive_read<E>(&mut self, executor: &E, msg: Read<K>) -> Result<Vec<ExecutionActionOk>>
     where
         E: Executor<K>,
     {
@@ -86,7 +86,11 @@ impl<K: Key> ReplicaState<K> {
             .drain_execute(executor, &mut self.log, &self.transactions)
     }
 
-    pub fn receive_apply<E>(&mut self, executor: E, msg: Apply<K>) -> Result<Vec<ExecutionActionOk>>
+    pub fn receive_apply<E>(
+        &mut self,
+        executor: &E,
+        msg: Apply<K>,
+    ) -> Result<Vec<ExecutionActionOk>>
     where
         E: Executor<K>,
     {
@@ -99,7 +103,7 @@ impl<K: Key> ReplicaState<K> {
             .drain_execute(executor, &mut self.log, &self.transactions)
     }
 
-    pub fn try_execute_blocked<E>(&mut self, executor: E) -> Result<Vec<ExecutionActionOk>>
+    pub fn try_execute_blocked<E>(&mut self, executor: &E) -> Result<Vec<ExecutionActionOk>>
     where
         E: Executor<K>,
     {
@@ -368,7 +372,7 @@ impl BlockedTransactions {
 
     fn drain_execute<K, E>(
         &mut self,
-        executor: E,
+        executor: &E,
         log: &mut Log,
         transactions: &HashMap<TransactionId, ReplicatedTransaction<K>>,
     ) -> Result<Vec<ExecutionActionOk>>
@@ -489,7 +493,7 @@ mod tests {
 
         let c = TestCoordinator::new();
         let tx = c.new_tx(TransactionKind::Read);
-        let mut replica = ReplicaState::<ExactString>::new(c.node, Log::new());
+        let mut replica = ReplicaState::<ExactString>::new(Log::new(), c.node);
 
         let preaccept = PreAccept { tx: tx.clone() };
         let ok = replica.receive_preaccept(preaccept);
@@ -510,7 +514,7 @@ mod tests {
             deps: Vec::new(),
         };
         // Should immediately execute.
-        let msgs = replica.receive_read(EchoExecutor, read).unwrap();
+        let msgs = replica.receive_read(&EchoExecutor, read).unwrap();
         assert_eq!(1, msgs.len());
         let expected_read = ExecutionActionOk::ReadOk(ReadOk {
             tx: tx.get_id().clone(),
@@ -526,7 +530,7 @@ mod tests {
             deps: Vec::new(),
             data: ComputeData { data: Vec::new() },
         };
-        let msgs = replica.receive_apply(EchoExecutor, apply).unwrap();
+        let msgs = replica.receive_apply(&EchoExecutor, apply).unwrap();
         assert_eq!(1, msgs.len());
         let expected_apply = ExecutionActionOk::ApplyOk(ApplyOk {
             tx: tx.get_id().clone(),
@@ -545,7 +549,7 @@ mod tests {
 
         let tx1 = c.new_tx(TransactionKind::Write);
         let tx2 = c.new_tx(TransactionKind::Write);
-        let mut replica = ReplicaState::<ExactString>::new(c.node, Log::new());
+        let mut replica = ReplicaState::<ExactString>::new(Log::new(), c.node);
 
         let preaccept1 = PreAccept { tx: tx1.clone() };
         let ok1 = replica.receive_preaccept(preaccept1);
@@ -588,7 +592,7 @@ mod tests {
             timestamp: ts2.clone(),
             deps: deps2.clone(),
         };
-        let results = replica.receive_read(EchoExecutor, read2).unwrap();
+        let results = replica.receive_read(&EchoExecutor, read2).unwrap();
         assert_eq!(0, results.len());
 
         // Commit and read for tx1.
@@ -604,7 +608,7 @@ mod tests {
             timestamp: ts1.clone(),
             deps: Vec::new(),
         };
-        let results = replica.receive_read(EchoExecutor, read1).unwrap();
+        let results = replica.receive_read(&EchoExecutor, read1).unwrap();
         assert_eq!(1, results.len());
         assert_eq!(tx1.get_id(), results[0].get_tx_id());
 
@@ -614,7 +618,7 @@ mod tests {
             deps: Vec::new(),
             data: ComputeData { data: Vec::new() },
         };
-        let results = replica.receive_apply(EchoExecutor, apply1).unwrap();
+        let results = replica.receive_apply(&EchoExecutor, apply1).unwrap();
         assert_eq!(2, results.len());
 
         // Transaction 2 can now finish applying.
@@ -625,7 +629,7 @@ mod tests {
             deps: deps2.clone(),
             data: ComputeData { data: Vec::new() },
         };
-        let results = replica.receive_apply(EchoExecutor, apply2).unwrap();
+        let results = replica.receive_apply(&EchoExecutor, apply2).unwrap();
         assert_eq!(1, results.len());
         assert_eq!(tx2.get_id(), results[0].get_tx_id());
     }

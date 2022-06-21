@@ -107,6 +107,10 @@ pub enum DataValue {
 }
 
 impl DataValue {
+    pub fn is_null(&self) -> bool {
+        matches!(self, DataValue::Null)
+    }
+
     /// Checks if the value is of the the given `type`.
     pub fn is_of_type(&self, typ: &NullableType) -> bool {
         use DataValue::*;
@@ -242,5 +246,31 @@ impl RelationSchema {
     /// The number of columns in the relation.
     pub fn arity(&self) -> usize {
         self.columns.len()
+    }
+}
+
+/// A list of heterogenous values.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Row(pub Vec<DataValue>);
+
+impl Row {
+    /// Check if this row matches the provided schema.
+    pub fn matches_schema(&self, schema: &RelationSchema) -> bool {
+        if self.arity() != schema.arity() {
+            return false;
+        }
+
+        self.0
+            .iter()
+            .zip(schema.columns.iter())
+            .all(|(v, t)| v.is_of_type(t))
+    }
+
+    pub fn arity(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &DataValue> {
+        self.0.iter()
     }
 }

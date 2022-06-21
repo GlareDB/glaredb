@@ -2,6 +2,8 @@ use super::NodeId;
 use super::{AccordError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 const MIN_NUM_PEERS: usize = 3;
 
@@ -29,6 +31,23 @@ pub enum Address {
     Local,
 }
 
+pub type TopologyManagerRef = Arc<TopologyManager>;
+
+#[derive(Debug)]
+pub struct TopologyManager {
+    current: Topology,
+}
+
+impl TopologyManager {
+    pub fn new(initial: Topology) -> TopologyManager {
+        TopologyManager { current: initial }
+    }
+
+    pub fn get_current(&self) -> &Topology {
+        &self.current
+    }
+}
+
 #[derive(Debug)]
 pub struct QuorumCheck {
     pub have_fast_path: bool,
@@ -38,10 +57,10 @@ pub struct QuorumCheck {
 /// Single-shard topology.
 #[derive(Debug)]
 pub struct Topology {
-    /// All replicas in the shard.
-    peers: HashSet<NodeId>,
+    /// All replicas in the shard, with their socket addresses.
+    peers: HashMap<NodeId, SocketAddr>,
     /// Fast path electorate. Must be a subset of `peers`.
-    electorate: HashSet<NodeId>,
+    electorate: HashMap<NodeId, SocketAddr>,
 }
 
 impl Topology {
@@ -49,17 +68,23 @@ impl Topology {
     /// electorate must be a subset of peers.
     pub fn new<I>(peers: I, electorate: I) -> Result<Topology>
     where
-        I: IntoIterator<Item = NodeId>,
+        I: IntoIterator<Item = (NodeId, SocketAddr)>,
     {
-        let peers: HashSet<_> = peers.into_iter().collect();
-        let electorate: HashSet<_> = electorate.into_iter().collect();
+        let peers: HashMap<_, _> = peers.into_iter().collect();
+        let electorate: HashMap<_, _> = electorate.into_iter().collect();
 
         if peers.len() < MIN_NUM_PEERS {
             return Err(AccordError::NotEnoughPeers);
         }
 
-        if !electorate.is_subset(&peers) {
+        if electorate.len() > peers.len() {
             return Err(AccordError::ElectorateNotSubset);
+        }
+        for (id, addr) in electorate.iter() {
+            match peers.get(id) {
+                Some(check_addr) if check_addr == addr => (),
+                _ => return Err(AccordError::ElectorateNotSubset),
+            }
         }
 
         if electorate.len() < slow_path_quorum_size(peers.len()) {
@@ -69,11 +94,15 @@ impl Topology {
         Ok(Topology { peers, electorate })
     }
 
-    pub fn get_electorate(&self) -> impl Iterator<Item = &NodeId> {
-        self.electorate.iter()
+    pub fn iter_electorate_ids(&self) -> impl Iterator<Item = &NodeId> {
+        self.electorate.iter().map(|(id, _)| id)
     }
 
-    pub fn get_peers(&self) -> impl Iterator<Item = &NodeId> {
+    pub fn iter_peer_ids(&self) -> impl Iterator<Item = &NodeId> {
+        self.peers.iter().map(|(id, _)| id)
+    }
+
+    pub fn iter_peers(&self) -> impl Iterator<Item = (&NodeId, &SocketAddr)> {
         self.peers.iter()
     }
 
@@ -106,9 +135,33 @@ impl Topology {
 mod tests {
     use super::*;
 
+    fn fake_addr(id: NodeId) -> (NodeId, SocketAddr) {
+        let port = id % u16::MAX as NodeId;
+        (id, format!("127.0.0.1:{}", port).parse().unwrap())
+    }
+
+    #[test]
+    fn electorate_not_subset() {
+        let _ = Topology::new(
+            vec![fake_addr(1), fake_addr(2), fake_addr(3)],
+            vec![fake_addr(3), fake_addr(4)],
+        )
+        .expect_err("not a subset");
+    }
+
     #[test]
     fn quorum() {
-        let topology = Topology::new(vec![1, 2, 3, 4, 5], vec![1, 2, 3]).unwrap();
+        let topology = Topology::new(
+            vec![
+                fake_addr(1),
+                fake_addr(2),
+                fake_addr(3),
+                fake_addr(4),
+                fake_addr(5),
+            ],
+            vec![fake_addr(1), fake_addr(2), fake_addr(3)],
+        )
+        .unwrap();
 
         let check = topology.check_quorum(&[1, 2]);
         assert!(!check.have_fast_path);
@@ -118,7 +171,23 @@ mod tests {
         assert!(check.have_fast_path);
         assert!(check.have_slow_path);
 
-        let topology = Topology::new(vec![1, 2, 3, 4, 5], vec![1, 2, 3, 4, 5]).unwrap();
+        let topology = Topology::new(
+            vec![
+                fake_addr(1),
+                fake_addr(2),
+                fake_addr(3),
+                fake_addr(4),
+                fake_addr(5),
+            ],
+            vec![
+                fake_addr(1),
+                fake_addr(2),
+                fake_addr(3),
+                fake_addr(4),
+                fake_addr(5),
+            ],
+        )
+        .unwrap();
 
         let check = topology.check_quorum(&[1, 2]);
         assert!(!check.have_fast_path);

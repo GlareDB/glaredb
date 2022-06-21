@@ -3,7 +3,7 @@ use crate::accord::protocol::{
     Accept, AcceptOk, Apply, Commit, PreAccept, PreAcceptOk, Read, ReadOk, StartExecuteInternal,
 };
 use crate::accord::timestamp::{Timestamp, TimestampProvider};
-use crate::accord::topology::Topology;
+use crate::accord::topology::TopologyManagerRef;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
 use crate::accord::{AccordError, Executor, NodeId, Result};
 use std::collections::{HashMap, HashSet};
@@ -11,13 +11,22 @@ use std::collections::{HashMap, HashSet};
 /// State specific for coordinating transactions.
 #[derive(Debug)]
 pub struct CoordinatorState<K> {
-    topology: Topology,
+    tm: TopologyManagerRef,
     /// All transactions initiated by this coordinator.
     transactions: HashMap<TransactionId, CoordinatedTransaction<K>>,
     ts_provider: TimestampProvider,
 }
 
 impl<K: Key> CoordinatorState<K> {
+    pub fn new(tm: TopologyManagerRef, node: NodeId) -> Self {
+        let ts_provider = TimestampProvider::new(node);
+        CoordinatorState {
+            tm,
+            ts_provider,
+            transactions: HashMap::new(),
+        }
+    }
+
     /// Create a new read transaction.
     pub fn new_read_tx(&mut self, keys: KeySet<K>, command: Vec<u8>) -> PreAccept<K> {
         self.new_tx(keys, command, TransactionKind::Read)
@@ -54,7 +63,7 @@ impl<K: Key> CoordinatorState<K> {
             .get_mut(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
         let received = tx.preaccept_msg_received(from, msg.proposed, msg.deps)?;
-        let check = self.topology.check_quorum(received);
+        let check = self.tm.get_current().check_quorum(received);
 
         // Good to commit with original timestamp.
         if tx.proposed_is_original() && check.have_fast_path {
@@ -94,7 +103,7 @@ impl<K: Key> CoordinatorState<K> {
             .get_mut(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
         let received = tx.accept_msg_received(from, msg.deps)?;
-        let check = self.topology.check_quorum(received);
+        let check = self.tm.get_current().check_quorum(received);
 
         // Only need a simple quorum to commit.
         if check.have_slow_path {
