@@ -21,3 +21,4 @@ futures = "0.3.21"
 bytes = "1.1"
 foca = { version = "0.3", features = ["std", "tracing", "bincode-codec"] }
 rand = "0.8"
+parking_lot = "0.12.1"

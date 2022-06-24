@@ -3,11 +3,13 @@
 //! This exmaple can be ran via `cargo run --example logicalplan FILENAME` where
 //! the provided file consists of one or more sql queries.
 use coretypes::datatype::{DataType, NullableType, RelationSchema};
+use sqlengine::catalog::{
+    Catalog, CatalogError, ResolvedTableReference, TableReference, TableSchema,
+};
+use sqlengine::planner::Planner;
 use sqlparser::ast;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
-use sqlrel::catalog::{Catalog, CatalogError, ResolvedTableReference, TableReference, TableSchema};
-use sqlrel::planner::Planner;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {

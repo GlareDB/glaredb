@@ -108,6 +108,7 @@ dependencies = [
  "futures",
  "log",
  "logutil",
+ "parking_lot",
  "rand",
  "serde",
  "thiserror",
@@ -611,26 +612,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "sqlparser"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f531637a13132fa3d38c54d4cd8f115905e5dc3e72f6e77bd6160481f482e25d"
-dependencies = [
- "log",
-]
-
-[[package]]
-name = "sqlrel"
+name = "sqlengine"
 version = "0.1.0"
 dependencies = [
  "bitvec",
  "coretypes",
+ "diststore",
  "fmtutil",
  "log",
  "logutil",
  "serde",
  "sqlparser",
  "thiserror",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f531637a13132fa3d38c54d4cd8f115905e5dc3e72f6e77bd6160481f482e25d"
+dependencies = [
+ "log",
 ]
 
 [[package]]
