@@ -1,4 +1,5 @@
 use coretypes::batch::{Batch, BatchRepr};
+use anyhow::Result;
 use coretypes::datatype::RelationSchema;
 use coretypes::expr::ScalarExpr;
 use futures::stream::{self, Stream};
@@ -6,15 +7,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-#[derive(Debug, thiserror::Error)]
-pub enum StreamError {
-    #[error(transparent)]
-    Forward(#[from] Box<dyn std::error::Error>),
-}
-
-pub type StreamResult<T, E = StreamError> = std::result::Result<T, E>;
-
-pub type BatchStream = Pin<Box<dyn Stream<Item = StreamResult<BatchRepr>> + Send>>;
+pub type BatchStream = Pin<Box<dyn Stream<Item = Result<BatchRepr>> + Send>>;
 
 /// A stream of in-memory values.
 #[derive(Debug)]
@@ -34,7 +27,7 @@ impl MemoryStream {
 }
 
 impl Stream for MemoryStream {
-    type Item = StreamResult<BatchRepr>;
+    type Item = Result<BatchRepr>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.streamed {

@@ -16,7 +16,9 @@ pub enum BatchError {
 /// Representations of batches.
 #[derive(Debug)]
 pub enum BatchRepr {
+    /// A basic batch.
     Batch(Batch),
+    /// A batch with a row selectivity vector.
     Selectivity(SelectivityBatch),
 }
 
@@ -150,7 +152,7 @@ impl SelectivityBatch {
 
     pub fn new_with_bool_vec(
         batch: Batch,
-        selectivity: BoolVec,
+        selectivity: &BoolVec,
     ) -> Result<SelectivityBatch, BatchError> {
         let mut b = BitVec::with_capacity(selectivity.len());
         for val in selectivity.iter() {

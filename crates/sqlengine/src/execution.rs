@@ -1,28 +1,14 @@
 use crate::catalog::ResolvedTableReference;
+use anyhow::{anyhow, Result};
 use coretypes::{
-    batch::{Batch, BatchError, SelectivityBatch},
+    batch::{Batch, BatchError, BatchRepr, SelectivityBatch},
     column::{BoolVec, ColumnVec},
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::{EvaluatedExpr, ExprError, ScalarExpr},
 };
 use diststore::client::Client;
-use diststore::stream::{BatchStream, MemoryStream, StreamError};
-use diststore::StoreError;
+use diststore::stream::{BatchStream, MemoryStream};
 use futures::stream::{Stream, StreamExt};
-
-#[derive(Debug, thiserror::Error)]
-pub enum ExecutionError {
-    #[error("internal: {0}")]
-    Internal(String),
-    #[error(transparent)]
-    StoreError(#[from] StoreError),
-    #[error(transparent)]
-    BatchError(#[from] BatchError),
-    #[error(transparent)]
-    ExprError(#[from] ExprError),
-}
-
-type Result<T, E = ExecutionError> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub enum PhysicalPlan {
@@ -38,31 +24,38 @@ pub struct Filter {
 
 impl Filter {
     pub async fn stream(self, input: BatchStream) -> Result<BatchStream> {
-        // let stream = input.map(|batch| match batch {
-        //     Ok(batch) => {
-        //         let evaled = match self.predicate.evaluate(&batch) {
-        //             Ok(evaled) => evaled,
-        //             _ => unimplemented!(),
-        //         };
-        //         let col = match evaled.try_into_column() {
-        //             Ok(col) => col,
-        //             Err(evaled) => unimplemented!(),
-        //         };
-        //         let (vals, _) = col.into_parts();
-        //         match vals {
-        //             // TODO: This ignores any previous selectivity.
-        //             ColumnVec::Bool(col) => Ok(SelectivityBatch::new_with_bool_vec(
-        //                 batch.get_ref().clone(),
-        //                 col,
-        //             )
-        //             .unwrap()), // TODO
-        //             col => unimplemented!(),
-        //         }
-        //     }
-        //     Err(e) => Err(e),
-        // });
-        // Ok(Box::pin(stream))
-        unimplemented!()
+        let stream = input.map(move |batch| match batch {
+            Ok(batch) => {
+                let evaled = self.predicate.evaluate(&batch)?;
+                // TODO: This removes any previous selectivity.
+                let batch = batch.get_batch().clone();
+                match evaled {
+                    EvaluatedExpr::Value(_) => {
+                        Err(anyhow!("got value from expr: {}", self.predicate))
+                    }
+                    EvaluatedExpr::Column(col) => {
+                        let v = col
+                            .get_values()
+                            .try_as_bool_vec()
+                            .ok_or(anyhow!("column not a bool vec"))?;
+                        Ok(BatchRepr::Selectivity(SelectivityBatch::new_with_bool_vec(
+                            batch, v,
+                        )?))
+                    }
+                    EvaluatedExpr::ColumnRef(col) => {
+                        let v = col
+                            .get_values()
+                            .try_as_bool_vec()
+                            .ok_or(anyhow!("column not a bool vec"))?;
+                        Ok(BatchRepr::Selectivity(SelectivityBatch::new_with_bool_vec(
+                            batch, v,
+                        )?))
+                    }
+                }
+            }
+            Err(e) => Err(e),
+        });
+        Ok(Box::pin(stream))
     }
 }
 
