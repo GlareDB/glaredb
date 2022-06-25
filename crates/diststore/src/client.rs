@@ -1,14 +1,14 @@
 use crate::store::Store;
+use crate::stream::{BatchStream, MemoryStream};
 use crate::{Result, StoreError};
 use async_trait::async_trait;
+use coretypes::batch::Batch;
 use coretypes::column::{ColumnVec, NullableColumnVec};
 use coretypes::datatype::{RelationSchema, Row};
 use coretypes::expr::ScalarExpr;
 use futures::stream::{self, Stream};
 use parking_lot::RwLock;
 use std::sync::Arc;
-
-pub type BatchStream = Box<dyn Stream<Item = Result<Vec<NullableColumnVec>>>>;
 
 /// Client interface to an underlying storage engine.
 #[async_trait]
@@ -76,9 +76,9 @@ impl Client for LocalClient {
         // TODO: Use projections, filters, etc.
         // TODO: Actually stream.
         let store = self.store.read();
-        let batch = store.scan(table);
-        let stream = stream::iter(std::iter::once(batch));
+        let batch = store.scan(table)?;
+        let stream = MemoryStream::with_single_batch(batch);
 
-        Ok(Box::new(stream))
+        Ok(Box::pin(stream))
     }
 }

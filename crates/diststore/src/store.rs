@@ -1,7 +1,9 @@
 use crate::{Result, StoreError};
+use coretypes::batch::Batch;
 use coretypes::column::NullableColumnVec;
 use coretypes::datatype::{RelationSchema, Row};
 use std::collections::{btree_map::Entry, BTreeMap};
+use std::sync::Arc;
 
 const DEFAULT_COLUMN_CAP: usize = 256;
 
@@ -46,9 +48,9 @@ impl Store {
         }
     }
 
-    pub fn scan(&self, table: &str) -> Result<Vec<NullableColumnVec>> {
+    pub fn scan(&self, table: &str) -> Result<Batch> {
         match self.tables.get(table) {
-            Some(table) => Ok(table.scan()),
+            Some(table) => table.scan(),
             None => Err(StoreError::Internal(format!("missing relation: {}", table))),
         }
     }
@@ -87,7 +89,9 @@ impl Table {
     }
 
     // TODO: Actually implement correctly.
-    fn scan(&self) -> Vec<NullableColumnVec> {
-        self.columns.clone()
+    fn scan(&self) -> Result<Batch> {
+        let columns = self.columns.clone();
+        let batch = Batch::from_columns(columns)?;
+        Ok(batch)
     }
 }

@@ -1,8 +1,10 @@
+use crate::batch::{Batch, BatchRepr};
+use crate::column::{BoolVec, NullableColumnVec};
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
-use crate::column::{NullableColumnVec, BoolVec};
 use fmtutil::DisplaySlice;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExprError {
@@ -15,6 +17,32 @@ pub enum ExprError {
     NotNumeric(NullableType),
     #[error("missing column index {0} in provided relation")]
     MissingColumn(usize),
+}
+
+/// The result of an expression evaluation.
+#[derive(Debug, Clone)]
+pub enum EvaluatedExpr {
+    ColumnRef(Arc<NullableColumnVec>),
+    Column(NullableColumnVec),
+    Value(DataValue),
+}
+
+impl From<Arc<NullableColumnVec>> for EvaluatedExpr {
+    fn from(v: Arc<NullableColumnVec>) -> Self {
+        EvaluatedExpr::ColumnRef(v)
+    }
+}
+
+impl From<NullableColumnVec> for EvaluatedExpr {
+    fn from(v: NullableColumnVec) -> Self {
+        Self::Column(v)
+    }
+}
+
+impl From<DataValue> for EvaluatedExpr {
+    fn from(v: DataValue) -> Self {
+        Self::Value(v)
+    }
 }
 
 /// Scalar expressions that work on columns at a time.
@@ -65,6 +93,28 @@ impl ScalarExpr {
                 operation.output_type(&left, &right)?
             }
             Self::Cast { datatype, .. } => datatype.clone(),
+        })
+    }
+
+    /// Evaluate an expression on an input batch.
+    pub fn evaluate(&self, input: &BatchRepr) -> Result<EvaluatedExpr, ExprError> {
+        Ok(match self {
+            Self::Column(idx) => input
+                .get_batch()
+                .get_column(*idx)
+                .cloned()
+                .ok_or(ExprError::MissingColumn(*idx))?
+                .into(),
+            Self::Constant(value, _) => value.clone().into(),
+            _ => unimplemented!(),
+        })
+    }
+
+    /// Evaluate an expression that produces a constant.
+    pub fn evaluate_constant(&self) -> Result<DataValue, ExprError> {
+        Ok(match self {
+            Self::Constant(value, _) => value.clone(),
+            _ => unimplemented!(),
         })
     }
 }

@@ -274,3 +274,9 @@ impl Row {
         self.0.iter()
     }
 }
+
+impl From<Vec<DataValue>> for Row {
+    fn from(values: Vec<DataValue>) -> Self {
+        Row(values)
+    }
+}

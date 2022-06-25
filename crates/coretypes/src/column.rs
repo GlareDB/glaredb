@@ -1,6 +1,7 @@
 use crate::datatype::{DataType, DataValue};
 use bitvec::{slice::BitSlice, vec::BitVec};
 use paste::paste;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::iter::Iterator;
 use std::marker::PhantomData;
@@ -40,7 +41,7 @@ pub trait VarLengthType: NativeType {}
 impl VarLengthType for str {}
 impl VarLengthType for [u8] {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FixedLengthVec<T> {
     vec: Vec<T>,
 }
@@ -83,7 +84,7 @@ impl<T: FixedLengthType> Default for FixedLengthVec<T> {
     }
 }
 
-pub type BoolVec = FixedLengthVec<bool>;
+pub type BoolVec = FixedLengthVec<bool>; // TODO: Change to bitmap.
 pub type I8Vec = FixedLengthVec<i8>;
 pub type I16Vec = FixedLengthVec<i16>;
 pub type I32Vec = FixedLengthVec<i32>;
@@ -110,7 +111,7 @@ impl BytesRef for [u8] {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct VarLengthVec<T: ?Sized> {
     offsets: Vec<usize>,
     data: Vec<u8>,
@@ -226,7 +227,7 @@ pub type StrVec = VarLengthVec<str>;
 pub type BinaryVec = VarLengthVec<[u8]>;
 
 /// Column vector variants for all types supported by the system.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ColumnVec {
     Bool(BoolVec),
     I8(I8Vec),
@@ -330,7 +331,7 @@ macro_rules! impl_from_typed_vec {
 impl_from_typed_vec!(Bool, I8, I16, I32, I64, F32, F64, Str, Binary);
 
 /// A wrapper around a column vec allowing for value nullability.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NullableColumnVec {
     /// Validity of each value in the column vector. A '1' indicates not null, a
     /// '0' indicates null.
@@ -407,6 +408,10 @@ impl NullableColumnVec {
 
     pub fn len(&self) -> usize {
         self.values.len()
+    }
+
+    pub fn into_parts(self) -> (ColumnVec, BitVec) {
+        (self.values, self.validity)
     }
 }
 

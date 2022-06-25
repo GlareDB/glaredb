@@ -68,6 +68,7 @@ checksum = "1489fcb93a5bb47da0462ca93ad252ad6af2145cce58d10d46a83931ba9f016b"
 dependencies = [
  "funty",
  "radium",
+ "serde",
  "tap",
  "wyz",
 ]
@@ -619,11 +620,13 @@ dependencies = [
  "coretypes",
  "diststore",
  "fmtutil",
+ "futures",
  "log",
  "logutil",
  "serde",
  "sqlparser",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
