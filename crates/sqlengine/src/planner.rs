@@ -1,5 +1,7 @@
-use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableReference, TableSchema};
-use crate::relational::{AggregateFunc, CrossJoin, Filter, Project, RelationalPlan, Scan, Values};
+use crate::catalog::{Catalog, ResolvedTableReference, TableReference, TableSchema};
+use crate::logical::{
+    AggregateFunc, CreateTable, CrossJoin, Filter, Insert, Project, RelationalPlan, Scan, Values,
+};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::{BinaryOperation, ExprError, ScalarExpr, UnaryOperation},
@@ -24,12 +26,13 @@ pub enum PlanError {
     InvalidColumnReference(String),
 
     #[error(transparent)]
-    Catalog(#[from] CatalogError),
-    #[error(transparent)]
     Expr(#[from] ExprError),
 
     #[error("internal: {0}")]
     Internal(String),
+
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 #[derive(Debug)]
@@ -41,6 +44,57 @@ impl<'a, C: Catalog> Planner<'a, C> {
     /// Create a new planner using the provided catalog.
     pub fn new(catalog: &'a C) -> Self {
         Planner { catalog }
+    }
+
+    /// Create a relational plan for the provided sql statement.
+    pub fn plan_statement(&self, statement: ast::Statement) -> Result<RelationalPlan, PlanError> {
+        match statement {
+            ast::Statement::Query(query) => self.plan_query(*query),
+
+            ast::Statement::CreateTable { name, columns, .. } => {
+                // TODO: Constraints, indexes
+                // TODO: Check if table exists (or maybe do that during execution).
+
+                // TODO: Provide actual catalog and schema values.
+                let name = TableReference::try_from(name)?.resolve_with_defaults("db", "public");
+                let col_names: Vec<_> = columns.iter().map(|col| col.name.value.clone()).collect();
+                let col_types: Vec<_> = columns
+                    .iter()
+                    .map(|col| sql_type_to_data_type(&col.data_type))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .map(|typ| NullableType::new_nullable(typ))
+                    .collect();
+
+                let tbl_schema = TableSchema::new(name, col_names, RelationSchema::new(col_types))?;
+
+                Ok(RelationalPlan::CreateTable(CreateTable {
+                    table: tbl_schema,
+                }))
+            }
+
+            ast::Statement::Insert {
+                table_name,
+                columns, // TODO: Need to check columns.
+                source,
+                ..
+            } => {
+                // TODO: Handle default values. Right now, input is assumed to
+                // produce results that match the schema of the full table.
+                // TODO: Actually check that the source input schema is correct.
+
+                let tbl_ref = TableReference::try_from(table_name)?;
+                let tbl = self.catalog.get_table(&tbl_ref)?;
+                let input = self.plan_query(*source)?;
+
+                Ok(RelationalPlan::Insert(Insert {
+                    table: tbl.reference,
+                    input: Box::new(input),
+                }))
+            }
+
+            statement => Err(PlanError::Unsupported(format!("statement: {}", statement))),
+        }
     }
 
     pub fn plan_query(&self, query: ast::Query) -> Result<RelationalPlan, PlanError> {
@@ -137,10 +191,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
                     return Err(PlanError::Unsupported("table alias".to_string()));
                 }
                 let tbl_ref = name.try_into()?;
-                let tbl_schema = self.catalog.table_schema(&tbl_ref)?;
+                let tbl_schema = self.catalog.get_table(&tbl_ref)?;
 
-                let schema = tbl_schema.get_schema().clone();
-                let resolved = tbl_schema.get_reference().clone();
+                let schema = tbl_schema.schema.clone();
+                let resolved = tbl_schema.reference.clone();
                 let scan = Scan {
                     table: resolved,
                     projected_schema: schema,
@@ -272,7 +326,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
             ast::Expr::TypedString { data_type, value } => Cast {
                 expr: Box::new(Constant(DataValue::Utf8(value), DataType::Utf8.into())),
-                datatype: sql_type_to_data_type(data_type)?.into(),
+                datatype: sql_type_to_data_type(&data_type)?.into(),
             },
 
             expr => {
@@ -298,7 +352,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
 }
 
 /// Convert a sql ast type to a datatype we can work with.
-fn sql_type_to_data_type(sql_type: ast::DataType) -> Result<DataType, PlanError> {
+fn sql_type_to_data_type(sql_type: &ast::DataType) -> Result<DataType, PlanError> {
     Ok(match sql_type {
         ast::DataType::Boolean => DataType::Bool,
         ast::DataType::SmallInt(_) => DataType::Int16,
@@ -390,7 +444,7 @@ impl Scope {
         let (idx, _) = self
             .schemas
             .iter()
-            .map(|tbl| tbl.get_columns().iter())
+            .map(|tbl| tbl.columns.iter())
             .flatten()
             .enumerate()
             .find(|(_, col)| *col == name)?;
@@ -402,7 +456,7 @@ impl Scope {
         let num_cols = self
             .schemas
             .iter()
-            .flat_map(|t| t.get_schema().columns.iter())
+            .flat_map(|t| t.schema.columns.iter())
             .count();
 
         let mut exprs = Vec::with_capacity(num_cols);
@@ -479,7 +533,7 @@ mod tests {
         let mut scope = Scope::new();
         for table in tables.into_iter() {
             let alias = TableAliasOrReference::Reference(TableReference::new_unqualified(
-                table.get_reference().base.clone(),
+                table.reference.base.clone(),
             ));
             scope.add_table(alias, table).unwrap();
         }

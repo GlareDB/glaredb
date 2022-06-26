@@ -1,7 +1,7 @@
-use coretypes::batch::{Batch, BatchRepr};
+use crate::batch::{Batch, BatchRepr};
+use crate::datatype::RelationSchema;
+use crate::expr::ScalarExpr;
 use anyhow::Result;
-use coretypes::datatype::RelationSchema;
-use coretypes::expr::ScalarExpr;
 use futures::stream::{self, Stream};
 use std::pin::Pin;
 use std::sync::Arc;

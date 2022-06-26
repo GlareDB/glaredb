@@ -2,10 +2,9 @@
 //!
 //! This exmaple can be ran via `cargo run --example logicalplan FILENAME` where
 //! the provided file consists of one or more sql queries.
+use anyhow::{anyhow, Result};
 use coretypes::datatype::{DataType, NullableType, RelationSchema};
-use sqlengine::catalog::{
-    Catalog, CatalogError, ResolvedTableReference, TableReference, TableSchema,
-};
+use sqlengine::catalog::{Catalog, ResolvedTableReference, TableReference, TableSchema};
 use sqlengine::planner::Planner;
 use sqlparser::ast;
 use sqlparser::dialect::PostgreSqlDialect;
@@ -171,13 +170,21 @@ impl TpchCatalog {
 }
 
 impl Catalog for TpchCatalog {
-    fn table_schema(&self, tbl: &TableReference) -> Result<TableSchema, CatalogError> {
+    fn get_table(&self, tbl: &TableReference) -> Result<TableSchema> {
         let resolved = tbl.clone().resolve_with_defaults("db", "tpch");
         let schema = self
             .tables
             .iter()
-            .find(|schema| schema.get_reference() == &resolved)
-            .ok_or(CatalogError::MissingTable(tbl.to_string()))?;
+            .find(|schema| schema.reference == resolved)
+            .ok_or(anyhow!("missing table: {}", tbl))?;
         Ok(schema.clone())
+    }
+
+    fn create_table(&mut self, tbl: TableSchema) -> Result<()> {
+        todo!()
+    }
+
+    fn drop_table(&mut self, tblk: &TableReference) -> Result<()> {
+        todo!()
     }
 }

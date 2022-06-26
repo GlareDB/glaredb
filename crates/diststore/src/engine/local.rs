@@ -1,60 +1,56 @@
+use super::{StorageEngine, StorageTransaction};
 use crate::store::Store;
-use crate::stream::{BatchStream, MemoryStream};
-use crate::{Result, StoreError};
+use anyhow::Result;
 use async_trait::async_trait;
 use coretypes::batch::Batch;
 use coretypes::column::{ColumnVec, NullableColumnVec};
 use coretypes::datatype::{RelationSchema, Row};
 use coretypes::expr::ScalarExpr;
-use futures::stream::{self, Stream};
+use coretypes::stream::{BatchStream, MemoryStream};
 use parking_lot::RwLock;
 use std::sync::Arc;
 
-/// Client interface to an underlying storage engine.
-#[async_trait]
-pub trait Client: Clone {
-    /// Create a new relation with the given name.
-    async fn create_relation(&mut self, name: &str, schema: RelationSchema) -> Result<()>;
-
-    /// Delete a relation with the given name. Errors if the relation does not
-    /// exist.
-    async fn delete_relation(&mut self, name: &str) -> Result<()>;
-
-    /// Get a relation schema.
-    async fn get_relation(&self, name: &str) -> Result<Option<RelationSchema>>;
-
-    async fn insert(&mut self, table: &str, row: &Row) -> Result<()>;
-
-    async fn scan(
-        &self,
-        table: &str,
-        filter: Option<ScalarExpr>,
-        limit: usize,
-    ) -> Result<BatchStream>;
-}
-
 #[derive(Debug, Clone)]
-pub struct LocalClient {
+pub struct LocalEngine {
     store: Arc<RwLock<Store>>,
 }
 
-impl LocalClient {
-    pub fn new(store: Store) -> LocalClient {
-        LocalClient {
+impl LocalEngine {
+    pub fn new(store: Store) -> LocalEngine {
+        LocalEngine {
             store: Arc::new(RwLock::new(store)),
         }
     }
 }
 
+impl StorageEngine for LocalEngine {
+    type Transaction = LocalTransaction;
+
+    fn begin(&self, interactivity: super::Interactivity) -> Result<Self::Transaction> {
+        Ok(LocalTransaction {
+            engine: self.clone(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LocalTransaction {
+    engine: LocalEngine,
+}
+
 #[async_trait]
-impl Client for LocalClient {
+impl StorageTransaction for LocalTransaction {
+    async fn commit(self) -> Result<()> {
+        Ok(())
+    }
+
     async fn create_relation(&mut self, name: &str, schema: RelationSchema) -> Result<()> {
-        let mut store = self.store.write();
+        let mut store = self.engine.store.write();
         store.create_relation(name, schema)
     }
 
     async fn delete_relation(&mut self, name: &str) -> Result<()> {
-        let mut store = self.store.write();
+        let mut store = self.engine.store.write();
         store.delete_relation(name)
     }
 
@@ -63,7 +59,7 @@ impl Client for LocalClient {
     }
 
     async fn insert(&mut self, table: &str, row: &Row) -> Result<()> {
-        let mut store = self.store.write();
+        let mut store = self.engine.store.write();
         store.insert(table, row)
     }
 
@@ -75,7 +71,7 @@ impl Client for LocalClient {
     ) -> Result<BatchStream> {
         // TODO: Use projections, filters, etc.
         // TODO: Actually stream.
-        let store = self.store.read();
+        let store = self.engine.store.read();
         let batch = store.scan(table)?;
         let stream = MemoryStream::with_single_batch(batch);
 

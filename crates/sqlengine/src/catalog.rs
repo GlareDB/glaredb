@@ -1,19 +1,21 @@
+use anyhow::{anyhow, Result};
 use coretypes::datatype::RelationSchema;
 use sqlparser::ast;
 use std::convert::AsRef;
 use std::fmt;
 
-#[derive(Debug, thiserror::Error)]
-pub enum CatalogError {
-    #[error("invalid table reference: {0}")]
-    InvalidTableReference(String),
-    #[error("missing table: {0}")]
-    MissingTable(String),
-    #[error("invalid schema: columns: {columns:?}, schema: {schema:?}")]
-    InvalidColumnsForSchema {
-        columns: Vec<String>,
-        schema: RelationSchema,
-    },
+/// Manage underlying table schema.
+///
+/// All DDL operations should go through the catalog.
+pub trait Catalog {
+    /// Create a new table with the provided schema.
+    fn create_table(&mut self, tbl: TableSchema) -> Result<()>;
+
+    /// Drop a table.
+    fn drop_table(&mut self, tblk: &TableReference) -> Result<()>;
+
+    /// Return the schema for the specified table.
+    fn get_table(&self, tbl: &TableReference) -> Result<TableSchema>;
 }
 
 /// A fully resolved table reference.
@@ -96,11 +98,11 @@ impl fmt::Display for TableReference {
 }
 
 impl TryFrom<ast::ObjectName> for TableReference {
-    type Error = CatalogError;
+    type Error = anyhow::Error;
 
     fn try_from(value: ast::ObjectName) -> Result<Self, Self::Error> {
         if value.0.len() == 0 || value.0.len() > 3 {
-            return Err(CatalogError::InvalidTableReference(value.to_string()));
+            return Err(anyhow!("invalid table reference: {:?}", value));
         }
         let mut iter = value.0.into_iter();
         let len = iter.len();
@@ -123,9 +125,9 @@ impl TryFrom<ast::ObjectName> for TableReference {
 
 #[derive(Debug, Clone)]
 pub struct TableSchema {
-    reference: ResolvedTableReference,
-    columns: Vec<String>,
-    schema: RelationSchema,
+    pub reference: ResolvedTableReference,
+    pub columns: Vec<String>,
+    pub schema: RelationSchema,
 }
 
 impl TableSchema {
@@ -135,9 +137,13 @@ impl TableSchema {
         reference: ResolvedTableReference,
         columns: Vec<String>,
         schema: RelationSchema,
-    ) -> Result<Self, CatalogError> {
+    ) -> Result<Self> {
         if columns.len() != schema.columns.len() {
-            return Err(CatalogError::InvalidColumnsForSchema { columns, schema });
+            return Err(anyhow!(
+                "invalid columns for schema, columns {:?}, schema: {:?}",
+                columns,
+                schema
+            ));
         }
         Ok(TableSchema {
             reference,
@@ -145,21 +151,4 @@ impl TableSchema {
             schema,
         })
     }
-
-    pub fn get_reference(&self) -> &ResolvedTableReference {
-        &self.reference
-    }
-
-    pub fn get_columns(&self) -> &[String] {
-        &self.columns
-    }
-
-    pub fn get_schema(&self) -> &RelationSchema {
-        &self.schema
-    }
-}
-
-pub trait Catalog {
-    /// Return the schema for the specified table.
-    fn table_schema(&self, tbl: &TableReference) -> Result<TableSchema, CatalogError>;
 }

@@ -1,4 +1,5 @@
 pub mod catalog;
-pub mod execution;
+pub mod engine;
+pub mod logical;
+pub mod physical;
 pub mod planner;
-pub mod relational;

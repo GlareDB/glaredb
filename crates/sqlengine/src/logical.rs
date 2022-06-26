@@ -1,4 +1,4 @@
-use crate::catalog::{Catalog, CatalogError, ResolvedTableReference, TableReference};
+use crate::catalog::{Catalog, ResolvedTableReference, TableReference, TableSchema};
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::ScalarExpr,
@@ -29,6 +29,10 @@ pub enum RelationalPlan {
     Scan(Scan),
     /// Constant values.
     Values(Values),
+    /// Create table.
+    CreateTable(CreateTable),
+    /// Insert
+    Insert(Insert),
 }
 
 #[derive(Debug)]
@@ -100,6 +104,17 @@ pub struct Aggregate {
     pub func: AggregateFunc,
     pub args: Vec<ScalarExpr>,
     pub distinct: bool,
+}
+
+#[derive(Debug)]
+pub struct CreateTable {
+    pub table: TableSchema,
+}
+
+#[derive(Debug)]
+pub struct Insert {
+    pub table: ResolvedTableReference,
+    pub input: Box<RelationalPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -192,6 +207,7 @@ impl RelationalPlan {
                 }
                 writeln!(f, "]")?;
             }
+            _ => unimplemented!(),
         };
 
         Ok(())

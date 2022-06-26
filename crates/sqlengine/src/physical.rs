@@ -1,29 +1,54 @@
-use crate::catalog::ResolvedTableReference;
+use crate::catalog::{Catalog, ResolvedTableReference, TableSchema};
+use crate::logical::{JoinOperator, JoinType, RelationalPlan};
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use coretypes::{
     batch::{Batch, BatchError, BatchRepr, SelectivityBatch},
     column::{BoolVec, ColumnVec},
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::{EvaluatedExpr, ExprError, ScalarExpr},
+    stream::{BatchStream, MemoryStream},
 };
-use diststore::client::Client;
-use diststore::stream::{BatchStream, MemoryStream};
+use diststore::engine::StorageTransaction;
 use futures::stream::{Stream, StreamExt};
+use std::sync::Arc;
+
+#[async_trait]
+pub trait PhysicalNode<T: StorageTransaction> {
+    /// Produce a streaming pipeline.
+    async fn build_stream(self, tx: Arc<T>) -> Result<BatchStream>;
+}
 
 #[derive(Debug)]
 pub enum PhysicalPlan {
     Scan(Scan),
     Values(Values),
     Filter(Filter),
+    NestedLoopJoin(NestedLoopJoin),
+}
+
+#[derive(Debug)]
+pub struct NestedLoopJoin {
+    pub join_type: JoinType,
+    pub operator: JoinOperator,
+}
+
+impl NestedLoopJoin {
+    pub async fn stream(self, left: BatchStream, right: BatchStream) -> Result<BatchStream> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug)]
 pub struct Filter {
     pub predicate: ScalarExpr,
+    pub input: Box<PhysicalPlan>,
 }
 
-impl Filter {
-    pub async fn stream(self, input: BatchStream) -> Result<BatchStream> {
+#[async_trait]
+impl<T: StorageTransaction + 'static> PhysicalNode<T> for Filter {
+    async fn build_stream(self, tx: Arc<T>) -> Result<BatchStream> {
+        let input = self.input.build_stream(tx).await?;
         let stream = input.map(move |batch| match batch {
             Ok(batch) => {
                 let evaled = self.predicate.evaluate(&batch)?;
@@ -62,18 +87,16 @@ impl Filter {
 #[derive(Debug)]
 pub struct Scan {
     pub table: ResolvedTableReference,
-    pub projected_schema: RelationSchema,
     pub project: Option<Vec<usize>>,
     pub filter: Option<ScalarExpr>,
 }
 
-impl Scan {
-    pub async fn stream<C>(self, client: &C) -> Result<BatchStream>
-    where
-        C: Client,
-    {
-        let tbl = self.table.to_string();
-        let stream = client.scan(&tbl, self.filter, 10).await?;
+#[async_trait]
+impl<T: StorageTransaction + 'static> PhysicalNode<T> for Scan {
+    async fn build_stream(self, tx: Arc<T>) -> Result<BatchStream> {
+        let name = self.table.to_string();
+        // TODO: Pass in projection.
+        let stream = tx.scan(&name, self.filter, 10).await?;
         Ok(stream)
     }
 }
@@ -84,8 +107,9 @@ pub struct Values {
     pub values: Vec<Vec<ScalarExpr>>,
 }
 
-impl Values {
-    pub fn stream(self) -> Result<BatchStream> {
+#[async_trait]
+impl<T: StorageTransaction + 'static> PhysicalNode<T> for Values {
+    async fn build_stream(self, _tx: Arc<T>) -> Result<BatchStream> {
         let mut batch = Batch::new_from_schema(&self.schema, self.values.len());
         for row_exprs in self.values.iter() {
             let values = row_exprs
@@ -100,61 +124,31 @@ impl Values {
     }
 }
 
-impl PhysicalPlan {}
+#[derive(Debug)]
+pub struct CreateTable {
+    pub table: TableSchema,
+}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use coretypes::datatype::{DataType, DataValue};
-    use futures::stream::StreamExt;
-
-    #[tokio::test]
-    async fn values_simple() {
-        let exprs = vec![
-            vec![
-                ScalarExpr::Constant(DataValue::Int16(4), DataType::Int16.into()),
-                ScalarExpr::Constant(DataValue::Utf8("hello".to_string()), DataType::Utf8.into()),
-            ],
-            vec![
-                ScalarExpr::Constant(DataValue::Int16(5), DataType::Int16.into()),
-                ScalarExpr::Constant(DataValue::Utf8("world".to_string()), DataType::Utf8.into()),
-            ],
-        ];
-        let schema = RelationSchema::new(vec![DataType::Int16.into(), DataType::Utf8.into()]);
-        let values = Values {
-            schema,
-            values: exprs,
-        };
-
-        let mut stream = values.stream().unwrap();
-        let batch = stream.next().await.unwrap().unwrap();
-        assert_eq!(2, batch.get_batch().num_rows());
-        assert_eq!(2, batch.get_batch().arity());
-
-        let batch = stream.next().await;
-        assert!(batch.is_none());
+impl PhysicalPlan {
+    pub fn from_logical(logical: RelationalPlan) -> Result<PhysicalPlan> {
+        Ok(match logical {
+            RelationalPlan::Filter(filter) => PhysicalPlan::Filter(Filter {
+                predicate: filter.predicate,
+                input: Box::new(Self::from_logical(*filter.input)?),
+            }),
+            _ => return Err(anyhow!("unsupported logical node")),
+        })
     }
 
-    #[test]
-    fn values_schema_mismatch() {
-        let exprs = vec![
-            vec![
-                ScalarExpr::Constant(DataValue::Int16(4), DataType::Int16.into()),
-                ScalarExpr::Constant(DataValue::Utf8("hello".to_string()), DataType::Utf8.into()),
-            ],
-            vec![
-                ScalarExpr::Constant(DataValue::Int16(5), DataType::Int16.into()),
-                ScalarExpr::Constant(DataValue::Int16(6), DataType::Int16.into()),
-            ],
-        ];
-
-        let schema = RelationSchema::new(vec![DataType::Int16.into(), DataType::Utf8.into()]);
-        let values = Values {
-            schema,
-            values: exprs,
-        };
-
-        let result = values.stream();
-        assert!(result.is_err());
+    pub async fn build_stream<T>(self, tx: Arc<T>) -> Result<BatchStream>
+    where
+        T: StorageTransaction + 'static,
+    {
+        Ok(match self {
+            PhysicalPlan::Scan(scan) => scan.build_stream(tx).await?,
+            PhysicalPlan::Filter(filter) => filter.build_stream(tx).await?,
+            PhysicalPlan::Values(values) => values.build_stream(tx).await?,
+            _ => return Err(anyhow!("unimplemented physical node")),
+        })
     }
 }
