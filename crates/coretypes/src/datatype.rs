@@ -34,6 +34,22 @@ impl DataType {
             _ => false,
         }
     }
+
+    pub fn from_u8(byte: u8) -> Option<DataType> {
+        Some(match byte {
+            0 => DataType::Bool,
+            1 => DataType::Int8,
+            2 => DataType::Int16,
+            3 => DataType::Int32,
+            4 => DataType::Int64,
+            5 => DataType::Float32,
+            6 => DataType::Float64,
+            7 => DataType::Date64,
+            8 => DataType::Utf8,
+            9 => DataType::Binary,
+            _ => return None,
+        })
+    }
 }
 
 impl fmt::Display for DataType {
@@ -65,6 +81,13 @@ impl NullableType {
         NullableType {
             datatype,
             nullable: true,
+        }
+    }
+
+    pub fn new_nonnullable(datatype: DataType) -> NullableType {
+        NullableType {
+            datatype,
+            nullable: false,
         }
     }
 

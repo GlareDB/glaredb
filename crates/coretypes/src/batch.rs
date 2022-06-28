@@ -16,9 +16,9 @@ pub enum BatchError {
 /// Representations of batches.
 #[derive(Debug)]
 pub enum BatchRepr {
-    /// A basic batch.
+    /// A basic column-oriented batch.
     Batch(Batch),
-    /// A batch with a row selectivity vector.
+    /// A column-oriented batch with a row selectivity vector.
     Selectivity(SelectivityBatch),
 }
 
@@ -28,6 +28,13 @@ impl BatchRepr {
         match self {
             BatchRepr::Batch(batch) => batch,
             BatchRepr::Selectivity(sel) => &sel.batch,
+        }
+    }
+
+    pub fn into_shrunk_batch(self) -> Batch {
+        match self {
+            BatchRepr::Batch(batch) => batch,
+            BatchRepr::Selectivity(batch) => batch.shrink_to_selected(),
         }
     }
 }
@@ -163,5 +170,13 @@ impl SelectivityBatch {
 
     pub fn num_rows(&self) -> usize {
         self.selectivity.count_ones()
+    }
+
+    /// Return a batch with all items not selected removed.
+    pub fn shrink_to_selected(mut self) -> Batch {
+        for column in self.batch.columns.iter_mut() {
+            (*Arc::make_mut(column)).retain_selected(&self.selectivity);
+        }
+        self.batch
     }
 }

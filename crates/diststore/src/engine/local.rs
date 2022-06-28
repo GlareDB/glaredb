@@ -44,12 +44,12 @@ impl StorageTransaction for LocalTransaction {
         Ok(())
     }
 
-    async fn create_relation(&mut self, name: &str, schema: RelationSchema) -> Result<()> {
+    async fn create_relation(&self, name: &str, schema: RelationSchema) -> Result<()> {
         let mut store = self.engine.store.write();
         store.create_relation(name, schema)
     }
 
-    async fn delete_relation(&mut self, name: &str) -> Result<()> {
+    async fn delete_relation(&self, name: &str) -> Result<()> {
         let mut store = self.engine.store.write();
         store.delete_relation(name)
     }
@@ -58,7 +58,7 @@ impl StorageTransaction for LocalTransaction {
         unimplemented!()
     }
 
-    async fn insert(&mut self, table: &str, row: &Row) -> Result<()> {
+    async fn insert(&self, table: &str, row: &Row) -> Result<()> {
         let mut store = self.engine.store.write();
         store.insert(table, row)
     }

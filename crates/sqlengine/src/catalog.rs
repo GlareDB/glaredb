@@ -12,7 +12,7 @@ pub trait Catalog {
     fn create_table(&mut self, tbl: TableSchema) -> Result<()>;
 
     /// Drop a table.
-    fn drop_table(&mut self, tblk: &TableReference) -> Result<()>;
+    fn drop_table(&mut self, tbl: &TableReference) -> Result<()>;
 
     /// Return the schema for the specified table.
     fn get_table(&self, tbl: &TableReference) -> Result<TableSchema>;
@@ -126,7 +126,7 @@ impl TryFrom<ast::ObjectName> for TableReference {
 #[derive(Debug, Clone)]
 pub struct TableSchema {
     pub reference: ResolvedTableReference,
-    pub columns: Vec<String>,
+    pub columns: Vec<String>, // TODO: Need sql level concepts here.
     pub schema: RelationSchema,
 }
 

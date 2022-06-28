@@ -181,10 +181,10 @@ impl Catalog for TpchCatalog {
     }
 
     fn create_table(&mut self, tbl: TableSchema) -> Result<()> {
-        todo!()
+        unimplemented!()
     }
 
-    fn drop_table(&mut self, tblk: &TableReference) -> Result<()> {
-        todo!()
+    fn drop_table(&mut self, tbl: &TableReference) -> Result<()> {
+        unimplemented!()
     }
 }

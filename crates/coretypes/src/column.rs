@@ -76,6 +76,12 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.vec.iter()
     }
+
+    pub fn retain_selected(&mut self, selectivity: &BitVec) {
+        assert_eq!(self.len(), selectivity.len());
+        let mut iter = selectivity.iter();
+        self.vec.retain(|_| *iter.next().unwrap())
+    }
 }
 
 impl<T: FixedLengthType> Default for FixedLengthVec<T> {
@@ -187,6 +193,30 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
         Some(T::from_bytes(buf))
     }
 
+    pub fn retain_selected(&mut self, selectivity: &BitVec) {
+        assert_eq!(self.len(), selectivity.len());
+        let mut new_offsets = Vec::with_capacity(selectivity.count_ones() + 1);
+
+        let mut offsets = self.offsets.iter();
+        let mut curr_offset = *offsets.next().unwrap();
+        new_offsets.push(curr_offset);
+
+        let data_len = self.data.len();
+        let mut offset_sub = 0;
+        for (sel, &next_offset) in selectivity.iter().zip(offsets) {
+            let next_offset = next_offset - offset_sub;
+            if *sel {
+                new_offsets.push(next_offset);
+                curr_offset = next_offset;
+            } else {
+                self.data.copy_within(next_offset..data_len, curr_offset);
+                offset_sub += next_offset - curr_offset;
+            }
+        }
+
+        self.offsets = new_offsets;
+    }
+
     pub fn iter(&self) -> VarLengthIterator<'_, T> {
         VarLengthIterator::from_vec(self)
     }
@@ -276,6 +306,14 @@ macro_rules! cvec_common {
             match self {
                 $(
                     Self::$variant(v) => v.push_default(),
+                )*
+            }
+        }
+
+        pub fn retain_selected(&mut self, selectivity: &BitVec) {
+            match self {
+                $(
+                    Self::$variant(v) => v.retain_selected(selectivity),
                 )*
             }
         }
@@ -410,6 +448,11 @@ impl NullableColumnVec {
         self.values.len()
     }
 
+    pub fn retain_selected(&mut self, selectivity: &BitVec) {
+        self.validity.retain(|idx, _| selectivity[idx]);
+        self.values.retain_selected(selectivity);
+    }
+
     pub fn into_parts(self) -> (ColumnVec, BitVec) {
         (self.values, self.validity)
     }
@@ -418,6 +461,7 @@ impl NullableColumnVec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitvec::prelude::*;
 
     #[test]
     fn primitive_push_get() {
@@ -462,5 +506,35 @@ mod tests {
 
         let got: Vec<_> = v.iter().collect();
         assert_eq!(vals, got);
+    }
+
+    #[test]
+    fn varlen_retain() {
+        let mut v = ColumnVec::new_str_vec();
+        let v = v.try_as_str_vec_mut().unwrap();
+
+        let vals = vec!["one", "two", "three", "four"];
+        for val in vals.iter() {
+            v.copy_push(val);
+        }
+
+        // All
+        let bm = bitvec![1, 1, 1, 1];
+        v.retain_selected(&bm);
+        assert_eq!(4, v.len());
+        let got: Vec<_> = v.iter().collect();
+        assert_eq!(vals, got);
+
+        // Some
+        let bm = bitvec![1, 0, 0, 1];
+        v.retain_selected(&bm);
+        assert_eq!(2, v.len());
+        let got: Vec<_> = v.iter().collect();
+        assert_eq!(vec!["one", "four"], got);
+
+        // None
+        let bm = bitvec![0, 0];
+        v.retain_selected(&bm);
+        assert_eq!(0, v.len());
     }
 }

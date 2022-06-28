@@ -26,17 +26,17 @@ pub trait StorageTransaction: Sync + Send {
     async fn commit(self) -> Result<()>;
 
     /// Create a new relation with the given name.
-    async fn create_relation(&mut self, name: &str, schema: RelationSchema) -> Result<()>;
+    async fn create_relation(&self, name: &str, schema: RelationSchema) -> Result<()>;
 
     /// Delete a relation with the given name. Errors if the relation does not
     /// exist.
-    async fn delete_relation(&mut self, name: &str) -> Result<()>;
+    async fn delete_relation(&self, name: &str) -> Result<()>;
 
     /// Get a relation schema.
     async fn get_relation(&self, name: &str) -> Result<Option<RelationSchema>>;
 
     /// Insert a row.
-    async fn insert(&mut self, table: &str, row: &Row) -> Result<()>;
+    async fn insert(&self, table: &str, row: &Row) -> Result<()>;
 
     /// Scan a table.
     async fn scan(

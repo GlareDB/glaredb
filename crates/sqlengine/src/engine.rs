@@ -2,13 +2,15 @@ use crate::catalog::{Catalog, ResolvedTableReference, TableReference, TableSchem
 use crate::logical::RelationalPlan;
 use crate::physical::PhysicalPlan;
 use crate::planner::Planner;
+use crate::system::{self, system_tables, SystemTable};
 use anyhow::{anyhow, Result};
 use coretypes::batch::{Batch, BatchRepr};
 use coretypes::datatype::Row;
 use coretypes::stream::BatchStream;
 use diststore::engine::{Interactivity, StorageEngine, StorageTransaction};
-use futures::executor::block_on;
+use futures::executor;
 use futures::stream::StreamExt;
+use log::info;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::sync::Arc;
@@ -25,19 +27,36 @@ impl<S: StorageEngine> Engine<S> {
 
     pub fn start_session(&self) -> Result<Session<S>> {
         let tx = self.storage.begin(Interactivity::None)?;
-        Ok(Session { tx: Arc::new(tx) })
+        Ok(Session { tx })
+    }
+
+    fn ensure_system_tables(&mut self) -> Result<()> {
+        let tx = self.storage.begin(Interactivity::None)?;
+        executor::block_on(async move {
+            for table in system_tables().into_iter() {
+                let name = table.resolved_reference().to_string();
+                info!("check system table: {}", name);
+                let schema = tx.get_relation(&name).await?;
+                if schema.is_none() {
+                    info!("creating system table: {}", name);
+                    tx.create_relation(&name, table.generate_relation_schema())
+                        .await?;
+                }
+            }
+            Ok(())
+        })
     }
 }
 
 #[derive(Debug)]
 pub enum ExecutionResult {
-    CreateTable,
-    QueryResult { batches: Vec<BatchRepr> },
+    Other,
+    QueryResult { batches: Vec<Batch> },
 }
 
 #[derive(Debug)]
 pub struct Session<S: StorageEngine> {
-    tx: Arc<S::Transaction>,
+    tx: S::Transaction,
 }
 
 impl<S: StorageEngine + 'static> Session<S> {
@@ -76,37 +95,55 @@ impl<S: StorageEngine + 'static> Session<S> {
 
         // Execute everything in order (not concurrently).
         for plan in plans.into_iter() {
-            let mut stream = plan.build_stream(self.tx.clone()).await?;
-            let mut batches = Vec::new();
-            for result in stream.next().await {
-                match result {
-                    Ok(batch) => batches.push(batch),
-                    Err(e) => return Err(e),
+            match plan.execute_stream(&self.tx).await? {
+                Some(mut stream) => {
+                    let mut batches = Vec::new();
+                    for result in stream.next().await {
+                        match result {
+                            Ok(batch) => batches.push(batch),
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    results.push(ExecutionResult::QueryResult {
+                        batches: batches
+                            .into_iter()
+                            .map(|batch| batch.into_shrunk_batch())
+                            .collect(),
+                    })
                 }
-            }
-            results.push(ExecutionResult::QueryResult { batches })
+                None => {
+                    results.push(ExecutionResult::Other);
+                }
+            };
         }
 
         Ok(results)
     }
+
+    pub fn current_schema(&self) -> &str {
+        "public"
+    }
+
+    pub fn current_database(&self) -> &str {
+        "glaredb"
+    }
 }
 
-impl<S: StorageEngine> Catalog for Session<S> {
+impl<S: StorageEngine + 'static> Catalog for Session<S> {
+    fn get_table(&self, tbl: &TableReference) -> Result<TableSchema> {
+        let resolved = tbl
+            .clone()
+            .resolve_with_defaults(self.current_database(), self.current_schema());
+
+        unimplemented!()
+    }
+
     fn create_table(&mut self, tbl: TableSchema) -> Result<()> {
-        let name = tbl.reference.to_string();
-        let tx = Arc::get_mut(&mut self.tx).ok_or(anyhow!("can't get mut tx"))?;
-        block_on(tx.create_relation(&name, tbl.schema))?;
-        Ok(())
+        todo!()
     }
 
     fn drop_table(&mut self, tbl: &TableReference) -> Result<()> {
-        let name = tbl.to_string();
-        let tx = Arc::get_mut(&mut self.tx).ok_or(anyhow!("can't get mut tx"))?;
-        Ok(())
-    }
-
-    fn get_table(&self, tbl: &TableReference) -> Result<TableSchema> {
-        unimplemented!()
+        todo!()
     }
 }
 
@@ -117,17 +154,20 @@ mod tests {
     use diststore::store::Store;
 
     #[tokio::test]
-    async fn create_table() {
+    async fn basic_queries() {
         let store = Store::new();
         let engine = Engine::new(LocalEngine::new(store));
 
         let mut sess = engine.start_session().unwrap();
 
-        let results = sess
-            .execute_query("create table test_table (a int, b int)")
-            .await
-            .unwrap();
+        let query = r#"
+            create table test_table (a int, b int);
+            insert into test_table (a, b) values (1, 2);
+            select * from test_table;
+        "#;
+
+        let results = sess.execute_query(query).await.unwrap();
         println!("results: {:?}", results);
-        assert_eq!(1, results.len());
+        assert_eq!(3, results.len());
     }
 }
