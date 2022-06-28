@@ -1,7 +1,8 @@
-use coretypes::batch::Batch;
+use coretypes::batch::{Batch, BatchRepr, SelectivityBatch};
 use anyhow::{Result, anyhow};
 use coretypes::column::NullableColumnVec;
 use coretypes::datatype::{RelationSchema, Row};
+use coretypes::expr::ScalarExpr;
 use std::collections::{btree_map::Entry, BTreeMap};
 
 const DEFAULT_COLUMN_CAP: usize = 256;
@@ -44,9 +45,9 @@ impl Store {
         }
     }
 
-    pub fn scan(&self, table: &str) -> Result<Batch> {
+    pub fn scan(&self, table: &str, filter: Option<ScalarExpr>, limit: usize) -> Result<Batch> {
         match self.tables.get(table) {
-            Some(table) => table.scan(),
+            Some(table) => table.scan(filter, limit),
             None => Err(anyhow!("missing relation: {}", table)),
         }
     }
@@ -86,9 +87,21 @@ impl Table {
     }
 
     // TODO: Actually implement correctly.
-    fn scan(&self) -> Result<Batch> {
+    fn scan(&self, filter: Option<ScalarExpr>, limit: usize) -> Result<Batch> {
         let columns = self.columns.clone();
-        let batch = Batch::from_columns(columns)?;
-        Ok(batch)
+        let batch: BatchRepr = Batch::from_columns(columns)?.into();
+
+        match filter {
+            Some(filter) => {
+                let evaled = filter.evaluate(&batch)?;
+                let selectivity = evaled
+                    .try_get_bool_vec()
+                    .ok_or(anyhow!("filter did not produce bool vec"))?;
+                let batch = batch.into_shrunk_batch();
+                let batch = SelectivityBatch::new_with_bool_vec(batch, selectivity)?;
+                Ok(batch.shrink_to_selected())
+            }
+            None => Ok(batch.into_shrunk_batch()),
+        }
     }
 }

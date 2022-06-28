@@ -72,7 +72,7 @@ impl StorageTransaction for LocalTransaction {
         // TODO: Use projections, filters, etc.
         // TODO: Actually stream.
         let store = self.engine.store.read();
-        let batch = store.scan(table)?;
+        let batch = store.scan(table, filter, limit)?;
         let stream = MemoryStream::with_single_batch(batch);
 
         Ok(Box::pin(stream))

@@ -5,7 +5,7 @@ use crate::planner::Planner;
 use crate::system::{self, system_tables, SystemTable};
 use anyhow::{anyhow, Result};
 use coretypes::batch::{Batch, BatchRepr};
-use coretypes::datatype::Row;
+use coretypes::datatype::{DataValue, Row};
 use coretypes::stream::BatchStream;
 use diststore::engine::{Interactivity, StorageEngine, StorageTransaction};
 use futures::executor;
@@ -131,15 +131,50 @@ impl<S: StorageEngine + 'static> Session<S> {
 
 impl<S: StorageEngine + 'static> Catalog for Session<S> {
     fn get_table(&self, tbl: &TableReference) -> Result<TableSchema> {
-        let resolved = tbl
-            .clone()
-            .resolve_with_defaults(self.current_database(), self.current_schema());
+        executor::block_on(async move {
+            let resolved = tbl
+                .clone()
+                .resolve_with_defaults(self.current_database(), self.current_schema());
+        });
 
         unimplemented!()
     }
 
     fn create_table(&mut self, tbl: TableSchema) -> Result<()> {
-        todo!()
+        executor::block_on(async move {
+            // Insert column names (and eventually other stuff) into the
+            // attributes table.
+            let mut col_names = tbl.columns.into_iter();
+            let first_col = col_names
+                .next()
+                .ok_or(anyhow!("table must have at least one column"))?;
+            let mut row: Row = vec![
+                DataValue::Utf8(tbl.reference.catalog.clone()),
+                DataValue::Utf8(tbl.reference.schema.clone()),
+                DataValue::Utf8(tbl.reference.base.clone()),
+                DataValue::Utf8(first_col),
+            ]
+            .into();
+
+            // TODO: Bulk inserts.
+            // TODO: More efficient table identifiers.
+            let attrs_table = system::Attributes;
+            let attrs_ref = attrs_table.resolved_reference().to_string();
+            self.tx.insert(&attrs_ref, &row).await?;
+
+            let col_name_idx = 3;
+            for col_name in col_names {
+                row.0[col_name_idx] = DataValue::Utf8(col_name); // TODO: Reuse original string.
+                self.tx.insert(&attrs_ref, &row).await?;
+            }
+
+            // Create the actual relation.
+            let name = tbl.reference.to_string();
+            let schema = tbl.schema;
+            self.tx.create_relation(&name, schema).await?;
+
+            Ok(())
+        })
     }
 
     fn drop_table(&mut self, tbl: &TableReference) -> Result<()> {

@@ -14,7 +14,7 @@ pub enum ColumnError {
     InvalidValue,
 }
 
-pub trait NativeType: Sync + Send + fmt::Debug {}
+pub trait NativeType: Sync + Send + PartialEq + fmt::Debug {}
 
 impl NativeType for bool {}
 impl NativeType for i8 {}
@@ -82,11 +82,40 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         let mut iter = selectivity.iter();
         self.vec.retain(|_| *iter.next().unwrap())
     }
+
+    /// Eval some function against two fixed length vectors, producing a single
+    /// fixed length vector of the same size.
+    ///
+    /// Panics if `self` and `other` have different lengths.
+    pub fn eval_binary_produce_fixed<T2, O, F>(
+        &self,
+        other: &FixedLengthVec<T2>,
+        f: F,
+    ) -> FixedLengthVec<O>
+    where
+        T2: FixedLengthType,
+        O: FixedLengthType,
+        F: Fn(T, T2) -> O,
+    {
+        assert_eq!(self.len(), other.len());
+        let out = self
+            .iter()
+            .zip(other.iter())
+            .map(|(a, b)| f(*a, *b))
+            .collect();
+        FixedLengthVec { vec: out }
+    }
 }
 
 impl<T: FixedLengthType> Default for FixedLengthVec<T> {
     fn default() -> Self {
         FixedLengthVec { vec: Vec::new() }
+    }
+}
+
+impl<T: FixedLengthType> From<Vec<T>> for FixedLengthVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        FixedLengthVec { vec }
     }
 }
 
@@ -220,6 +249,22 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
     pub fn iter(&self) -> VarLengthIterator<'_, T> {
         VarLengthIterator::from_vec(self)
     }
+
+    /// Eval two varlen vectors containing the same types, producing a fixed
+    /// length vector.
+    pub fn eval_binary_produce_fixed<O, F>(&self, other: &Self, f: F) -> FixedLengthVec<O>
+    where
+        O: FixedLengthType,
+        F: Fn(&T, &T) -> O,
+    {
+        assert_eq!(self.len(), other.len());
+        let out = self
+            .iter()
+            .zip(other.iter())
+            .map(|(a, b)| f(a, b))
+            .collect();
+        FixedLengthVec { vec: out }
+    }
 }
 
 impl<T: ?Sized> Clone for VarLengthVec<T> {
@@ -229,6 +274,16 @@ impl<T: ?Sized> Clone for VarLengthVec<T> {
             data: self.data.clone(),
             varlen_type: PhantomData,
         }
+    }
+}
+
+impl From<Vec<&str>> for VarLengthVec<str> {
+    fn from(vec: Vec<&str>) -> Self {
+        let mut varlen = VarLengthVec::with_capacity(256);
+        for item in vec.into_iter() {
+            varlen.copy_push(item);
+        }
+        varlen
     }
 }
 

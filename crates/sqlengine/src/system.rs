@@ -47,7 +47,6 @@ impl SystemTable for Attributes {
             NullableType::new_nonnullable(DataType::Utf8),
             NullableType::new_nonnullable(DataType::Utf8),
             NullableType::new_nonnullable(DataType::Utf8),
-            NullableType::new_nonnullable(DataType::Int8),
         ];
         RelationSchema::new(cols)
     }
@@ -58,7 +57,6 @@ impl SystemTable for Attributes {
             "table_schema",
             "table_name",
             "column_name",
-            "builtin_type",
         ];
         cols.into_iter().map(|c| c.to_string()).collect()
     }

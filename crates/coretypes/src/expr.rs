@@ -1,6 +1,7 @@
 use crate::batch::{Batch, BatchRepr};
-use crate::column::{BoolVec, NullableColumnVec};
+use crate::column::{BoolVec, ColumnVec, NullableColumnVec, SqlEq};
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
+use anyhow::anyhow;
 use fmtutil::DisplaySlice;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -17,6 +18,8 @@ pub enum ExprError {
     NotNumeric(NullableType),
     #[error("missing column index {0} in provided relation")]
     MissingColumn(usize),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 /// The result of an expression evaluation.
@@ -25,6 +28,24 @@ pub enum EvaluatedExpr {
     ColumnRef(Arc<NullableColumnVec>),
     Column(NullableColumnVec),
     Value(DataValue),
+}
+
+impl EvaluatedExpr {
+    pub fn try_get_bool_vec(&self) -> Option<&BoolVec> {
+        match self {
+            EvaluatedExpr::ColumnRef(col) => col.get_values().try_as_bool_vec(),
+            EvaluatedExpr::Column(col) => col.get_values().try_as_bool_vec(),
+            EvaluatedExpr::Value(_) => None,
+        }
+    }
+
+    fn try_get_column(&self) -> Option<&NullableColumnVec> {
+        match self {
+            EvaluatedExpr::ColumnRef(col) => Some(col),
+            EvaluatedExpr::Column(col) => Some(col),
+            EvaluatedExpr::Value(_) => None,
+        }
+    }
 }
 
 impl From<Arc<NullableColumnVec>> for EvaluatedExpr {
@@ -106,6 +127,11 @@ impl ScalarExpr {
                 .ok_or(ExprError::MissingColumn(*idx))?
                 .into(),
             Self::Constant(value, _) => value.clone().into(),
+            Self::Binary {
+                operation,
+                left,
+                right,
+            } => unimplemented!(),
             _ => unimplemented!(),
         })
     }
@@ -218,6 +244,30 @@ impl BinaryOperation {
 
                 left_type.clone()
             }
+        })
+    }
+
+    fn evaluate(
+        &self,
+        left: &ScalarExpr,
+        right: &ScalarExpr,
+        input: &BatchRepr,
+    ) -> Result<EvaluatedExpr, ExprError> {
+        let left_evaled = left.evaluate(input)?;
+        let right_evaled = right.evaluate(input)?;
+        // TODO: Handle single values in evaluated expressions as well.
+        Ok(match self {
+            Self::Eq => {
+                let left_col = left_evaled
+                    .try_get_column()
+                    .ok_or(anyhow!("left not a column"))?;
+                let right_col = right_evaled
+                    .try_get_column()
+                    .ok_or(anyhow!("right not a column"))?;
+                let out = left_col.sql_eq(right_col).into();
+                NullableColumnVec::new_all_valid(out).into()
+            }
+            _ => unimplemented!(),
         })
     }
 }
