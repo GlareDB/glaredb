@@ -491,6 +491,25 @@ impl NullableColumnVec {
         Ok(())
     }
 
+    pub fn get_value(&self, idx: usize) -> Option<DataValue> {
+        if *self.validity.get(idx)? {
+            // TODO: Handle floats better.
+            Some(match &self.values {
+                ColumnVec::Bool(v) => DataValue::Bool(v.get(idx)?.clone()),
+                ColumnVec::I8(v) => DataValue::Int8(v.get(idx)?.clone()),
+                ColumnVec::I16(v) => DataValue::Int16(v.get(idx)?.clone()),
+                ColumnVec::I32(v) => DataValue::Int32(v.get(idx)?.clone()),
+                ColumnVec::I64(v) => DataValue::Int64(v.get(idx)?.clone()),
+                ColumnVec::F32(v) => DataValue::Float32(v.get(idx)?.clone().try_into().unwrap()),
+                ColumnVec::F64(v) => DataValue::Float64(v.get(idx)?.clone().try_into().unwrap()),
+                ColumnVec::Str(v) => DataValue::Utf8(v.get(idx)?.clone().to_string()),
+                ColumnVec::Binary(v) => DataValue::Binary(v.get(idx)?.clone().to_vec()),
+            })
+        } else {
+            Some(DataValue::Null)
+        }
+    }
+
     pub fn get_values(&self) -> &ColumnVec {
         &self.values
     }

@@ -16,6 +16,8 @@ pub trait Catalog {
 
     /// Return the schema for the specified table.
     fn get_table(&self, tbl: &TableReference) -> Result<TableSchema>;
+
+    fn resolve_table(&self, tbl: &TableReference) -> Result<ResolvedTableReference>;
 }
 
 /// A fully resolved table reference.

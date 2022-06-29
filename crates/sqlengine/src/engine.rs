@@ -4,13 +4,15 @@ use crate::physical::PhysicalPlan;
 use crate::planner::Planner;
 use crate::system::{self, system_tables, SystemTable};
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use coretypes::batch::{Batch, BatchRepr};
 use coretypes::datatype::{DataValue, Row};
+use coretypes::expr::ScalarExpr;
 use coretypes::stream::BatchStream;
 use diststore::engine::{Interactivity, StorageEngine, StorageTransaction};
 use futures::executor;
 use futures::stream::StreamExt;
-use log::info;
+use log::{debug, info};
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::sync::Arc;
@@ -62,8 +64,8 @@ pub struct Session<S: StorageEngine> {
 impl<S: StorageEngine + 'static> Session<S> {
     /// Execute a user-provided query.
     ///
-    /// The query string may include multiple statements. All statements will be
-    /// planned, then all plan executed, stopping after the first error.
+    /// The query string may include multiple statements. Each statement is
+    /// planned and executed before moving on to the next statement.
     ///
     /// A vector of execution results will be returned, with each result
     /// corresponding to a statement in the original query string.
@@ -71,31 +73,17 @@ impl<S: StorageEngine + 'static> Session<S> {
         let dialect = PostgreSqlDialect {};
         let statements = Parser::parse_sql(&dialect, query)?;
 
-        let planner = Planner::new(self);
+        // TODO: Execute each statement in it's own non-interactive transaction
+        // if we're not currently in an interactive transaction.
 
-        let mut plans = Vec::with_capacity(statements.len());
-        // Not using `into_iter` + `map` + `collect` since we should exit
-        // immediately after the first error instead of continuing to plan the
-        // result of the statements.
+        let mut results = Vec::with_capacity(statements.len());
         for statement in statements.into_iter() {
-            let plan = planner.plan_statement(statement)?;
-            plans.push(plan);
-        }
+            let plan = Planner::new(self).plan_statement(statement)?;
+            // TODO: Optimize logical.
+            let physical = PhysicalPlan::from_logical(plan)?;
+            // TODO: Optimize physical.
 
-        // TODO: Optimize logical
-
-        let plans = plans
-            .into_iter()
-            .map(|plan| PhysicalPlan::from_logical(plan))
-            .collect::<Result<Vec<_>>>()?;
-
-        // TODO: Optimize physical
-
-        let mut results = Vec::with_capacity(plans.len());
-
-        // Execute everything in order (not concurrently).
-        for plan in plans.into_iter() {
-            match plan.execute_stream(&self.tx).await? {
+            match physical.execute_stream(self).await? {
                 Some(mut stream) => {
                     let mut batches = Vec::new();
                     for result in stream.next().await {
@@ -131,16 +119,28 @@ impl<S: StorageEngine + 'static> Session<S> {
 
 impl<S: StorageEngine + 'static> Catalog for Session<S> {
     fn get_table(&self, tbl: &TableReference) -> Result<TableSchema> {
+        debug!("getting table schema: {}", tbl);
         executor::block_on(async move {
             let resolved = tbl
                 .clone()
                 .resolve_with_defaults(self.current_database(), self.current_schema());
-        });
-
-        unimplemented!()
+            let name = resolved.to_string();
+            // TODO: Return option from catalog instead of erroring?
+            let schema = self
+                .tx
+                .get_relation(&name)
+                .await?
+                .ok_or(anyhow!("missing table: {}", name))?;
+            Ok(TableSchema {
+                reference: resolved,
+                columns: vec!["TODO".to_string(); schema.arity()], // TODO
+                schema,
+            })
+        })
     }
 
     fn create_table(&mut self, tbl: TableSchema) -> Result<()> {
+        debug!("creating table: {}", tbl.reference);
         executor::block_on(async move {
             // Insert column names (and eventually other stuff) into the
             // attributes table.
@@ -180,6 +180,44 @@ impl<S: StorageEngine + 'static> Catalog for Session<S> {
     fn drop_table(&mut self, tbl: &TableReference) -> Result<()> {
         todo!()
     }
+
+    fn resolve_table(&self, tbl: &TableReference) -> Result<ResolvedTableReference> {
+        Ok(tbl
+            .clone()
+            .resolve_with_defaults(self.current_database(), self.current_schema()))
+    }
+}
+
+#[async_trait]
+pub trait Transaction: Catalog + Sync + Send {
+    /// Insert a row into a table.
+    async fn insert(&mut self, table: &ResolvedTableReference, row: &Row) -> Result<()>;
+
+    /// Scan a table.
+    async fn scan(
+        &self,
+        table: &ResolvedTableReference,
+        filter: Option<ScalarExpr>,
+    ) -> Result<BatchStream>;
+}
+
+#[async_trait]
+impl<S: StorageEngine + 'static> Transaction for Session<S> {
+    async fn insert(&mut self, table: &ResolvedTableReference, row: &Row) -> Result<()> {
+        let name = table.to_string();
+        self.tx.insert(&name, row).await?;
+        Ok(())
+    }
+
+    async fn scan(
+        &self,
+        table: &ResolvedTableReference,
+        filter: Option<ScalarExpr>,
+    ) -> Result<BatchStream> {
+        let name = table.to_string();
+        let stream = self.tx.scan(&name, filter, 10).await?;
+        Ok(stream)
+    }
 }
 
 #[cfg(test)]
@@ -190,13 +228,16 @@ mod tests {
 
     #[tokio::test]
     async fn basic_queries() {
+        logutil::init_test();
+
         let store = Store::new();
-        let engine = Engine::new(LocalEngine::new(store));
+        let mut engine = Engine::new(LocalEngine::new(store));
+        engine.ensure_system_tables().unwrap();
 
         let mut sess = engine.start_session().unwrap();
 
         let query = r#"
-            create table test_table (a int, b int);
+            create table test_table (a bigint, b bigint);
             insert into test_table (a, b) values (1, 2);
             select * from test_table;
         "#;

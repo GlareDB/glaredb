@@ -55,7 +55,8 @@ impl StorageTransaction for LocalTransaction {
     }
 
     async fn get_relation(&self, name: &str) -> Result<Option<RelationSchema>> {
-        unimplemented!()
+        let store = self.engine.store.read();
+        store.get_table_schema(name)
     }
 
     async fn insert(&self, table: &str, row: &Row) -> Result<()> {

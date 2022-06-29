@@ -56,7 +56,8 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 // TODO: Check if table exists (or maybe do that during execution).
 
                 // TODO: Provide actual catalog and schema values.
-                let name = TableReference::try_from(name)?.resolve_with_defaults("db", "public");
+                let reference = TableReference::try_from(name)?;
+                let resolved = self.catalog.resolve_table(&reference)?;
                 let col_names: Vec<_> = columns.iter().map(|col| col.name.value.clone()).collect();
                 let col_types: Vec<_> = columns
                     .iter()
@@ -66,7 +67,8 @@ impl<'a, C: Catalog> Planner<'a, C> {
                     .map(|typ| NullableType::new_nullable(typ))
                     .collect();
 
-                let tbl_schema = TableSchema::new(name, col_names, RelationSchema::new(col_types))?;
+                let tbl_schema =
+                    TableSchema::new(resolved, col_names, RelationSchema::new(col_types))?;
 
                 Ok(RelationalPlan::CreateTable(CreateTable {
                     table: tbl_schema,
@@ -199,7 +201,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
                     table: resolved,
                     projected_schema: schema,
                     project: None,
-                    filters: None,
+                    filter: None,
                 };
 
                 // When adding to scope, use the reference format provided by

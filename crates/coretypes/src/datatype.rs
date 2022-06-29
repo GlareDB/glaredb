@@ -296,6 +296,10 @@ impl Row {
     pub fn iter(&self) -> impl Iterator<Item = &DataValue> {
         self.0.iter()
     }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut DataValue> {
+        self.0.iter_mut()
+    }
 }
 
 impl From<Vec<DataValue>> for Row {

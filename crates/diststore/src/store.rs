@@ -38,11 +38,18 @@ impl Store {
         }
     }
 
-    pub fn insert(&mut self, table: &str, row: &Row) -> Result<()> {
-        match self.tables.get_mut(table) {
+    pub fn insert(&mut self, name: &str, row: &Row) -> Result<()> {
+        match self.tables.get_mut(name) {
             Some(table) => table.insert(row),
-            None => Err(anyhow!("missing relation: {}", table)),
+            None => Err(anyhow!("missing relation: {}", name)),
         }
+    }
+
+    pub fn get_table_schema(&self, name: &str) -> Result<Option<RelationSchema>> {
+        Ok(match self.tables.get(name) {
+            Some(table) => Some(table.schema.clone()),
+            None => None,
+        })
     }
 
     pub fn scan(&self, table: &str, filter: Option<ScalarExpr>, limit: usize) -> Result<Batch> {

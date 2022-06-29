@@ -187,4 +187,8 @@ impl Catalog for TpchCatalog {
     fn drop_table(&mut self, tbl: &TableReference) -> Result<()> {
         unimplemented!()
     }
+
+    fn resolve_table(&self, tbl: &TableReference) -> Result<ResolvedTableReference> {
+        unimplemented!()
+    }
 }

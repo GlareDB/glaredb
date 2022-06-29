@@ -1,5 +1,6 @@
 use super::{PhysicalOperator, PhysicalPlan};
 use crate::catalog::{Catalog, ResolvedTableReference, TableSchema};
+use crate::engine::Transaction;
 use crate::logical::{JoinOperator, JoinType, RelationalPlan};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -27,8 +28,8 @@ pub struct Filter {
 }
 
 #[async_trait]
-impl<T: StorageTransaction + 'static> PhysicalOperator<T> for Filter {
-    async fn execute_stream(self, tx: &T) -> Result<Option<BatchStream>> {
+impl<T: Transaction + 'static> PhysicalOperator<T> for Filter {
+    async fn execute_stream(self, tx: &mut T) -> Result<Option<BatchStream>> {
         let input = self
             .input
             .execute_stream(tx)
@@ -70,6 +71,36 @@ impl<T: StorageTransaction + 'static> PhysicalOperator<T> for Filter {
 }
 
 #[derive(Debug)]
+pub struct Project {
+    pub expressions: Vec<ScalarExpr>,
+    pub input: Box<PhysicalPlan>,
+}
+
+#[async_trait]
+impl<T: Transaction + 'static> PhysicalOperator<T> for Project {
+    async fn execute_stream(self, tx: &mut T) -> Result<Option<BatchStream>> {
+        let input = self
+            .input
+            .execute_stream(tx)
+            .await?
+            .ok_or(anyhow!("projection input did not return a stream"))?;
+        let stream = input.map(move |batch| match batch {
+            Ok(batch) => {
+                let eval_results = self
+                    .expressions
+                    .iter()
+                    .map(|expr| expr.evaluate(&batch).map_err(|e| e.into())) // TODO: Handle expr error conversion better.
+                    .collect::<Result<Vec<_>>>()?;
+                let batch = Batch::from_expression_results(eval_results)?;
+                Ok(batch.into())
+            }
+            Err(e) => Err(e),
+        });
+        Ok(Some(Box::pin(stream)))
+    }
+}
+
+#[derive(Debug)]
 pub struct Scan {
     pub table: ResolvedTableReference,
     pub project: Option<Vec<usize>>,
@@ -77,11 +108,10 @@ pub struct Scan {
 }
 
 #[async_trait]
-impl<T: StorageTransaction + 'static> PhysicalOperator<T> for Scan {
-    async fn execute_stream(self, tx: &T) -> Result<Option<BatchStream>> {
-        let name = self.table.to_string();
+impl<T: Transaction + 'static> PhysicalOperator<T> for Scan {
+    async fn execute_stream(self, tx: &mut T) -> Result<Option<BatchStream>> {
         // TODO: Pass in projection.
-        let stream = tx.scan(&name, self.filter, 10).await?;
+        let stream = tx.scan(&self.table, self.filter).await?;
         Ok(Some(stream))
     }
 }
@@ -93,8 +123,8 @@ pub struct Values {
 }
 
 #[async_trait]
-impl<T: StorageTransaction + 'static> PhysicalOperator<T> for Values {
-    async fn execute_stream(self, _tx: &T) -> Result<Option<BatchStream>> {
+impl<T: Transaction + 'static> PhysicalOperator<T> for Values {
+    async fn execute_stream(self, _tx: &mut T) -> Result<Option<BatchStream>> {
         let mut batch = Batch::new_from_schema(&self.schema, self.values.len());
         for row_exprs in self.values.iter() {
             let values = row_exprs

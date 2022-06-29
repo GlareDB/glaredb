@@ -1,6 +1,9 @@
 use crate::column::{BoolVec, ColumnError, NullableColumnVec};
-use crate::datatype::{RelationSchema, Row};
+use crate::datatype::{DataType, DataValue, RelationSchema, Row};
+use crate::expr::EvaluatedExpr;
+use anyhow::anyhow;
 use bitvec::vec::BitVec;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
@@ -11,6 +14,8 @@ pub enum BatchError {
     ColumnError(#[from] ColumnError),
     #[error("invalid selectivity length, got: {got}, expected: {expected}")]
     InvalidSelectivityLen { expected: usize, got: usize },
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 /// Representations of batches.
@@ -104,6 +109,42 @@ impl Batch {
         Ok(Batch { columns })
     }
 
+    pub fn from_expression_results<I>(results: I) -> Result<Batch, BatchError>
+    where
+        I: IntoIterator<Item = EvaluatedExpr>,
+    {
+        // TODO: Handle values from expression results better.
+
+        let mut iter = results.into_iter();
+        let first = match iter.next() {
+            Some(col) => col
+                .try_into_arc_vec()
+                .ok_or(anyhow!("tried to turn value into vector"))?,
+            None => {
+                return Ok(Batch {
+                    columns: Vec::new(),
+                })
+            }
+        };
+
+        let len = first.len();
+        let mut columns = vec![first];
+        for col in iter {
+            let col = col
+                .try_into_arc_vec()
+                .ok_or(anyhow!("tried to turn value into vector"))?;
+            if col.len() != len {
+                return Err(BatchError::ColumnSizeMismatch {
+                    expected: len,
+                    got: col.len(),
+                });
+            }
+            columns.push(col);
+        }
+
+        Ok(Batch { columns })
+    }
+
     /// Push a row onto the batch.
     ///
     /// Columns will be cloned if there are any outstanding references.
@@ -136,6 +177,41 @@ impl Batch {
 
     pub fn arity(&self) -> usize {
         self.columns.len()
+    }
+
+    pub fn row_iter<'a>(&'a self) -> BatchRowIter<'a> {
+        BatchRowIter::new(self)
+    }
+}
+
+/// Iterator over each row in a batch.
+#[derive(Debug)]
+pub struct BatchRowIter<'a> {
+    batch: &'a Batch,
+    idx: usize,
+}
+
+impl<'a> BatchRowIter<'a> {
+    /// Create a new iterator returning each row in the batch.
+    fn new(batch: &'a Batch) -> Self {
+        BatchRowIter { batch, idx: 0 }
+    }
+}
+
+impl<'a> Iterator for BatchRowIter<'a> {
+    type Item = Row;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: Not fantastic that this allocates for each row.
+        let row: Row = self
+            .batch
+            .columns
+            .iter()
+            .map(|col| col.get_value(self.idx))
+            .collect::<Option<Vec<_>>>()?
+            .into();
+        self.idx += 1;
+        Some(row)
     }
 }
 

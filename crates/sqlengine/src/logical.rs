@@ -55,9 +55,9 @@ pub struct Scan {
     pub projected_schema: RelationSchema,
     /// An optional list of column indices to project.
     pub project: Option<Vec<usize>>,
-    /// An optional list of filters to apply during scanning. Expressions should
-    /// return booleans indicating if the row should be returned.
-    pub filters: Option<Vec<ScalarExpr>>,
+    /// An optional filter to apply during scanning. Expressions should return
+    /// booleans indicating if the row should be returned.
+    pub filter: Option<ScalarExpr>,
 }
 
 #[derive(Debug)]
@@ -194,8 +194,8 @@ impl RelationalPlan {
                     Some(idxs) => write!(f, "projection = {}, ", DisplaySlice(&idxs))?,
                     None => write!(f, "projection = None, ")?,
                 };
-                match &scan.filters {
-                    Some(filters) => writeln!(f, "filters = {}", DisplaySlice(&filters))?,
+                match &scan.filter {
+                    Some(filter) => writeln!(f, "filter = {}", filter)?,
                     None => writeln!(f, "filters = None")?,
                 };
             }

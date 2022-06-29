@@ -39,6 +39,14 @@ impl EvaluatedExpr {
         }
     }
 
+    pub fn try_into_arc_vec(self) -> Option<Arc<NullableColumnVec>> {
+        match self {
+            EvaluatedExpr::ColumnRef(col) => Some(col),
+            EvaluatedExpr::Column(col) => Some(Arc::new(col)),
+            EvaluatedExpr::Value(_) => None,
+        }
+    }
+
     fn try_get_column(&self) -> Option<&NullableColumnVec> {
         match self {
             EvaluatedExpr::ColumnRef(col) => Some(col),
@@ -131,7 +139,7 @@ impl ScalarExpr {
                 operation,
                 left,
                 right,
-            } => unimplemented!(),
+            } => operation.evaluate(left, right, input)?,
             _ => unimplemented!(),
         })
     }
