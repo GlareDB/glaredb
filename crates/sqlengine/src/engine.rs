@@ -15,7 +15,9 @@ use futures::stream::StreamExt;
 use log::{debug, info};
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
+use std::iter::Extend;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub struct Engine<S> {
@@ -51,6 +53,12 @@ impl<S: StorageEngine> Engine<S> {
 }
 
 #[derive(Debug)]
+pub struct TimedExecutionResult {
+    pub result: ExecutionResult,
+    pub execution_duration: Duration,
+}
+
+#[derive(Debug)]
 pub enum ExecutionResult {
     Other,
     QueryResult { batches: Vec<Batch> },
@@ -69,7 +77,7 @@ impl<S: StorageEngine + 'static> Session<S> {
     ///
     /// A vector of execution results will be returned, with each result
     /// corresponding to a statement in the original query string.
-    pub async fn execute_query(&mut self, query: &str) -> Result<Vec<ExecutionResult>> {
+    pub async fn execute_query(&mut self, query: &str) -> Result<Vec<TimedExecutionResult>> {
         let dialect = PostgreSqlDialect {};
         let statements = Parser::parse_sql(&dialect, query)?;
 
@@ -78,12 +86,13 @@ impl<S: StorageEngine + 'static> Session<S> {
 
         let mut results = Vec::with_capacity(statements.len());
         for statement in statements.into_iter() {
+            let start = Instant::now();
             let plan = Planner::new(self).plan_statement(statement)?;
             // TODO: Optimize logical.
             let physical = PhysicalPlan::from_logical(plan)?;
             // TODO: Optimize physical.
 
-            match physical.execute_stream(self).await? {
+            let result = match physical.execute_stream(self).await? {
                 Some(mut stream) => {
                     let mut batches = Vec::new();
                     for result in stream.next().await {
@@ -92,17 +101,19 @@ impl<S: StorageEngine + 'static> Session<S> {
                             Err(e) => return Err(e),
                         }
                     }
-                    results.push(ExecutionResult::QueryResult {
+                    ExecutionResult::QueryResult {
                         batches: batches
                             .into_iter()
                             .map(|batch| batch.into_shrunk_batch())
                             .collect(),
-                    })
+                    }
                 }
-                None => {
-                    results.push(ExecutionResult::Other);
-                }
+                None => ExecutionResult::Other,
             };
+            results.push(TimedExecutionResult {
+                result,
+                execution_duration: Instant::now().duration_since(start),
+            })
         }
 
         Ok(results)
@@ -121,6 +132,8 @@ impl<S: StorageEngine + 'static> Catalog for Session<S> {
     fn get_table(&self, tbl: &TableReference) -> Result<TableSchema> {
         debug!("getting table schema: {}", tbl);
         executor::block_on(async move {
+            // TODO: Make multiple storage engine reads in one request.
+
             let resolved = tbl
                 .clone()
                 .resolve_with_defaults(self.current_database(), self.current_schema());
@@ -131,9 +144,37 @@ impl<S: StorageEngine + 'static> Catalog for Session<S> {
                 .get_relation(&name)
                 .await?
                 .ok_or(anyhow!("missing table: {}", name))?;
+
+            let attrs_table = system::Attributes;
+            let attrs_ref = attrs_table.resolved_reference().to_string();
+            let filter = attrs_table.select_for_table_expr(&resolved);
+            let batches = self
+                .tx
+                .scan(&attrs_ref, Some(filter), 10) // TODO: Project and no limit.
+                .await?
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>>>()?;
+
+            let mut columns = Vec::new();
+            for batch in batches.into_iter() {
+                let batch = batch.into_shrunk_batch();
+                let names = batch
+                    .get_column(3)
+                    .ok_or(anyhow!("missing name column for system attributes table"))?;
+                let names = names
+                    .get_values()
+                    .try_as_str_vec()
+                    .ok_or(anyhow!("names column not a column of strings"))?;
+                for name in names.iter() {
+                    columns.push(name.to_string());
+                }
+            }
+
             Ok(TableSchema {
                 reference: resolved,
-                columns: vec!["TODO".to_string(); schema.arity()], // TODO
+                columns,
                 schema,
             })
         })
@@ -236,14 +277,24 @@ mod tests {
 
         let mut sess = engine.start_session().unwrap();
 
-        let query = r#"
+        let setup = r#"
             create table test_table (a bigint, b bigint);
-            insert into test_table (a, b) values (1, 2);
-            select * from test_table;
+            insert into test_table (a, b) values (1, 2), (3, 4);
         "#;
 
-        let results = sess.execute_query(query).await.unwrap();
+        let results = sess.execute_query(setup).await.unwrap();
         println!("results: {:?}", results);
-        assert_eq!(3, results.len());
+        assert_eq!(2, results.len());
+
+        let queries = vec![
+            "select * from test_table;",
+            "select b from test_table;",
+            "select a + b from test_table;",
+        ];
+        for query in queries.into_iter() {
+            let results = sess.execute_query(query).await.unwrap();
+            assert_eq!(1, results.len());
+            println!("result for query {}: {:?}", query, results[0]);
+        }
     }
 }

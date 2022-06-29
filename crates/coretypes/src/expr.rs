@@ -1,5 +1,5 @@
 use crate::batch::{Batch, BatchRepr};
-use crate::column::{BoolVec, ColumnVec, NullableColumnVec, SqlEq};
+use crate::column::{BoolVec, ColumnVec, NullableColumnVec, SqlCmp, SqlLogic};
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
 use anyhow::anyhow;
 use fmtutil::DisplaySlice;
@@ -31,6 +31,17 @@ pub enum EvaluatedExpr {
 }
 
 impl EvaluatedExpr {
+    pub fn is_column(&self) -> bool {
+        match self {
+            EvaluatedExpr::Column(_) | EvaluatedExpr::ColumnRef(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_value(&self) -> bool {
+        matches!(self, EvaluatedExpr::Value(_))
+    }
+
     pub fn try_get_bool_vec(&self) -> Option<&BoolVec> {
         match self {
             EvaluatedExpr::ColumnRef(col) => col.get_values().try_as_bool_vec(),
@@ -47,11 +58,25 @@ impl EvaluatedExpr {
         }
     }
 
+    fn try_get_bool_value(&self) -> Option<bool> {
+        match self {
+            EvaluatedExpr::Value(DataValue::Bool(b)) => Some(*b),
+            _ => None,
+        }
+    }
+
     fn try_get_column(&self) -> Option<&NullableColumnVec> {
         match self {
             EvaluatedExpr::ColumnRef(col) => Some(col),
             EvaluatedExpr::Column(col) => Some(col),
             EvaluatedExpr::Value(_) => None,
+        }
+    }
+
+    fn try_get_value(&self) -> Option<&DataValue> {
+        match self {
+            EvaluatedExpr::Value(val) => Some(val),
+            _ => None,
         }
     }
 }
@@ -263,17 +288,35 @@ impl BinaryOperation {
     ) -> Result<EvaluatedExpr, ExprError> {
         let left_evaled = left.evaluate(input)?;
         let right_evaled = right.evaluate(input)?;
-        // TODO: Handle single values in evaluated expressions as well.
+
         Ok(match self {
             Self::Eq => {
-                let left_col = left_evaled
-                    .try_get_column()
-                    .ok_or(anyhow!("left not a column"))?;
-                let right_col = right_evaled
-                    .try_get_column()
-                    .ok_or(anyhow!("right not a column"))?;
-                let out = left_col.sql_eq(right_col).into();
-                NullableColumnVec::new_all_valid(out).into()
+                let out = match (left_evaled.try_get_column(), right_evaled.try_get_column()) {
+                    (Some(left), Some(right)) => left.sql_eq(right),
+                    (Some(left), None) => left.sql_eq(right_evaled.try_get_value().unwrap()),
+                    (None, Some(right)) => right.sql_eq(left_evaled.try_get_value().unwrap()),
+                    (None, None) => left_evaled
+                        .try_get_value()
+                        .unwrap()
+                        .sql_eq(right_evaled.try_get_value().unwrap()),
+                };
+                NullableColumnVec::new_all_valid(out.into()).into()
+            }
+            Self::And => {
+                let left_vec = left_evaled.try_get_bool_vec();
+                let left_val = left_evaled.try_get_bool_value();
+                let right_vec = right_evaled.try_get_bool_vec();
+                let right_val = right_evaled.try_get_bool_value();
+
+                let out = match (left_vec, left_val, right_vec, right_val) {
+                    (Some(left), _, Some(right), _) => left.sql_and(right),
+                    (Some(left), _, _, Some(right)) => left.sql_and(&right),
+                    (_, Some(left), Some(right), _) => right.sql_and(&left),
+                    (_, Some(left), _, Some(right)) => right.sql_and(&left),
+                    _ => return Err(anyhow!("expression did not evaluate to a boolean").into()),
+                };
+
+                NullableColumnVec::new_all_valid(out.into()).into()
             }
             _ => unimplemented!(),
         })

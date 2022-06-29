@@ -50,6 +50,12 @@ macro_rules! impl_not_nan {
             }
         }
 
+        impl AsRef<$prim> for $not_nan {
+            fn as_ref(&self) -> &$prim {
+                &self.0
+            }
+        }
+
         impl Eq for $not_nan {}
 
         impl Ord for $not_nan {

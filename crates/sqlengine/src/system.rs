@@ -1,6 +1,7 @@
 //! System level catalog and table definitions.
 use crate::catalog::{ResolvedTableReference, TableReference, TableSchema};
-use coretypes::datatype::{DataType, NullableType, RelationSchema};
+use coretypes::datatype::{DataType, DataValue, NullableType, RelationSchema};
+use coretypes::expr::{BinaryOperation, ScalarExpr};
 
 const SYSTEM_DATABASE: &str = "system";
 const SYSTEM_SCHEMA: &str = "gl_internal";
@@ -35,6 +36,37 @@ pub trait SystemTable {
 }
 
 pub struct Attributes;
+
+impl Attributes {
+    /// Create an expression that returns attributes for a specific table.
+    pub fn select_for_table_expr(&self, table: &ResolvedTableReference) -> ScalarExpr {
+        let database: DataValue = table.catalog.clone().into();
+        let schema: DataValue = table.schema.clone().into();
+        let name: DataValue = table.base.clone().into();
+
+        ScalarExpr::Binary {
+            operation: BinaryOperation::And,
+            left: Box::new(ScalarExpr::Binary {
+                operation: BinaryOperation::Eq,
+                left: Box::new(ScalarExpr::Constant(database, DataType::Utf8.into())),
+                right: Box::new(ScalarExpr::Column(0)),
+            }),
+            right: Box::new(ScalarExpr::Binary {
+                operation: BinaryOperation::And,
+                left: Box::new(ScalarExpr::Binary {
+                    operation: BinaryOperation::Eq,
+                    left: Box::new(ScalarExpr::Constant(schema, DataType::Utf8.into())),
+                    right: Box::new(ScalarExpr::Column(1)),
+                }),
+                right: Box::new(ScalarExpr::Binary {
+                    operation: BinaryOperation::Eq,
+                    left: Box::new(ScalarExpr::Constant(name, DataType::Utf8.into())),
+                    right: Box::new(ScalarExpr::Column(2)),
+                }),
+            }),
+        }
+    }
+}
 
 impl SystemTable for Attributes {
     fn name(&self) -> &'static str {

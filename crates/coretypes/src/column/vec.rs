@@ -47,6 +47,10 @@ pub struct FixedLengthVec<T> {
 }
 
 impl<T: FixedLengthType> FixedLengthVec<T> {
+    pub fn one(val: T) -> Self {
+        FixedLengthVec { vec: vec![val] }
+    }
+
     pub fn with_capacity(cap: usize) -> Self {
         FixedLengthVec {
             vec: Vec::with_capacity(cap),
@@ -87,22 +91,28 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
     /// fixed length vector of the same size.
     ///
     /// Panics if `self` and `other` have different lengths.
-    pub fn eval_binary_produce_fixed<T2, O, F>(
-        &self,
-        other: &FixedLengthVec<T2>,
-        f: F,
-    ) -> FixedLengthVec<O>
+    pub fn eval_binary_vec<T2, O, F>(&self, other: &FixedLengthVec<T2>, f: F) -> FixedLengthVec<O>
     where
         T2: FixedLengthType,
         O: FixedLengthType,
-        F: Fn(T, T2) -> O,
+        F: Fn(&T, &T2) -> O,
     {
         assert_eq!(self.len(), other.len());
         let out = self
             .iter()
             .zip(other.iter())
-            .map(|(a, b)| f(*a, *b))
+            .map(|(a, b)| f(a, b))
             .collect();
+        FixedLengthVec { vec: out }
+    }
+
+    /// Eval a unary function against the vector.
+    pub fn eval_unary<O, F>(&self, f: F) -> FixedLengthVec<O>
+    where
+        O: FixedLengthType,
+        F: Fn(&T) -> O,
+    {
+        let out = self.iter().map(|v| f(v)).collect();
         FixedLengthVec { vec: out }
     }
 }
@@ -252,7 +262,7 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
 
     /// Eval two varlen vectors containing the same types, producing a fixed
     /// length vector.
-    pub fn eval_binary_produce_fixed<O, F>(&self, other: &Self, f: F) -> FixedLengthVec<O>
+    pub fn eval_binary_vec<O, F>(&self, other: &Self, f: F) -> FixedLengthVec<O>
     where
         O: FixedLengthType,
         F: Fn(&T, &T) -> O,
@@ -263,6 +273,16 @@ impl<T: BytesRef + ?Sized> VarLengthVec<T> {
             .zip(other.iter())
             .map(|(a, b)| f(a, b))
             .collect();
+        FixedLengthVec { vec: out }
+    }
+
+    /// Eval a unary function against the vector, producing fixed length values.
+    pub fn eval_unary_fixed<O, F>(&self, f: F) -> FixedLengthVec<O>
+    where
+        O: FixedLengthType,
+        F: Fn(&T) -> O,
+    {
+        let out = self.iter().map(|v| f(v)).collect();
         FixedLengthVec { vec: out }
     }
 }
