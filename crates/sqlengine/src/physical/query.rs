@@ -6,10 +6,10 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use coretypes::{
     batch::{Batch, BatchError, BatchRepr, SelectivityBatch},
-    column::{BoolVec, ColumnVec},
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::{EvaluatedExpr, ExprError, ScalarExpr},
     stream::{BatchStream, MemoryStream},
+    vec::{BoolVec, ColumnVec},
 };
 use diststore::engine::StorageTransaction;
 use futures::stream::{Stream, StreamExt};
@@ -41,12 +41,8 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Filter {
                 // TODO: This removes any previous selectivity.
                 let batch = batch.get_batch().clone();
                 match evaled {
-                    EvaluatedExpr::Value(_) => {
-                        Err(anyhow!("got value from expr: {}", self.predicate))
-                    }
                     EvaluatedExpr::Column(col) => {
                         let v = col
-                            .get_values()
                             .try_as_bool_vec()
                             .ok_or(anyhow!("column not a bool vec"))?;
                         Ok(BatchRepr::Selectivity(SelectivityBatch::new_with_bool_vec(
@@ -55,13 +51,28 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Filter {
                     }
                     EvaluatedExpr::ColumnRef(col) => {
                         let v = col
-                            .get_values()
                             .try_as_bool_vec()
                             .ok_or(anyhow!("column not a bool vec"))?;
                         Ok(BatchRepr::Selectivity(SelectivityBatch::new_with_bool_vec(
                             batch, v,
                         )?))
                     }
+                    // Expression retruned a single bool, either we return the
+                    // batch as is, or we return nothing.
+                    //
+                    // E.g. "WHERE 1 = 1"
+                    //
+                    // TODO: What to do with null values?
+                    EvaluatedExpr::Value(val, _) => match val {
+                        DataValue::Bool(b) => {
+                            if b {
+                                Ok(batch.into())
+                            } else {
+                                Ok(BatchRepr::empty())
+                            }
+                        }
+                        _ => return Err(anyhow!("expression did not evaluate to a bool")),
+                    },
                 }
             }
             Err(e) => Err(e),

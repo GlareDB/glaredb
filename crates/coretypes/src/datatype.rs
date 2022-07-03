@@ -122,8 +122,8 @@ pub enum DataValue {
     Int16(i16),
     Int32(i32),
     Int64(i64),
-    Float32(NotNanF32),
-    Float64(NotNanF64),
+    Float32(f32),
+    Float64(f64),
     Date64(i64), // TODO: Change this to u64.
     Utf8(String),
     Binary(Vec<u8>),
@@ -210,15 +210,13 @@ impl From<i64> for DataValue {
 
 impl From<f32> for DataValue {
     fn from(val: f32) -> Self {
-        // TODO: Properly handle this.
-        DataValue::Float32(val.try_into().unwrap())
+        DataValue::Float32(val)
     }
 }
 
 impl From<f64> for DataValue {
     fn from(val: f64) -> Self {
-        // TODO: Properly handle this.
-        DataValue::Float64(val.try_into().unwrap())
+        DataValue::Float64(val)
     }
 }
 

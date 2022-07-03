@@ -1,8 +1,8 @@
+use anyhow::{anyhow, Result};
 use coretypes::batch::{Batch, BatchRepr, SelectivityBatch};
-use anyhow::{Result, anyhow};
-use coretypes::column::NullableColumnVec;
 use coretypes::datatype::{RelationSchema, Row};
 use coretypes::expr::ScalarExpr;
+use coretypes::vec::ColumnVec;
 use std::collections::{btree_map::Entry, BTreeMap};
 
 const DEFAULT_COLUMN_CAP: usize = 256;
@@ -63,7 +63,7 @@ impl Store {
 #[derive(Debug)]
 struct Table {
     schema: RelationSchema,
-    columns: Vec<NullableColumnVec>,
+    columns: Vec<ColumnVec>,
 }
 
 impl Table {
@@ -71,7 +71,7 @@ impl Table {
         let columns: Vec<_> = schema
             .columns
             .iter()
-            .map(|typ| NullableColumnVec::with_capacity(DEFAULT_COLUMN_CAP, &typ.datatype))
+            .map(|typ| ColumnVec::with_capacity_for_type(DEFAULT_COLUMN_CAP, &typ.datatype))
             .collect();
         Table { schema, columns }
     }

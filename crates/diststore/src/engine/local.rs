@@ -3,10 +3,10 @@ use crate::store::Store;
 use anyhow::Result;
 use async_trait::async_trait;
 use coretypes::batch::Batch;
-use coretypes::column::{ColumnVec, NullableColumnVec};
 use coretypes::datatype::{RelationSchema, Row};
 use coretypes::expr::ScalarExpr;
 use coretypes::stream::{BatchStream, MemoryStream};
+use coretypes::vec::ColumnVec;
 use parking_lot::RwLock;
 use std::sync::Arc;
 

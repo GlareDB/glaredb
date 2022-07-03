@@ -48,9 +48,9 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Insert {
             let batch = batch.into_shrunk_batch();
 
             // TODO: Bulk insert.
-            for row in batch.row_iter() {
-                tx.insert(&self.table, &row).await?;
-            }
+            // for row in batch.row_iter() {
+            //     tx.insert(&self.table, &row).await?;
+            // }
         }
 
         Ok(None)

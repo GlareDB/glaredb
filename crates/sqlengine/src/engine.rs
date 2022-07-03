@@ -164,10 +164,10 @@ impl<S: StorageEngine + 'static> Catalog for Session<S> {
                     .get_column(3)
                     .ok_or(anyhow!("missing name column for system attributes table"))?;
                 let names = names
-                    .get_values()
-                    .try_as_str_vec()
+                    .try_as_utf8_vec()
                     .ok_or(anyhow!("names column not a column of strings"))?;
                 for name in names.iter() {
+                    let name = name.ok_or(anyhow!("received a null value for column name"))?;
                     columns.push(name.to_string());
                 }
             }

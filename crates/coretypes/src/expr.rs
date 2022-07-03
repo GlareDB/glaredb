@@ -1,6 +1,6 @@
 use crate::batch::{Batch, BatchRepr};
-use crate::column::{BoolVec, ColumnVec, NullableColumnVec, SqlCmp, SqlLogic};
 use crate::datatype::{DataType, DataValue, NullableType, RelationSchema};
+use crate::vec::{BoolVec, ColumnVec};
 use anyhow::anyhow;
 use fmtutil::DisplaySlice;
 use serde::{Deserialize, Serialize};
@@ -25,77 +25,48 @@ pub enum ExprError {
 /// The result of an expression evaluation.
 #[derive(Debug, Clone)]
 pub enum EvaluatedExpr {
-    ColumnRef(Arc<NullableColumnVec>),
-    Column(NullableColumnVec),
-    Value(DataValue),
+    ColumnRef(Arc<ColumnVec>),
+    Column(ColumnVec),
+    /// Expression produced a single value (e.g. aggregate). Type is included so
+    /// that we know what to with with null values.
+    Value(DataValue, DataType),
 }
 
 impl EvaluatedExpr {
-    pub fn is_column(&self) -> bool {
-        match self {
-            EvaluatedExpr::Column(_) | EvaluatedExpr::ColumnRef(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_value(&self) -> bool {
-        matches!(self, EvaluatedExpr::Value(_))
-    }
-
     pub fn try_get_bool_vec(&self) -> Option<&BoolVec> {
         match self {
-            EvaluatedExpr::ColumnRef(col) => col.get_values().try_as_bool_vec(),
-            EvaluatedExpr::Column(col) => col.get_values().try_as_bool_vec(),
-            EvaluatedExpr::Value(_) => None,
+            EvaluatedExpr::ColumnRef(col) => col.try_as_bool_vec(),
+            EvaluatedExpr::Column(col) => col.try_as_bool_vec(),
+            EvaluatedExpr::Value(_, _) => None,
         }
     }
 
-    pub fn try_into_arc_vec(self) -> Option<Arc<NullableColumnVec>> {
+    pub fn into_arc_vec(self) -> Arc<ColumnVec> {
         match self {
-            EvaluatedExpr::ColumnRef(col) => Some(col),
-            EvaluatedExpr::Column(col) => Some(Arc::new(col)),
-            EvaluatedExpr::Value(_) => None,
+            EvaluatedExpr::ColumnRef(col) => col,
+            EvaluatedExpr::Column(col) => Arc::new(col),
+            EvaluatedExpr::Value(value, datatype) => Arc::new(ColumnVec::one(&value, &datatype)),
         }
     }
 
-    fn try_get_bool_value(&self) -> Option<bool> {
+    fn as_column(&self) -> &ColumnVec {
         match self {
-            EvaluatedExpr::Value(DataValue::Bool(b)) => Some(*b),
-            _ => None,
-        }
-    }
-
-    fn try_get_column(&self) -> Option<&NullableColumnVec> {
-        match self {
-            EvaluatedExpr::ColumnRef(col) => Some(col),
-            EvaluatedExpr::Column(col) => Some(col),
-            EvaluatedExpr::Value(_) => None,
-        }
-    }
-
-    fn try_get_value(&self) -> Option<&DataValue> {
-        match self {
-            EvaluatedExpr::Value(val) => Some(val),
-            _ => None,
+            EvaluatedExpr::ColumnRef(col) => col,
+            EvaluatedExpr::Column(col) => col,
+            _ => unimplemented!(),
         }
     }
 }
 
-impl From<Arc<NullableColumnVec>> for EvaluatedExpr {
-    fn from(v: Arc<NullableColumnVec>) -> Self {
+impl From<Arc<ColumnVec>> for EvaluatedExpr {
+    fn from(v: Arc<ColumnVec>) -> Self {
         EvaluatedExpr::ColumnRef(v)
     }
 }
 
-impl From<NullableColumnVec> for EvaluatedExpr {
-    fn from(v: NullableColumnVec) -> Self {
+impl From<ColumnVec> for EvaluatedExpr {
+    fn from(v: ColumnVec) -> Self {
         Self::Column(v)
-    }
-}
-
-impl From<DataValue> for EvaluatedExpr {
-    fn from(v: DataValue) -> Self {
-        Self::Value(v)
     }
 }
 
@@ -159,7 +130,7 @@ impl ScalarExpr {
                 .cloned()
                 .ok_or(ExprError::MissingColumn(*idx))?
                 .into(),
-            Self::Constant(value, _) => value.clone().into(),
+            // Self::Constant(value, _) => ColumnVec::from(value.clone()).into(),
             Self::Binary {
                 operation,
                 left,
@@ -291,32 +262,20 @@ impl BinaryOperation {
 
         Ok(match self {
             Self::Eq => {
-                let out = match (left_evaled.try_get_column(), right_evaled.try_get_column()) {
-                    (Some(left), Some(right)) => left.sql_eq(right),
-                    (Some(left), None) => left.sql_eq(right_evaled.try_get_value().unwrap()),
-                    (None, Some(right)) => right.sql_eq(left_evaled.try_get_value().unwrap()),
-                    (None, None) => left_evaled
-                        .try_get_value()
-                        .unwrap()
-                        .sql_eq(right_evaled.try_get_value().unwrap()),
-                };
-                NullableColumnVec::new_all_valid(out.into()).into()
+                let left = left_evaled.as_column();
+                let right = right_evaled.as_column();
+                // let out = left.sql_eq(right);
+                // let v = ColumnVec::from(ColumnVec::from(out));
+                // v.into()
+                unimplemented!();
             }
             Self::And => {
-                let left_vec = left_evaled.try_get_bool_vec();
-                let left_val = left_evaled.try_get_bool_value();
-                let right_vec = right_evaled.try_get_bool_vec();
-                let right_val = right_evaled.try_get_bool_value();
-
-                let out = match (left_vec, left_val, right_vec, right_val) {
-                    (Some(left), _, Some(right), _) => left.sql_and(right),
-                    (Some(left), _, _, Some(right)) => left.sql_and(&right),
-                    (_, Some(left), Some(right), _) => right.sql_and(&left),
-                    (_, Some(left), _, Some(right)) => right.sql_and(&left),
-                    _ => return Err(anyhow!("expression did not evaluate to a boolean").into()),
-                };
-
-                NullableColumnVec::new_all_valid(out.into()).into()
+                let left = left_evaled.as_column();
+                let right = right_evaled.as_column();
+                // let out = left.sql_and(right)?;
+                // let v = ColumnVec::from(ColumnVec::from(out));
+                // v.into()
+                unimplemented!();
             }
             _ => unimplemented!(),
         })

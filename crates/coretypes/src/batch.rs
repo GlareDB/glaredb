@@ -1,6 +1,6 @@
-use crate::column::{BoolVec, ColumnError, NullableColumnVec};
 use crate::datatype::{DataType, DataValue, RelationSchema, Row};
 use crate::expr::EvaluatedExpr;
+use crate::vec::{BoolVec, ColumnVec};
 use anyhow::anyhow;
 use bitvec::vec::BitVec;
 use std::marker::PhantomData;
@@ -10,8 +10,6 @@ use std::sync::Arc;
 pub enum BatchError {
     #[error("size mismatch between columns, got: {got}, expected: {expected}")]
     ColumnSizeMismatch { expected: usize, got: usize },
-    #[error(transparent)]
-    ColumnError(#[from] ColumnError),
     #[error("invalid selectivity length, got: {got}, expected: {expected}")]
     InvalidSelectivityLen { expected: usize, got: usize },
     #[error(transparent)]
@@ -21,13 +19,17 @@ pub enum BatchError {
 /// Representations of batches.
 #[derive(Debug)]
 pub enum BatchRepr {
-    /// A basic column-oriented batch.
+    /// A column-oriented batch of records.
     Batch(Batch),
     /// A column-oriented batch with a row selectivity vector.
     Selectivity(SelectivityBatch),
 }
 
 impl BatchRepr {
+    pub fn empty() -> BatchRepr {
+        Batch::empty().into()
+    }
+
     /// Get the underlying batch reference.
     pub fn get_batch(&self) -> &Batch {
         match self {
@@ -57,9 +59,11 @@ impl From<SelectivityBatch> for BatchRepr {
 }
 
 /// A batch of rows, represented as typed columns.
+///
+/// Acceptable for a larger number of records.
 #[derive(Debug, Clone)]
 pub struct Batch {
-    pub columns: Vec<Arc<NullableColumnVec>>,
+    pub columns: Vec<Arc<ColumnVec>>,
 }
 
 impl Batch {
@@ -72,7 +76,7 @@ impl Batch {
     pub fn new_from_schema(schema: &RelationSchema, rows_cap: usize) -> Batch {
         let mut columns = Vec::with_capacity(schema.columns.len());
         for typ in schema.columns.iter() {
-            let vec = NullableColumnVec::with_capacity(rows_cap, &typ.datatype);
+            let vec = ColumnVec::with_capacity_for_type(rows_cap, &typ.datatype);
             columns.push(Arc::new(vec));
         }
         Batch { columns }
@@ -82,7 +86,7 @@ impl Batch {
     /// same length.
     pub fn from_columns<I>(columns: I) -> Result<Batch, BatchError>
     where
-        I: IntoIterator<Item = NullableColumnVec>,
+        I: IntoIterator<Item = ColumnVec>,
     {
         let mut iter = columns.into_iter();
         let first = match iter.next() {
@@ -117,9 +121,7 @@ impl Batch {
 
         let mut iter = results.into_iter();
         let first = match iter.next() {
-            Some(col) => col
-                .try_into_arc_vec()
-                .ok_or(anyhow!("tried to turn value into vector"))?,
+            Some(col) => col.into_arc_vec(),
             None => {
                 return Ok(Batch {
                     columns: Vec::new(),
@@ -130,9 +132,7 @@ impl Batch {
         let len = first.len();
         let mut columns = vec![first];
         for col in iter {
-            let col = col
-                .try_into_arc_vec()
-                .ok_or(anyhow!("tried to turn value into vector"))?;
+            let col = col.into_arc_vec();
             if col.len() != len {
                 return Err(BatchError::ColumnSizeMismatch {
                     expected: len,
@@ -164,7 +164,7 @@ impl Batch {
         Ok(())
     }
 
-    pub fn get_column(&self, idx: usize) -> Option<&Arc<NullableColumnVec>> {
+    pub fn get_column(&self, idx: usize) -> Option<&Arc<ColumnVec>> {
         self.columns.get(idx)
     }
 
@@ -177,41 +177,6 @@ impl Batch {
 
     pub fn arity(&self) -> usize {
         self.columns.len()
-    }
-
-    pub fn row_iter<'a>(&'a self) -> BatchRowIter<'a> {
-        BatchRowIter::new(self)
-    }
-}
-
-/// Iterator over each row in a batch.
-#[derive(Debug)]
-pub struct BatchRowIter<'a> {
-    batch: &'a Batch,
-    idx: usize,
-}
-
-impl<'a> BatchRowIter<'a> {
-    /// Create a new iterator returning each row in the batch.
-    fn new(batch: &'a Batch) -> Self {
-        BatchRowIter { batch, idx: 0 }
-    }
-}
-
-impl<'a> Iterator for BatchRowIter<'a> {
-    type Item = Row;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO: Not fantastic that this allocates for each row.
-        let row: Row = self
-            .batch
-            .columns
-            .iter()
-            .map(|col| col.get_value(self.idx))
-            .collect::<Option<Vec<_>>>()?
-            .into();
-        self.idx += 1;
-        Some(row)
     }
 }
 
@@ -238,7 +203,7 @@ impl SelectivityBatch {
         selectivity: &BoolVec,
     ) -> Result<SelectivityBatch, BatchError> {
         let mut b = BitVec::with_capacity(selectivity.len());
-        for val in selectivity.iter() {
+        for val in selectivity.iter_values() {
             b.push(*val);
         }
         Self::new(batch, b)
@@ -251,7 +216,7 @@ impl SelectivityBatch {
     /// Return a batch with all items not selected removed.
     pub fn shrink_to_selected(mut self) -> Batch {
         for column in self.batch.columns.iter_mut() {
-            (*Arc::make_mut(column)).retain_selected(&self.selectivity);
+            (*Arc::make_mut(column)).retain(&self.selectivity);
         }
         self.batch
     }
