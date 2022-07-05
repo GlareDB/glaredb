@@ -8,5 +8,7 @@ pub fn init_test() {
 }
 
 pub fn init() {
-    let _ = env_logger::builder().init();
+    let _ = env_logger::builder()
+        .filter_level(log::LevelFilter::max())
+        .init();
 }

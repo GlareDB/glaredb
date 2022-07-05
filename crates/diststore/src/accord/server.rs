@@ -22,6 +22,7 @@ use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 const DEFAULT_BUFFER: usize = 512;
 
+#[derive(Debug, Clone)]
 pub struct Client<K> {
     requests: mpsc::Sender<(Request<K>, oneshot::Sender<Response>)>,
 }

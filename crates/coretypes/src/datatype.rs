@@ -152,6 +152,22 @@ impl DataValue {
             _ => false,
         }
     }
+
+    pub fn datatype(&self) -> Option<DataType> {
+        Some(match self {
+            Self::Bool(_) => DataType::Bool,
+            Self::Int8(_) => DataType::Int8,
+            Self::Int16(_) => DataType::Int16,
+            Self::Int32(_) => DataType::Int32,
+            Self::Int64(_) => DataType::Int64,
+            Self::Float32(_) => DataType::Float32,
+            Self::Float64(_) => DataType::Float64,
+            Self::Date64(_) => DataType::Date64,
+            Self::Utf8(_) => DataType::Utf8,
+            Self::Binary(_) => DataType::Binary,
+            _ => return None,
+        })
+    }
 }
 
 impl fmt::Display for DataValue {
@@ -233,7 +249,7 @@ impl From<Vec<u8>> for DataValue {
 }
 
 /// Describes the schema of a relation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RelationSchema {
     pub columns: Vec<NullableType>,
 }
@@ -271,7 +287,7 @@ impl RelationSchema {
 }
 
 /// A list of heterogenous values.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Row(pub Vec<DataValue>);
 
 impl Row {

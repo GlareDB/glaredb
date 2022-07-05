@@ -2,9 +2,10 @@ use crate::catalog::{Catalog, ResolvedTableReference, TableReference, TableSchem
 use crate::logical::{
     AggregateFunc, CreateTable, CrossJoin, Filter, Insert, Project, RelationalPlan, Scan, Values,
 };
+use anyhow::anyhow;
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
-    expr::{BinaryOperation, ExprError, ScalarExpr, UnaryOperation},
+    expr::{AggregateOperation, BinaryOperation, ExprError, ScalarExpr, UnaryOperation},
 };
 use sqlparser::ast;
 use sqlparser::parser::ParserError;
@@ -331,6 +332,40 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 datatype: sql_type_to_data_type(&data_type)?.into(),
             },
 
+            ast::Expr::Function(function) => {
+                // TODO: Do other functions too.
+
+                // Only supporting unscoped aggregates for now.
+                let agg = if function.name.0.len() == 1 {
+                    self.aggregate_func_for_name(&function.name.0[0].value)
+                        .ok_or(anyhow!(
+                            "missing aggregate func for name: {}",
+                            function.name.0[0]
+                        ))?
+                } else {
+                    return Err(PlanError::Unsupported(format!(
+                        "scoped functions: {}",
+                        function.name
+                    )));
+                };
+
+                // TODO: Support multiple expressions as arguments. Currently
+                // just getting the first and discarding the rest.
+                let expr = function
+                    .args
+                    .into_iter()
+                    .map(|arg| self.function_arg_to_expr(arg, scope))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .next()
+                    .ok_or(anyhow!("missing arg"))?;
+
+                Aggregate {
+                    operation: agg,
+                    inner: Box::new(expr),
+                }
+            }
+
             expr => {
                 return Err(PlanError::Unsupported(format!(
                     "unsupported expression: {0}, debug: {0:?}",
@@ -340,14 +375,29 @@ impl<'a, C: Catalog> Planner<'a, C> {
         })
     }
 
+    /// Convert a function arg to an expression.
+    ///
+    /// E.g. arguments for aggregates.
+    fn function_arg_to_expr(
+        &self,
+        arg: ast::FunctionArg,
+        scope: &Scope,
+    ) -> Result<ScalarExpr, PlanError> {
+        match arg {
+            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
+                self.sql_expr_to_scalar(scope, expr)
+            }
+            arg => Err(PlanError::Unsupported(format!("function arg: {}", arg))),
+        }
+    }
+
     /// Return the appropriate aggregate function for the given name.
-    fn aggregate_func_for_name(&self, name: &str) -> Option<AggregateFunc> {
+    fn aggregate_func_for_name(&self, name: &str) -> Option<AggregateOperation> {
         Some(match name {
-            "count" => AggregateFunc::Count,
-            "sum" => AggregateFunc::Sum,
-            "min" => AggregateFunc::Min,
-            "max" => AggregateFunc::Max,
-            "avg" => AggregateFunc::Avg,
+            "count" => AggregateOperation::Count,
+            "sum" => AggregateOperation::Sum,
+            "min" => AggregateOperation::Min,
+            "max" => AggregateOperation::Max,
             _ => return None,
         })
     }

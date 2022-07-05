@@ -48,20 +48,20 @@ impl Attributes {
             operation: BinaryOperation::And,
             left: Box::new(ScalarExpr::Binary {
                 operation: BinaryOperation::Eq,
-                left: Box::new(ScalarExpr::Constant(database, DataType::Utf8.into())),
-                right: Box::new(ScalarExpr::Column(0)),
+                left: Box::new(ScalarExpr::Column(0)),
+                right: Box::new(ScalarExpr::Constant(database, DataType::Utf8.into())),
             }),
             right: Box::new(ScalarExpr::Binary {
                 operation: BinaryOperation::And,
                 left: Box::new(ScalarExpr::Binary {
                     operation: BinaryOperation::Eq,
-                    left: Box::new(ScalarExpr::Constant(schema, DataType::Utf8.into())),
-                    right: Box::new(ScalarExpr::Column(1)),
+                    left: Box::new(ScalarExpr::Column(1)),
+                    right: Box::new(ScalarExpr::Constant(schema, DataType::Utf8.into())),
                 }),
                 right: Box::new(ScalarExpr::Binary {
                     operation: BinaryOperation::Eq,
-                    left: Box::new(ScalarExpr::Constant(name, DataType::Utf8.into())),
-                    right: Box::new(ScalarExpr::Column(2)),
+                    left: Box::new(ScalarExpr::Column(2)),
+                    right: Box::new(ScalarExpr::Constant(name, DataType::Utf8.into())),
                 }),
             }),
         }

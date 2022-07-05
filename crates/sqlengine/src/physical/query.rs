@@ -145,7 +145,7 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Values {
             batch.push_row(values.into())?;
         }
 
-        let stream = MemoryStream::with_single_batch(batch.into());
+        let stream = MemoryStream::from_batch(batch.into());
         Ok(Some(Box::pin(stream)))
     }
 }

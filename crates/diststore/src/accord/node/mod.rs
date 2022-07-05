@@ -146,7 +146,7 @@ impl<K: Key> StateDriver<K> {
                 self.send_execution_actions(Address::Peer(from), actions)?;
             }
             ReadOk(msg) => {
-                let msg = self.coordinator.store_read_ok(msg)?;
+                let msg = self.coordinator.store_read_ok(executor, msg)?;
                 if let Some(msg) = msg {
                     self.send_outbound(Address::Peers, ProtocolMessage::Apply(msg))?;
                 }

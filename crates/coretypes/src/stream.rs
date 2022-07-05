@@ -1,27 +1,31 @@
 use crate::batch::{Batch, BatchRepr};
-use crate::datatype::RelationSchema;
-use crate::expr::ScalarExpr;
 use anyhow::Result;
-use futures::stream::{self, Stream};
+use futures::stream::Stream;
+use std::collections::VecDeque;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 pub type BatchStream = Pin<Box<dyn Stream<Item = Result<BatchRepr>> + Send>>;
 
-/// A stream of in-memory values.
+/// A stream created from a list of in-memory batches.
 #[derive(Debug)]
 pub struct MemoryStream {
-    batch: Batch,
-    /// TODO: Split batch up into chunks and replace this with an index.
-    streamed: bool,
+    batches: VecDeque<Batch>,
 }
 
 impl MemoryStream {
-    pub fn with_single_batch(batch: Batch) -> MemoryStream {
+    pub fn from_batch(batch: Batch) -> MemoryStream {
         MemoryStream {
-            batch,
-            streamed: false,
+            batches: VecDeque::from([batch]),
+        }
+    }
+
+    pub fn from_batches<I>(batches: I) -> MemoryStream
+    where
+        I: IntoIterator<Item = Batch>,
+    {
+        MemoryStream {
+            batches: batches.into_iter().collect(),
         }
     }
 }
@@ -30,11 +34,9 @@ impl Stream for MemoryStream {
     type Item = Result<BatchRepr>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.streamed {
-            Poll::Ready(None)
-        } else {
-            self.streamed = true;
-            Poll::Ready(Some(Ok(self.batch.clone().into())))
+        match self.batches.pop_front() {
+            Some(batch) => Poll::Ready(Some(Ok(batch.into()))),
+            None => Poll::Ready(None),
         }
     }
 }

@@ -15,7 +15,7 @@ use paste::paste;
 use serde::{Deserialize, Serialize};
 
 /// Column vector variants for all types supported by the system.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ColumnVec {
     Bool(BoolVec),
     Int8(Int8Vec),
@@ -132,6 +132,45 @@ impl ColumnVec {
         })
     }
 
+    pub fn get_value(&self, idx: usize) -> Option<DataValue> {
+        Some(match self {
+            ColumnVec::Bool(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Int8(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Int16(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Int32(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Int64(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Float32(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Float64(a) => a
+                .get(idx)?
+                .cloned()
+                .map_or(DataValue::Null, DataValue::from),
+            ColumnVec::Utf8(a) => a
+                .get(idx)?
+                .map_or(DataValue::Null, |s| DataValue::Utf8(s.to_string())),
+            ColumnVec::Binary(a) => a
+                .get(idx)?
+                .map_or(DataValue::Null, |v| DataValue::Binary(v.to_vec())),
+        })
+    }
+
     pub fn push_null(&mut self) {
         match self {
             ColumnVec::Bool(a) => a.push(None),
@@ -153,17 +192,35 @@ impl ColumnVec {
 // Macros useful for implementing the relevant compute traits.
 
 macro_rules! match_column_column {
-    ($col1:ident, $col2:ident, $op:ident) => {
+    ($col1:ident, $col2:ident, $op:path) => {
         Ok(match ($col1, $col2) {
-            (ColumnVec::Bool(a), ColumnVec::Bool(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int8(a), ColumnVec::Int8(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int16(a), ColumnVec::Int16(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int32(a), ColumnVec::Int32(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int64(a), ColumnVec::Int64(b)) => a.$op(b)?.into(),
-            (ColumnVec::Float32(a), ColumnVec::Float32(b)) => a.$op(b)?.into(),
-            (ColumnVec::Float64(a), ColumnVec::Float64(b)) => a.$op(b)?.into(),
-            (ColumnVec::Utf8(a), ColumnVec::Utf8(b)) => a.$op(b)?.into(),
-            (ColumnVec::Binary(a), ColumnVec::Binary(b)) => a.$op(b)?.into(),
+            (ColumnVec::Bool(a), ColumnVec::Bool(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int8(a), ColumnVec::Int8(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int16(a), ColumnVec::Int16(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int32(a), ColumnVec::Int32(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int64(a), ColumnVec::Int64(b)) => $op(a, b)?.into(),
+            (ColumnVec::Float32(a), ColumnVec::Float32(b)) => $op(a, b)?.into(),
+            (ColumnVec::Float64(a), ColumnVec::Float64(b)) => $op(a, b)?.into(),
+            (ColumnVec::Utf8(a), ColumnVec::Utf8(b)) => $op(a, b)?.into(),
+            (ColumnVec::Binary(a), ColumnVec::Binary(b)) => $op(a, b)?.into(),
+            _ => return Err(anyhow!("unsupported")),
+        })
+    };
+}
+
+macro_rules! match_value_value {
+    ($val1:ident, $val2:ident, $op:path) => {
+        Ok(match ($val1, $val2) {
+            (DataValue::Bool(a), DataValue::Bool(b)) => $op(a, b).into(),
+            (DataValue::Int8(a), DataValue::Int8(b)) => $op(a, b).into(),
+            (DataValue::Int16(a), DataValue::Int16(b)) => $op(a, b).into(),
+            (DataValue::Int32(a), DataValue::Int32(b)) => $op(a, b).into(),
+            (DataValue::Int64(a), DataValue::Int64(b)) => $op(a, b).into(),
+            (DataValue::Float32(a), DataValue::Float32(b)) => $op(a, b).into(),
+            (DataValue::Float64(a), DataValue::Float64(b)) => $op(a, b).into(),
+            (DataValue::Date64(a), DataValue::Date64(b)) => $op(a, b).into(),
+            (DataValue::Utf8(a), DataValue::Utf8(b)) => $op(a, b).into(),
+            (DataValue::Binary(a), DataValue::Binary(b)) => $op(a, b).into(),
             _ => return Err(anyhow!("unsupported")),
         })
     };
@@ -183,6 +240,34 @@ macro_rules! match_column_column_numeric {
     };
 }
 
+macro_rules! match_column_numeric {
+    ($col:ident, $op:path) => {
+        Ok(match $col {
+            ColumnVec::Int8(a) => $op(a)?.into(),
+            ColumnVec::Int16(a) => $op(a)?.into(),
+            ColumnVec::Int32(a) => $op(a)?.into(),
+            ColumnVec::Int64(a) => $op(a)?.into(),
+            ColumnVec::Float32(a) => $op(a)?.into(),
+            ColumnVec::Float64(a) => $op(a)?.into(),
+            _ => return Err(anyhow!("unsupported")),
+        })
+    };
+}
+
+macro_rules! match_value_value_numeric {
+    ($val1:ident, $val2:ident, $op:ident) => {
+        Ok(match ($val1, $val2) {
+            (DataValue::Int8(a), DataValue::Int8(b)) => a.$op(b).into(),
+            (DataValue::Int16(a), DataValue::Int16(b)) => a.$op(b).into(),
+            (DataValue::Int32(a), DataValue::Int32(b)) => a.$op(b).into(),
+            (DataValue::Int64(a), DataValue::Int64(b)) => a.$op(b).into(),
+            (DataValue::Float32(a), DataValue::Float32(b)) => a.$op(b).into(),
+            (DataValue::Float64(a), DataValue::Float64(b)) => a.$op(b).into(),
+            _ => return Err(anyhow!("unsupported")),
+        })
+    };
+}
+
 macro_rules! match_column_column_bool {
     ($col1:ident, $col2:ident, $op:ident) => {
         Ok(match ($col1, $col2) {
@@ -193,18 +278,18 @@ macro_rules! match_column_column_bool {
 }
 
 macro_rules! match_column_datavalue {
-    ($col:ident, $datavalue:ident, $op:ident) => {
+    ($col:ident, $datavalue:ident, $op:path) => {
         Ok(match ($col, $datavalue) {
-            (ColumnVec::Bool(a), DataValue::Bool(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int8(a), DataValue::Int8(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int16(a), DataValue::Int16(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int32(a), DataValue::Int32(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int64(a), DataValue::Int64(b)) => a.$op(b)?.into(),
-            (ColumnVec::Float32(a), DataValue::Float32(b)) => a.$op(b)?.into(),
-            (ColumnVec::Float64(a), DataValue::Float64(b)) => a.$op(b)?.into(),
-            (ColumnVec::Int64(a), DataValue::Date64(b)) => a.$op(b)?.into(),
-            (ColumnVec::Utf8(a), DataValue::Utf8(b)) => a.$op(b)?.into(),
-            (ColumnVec::Binary(a), DataValue::Binary(b)) => a.$op(b)?.into(),
+            (ColumnVec::Bool(a), DataValue::Bool(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int8(a), DataValue::Int8(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int16(a), DataValue::Int16(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int32(a), DataValue::Int32(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int64(a), DataValue::Int64(b)) => $op(a, b)?.into(),
+            (ColumnVec::Float32(a), DataValue::Float32(b)) => $op(a, b)?.into(),
+            (ColumnVec::Float64(a), DataValue::Float64(b)) => $op(a, b)?.into(),
+            (ColumnVec::Int64(a), DataValue::Date64(b)) => $op(a, b)?.into(),
+            (ColumnVec::Utf8(a), DataValue::Utf8(b)) => $op(a, b)?.into(),
+            (ColumnVec::Binary(a), DataValue::Binary(b)) => $op(a, b)?.into(),
             _ => return Err(anyhow!("unsupported")),
         })
     };
@@ -234,6 +319,15 @@ macro_rules! match_column_datavalue_bool {
     };
 }
 
+macro_rules! match_datavalue_datavalue_bool {
+    ($val1:ident, $val2:ident, $op:ident) => {
+        Ok(match ($val1, $val2) {
+            (DataValue::Bool(a), DataValue::Bool(b)) => a.$op(b)?.into(),
+            _ => return Err(anyhow!("unsupported")),
+        })
+    };
+}
+
 // Compute trait implementations.
 
 impl VecAdd for ColumnVec {
@@ -245,6 +339,13 @@ impl VecAdd for ColumnVec {
 impl VecAdd<DataValue> for ColumnVec {
     fn add(&self, rhs: &DataValue) -> Result<Self> {
         match_column_datavalue_numeric!(self, rhs, add)
+    }
+}
+
+impl VecAdd for DataValue {
+    fn add(&self, rhs: &Self) -> Result<Self> {
+        use std::ops::Add;
+        match_value_value_numeric!(self, rhs, add)
     }
 }
 
@@ -260,6 +361,13 @@ impl VecSub<DataValue> for ColumnVec {
     }
 }
 
+impl VecSub for DataValue {
+    fn sub(&self, rhs: &Self) -> Result<Self> {
+        use std::ops::Sub;
+        match_value_value_numeric!(self, rhs, sub)
+    }
+}
+
 impl VecMul for ColumnVec {
     fn mul(&self, rhs: &Self) -> Result<Self> {
         match_column_column_numeric!(self, rhs, mul)
@@ -269,6 +377,13 @@ impl VecMul for ColumnVec {
 impl VecMul<DataValue> for ColumnVec {
     fn mul(&self, rhs: &DataValue) -> Result<Self> {
         match_column_datavalue_numeric!(self, rhs, mul)
+    }
+}
+
+impl VecMul for DataValue {
+    fn mul(&self, rhs: &Self) -> Result<Self> {
+        use std::ops::Mul;
+        match_value_value_numeric!(self, rhs, mul)
     }
 }
 
@@ -284,74 +399,187 @@ impl VecDiv<DataValue> for ColumnVec {
     }
 }
 
+impl VecDiv for DataValue {
+    fn div(&self, rhs: &Self) -> Result<Self> {
+        use std::ops::Div;
+        match_value_value_numeric!(self, rhs, div)
+    }
+}
+
+impl VecCountAgg<DataValue> for ColumnVec {
+    fn count(&self) -> Result<DataValue> {
+        Ok(DataValue::Int64(self.len() as i64))
+    }
+}
+
+impl VecCountAgg<Self> for DataValue {
+    fn count(&self) -> Result<DataValue> {
+        Ok(DataValue::Int64(1))
+    }
+}
+
+impl VecNumericAgg<DataValue> for ColumnVec {
+    fn sum(&self) -> Result<DataValue> {
+        match_column_numeric!(self, VecNumericAgg::sum)
+    }
+
+    fn min(&self) -> Result<DataValue> {
+        match_column_numeric!(self, VecNumericAgg::min)
+    }
+
+    fn max(&self) -> Result<DataValue> {
+        match_column_numeric!(self, VecNumericAgg::max)
+    }
+}
+
+impl VecNumericAgg<Self> for DataValue {
+    fn sum(&self) -> Result<Self> {
+        Ok(self.clone())
+    }
+
+    fn min(&self) -> Result<Self> {
+        Ok(self.clone())
+    }
+
+    fn max(&self) -> Result<Self> {
+        Ok(self.clone())
+    }
+}
+
 impl VecEq for ColumnVec {
     fn eq(&self, rhs: &Self) -> Result<BoolVec> {
-        match_column_column!(self, rhs, eq)
+        match_column_column!(self, rhs, compute::VecEq::eq)
     }
 }
 
 impl VecEq<DataValue> for ColumnVec {
     fn eq(&self, rhs: &DataValue) -> Result<BoolVec> {
-        match_column_datavalue!(self, rhs, eq)
+        match_column_datavalue!(self, rhs, compute::VecEq::eq)
+    }
+}
+
+impl VecEq<Self, bool> for DataValue {
+    fn eq(&self, rhs: &Self) -> Result<bool> {
+        match_value_value!(self, rhs, PartialEq::eq)
     }
 }
 
 impl VecNeq for ColumnVec {
     fn neq(&self, rhs: &Self) -> Result<BoolVec> {
-        match_column_column!(self, rhs, neq)
+        match_column_column!(self, rhs, compute::VecNeq::neq)
     }
 }
 
 impl VecNeq<DataValue> for ColumnVec {
     fn neq(&self, rhs: &DataValue) -> Result<BoolVec> {
-        match_column_datavalue!(self, rhs, neq)
+        match_column_datavalue!(self, rhs, compute::VecNeq::neq)
+    }
+}
+
+impl VecNeq<Self, bool> for DataValue {
+    fn neq(&self, rhs: &Self) -> Result<bool> {
+        match_value_value!(self, rhs, PartialEq::ne)
     }
 }
 
 impl VecGt for ColumnVec {
     fn gt(&self, rhs: &Self) -> Result<BoolVec> {
-        match_column_column!(self, rhs, gt)
+        match_column_column!(self, rhs, compute::VecGt::gt)
     }
 }
 
 impl VecGt<DataValue> for ColumnVec {
     fn gt(&self, rhs: &DataValue) -> Result<BoolVec> {
-        match_column_datavalue!(self, rhs, gt)
+        match_column_datavalue!(self, rhs, compute::VecGt::gt)
+    }
+}
+
+impl VecGt<Self, bool> for DataValue {
+    fn gt(&self, rhs: &Self) -> Result<bool> {
+        match_value_value!(self, rhs, PartialOrd::gt)
     }
 }
 
 impl VecLt for ColumnVec {
     fn lt(&self, rhs: &Self) -> Result<BoolVec> {
-        match_column_column!(self, rhs, lt)
+        match_column_column!(self, rhs, compute::VecLt::lt)
     }
 }
 
 impl VecLt<DataValue> for ColumnVec {
     fn lt(&self, rhs: &DataValue) -> Result<BoolVec> {
-        match_column_datavalue!(self, rhs, lt)
+        match_column_datavalue!(self, rhs, compute::VecLt::lt)
+    }
+}
+
+impl VecLt<Self, bool> for DataValue {
+    fn lt(&self, rhs: &Self) -> Result<bool> {
+        match_value_value!(self, rhs, PartialOrd::lt)
     }
 }
 
 impl VecGe for ColumnVec {
     fn ge(&self, rhs: &Self) -> Result<BoolVec> {
-        match_column_column!(self, rhs, ge)
+        match_column_column!(self, rhs, compute::VecGe::ge)
     }
 }
 
 impl VecGe<DataValue> for ColumnVec {
     fn ge(&self, rhs: &DataValue) -> Result<BoolVec> {
-        match_column_datavalue!(self, rhs, ge)
+        match_column_datavalue!(self, rhs, compute::VecGe::ge)
+    }
+}
+
+impl VecGe<Self, bool> for DataValue {
+    fn ge(&self, rhs: &Self) -> Result<bool> {
+        match_value_value!(self, rhs, PartialOrd::ge)
     }
 }
 
 impl VecLe for ColumnVec {
     fn le(&self, rhs: &Self) -> Result<BoolVec> {
-        match_column_column!(self, rhs, le)
+        match_column_column!(self, rhs, compute::VecLe::le)
     }
 }
 
 impl VecLe<DataValue> for ColumnVec {
     fn le(&self, rhs: &DataValue) -> Result<BoolVec> {
-        match_column_datavalue!(self, rhs, le)
+        match_column_datavalue!(self, rhs, compute::VecLe::le)
+    }
+}
+
+impl VecLe<Self, bool> for DataValue {
+    fn le(&self, rhs: &Self) -> Result<bool> {
+        match_value_value!(self, rhs, PartialOrd::le)
+    }
+}
+
+impl VecLogic for ColumnVec {
+    fn and(&self, rhs: &Self) -> Result<BoolVec> {
+        match_column_column_bool!(self, rhs, and)
+    }
+
+    fn or(&self, rhs: &Self) -> Result<BoolVec> {
+        match_column_column_bool!(self, rhs, or)
+    }
+}
+
+impl VecLogic<DataValue> for ColumnVec {
+    fn and(&self, rhs: &DataValue) -> Result<BoolVec> {
+        match_column_datavalue_bool!(self, rhs, and)
+    }
+
+    fn or(&self, rhs: &DataValue) -> Result<BoolVec> {
+        match_column_datavalue_bool!(self, rhs, or)
+    }
+}
+
+impl VecLogic<Self, bool> for DataValue {
+    fn and(&self, rhs: &Self) -> Result<bool> {
+        match_datavalue_datavalue_bool!(self, rhs, and)
+    }
+
+    fn or(&self, rhs: &Self) -> Result<bool> {
+        match_datavalue_datavalue_bool!(self, rhs, or)
     }
 }

@@ -1,7 +1,7 @@
 use crate::datatype::{DataType, DataValue, RelationSchema, Row};
 use crate::expr::EvaluatedExpr;
 use crate::vec::{BoolVec, ColumnVec};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -164,6 +164,17 @@ impl Batch {
         Ok(())
     }
 
+    pub fn get_row(&self, idx: usize) -> Option<Row> {
+        if idx >= self.num_rows() {
+            return None;
+        }
+        let mut row = Vec::with_capacity(self.arity());
+        for col in self.columns.iter() {
+            row.push(col.get_value(idx).unwrap());
+        }
+        Some(row.into())
+    }
+
     pub fn get_column(&self, idx: usize) -> Option<&Arc<ColumnVec>> {
         self.columns.get(idx)
     }
@@ -177,6 +188,29 @@ impl Batch {
 
     pub fn arity(&self) -> usize {
         self.columns.len()
+    }
+
+    pub fn row_iter(&self) -> RowIter<'_> {
+        RowIter {
+            batch: self,
+            idx: 0,
+        }
+    }
+}
+
+/// A relatively inefficient iterator over a batch returning rows.
+pub struct RowIter<'a> {
+    batch: &'a Batch,
+    idx: usize,
+}
+
+impl<'a> Iterator for RowIter<'a> {
+    type Item = Row;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.batch.get_row(self.idx)?;
+        self.idx += 1;
+        Some(row)
     }
 }
 
@@ -207,6 +241,27 @@ impl SelectivityBatch {
             b.push(*val);
         }
         Self::new(batch, b)
+    }
+
+    /// Create a new selecticity batch using the result of an expression
+    /// evaluation. The result should either be a bool vector, or a bool value.
+    pub fn new_with_eval_result(batch: Batch, result: &EvaluatedExpr) -> Result<SelectivityBatch> {
+        let with_col = |batch: Batch, col: &ColumnVec| {
+            Self::new_with_bool_vec(
+                batch,
+                col.try_as_bool_vec()
+                    .ok_or(anyhow!("column not a bool vec"))?,
+            )
+        };
+        Ok(match result {
+            EvaluatedExpr::ColumnRef(col) => with_col(batch, col)?,
+            EvaluatedExpr::Column(col) => with_col(batch, col)?,
+            EvaluatedExpr::Value(DataValue::Bool(b), _) => {
+                let num_rows = batch.num_rows();
+                Self::new(batch, BitVec::repeat(*b, num_rows))?
+            }
+            _ => return Err(anyhow!("eval result not a bool vec or bool value")),
+        })
     }
 
     pub fn num_rows(&self) -> usize {

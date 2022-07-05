@@ -39,6 +39,10 @@ impl<K: Key> KeySet<K> {
         }
     }
 
+    pub fn from_key(key: K) -> Self {
+        KeySet { keys: vec![key] }
+    }
+
     /// Check if there's a conflict between this set and another key.
     pub fn conflicts_with_key(&self, key: &K) -> bool {
         self.keys.iter().any(|check| check.conflicts_with(key))

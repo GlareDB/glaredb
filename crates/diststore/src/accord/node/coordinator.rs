@@ -5,7 +5,7 @@ use crate::accord::protocol::{
 use crate::accord::timestamp::{Timestamp, TimestampProvider};
 use crate::accord::topology::TopologyManagerRef;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
-use crate::accord::{AccordError, Executor, NodeId, Result};
+use crate::accord::{AccordError, ComputeData, Executor, NodeId, Result};
 use std::collections::{HashMap, HashSet};
 
 /// State specific for coordinating transactions.
@@ -131,26 +131,27 @@ impl<K: Key> CoordinatorState<K> {
         })
     }
 
-    pub fn store_read_ok(&mut self, msg: ReadOk) -> Result<Option<Apply<K>>> {
+    pub fn store_read_ok<E>(&mut self, executor: &E, msg: ReadOk) -> Result<Option<Apply<K>>>
+    where
+        E: Executor<K>,
+    {
         let tx = self
             .transactions
             .get(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
 
         // TODO: Only compute if we've gotten messages from all shards. We're
-        // only dealing with a single shard now.
-        // let compute = self
-        //     .executor
-        //     .compute(&msg.data, &tx.proposed, &tx.inner)
-        //     .map_err(|e| AccordError::ExecutorError(e.to_string()))?;
+        // only dealing with a single for shard now.
+        let computed = executor
+            .compute(&msg.data, &tx.proposed, &tx.inner)
+            .map_err(|e| AccordError::ExecutorError(format!("compute: {:?}", e)))?;
 
-        // Ok(Some(Apply {
-        //     tx: tx.inner.clone(),
-        //     timestamp: tx.proposed.clone(),
-        //     deps: tx.deps.iter().cloned().collect(),
-        //     data: compute,
-        // }))
-        unimplemented!()
+        Ok(Some(Apply {
+            tx: tx.inner.clone(),
+            timestamp: tx.proposed.clone(),
+            deps: tx.deps.iter().cloned().collect(),
+            data: computed,
+        }))
     }
 }
 

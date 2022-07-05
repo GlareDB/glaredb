@@ -13,8 +13,10 @@ use diststore::engine::{Interactivity, StorageEngine, StorageTransaction};
 use futures::executor;
 use futures::stream::StreamExt;
 use log::{debug, info};
+use serde::{Deserialize, Serialize};
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
+use std::fmt;
 use std::iter::Extend;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -34,7 +36,7 @@ impl<S: StorageEngine> Engine<S> {
         Ok(Session { tx })
     }
 
-    fn ensure_system_tables(&mut self) -> Result<()> {
+    pub fn ensure_system_tables(&mut self) -> Result<()> {
         let tx = self.storage.begin(Interactivity::None)?;
         executor::block_on(async move {
             for table in system_tables().into_iter() {
@@ -58,10 +60,35 @@ pub struct TimedExecutionResult {
     pub execution_duration: Duration,
 }
 
+impl fmt::Display for TimedExecutionResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "")?;
+        write!(f, "{}", self.result)?;
+        write!(f, "took: {:?}", self.execution_duration)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub enum ExecutionResult {
     Other,
     QueryResult { batches: Vec<Batch> },
+}
+
+impl fmt::Display for ExecutionResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExecutionResult::Other => write!(f, "other"),
+            ExecutionResult::QueryResult { batches } => {
+                for batch in batches.iter() {
+                    for row in batch.row_iter() {
+                        writeln!(f, "{:?}", row.0)?;
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -245,6 +272,7 @@ pub trait Transaction: Catalog + Sync + Send {
 #[async_trait]
 impl<S: StorageEngine + 'static> Transaction for Session<S> {
     async fn insert(&mut self, table: &ResolvedTableReference, row: &Row) -> Result<()> {
+        debug!("session insert");
         let name = table.to_string();
         self.tx.insert(&name, row).await?;
         Ok(())
@@ -255,6 +283,7 @@ impl<S: StorageEngine + 'static> Transaction for Session<S> {
         table: &ResolvedTableReference,
         filter: Option<ScalarExpr>,
     ) -> Result<BatchStream> {
+        debug!("session scan");
         let name = table.to_string();
         let stream = self.tx.scan(&name, filter, 10).await?;
         Ok(stream)
@@ -290,11 +319,12 @@ mod tests {
             "select * from test_table;",
             "select b from test_table;",
             "select a + b from test_table;",
+            "select sum(b) from test_table;",
         ];
         for query in queries.into_iter() {
             let results = sess.execute_query(query).await.unwrap();
             assert_eq!(1, results.len());
-            println!("result for query {}: {:?}", query, results[0]);
+            println!("result for query '{}': {}", query, results[0]);
         }
     }
 }

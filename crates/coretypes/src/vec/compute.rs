@@ -79,6 +79,10 @@ impl_numeric_op!(VecSub, sub, sub);
 impl_numeric_op!(VecMul, mul, mul);
 impl_numeric_op!(VecDiv, div, div);
 
+pub trait VecCountAgg<T> {
+    fn count(&self) -> Result<T>;
+}
+
 /// Aggregates over numeric types.
 // TODO: Technically some of these should also be implemented for strings.
 pub trait VecNumericAgg<T> {
@@ -103,28 +107,28 @@ impl<T: NumericType + FixedLengthType> VecNumericAgg<T> for FixedLengthVec<T> {
     }
 }
 
-pub trait VecEq<Rhs = Self> {
-    fn eq(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecEq<Rhs = Self, Output = BoolVec> {
+    fn eq(&self, rhs: &Rhs) -> Result<Output>;
 }
 
-pub trait VecNeq<Rhs = Self> {
-    fn neq(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecNeq<Rhs = Self, Output = BoolVec> {
+    fn neq(&self, rhs: &Rhs) -> Result<Output>;
 }
 
-pub trait VecGt<Rhs = Self> {
-    fn gt(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecGt<Rhs = Self, Output = BoolVec> {
+    fn gt(&self, rhs: &Rhs) -> Result<Output>;
 }
 
-pub trait VecLt<Rhs = Self> {
-    fn lt(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecLt<Rhs = Self, Output = BoolVec> {
+    fn lt(&self, rhs: &Rhs) -> Result<Output>;
 }
 
-pub trait VecGe<Rhs = Self> {
-    fn ge(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecGe<Rhs = Self, Output = BoolVec> {
+    fn ge(&self, rhs: &Rhs) -> Result<Output>;
 }
 
-pub trait VecLe<Rhs = Self> {
-    fn le(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecLe<Rhs = Self, Output = BoolVec> {
+    fn le(&self, rhs: &Rhs) -> Result<Output>;
 }
 
 macro_rules! impl_cmp_op_fixed {
@@ -209,13 +213,13 @@ impl_cmp_op_varlen_scalar!(VecLt, lt, lt, BinaryVec, [u8]);
 impl_cmp_op_varlen_scalar!(VecGe, ge, ge, BinaryVec, [u8]);
 impl_cmp_op_varlen_scalar!(VecLe, le, le, BinaryVec, [u8]);
 
-pub trait VecLogic<Rhs = Self> {
-    fn and(&self, rhs: &Rhs) -> Result<BoolVec>;
-    fn or(&self, rhs: &Rhs) -> Result<BoolVec>;
+pub trait VecLogic<Rhs = Self, Output = BoolVec> {
+    fn and(&self, rhs: &Rhs) -> Result<Output>;
+    fn or(&self, rhs: &Rhs) -> Result<Output>;
 }
 
 impl VecLogic for BoolVec {
-    fn and(&self, rhs: &Self) -> Result<BoolVec> {
+    fn and(&self, rhs: &Self) -> Result<Self> {
         let values = self
             .iter_values()
             .zip(rhs.iter_values())
@@ -223,7 +227,7 @@ impl VecLogic for BoolVec {
         Ok(BoolVec::from_iter_all_valid(values))
     }
 
-    fn or(&self, rhs: &Self) -> Result<BoolVec> {
+    fn or(&self, rhs: &Self) -> Result<Self> {
         let values = self
             .iter_values()
             .zip(rhs.iter_values())
@@ -232,7 +236,7 @@ impl VecLogic for BoolVec {
     }
 }
 
-impl VecLogic<bool> for BoolVec {
+impl VecLogic<bool, BoolVec> for BoolVec {
     fn and(&self, rhs: &bool) -> Result<BoolVec> {
         let values = self.iter_values().map(|a| *a && *rhs);
         Ok(BoolVec::from_iter_all_valid(values))
@@ -241,5 +245,15 @@ impl VecLogic<bool> for BoolVec {
     fn or(&self, rhs: &bool) -> Result<BoolVec> {
         let values = self.iter_values().map(|a| *a || *rhs);
         Ok(BoolVec::from_iter_all_valid(values))
+    }
+}
+
+impl VecLogic<bool, bool> for bool {
+    fn and(&self, rhs: &Self) -> Result<bool> {
+        Ok(*self && *rhs)
+    }
+
+    fn or(&self, rhs: &Self) -> Result<bool> {
+        Ok(*self || *rhs)
     }
 }

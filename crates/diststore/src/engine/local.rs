@@ -7,6 +7,7 @@ use coretypes::datatype::{RelationSchema, Row};
 use coretypes::expr::ScalarExpr;
 use coretypes::stream::{BatchStream, MemoryStream};
 use coretypes::vec::ColumnVec;
+use log::debug;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -74,7 +75,7 @@ impl StorageTransaction for LocalTransaction {
         // TODO: Actually stream.
         let store = self.engine.store.read();
         let batch = store.scan(table, filter, limit)?;
-        let stream = MemoryStream::with_single_batch(batch);
+        let stream = MemoryStream::from_batch(batch);
 
         Ok(Box::pin(stream))
     }

@@ -5,6 +5,7 @@ use coretypes::expr::ScalarExpr;
 use coretypes::stream::{BatchStream, MemoryStream};
 use futures::stream::{self, Stream};
 
+pub mod accord;
 pub mod local;
 
 /// Transaction interactivity level.
@@ -26,14 +27,14 @@ pub trait StorageTransaction: Sync + Send {
     async fn commit(self) -> Result<()>;
 
     /// Create a new relation with the given name.
-    async fn create_relation(&self, name: &str, schema: RelationSchema) -> Result<()>;
+    async fn create_relation(&self, table: &str, schema: RelationSchema) -> Result<()>;
 
     /// Delete a relation with the given name. Errors if the relation does not
     /// exist.
-    async fn delete_relation(&self, name: &str) -> Result<()>;
+    async fn delete_relation(&self, table: &str) -> Result<()>;
 
     /// Get a relation schema.
-    async fn get_relation(&self, name: &str) -> Result<Option<RelationSchema>>;
+    async fn get_relation(&self, table: &str) -> Result<Option<RelationSchema>>;
 
     /// Insert a row.
     async fn insert(&self, table: &str, row: &Row) -> Result<()>;

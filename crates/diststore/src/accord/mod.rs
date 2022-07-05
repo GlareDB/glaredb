@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 pub mod keys;
@@ -52,6 +53,9 @@ pub enum AccordError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
+
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 pub type Result<T, E = AccordError> = std::result::Result<T, E>;
@@ -63,10 +67,14 @@ pub enum Request<K> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadResponse {}
+pub struct ReadResponse {
+    pub data: Vec<u8>,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WriteResponse {}
+pub struct WriteResponse {
+    pub data: Vec<u8>,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Response {
@@ -89,6 +97,7 @@ pub struct WriteData {
     pub data: Vec<u8>,
 }
 
+// TODO: Maybe make this async.
 pub trait Executor<K>: Sync + Send + 'static {
     type Error: Debug + 'static;
 
