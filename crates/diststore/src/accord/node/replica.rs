@@ -7,7 +7,7 @@ use crate::accord::timestamp::{Timestamp, TimestampProvider};
 use crate::accord::topology::Topology;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
 use crate::accord::{AccordError, ComputeData, Executor, NodeId, Result};
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
@@ -36,11 +36,9 @@ impl<K: Key> ReplicaState<K> {
     }
 
     pub fn receive_preaccept(&mut self, msg: PreAccept<K>) -> PreAcceptOk {
-        debug!("received preaccept: {:?}", msg);
         let id = msg.tx.get_id().clone();
 
         let prop = self.propose_transaction(&msg.tx);
-        debug!("transaction proposal: {:?}", prop);
         self.ensure_tx_state(
             msg.tx,
             prop.proposed_timestamp,
@@ -57,7 +55,6 @@ impl<K: Key> ReplicaState<K> {
     }
 
     pub fn receive_accept(&mut self, msg: Accept<K>) -> AcceptOk {
-        debug!("received accept: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Accepted);
         let tx = self.transactions.get(&id).unwrap();
@@ -66,7 +63,6 @@ impl<K: Key> ReplicaState<K> {
     }
 
     pub fn receive_commit(&mut self, msg: Commit<K>) -> Result<()> {
-        debug!("received commit: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Durable);
         let tx = self.transactions.get_mut(&id).unwrap();
@@ -77,7 +73,6 @@ impl<K: Key> ReplicaState<K> {
     where
         E: Executor<K>,
     {
-        debug!("received read: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Durable);
 
@@ -94,7 +89,6 @@ impl<K: Key> ReplicaState<K> {
     where
         E: Executor<K>,
     {
-        debug!("received apply: {:?}", msg);
         let id = msg.tx.get_id().clone();
         self.ensure_tx_state(msg.tx, msg.timestamp, msg.deps, TransactionState::Durable);
 
@@ -255,14 +249,20 @@ impl<K: Key> ReplicatedTransaction<K> {
         match state {
             TransactionState::Accepted => self.move_to_accepted(),
             TransactionState::Durable => self.move_to_durable(),
-            other => warn!("attempt to move to strange state: {}", other),
+            other => warn!(
+                "attempt to move to strange state, tx: {}, state: {}",
+                self.inner, other
+            ),
         }
     }
 
     fn move_to_accepted(&mut self) {
         match self.state {
             TransactionState::PreAccepted => self.state = TransactionState::Accepted,
-            ref other => info!("ignoring 'accepted' state update, current: {}", other),
+            ref other => info!(
+                "ignoring 'accepted' state update for tx: {}, current: {}",
+                self.inner, other
+            ),
         }
     }
 
@@ -271,7 +271,10 @@ impl<K: Key> ReplicatedTransaction<K> {
             TransactionState::PreAccepted | TransactionState::Accepted => {
                 self.state = TransactionState::Durable
             }
-            ref other => info!("ignoring 'durable' state update, current: {}", other),
+            ref other => info!(
+                "ignoring 'durable' state update for tx: {}, current: {}",
+                self.inner, other
+            ),
         }
     }
 
@@ -394,6 +397,20 @@ impl BlockedTransactions {
                 // TODO: Graceful executor error handling.
                 match action {
                     BlockedAction::Read => {
+                        trace!("reading for tx: {}", tx.inner);
+                        // Technically we shouldn't need to do this, but they
+                        // way things are right now, checking if transaction "b"
+                        // can execute always checks both the applied and
+                        // committed timestamps. By writing the applied
+                        // timestamps for read only transactions, we don't
+                        // continue to block newer transactions with a
+                        // dependency on this transaction.
+                        //
+                        // TODO: Should read transactions ever be a dependency on
+                        // newer write transactions?
+                        if tx.inner.is_read_tx() {
+                            log.write_applied(&tx.inner, &tx.proposed)?;
+                        }
                         let data = executor.read(&tx.proposed, &tx.inner).unwrap();
                         results.push(ExecutionActionOk::ReadOk(ReadOk {
                             tx: id.clone(),
@@ -401,6 +418,7 @@ impl BlockedTransactions {
                         }));
                     }
                     BlockedAction::Apply(data) => {
+                        trace!("applying for tx: {}", tx.inner);
                         log.write_applied(&tx.inner, &tx.proposed)?;
                         let data = executor.write(data, &tx.proposed, &tx.inner).unwrap();
                         results.push(ExecutionActionOk::ApplyOk(ApplyOk {

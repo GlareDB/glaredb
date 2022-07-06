@@ -2,10 +2,9 @@ use super::NodeId;
 use super::{AccordError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::net::SocketAddr;
 use std::sync::Arc;
-
-const MIN_NUM_PEERS: usize = 3;
 
 const fn max_tolerator_failures(peers: usize) -> usize {
     (peers - 1) / 2
@@ -29,6 +28,16 @@ pub enum Address {
     Peers,
     /// Broadcast only to this node.
     Local,
+}
+
+impl fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Address::Peer(node) => write!(f, "{}", node),
+            Address::Peers => write!(f, "all"),
+            Address::Local => write!(f, "local"),
+        }
+    }
 }
 
 pub type TopologyManagerRef = Arc<TopologyManager>;
@@ -72,10 +81,6 @@ impl Topology {
     {
         let peers: HashMap<_, _> = peers.into_iter().collect();
         let electorate: HashMap<_, _> = electorate.into_iter().collect();
-
-        if peers.len() < MIN_NUM_PEERS {
-            return Err(AccordError::NotEnoughPeers);
-        }
 
         if electorate.len() > peers.len() {
             return Err(AccordError::ElectorateNotSubset);
@@ -198,6 +203,14 @@ mod tests {
         assert!(check.have_slow_path);
 
         let check = topology.check_quorum(&[1, 2, 3, 4]);
+        assert!(check.have_fast_path);
+        assert!(check.have_slow_path);
+    }
+
+    #[test]
+    fn single_peer() {
+        let topology = Topology::new(vec![fake_addr(1)], vec![fake_addr(1)]).unwrap();
+        let check = topology.check_quorum(&[1]);
         assert!(check.have_fast_path);
         assert!(check.have_slow_path);
     }

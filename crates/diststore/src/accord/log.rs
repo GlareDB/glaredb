@@ -1,7 +1,10 @@
+use super::keys::Key;
 use super::timestamp::Timestamp;
 use super::transaction::Transaction;
 use super::{AccordError, Result};
+use log::debug;
 
+// TODO: Make correct
 #[derive(Debug)]
 pub struct Log {
     latest_committed: Timestamp,
@@ -27,14 +30,16 @@ impl Log {
         &self.latest_applied
     }
 
-    pub fn write_committed<K>(&mut self, tx: &Transaction<K>, ts: &Timestamp) -> Result<()> {
+    pub fn write_committed<K: Key>(&mut self, tx: &Transaction<K>, ts: &Timestamp) -> Result<()> {
+        debug!("writing tx committed: {}, ts: {}", tx, ts);
         if ts > &self.latest_committed {
             self.latest_committed = ts.clone();
         }
         Ok(())
     }
 
-    pub fn write_applied<K>(&mut self, tx: &Transaction<K>, ts: &Timestamp) -> Result<()> {
+    pub fn write_applied<K: Key>(&mut self, tx: &Transaction<K>, ts: &Timestamp) -> Result<()> {
+        debug!("writing tx applied: {}, ts: {}", tx, ts);
         if ts > &self.latest_applied {
             self.latest_applied = ts.clone();
         }

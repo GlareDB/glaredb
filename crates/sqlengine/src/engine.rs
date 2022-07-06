@@ -246,7 +246,9 @@ impl<S: StorageEngine + 'static> Catalog for Session<S> {
     }
 
     fn drop_table(&mut self, tbl: &TableReference) -> Result<()> {
-        todo!()
+        debug!("dropping table: {}", tbl);
+
+        unimplemented!()
     }
 
     fn resolve_table(&self, tbl: &TableReference) -> Result<ResolvedTableReference> {

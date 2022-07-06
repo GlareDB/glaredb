@@ -3,11 +3,11 @@ use tokio::sync::mpsc;
 
 pub mod keys;
 pub mod log;
-mod node;
+pub mod node;
 pub mod protocol;
 pub mod server;
 pub mod timestamp;
-mod topology;
+pub mod topology;
 pub mod transaction;
 
 use keys::KeySet;
@@ -64,6 +64,15 @@ pub type Result<T, E = AccordError> = std::result::Result<T, E>;
 pub enum Request<K> {
     Read { keys: KeySet<K>, command: Vec<u8> },
     Write { keys: KeySet<K>, command: Vec<u8> },
+}
+
+impl<K> Request<K> {
+    pub fn keys(&self) -> &KeySet<K> {
+        match self {
+            Request::Read { keys, .. } => keys,
+            Request::Write { keys, .. } => keys,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

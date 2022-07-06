@@ -223,7 +223,7 @@ impl fmt::Display for UnaryOperation {
 /// This allows for dispatching to the correct compute implementation depending
 /// on the evaluated result variant.
 ///
-/// Not that this does not allow a scalar value on the left and a vector value
+/// Note that this does not allow a scalar value on the left and a vector value
 /// on the right.
 macro_rules! match_binary_evalulated_expr {
     ($left:ident, $right:ident, $op:path) => {{
@@ -348,7 +348,7 @@ macro_rules! match_aggregate_evaluated_expr {
         let value: DataValue = match $evaled {
             EvaluatedExpr::ColumnRef(col) => $op(col.as_ref())?,
             EvaluatedExpr::Column(col) => $op(&col)?,
-            EvaluatedExpr::Value(value, datatype) => $op(&value)?,
+            EvaluatedExpr::Value(value, _) => $op(&value)?,
         };
         value
     }};

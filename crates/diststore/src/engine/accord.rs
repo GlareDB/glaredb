@@ -61,6 +61,12 @@ pub struct AccordEngine {
     client: Client<ExactString>,
 }
 
+impl AccordEngine {
+    pub fn new(client: Client<ExactString>) -> Self {
+        AccordEngine { client }
+    }
+}
+
 impl StorageEngine for AccordEngine {
     type Transaction = AccordTransaction;
 

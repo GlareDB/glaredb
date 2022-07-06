@@ -1,6 +1,7 @@
 //! Key-based conflict detection.
+use fmtutil::DisplaySlice;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::fmt::Debug;
+use std::fmt;
 use std::hash::Hash;
 
 /// A type that represents a key to either a single entry, or a range of entries
@@ -13,7 +14,8 @@ pub trait Key:
     + PartialOrd
     + Ord
     + Hash
-    + Debug
+    + fmt::Debug
+    + fmt::Display
     + Clone
     + Send
     + Unpin
@@ -57,6 +59,12 @@ impl<K: Key> KeySet<K> {
     }
 }
 
+impl<K: fmt::Display> fmt::Display for KeySet<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", DisplaySlice(&self.keys))
+    }
+}
+
 /// A simple implementation of `Key` on a string where conflicts only occur when
 /// two strings equal each other.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone)]
@@ -71,6 +79,12 @@ impl Key for ExactString {
 impl From<&str> for ExactString {
     fn from(s: &str) -> Self {
         ExactString(s.to_string())
+    }
+}
+
+impl fmt::Display for ExactString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (exact)", self.0)
     }
 }
 

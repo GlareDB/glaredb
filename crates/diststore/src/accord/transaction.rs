@@ -13,7 +13,7 @@ pub struct TransactionId(pub Timestamp);
 
 impl fmt::Display for TransactionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[tx]({})", self.0)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -23,7 +23,16 @@ pub enum TransactionKind {
     Write,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+impl fmt::Display for TransactionKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransactionKind::Read => write!(f, "read"),
+            TransactionKind::Write => write!(f, "write"),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transaction<K> {
     id: TransactionId,
     kind: TransactionKind,
@@ -84,5 +93,24 @@ impl<K: Key> Transaction<K> {
         }
         // Only conflicts if one or both transactions are write transactions.
         self.is_write_tx() || other.is_write_tx()
+    }
+}
+
+impl<K: fmt::Debug> fmt::Debug for Transaction<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transaction")
+            .field("id", &self.id)
+            .field("kind", &self.kind)
+            .finish()
+    }
+}
+
+impl<K: fmt::Display> fmt::Display for Transaction<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "id: {}, kind: {}, keys: {}",
+            self.id, self.kind, self.keys
+        )
     }
 }

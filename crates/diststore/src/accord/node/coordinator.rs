@@ -5,7 +5,9 @@ use crate::accord::protocol::{
 use crate::accord::timestamp::{Timestamp, TimestampProvider};
 use crate::accord::topology::TopologyManagerRef;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
-use crate::accord::{AccordError, ComputeData, Executor, NodeId, Result};
+use crate::accord::{AccordError, ComputeData, Executor, NodeId};
+use anyhow::{anyhow, Context, Result};
+use log::{trace, warn};
 use std::collections::{HashMap, HashSet};
 
 /// State specific for coordinating transactions.
@@ -62,6 +64,13 @@ impl<K: Key> CoordinatorState<K> {
             .transactions
             .get_mut(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
+
+        // Got a late preaccept message.
+        if !tx.is_status_preaccepting() {
+            trace!("discarding late preaccept ok msg: {}", msg);
+            return Ok(None);
+        }
+
         let received = tx.preaccept_msg_received(from, msg.proposed, msg.deps)?;
         let check = self.tm.get_current().check_quorum(received);
 
@@ -102,11 +111,19 @@ impl<K: Key> CoordinatorState<K> {
             .transactions
             .get_mut(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
+
+        // Late accept messages.
+        if !tx.is_status_accepting() {
+            trace!("discarding late accept ok msg: {}", msg);
+            return Ok(None);
+        }
+
         let received = tx.accept_msg_received(from, msg.deps)?;
         let check = self.tm.get_current().check_quorum(received);
 
         // Only need a simple quorum to commit.
         if check.have_slow_path {
+            tx.move_to_executing()?;
             return Ok(Some(Commit {
                 tx: tx.inner.clone(),
                 timestamp: tx.proposed.clone(),
@@ -121,7 +138,7 @@ impl<K: Key> CoordinatorState<K> {
     pub fn start_execute(&mut self, msg: StartExecuteInternal) -> Result<Read<K>> {
         let tx = self
             .transactions
-            .get(&msg.tx)
+            .get_mut(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
         // TODO: Need to track which shards we need to await reads from.
         Ok(Read {
@@ -131,34 +148,64 @@ impl<K: Key> CoordinatorState<K> {
         })
     }
 
-    pub fn store_read_ok<E>(&mut self, executor: &E, msg: ReadOk) -> Result<Option<Apply<K>>>
+    pub fn store_read_ok<E>(
+        &mut self,
+        executor: &E,
+        msg: ReadOk,
+    ) -> Result<Option<ApplyOrReadOk<K>>>
     where
         E: Executor<K>,
     {
         let tx = self
             .transactions
-            .get(&msg.tx)
+            .get_mut(&msg.tx)
             .ok_or(AccordError::MissingTx(msg.tx.clone()))?;
+
+        // Late read ok messages.
+        if !tx.is_status_executing() {
+            trace!("discarding late read ok msg: {}", msg);
+            return Ok(None);
+        }
 
         // TODO: Only compute if we've gotten messages from all shards. We're
         // only dealing with a single for shard now.
-        let computed = executor
-            .compute(&msg.data, &tx.proposed, &tx.inner)
-            .map_err(|e| AccordError::ExecutorError(format!("compute: {:?}", e)))?;
 
-        Ok(Some(Apply {
-            tx: tx.inner.clone(),
-            timestamp: tx.proposed.clone(),
-            deps: tx.deps.iter().cloned().collect(),
-            data: computed,
-        }))
+        if tx.inner.is_read_tx() {
+            // TODO: Once multiple shards are supported, we'll probably need to
+            // return muliple read ok messages.
+            tx.move_to_executed()?;
+            Ok(Some(ApplyOrReadOk::ReadOk(msg)))
+        } else {
+            trace!("computing for tx: {}", tx.inner);
+            let computed = executor
+                .compute(&msg.data, &tx.proposed, &tx.inner)
+                .map_err(|e| AccordError::ExecutorError(format!("compute: {:?}", e)))?;
+
+            tx.move_to_executed()?;
+            Ok(Some(ApplyOrReadOk::Apply(Apply {
+                tx: tx.inner.clone(),
+                timestamp: tx.proposed.clone(),
+                deps: tx.deps.iter().cloned().collect(),
+                data: computed,
+            })))
+        }
     }
 }
 
+/// Branch for if the fast path was taken (commit), or if there wasn't consensus
+/// (accept).
 #[derive(Debug)]
 pub enum AcceptOrCommit<K> {
     Accept(Accept<K>),
     Commit(Commit<K>),
+}
+
+/// Branch for if we still need to exectute the write portion of a write
+/// transaction (apply), or if this transaction what read only (readok).
+#[derive(Debug)]
+pub enum ApplyOrReadOk<K> {
+    Apply(Apply<K>),
+    ReadOk(ReadOk),
 }
 
 #[derive(Debug)]
@@ -171,6 +218,8 @@ enum TransactionStatus {
     Accepting { received: HashSet<NodeId> },
     /// Transaction is in the execution protocol.
     Executing,
+    /// Transaction has executed.
+    Executed,
 }
 
 #[derive(Debug)]
@@ -199,6 +248,18 @@ impl<K: Key> CoordinatedTransaction<K> {
         self.proposed == self.inner.get_id().0
     }
 
+    fn is_status_preaccepting(&self) -> bool {
+        matches!(self.status, TransactionStatus::PreAccepting { .. })
+    }
+
+    fn is_status_accepting(&self) -> bool {
+        matches!(self.status, TransactionStatus::Accepting { .. })
+    }
+
+    fn is_status_executing(&self) -> bool {
+        matches!(self.status, TransactionStatus::Executing)
+    }
+
     /// Add a node's preaccept proposal, returning a set of nodes we've received
     /// messages from so far.
     fn preaccept_msg_received(
@@ -218,7 +279,7 @@ impl<K: Key> CoordinatedTransaction<K> {
                 }
                 Ok(received)
             }
-            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+            other => Err(anyhow!("expected status 'preaccepting', got: {:?}", other)),
         }
     }
 
@@ -235,7 +296,7 @@ impl<K: Key> CoordinatedTransaction<K> {
                 received.insert(from);
                 Ok(received)
             }
-            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+            other => Err(anyhow!("expected status 'accepting', got: {:?}", other)),
         }
     }
 
@@ -247,7 +308,10 @@ impl<K: Key> CoordinatedTransaction<K> {
                 };
                 Ok(())
             }
-            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+            other => Err(anyhow!(
+                "failed move to accepting, current status: {:?}",
+                other
+            )),
         }
     }
 
@@ -255,13 +319,29 @@ impl<K: Key> CoordinatedTransaction<K> {
         match &mut self.status {
             status @ TransactionStatus::PreAccepting { .. }
             | status @ TransactionStatus::Accepting { .. } => {
-                *status = TransactionStatus::Accepting {
-                    received: HashSet::new(),
-                };
-                Ok(())
+                *status = TransactionStatus::Executing
             }
-            other => Err(AccordError::InvalidTransactionState(format!("{:?}", other))),
+            other => {
+                return Err(anyhow!(
+                    "failed move to executing, current status: {:?}",
+                    other
+                ))
+            }
         }
+        Ok(())
+    }
+
+    fn move_to_executed(&mut self) -> Result<()> {
+        match &mut self.status {
+            status @ TransactionStatus::Executing => *status = TransactionStatus::Executed,
+            other => {
+                return Err(anyhow!(
+                    "failed to move to executed, current status: {:?}",
+                    other
+                ))
+            }
+        }
+        Ok(())
     }
 
     fn merge_deps<I>(&mut self, deps: I)
