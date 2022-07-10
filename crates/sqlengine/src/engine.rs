@@ -131,7 +131,7 @@ impl<S: StorageEngine + 'static> Session<S> {
                     ExecutionResult::QueryResult {
                         batches: batches
                             .into_iter()
-                            .map(|batch| batch.into_shrunk_batch())
+                            .map(|batch| batch.into_batch())
                             .collect(),
                     }
                 }
@@ -186,7 +186,7 @@ impl<S: StorageEngine + 'static> Catalog for Session<S> {
 
             let mut columns = Vec::new();
             for batch in batches.into_iter() {
-                let batch = batch.into_shrunk_batch();
+                let batch = batch.into_batch();
                 let names = batch
                     .get_column(3)
                     .ok_or(anyhow!("missing name column for system attributes table"))?;
@@ -295,8 +295,26 @@ impl<S: StorageEngine + 'static> Transaction for Session<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use coretypes::datatype::DataValue;
     use diststore::engine::local::LocalEngine;
     use diststore::store::Store;
+
+    /// Check that the execution result is a query result, and that the returned
+    /// batch equals the provided rows.
+    fn assert_results_equal_rows(result: &TimedExecutionResult, rows: &[Row]) {
+        let batches = match &result.result {
+            ExecutionResult::QueryResult { batches } => batches,
+            other => panic!("result isn't a query result: {:?}", other),
+        };
+
+        let got_rows: Vec<_> = batches
+            .iter()
+            .map(|batch| batch.row_iter())
+            .flatten()
+            .collect();
+
+        assert_eq!(rows, got_rows);
+    }
 
     #[tokio::test]
     async fn basic_queries() {
@@ -309,24 +327,83 @@ mod tests {
         let mut sess = engine.start_session().unwrap();
 
         let setup = r#"
-            create table test_table (a bigint, b bigint);
-            insert into test_table (a, b) values (1, 2), (3, 4);
+            create table t1 (a bigint, b bigint);
+            insert into t1 (a, b) values (1, 2), (3, 4);
+
+            create table t2 (a bigint, c bigint);
+            insert into t2 (a, c) values (1, 3), (4, 5);
         "#;
 
         let results = sess.execute_query(setup).await.unwrap();
         println!("results: {:?}", results);
-        assert_eq!(2, results.len());
+        assert_eq!(4, results.len());
+
+        // TODO: Add expected columns.
+        struct TestQuery {
+            query: &'static str,
+            rows: Vec<Row>,
+        }
 
         let queries = vec![
-            "select * from test_table;",
-            "select b from test_table;",
-            "select a + b from test_table;",
-            "select sum(b) from test_table;",
+            TestQuery {
+                query: "select 1+2",
+                rows: vec![vec![DataValue::Int64(3)].into()],
+            },
+            TestQuery {
+                query: "select * from t1;",
+                rows: vec![
+                    vec![DataValue::Int64(1), DataValue::Int64(2)].into(),
+                    vec![DataValue::Int64(3), DataValue::Int64(4)].into(),
+                ],
+            },
+            TestQuery {
+                query: "select b from t1;",
+                rows: vec![
+                    vec![DataValue::Int64(2)].into(),
+                    vec![DataValue::Int64(4)].into(),
+                ],
+            },
+            TestQuery {
+                query: "select b as c from t1;",
+                rows: vec![
+                    vec![DataValue::Int64(2)].into(),
+                    vec![DataValue::Int64(4)].into(),
+                ],
+            },
+            TestQuery {
+                query: "select t1.b from t1;",
+                rows: vec![
+                    vec![DataValue::Int64(2)].into(),
+                    vec![DataValue::Int64(4)].into(),
+                ],
+            },
+            TestQuery {
+                query: "select a+b from t1;",
+                rows: vec![
+                    vec![DataValue::Int64(3)].into(),
+                    vec![DataValue::Int64(7)].into(),
+                ],
+            },
+            TestQuery {
+                query: "select sum(b) from t1;",
+                rows: vec![vec![DataValue::Int64(6)].into()],
+            },
+            TestQuery {
+                query: "select * from t1 inner join t2 on t1.a = t2.a;",
+                rows: vec![vec![
+                    DataValue::Int64(1),
+                    DataValue::Int64(2),
+                    DataValue::Int64(1),
+                    DataValue::Int64(3),
+                ]
+                .into()],
+            },
         ];
-        for query in queries.into_iter() {
-            let results = sess.execute_query(query).await.unwrap();
+
+        for test_query in queries.into_iter() {
+            let results = sess.execute_query(test_query.query).await.unwrap();
             assert_eq!(1, results.len());
-            println!("result for query '{}': {}", query, results[0]);
+            assert_results_equal_rows(&results[0], &test_query.rows);
         }
     }
 }

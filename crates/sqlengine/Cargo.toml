@@ -17,4 +17,4 @@ log = "0.4.0"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.21"
 async-trait = "0.1.56"
-
+parking_lot = "0.12.1"

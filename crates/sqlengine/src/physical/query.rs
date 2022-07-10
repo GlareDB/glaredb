@@ -8,18 +8,15 @@ use coretypes::{
     batch::{Batch, BatchError, BatchRepr, SelectivityBatch},
     datatype::{DataType, DataValue, NullableType, RelationSchema},
     expr::{EvaluatedExpr, ExprError, ScalarExpr},
-    stream::{BatchStream, MemoryStream},
+    stream::{BatchStream, EitherBatch, EitherStream, MemorySink, MemoryStream},
     vec::{BoolVec, ColumnVec},
 };
 use diststore::engine::StorageTransaction;
+use futures::stream::FuturesUnordered;
 use futures::stream::{Stream, StreamExt};
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub struct NestedLoopJoin {
-    pub join_type: JoinType,
-    pub operator: JoinOperator,
-}
+const NLJ_BATCH_SIZE: usize = 16;
 
 #[derive(Debug)]
 pub struct Filter {
@@ -37,9 +34,8 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Filter {
             .ok_or(anyhow!("operator input did not return a stream"))?;
         let stream = input.map(move |batch| match batch {
             Ok(batch) => {
+                let batch = batch.into_batch();
                 let evaled = self.predicate.evaluate(&batch)?;
-                // TODO: This removes any previous selectivity.
-                let batch = batch.get_batch().clone();
                 match evaled {
                     EvaluatedExpr::Column(col) => {
                         let v = col
@@ -97,6 +93,7 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Project {
             .ok_or(anyhow!("projection input did not return a stream"))?;
         let stream = input.map(move |batch| match batch {
             Ok(batch) => {
+                let batch = batch.into_batch();
                 let eval_results = self
                     .expressions
                     .iter()
@@ -145,7 +142,18 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Values {
             batch.push_row(values.into())?;
         }
 
-        let stream = MemoryStream::from_batch(batch.into());
+        let stream = MemoryStream::from_batch(batch);
         Ok(Some(Box::pin(stream)))
+    }
+}
+
+/// Produce an empty batch.
+#[derive(Debug)]
+pub struct Nothing;
+
+#[async_trait]
+impl<T: Transaction + 'static> PhysicalOperator<T> for Nothing {
+    async fn execute_stream(self, _tx: &mut T) -> Result<Option<BatchStream>> {
+        Ok(Some(Box::pin(MemoryStream::from_batch(Batch::empty()))))
     }
 }

@@ -139,10 +139,9 @@ impl ScalarExpr {
     }
 
     /// Evaluate an expression on an input batch.
-    pub fn evaluate(&self, input: &BatchRepr) -> Result<EvaluatedExpr, ExprError> {
+    pub fn evaluate(&self, input: &Batch) -> Result<EvaluatedExpr, ExprError> {
         Ok(match self {
             Self::Column(idx) => input
-                .get_batch()
                 .get_column(*idx)
                 .cloned()
                 .ok_or(ExprError::MissingColumn(*idx))?
@@ -309,7 +308,7 @@ impl BinaryOperation {
         &self,
         left: &ScalarExpr,
         right: &ScalarExpr,
-        input: &BatchRepr,
+        input: &Batch,
     ) -> Result<EvaluatedExpr, ExprError> {
         let left = left.evaluate(input)?;
         let right = right.evaluate(input)?;
@@ -372,7 +371,7 @@ impl AggregateOperation {
         })
     }
 
-    fn evaluate(&self, inner: &ScalarExpr, input: &BatchRepr) -> Result<EvaluatedExpr, ExprError> {
+    fn evaluate(&self, inner: &ScalarExpr, input: &Batch) -> Result<EvaluatedExpr, ExprError> {
         let inner = inner.evaluate(input)?;
         let value = match self {
             AggregateOperation::Count => match_aggregate_evaluated_expr!(inner, VecCountAgg::count),

@@ -27,6 +27,10 @@ pub enum DataType {
 }
 
 impl DataType {
+    pub fn is_bool(&self) -> bool {
+        matches!(self, DataType::Bool)
+    }
+
     pub fn is_numeric(&self) -> bool {
         use DataType::*;
         match self {
@@ -89,6 +93,10 @@ impl NullableType {
             datatype,
             nullable: false,
         }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        self.datatype.is_bool()
     }
 
     pub fn is_numeric(&self) -> bool {
@@ -283,6 +291,12 @@ impl RelationSchema {
     /// The number of columns in the relation.
     pub fn arity(&self) -> usize {
         self.columns.len()
+    }
+}
+
+impl From<Vec<NullableType>> for RelationSchema {
+    fn from(columns: Vec<NullableType>) -> Self {
+        RelationSchema { columns }
     }
 }
 

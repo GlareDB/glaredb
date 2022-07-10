@@ -17,12 +17,14 @@ pub enum BatchError {
 }
 
 /// Representations of batches.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BatchRepr {
     /// A column-oriented batch of records.
     Batch(Batch),
     /// A column-oriented batch with a row selectivity vector.
     Selectivity(SelectivityBatch),
+    /// The output of a cross join of two batches.
+    CrossJoin(CrossJoinBatch),
 }
 
 impl BatchRepr {
@@ -30,18 +32,13 @@ impl BatchRepr {
         Batch::empty().into()
     }
 
-    /// Get the underlying batch reference.
-    pub fn get_batch(&self) -> &Batch {
-        match self {
-            BatchRepr::Batch(batch) => batch,
-            BatchRepr::Selectivity(sel) => &sel.batch,
-        }
-    }
-
-    pub fn into_shrunk_batch(self) -> Batch {
+    /// Make any required changes to the underlying columns in order to return a
+    /// valid batch for this representation.
+    pub fn into_batch(self) -> Batch {
         match self {
             BatchRepr::Batch(batch) => batch,
             BatchRepr::Selectivity(batch) => batch.shrink_to_selected(),
+            BatchRepr::CrossJoin(batch) => batch.into_batch(),
         }
     }
 }
@@ -58,6 +55,12 @@ impl From<SelectivityBatch> for BatchRepr {
     }
 }
 
+impl From<CrossJoinBatch> for BatchRepr {
+    fn from(batch: CrossJoinBatch) -> Self {
+        BatchRepr::CrossJoin(batch)
+    }
+}
+
 /// A batch of rows, represented as typed columns.
 ///
 /// Acceptable for a larger number of records.
@@ -67,6 +70,9 @@ pub struct Batch {
 }
 
 impl Batch {
+    /// Create a new empty batch.
+    ///
+    /// The resulting batch will have an arity of zero.
     pub fn empty() -> Batch {
         Batch {
             columns: Vec::new(),
@@ -148,7 +154,7 @@ impl Batch {
     /// Push a row onto the batch.
     ///
     /// Columns will be cloned if there are any outstanding references.
-    pub fn push_row(&mut self, row: Row) -> Result<(), BatchError> {
+    pub fn push_row(&mut self, row: &Row) -> Result<(), BatchError> {
         if row.arity() != self.arity() {
             return Err(BatchError::ColumnSizeMismatch {
                 expected: self.arity(),
@@ -156,9 +162,9 @@ impl Batch {
             });
         }
 
-        let iter = row.0.into_iter().zip(self.columns.iter_mut());
+        let iter = row.0.iter().zip(self.columns.iter_mut());
         for (value, orig) in iter {
-            (*Arc::make_mut(orig)).push_value(&value)?;
+            (*Arc::make_mut(orig)).push_value(value)?;
         }
 
         Ok(())
@@ -199,6 +205,9 @@ impl Batch {
 }
 
 /// A relatively inefficient iterator over a batch returning rows.
+///
+/// This should really only be used in tests and not during real execution of
+/// the database. During execution, everything should be handling batches.
 pub struct RowIter<'a> {
     batch: &'a Batch,
     idx: usize,
@@ -215,7 +224,7 @@ impl<'a> Iterator for RowIter<'a> {
 }
 
 /// A batch with a selectivity bit vector indicating "visible" rows.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectivityBatch {
     pub batch: Batch,
     pub selectivity: BitVec,
@@ -274,5 +283,100 @@ impl SelectivityBatch {
             (*Arc::make_mut(column)).retain(&self.selectivity);
         }
         self.batch
+    }
+}
+
+/// A cross join representation of two batches.
+#[derive(Debug, Clone)]
+pub struct CrossJoinBatch {
+    left: Batch,
+    left_repeat: usize,
+    right: Batch,
+    right_repeat: usize,
+}
+
+impl CrossJoinBatch {
+    pub fn from_batches(left: Batch, right: Batch) -> CrossJoinBatch {
+        let left_repeat = right.num_rows();
+        let right_repeat = left.num_rows();
+        CrossJoinBatch {
+            left,
+            left_repeat,
+            right,
+            right_repeat,
+        }
+    }
+
+    pub fn num_row(&self) -> usize {
+        self.left.num_rows() * self.left_repeat
+    }
+
+    /// Materialize the resulting columns from the cross join.
+    // TODO: Pass in optional selectivitity filter.
+    pub fn into_batch(self) -> Batch {
+        // TODO: Not terribly efficient.
+
+        // Extend out the left side of the join by repeating each row.
+        unimplemented!()
+        // let mut left_cols = Vec::with_capacity(self.left.arity());
+        // for row in self.left.row_iter() {
+        //     for _i in 0..self.left_repeat {
+        //         let iter = row.0.iter().zip(self.columns.iter_mut());
+        //         for (value, orig) in iter {
+        //             (*Arc::make_mut(orig)).push_value(value)?;
+        //         }
+
+        //         temp_left.push_row(&row).unwrap();
+        //     }
+        // }
+
+        // let mut right_cols = Vec::with_capacity(self.right.arity());
+        // for right in self.right.columns.into_iter() {
+        //     let right = Arc::try_unwrap(right).unwrap_or_else(|v| (*v).clone());
+        //     let mut repeats = vec![right; self.right_repeat].into_iter();
+        //     let mut right = match repeats.next() {
+        //         Some(v) => v,
+        //         None => return Batch::empty(),
+        //     };
+        //     for repeat in repeats {
+        //         right.append(repeat).unwrap();
+        //     }
+        //     right_cols.push(right)
+        // }
+
+        // let mut cols = temp_left.columns;
+        // cols.extend(right_cols.into_iter().map(|col| Arc::new(col)));
+
+        // Batch { columns: cols }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::vec::native_vec::Int64Vec;
+
+    #[test]
+    fn cross_join_simple() {
+        let b1 = Batch::from_columns([
+            Int64Vec::from_iter_all_valid([1, 2]).into(),
+            Int64Vec::from_iter_all_valid([3, 4]).into(),
+        ])
+        .unwrap();
+
+        let b2 = Batch::from_columns([
+            Int64Vec::from_iter_all_valid([5, 6, 7]).into(),
+            Int64Vec::from_iter_all_valid([8, 9, 10]).into(),
+        ])
+        .unwrap();
+
+        let cross = CrossJoinBatch::from_batches(b1, b2);
+        let batch = cross.into_batch();
+        println!("batch: {:#?}", batch);
+
+        let rows: Vec<_> = batch.row_iter().collect();
+
+        panic!("rows: {:#?}", rows);
+        // assert_eq!(4, rows.len());
     }
 }

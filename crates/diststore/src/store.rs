@@ -97,16 +97,15 @@ impl Table {
     // TODO: Actually implement correctly.
     fn scan(&self, filter: Option<ScalarExpr>, limit: usize) -> Result<Batch> {
         let columns = self.columns.clone();
-        let batch: BatchRepr = Batch::from_columns(columns)?.into();
+        let batch = Batch::from_columns(columns)?;
 
         match filter {
             Some(filter) => {
                 let evaled = filter.evaluate(&batch)?;
-                let batch = batch.into_shrunk_batch();
                 let batch = SelectivityBatch::new_with_eval_result(batch, &evaled)?;
                 Ok(batch.shrink_to_selected())
             }
-            None => Ok(batch.into_shrunk_batch()),
+            None => Ok(batch),
         }
     }
 }

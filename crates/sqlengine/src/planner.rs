@@ -1,7 +1,9 @@
 use crate::catalog::{Catalog, ResolvedTableReference, TableReference, TableSchema};
 use crate::logical::{
-    AggregateFunc, CreateTable, CrossJoin, Filter, Insert, Project, RelationalPlan, Scan, Values,
+    AggregateFunc, CreateTable, CrossJoin, Filter, Insert, Join, JoinOperator, JoinType, Project,
+    RelationalPlan, Scan, Values,
 };
+use crate::scope::{Scope, TableAliasOrReference};
 use anyhow::anyhow;
 use coretypes::{
     datatype::{DataType, DataValue, NullableType, RelationSchema},
@@ -151,9 +153,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
         let inner_scope = scope.clone();
 
         let mut froms = froms.into_iter();
-        let leftmost = froms
-            .next()
-            .ok_or_else(|| PlanError::Internal("missing from item".to_string()))?;
+        let leftmost = match froms.next() {
+            Some(from) => from,
+            None => return Ok(RelationalPlan::Nothing),
+        };
         let mut plan = self.plan_from_item(scope, leftmost)?;
 
         for right in froms {
@@ -174,13 +177,59 @@ impl<'a, C: Catalog> Planner<'a, C> {
         scope: &mut Scope,
         table: ast::TableWithJoins,
     ) -> Result<RelationalPlan, PlanError> {
-        let left = self.plan_from_table(scope, table.relation)?;
+        let mut left = self.plan_from_table(scope, table.relation)?;
 
-        if table.joins.len() > 0 {
-            return Err(PlanError::Unsupported("joins".to_string()));
+        for right in table.joins {
+            let right_table = self.plan_from_table(scope, right.relation)?;
+
+            let (join_type, operator) = match right.join_operator {
+                ast::JoinOperator::Inner(constraint) => {
+                    let expr = self.join_constraint_to_scalar(scope, constraint)?;
+                    (JoinType::Inner, JoinOperator::On(expr))
+                }
+                ast::JoinOperator::LeftOuter(constraint) => {
+                    let expr = self.join_constraint_to_scalar(scope, constraint)?;
+                    (JoinType::Left, JoinOperator::On(expr))
+                }
+                ast::JoinOperator::RightOuter(constraint) => {
+                    let expr = self.join_constraint_to_scalar(scope, constraint)?;
+                    (JoinType::Right, JoinOperator::On(expr))
+                }
+
+                other => return Err(PlanError::Unsupported(format!("join: {:?}", other))),
+            };
+
+            left = RelationalPlan::Join(Join {
+                left: Box::new(left),
+                right: Box::new(right_table),
+                join_type,
+                operator,
+            });
         }
 
         Ok(left)
+    }
+
+    fn join_constraint_to_scalar(
+        &self,
+        scope: &Scope,
+        constraint: ast::JoinConstraint,
+    ) -> Result<ScalarExpr, PlanError> {
+        match constraint {
+            ast::JoinConstraint::On(expr) => {
+                let expr = self.sql_expr_to_scalar(scope, expr)?;
+                let input = scope.project_schema();
+                let output = expr.output_type(&input)?;
+                if !output.is_bool() {
+                    return Err(anyhow!("qualified joins using ON must be boolean expressions, got '{}' for expr: {}", output, expr).into());
+                }
+                Ok(expr)
+            }
+            other => Err(PlanError::Unsupported(format!(
+                "join constraint: {:?}",
+                other
+            ))),
+        }
     }
 
     fn plan_from_table(
@@ -327,6 +376,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 .resolve_unqualified_column(&ident.value)
                 .ok_or(PlanError::InvalidColumnReference(ident.value))?,
 
+            ast::Expr::CompoundIdentifier(idents) => scope
+                .resolve_qualified_column(&idents)
+                .ok_or(anyhow!("unable to resolve compound ident: {:?}", idents))?,
+
             ast::Expr::TypedString { data_type, value } => Cast {
                 expr: Box::new(Constant(DataValue::Utf8(value), DataType::Utf8.into())),
                 datatype: sql_type_to_data_type(&data_type)?.into(),
@@ -422,104 +475,6 @@ fn sql_type_to_data_type(sql_type: &ast::DataType) -> Result<DataType, PlanError
     })
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-enum TableAliasOrReference {
-    /// A user provided alias for the table. Once a table is aliased, the table
-    /// can only be reference by that alias.
-    Alias(String),
-    /// A table reference, e.g. "my_table" or "schema.my_table".
-    Reference(TableReference),
-}
-
-impl fmt::Display for TableAliasOrReference {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TableAliasOrReference::Alias(alias) => write!(f, "{} (alias)", alias),
-            TableAliasOrReference::Reference(resolved) => write!(f, "{} (resolved)", resolved),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Scope {
-    /// Maps table aliases to a schema.
-    tables: HashMap<TableAliasOrReference, usize>,
-    /// All table schemas within the scope.
-    schemas: Vec<TableSchema>,
-}
-
-impl Scope {
-    fn new() -> Scope {
-        Scope {
-            tables: HashMap::new(),
-            schemas: Vec::new(),
-        }
-    }
-
-    /// Add a table with the given alias or reference to the scope.
-    fn add_table(
-        &mut self,
-        alias: TableAliasOrReference,
-        schema: TableSchema,
-    ) -> Result<(), PlanError> {
-        match self.tables.entry(alias) {
-            Entry::Occupied(ent) => Err(PlanError::DuplicateTableReference(ent.key().to_string())),
-            Entry::Vacant(ent) => {
-                let idx = self.schemas.len();
-                self.schemas.push(schema);
-                ent.insert(idx);
-                Ok(())
-            }
-        }
-    }
-
-    /// Append another scope to the right of this one. Errors if there's any
-    /// duplicate table references.
-    fn append(&mut self, mut other: Scope) -> Result<(), PlanError> {
-        let diff = self.schemas.len();
-        self.schemas.append(&mut other.schemas);
-        for (alias, idx) in other.tables.into_iter() {
-            match self.tables.entry(alias) {
-                Entry::Occupied(ent) => {
-                    return Err(PlanError::DuplicateTableReference(ent.key().to_string()))
-                }
-                Entry::Vacant(ent) => ent.insert(idx + diff),
-            };
-        }
-
-        Ok(())
-    }
-
-    /// Resolve an unqualified column name.
-    fn resolve_unqualified_column(&self, name: &str) -> Option<ScalarExpr> {
-        // TODO: Resolve more efficiently. Also need to make sure that column isn't ambiguous.
-        let (idx, _) = self
-            .schemas
-            .iter()
-            .map(|tbl| tbl.columns.iter())
-            .flatten()
-            .enumerate()
-            .find(|(_, col)| *col == name)?;
-
-        Some(ScalarExpr::Column(idx))
-    }
-
-    fn resolve_wildcard(&self) -> Vec<ScalarExpr> {
-        let num_cols = self
-            .schemas
-            .iter()
-            .flat_map(|t| t.schema.columns.iter())
-            .count();
-
-        let mut exprs = Vec::with_capacity(num_cols);
-        for idx in 0..num_cols {
-            exprs.push(ScalarExpr::Column(idx));
-        }
-
-        exprs
-    }
-}
-
 /// Parse a string representing a number into a constant scalar expression.
 fn parse_num(s: &str) -> Result<ScalarExpr, PlanError> {
     // TODO: Big decimal?
@@ -536,63 +491,4 @@ fn parse_num(s: &str) -> Result<ScalarExpr, PlanError> {
         },
     };
     Ok(ScalarExpr::Constant(n, NullableType::new_nullable(t)))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::catalog::TableReference;
-
-    fn create_table(name: &str, cols: Vec<(&str, DataType)>) -> TableSchema {
-        let resolved = ResolvedTableReference {
-            catalog: "db".to_string(),
-            schema: "test".to_string(),
-            base: name.to_string(),
-        };
-
-        let mut names = Vec::new();
-        let mut types = Vec::new();
-        for col in cols.into_iter() {
-            names.push(col.0.to_string());
-            types.push(NullableType::new_nullable(col.1));
-        }
-
-        let schema = RelationSchema::new(types);
-        TableSchema::new(resolved, names, schema).unwrap()
-    }
-
-    #[test]
-    fn resolve_unqualified_column() {
-        let tables = vec![
-            create_table(
-                "t1",
-                vec![
-                    ("a", DataType::Int8),
-                    ("b", DataType::Int8),
-                    ("c", DataType::Int8),
-                ],
-            ),
-            create_table(
-                "t2",
-                vec![
-                    ("d", DataType::Int8),
-                    ("e", DataType::Int8),
-                    ("f", DataType::Int8),
-                ],
-            ),
-        ];
-
-        let mut scope = Scope::new();
-        for table in tables.into_iter() {
-            let alias = TableAliasOrReference::Reference(TableReference::new_unqualified(
-                table.reference.base.clone(),
-            ));
-            scope.add_table(alias, table).unwrap();
-        }
-
-        let expr = scope.resolve_unqualified_column("b").unwrap();
-        assert_eq!(ScalarExpr::Column(1), expr);
-        let expr = scope.resolve_unqualified_column("f").unwrap();
-        assert_eq!(ScalarExpr::Column(5), expr);
-    }
 }

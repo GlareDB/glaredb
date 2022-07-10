@@ -41,6 +41,24 @@ macro_rules! cvec_common {
             }
         }
 
+        pub fn append(&mut self, other: Self) -> Result<()> {
+            match (self, other) {
+                $(
+                    (Self::$variant(v1), Self::$variant(v2)) => v1.append(v2),
+                )*
+                _ => return Err(anyhow!("column type mismatch")),
+            }
+            Ok(())
+        }
+
+        pub fn shift_right(&mut self) {
+            match self {
+                $(
+                    Self::$variant(v) => v.shift_right(),
+                )*
+            }
+        }
+
         pub fn retain(&mut self, selectivity: &BitVec) {
             match self {
                 $(

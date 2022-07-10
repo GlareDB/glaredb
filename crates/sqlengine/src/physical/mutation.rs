@@ -44,7 +44,7 @@ impl<T: Transaction + 'static> PhysicalOperator<T> for Insert {
             .ok_or(anyhow!("input did not return stream"))?;
 
         for result in input.next().await {
-            let batch = result?.into_shrunk_batch();
+            let batch = result?.into_batch();
 
             // TODO: Bulk insert.
             for row in batch.row_iter() {

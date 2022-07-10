@@ -1,5 +1,5 @@
 use crate::engine::Transaction;
-use crate::logical::RelationalPlan;
+use crate::logical::{JoinOperator, RelationalPlan};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use coretypes::stream::BatchStream;
@@ -10,6 +10,9 @@ pub mod query;
 pub use query::*;
 pub mod mutation;
 pub use mutation::*;
+mod join;
+use join::*;
+mod spill;
 
 #[async_trait]
 pub trait PhysicalOperator<T: Transaction> {
@@ -31,6 +34,7 @@ pub enum PhysicalPlan {
 
     CreateTable(CreateTable),
     Insert(Insert),
+    Nothing(Nothing),
 }
 
 impl PhysicalPlan {
@@ -49,6 +53,17 @@ impl PhysicalPlan {
                 predicate: node.predicate,
                 input: Box::new(Self::from_logical(*node.input)?),
             }),
+            RelationalPlan::Join(node) => {
+                let predicate = match node.operator {
+                    JoinOperator::On(expr) => expr,
+                };
+                PhysicalPlan::NestedLoopJoin(NestedLoopJoin {
+                    join_type: node.join_type,
+                    predicate,
+                    left: Box::new(Self::from_logical(*node.left)?),
+                    right: Box::new(Self::from_logical(*node.right)?),
+                })
+            }
             RelationalPlan::Project(node) => PhysicalPlan::Project(Project {
                 expressions: node.expressions,
                 input: Box::new(Self::from_logical(*node.input)?),
@@ -60,6 +75,7 @@ impl PhysicalPlan {
                 table: node.table,
                 input: Box::new(Self::from_logical(*node.input)?),
             }),
+            RelationalPlan::Nothing => PhysicalPlan::Nothing(Nothing),
             other => return Err(anyhow!("unsupported logical node: {:?}", other)),
         })
     }
@@ -72,9 +88,11 @@ impl PhysicalPlan {
             PhysicalPlan::Scan(node) => node.execute_stream(tx).await?,
             PhysicalPlan::Values(node) => node.execute_stream(tx).await?,
             PhysicalPlan::Filter(node) => node.execute_stream(tx).await?,
+            PhysicalPlan::NestedLoopJoin(node) => node.execute_stream(tx).await?,
             PhysicalPlan::Project(node) => node.execute_stream(tx).await?,
             PhysicalPlan::CreateTable(node) => node.execute_stream(tx).await?,
             PhysicalPlan::Insert(node) => node.execute_stream(tx).await?,
+            PhysicalPlan::Nothing(node) => node.execute_stream(tx).await?,
             _ => return Err(anyhow!("unimplemented physical node")),
         })
     }

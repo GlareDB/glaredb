@@ -83,6 +83,22 @@ impl TableReference {
             },
         }
     }
+
+    pub fn base(&self) -> &str {
+        match self {
+            TableReference::Unqualified { base } => base,
+            TableReference::Qualified { base, .. } => base,
+            TableReference::Full { base, .. } => base,
+        }
+    }
+
+    pub fn schema(&self) -> Option<&str> {
+        match self {
+            TableReference::Qualified { schema, .. } => Some(schema),
+            TableReference::Full { schema, .. } => Some(schema),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for TableReference {

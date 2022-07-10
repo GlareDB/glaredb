@@ -232,7 +232,7 @@ impl Executor<ExactString> for AccordExecutor {
                     stream
                         .map(|result| match result {
                             Ok(batch) => {
-                                let batch = batch.into_shrunk_batch();
+                                let batch = batch.into_batch();
                                 let cols: Vec<_> = batch
                                     .columns
                                     .iter()

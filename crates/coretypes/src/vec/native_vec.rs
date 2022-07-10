@@ -107,6 +107,14 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         }
     }
 
+    pub fn shift_right(&mut self) {
+        if let Some(b) = self.validity.pop() {
+            self.validity.insert(0, b);
+            let v = self.values.pop().unwrap();
+            self.values.insert(0, v);
+        }
+    }
+
     /// Insert a value at some index. Panics if the index is out of bounds.
     pub fn insert(&mut self, idx: usize, val: Option<T>) {
         match val {
@@ -119,6 +127,11 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
                 self.values.insert(idx, T::default());
             }
         }
+    }
+
+    pub fn swap_elements(&mut self, a: usize, b: usize) {
+        self.validity.swap(a, b);
+        self.values.swap(a, b);
     }
 
     /// Get a value at some index.
@@ -149,6 +162,11 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         self.values.retain(|_| *iter.next().unwrap());
     }
 
+    pub fn append(&mut self, mut other: Self) {
+        self.validity.append(&mut other.validity);
+        self.values.append(&mut other.values)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = Option<&T>> {
         zip_with_validity(self.values.iter(), &self.validity)
     }
@@ -165,6 +183,7 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
 pub struct VarLengthVec {
     validity: BitVec,
     offsets: Vec<usize>,
+    sizes: Vec<usize>,
     data: Vec<u8>,
 }
 
@@ -184,9 +203,11 @@ impl VarLengthVec {
         offsets.push(0);
         let data = Vec::with_capacity(cap); // TODO: Determine suitable cap here.
         let validity = BitVec::with_capacity(cap);
+        let sizes = Vec::with_capacity(cap);
         VarLengthVec {
             validity,
             offsets,
+            sizes,
             data,
         }
     }
@@ -203,11 +224,23 @@ impl VarLengthVec {
                 self.data.extend_from_slice(val.as_ref());
                 let next_offset = self.data.len();
                 self.offsets.push(next_offset);
+                self.sizes.push(val.as_ref().len())
             }
             None => {
                 self.validity.push(false);
                 self.offsets.push(self.data.len());
+                self.sizes.push(0);
             }
+        }
+    }
+
+    pub fn shift_right(&mut self) {
+        if let Some(b) = self.validity.pop() {
+            self.validity.insert(0, b);
+            let offset = self.offsets.remove(self.offsets.len() - 2);
+            self.offsets.insert(0, offset);
+            let size = self.sizes.pop().unwrap();
+            self.sizes.insert(0, size);
         }
     }
 
@@ -235,13 +268,22 @@ impl VarLengthVec {
                 for offset in self.offsets.iter_mut().skip(idx + 2) {
                     *offset += buf.len();
                 }
+
+                self.sizes.insert(idx, buf.len());
             }
             None => {
                 self.validity.insert(idx, false);
                 let offset = self.offsets[idx];
                 self.offsets.insert(idx + 1, offset);
+                self.sizes.insert(idx, 0);
             }
         }
+    }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.validity.swap(a, b);
+        self.offsets.swap(a, b);
+        self.sizes.swap(a, b);
     }
 
     /// Get a value from the vector.
@@ -252,8 +294,8 @@ impl VarLengthVec {
     pub fn get<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<Option<&T>> {
         if *self.validity.get(idx)? {
             let start = *self.offsets.get(idx)?;
-            let end = *self.offsets.get(idx + 1)?;
-            let buf = &self.data[start..end];
+            let size = *self.sizes.get(idx)?;
+            let buf = &self.data[start..start + size];
             Some(Some(T::from_bytes(buf)))
         } else {
             Some(None)
@@ -263,8 +305,8 @@ impl VarLengthVec {
     /// Get a value, ignoring its validity.
     pub fn get_value<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<&T> {
         let start = *self.offsets.get(idx)?;
-        let end = *self.offsets.get(idx + 1)?;
-        let buf = &self.data[start..end];
+        let size = *self.sizes.get(idx)?;
+        let buf = &self.data[start..start + size];
         Some(T::from_bytes(buf))
     }
 
@@ -294,10 +336,36 @@ impl VarLengthVec {
 
         self.offsets = new_offsets;
 
-        // Retain validity.
+        // Retain validity and sizes.
 
         let mut iter = selectivity.iter();
         self.validity.retain(|_, _| *iter.next().unwrap());
+
+        let mut iter = selectivity.iter();
+        self.sizes.retain(|_| *iter.next().unwrap());
+    }
+
+    pub fn append(&mut self, mut other: Self) {
+        self.validity.append(&mut other.validity);
+        self.sizes.append(&mut other.sizes);
+
+        // Remove unused space in the original data vector.
+        self.data.truncate(self.offsets[self.offsets.len() - 1]);
+        let data_offset = self.data.len();
+
+        self.data.append(&mut other.data);
+
+        other
+            .offsets
+            .iter_mut()
+            .for_each(|offset| *offset += data_offset);
+        // Offsets vec always has a trailing offset indicating the "next" offset
+        // to use. Remove from both before appending.
+        other.offsets.pop();
+        self.offsets.pop();
+
+        self.offsets.append(&mut other.offsets);
+        self.offsets.push(self.data.len());
     }
 }
 
@@ -325,8 +393,16 @@ impl BinaryVec {
         self.0.push(val)
     }
 
+    pub fn shift_right(&mut self) {
+        self.0.shift_right();
+    }
+
     pub fn insert(&mut self, idx: usize, val: Option<&[u8]>) {
         self.0.insert(idx, val)
+    }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.0.swap(a, b)
     }
 
     pub fn get(&self, idx: usize) -> Option<Option<&[u8]>> {
@@ -339,6 +415,10 @@ impl BinaryVec {
 
     pub fn retain(&mut self, selectivity: &BitVec) {
         self.0.retain(selectivity);
+    }
+
+    pub fn append(&mut self, other: Self) {
+        self.0.append(other.0);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Option<&[u8]>> {
@@ -398,8 +478,16 @@ impl Utf8Vec {
         self.0.push(val)
     }
 
+    pub fn shift_right(&mut self) {
+        self.0.shift_right();
+    }
+
     pub fn insert(&mut self, idx: usize, val: Option<&str>) {
         self.0.insert(idx, val)
+    }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.0.swap(a, b)
     }
 
     pub fn get(&self, idx: usize) -> Option<Option<&str>> {
@@ -412,6 +500,10 @@ impl Utf8Vec {
 
     pub fn retain(&mut self, selectivity: &BitVec) {
         self.0.retain(selectivity);
+    }
+
+    pub fn append(&mut self, other: Self) {
+        self.0.append(other.0);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Option<&str>> {
@@ -541,5 +633,59 @@ mod tests {
         let bm = bitvec![0, 0];
         vec.retain(&bm);
         assert_eq!(0, vec.len());
+    }
+
+    #[test]
+    fn varlen_swap() {
+        let mut vec: Utf8Vec = vec!["one", "two", "three", "four"].into();
+        vec.swap(1, 3);
+
+        let got: Vec<_> = vec.iter().collect();
+        assert_eq!(
+            vec![Some("one"), Some("four"), Some("three"), Some("two")],
+            got
+        );
+
+        vec.swap(0, 1);
+        let got: Vec<_> = vec.iter().collect();
+        assert_eq!(
+            vec![Some("four"), Some("one"), Some("three"), Some("two")],
+            got
+        );
+    }
+
+    #[test]
+    fn varlen_append() {
+        let mut vec1: Utf8Vec = vec!["one", "two"].into();
+        let vec2: Utf8Vec = vec!["three", "four", "five"].into();
+
+        vec1.append(vec2);
+        vec1.push(Some("six"));
+
+        let got: Vec<_> = vec1.iter().collect();
+        assert_eq!(
+            vec![
+                Some("one"),
+                Some("two"),
+                Some("three"),
+                Some("four"),
+                Some("five"),
+                Some("six")
+            ],
+            got
+        );
+    }
+
+    #[test]
+    fn varlen_shift_right() {
+        let mut vec: Utf8Vec = vec!["one", "two", "three"].into();
+        vec.shift_right();
+        vec.push(Some("four"));
+
+        let got: Vec<_> = vec.iter().collect();
+        assert_eq!(
+            vec![Some("three"), Some("one"), Some("two"), Some("four")],
+            got
+        );
     }
 }

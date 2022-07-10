@@ -111,7 +111,7 @@ impl<K: Key> Server<K> {
 
         let messages_handle = tokio::spawn(self.handle_messages(incoming_rx, outgoing_tx));
 
-        // // TODO: Handle errors other than the join error.
+        // TODO: Handle errors other than the join error.
         let _ = tokio::try_join!(listen_handle, send_handle, messages_handle)?;
 
         Ok(())

@@ -152,6 +152,7 @@ dependencies = [
  "paste",
  "serde",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -928,6 +929,7 @@ dependencies = [
  "futures",
  "log",
  "logutil",
+ "parking_lot",
  "serde",
  "sqlparser",
  "thiserror",

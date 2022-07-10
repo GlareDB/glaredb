@@ -33,6 +33,10 @@ pub enum RelationalPlan {
     CreateTable(CreateTable),
     /// Insert
     Insert(Insert),
+    /// A no-op.
+    ///
+    /// Most useful for empty "FROM" clauses.
+    Nothing,
 }
 
 #[derive(Debug)]
@@ -207,6 +211,7 @@ impl RelationalPlan {
                 }
                 writeln!(f, "]")?;
             }
+            RelationalPlan::Nothing => writeln!(f, "Nothing")?,
             _ => unimplemented!(),
         };
 
