@@ -46,6 +46,22 @@ impl ValueVec {
         Utf8Vec::from_iter(vals.iter().map(|v| Some(*v))).into()
     }
 
+    pub fn with_capacity_for_type(ty: ValueType, cap: usize) -> Self {
+        match ty {
+            ValueType::Bool => BoolVec::with_capacity(cap).into(),
+            ValueType::Int8 => Int8Vec::with_capacity(cap).into(),
+            ValueType::Int32 => Int32Vec::with_capacity(cap).into(),
+            ValueType::Utf8 => Utf8Vec::with_capacity(cap).into(),
+        }
+    }
+
+    pub fn downcast_bool_vec(&self) -> Option<&BoolVec> {
+        match self {
+            ValueVec::Bool(v) => Some(v),
+            _ => None,
+        }
+    }
+
     pub fn value_type(&self) -> ValueType {
         match self {
             ValueVec::Bool(_) => ValueType::Bool,

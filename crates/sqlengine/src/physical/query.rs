@@ -133,17 +133,18 @@ pub struct Values {
 #[async_trait]
 impl<T: Transaction + 'static> PhysicalOperator<T> for Values {
     async fn execute_stream(self, _tx: &mut T) -> Result<Option<BatchStream>> {
-        let mut batch = Batch::new_from_schema(&self.schema, self.values.len());
-        for row_exprs in self.values.iter() {
-            let values = row_exprs
-                .iter()
-                .map(|expr| expr.evaluate_constant())
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            batch.push_row(values.into())?;
-        }
+        unimplemented!()
+        // let mut batch = Batch::new_from_schema(&self.schema, self.values.len());
+        // for row_exprs in self.values.iter() {
+        //     let values = row_exprs
+        //         .iter()
+        //         .map(|expr| expr.evaluate_constant())
+        //         .collect::<std::result::Result<Vec<_>, _>>()?;
+        //     batch.push_row(values.into())?;
+        // }
 
-        let stream = MemoryStream::from_batch(batch);
-        Ok(Some(Box::pin(stream)))
+        // let stream = MemoryStream::from_batch(batch);
+        // Ok(Some(Box::pin(stream)))
     }
 }
 

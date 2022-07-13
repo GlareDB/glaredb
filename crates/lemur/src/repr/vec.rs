@@ -284,8 +284,8 @@ impl VarLengthVec {
         perm.apply_to(offsets);
         perm.apply_to(sizes);
         perm.apply_to_bitslice(validity);
-        // Data does not need to be rearranged as we `offsets` and `sizes` is
-        // enough for us to index into data.
+        // Data does not need to be rearranged as the `offsets` and `sizes` vecs
+        // are enough for us to index into data.
     }
 
     /// See `FixedLengthVec::sort_each_group` for more info.

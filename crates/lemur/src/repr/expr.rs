@@ -14,6 +14,15 @@ pub enum ExprVec {
     Owned(ValueVec),
 }
 
+impl ExprVec {
+    fn unwrap_owned(self) -> Option<ValueVec> {
+        match self {
+            ExprVec::Owned(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
 impl AsRef<ValueVec> for ExprVec {
     fn as_ref(&self) -> &ValueVec {
         match self {
@@ -90,6 +99,56 @@ impl ScalarExpr {
             ScalarExpr::Unary { op, input } => op.evaluate(input, df)?,
             ScalarExpr::Binary { op, left, right } => op.evaluate(left, right, df)?,
         })
+    }
+}
+
+/// Multiple expressions representing a single column. Each expression must
+/// produce the same type.
+#[derive(Debug)]
+pub struct ColumnScalarExprs(Vec<ScalarExpr>);
+
+impl ColumnScalarExprs {
+    /// Create a new list of expressions. Must have at least one expression.
+    pub fn new(exprs: Vec<ScalarExpr>) -> Result<Self> {
+        if exprs.len() == 0 {
+            return Err(anyhow!(
+                "column scalar expressions must contain at least one expression"
+            ));
+        }
+        Ok(ColumnScalarExprs(exprs))
+    }
+
+    /// Evaluate each expression and return the vector of results.
+    ///
+    /// Errors if evaluated result types differ, or of the the expression isn't
+    /// constant.
+    pub fn evaluate_constant(self) -> Result<ValueVec> {
+        let mut iter = self.0.into_iter();
+        let first = iter.next().unwrap();
+        // TODO: Allow for writing results into an existing vector.
+
+        let const_eval = |expr| {
+            Ok(match expr {
+                ScalarExpr::Constant(v) => v,
+                ScalarExpr::Unary { op, input } => op
+                    .evaluate(&input, &DataFrame::empty())?
+                    .unwrap_owned()
+                    .ok_or(anyhow!("not owned"))?,
+                ScalarExpr::Binary { op, left, right } => op
+                    .evaluate(&left, &right, &DataFrame::empty())?
+                    .unwrap_owned()
+                    .ok_or(anyhow!("not owned"))?,
+                _ => return Err(anyhow!("expression not constant")),
+            })
+        };
+
+        let mut vec = const_eval(first)?;
+        for expr in iter {
+            let out = const_eval(expr)?;
+            vec.try_append(out).map_err(|_| anyhow!("type mismatch"))?;
+        }
+
+        Ok(vec)
     }
 }
 
