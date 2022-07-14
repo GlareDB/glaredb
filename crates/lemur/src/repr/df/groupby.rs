@@ -3,25 +3,40 @@ use crate::repr::compute::VecUnaryAggregate;
 use crate::repr::sort::{GroupRanges, SortPermutation};
 use crate::repr::value::ValueVec;
 use anyhow::{anyhow, Result};
+use std::fmt;
+use std::pin::Pin;
 use std::sync::Arc;
+
+pub type AccumulatorFn = Box<dyn Fn(&ValueVec, &GroupRanges) -> Result<ValueVec> + Send>;
 
 /// An accumulating function assigned to a column.
 pub struct Accumulator {
-    func: fn(&ValueVec, &GroupRanges) -> Result<ValueVec>,
+    func: AccumulatorFn,
     column: usize,
 }
 
 impl Accumulator {
-    pub fn with_func(column: usize, func: fn(&ValueVec, &GroupRanges) -> Result<ValueVec>) -> Self {
-        Accumulator { func, column }
+    pub fn with_func<F>(column: usize, func: F) -> Self
+    where
+        F: Fn(&ValueVec, &GroupRanges) -> Result<ValueVec> + Send + 'static,
+    {
+        Accumulator {
+            func: Box::new(func),
+            column,
+        }
     }
 
     /// Create an accumulator that persists the first value found.
     pub fn first_value(column: usize) -> Self {
-        Accumulator {
-            func: VecUnaryAggregate::first_groups,
-            column,
-        }
+        Self::with_func(column, VecUnaryAggregate::first_groups)
+    }
+}
+
+impl fmt::Debug for Accumulator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: Figure out how to print out relevant info for the provided
+        // function. Extend the AccumulatorFn type to include a debug string?
+        write!(f, "accumulator, column: {}", &self.column)
     }
 }
 

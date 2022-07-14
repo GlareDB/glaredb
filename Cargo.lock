@@ -483,6 +483,7 @@ dependencies = [
  "bitvec",
  "futures",
  "log",
+ "logutil",
  "parking_lot",
  "paste",
  "rand",

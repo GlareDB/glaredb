@@ -253,12 +253,14 @@ impl VarLengthVec {
     pub fn push<T: BytesRef + ?Sized>(&mut self, val: Option<&T>) {
         match val {
             Some(val) => {
+                self.validity.push(true);
                 self.data.extend_from_slice(val.as_ref());
                 let next_offset = self.data.len();
                 self.offsets.push(next_offset);
                 self.sizes.push(val.as_ref().len());
             }
             None => {
+                self.validity.push(false);
                 self.offsets.push(self.data.len());
                 self.sizes.push(0);
             }
@@ -331,6 +333,7 @@ impl VarLengthVec {
     }
 
     pub fn broadcast_single(&mut self, len: usize) -> Result<()> {
+        println!("broadcasting: {:?}, len: {}", self, self.len());
         if self.len() != 1 {
             return Err(anyhow!("can only broadcast single value vectors"));
         }

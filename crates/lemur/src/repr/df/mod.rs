@@ -1,10 +1,11 @@
 use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::sync::Arc;
 
 use crate::repr::expr::ExprVec;
-use crate::repr::value::{ValueType, ValueVec};
+use crate::repr::value::{Row, Value, ValueType, ValueVec};
 
 pub mod groupby;
 pub use groupby::*;
@@ -21,7 +22,7 @@ impl From<Vec<ValueType>> for Schema {
 }
 
 /// A column-oriented table of data.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct DataFrame {
     columns: Vec<Arc<ValueVec>>,
 }
@@ -33,12 +34,81 @@ impl DataFrame {
         }
     }
 
+    pub fn with_schema_and_capacity(schema: &Schema, cap: usize) -> Result<Self> {
+        let columns = schema
+            .types
+            .iter()
+            .map(|ty| ValueVec::with_capacity_for_type(ty, cap))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .map(|v| Arc::new(v))
+            .collect();
+
+        Ok(DataFrame { columns })
+    }
+
+    /// Create a new dataframe from a list of rows.
+    ///
+    /// Each row must produce the same schema, and all values in each row must
+    /// have a known type.
+    pub fn from_rows(rows: impl IntoIterator<Item = Row>) -> Result<Self> {
+        let mut iter = rows.into_iter();
+        let (lower, _) = iter.size_hint();
+        let first = match iter.next() {
+            Some(row) => row,
+            None => return Ok(Self::empty()),
+        };
+
+        let schema: Schema = first
+            .values
+            .iter()
+            .map(|v| v.value_type())
+            .collect::<Vec<_>>()
+            .into();
+        let mut df = Self::with_schema_and_capacity(&schema, lower)?;
+
+        df.push_row(first)?;
+        for row in iter {
+            df.push_row(row)?;
+        }
+
+        Ok(df)
+    }
+
+    /// Vertically stack all dataframes in the interator. Each dataframe must
+    /// have the same schema.
+    pub fn from_dataframes(dfs: impl IntoIterator<Item = DataFrame>) -> Result<Self> {
+        let mut iter = dfs.into_iter();
+        let mut first = match iter.next() {
+            Some(df) => df,
+            None => Self::empty(),
+        };
+
+        for df in iter {
+            first = first.vstack(df)?;
+        }
+
+        Ok(first)
+    }
+
     /// Create new dataframe from some columns.
     pub fn from_columns(cols: impl IntoIterator<Item = ValueVec>) -> Result<Self> {
         // TODO: Check lengths.
         Ok(DataFrame {
             columns: cols.into_iter().map(|col| Arc::new(col)).collect(),
         })
+    }
+
+    pub fn from_expr_vecs(vecs: impl IntoIterator<Item = ExprVec>) -> Result<Self> {
+        // TODO: Check lengths.
+        let columns = vecs
+            .into_iter()
+            .map(|v| match v {
+                ExprVec::Ref(v) => v,
+                ExprVec::Owned(v) => Arc::new(v),
+            })
+            .collect();
+        Ok(DataFrame { columns })
     }
 
     /// Get the schema of the dataframe.
@@ -102,15 +172,41 @@ impl DataFrame {
     /// `other` is on the right.
     ///
     /// Both dataframes need to have the same number of rows.
-    pub fn hstack(&self, other: &Self) -> Result<Self> {
+    pub fn hstack(mut self, other: &Self) -> Result<Self> {
         if self.num_rows() != other.num_rows() {
             return Err(anyhow!("invalid number of rows for hstack"));
         }
-        let mut columns = Vec::with_capacity(self.columns.len() + other.columns.len());
-        columns.extend(self.columns.iter().map(|col| col.clone()));
-        columns.extend(other.columns.iter().map(|col| col.clone()));
+        self.columns
+            .extend(other.columns.iter().map(|col| col.clone()));
 
-        Ok(DataFrame { columns })
+        Ok(self)
+    }
+
+    /// Push a row onto this dataframe.
+    pub fn push_row(&mut self, row: Row) -> Result<()> {
+        if self.arity() != row.arity() {
+            return Err(anyhow!(
+                "arity mismatch, df: {}, row: {}",
+                self.arity(),
+                row.arity()
+            ));
+        }
+
+        if !self
+            .columns
+            .iter()
+            .zip(row.values.iter())
+            .all(|(df_col, row_val)| df_col.value_type() == row_val.value_type())
+        {
+            return Err(anyhow!("row does not match schema of dataframe"));
+        }
+
+        let iter = self.columns.iter_mut().zip(row.values.into_iter());
+        for (col, val) in iter {
+            (*Arc::make_mut(col)).try_push(val)?;
+        }
+
+        Ok(())
     }
 
     /// Reapeat each row `n` times.
@@ -119,7 +215,7 @@ impl DataFrame {
         let columns = self
             .columns
             .iter()
-            .map(|col| Arc::new(col.from_vec_repeat_each_value(n)))
+            .map(|col| Arc::new(col.repeat_each_value(n)))
             .collect();
         DataFrame { columns }
     }
@@ -142,6 +238,10 @@ impl DataFrame {
         Ok(left.hstack(&right)?)
     }
 
+    pub fn arity(&self) -> usize {
+        self.columns.len()
+    }
+
     /// Get the number of rows for this dataframe.
     pub fn num_rows(&self) -> usize {
         self.columns
@@ -159,6 +259,27 @@ impl From<ExprVec> for DataFrame {
                 columns: vec![Arc::new(v)],
             },
         }
+    }
+}
+
+impl fmt::Debug for DataFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "df: num rows: {}, num_cols: {}",
+            self.num_rows(),
+            self.columns.len()
+        )?;
+        let mut iters: Vec<_> = self.columns.iter().map(|col| col.iter_values()).collect();
+        for i in 0..self.num_rows() {
+            writeln!(f)?;
+            write!(f, "{}: ", i)?;
+            for iter in iters.iter_mut() {
+                let val = iter.next().unwrap(); // Bug if we don't get a value.
+                write!(f, "{:?} ", val)?;
+            }
+        }
+        Ok(())
     }
 }
 

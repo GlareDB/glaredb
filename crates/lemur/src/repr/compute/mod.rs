@@ -98,7 +98,13 @@ macro_rules! value_vec_dispatch_binary {
             (ValueVec::Int8(left), ValueVec::Int8(right)) => $func(left, right)?.into(),
             (ValueVec::Int32(left), ValueVec::Int32(right)) => $func(left, right)?.into(),
             (ValueVec::Utf8(left), ValueVec::Utf8(right)) => $func(left, right)?.into(),
-            _ => return Err(anyhow!("value vector types mismatch")),
+            (left, right) => {
+                return Err(anyhow!(
+                    "value vector types mismatch, left: {:?}, right: {:?}",
+                    left.value_type(),
+                    right.value_type()
+                ))
+            }
         }
     };
 }

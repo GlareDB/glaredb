@@ -2,9 +2,13 @@ use crate::repr::df::{DataFrame, Schema};
 use crate::repr::expr::ScalarExpr;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use bitvec::vec::BitVec;
 use futures::stream::{Stream, StreamExt};
+use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 pub type TableKey = String;
@@ -97,5 +101,104 @@ impl Stream for MemoryStream {
             Some(df) => Poll::Ready(Some(Ok(df))),
             None => Poll::Ready(None),
         }
+    }
+}
+
+/// Initial capacity for each dataframe in the memory source.
+const MEMORY_SOURCE_DF_CAPACITY: usize = 256;
+
+/// A data source for testing. The entire source is read or write locked on
+/// every action.
+#[derive(Debug, Clone)]
+pub struct MemoryDataSource {
+    /// Each table is represented by a single dataframe.
+    tables: Arc<RwLock<HashMap<TableKey, DataFrame>>>,
+}
+
+impl MemoryDataSource {
+    pub fn new() -> MemoryDataSource {
+        MemoryDataSource {
+            tables: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
+
+#[async_trait]
+impl ReadableSource for MemoryDataSource {
+    async fn scan(
+        &self,
+        table: &TableKey,
+        filter: Option<ScalarExpr>,
+    ) -> Result<Option<DataFrameStream>> {
+        let tables = self.tables.read();
+        match tables.get(table) {
+            Some(df) => {
+                // Note that this has a slightly different than what would
+                // happen on "remote" data sources. If the filter errors, we
+                // return the result directly. On a remote data source, the
+                // result would be sent on the stream.
+                match filter {
+                    Some(filter) => {
+                        // Logic duplicated with the filter node.
+                        let evaled = filter.evaluate(&df)?;
+                        let bools = evaled
+                            .as_ref()
+                            .downcast_bool_vec()
+                            .ok_or(anyhow!("vec not a bool vec"))?;
+                        let mut mask = BitVec::with_capacity(bools.len());
+                        for v in bools.iter_values() {
+                            mask.push(*v);
+                        }
+                        let filtered = df.filter(&mask)?;
+                        Ok(Some(Box::pin(MemoryStream::one(filtered))))
+                    }
+                    None => Ok(Some(Box::pin(MemoryStream::one(df.clone())))),
+                }
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn get_schema(&self, table: &TableKey) -> Result<Option<Schema>> {
+        let tables = self.tables.read();
+        match tables.get(table) {
+            Some(df) => Ok(Some(df.schema())),
+            None => Ok(None),
+        }
+    }
+}
+
+#[async_trait]
+impl WriteableSource for MemoryDataSource {
+    async fn create_table(&self, table: TableKey, schema: Schema) -> Result<()> {
+        use std::collections::hash_map::Entry;
+        let mut tables = self.tables.write();
+        match tables.entry(table) {
+            Entry::Occupied(entry) => Err(anyhow!("table {} already exists", entry.key())),
+            Entry::Vacant(entry) => {
+                entry.insert(DataFrame::with_schema_and_capacity(
+                    &schema,
+                    MEMORY_SOURCE_DF_CAPACITY,
+                )?);
+                Ok(())
+            }
+        }
+    }
+
+    async fn drop_table(&self, table: &TableKey) -> Result<()> {
+        let mut tables = self.tables.write();
+        match tables.remove(table) {
+            Some(_) => Ok(()),
+            None => Err(anyhow!("cannot drop non-existent table {}", table)),
+        }
+    }
+
+    async fn insert(&self, table: &TableKey, data: DataFrame) -> Result<()> {
+        let mut tables = self.tables.write();
+        let df = tables
+            .get_mut(table)
+            .ok_or(anyhow!("missing table {}", table))?;
+        *df = df.clone().vstack(data)?;
+        Ok(())
     }
 }

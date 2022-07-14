@@ -1,6 +1,6 @@
 use crate::repr::compute::*;
 use crate::repr::df::{DataFrame, Schema};
-use crate::repr::value::{ValueType, ValueVec};
+use crate::repr::value::{Value, ValueType, ValueVec};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -52,9 +52,7 @@ pub enum ScalarExpr {
     /// Reference a column in the input.
     Column(usize),
     /// A constant value.
-    ///
-    /// The length of the vector must be one.
-    Constant(ValueVec),
+    Constant(Value),
     /// An operation acting on a single column.
     Unary { op: UnaryOperation, input: ExprNode },
     /// An operation acting on two columns.
@@ -74,10 +72,14 @@ impl ScalarExpr {
                 .get(*idx)
                 .cloned()
                 .ok_or(anyhow!("missing column in input: {}", idx))?,
-            ScalarExpr::Constant(vec) => vec.value_type(),
+            ScalarExpr::Constant(v) => v.value_type(),
             ScalarExpr::Unary { op, input } => op.output_type(input, schema)?,
             ScalarExpr::Binary { op, left, right } => op.output_type(left, right, schema)?,
         })
+    }
+
+    pub fn boxed(self) -> ExprNode {
+        Box::new(self)
     }
 
     /// Evaluate self on the columns of the given dataframe.
@@ -91,64 +93,10 @@ impl ScalarExpr {
                 .cloned()
                 .ok_or(anyhow!("missing column in dataframe: {}", idx))?
                 .into(),
-            ScalarExpr::Constant(v) => {
-                let mut v = v.clone();
-                v.broadcast_single(df.num_rows())?;
-                v.into()
-            }
+            ScalarExpr::Constant(v) => v.repeat(df.num_rows())?.into(),
             ScalarExpr::Unary { op, input } => op.evaluate(input, df)?,
             ScalarExpr::Binary { op, left, right } => op.evaluate(left, right, df)?,
         })
-    }
-}
-
-/// Multiple expressions representing a single column. Each expression must
-/// produce the same type.
-#[derive(Debug)]
-pub struct ColumnScalarExprs(Vec<ScalarExpr>);
-
-impl ColumnScalarExprs {
-    /// Create a new list of expressions. Must have at least one expression.
-    pub fn new(exprs: Vec<ScalarExpr>) -> Result<Self> {
-        if exprs.len() == 0 {
-            return Err(anyhow!(
-                "column scalar expressions must contain at least one expression"
-            ));
-        }
-        Ok(ColumnScalarExprs(exprs))
-    }
-
-    /// Evaluate each expression and return the vector of results.
-    ///
-    /// Errors if evaluated result types differ, or of the the expression isn't
-    /// constant.
-    pub fn evaluate_constant(self) -> Result<ValueVec> {
-        let mut iter = self.0.into_iter();
-        let first = iter.next().unwrap();
-        // TODO: Allow for writing results into an existing vector.
-
-        let const_eval = |expr| {
-            Ok(match expr {
-                ScalarExpr::Constant(v) => v,
-                ScalarExpr::Unary { op, input } => op
-                    .evaluate(&input, &DataFrame::empty())?
-                    .unwrap_owned()
-                    .ok_or(anyhow!("not owned"))?,
-                ScalarExpr::Binary { op, left, right } => op
-                    .evaluate(&left, &right, &DataFrame::empty())?
-                    .unwrap_owned()
-                    .ok_or(anyhow!("not owned"))?,
-                _ => return Err(anyhow!("expression not constant")),
-            })
-        };
-
-        let mut vec = const_eval(first)?;
-        for expr in iter {
-            let out = const_eval(expr)?;
-            vec.try_append(out).map_err(|_| anyhow!("type mismatch"))?;
-        }
-
-        Ok(vec)
     }
 }
 
