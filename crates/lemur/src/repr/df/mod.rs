@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 
-use crate::repr::expr::ExprVec;
+use crate::repr::expr::{AggregateExpr, ScalarExpr, ScalarExprVec};
 use crate::repr::value::{Row, Value, ValueType, ValueVec};
 
 pub mod groupby;
@@ -13,6 +13,32 @@ pub use groupby::*;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Schema {
     pub types: Vec<ValueType>,
+}
+
+impl Schema {
+    pub fn empty() -> Schema {
+        Schema { types: Vec::new() }
+    }
+
+    pub fn project(&self, idxs: &[usize]) -> Result<Schema> {
+        let mut out = Vec::with_capacity(idxs.len());
+        for &idx in idxs.iter() {
+            out.push(self.types.get(idx).cloned().ok_or(anyhow!(
+                "attempt to project out of bound for schema: {:?}, idx: {}",
+                self.types,
+                idx
+            ))?);
+        }
+        Ok(out.into())
+    }
+
+    pub fn append_type(&mut self, ty: ValueType) {
+        self.types.push(ty)
+    }
+
+    pub fn extend_from(&mut self, other: Self) {
+        self.types.extend(other.types.into_iter())
+    }
 }
 
 impl From<Vec<ValueType>> for Schema {
@@ -99,13 +125,13 @@ impl DataFrame {
         })
     }
 
-    pub fn from_expr_vecs(vecs: impl IntoIterator<Item = ExprVec>) -> Result<Self> {
+    pub fn from_expr_vecs(vecs: impl IntoIterator<Item = ScalarExprVec>) -> Result<Self> {
         // TODO: Check lengths.
         let columns = vecs
             .into_iter()
             .map(|v| match v {
-                ExprVec::Ref(v) => v,
-                ExprVec::Owned(v) => Arc::new(v),
+                ScalarExprVec::Ref(v) => v,
+                ScalarExprVec::Owned(v) => Arc::new(v),
             })
             .collect();
         Ok(DataFrame { columns })
@@ -122,6 +148,18 @@ impl DataFrame {
 
     pub fn get_column_ref(&self, idx: usize) -> Option<&Arc<ValueVec>> {
         self.columns.get(idx)
+    }
+
+    /// Project columns using th provided scalar expressions.
+    pub fn project_exprs<'a>(
+        &self,
+        exprs: impl IntoIterator<Item = &'a ScalarExpr>,
+    ) -> Result<Self> {
+        let cols = exprs
+            .into_iter()
+            .map(|expr| expr.evaluate(self))
+            .collect::<Result<Vec<_>>>()?;
+        Self::from_expr_vecs(cols)
     }
 
     /// Project a subset of columns.
@@ -143,6 +181,23 @@ impl DataFrame {
             return Err(anyhow!("invalid filter mask"));
         }
         Self::from_columns(self.columns.iter().map(|col| col.filter(mask)))
+    }
+
+    /// Filter based on the output of evaluating self against the provided
+    /// predicate. Evaulating the predicate should result in a bool vector.
+    pub fn filter_expr(&self, pred: &ScalarExpr) -> Result<Self> {
+        let evaled = pred.evaluate(self)?;
+        let bools = evaled
+            .as_ref()
+            .downcast_bool_vec()
+            .ok_or(anyhow!("cannot downcast expresion result to bool vector"))?;
+        // TODO: Turn boolvec into bitvec to avoid doing this.
+        let mut mask = BitVec::with_capacity(bools.len());
+        // TODO: How to handle nulls?
+        for v in bools.iter_values() {
+            mask.push(*v);
+        }
+        self.filter(&mask)
     }
 
     /// Vertically stack one dataframe onto the other.
@@ -238,6 +293,17 @@ impl DataFrame {
         Ok(left.hstack(&right)?)
     }
 
+    /// Order by and group by the provided columns.
+    pub fn order_by_group_by(self, columns: &[usize]) -> Result<Self> {
+        let df = SortedGroupByDataFrame::from_dataframe(self, columns)?;
+        Ok(df.into_dataframe())
+    }
+
+    pub fn aggregate(self, group_by: &[usize], exprs: &[AggregateExpr]) -> Result<Self> {
+        let df = SortedGroupByDataFrame::from_dataframe(self, group_by)?;
+        df.accumulate(exprs)
+    }
+
     pub fn arity(&self) -> usize {
         self.columns.len()
     }
@@ -251,11 +317,11 @@ impl DataFrame {
     }
 }
 
-impl From<ExprVec> for DataFrame {
-    fn from(v: ExprVec) -> Self {
+impl From<ScalarExprVec> for DataFrame {
+    fn from(v: ScalarExprVec) -> Self {
         match v {
-            ExprVec::Ref(v) => DataFrame { columns: vec![v] },
-            ExprVec::Owned(v) => DataFrame {
+            ScalarExprVec::Ref(v) => DataFrame { columns: vec![v] },
+            ScalarExprVec::Owned(v) => DataFrame {
                 columns: vec![Arc::new(v)],
             },
         }

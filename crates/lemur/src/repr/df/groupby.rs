@@ -1,44 +1,12 @@
 use super::*;
 use crate::repr::compute::VecUnaryAggregate;
+use crate::repr::expr::{AggregateExpr, AggregateFunc, AggregateOperation};
 use crate::repr::sort::{GroupRanges, SortPermutation};
 use crate::repr::value::ValueVec;
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
-
-pub type AccumulatorFn = Box<dyn Fn(&ValueVec, &GroupRanges) -> Result<ValueVec> + Send>;
-
-/// An accumulating function assigned to a column.
-pub struct Accumulator {
-    func: AccumulatorFn,
-    column: usize,
-}
-
-impl Accumulator {
-    pub fn with_func<F>(column: usize, func: F) -> Self
-    where
-        F: Fn(&ValueVec, &GroupRanges) -> Result<ValueVec> + Send + 'static,
-    {
-        Accumulator {
-            func: Box::new(func),
-            column,
-        }
-    }
-
-    /// Create an accumulator that persists the first value found.
-    pub fn first_value(column: usize) -> Self {
-        Self::with_func(column, VecUnaryAggregate::first_groups)
-    }
-}
-
-impl fmt::Debug for Accumulator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Figure out how to print out relevant info for the provided
-        // function. Extend the AccumulatorFn type to include a debug string?
-        write!(f, "accumulator, column: {}", &self.column)
-    }
-}
 
 // TODO: Use this.
 #[derive(Debug, Clone, PartialEq)]
@@ -123,15 +91,20 @@ impl SortedGroupByDataFrame {
     /// than once.
     ///
     /// The resulting dataframe will contain only the results of accumulation.
-    pub fn accumulate(self, fns: Vec<Accumulator>) -> Result<DataFrame> {
-        let mut columns = Vec::with_capacity(fns.len());
+    pub fn accumulate<'a>(
+        self,
+        exprs: impl IntoIterator<Item = &'a AggregateExpr>,
+    ) -> Result<DataFrame> {
+        let exprs = exprs.into_iter();
+        let (lower, _) = exprs.size_hint();
+        let mut columns = Vec::with_capacity(lower);
 
-        for acc in fns {
+        for acc in exprs {
             let col = self
                 .columns
                 .get(acc.column)
                 .ok_or(anyhow!("missing column for accumulating: {}", acc.column))?;
-            let out = (acc.func)(col, &self.groups)?;
+            let out = (acc.op.func_for_operation())(col, &self.groups)?;
             columns.push(out);
         }
 
@@ -190,10 +163,10 @@ mod tests {
 
         let grouped = SortedGroupByDataFrame::from_dataframe(df, &[0]).unwrap();
         let accumulated = grouped
-            .accumulate(vec![
-                Accumulator::first_value(0),
-                Accumulator::with_func(1, VecNumericAggregate::sum_groups),
-                Accumulator::with_func(1, VecCountAggregate::count_groups),
+            .accumulate(&[
+                AggregateExpr::new(AggregateOperation::First, 0),
+                AggregateExpr::new(AggregateOperation::Sum, 1),
+                AggregateExpr::new(AggregateOperation::Count, 1),
             ])
             .unwrap();
 
@@ -217,10 +190,10 @@ mod tests {
 
         let grouped = SortedGroupByDataFrame::from_dataframe(df, &[]).unwrap();
         let accumulated = grouped
-            .accumulate(vec![
-                Accumulator::with_func(0, VecNumericAggregate::sum_groups),
-                Accumulator::with_func(1, VecNumericAggregate::sum_groups),
-                Accumulator::with_func(1, VecCountAggregate::count_groups),
+            .accumulate(&[
+                AggregateExpr::new(AggregateOperation::Sum, 0),
+                AggregateExpr::new(AggregateOperation::Sum, 1),
+                AggregateExpr::new(AggregateOperation::Count, 1),
             ])
             .unwrap();
 

@@ -5,25 +5,23 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub type ExprNode = Box<ScalarExpr>;
-
 /// The result of evaluating an expression.
 #[derive(Debug, Clone)]
-pub enum ExprVec {
+pub enum ScalarExprVec {
     Ref(Arc<ValueVec>),
     Owned(ValueVec),
 }
 
-impl ExprVec {
+impl ScalarExprVec {
     fn unwrap_owned(self) -> Option<ValueVec> {
         match self {
-            ExprVec::Owned(v) => Some(v),
+            ScalarExprVec::Owned(v) => Some(v),
             _ => None,
         }
     }
 }
 
-impl AsRef<ValueVec> for ExprVec {
+impl AsRef<ValueVec> for ScalarExprVec {
     fn as_ref(&self) -> &ValueVec {
         match self {
             Self::Ref(v) => v,
@@ -32,13 +30,13 @@ impl AsRef<ValueVec> for ExprVec {
     }
 }
 
-impl From<Arc<ValueVec>> for ExprVec {
+impl From<Arc<ValueVec>> for ScalarExprVec {
     fn from(v: Arc<ValueVec>) -> Self {
         Self::Ref(v)
     }
 }
 
-impl From<ValueVec> for ExprVec {
+impl From<ValueVec> for ScalarExprVec {
     fn from(v: ValueVec) -> Self {
         Self::Owned(v)
     }
@@ -54,12 +52,15 @@ pub enum ScalarExpr {
     /// A constant value.
     Constant(Value),
     /// An operation acting on a single column.
-    Unary { op: UnaryOperation, input: ExprNode },
+    Unary {
+        op: UnaryOperation,
+        input: Box<ScalarExpr>,
+    },
     /// An operation acting on two columns.
     Binary {
         op: BinaryOperation,
-        left: ExprNode,
-        right: ExprNode,
+        left: Box<ScalarExpr>,
+        right: Box<ScalarExpr>,
     },
 }
 
@@ -78,15 +79,32 @@ impl ScalarExpr {
         })
     }
 
-    pub fn boxed(self) -> ExprNode {
+    pub fn boxed(self) -> Box<ScalarExpr> {
         Box::new(self)
+    }
+
+    /// And another expression with self.
+    pub fn and(self, other: ScalarExpr) -> ScalarExpr {
+        ScalarExpr::Binary {
+            op: BinaryOperation::And,
+            left: self.boxed(),
+            right: other.boxed(),
+        }
+    }
+
+    /// Try to get the column index if this is a column accessor expression.
+    pub fn try_get_column(&self) -> Option<usize> {
+        match self {
+            ScalarExpr::Column(idx) => Some(*idx),
+            _ => None,
+        }
     }
 
     /// Evaluate self on the columns of the given dataframe.
     ///
     /// In the case of constant evaluation which results in a single value, that
     /// value will be extended to be the same size as the input dataframe.
-    pub fn evaluate(&self, df: &DataFrame) -> Result<ExprVec> {
+    pub fn evaluate(&self, df: &DataFrame) -> Result<ScalarExprVec> {
         Ok(match self {
             ScalarExpr::Column(idx) => df
                 .get_column_ref(*idx)
@@ -114,7 +132,7 @@ impl UnaryOperation {
         })
     }
 
-    pub fn evaluate(&self, input: &ScalarExpr, df: &DataFrame) -> Result<ExprVec> {
+    pub fn evaluate(&self, input: &ScalarExpr, df: &DataFrame) -> Result<ScalarExprVec> {
         todo!()
     }
 }
@@ -186,7 +204,7 @@ impl BinaryOperation {
         left: &ScalarExpr,
         right: &ScalarExpr,
         df: &DataFrame,
-    ) -> Result<ExprVec> {
+    ) -> Result<ScalarExprVec> {
         let left = left.evaluate(df)?;
         let left = left.as_ref();
         let right = right.evaluate(df)?;
