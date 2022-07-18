@@ -7,7 +7,7 @@ use crate::plan::QueryPlan;
 use anyhow::{anyhow, Result};
 use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation, ScalarExpr};
-use lemur::repr::value::{Value, ValueType};
+use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
@@ -23,7 +23,9 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
     /// Plan an individiual sql statement.
     pub fn plan_statement(&self, stmt: ast::Statement) -> Result<QueryPlan> {
         Ok(match stmt {
-            ast::Statement::Query(query) => QueryPlan::Read(self.plan_query(*query)?),
+            ast::Statement::Query(query) => {
+                QueryPlan::Read(self.plan_query(&mut Scope::empty(), *query)?)
+            }
             stmt @ ast::Statement::Insert { .. } => QueryPlan::Write(self.plan_insert(stmt)?),
             stmt @ ast::Statement::CreateTable { .. } => {
                 QueryPlan::Write(self.plan_create_table(stmt)?)
@@ -55,14 +57,14 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
     }
 
     /// Plan an insert statement.
-    pub fn plan_insert(&self, insert: ast::Statement) -> Result<WritePlan> {
+    fn plan_insert(&self, insert: ast::Statement) -> Result<WritePlan> {
         match insert {
             ast::Statement::Insert {
                 table_name, source, ..
             } => {
                 // TODO: Check columns.
                 let (reference, _schema) = self.table_from_catalog(table_name)?;
-                let input = self.plan_query(*source)?;
+                let input = self.plan_query(&mut Scope::empty(), *source)?;
                 Ok(WritePlan::Insert(Insert {
                     table: reference,
                     input,
@@ -72,20 +74,53 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
         }
     }
 
+    fn plan_values(&self, scope: &mut Scope, values: ast::Values) -> Result<ReadPlan> {
+        let mut rows: Vec<Row> = Vec::with_capacity(values.0.len());
+        for row_exprs in values.0.into_iter() {
+            // Convert to plan expressions, then lower to scalar. It's an error
+            // to not have only scalar expressions in values.
+            let row = row_exprs
+                .into_iter()
+                .map(|expr| {
+                    self.translate_expr(scope, expr)
+                        .and_then(|expr| expr.lower_scalar())
+                        .and_then(|expr| expr.try_evalulate_constant())
+                })
+                .collect::<Result<Vec<_>>>()?;
+            rows.push(row.into());
+        }
+
+        let mut iter = rows.iter();
+        match iter.next() {
+            Some(row) => {
+                let arity = row.arity();
+                if !iter.all(|row| row.arity() == arity) {
+                    return Err(anyhow!("rows in values have differing arities"));
+                }
+                // Ensure scope sees these new columns.
+                for _i in 0..arity {
+                    scope.add_column(None, None);
+                }
+            }
+            None => return Ok(ReadPlan::Nothing),
+        }
+
+        Ok(ReadPlan::Values(Values { rows }))
+    }
+
     /// Plan a query.
     ///
     /// The plan that's produced is bloated, but provides a relatively
     /// straightfoward path to coalescing and removing nodes.
-    pub fn plan_query(&self, query: ast::Query) -> Result<ReadPlan> {
+    fn plan_query(&self, scope: &mut Scope, query: ast::Query) -> Result<ReadPlan> {
         let select = match query.body {
             ast::SetExpr::Select(select) => *select,
+            ast::SetExpr::Values(values) => return self.plan_values(scope, values),
             other => return Err(anyhow!("unsupported query body: {:?}", other)),
         };
 
-        let mut scope = Scope::empty();
-
         // FROM ...
-        let mut plan = self.plan_from_items(&mut scope, select.from)?;
+        let mut plan = self.plan_from_items(scope, select.from)?;
 
         // WHERE ...
         if let Some(expr) = select.selection {
@@ -336,7 +371,15 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     schema,
                 })
             }
-            other => return Err(anyhow!("unsupported table factor: {}", other)),
+            ast::TableFactor::Derived {
+                lateral,
+                subquery,
+                alias,
+            } => {
+                // TODO: Handle lateral and alias.
+                self.plan_query(scope, *subquery)?
+            }
+            other => return Err(anyhow!("unsupported table factor: {:?}", other)),
         })
     }
 
@@ -719,6 +762,7 @@ mod tests {
         let catalog = Catalog::new();
         let queries = vec![
             "select 1 + 1",
+            "select * from (values (1), (2))",
             "select a from t1",
             "select * from t1",
             "select a from t1 where b < 10",

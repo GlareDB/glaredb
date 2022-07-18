@@ -79,7 +79,6 @@ pub struct ScanSource {
 #[derive(Debug, PartialEq)]
 pub struct Values {
     pub rows: Vec<Row>,
-    pub schema: Schema,
 }
 
 impl ReadPlan {

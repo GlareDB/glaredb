@@ -39,7 +39,7 @@ pub trait ReadableSource: Sync + Send {
 /// A writeable source is able to write dataframes to underlying tables, as well
 /// as create, alter, and delete tables.
 #[async_trait]
-pub trait WriteableSource: Sync + Send {
+pub trait WriteableSource: ReadableSource + Sync + Send {
     /// Create a table with the given schema. Errors if the table already
     /// exists.
     async fn create_table(&self, table: RelationKey, schema: Schema) -> Result<()>;
@@ -60,7 +60,7 @@ pub trait ReadExecutor<R: ReadableSource> {
 
 /// Execute a writing operation.
 #[async_trait]
-pub trait WriteExecutor<W: ReadableSource + WriteableSource> {
+pub trait WriteExecutor<W: WriteableSource> {
     /// Execute a write against `source`, returning an optional data stream.
     async fn execute_write(self, source: &W) -> Result<Option<DataFrameStream>>;
 }

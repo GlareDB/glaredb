@@ -1,6 +1,7 @@
+use crate::repr::df::Schema;
+use crate::repr::sort::{GroupRanges, SortPermutation};
+use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
-use anyhow::{Result, anyhow};
-use crate::repr::sort::{SortPermutation, GroupRanges};
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialEq;
 use std::ops::Range;
@@ -264,6 +265,15 @@ impl ValueVec {
         Ok(())
     }
 
+    pub fn first_value(&self) -> Option<Value> {
+        Some(match self {
+            ValueVec::Bool(v) => v.iter().next()?.cloned().into(),
+            ValueVec::Int8(v) => v.iter().next()?.cloned().into(),
+            ValueVec::Int32(v) => v.iter().next()?.cloned().into(),
+            ValueVec::Utf8(v) => v.iter().next()?.map(|s| s.to_string()).into(),
+        })
+    }
+
     pub fn group_ranges_at(&self, range: &Range<usize>) -> GroupRanges {
         match self {
             ValueVec::Bool(v) => v.group_ranges_at(range),
@@ -350,20 +360,6 @@ impl PartialEq for ValueVec {
         }
     }
 }
-
-// /// Convert an iterator from a concrete vector into an iterator that produces
-// /// wrapped values.
-// fn transform_native_to_value_iter<'a, I, T>(iter: I) -> impl Iterator<Item = Value> + 'a
-// where
-//     I: Iterator<Item = Option<&'a T>> + 'a,
-//     T: ToOwned + 'a,
-//     Value: From<Option<T>>,
-// {
-//     iter.map(|v| match v {
-//         Some(v) => Value::from(Some(v.to_owned())),
-//         None => Value::from(None),
-//     })
-// }
 
 /// Create an iterator that filters based on the mask.
 fn make_filter_iter<'a, I: 'a, T>(iter: I, mask: &'a BitVec) -> impl Iterator<Item = T> + 'a

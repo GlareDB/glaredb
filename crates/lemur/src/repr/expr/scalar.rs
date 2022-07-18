@@ -116,6 +116,22 @@ impl ScalarExpr {
             ScalarExpr::Binary { op, left, right } => op.evaluate(left, right, df)?,
         })
     }
+
+    pub fn try_evalulate_constant(&self) -> Result<Value> {
+        // TODO: Implement operations directly on value itself instead of
+        // turning it into a vector.
+        let output = match self {
+            ScalarExpr::Column(_) => return Err(anyhow!("expression not constant")),
+            ScalarExpr::Constant(v) => v.repeat(1)?.into(),
+            ScalarExpr::Unary { op, input } => op.evaluate(input, &DataFrame::empty())?,
+            ScalarExpr::Binary { op, left, right } => {
+                op.evaluate(left, right, &DataFrame::empty())?
+            }
+        };
+        output.as_ref().first_value().ok_or(anyhow!(
+            "failed to get output of constant expression evaluation"
+        ))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

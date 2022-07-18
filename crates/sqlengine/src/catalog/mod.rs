@@ -77,3 +77,5 @@ pub struct ColumnReference {
     pub table: TableId,
     pub column: ColumnId,
 }
+
+// impl CatalogReader for

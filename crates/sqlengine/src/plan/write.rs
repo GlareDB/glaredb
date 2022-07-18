@@ -1,5 +1,7 @@
 use super::read::ReadPlan;
 use crate::catalog::{TableReference, TableSchema};
+use anyhow::{anyhow, Result};
+use lemur::repr::expr::{self, MutateRelationExpr};
 
 #[derive(Debug, PartialEq)]
 pub enum WritePlan {
@@ -25,5 +27,22 @@ impl WritePlan {
             WritePlan::Insert(insert) => Some(&mut insert.input),
             _ => None,
         }
+    }
+
+    pub fn lower(self) -> Result<MutateRelationExpr> {
+        Ok(match self {
+            WritePlan::Insert(Insert { table, input }) => {
+                MutateRelationExpr::Insert(expr::Insert {
+                    table: table.to_string(),
+                    input: input.lower()?,
+                })
+            }
+            WritePlan::CreateTable(CreateTable { schema }) => {
+                MutateRelationExpr::CreateTable(expr::CreateTable {
+                    table: "TODO".to_string(),
+                    schema: schema.to_schema(),
+                })
+            }
+        })
     }
 }
