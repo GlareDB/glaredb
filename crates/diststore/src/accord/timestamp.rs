@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering, PartialOrd};
+use std::fmt;
 use std::sync::atomic::{self, AtomicU64};
 use std::time::SystemTime;
 
@@ -32,6 +33,14 @@ impl Timestamp {
         }
     }
 
+    pub fn zero() -> Timestamp {
+        Timestamp {
+            unix_millis: 0,
+            logical: 0,
+            node: 0,
+        }
+    }
+
     /// Create a new timestamp for a given node.
     pub fn now(node: NodeId) -> Timestamp {
         // 1. Millisecond precision can safely be fit into a u64.
@@ -57,6 +66,14 @@ impl Timestamp {
             node,
         }
     }
+
+    pub fn max<'a>(&'a self, other: &'a Timestamp) -> &Timestamp {
+        if self > other {
+            self
+        } else {
+            other
+        }
+    }
 }
 
 impl PartialOrd for Timestamp {
@@ -79,6 +96,12 @@ impl PartialOrd for Timestamp {
 impl Ord for Timestamp {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
+    }
+}
+
+impl fmt::Display for Timestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {}, {})", self.unix_millis, self.logical, self.node)
     }
 }
 

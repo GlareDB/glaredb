@@ -2,13 +2,20 @@
 use super::keys::{Key, KeySet};
 use super::timestamp::Timestamp;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Transaction IDs are derived from their original proposed timestamp.
 ///
 /// Generated timestamps are always unique, so it's safe to use this as a
 /// globally unique transaction identifier.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TransactionId(pub Timestamp);
+
+impl fmt::Display for TransactionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TransactionKind {
@@ -16,7 +23,16 @@ pub enum TransactionKind {
     Write,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+impl fmt::Display for TransactionKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransactionKind::Read => write!(f, "read"),
+            TransactionKind::Write => write!(f, "write"),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transaction<K> {
     id: TransactionId,
     kind: TransactionKind,
@@ -27,7 +43,7 @@ pub struct Transaction<K> {
 }
 
 impl<K> Transaction<K> {
-    pub fn new(
+    pub const fn new(
         id: TransactionId,
         kind: TransactionKind,
         keys: KeySet<K>,
@@ -41,8 +57,16 @@ impl<K> Transaction<K> {
         }
     }
 
+    pub fn get_original_ts(&self) -> &Timestamp {
+        &self.id.0
+    }
+
     pub fn get_id(&self) -> &TransactionId {
         &self.id
+    }
+
+    pub fn get_command(&self) -> &[u8] {
+        &self.command
     }
 
     pub fn is_read_tx(&self) -> bool {
@@ -69,5 +93,24 @@ impl<K: Key> Transaction<K> {
         }
         // Only conflicts if one or both transactions are write transactions.
         self.is_write_tx() || other.is_write_tx()
+    }
+}
+
+impl<K: fmt::Debug> fmt::Debug for Transaction<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transaction")
+            .field("id", &self.id)
+            .field("kind", &self.kind)
+            .finish()
+    }
+}
+
+impl<K: fmt::Display> fmt::Display for Transaction<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "id: {}, kind: {}, keys: {}",
+            self.id, self.kind, self.keys
+        )
     }
 }

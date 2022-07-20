@@ -27,12 +27,32 @@ pub enum DataType {
 }
 
 impl DataType {
+    pub fn is_bool(&self) -> bool {
+        matches!(self, DataType::Bool)
+    }
+
     pub fn is_numeric(&self) -> bool {
         use DataType::*;
         match self {
             Int8 | Int16 | Int32 | Int64 | Float32 | Float64 | Date64 => true,
             _ => false,
         }
+    }
+
+    pub fn from_u8(byte: u8) -> Option<DataType> {
+        Some(match byte {
+            0 => DataType::Bool,
+            1 => DataType::Int8,
+            2 => DataType::Int16,
+            3 => DataType::Int32,
+            4 => DataType::Int64,
+            5 => DataType::Float32,
+            6 => DataType::Float64,
+            7 => DataType::Date64,
+            8 => DataType::Utf8,
+            9 => DataType::Binary,
+            _ => return None,
+        })
     }
 }
 
@@ -68,6 +88,17 @@ impl NullableType {
         }
     }
 
+    pub fn new_nonnullable(datatype: DataType) -> NullableType {
+        NullableType {
+            datatype,
+            nullable: false,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        self.datatype.is_bool()
+    }
+
     pub fn is_numeric(&self) -> bool {
         self.datatype.is_numeric()
     }
@@ -99,14 +130,18 @@ pub enum DataValue {
     Int16(i16),
     Int32(i32),
     Int64(i64),
-    Float32(NotNanF32),
-    Float64(NotNanF64),
+    Float32(f32),
+    Float64(f64),
     Date64(i64), // TODO: Change this to u64.
     Utf8(String),
     Binary(Vec<u8>),
 }
 
 impl DataValue {
+    pub fn is_null(&self) -> bool {
+        matches!(self, DataValue::Null)
+    }
+
     /// Checks if the value is of the the given `type`.
     pub fn is_of_type(&self, typ: &NullableType) -> bool {
         use DataValue::*;
@@ -124,6 +159,22 @@ impl DataValue {
             (Binary(_), DataType::Binary) => true,
             _ => false,
         }
+    }
+
+    pub fn datatype(&self) -> Option<DataType> {
+        Some(match self {
+            Self::Bool(_) => DataType::Bool,
+            Self::Int8(_) => DataType::Int8,
+            Self::Int16(_) => DataType::Int16,
+            Self::Int32(_) => DataType::Int32,
+            Self::Int64(_) => DataType::Int64,
+            Self::Float32(_) => DataType::Float32,
+            Self::Float64(_) => DataType::Float64,
+            Self::Date64(_) => DataType::Date64,
+            Self::Utf8(_) => DataType::Utf8,
+            Self::Binary(_) => DataType::Binary,
+            _ => return None,
+        })
     }
 }
 
@@ -183,15 +234,13 @@ impl From<i64> for DataValue {
 
 impl From<f32> for DataValue {
     fn from(val: f32) -> Self {
-        // TODO: Properly handle this.
-        DataValue::Float32(val.try_into().unwrap())
+        DataValue::Float32(val)
     }
 }
 
 impl From<f64> for DataValue {
     fn from(val: f64) -> Self {
-        // TODO: Properly handle this.
-        DataValue::Float64(val.try_into().unwrap())
+        DataValue::Float64(val)
     }
 }
 
@@ -208,7 +257,7 @@ impl From<Vec<u8>> for DataValue {
 }
 
 /// Describes the schema of a relation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RelationSchema {
     pub columns: Vec<NullableType>,
 }
@@ -242,5 +291,47 @@ impl RelationSchema {
     /// The number of columns in the relation.
     pub fn arity(&self) -> usize {
         self.columns.len()
+    }
+}
+
+impl From<Vec<NullableType>> for RelationSchema {
+    fn from(columns: Vec<NullableType>) -> Self {
+        RelationSchema { columns }
+    }
+}
+
+/// A list of heterogenous values.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Row(pub Vec<DataValue>);
+
+impl Row {
+    /// Check if this row matches the provided schema.
+    pub fn matches_schema(&self, schema: &RelationSchema) -> bool {
+        if self.arity() != schema.arity() {
+            return false;
+        }
+
+        self.0
+            .iter()
+            .zip(schema.columns.iter())
+            .all(|(v, t)| v.is_of_type(t))
+    }
+
+    pub fn arity(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &DataValue> {
+        self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut DataValue> {
+        self.0.iter_mut()
+    }
+}
+
+impl From<Vec<DataValue>> for Row {
+    fn from(values: Vec<DataValue>) -> Self {
+        Row(values)
     }
 }

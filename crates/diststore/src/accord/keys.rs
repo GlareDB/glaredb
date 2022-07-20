@@ -1,12 +1,25 @@
 //! Key-based conflict detection.
+use fmtutil::DisplaySlice;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::fmt::Debug;
+use std::fmt;
 use std::hash::Hash;
 
 /// A type that represents a key to either a single entry, or a range of entries
 /// in the system. This key is used when detecting transaction conflicts.
 pub trait Key:
-    Serialize + DeserializeOwned + PartialEq + Eq + PartialOrd + Ord + Hash + Debug + Clone
+    Serialize
+    + DeserializeOwned
+    + PartialEq
+    + Eq
+    + PartialOrd
+    + Ord
+    + Hash
+    + fmt::Debug
+    + fmt::Display
+    + Clone
+    + Send
+    + Unpin
+    + 'static
 {
     /// Whether or not this key conflicts with another key.
     fn conflicts_with(&self, other: &Self) -> bool;
@@ -28,6 +41,10 @@ impl<K: Key> KeySet<K> {
         }
     }
 
+    pub fn from_key(key: K) -> Self {
+        KeySet { keys: vec![key] }
+    }
+
     /// Check if there's a conflict between this set and another key.
     pub fn conflicts_with_key(&self, key: &K) -> bool {
         self.keys.iter().any(|check| check.conflicts_with(key))
@@ -42,10 +59,16 @@ impl<K: Key> KeySet<K> {
     }
 }
 
+impl<K: fmt::Display> fmt::Display for KeySet<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", DisplaySlice(&self.keys))
+    }
+}
+
 /// A simple implementation of `Key` on a string where conflicts only occur when
 /// two strings equal each other.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone)]
-pub struct ExactString(String);
+pub struct ExactString(pub String);
 
 impl Key for ExactString {
     fn conflicts_with(&self, other: &Self) -> bool {
@@ -56,6 +79,12 @@ impl Key for ExactString {
 impl From<&str> for ExactString {
     fn from(s: &str) -> Self {
         ExactString(s.to_string())
+    }
+}
+
+impl fmt::Display for ExactString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (exact)", self.0)
     }
 }
 

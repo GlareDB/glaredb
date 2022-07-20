@@ -26,6 +26,3 @@ jobs:
 
       - name: Tests (Stable)
         run: cargo test
-
-      - name: Tests (Nightly + Miri)
-        run: ./scripts/miri-test.sh
