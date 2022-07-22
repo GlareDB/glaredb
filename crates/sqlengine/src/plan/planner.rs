@@ -1,6 +1,6 @@
 #![feature(backtrace)]
 use super::expr::PlanExpr;
-use crate::catalog::{CatalogReader, Column, ColumnId, TableReference, TableSchema};
+use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
 use crate::plan::read::*;
 use crate::plan::write::*;
 use crate::plan::QueryPlan;
@@ -387,8 +387,8 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
     ///
     /// Errors if the table doesn't exist.
     fn table_from_catalog(&self, name: ast::ObjectName) -> Result<(TableReference, TableSchema)> {
-        let (_, catalog_name) = self.catalog.current_catalog();
-        let (_, schema_name) = self.catalog.current_schema();
+        let catalog_name = self.catalog.current_catalog();
+        let schema_name = self.catalog.current_schema();
         let (reference, schema) = match name.0.len() {
             1 => self
                 .catalog
@@ -704,17 +704,17 @@ mod tests {
             let mut tables = BTreeMap::new();
             tables.insert(
                 TableReference {
-                    catalog: 0,
-                    schema: 0,
-                    table: 1,
+                    catalog: "catalog".to_string(),
+                    schema: "schema".to_string(),
+                    table: "t1".to_string(),
                 },
                 t1,
             );
             tables.insert(
                 TableReference {
-                    catalog: 0,
-                    schema: 0,
-                    table: 2,
+                    catalog: "catalog".to_string(),
+                    schema: "schema".to_string(),
+                    table: "t2".to_string(),
                 },
                 t2,
             );
@@ -748,12 +748,12 @@ mod tests {
             Ok(None)
         }
 
-        fn current_catalog(&self) -> (crate::catalog::CatalogId, &str) {
-            (0, "catalog")
+        fn current_catalog(&self) -> &str {
+            "catalog"
         }
 
-        fn current_schema(&self) -> (crate::catalog::SchemaId, &str) {
-            (0, "schema")
+        fn current_schema(&self) -> &str {
+            "schema"
         }
     }
 

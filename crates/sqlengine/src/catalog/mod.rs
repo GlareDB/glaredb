@@ -4,6 +4,8 @@ use lemur::repr::value::ValueType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub mod system;
+
 pub trait CatalogReader: Sync + Send {
     /// Get a table by a reference, returning `None` if no table exists (or
     /// isn't visible).
@@ -16,8 +18,8 @@ pub trait CatalogReader: Sync + Send {
         name: &str,
     ) -> Result<Option<(TableReference, TableSchema)>>;
 
-    fn current_catalog(&self) -> (CatalogId, &str);
-    fn current_schema(&self) -> (SchemaId, &str);
+    fn current_catalog(&self) -> &str;
+    fn current_schema(&self) -> &str;
 }
 
 pub trait CatalogWriter: CatalogReader {
@@ -25,15 +27,11 @@ pub trait CatalogWriter: CatalogReader {
     fn add_table(&self, reference: &TableReference, schema: TableSchema) -> Result<()>;
 }
 
-pub type CatalogId = u64;
-pub type SchemaId = u64;
-pub type TableId = u64;
-pub type ColumnId = u64;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableSchema {
     pub name: String,
     pub columns: Vec<Column>,
+    pub pk_idxs: Vec<usize>,
 }
 
 impl TableSchema {
@@ -58,9 +56,9 @@ pub struct Column {
 /// This reference must be unique across the entire system.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TableReference {
-    pub catalog: CatalogId,
-    pub schema: SchemaId,
-    pub table: TableId,
+    pub catalog: String,
+    pub schema: String,
+    pub table: String,
 }
 
 impl fmt::Display for TableReference {
@@ -68,14 +66,3 @@ impl fmt::Display for TableReference {
         write!(f, "{}.{}.{}", self.catalog, self.schema, self.table)
     }
 }
-
-/// A fully qualified column reference.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ColumnReference {
-    pub catalog: CatalogId,
-    pub schema: SchemaId,
-    pub table: TableId,
-    pub column: ColumnId,
-}
-
-// impl CatalogReader for

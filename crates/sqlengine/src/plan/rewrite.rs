@@ -61,9 +61,9 @@ mod tests {
             },
             input: Box::new(ReadPlan::ScanSource(ScanSource {
                 table: TableReference {
-                    catalog: 0,
-                    schema: 0,
-                    table: 1,
+                    catalog: "catalog".to_string(),
+                    schema: "schema".to_string(),
+                    table: "table1".to_string(),
                 },
                 filter: None,
                 schema: vec![ValueType::Int8, ValueType::Int8].into(),
@@ -72,9 +72,9 @@ mod tests {
 
         let expected = ReadPlan::ScanSource(ScanSource {
             table: TableReference {
-                catalog: 0,
-                schema: 0,
-                table: 1,
+                catalog: "catalog".to_string(),
+                schema: "schema".to_string(),
+                table: "table1".to_string(),
             },
             filter: Some(ScalarExpr::Binary {
                 op: BinaryOperation::Gt,

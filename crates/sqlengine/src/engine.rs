@@ -1,6 +1,4 @@
-use crate::catalog::{
-    CatalogId, CatalogReader, CatalogWriter, SchemaId, TableReference, TableSchema,
-};
+use crate::catalog::{CatalogReader, CatalogWriter, TableReference, TableSchema};
 use anyhow::{anyhow, Result};
 use lemur::execute::stream::source::{ReadableSource, WriteableSource};
 use sqlparser::ast;
@@ -53,11 +51,11 @@ impl<W: WriteableSource> CatalogReader for Executor<W> {
         todo!()
     }
 
-    fn current_catalog(&self) -> (CatalogId, &str) {
-        (0, "catalog")
+    fn current_catalog(&self) -> &str {
+        "catalog"
     }
 
-    fn current_schema(&self) -> (SchemaId, &str) {
-        (0, "schema")
+    fn current_schema(&self) -> &str {
+        "schema"
     }
 }
