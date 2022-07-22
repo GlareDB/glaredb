@@ -94,6 +94,12 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         vec
     }
 
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let validity = self.validity.split_off(at);
+        let values = self.values.split_off(at);
+        FixedLengthVec { validity, values }
+    }
+
     pub fn get_validity(&self) -> &BitVec {
         &self.validity
     }
