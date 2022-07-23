@@ -3,7 +3,7 @@ use coretypes::batch::{Batch, BatchRepr, SelectivityBatch};
 use coretypes::datatype::{RelationSchema, Row};
 use coretypes::expr::ScalarExpr;
 use coretypes::vec::ColumnVec;
-use log::debug;
+use tracing::debug;
 use std::collections::{btree_map::Entry, BTreeMap};
 
 const DEFAULT_COLUMN_CAP: usize = 256;

@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 log = "0.4.0"
 env_logger = "0.9"
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["std", "fmt"] }
+tracing-log = "0.1.3"

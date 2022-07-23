@@ -16,9 +16,25 @@ use std::task::{Context, Poll};
 /// Every dataframe in the stream must have the same schema.
 pub type DataFrameStream = Pin<Box<dyn Stream<Item = Result<DataFrame>> + Send>>;
 
+/// Whether or not the transaction is interactive.
+///
+/// Data sources may avoid needing to do additional work for non-interactive transactions.
+#[derive(Debug, PartialEq, Eq)]
+pub enum TxInteractivity {
+    Interactive,
+    NonInteractive,
+}
+
+#[async_trait]
+pub trait DataSource: Clone + Sync + Send {
+    type Tx: WriteTx;
+
+    async fn begin(&self, interactivity: TxInteractivity) -> Result<Self::Tx>;
+}
+
 /// A readable source is able read dataframes and dataframe schemas.
 #[async_trait]
-pub trait ReadableSource: Sync + Send {
+pub trait ReadTx: Sync + Send {
     /// Read from a source, returning a stream of dataframes.
     ///
     /// An optional filter expression can be provided.
@@ -39,7 +55,10 @@ pub trait ReadableSource: Sync + Send {
 /// A writeable source is able to write dataframes to underlying tables, as well
 /// as create, alter, and delete tables.
 #[async_trait]
-pub trait WriteableSource: ReadableSource + Sync + Send {
+pub trait WriteTx: ReadTx + Sync + Send {
+    async fn commit(self) -> Result<()>;
+    async fn rollback(self) -> Result<()>;
+
     /// Create a table with the given schema. Errors if the table already
     /// exists.
     async fn create_table(&self, table: RelationKey, schema: Schema) -> Result<()>;
@@ -53,14 +72,14 @@ pub trait WriteableSource: ReadableSource + Sync + Send {
 
 /// Execute a reading operation.
 #[async_trait]
-pub trait ReadExecutor<R: ReadableSource> {
+pub trait ReadExecutor<R: ReadTx> {
     /// Execute a read against `source`, returning a data stream.
     async fn execute_read(self, source: &R) -> Result<DataFrameStream>;
 }
 
 /// Execute a writing operation.
 #[async_trait]
-pub trait WriteExecutor<W: WriteableSource> {
+pub trait WriteExecutor<W: WriteTx> {
     /// Execute a write against `source`, returning an optional data stream.
     async fn execute_write(self, source: &W) -> Result<Option<DataFrameStream>>;
 }
@@ -122,7 +141,16 @@ impl MemoryDataSource {
 }
 
 #[async_trait]
-impl ReadableSource for MemoryDataSource {
+impl DataSource for MemoryDataSource {
+    type Tx = Self;
+
+    async fn begin(&self, interactivity: TxInteractivity) -> Result<Self::Tx> {
+        Ok(self.clone())
+    }
+}
+
+#[async_trait]
+impl ReadTx for MemoryDataSource {
     async fn scan(
         &self,
         table: &RelationKey,
@@ -167,7 +195,15 @@ impl ReadableSource for MemoryDataSource {
 }
 
 #[async_trait]
-impl WriteableSource for MemoryDataSource {
+impl WriteTx for MemoryDataSource {
+    async fn commit(self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn rollback(self) -> Result<()> {
+        Ok(())
+    }
+
     async fn create_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
         use std::collections::hash_map::Entry;
         let mut tables = self.tables.write();

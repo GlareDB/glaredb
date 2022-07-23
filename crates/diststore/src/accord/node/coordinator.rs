@@ -7,7 +7,7 @@ use crate::accord::topology::TopologyManagerRef;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
 use crate::accord::{AccordError, ComputeData, Executor, NodeId};
 use anyhow::{anyhow, Context, Result};
-use log::{trace, warn};
+use tracing::{trace, warn};
 use std::collections::{HashMap, HashSet};
 
 /// State specific for coordinating transactions.

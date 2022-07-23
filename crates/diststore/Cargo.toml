@@ -12,7 +12,7 @@ logutil = {path = "../logutil"}
 thiserror = "1.0"
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-log = "0.4.0"
+tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.3", features = ["codec"] }
 tokio-serde = { version = "0.8", features = ["bincode"] }

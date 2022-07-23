@@ -49,7 +49,12 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     .into_iter()
                     .map(|col| column_def_to_column(col))
                     .collect::<Result<Vec<_>>>()?;
-                let schema = TableSchema { name, columns };
+                // TODO: Get primary keys and other options.
+                let schema = TableSchema {
+                    name,
+                    columns,
+                    pk_idxs: Vec::new(),
+                };
                 Ok(WritePlan::CreateTable(CreateTable { schema }))
             }
             _ => Err(anyhow!("invalid create table statement")),
@@ -685,6 +690,7 @@ mod tests {
                         nullable: false,
                     },
                 ],
+                pk_idxs: Vec::new(),
             };
             let t2 = TableSchema {
                 name: "t2".to_string(),
@@ -700,6 +706,7 @@ mod tests {
                         nullable: false,
                     },
                 ],
+                pk_idxs: Vec::new(),
             };
             let mut tables = BTreeMap::new();
             tables.insert(

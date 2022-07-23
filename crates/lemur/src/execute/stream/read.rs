@@ -1,5 +1,5 @@
+use crate::execute::stream::source::{DataFrameStream, MemoryStream, ReadExecutor, ReadTx};
 use crate::repr::df::DataFrame;
-use crate::execute::stream::source::{DataFrameStream, MemoryStream, ReadExecutor, ReadableSource};
 use crate::repr::expr::{
     Aggregate, CrossJoin, Filter, OrderByGroupBy, Project, RelationExpr, ScalarExpr, Source, Values,
 };
@@ -8,15 +8,15 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bitvec::vec::BitVec;
 use futures::{Stream, StreamExt};
-use log::{debug, error};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tracing::{debug, error};
 
 const STREAM_BUFFER: usize = 16;
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for RelationExpr {
+impl<R: ReadTx> ReadExecutor<R> for RelationExpr {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         match self {
             RelationExpr::Project(n) => n.execute_read(source).await,
@@ -48,7 +48,7 @@ macro_rules! match_send_err {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for Project {
+impl<R: ReadTx> ReadExecutor<R> for Project {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         let mut input = self.input.execute_read(source).await?;
         let stream = input.map(move |stream_result| match stream_result {
@@ -60,7 +60,7 @@ impl<R: ReadableSource> ReadExecutor<R> for Project {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for Aggregate {
+impl<R: ReadTx> ReadExecutor<R> for Aggregate {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         let mut input = self.input.execute_read(source).await?;
         // TODO: As with `OrderByGroupBy`, don't collect everything. The
@@ -91,7 +91,7 @@ impl<R: ReadableSource> ReadExecutor<R> for Aggregate {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for OrderByGroupBy {
+impl<R: ReadTx> ReadExecutor<R> for OrderByGroupBy {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         let mut input = self.input.execute_read(source).await?;
         // TODO: Don't collect everything. Implement splitting/merging to get a
@@ -120,7 +120,7 @@ impl<R: ReadableSource> ReadExecutor<R> for OrderByGroupBy {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for CrossJoin {
+impl<R: ReadTx> ReadExecutor<R> for CrossJoin {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         let (mut left, mut right) = futures::try_join!(
             self.left.execute_read(source),
@@ -181,7 +181,7 @@ impl<R: ReadableSource> ReadExecutor<R> for CrossJoin {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for Filter {
+impl<R: ReadTx> ReadExecutor<R> for Filter {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         let mut input = self.input.execute_read(source).await?;
         let (tx, rx) = mpsc::channel(STREAM_BUFFER);
@@ -200,7 +200,7 @@ impl<R: ReadableSource> ReadExecutor<R> for Filter {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for Source {
+impl<R: ReadTx> ReadExecutor<R> for Source {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
         match source.scan(&self.source, self.filter).await? {
             Some(stream) => Ok(Box::pin(stream)),
@@ -210,7 +210,7 @@ impl<R: ReadableSource> ReadExecutor<R> for Source {
 }
 
 #[async_trait]
-impl<R: ReadableSource> ReadExecutor<R> for Values {
+impl<R: ReadTx> ReadExecutor<R> for Values {
     async fn execute_read(self, _source: &R) -> Result<DataFrameStream> {
         let df = DataFrame::from_rows(self.rows)?;
         Ok(Box::pin(MemoryStream::one(df)))

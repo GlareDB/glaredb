@@ -48,7 +48,7 @@ impl From<Vec<ValueType>> for Schema {
 }
 
 /// A column-oriented table of data.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DataFrame {
     columns: Vec<Arc<ValueVec>>,
 }

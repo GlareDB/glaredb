@@ -7,9 +7,9 @@ use crate::accord::timestamp::{Timestamp, TimestampProvider};
 use crate::accord::topology::Topology;
 use crate::accord::transaction::{Transaction, TransactionId, TransactionKind};
 use crate::accord::{AccordError, ComputeData, Executor, NodeId, Result};
-use log::{debug, info, trace, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
+use tracing::{debug, info, trace, warn};
 
 #[derive(Debug)]
 pub struct ReplicaState<K> {

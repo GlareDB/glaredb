@@ -7,7 +7,7 @@ use super::protocol::{ApplyOk, Message, ProtocolMessage, ReadOk, StartExecuteInt
 use super::topology::{Address, TopologyManagerRef};
 use super::{AccordError, Executor, NodeId, Result};
 use coordinator::{AcceptOrCommit, ApplyOrReadOk, CoordinatorState};
-use log::{debug, error, info, trace};
+use tracing::{debug, error, info, trace};
 use replica::{ExecutionActionOk, ReplicaState};
 use tokio::sync::mpsc;
 

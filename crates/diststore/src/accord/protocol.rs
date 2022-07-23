@@ -6,7 +6,7 @@ use super::topology::Address;
 use super::transaction::{Transaction, TransactionId};
 use super::{AccordError, ComputeData, Executor, NodeId, ReadData, Result, WriteData};
 use fmtutil::DisplaySlice;
-use log::debug;
+use tracing::debug;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use tokio::sync::mpsc;

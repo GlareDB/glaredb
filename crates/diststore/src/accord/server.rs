@@ -6,7 +6,7 @@ use super::topology::{Address, TopologyManagerRef};
 use super::{Executor, NodeId, ReadResponse, Request, Response, WriteResponse};
 use anyhow::{anyhow, Context, Result};
 use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;

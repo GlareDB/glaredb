@@ -1,14 +1,26 @@
-//! Utilities for logging.
+//! Utilities for logging and tracing.
+use tracing::{subscriber, trace, Level};
+use tracing_subscriber::{fmt, FmtSubscriber};
 
+/// Initialize a trace subsriber for a test.
 pub fn init_test() {
-    let _ = env_logger::builder()
-        .filter_level(log::LevelFilter::max())
-        .is_test(true)
-        .try_init();
+    let subscriber = FmtSubscriber::builder()
+        .with_test_writer()
+        .with_max_level(Level::TRACE)
+        .finish();
+    // Failing to set the default is fine, errors if there's already a
+    // subscriber set.
+    let _ = subscriber::set_global_default(subscriber);
 }
 
-pub fn init() {
-    let _ = env_logger::builder()
-        .filter_level(log::LevelFilter::max())
-        .init();
+/// Initialize a trace subsriber printing to the console using the given
+/// verbosity count.
+pub fn init(verbose: u8) {
+    let level = match verbose {
+        0 => Level::INFO,
+        _ => Level::TRACE,
+    };
+    let subscriber = FmtSubscriber::builder().with_max_level(level).finish();
+    subscriber::set_global_default(subscriber).unwrap();
+    trace!(%level, "log level set");
 }

@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use crc32fast::Hasher;
-use log::debug;
 use parking_lot::{Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
@@ -8,6 +7,7 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Lsn(u64);

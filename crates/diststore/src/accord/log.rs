@@ -2,7 +2,7 @@ use super::keys::Key;
 use super::timestamp::Timestamp;
 use super::transaction::Transaction;
 use super::{AccordError, Result};
-use log::debug;
+use tracing::debug;
 
 // TODO: Make correct
 #[derive(Debug)]

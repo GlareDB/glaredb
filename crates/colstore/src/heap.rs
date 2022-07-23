@@ -1,6 +1,5 @@
 //! Write bincode encoded objects out to files.
 use anyhow::{anyhow, Result};
-use log::{debug, warn};
 use parking_lot::RwLock;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{btree_map::Entry, BTreeMap};
@@ -10,6 +9,7 @@ use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tracing::{debug, warn};
 
 /// A file identifier. A single identifier may point to multiple versions of the
 /// same file.
