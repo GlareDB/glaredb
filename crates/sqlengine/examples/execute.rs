@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let results = session.execute_query(&query).await?;
     for result in results.into_iter() {
-        println!("{:?}", result);
+        println!("{:#?}", result);
     }
 
     Ok(())

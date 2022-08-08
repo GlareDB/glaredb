@@ -50,7 +50,7 @@ macro_rules! match_send_err {
 #[async_trait]
 impl<R: ReadTx> ReadExecutor<R> for Project {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
-        let mut input = self.input.execute_read(source).await?;
+        let input = self.input.execute_read(source).await?;
         let stream = input.map(move |stream_result| match stream_result {
             Ok(df) => df.project_exprs(&self.columns),
             Err(e) => Err(e),

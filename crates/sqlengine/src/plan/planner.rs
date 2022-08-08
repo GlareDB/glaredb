@@ -351,6 +351,10 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                         on: on.lower_scalar()?,
                     })
                 }
+                ast::JoinOperator::CrossJoin => ReadPlan::CrossJoin(CrossJoin {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }),
                 other => return Err(anyhow!("unsupported join operator: {:?}", other)),
             };
         }
