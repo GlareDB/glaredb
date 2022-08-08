@@ -18,7 +18,7 @@ pub enum RelationExpr {
     Filter(Filter),
     Values(Values),
     Source(Source),
-    Nothing,
+    Placeholder,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

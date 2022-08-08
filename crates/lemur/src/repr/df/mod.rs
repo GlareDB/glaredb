@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::repr::expr::{AggregateExpr, ScalarExpr, ScalarExprVec};
 use crate::repr::value::{Row, Value, ValueType, ValueVec};
+use crate::repr::vec::BoolVec;
 
 pub mod groupby;
 pub use groupby::*;
@@ -57,6 +58,17 @@ impl DataFrame {
     pub fn empty() -> Self {
         DataFrame {
             columns: Vec::new(),
+        }
+    }
+
+    /// Create a new placeholder dataframe.
+    ///
+    /// The only guarantees about a placeholder dataframe is that its arity and
+    /// number of rows are one. The type and value should not be used.
+    pub fn new_placeholder() -> Self {
+        let col = BoolVec::one(None);
+        DataFrame {
+            columns: vec![Arc::new(col.into())],
         }
     }
 

@@ -126,6 +126,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
 
         // FROM ...
         let mut plan = self.plan_from_items(scope, select.from)?;
+        let from_nothing = matches!(plan, ReadPlan::Nothing);
 
         // WHERE ...
         if let Some(expr) = select.selection {
@@ -167,6 +168,9 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     exprs.push(expr);
                 }
                 ast::SelectItem::Wildcard => {
+                    if from_nothing {
+                        return Err(anyhow!("cannot select * from nothing"));
+                    }
                     // Put everything that's currently in scope in the
                     // project expressions.
                     exprs.extend((0..scope.num_columns()).map(|idx| PlanExpr::Column(idx)))

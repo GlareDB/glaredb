@@ -26,7 +26,9 @@ impl<R: ReadTx> ReadExecutor<R> for RelationExpr {
             RelationExpr::Filter(n) => n.execute_read(source).await,
             RelationExpr::Values(n) => n.execute_read(source).await,
             RelationExpr::Source(n) => n.execute_read(source).await,
-            RelationExpr::Nothing => Ok(Box::pin(MemoryStream::empty())),
+            RelationExpr::Placeholder => {
+                Ok(Box::pin(MemoryStream::one(DataFrame::new_placeholder())))
+            }
         }
     }
 }
@@ -214,5 +216,27 @@ impl<R: ReadTx> ReadExecutor<R> for Values {
     async fn execute_read(self, _source: &R) -> Result<DataFrameStream> {
         let df = DataFrame::from_rows(self.rows)?;
         Ok(Box::pin(MemoryStream::one(df)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::execute::stream::source::{DataSource, MemoryDataSource, TxInteractivity};
+
+    #[tokio::test]
+    async fn nothing_produces_dummy_row() {
+        let source = MemoryDataSource::new();
+        let tx = source.begin(TxInteractivity::NonInteractive).await.unwrap();
+
+        let dfs = RelationExpr::Placeholder
+            .execute_read(&tx)
+            .await
+            .unwrap()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>()
+            .await;
+        let df = dfs.get(0).unwrap();
+        assert_eq!(1, df.num_rows());
     }
 }

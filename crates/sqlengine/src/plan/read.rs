@@ -126,7 +126,7 @@ impl ReadPlan {
     /// Lower self into a lemur relational expression.
     pub fn lower(self) -> Result<RelationExpr> {
         Ok(match self {
-            ReadPlan::Nothing => RelationExpr::Nothing,
+            ReadPlan::Nothing => RelationExpr::Placeholder,
             ReadPlan::Values(Values { rows, .. }) => RelationExpr::Values(expr::Values { rows }),
             ReadPlan::ScanSource(ScanSource { table, filter, .. }) => {
                 RelationExpr::Source(expr::Source {

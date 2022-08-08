@@ -232,3 +232,71 @@ impl<T: ReadTx> CatalogReader for T {
         todo!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lemur::execute::stream::source::MemoryDataSource;
+    use lemur::repr::value::{Row, Value};
+
+    /// Check if two dataframes are "visually" equal. Two dataframes with zero
+    /// rows each are considered visually equal even if the number of columns
+    /// differ.
+    ///
+    /// This just makes asserting in tests easier since there's currently no way
+    /// to represent a dataframe containing some number of columns with one
+    /// empty row.
+    fn assert_dfs_visually_eq(left: &DataFrame, right: &DataFrame) {
+        if left.num_rows() == 0 && right.num_rows() == 0 {
+            return;
+        }
+
+        assert!(left == right, "left: {:?}, right: {:?}", left, right);
+    }
+
+    fn unwrap_df(exec_result: &ExecutionResult) -> &DataFrame {
+        match exec_result {
+            ExecutionResult::QueryResult { df } => df,
+            other => panic!("not a query result: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn simple_queries_no_catalog() {
+        let source = MemoryDataSource::new();
+        let engine = Engine::new(source);
+        let mut session = engine.begin_session().unwrap();
+
+        let tests = vec![
+            ("select 1", vec![vec![Value::Int8(Some(1))]]),
+            (
+                "select 1, 2",
+                vec![vec![Value::Int8(Some(1)), Value::Int8(Some(2))]],
+            ),
+            ("select 1 where false", vec![vec![]]),
+            (
+                "select 1 group by 2+3 order by 4+5",
+                vec![vec![Value::Int8(Some(1))]],
+            ),
+            ("select 1+2", vec![vec![Value::Int8(Some(3))]]),
+            (
+                "select * from (values (1), (2)) cross join (values (3), (4))",
+                vec![
+                    vec![Value::Int8(Some(1)), Value::Int8(Some(3))],
+                    vec![Value::Int8(Some(1)), Value::Int8(Some(4))],
+                    vec![Value::Int8(Some(2)), Value::Int8(Some(3))],
+                    vec![Value::Int8(Some(2)), Value::Int8(Some(4))],
+                ],
+            ),
+        ];
+
+        for test in tests.into_iter() {
+            let query = test.0;
+            let expected = DataFrame::from_rows(test.1.into_iter().map(Row::from)).unwrap();
+
+            let results = session.execute_query(query).await.unwrap();
+            let got = unwrap_df(results.get(0).unwrap());
+            assert_dfs_visually_eq(&expected, got);
+        }
+    }
+}
