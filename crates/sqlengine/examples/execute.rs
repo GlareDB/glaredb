@@ -1,7 +1,6 @@
 //! Execute a query string against an in-memory data source.
 use lemur::execute::stream::source::MemoryDataSource;
 use sqlengine::engine::Engine;
-use sqlengine::server::{Client, Response, Server};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
