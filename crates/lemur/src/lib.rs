@@ -9,7 +9,7 @@
 //! A partial goal of lemur is to provide and MIR and LIR for the system. The
 //! core type that much of the system will be concerned with is the `DataFrame`.
 //! `DataFrame`s are made up of an ordered list of value vectors, with each
-//! value vector be a homogeneous list of values of the same type. During
+//! value vector being a homogeneous list of values of the same type. During
 //! expression evaluation, expressions will be evaluated against entire
 //! dataframes.
 //!

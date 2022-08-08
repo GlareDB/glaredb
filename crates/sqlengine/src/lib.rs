@@ -29,7 +29,7 @@
 //!
 //! # Transactions
 //!
-//! Every query must execution within the context of a transaction. If the user
+//! Every query must execute within the context of a transaction. If the user
 //! hasn't started a transaction, a non-interactive transaction will be created
 //! and used. If the user has started a transaction, that transaction will be
 //! used until the user commits or rolls back the transaction.
