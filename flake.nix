@@ -58,6 +58,7 @@
           rustfmt
           bacon
           cargo-udeps
+          miniserve
         ];
       in rec {
         devShells = {
