@@ -1,5 +1,6 @@
 use crate::repr::df::{DataFrame, Schema};
 use crate::repr::expr::{RelationKey, ScalarExpr};
+use crate::repr::value::{self, Value};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bitvec::vec::BitVec;
@@ -45,6 +46,37 @@ pub trait ReadTx: Sync + Send {
         table: &RelationKey,
         filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>>;
+
+    /// Read from a source, returning a stream of dataframes
+    ///
+    /// accepts a list of tuples with a column index and values
+    /// expected to be found for that column
+    async fn scan_values_equal(
+        &self,
+        table: &RelationKey,
+        values: &[(usize, Value)],
+    ) -> Result<Option<DataFrameStream>> {
+        match self.scan(table, None).await? {
+            Some(mut dfs) => {
+                while let Some(stream_result) = dfs.next().await {
+                    let df = stream_result?;
+                    let all_found: bool = values
+                        .iter()
+                        .map(|(col, value)| match df.get_column_ref(*col) {
+                            Some(df_val) => df_val.iter_values().any(|v| v.eq(value)),
+                            _ => false,
+                        })
+                        .all(|x| x);
+
+                    if all_found {
+                        return Ok(Some(dfs));
+                    }
+                }
+                Ok(None)
+            }
+            None => Ok(None),
+        }
+    }
 
     /// Get the schema for a given table.
     ///
