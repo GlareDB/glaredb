@@ -1,5 +1,5 @@
 use crate::repr::df::{DataFrame, Schema};
-use crate::repr::expr::{RelationKey, ScalarExpr};
+use crate::repr::expr::{RelationKey, ScalarExpr, BinaryOperation};
 use crate::repr::value::{self, Value};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -47,6 +47,11 @@ pub trait ReadTx: Sync + Send {
         filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>>;
 
+    /// Get the schema for a given table.
+    ///
+    /// Returns `None` if the table doesn't exist.
+    async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>>;
+
     /// Read from a source, returning a stream of dataframes
     ///
     /// accepts a list of tuples with a column index and values
@@ -56,32 +61,22 @@ pub trait ReadTx: Sync + Send {
         table: &RelationKey,
         values: &[(usize, Value)],
     ) -> Result<Option<DataFrameStream>> {
-        match self.scan(table, None).await? {
-            Some(mut dfs) => {
-                while let Some(stream_result) = dfs.next().await {
-                    let df = stream_result?;
-                    let all_found: bool = values
-                        .iter()
-                        .map(|(col, value)| match df.get_column_ref(*col) {
-                            Some(df_val) => df_val.iter_values().any(|v| v.eq(value)),
-                            _ => false,
-                        })
-                        .all(|x| x);
-
-                    if all_found {
-                        return Ok(Some(dfs));
-                    }
-                }
-                Ok(None)
+        let filter_values_equal = values.iter().map(|(i, v)| {
+            ScalarExpr::Binary {
+                op: BinaryOperation::Eq,
+                left: ScalarExpr::Constant(v.clone()).boxed(),
+                right: ScalarExpr::Column(*i).boxed(),
             }
+        }).reduce(|accum, expr| {
+            accum.and(expr)
+        });
+
+        match filter_values_equal {
+            Some(expr) => self.scan(table, Some(expr)).await,
             None => Ok(None),
         }
     }
 
-    /// Get the schema for a given table.
-    ///
-    /// Returns `None` if the table doesn't exist.
-    async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>>;
 }
 
 /// A writeable source is able to write dataframes to underlying tables, as well
