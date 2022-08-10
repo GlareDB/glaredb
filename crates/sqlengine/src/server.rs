@@ -3,13 +3,11 @@ use crate::engine::{ExecutionResult, Session};
 use anyhow::{anyhow, Result};
 use futures::{SinkExt, TryStreamExt};
 use lemur::execute::stream::source::DataSource;
-
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio_serde::formats::{Bincode};
-
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tracing::{debug, error, info, warn};
 
