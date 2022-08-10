@@ -70,6 +70,34 @@
             buildInputs = [rust-nightly] ++ shellInputs;
             inherit (pre-commit-check) shellHook;
           };
+          postgres = with pkgs;
+            mkShell rec {
+              buildInputs = [postgresql rust-stable];
+              shellHook = ''
+                ${pre-commit-check.shellHook}
+                export PGDATA="$PWD/db"
+                export PGHOST="$PGDATA"
+                export PGLOG=$PGDATA/postgres.log
+
+                if [ ! -d $PGDATA ]; then
+                    mkdir -p $PGDATA
+                    initdb -D $PGDATA --auth=trust --no-locale --encoding=UTF8
+                    createuser postgres
+                fi
+
+                if ! pg_ctl status
+                then
+                    pg_ctl start -l $PGLOG -o "--unix-socket-directories='$PGDATA'"
+                fi
+
+                function end {
+                    echo "Shutting down postgres..."
+                    pg_ctl stop
+                }
+
+                trap end EXIT
+              '';
+            };
         };
       };
       systems = flake-utils.lib.defaultSystems;
