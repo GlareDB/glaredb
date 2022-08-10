@@ -1,12 +1,12 @@
 use crate::execute::stream::source::{
-    DataFrameStream, ReadExecutor, ReadTx, WriteExecutor, WriteTx,
+    DataFrameStream, ReadExecutor, WriteExecutor, WriteTx,
 };
-use crate::repr::df::DataFrame;
-use crate::repr::expr::{CreateTable, Insert, MutateRelationExpr, RelationExpr};
-use crate::repr::value::{Row, Value};
-use anyhow::{anyhow, Result};
+
+use crate::repr::expr::{CreateTable, Insert, MutateRelationExpr};
+
+use anyhow::{Result};
 use async_trait::async_trait;
-use futures::{Stream, StreamExt};
+use futures::{StreamExt};
 
 #[async_trait]
 impl<W: WriteTx> WriteExecutor<W> for MutateRelationExpr {

@@ -1,10 +1,10 @@
 use crate::repr::df::{DataFrame, Schema};
 use crate::repr::expr::{RelationKey, ScalarExpr, BinaryOperation};
-use crate::repr::value::{self, Value};
+use crate::repr::value::{Value};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bitvec::vec::BitVec;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -171,7 +171,7 @@ impl MemoryDataSource {
 impl DataSource for MemoryDataSource {
     type Tx = Self;
 
-    async fn begin(&self, interactivity: TxInteractivity) -> Result<Self::Tx> {
+    async fn begin(&self, _interactivity: TxInteractivity) -> Result<Self::Tx> {
         Ok(self.clone())
     }
 }

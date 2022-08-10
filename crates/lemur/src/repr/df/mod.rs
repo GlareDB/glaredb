@@ -5,7 +5,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::repr::expr::{AggregateExpr, ScalarExpr, ScalarExprVec};
-use crate::repr::value::{Row, Value, ValueType, ValueVec};
+use crate::repr::value::{Row, ValueType, ValueVec};
 use crate::repr::vec::BoolVec;
 
 pub mod groupby;

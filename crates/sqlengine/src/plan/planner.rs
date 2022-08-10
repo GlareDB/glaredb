@@ -1,4 +1,3 @@
-#![feature(backtrace)]
 use super::expr::PlanExpr;
 use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
 use crate::plan::read::*;
@@ -6,7 +5,7 @@ use crate::plan::write::*;
 use crate::plan::QueryPlan;
 use anyhow::{anyhow, Result};
 use lemur::repr::df::groupby::SortOrder;
-use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation, ScalarExpr};
+use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation};
 use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
@@ -385,9 +384,9 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                 })
             }
             ast::TableFactor::Derived {
-                lateral,
+                lateral: _,
                 subquery,
-                alias,
+                alias: _,
             } => {
                 // TODO: Handle lateral and alias.
                 self.plan_query(scope, *subquery)?

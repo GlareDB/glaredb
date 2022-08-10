@@ -1,4 +1,4 @@
-use crate::repr::df::Schema;
+
 use crate::repr::sort::{GroupRanges, SortPermutation};
 use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;

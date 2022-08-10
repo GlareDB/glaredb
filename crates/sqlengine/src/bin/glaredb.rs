@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 use clap::{Parser, Subcommand};
 use lemur::execute::stream::source::MemoryDataSource;
 use rustyline::{error::ReadlineError, Editor};
 use sqlengine::engine::Engine;
-use sqlengine::server::{Client, Response, Server};
+use sqlengine::server::{Client, Server};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::ToSocketAddrs;
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::{Builder};
 use tracing::{error, info};
 
 #[derive(Parser)]

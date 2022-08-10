@@ -148,7 +148,7 @@ impl UnaryOperation {
         })
     }
 
-    pub fn evaluate(&self, input: &ScalarExpr, df: &DataFrame) -> Result<ScalarExprVec> {
+    pub fn evaluate(&self, _input: &ScalarExpr, _df: &DataFrame) -> Result<ScalarExprVec> {
         todo!()
     }
 }

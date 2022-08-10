@@ -1,7 +1,7 @@
-use crate::catalog::{CatalogReader, CatalogWriter, TableReference, TableSchema};
+use crate::catalog::{CatalogReader, TableReference, TableSchema};
 use crate::plan::QueryPlan;
 use anyhow::{anyhow, Result};
-use futures::{executor, Stream, StreamExt};
+use futures::{StreamExt};
 use lemur::execute::stream::source::{
     DataSource, ReadExecutor, ReadTx, TxInteractivity, WriteExecutor, WriteTx,
 };
@@ -12,8 +12,8 @@ use sqlparser::ast;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::fmt;
-use std::future::Future;
-use std::sync::Arc;
+
+
 use tracing::debug;
 
 #[derive(Debug)]
@@ -211,15 +211,15 @@ impl<S: DataSource> fmt::Debug for Session<S> {
 }
 
 impl<T: ReadTx> CatalogReader for T {
-    fn get_table(&self, reference: &TableReference) -> Result<Option<TableSchema>> {
+    fn get_table(&self, _reference: &TableReference) -> Result<Option<TableSchema>> {
         todo!()
     }
 
     fn get_table_by_name(
         &self,
-        catalog: &str,
-        schema: &str,
-        name: &str,
+        _catalog: &str,
+        _schema: &str,
+        _name: &str,
     ) -> Result<Option<(TableReference, TableSchema)>> {
         todo!()
     }

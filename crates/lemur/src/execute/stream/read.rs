@@ -1,17 +1,17 @@
 use crate::execute::stream::source::{DataFrameStream, MemoryStream, ReadExecutor, ReadTx};
 use crate::repr::df::DataFrame;
 use crate::repr::expr::{
-    Aggregate, CrossJoin, Filter, OrderByGroupBy, Project, RelationExpr, ScalarExpr, Source, Values,
+    Aggregate, CrossJoin, Filter, OrderByGroupBy, Project, RelationExpr, Source, Values,
 };
-use crate::repr::value::{Row, Value};
+
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use bitvec::vec::BitVec;
-use futures::{Stream, StreamExt};
-use std::sync::Arc;
+
+use futures::{StreamExt};
+
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, error};
+use tracing::{error};
 
 const STREAM_BUFFER: usize = 16;
 
