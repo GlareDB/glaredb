@@ -3,15 +3,15 @@ use super::{
 };
 use crate::repr::ordfloat::{OrdF32, OrdF64};
 use crate::repr::value::ValueVec;
-use crate::repr::vec::{BinaryVec, BoolVec, FixedLengthType, FixedLengthVec, Utf8Vec};
+use crate::repr::vec::{BinaryVec, BoolVec, FixedLengthVec, Utf8Vec};
 use anyhow::{anyhow, Result};
 
 pub trait VecBinaryLogic<Rhs = Self> {
-    fn and(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn and(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("and unimplemented"))
     }
 
-    fn or(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn or(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("not unimplemented"))
     }
 }

@@ -1,8 +1,7 @@
 use super::{binary_op_fixedlen, value_vec_dispatch_binary, NumericType};
 use crate::repr::value::ValueVec;
 use crate::repr::vec::{
-    BinaryVec, BoolVec, FixedLengthType, FixedLengthVec, Int32Vec, NativeType, Utf8Vec,
-    VarLengthType, VarLengthVec,
+    BinaryVec, FixedLengthType, FixedLengthVec, Utf8Vec,
 };
 use anyhow::{anyhow, Result};
 use std::ops::{Add, Div, Mul, Sub};
@@ -11,19 +10,19 @@ use std::ops::{Add, Div, Mul, Sub};
 pub trait VecArith<Rhs = Self> {
     type Output;
 
-    fn add(&self, rhs: &Rhs) -> Result<Self::Output> {
+    fn add(&self, _rhs: &Rhs) -> Result<Self::Output> {
         Err(anyhow!("add unimplemented"))
     }
 
-    fn sub(&self, rhs: &Rhs) -> Result<Self::Output> {
+    fn sub(&self, _rhs: &Rhs) -> Result<Self::Output> {
         Err(anyhow!("sub unimplemented"))
     }
 
-    fn mul(&self, rhs: &Rhs) -> Result<Self::Output> {
+    fn mul(&self, _rhs: &Rhs) -> Result<Self::Output> {
         Err(anyhow!("mul unimplemented"))
     }
 
-    fn div(&self, rhs: &Rhs) -> Result<Self::Output> {
+    fn div(&self, _rhs: &Rhs) -> Result<Self::Output> {
         Err(anyhow!("div unimplemented"))
     }
 }

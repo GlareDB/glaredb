@@ -4,27 +4,27 @@ use crate::repr::vec::{BinaryVec, BoolVec, FixedLengthType, FixedLengthVec, Utf8
 use anyhow::{anyhow, Result};
 
 pub trait VecCmp<Rhs = Self> {
-    fn eq(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn eq(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("eq unimplemented"))
     }
 
-    fn neq(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn neq(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("neq unimplemented"))
     }
 
-    fn gt(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn gt(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("gt unimplemented"))
     }
 
-    fn lt(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn lt(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("lt unimplemented"))
     }
 
-    fn ge(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn ge(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("ge unimplemented"))
     }
 
-    fn le(&self, rhs: &Rhs) -> Result<BoolVec> {
+    fn le(&self, _rhs: &Rhs) -> Result<BoolVec> {
         Err(anyhow!("le unimplemented"))
     }
 }

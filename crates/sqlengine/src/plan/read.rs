@@ -1,5 +1,5 @@
 use crate::catalog::TableReference;
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::df::Schema;
 use lemur::repr::expr::{self, AggregateExpr, RelationExpr, ScalarExpr};
@@ -136,7 +136,7 @@ impl ReadPlan {
             }
             ReadPlan::Sort(Sort {
                 columns,
-                order,
+                order: _,
                 input,
             }) => RelationExpr::OrderByGroupBy(expr::OrderByGroupBy {
                 columns,
@@ -168,7 +168,7 @@ impl ReadPlan {
             ReadPlan::Join(Join {
                 left,
                 right,
-                join_type,
+                join_type: _,
                 on,
             }) => {
                 // TODO: Proper join.

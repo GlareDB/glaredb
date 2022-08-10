@@ -1,6 +1,6 @@
 use super::read::ReadPlan;
 use crate::catalog::{TableReference, TableSchema};
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 use lemur::repr::expr::{self, MutateRelationExpr};
 
 #[derive(Debug, PartialEq)]

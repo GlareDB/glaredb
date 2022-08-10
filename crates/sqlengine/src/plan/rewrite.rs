@@ -3,7 +3,7 @@
 //! A query plan _must_ be valid even before rewriting. Rewriting should only
 //! enable additional optimizations.
 use super::read::*;
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 use lemur::repr::expr::ScalarExpr;
 
 #[derive(Debug)]

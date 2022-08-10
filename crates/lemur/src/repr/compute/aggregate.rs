@@ -1,5 +1,5 @@
 use super::{
-    binary_op_fixedlen, unary_op_fixedlen, value_vec_dispatch_binary, value_vec_dispatch_unary,
+    value_vec_dispatch_unary,
     value_vec_dispatch_unary_groups, NumericType,
 };
 use crate::repr::sort::GroupRanges;
@@ -122,7 +122,7 @@ pub trait VecCountAggregate {
         Err(anyhow!("count unimplemented"))
     }
 
-    fn count_groups(&self, groups: &GroupRanges) -> Result<Self::Output> {
+    fn count_groups(&self, _groups: &GroupRanges) -> Result<Self::Output> {
         Err(anyhow!("count groups unimplemented"))
     }
 }
@@ -174,7 +174,7 @@ impl VecCountAggregate for ValueVec {
 pub trait VecUnaryAggregate<Rhs = Self>: Sized {
     /// Return the first non-null value for each group, or null if
     /// all values in the group are null.
-    fn first_groups(&self, groups: &GroupRanges) -> Result<Self> {
+    fn first_groups(&self, _groups: &GroupRanges) -> Result<Self> {
         Err(anyhow!("first groups unimplemented"))
     }
 }
@@ -216,7 +216,7 @@ pub trait VecUnaryCmpAggregate: Sized {
         Err(anyhow!("min unimplemented"))
     }
 
-    fn min_groups(&self, groups: &GroupRanges) -> Result<Self> {
+    fn min_groups(&self, _groups: &GroupRanges) -> Result<Self> {
         Err(anyhow!("min groups unimplemented"))
     }
 
@@ -224,7 +224,7 @@ pub trait VecUnaryCmpAggregate: Sized {
         Err(anyhow!("max unimplemented"))
     }
 
-    fn max_groups(&self, groups: &GroupRanges) -> Result<Self> {
+    fn max_groups(&self, _groups: &GroupRanges) -> Result<Self> {
         Err(anyhow!("max groups unimplemented"))
     }
 }
@@ -358,7 +358,7 @@ pub trait VecNumericAggregate {
         Err(anyhow!("sum unimplemented"))
     }
 
-    fn sum_groups(&self, groups: &GroupRanges) -> Result<Self::Output> {
+    fn sum_groups(&self, _groups: &GroupRanges) -> Result<Self::Output> {
         Err(anyhow!("sum groups unimplemented"))
     }
 
@@ -366,7 +366,7 @@ pub trait VecNumericAggregate {
         Err(anyhow!("avg unimplemented"))
     }
 
-    fn avg_groups(&self, groups: &GroupRanges) -> Result<Self::Output> {
+    fn avg_groups(&self, _groups: &GroupRanges) -> Result<Self::Output> {
         Err(anyhow!("avg groups unimplemented"))
     }
 }

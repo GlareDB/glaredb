@@ -1,9 +1,9 @@
 use super::ScalarExpr;
 use crate::repr::compute::*;
-use crate::repr::df::{DataFrame, Schema};
+
 use crate::repr::sort::GroupRanges;
-use crate::repr::value::{Row, Value, ValueType, ValueVec};
-use anyhow::{anyhow, Result};
+use crate::repr::value::{Row, ValueVec};
+use anyhow::{Result};
 use serde::{Deserialize, Serialize};
 
 pub type RelationKey = String;

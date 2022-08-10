@@ -1,11 +1,11 @@
 use super::*;
-use crate::repr::compute::VecUnaryAggregate;
-use crate::repr::expr::{AggregateExpr, AggregateFunc, AggregateOperation};
-use crate::repr::sort::{GroupRanges, SortPermutation};
+
+use crate::repr::expr::{AggregateExpr};
+use crate::repr::sort::{GroupRanges};
 use crate::repr::value::ValueVec;
 use anyhow::{anyhow, Result};
-use std::fmt;
-use std::pin::Pin;
+
+
 use std::sync::Arc;
 
 // TODO: Use this.
@@ -114,8 +114,10 @@ impl SortedGroupByDataFrame {
 
 #[cfg(test)]
 mod tests {
+    use crate::repr::expr::AggregateOperation;
+
     use super::*;
-    use crate::repr::compute::{VecCountAggregate, VecNumericAggregate};
+    
 
     #[test]
     fn no_group() {

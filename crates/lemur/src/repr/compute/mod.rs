@@ -1,11 +1,10 @@
 //! General compute operations on vectors.
 use crate::repr::ordfloat::{OrdF32, OrdF64};
-use crate::repr::value::ValueVec;
+
 use crate::repr::vec::{
-    BinaryVec, BoolVec, FixedLengthType, FixedLengthVec, Int32Vec, NativeType, Utf8Vec,
-    VarLengthType, VarLengthVec,
+    FixedLengthType, FixedLengthVec, NativeType, Utf8Vec,
 };
-use anyhow::{anyhow, Result};
+
 use bitvec::vec::BitVec;
 use std::ops::{Add, Div, Mul, Sub};
 

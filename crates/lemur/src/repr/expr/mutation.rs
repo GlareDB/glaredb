@@ -1,6 +1,6 @@
 use super::{RelationExpr, RelationKey};
 use crate::repr::df::Schema;
-use anyhow::{anyhow, Result};
+
 use serde::{Deserialize, Serialize};
 
 /// Expressions that mutate underlying relations.
