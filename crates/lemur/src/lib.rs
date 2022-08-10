@@ -33,5 +33,6 @@
 //! producing a stream of dataframes to operate on.
 //!
 //! Execution is completed when the top-level dataframe stream completes.
+#![allow(dead_code)]
 pub mod execute;
 pub mod repr;

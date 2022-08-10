@@ -33,6 +33,7 @@
 //! hasn't started a transaction, a non-interactive transaction will be created
 //! and used. If the user has started a transaction, that transaction will be
 //! used until the user commits or rolls back the transaction.
+#![allow(dead_code)]
 pub mod catalog;
 pub mod engine;
 pub mod plan;
