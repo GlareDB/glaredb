@@ -1,4 +1,3 @@
-#![feature(backtrace)]
 use super::expr::PlanExpr;
 use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
 use crate::plan::read::*;
