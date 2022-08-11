@@ -1,7 +1,7 @@
 use crate::execute::stream::source::{DataFrameStream, MemoryStream, ReadExecutor, ReadTx};
 use crate::repr::df::DataFrame;
 use crate::repr::expr::{
-    Aggregate, CrossJoin, Filter, OrderByGroupBy, Project, RelationExpr, Source, Values,
+    Aggregate, CrossJoin, Filter, OrderByGroupBy, Project, RelationExpr, Source, Values, NestedLoopJoin,
 };
 
 use anyhow::{anyhow, Result};
@@ -23,6 +23,7 @@ impl<R: ReadTx> ReadExecutor<R> for RelationExpr {
             RelationExpr::Aggregate(n) => n.execute_read(source).await,
             RelationExpr::OrderByGroupBy(n) => n.execute_read(source).await,
             RelationExpr::CrossJoin(n) => n.execute_read(source).await,
+            RelationExpr::NestedLoopJoin(n) => n.execute_read(source).await,
             RelationExpr::Filter(n) => n.execute_read(source).await,
             RelationExpr::Values(n) => n.execute_read(source).await,
             RelationExpr::Source(n) => n.execute_read(source).await,
@@ -43,6 +44,20 @@ macro_rules! match_send_err {
                 if let Err(e) = $tx.send(Err(e)).await {
                     error!("failed to send error to channel, original error: {:?}", e);
                 }
+                return;
+            }
+        }
+    };
+}
+
+/// Utility macro for returning an error when a result fails to be sent through
+/// a channel.
+macro_rules! match_send_ok {
+    ($item:ident, $tx:ident, $error_message:expr) => {
+        match $tx.send(Ok($item)).await {
+            Ok(_) => (),
+            Err(_) => {
+                error!($error_message);
                 return;
             }
         }
@@ -175,6 +190,42 @@ impl<R: ReadTx> ReadExecutor<R> for CrossJoin {
 
                 // Left and right streams exhausted, we're done.
                 return;
+            }
+        });
+
+        Ok(Box::pin(ReceiverStream::new(rx)))
+    }
+}
+
+#[async_trait]
+impl<R: ReadTx> ReadExecutor<R> for NestedLoopJoin {
+    async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
+        println!("NestedLoopJoin {:?}", self);
+        let (mut left, mut right) = futures::try_join!(
+            self.left.execute_read(source),
+            self.right.execute_read(source)
+        )?;
+        let (tx, rx) = mpsc::channel(STREAM_BUFFER);
+        tokio::spawn(async move {
+            // TODO: Allow spilling to disk.
+            let mut lefts: Vec<DataFrame> = Vec::new();
+            let mut rights: Vec<DataFrame> = Vec::new();
+
+            // TODO: Run awaiting for left and right dataframes in parallel..
+            while let Some(left_df) = left.next().await {
+                let left_df = match_send_err!(left_df, tx);
+                while let Some(right_df) = right.next().await {
+                    let right_df = match_send_err!(right_df, tx);
+
+                    let joined = match_send_err!(
+                        left_df.clone().nested_loop_join(right_df.clone(), &self.predicate),
+                        tx
+                    );
+                    match_send_ok!(joined, tx, "failed to send result of nested loop join");
+
+                    rights.push(right_df);
+                }
+                lefts.push(left_df);
             }
         });
 

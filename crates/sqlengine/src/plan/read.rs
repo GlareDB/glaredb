@@ -172,12 +172,10 @@ impl ReadPlan {
                 on,
             }) => {
                 // TODO: Proper join.
-                RelationExpr::Filter(expr::Filter {
+                RelationExpr::NestedLoopJoin(expr::NestedLoopJoin {
+                    left: Box::new(left.lower()?),
+                    right: Box::new(right.lower()?),
                     predicate: on,
-                    input: Box::new(RelationExpr::CrossJoin(expr::CrossJoin {
-                        left: Box::new(left.lower()?),
-                        right: Box::new(right.lower()?),
-                    })),
                 })
             }
         })

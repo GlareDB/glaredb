@@ -288,6 +288,15 @@ mod tests {
                     vec![Value::Int8(Some(2)), Value::Int8(Some(4))],
                 ],
             ),
+            (
+                "select * from (values (1), (2)) join (values (3), (4)) on 1=1",
+                vec![
+                    vec![Value::Int8(Some(1)), Value::Int8(Some(3))],
+                    vec![Value::Int8(Some(1)), Value::Int8(Some(4))],
+                    vec![Value::Int8(Some(2)), Value::Int8(Some(3))],
+                    vec![Value::Int8(Some(2)), Value::Int8(Some(4))],
+                ],
+            ),
         ];
 
         for test in tests.into_iter() {

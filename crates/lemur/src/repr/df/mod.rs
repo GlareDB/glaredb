@@ -249,6 +249,20 @@ impl DataFrame {
         Ok(self)
     }
 
+    pub fn hstack_pred(mut self, other: &Self, pred: &ScalarExpr) -> Result<Self> {
+        if self.num_rows() != other.num_rows() {
+            return Err(anyhow!("invalid number of rows for hstack"));
+        }
+
+        self.columns
+            .extend(other.columns.iter().filter_map(|col| {
+                // TODO: Check pred here
+                Some(col.clone())
+            }));
+
+        Ok(self)
+    }
+
     /// Push a row onto this dataframe.
     pub fn push_row(&mut self, row: Row) -> Result<()> {
         if self.arity() != row.arity() {
@@ -303,6 +317,17 @@ impl DataFrame {
         let right = other.vertical_repeat(right_repeat);
 
         Ok(left.hstack(&right)?)
+    }
+
+    /// Nested loop join two dataframes
+    pub fn nested_loop_join(self, other: Self, predicate: &ScalarExpr) -> Result<Self> {
+        let left_repeat = other.num_rows();
+        let right_repeat = self.num_rows();
+
+        let left = self.repeat_each_row(left_repeat);
+        let right = other.vertical_repeat(right_repeat);
+
+        Ok(left.hstack_pred(&right, predicate)?)
     }
 
     /// Order by and group by the provided columns.
