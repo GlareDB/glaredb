@@ -4,7 +4,7 @@ use super::{
 };
 use crate::repr::sort::GroupRanges;
 use crate::repr::value::ValueVec;
-use crate::repr::vec::{BoolVec, FixedLengthType, FixedLengthVec, Int32Vec, Utf8Vec};
+use crate::repr::vec::{BoolVec, FixedLengthType, FixedLengthVec, Int32Vec, Utf8Vec, BinaryVec};
 use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
 
@@ -114,6 +114,53 @@ where
     output
 }
 
+/// Similar to `agg_fixedlen_init_first`, but with a binary vector.
+fn agg_binary_init_first<F1, F2>(vec: &BinaryVec, init: F1, reduce: F2) -> BinaryVec
+where
+    F1: Fn(&[u8]) -> Vec<u8>,
+    F2: Fn(Vec<u8>, &[u8]) -> Vec<u8>,
+{
+    // TODO: Possibly COW
+    let mut acc = None;
+    for val in vec.iter() {
+        if let Some(val) = val {
+            match acc {
+                Some(inner) => acc = Some(reduce(inner, val)),
+                None => acc = Some(init(val)),
+            }
+        }
+    }
+    BinaryVec::one(acc.as_deref())
+}
+
+fn agg_binary_init_first_groups<F1, F2>(
+    vec: &BinaryVec,
+    groups: &GroupRanges,
+    init: F1,
+    reduce: F2,
+) -> BinaryVec
+where
+    F1: Fn(&[u8]) -> Vec<u8>,
+    F2: Fn(Vec<u8>, &[u8]) -> Vec<u8>,
+{
+    let mut output = BinaryVec::with_capacity(groups.num_groups());
+    for range in groups.iter_ranges() {
+        let mut acc = None;
+        let len = range.end - range.start;
+        let iter = vec.iter().skip(range.start).take(len);
+        for val in iter {
+            if let Some(val) = val {
+                match acc {
+                    Some(inner) => acc = Some(reduce(inner, val)),
+                    None => acc = Some(init(val)),
+                }
+            }
+        }
+        output.push(acc.as_deref())
+    }
+    output
+}
+
 pub trait VecCountAggregate {
     type Output;
 
@@ -196,6 +243,17 @@ impl VecUnaryAggregate for Utf8Vec {
             self,
             groups,
             |v| v.to_string(),
+            |acc, _| acc,
+        ))
+    }
+}
+
+impl VecUnaryAggregate for BinaryVec {
+    fn first_groups(&self, groups: &GroupRanges) -> Result<Self> {
+        Ok(agg_binary_init_first_groups(
+            self,
+            groups,
+            |v| v.to_vec(),
             |acc, _| acc,
         ))
     }
@@ -325,6 +383,46 @@ impl VecUnaryCmpAggregate for Utf8Vec {
     }
 }
 
+impl VecUnaryCmpAggregate for BinaryVec {
+    fn min(&self) -> Result<Self> {
+        Ok(agg_binary_init_first(
+            self,
+            |s| s.to_vec(),
+            |acc, v| {
+                if acc < v.to_owned() {
+                    acc
+                } else {
+                    v.to_owned() // TODO: Be efficient.
+                }
+            },
+        ))
+    }
+
+    fn min_groups(&self, groups: &GroupRanges) -> Result<Self> {
+        Ok(agg_binary_init_first_groups(
+            self,
+            groups,
+            |v| v.to_vec(),
+            |acc, v| if acc < v.to_owned() { acc } else { v.to_vec() },
+        ))
+    }
+    fn max(&self) -> Result<Self> {
+        Ok(agg_binary_init_first(
+            self,
+            |v| v.to_vec(),
+            |acc, v| if acc > v.to_owned() { acc } else { v.to_vec() },
+        ))
+    }
+    fn max_groups(&self, groups: &GroupRanges) -> Result<Self> {
+        Ok(agg_binary_init_first_groups(
+            self,
+            groups,
+            |v| v.to_vec(),
+            |acc, v| if acc > v.to_owned() { acc } else { v.to_vec() },
+        ))
+    }
+}
+
 impl VecUnaryCmpAggregate for ValueVec {
     fn min(&self) -> Result<Self> {
         Ok(value_vec_dispatch_unary!(self, VecUnaryCmpAggregate::min))
@@ -396,6 +494,9 @@ impl VecNumericAggregate for BoolVec {
     type Output = Self;
 }
 impl VecNumericAggregate for Utf8Vec {
+    type Output = Self;
+}
+impl VecNumericAggregate for BinaryVec {
     type Output = Self;
 }
 

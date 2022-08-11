@@ -459,11 +459,96 @@ impl<'a> Iterator for Utf8Iter<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BinaryVec(VarLengthVec);
 
 impl BinaryVec {
     // TODO: Implement
+    pub fn empty() -> Self {
+        Self(VarLengthVec::empty())
+    }
+
+    pub fn with_capacity(cap: usize) -> Self {
+        Self(VarLengthVec::with_capacity(cap))
+    }
+
+    pub fn one(val: Option<&[u8]>) -> Self {
+        Self(VarLengthVec::one(val))
+    }
+
+    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a [u8]>>) -> Self {
+        Self(VarLengthVec::from_iter(iter))
+    }
+
+    pub fn push(&mut self, val: Option<&[u8]>) {
+        self.0.push(val)
+    }
+
+    pub fn get_validity(&self) -> &BitVec {
+        self.0.get_validity()
+    }
+
+    pub fn group_ranges_at(&self, range: &Range<usize>) -> GroupRanges {
+        self.0.group_ranges_at(range)
+    }
+
+    pub fn apply_permutation_at(&mut self, range: &Range<usize>, perm: &SortPermutation) {
+        self.0.apply_permutation_at(range, perm)
+    }
+
+    pub fn sort_each_group(&mut self, groups: &GroupRanges) -> Vec<SortPermutation> {
+        self.0.sort_each_group(groups)
+    }
+
+    pub fn append(&mut self, other: Self) {
+        self.0.append(other.0)
+    }
+
+    pub fn resize_null(&mut self, len: usize) {
+        self.0.resize_null(len)
+    }
+
+    pub fn broadcast_single(&mut self, len: usize) -> Result<()> {
+        self.0.broadcast_single(len)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn get_value(&self, idx: usize) -> Option<&[u8]> {
+        self.0.get_value(idx)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Option<&[u8]>> {
+        zip_with_validity(self.iter_values(), &self.0.validity)
+    }
+
+    pub fn iter_values(&self) -> BinaryIter<'_> {
+        BinaryIter {
+            vec: &self.0,
+            idx: 0,
+        }
+    }
+
+    pub fn iter_validity(&self) -> impl Iterator<Item = bool> + '_ {
+        self.0.iter_validity()
+    }
+}
+
+pub struct BinaryIter<'a> {
+    vec: &'a VarLengthVec,
+    idx: usize,
+}
+
+impl<'a> Iterator for BinaryIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.vec.get_value(self.idx)?;
+        self.idx += 1;
+        Some(item)
+    }
 }
 
 pub type BoolVec = FixedLengthVec<bool>; // TODO: Change to bitvec.
