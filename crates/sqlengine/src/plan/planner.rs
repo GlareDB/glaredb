@@ -556,7 +556,7 @@ fn column_def_to_column(col: ast::ColumnDef) -> Result<Column> {
 
 #[derive(Clone, Debug)]
 struct Scope {
-    ///. If true, the scope is constant and cannot contain any variables.
+    /// If true, the scope is constant and cannot contain any variables.
     constant: bool,
     /// Currently visible tables, by query name (i.e. alias or actual name).
     tables: HashMap<String, TableSchema>,
@@ -566,7 +566,7 @@ struct Scope {
     qualified: HashMap<(String, String), usize>,
     /// Unqualified names to column indexes, if unique.
     unqualified: HashMap<String, usize>,
-    /// Unqialified ambiguous names.
+    /// Unqualified ambiguous names.
     ambiguous: HashSet<String>,
 }
 

@@ -3,9 +3,11 @@
 //! A query plan _must_ be valid even before rewriting. Rewriting should only
 //! enable additional optimizations.
 use super::read::*;
-use anyhow::{Result};
+use anyhow::Result;
 use lemur::repr::expr::ScalarExpr;
 
+/// A filter pushdown rewrite rule for attempting push down predicates in a
+/// `Filter` node down to a `ScanSource`.
 #[derive(Debug)]
 pub struct FilterPushdown;
 

@@ -387,6 +387,8 @@ impl OwnedDataFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repr::expr::BinaryOperation;
+    use crate::repr::value::Value;
 
     fn df(cols: impl IntoIterator<Item = ValueVec>) -> DataFrame {
         DataFrame::from_columns(cols).unwrap()
@@ -427,6 +429,26 @@ mod tests {
             ValueVec::utf8s(&["four", "five", "four", "five", "four", "five"]),
         ])
         .unwrap();
+
+        assert_eq!(expected, out);
+    }
+
+    #[test]
+    fn filter_expr() {
+        let d = df([
+            ValueVec::int8s(&[1, 2, 3]),
+            ValueVec::utf8s(&["one", "two", "three"]),
+        ]);
+
+        let out = d
+            .filter_expr(&ScalarExpr::Binary {
+                op: BinaryOperation::GtEq,
+                left: ScalarExpr::Column(0).boxed(),
+                right: ScalarExpr::Constant(Value::Int8(Some(2))).boxed(),
+            })
+            .unwrap();
+
+        let expected = df([ValueVec::int8s(&[2, 3]), ValueVec::utf8s(&["two", "three"])]);
 
         assert_eq!(expected, out);
     }
