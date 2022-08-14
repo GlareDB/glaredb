@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Result};
 use crate::repr::{InternalValue, Key, PrimaryKey, PrimaryKeyIndices, TableId};
+use anyhow::{anyhow, Result};
 use lemur::repr::value::Row;
 use parking_lot::{Mutex, RwLock};
 use rocksdb::{Options, DB};
@@ -17,16 +17,16 @@ pub struct StorageConfig {
 }
 
 /// A storage implementation backed by RocksDB.
-#[derive(Debug)]
-pub struct RocksDb {
+#[derive(Debug, Clone)]
+pub struct RocksStore {
     inner: Arc<InnerDb>,
 }
 
-impl RocksDb {
-    pub fn open(conf: StorageConfig) -> Result<RocksDb> {
+impl RocksStore {
+    pub fn open(conf: StorageConfig) -> Result<RocksStore> {
         let path = Path::new(&conf.data_dir).join(DB_FILENAME);
         let db = DB::open_default(path)?;
-        Ok(RocksDb {
+        Ok(RocksStore {
             inner: Arc::new(InnerDb {
                 conf,
                 db,
