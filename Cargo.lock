@@ -1143,6 +1143,7 @@ dependencies = [
  "parking_lot",
  "rocksdb",
  "serde",
+ "thiserror",
  "tokio",
  "tokio-serde",
  "tokio-util",

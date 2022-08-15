@@ -1,5 +1,5 @@
-use openraft::{RaftTypeConfig}
-use serde::{Serialize, Deserialize};
+use openraft::RaftTypeConfig;
+use serde::{Deserialize, Serialize};
 
 pub mod network;
 pub mod node;
