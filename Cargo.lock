@@ -740,6 +740,7 @@ dependencies = [
  "futures",
  "maplit",
  "rand",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
