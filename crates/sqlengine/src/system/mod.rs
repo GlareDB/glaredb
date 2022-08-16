@@ -12,12 +12,18 @@ pub fn system_tables() -> Vec<Box<dyn SystemTable>> {
 
 pub trait SystemTable {
     fn name(&self) -> &'static str;
-    fn catalog(&self) -> &'static str;
-    fn schema(&self) -> &'static str;
 
     fn generate_columns(&self) -> Vec<Column>;
 
     fn generate_table_schema(&self) -> TableSchema;
+
+    fn catalog(&self) -> &'static str {
+        constants::SYSTEM_DATABASE
+    }
+
+    fn schema(&self) -> &'static str {
+        constants::SYSTEM_SCHEMA
+    }
 
     fn generate_table_reference(&self) -> TableReference {
         TableReference {
@@ -33,14 +39,6 @@ pub struct ColumnsTable;
 impl SystemTable for ColumnsTable {
     fn name(&self) -> &'static str {
         constants::COLUMNS
-    }
-
-    fn catalog(&self) -> &'static str {
-        constants::SYSTEM_DATABASE
-    }
-
-    fn schema(&self) -> &'static str {
-        constants::SYSTEM_SCHEMA
     }
 
     fn generate_columns(&self) -> Vec<Column> {
