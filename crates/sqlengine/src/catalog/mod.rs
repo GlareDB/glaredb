@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub mod system;
+pub mod dummy;
 
 pub trait CatalogReader: Sync + Send {
     /// Get a table by a reference, returning `None` if no table exists (or
