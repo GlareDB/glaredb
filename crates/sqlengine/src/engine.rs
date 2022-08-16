@@ -390,4 +390,68 @@ mod tests {
             assert_dfs_visually_eq(&expected, got);
         }
     }
+
+    async fn prepare_session<S: DataSource>(source: S) -> Session<S> {
+        let mut engine = Engine::new(source);
+        engine.ensure_system_tables().await.unwrap();
+        let session = engine.begin_session().unwrap();
+        session
+    }
+
+    #[tokio::test]
+    async fn create_table() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+
+        let query = "create table foo (a int, b int)";
+        let create_table = session.execute_query(query).await.unwrap();
+
+        let query = "create table bar (a int, b int)";
+        let create_table = session.execute_query(query).await.unwrap();
+        println!("session: {:?}", session);
+        let record_a = session.execute_query("insert into foo values (10000001, 10000002)").await.unwrap();
+        let record_b = session.execute_query("insert into bar values (10000003, 10000002)").await.unwrap();
+        let select = session.execute_query("select * from foo").await.unwrap();
+        println!("select: {:?}", select);
+        let select = session.execute_query("select * from bar join foo on foo.b = bar.b").await.unwrap();
+        println!("select: {:?}", select);
+
+    }
+
+    #[tokio::test]
+    async fn insert_into_table() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+
+        session.execute_query("create table foo (a int, b int)").await.unwrap();
+        session.execute_query("insert into foo values (10000001, 10000002)").await.unwrap();
+        let results = session.execute_query("select * from foo").await.unwrap();
+
+        let expected = DataFrame::from_row(vec![
+            Value::Int32(Some(10000001)),
+            Value::Int32(Some(10000002)),
+        ]).unwrap();
+        let got = unwrap_df(results.get(0).unwrap());
+        assert_dfs_visually_eq(&expected, got);
+    }
+
+    #[tokio::test]
+    async fn join_tables() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+
+        session.execute_query("create table foo (a int, b int)").await.unwrap();
+        session.execute_query("insert into foo values (10000001, 10000002)").await.unwrap();
+        session.execute_query("create table bar (a int, b int)").await.unwrap();
+        session.execute_query("insert into bar values (10000003, 10000002)").await.unwrap();
+        let results = session.execute_query("select * from foo join bar on foo.b = bar.b").await.unwrap();
+
+        let expected = DataFrame::from_rows(vec![
+            Row::from(vec![
+                Value::Int32(Some(10000001)),
+                Value::Int32(Some(10000002)),
+                Value::Int32(Some(10000003)),
+                Value::Int32(Some(10000002)),
+            ]),
+        ]).unwrap();
+        let got = unwrap_df(results.get(0).unwrap());
+        assert_dfs_visually_eq(&expected, got);
+    }
 }
