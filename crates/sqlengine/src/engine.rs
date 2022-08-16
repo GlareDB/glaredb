@@ -152,6 +152,7 @@ impl<S: DataSource> Session<S> {
                 let explained: ExplainRelationExpr = match plan {
                     QueryPlan::Read(plan) => plan.lower()?.into(),
                     QueryPlan::Write(plan) => plan.lower()?.into(),
+                    QueryPlan::DataDefinition(_) => todo!(),
                 };
                 Ok(ExecutionResult::Explain(explained))
             }
@@ -169,6 +170,22 @@ impl<S: DataSource> Session<S> {
                         match lowered.execute_write(tx.as_ref()).await? {
                             Some(stream) => stream,
                             None => return Ok(ExecutionResult::WriteSuccess),
+                        }
+                    }
+                    QueryPlan::DataDefinition(plan) => {
+                        match plan {
+                            DataDefinitionPlan::CreateTable(plan) => {
+                                let source = tx.as_ref();
+                                let schema: TableSchema = plan.into();
+                                // TODO: Make use of different catalog/schema
+                                let table_ref = TableReference { 
+                                    catalog: ColumnsTable.catalog().to_string(),
+                                    schema: ColumnsTable.schema().to_string(),
+                                    table: schema.name.clone(),
+                                };
+                                source.add_table(&table_ref, schema)?;
+                                return Ok(ExecutionResult::WriteSuccess);
+                            }
                         }
                     }
                 };

@@ -1,5 +1,5 @@
 use anyhow::{Result};
-use lemur::repr::df::Schema;
+use lemur::repr::{df::Schema, expr::RelationKey};
 use lemur::repr::value::ValueType;
 use serde::{Deserialize, Serialize};
 use std::fmt;

@@ -1,3 +1,4 @@
+use super::data_definition::{DataDefinitionPlan, CreateTable};
 use super::expr::PlanExpr;
 use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
 use crate::plan::read::*;
@@ -27,14 +28,14 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
             }
             stmt @ ast::Statement::Insert { .. } => QueryPlan::Write(self.plan_insert(stmt)?),
             stmt @ ast::Statement::CreateTable { .. } => {
-                QueryPlan::Write(self.plan_create_table(stmt)?)
+                QueryPlan::DataDefinition(self.plan_create_table(stmt)?)
             }
             other => return Err(anyhow!("unsupported statement: {}", other)),
         })
     }
 
     /// Plan a create table statement.
-    pub fn plan_create_table(&self, create: ast::Statement) -> Result<WritePlan> {
+    pub fn plan_create_table(&self, create: ast::Statement) -> Result<DataDefinitionPlan> {
         match create {
             ast::Statement::CreateTable {
                 mut name, columns, ..
@@ -54,7 +55,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     columns,
                     pk_idxs: Vec::new(),
                 };
-                Ok(WritePlan::CreateTable(CreateTable { schema }))
+                Ok(DataDefinitionPlan::CreateTable(CreateTable { schema }))
             }
             _ => Err(anyhow!("invalid create table statement")),
         }
