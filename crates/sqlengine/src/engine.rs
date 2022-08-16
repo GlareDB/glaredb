@@ -1,12 +1,15 @@
-use crate::catalog::{CatalogReader, TableReference, TableSchema};
+use crate::catalog::{CatalogReader, TableReference, TableSchema, CatalogWriter};
 use crate::plan::QueryPlan;
+use crate::plan::data_definition::DataDefinitionPlan;
+use crate::system::{system_tables, ColumnsTable, SystemTable};
 use anyhow::{anyhow, Result};
-use futures::{StreamExt};
+use futures::{StreamExt, executor};
 use lemur::execute::stream::source::{
     DataSource, ReadExecutor, ReadTx, TxInteractivity, WriteExecutor, WriteTx,
 };
 use lemur::repr::df::DataFrame;
-use lemur::repr::expr::ExplainRelationExpr;
+use lemur::repr::expr::{ExplainRelationExpr, ScalarExpr, RelationKey};
+use lemur::repr::value::{Value, ValueVec};
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 use sqlparser::dialect::PostgreSqlDialect;
@@ -226,41 +229,100 @@ impl<S: DataSource> Session<S> {
     }
 }
 
-impl<S: DataSource> fmt::Debug for Session<S> {
+impl<S: DataSource + std::fmt::Debug> fmt::Debug for Session<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: Put more debug info in sessions. Mostly implementing this for
         // tracing instrumentation.
-        write!(
+        writeln!(
             f,
-            "session: {}",
+            "session: {}\n\tsource: {:?}
+            ",
             match &self.tx {
                 Some(_) => "(interactive)",
                 None => "(none)",
-            }
+            },
+            self.source,
         )
     }
 }
 
 impl<T: ReadTx> CatalogReader for T {
-    fn get_table(&self, _reference: &TableReference) -> Result<Option<TableSchema>> {
-        todo!()
+    fn get_table(&self, reference: &TableReference) -> Result<Option<TableSchema>> {
+        executor::block_on(async move {
+            let table = self.scan_values_equal(
+                &ColumnsTable.generate_table_reference().into(),
+                &vec![(0, Value::Utf8(Some(reference.to_string())))],
+            ).await?;
+            match table {
+                Some(mut stream) => {
+                    while let Some(stream_result) = stream.next().await {
+                        let df = stream_result?;
+                        let schema = df.get_column_ref(1).ok_or_else(|| {
+                            anyhow!("table schema not found")
+                        })?;
+                        match schema.as_ref() {
+                            &ValueVec::Binary(ref binary_vec) => {
+                                let bytes = binary_vec.as_ref();
+                                let decoded: TableSchema = bincode::deserialize(&bytes[..])?;
+                                return Ok(Some(decoded));
+                            }
+                            _ => {
+                                return Err(anyhow!("table schema not found"));
+                            }
+                        }
+                    }
+                    Ok(None)
+                }
+                None => {
+                    Ok(None)
+                }
+            }
+        })
     }
 
     fn get_table_by_name(
         &self,
-        _catalog: &str,
-        _schema: &str,
-        _name: &str,
+        catalog: &str,
+        schema: &str,
+        name: &str,
     ) -> Result<Option<(TableReference, TableSchema)>> {
-        todo!()
+        let table_ref = TableReference {
+            catalog: catalog.to_string(),
+            schema: schema.to_string(),
+            table: name.to_string(),
+        };
+        let table = self.get_table(&table_ref)?;
+        Ok(table.map(|table| (table_ref, table)))
     }
 
     fn current_catalog(&self) -> &str {
-        todo!()
+        ColumnsTable.catalog()
     }
 
     fn current_schema(&self) -> &str {
-        todo!()
+        ColumnsTable.schema()
+    }
+}
+
+impl<T: WriteTx> CatalogWriter for T {
+    fn add_table(&self, reference: &TableReference, schema: TableSchema) -> Result<()> {
+        executor::block_on(async {
+            let key: RelationKey = reference.into();
+
+            // construct a dataframe with the data as a row
+            let df = DataFrame::from_row(vec![
+                Value::Utf8(Some(key.clone())),
+                Value::Binary(Some(bincode::serialize(&schema)?)),
+            ])?;
+            // store the table in the columns table
+            let columns_key: RelationKey = ColumnsTable.generate_table_reference().into();
+            self.insert(&columns_key, df).await?;
+
+            // allocate the table in the source
+            self.create_table(key, schema.into()).await?;
+
+            Ok(())
+        })
     }
 }
 
