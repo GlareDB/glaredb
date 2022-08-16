@@ -161,7 +161,13 @@ pub struct MemoryDataSource {
 
 impl MemoryDataSource {
     pub fn new() -> MemoryDataSource {
-        MemoryDataSource {
+        Default::default()
+    }
+}
+
+impl Default for MemoryDataSource {
+    fn default() -> Self {
+        Self {
             tables: Arc::new(RwLock::new(HashMap::new())),
         }
     }
