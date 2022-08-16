@@ -44,6 +44,12 @@ impl TableSchema {
     }
 }
 
+impl From<TableSchema> for Schema {
+    fn from(ts: TableSchema) -> Self {
+        ts.to_schema()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Column {
     pub name: String,
@@ -64,5 +70,17 @@ pub struct TableReference {
 impl fmt::Display for TableReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.catalog, self.schema, self.table)
+    }
+}
+
+impl From<TableReference> for RelationKey {
+    fn from(tr: TableReference) -> Self {
+        format!("{}", tr)
+    }
+}
+
+impl From<&TableReference> for RelationKey {
+    fn from(tr: &TableReference) -> Self {
+        format!("{}", &tr)
     }
 }

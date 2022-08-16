@@ -368,6 +368,13 @@ impl VarLengthVec {
     }
 }
 
+impl std::ops::Deref for VarLengthVec {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Utf8Vec(VarLengthVec);
 
@@ -533,6 +540,13 @@ impl BinaryVec {
 
     pub fn iter_validity(&self) -> impl Iterator<Item = bool> + '_ {
         self.0.iter_validity()
+    }
+}
+
+impl std::ops::Deref for BinaryVec {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
     }
 }
 
