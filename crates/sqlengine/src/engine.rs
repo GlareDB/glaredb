@@ -229,19 +229,17 @@ impl<S: DataSource> Session<S> {
     }
 }
 
-impl<S: DataSource + std::fmt::Debug> fmt::Debug for Session<S> {
+impl<S: DataSource> fmt::Debug for Session<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: Put more debug info in sessions. Mostly implementing this for
         // tracing instrumentation.
-        writeln!(
+        write!(
             f,
-            "session: {}\n\tsource: {:?}
-            ",
+            "session: {}",
             match &self.tx {
                 Some(_) => "(interactive)",
                 None => "(none)",
             },
-            self.source,
         )
     }
 }
