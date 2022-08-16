@@ -40,14 +40,15 @@ impl SortedGroupByDataFrame {
         let mut columns = df.columns;
 
         for &grouping_idx in grouping_idxs.iter() {
-            let col = columns
-                .get_mut(grouping_idx)
-                .ok_or(anyhow!("missing column for grouping"))?;
+            let perms = {
+                let col = columns
+                    .get_mut(grouping_idx)
+                    .ok_or(anyhow!("missing column for grouping"))?;
 
-            // Sort the column according to any previously defined groups.
-            // TODO: Check if sorted before making mut.
-            let perms = (*Arc::make_mut(col)).sort_each_group(&curr_groups);
-            std::mem::drop(col);
+                // Sort the column according to any previously defined groups.
+                // TODO: Check if sorted before making mut.
+                (*Arc::make_mut(col)).sort_each_group(&curr_groups)
+            };
 
             // Apply the permutations resulting from the sort to the current
             // groups.
