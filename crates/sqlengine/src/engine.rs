@@ -33,6 +33,20 @@ impl<S: DataSource> Engine<S> {
             tx: None,
         })
     }
+
+    pub async fn ensure_system_tables(&mut self) -> Result<()> {
+        let tx = self.source.begin(TxInteractivity::NonInteractive).await?;
+        for table in system_tables().into_iter() {
+            let table_ref = table.generate_table_reference();
+            let schema = tx.get_table(&table_ref)?;
+            if schema.is_none() {
+                let schema = table.generate_table_schema();
+                tx.create_table(table_ref.into(), schema.into()).await?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
