@@ -249,7 +249,7 @@ impl<T: ReadTx> CatalogReader for T {
         executor::block_on(async move {
             let table = self.scan_values_equal(
                 &ColumnsTable.generate_table_reference().into(),
-                &vec![(0, Value::Utf8(Some(reference.to_string())))],
+                &[(0, Value::Utf8(Some(reference.to_string())))],
             ).await?;
             match table {
                 Some(mut stream) => {
@@ -263,7 +263,7 @@ impl<T: ReadTx> CatalogReader for T {
                                 let bytes = binary_vec.get_value(0).ok_or_else(|| {
                                     anyhow!("table schema not found")
                                 })?;
-                                let decoded: TableSchema = bincode::deserialize(&bytes[..])?;
+                                let decoded: TableSchema = bincode::deserialize(bytes)?;
                                 return Ok(Some(decoded));
                             }
                             _ => {
