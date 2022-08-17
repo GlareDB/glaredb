@@ -53,7 +53,7 @@ impl BytesRef for [u8] {
 }
 
 /// A vector holding fixed length values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FixedLengthVec<T> {
     validity: BitVec,
     values: Vec<T>,
@@ -203,7 +203,7 @@ impl<'a, T: FixedLengthType> FromIterator<Option<&'a T>> for FixedLengthVec<T> {
 }
 
 /// Vector type for storing variable length values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VarLengthVec {
     validity: BitVec,
     offsets: Vec<usize>,
@@ -370,7 +370,7 @@ impl VarLengthVec {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Utf8Vec(VarLengthVec);
 
 impl Utf8Vec {

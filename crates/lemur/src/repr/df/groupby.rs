@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use std::sync::Arc;
 
 // TODO: Use this.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SortOrder {
     Asc,
     Desc,

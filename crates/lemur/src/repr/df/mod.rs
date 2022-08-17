@@ -11,7 +11,7 @@ use crate::repr::vec::BoolVec;
 pub mod groupby;
 pub use groupby::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Schema {
     pub types: Vec<ValueType>,
 }
