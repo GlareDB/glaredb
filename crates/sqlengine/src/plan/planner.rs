@@ -1,3 +1,4 @@
+use super::data_definition::{DataDefinitionPlan, CreateTable};
 use super::expr::PlanExpr;
 use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
 use crate::plan::read::*;
@@ -28,14 +29,14 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
             }
             stmt @ ast::Statement::Insert { .. } => QueryPlan::Write(self.plan_insert(stmt)?),
             stmt @ ast::Statement::CreateTable { .. } => {
-                QueryPlan::Write(self.plan_create_table(stmt)?)
+                QueryPlan::DataDefinition(self.plan_create_table(stmt)?)
             }
             other => return Err(anyhow!("unsupported statement: {}", other)),
         })
     }
 
     /// Plan a create table statement.
-    pub fn plan_create_table(&self, create: ast::Statement) -> Result<WritePlan> {
+    pub fn plan_create_table(&self, create: ast::Statement) -> Result<DataDefinitionPlan> {
         match create {
             ast::Statement::CreateTable {
                 mut name, columns, ..
@@ -55,7 +56,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     columns,
                     pk_idxs: Vec::new(),
                 };
-                Ok(WritePlan::CreateTable(CreateTable { schema }))
+                Ok(DataDefinitionPlan::CreateTable(CreateTable { schema }))
             }
             _ => Err(anyhow!("invalid create table statement")),
         }
@@ -664,7 +665,7 @@ impl Scope {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::Column;
+    use crate::catalog::{Column, dummy::DummyCatalog};
     use lemur::repr::value::ValueType;
     use parking_lot::RwLock;
     use sqlparser::dialect::PostgreSqlDialect;
@@ -678,103 +679,9 @@ mod tests {
         stmts.pop().unwrap()
     }
 
-    struct Catalog {
-        tables: Arc<RwLock<BTreeMap<TableReference, TableSchema>>>,
-    }
-
-    impl Catalog {
-        fn new() -> Catalog {
-            let t1 = TableSchema {
-                name: "t1".to_string(),
-                columns: vec![
-                    Column {
-                        name: "a".to_string(),
-                        ty: ValueType::Int8,
-                        nullable: false,
-                    },
-                    Column {
-                        name: "b".to_string(),
-                        ty: ValueType::Int8,
-                        nullable: false,
-                    },
-                ],
-                pk_idxs: Vec::new(),
-            };
-            let t2 = TableSchema {
-                name: "t2".to_string(),
-                columns: vec![
-                    Column {
-                        name: "b".to_string(),
-                        ty: ValueType::Int8,
-                        nullable: false,
-                    },
-                    Column {
-                        name: "c".to_string(),
-                        ty: ValueType::Int8,
-                        nullable: false,
-                    },
-                ],
-                pk_idxs: Vec::new(),
-            };
-            let mut tables = BTreeMap::new();
-            tables.insert(
-                TableReference {
-                    catalog: "catalog".to_string(),
-                    schema: "schema".to_string(),
-                    table: "t1".to_string(),
-                },
-                t1,
-            );
-            tables.insert(
-                TableReference {
-                    catalog: "catalog".to_string(),
-                    schema: "schema".to_string(),
-                    table: "t2".to_string(),
-                },
-                t2,
-            );
-            Catalog {
-                tables: Arc::new(RwLock::new(tables)),
-            }
-        }
-    }
-
-    impl CatalogReader for Catalog {
-        fn get_table(&self, reference: &TableReference) -> Result<Option<TableSchema>> {
-            let tables = self.tables.read();
-            Ok(tables.get(reference).cloned())
-        }
-
-        fn get_table_by_name(
-            &self,
-            catalog: &str,
-            schema: &str,
-            name: &str,
-        ) -> Result<Option<(TableReference, TableSchema)>> {
-            if catalog != "catalog" || schema != "schema" {
-                return Ok(None);
-            }
-            let tables = self.tables.read();
-            for (reference, table) in tables.iter() {
-                if &table.name == name {
-                    return Ok(Some((reference.clone(), table.clone())));
-                }
-            }
-            Ok(None)
-        }
-
-        fn current_catalog(&self) -> &str {
-            "catalog"
-        }
-
-        fn current_schema(&self) -> &str {
-            "schema"
-        }
-    }
-
     #[test]
     fn sanity_tests() {
-        let catalog = Catalog::new();
+        let catalog = DummyCatalog::new();
         let queries = vec![
             "select 1 + 1",
             "select * from (values (1), (2))",
@@ -782,10 +689,12 @@ mod tests {
             "select * from t1",
             "select a from t1 where b < 10",
             "select * from t1 inner join t2 on t1.b = t2.b",
+            "select * from t1 join t2 on t1.b = t2.b",
             "select sum(a) + 1, b from t1 group by b",
             "select sum(t3.a + 4), c from t1 as t3 inner join t2 as t4 on t3.b = t4.b where a > 5 group by c",
             "select a from t1 order by a",
             "select sum(a), b from t1 where a > 10 group by b order by b",
+            "insert into t1 values (1, 2)",
         ];
 
         for query in queries {

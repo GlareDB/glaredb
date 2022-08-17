@@ -1,10 +1,11 @@
 use anyhow::{Result};
-use lemur::repr::df::Schema;
+use lemur::repr::{df::Schema, expr::RelationKey};
 use lemur::repr::value::ValueType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub mod system;
+pub mod dummy;
 
 pub trait CatalogReader: Sync + Send {
     /// Get a table by a reference, returning `None` if no table exists (or
@@ -44,6 +45,12 @@ impl TableSchema {
     }
 }
 
+impl From<TableSchema> for Schema {
+    fn from(ts: TableSchema) -> Self {
+        ts.to_schema()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Column {
     pub name: String,
@@ -64,5 +71,17 @@ pub struct TableReference {
 impl fmt::Display for TableReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.catalog, self.schema, self.table)
+    }
+}
+
+impl From<TableReference> for RelationKey {
+    fn from(tr: TableReference) -> Self {
+        format!("{}", tr)
+    }
+}
+
+impl From<&TableReference> for RelationKey {
+    fn from(tr: &TableReference) -> Self {
+        format!("{}", &tr)
     }
 }

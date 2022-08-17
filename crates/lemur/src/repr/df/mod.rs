@@ -113,6 +113,10 @@ impl DataFrame {
         Ok(df)
     }
 
+    pub fn from_row(row: impl Into<Row>) -> Result<Self> {
+        Self::from_rows(std::iter::once(row.into()))
+    }
+
     /// Vertically stack all dataframes in the interator. Each dataframe must
     /// have the same schema.
     pub fn from_dataframes(dfs: impl IntoIterator<Item = DataFrame>) -> Result<Self> {

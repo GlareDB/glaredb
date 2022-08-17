@@ -117,6 +117,7 @@ macro_rules! value_vec_dispatch_unary {
             ValueVec::Int8(v) => $func(v)?.into(),
             ValueVec::Int32(v) => $func(v)?.into(),
             ValueVec::Utf8(v) => $func(v)?.into(),
+            ValueVec::Binary(v) => $func(v)?.into(),
         }
     };
 }
@@ -130,6 +131,7 @@ macro_rules! value_vec_dispatch_unary_groups {
             ValueVec::Int8(v) => $func(v, $groups)?.into(),
             ValueVec::Int32(v) => $func(v, $groups)?.into(),
             ValueVec::Utf8(v) => $func(v, $groups)?.into(),
+            ValueVec::Binary(v) => $func(v, $groups)?.into(),
         }
     };
 }
