@@ -17,6 +17,10 @@
       url = "github:hercules-ci/gitignore.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    bomper = {
+      url = "github:justinrubek/bomper";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {

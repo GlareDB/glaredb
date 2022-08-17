@@ -7,6 +7,7 @@
     config,
     pkgs,
     system,
+    inputs',
     ...
   }: let
     rust-stable = self.lib.rust-stable system;
@@ -16,6 +17,7 @@
       bacon
       cargo-udeps
       cocogitto
+      inputs'.bomper.packages.cli
     ];
   in rec {
     devShells = {
