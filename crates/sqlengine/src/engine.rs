@@ -8,7 +8,7 @@ use lemur::execute::stream::source::{
     DataSource, ReadExecutor, ReadTx, TxInteractivity, WriteExecutor, WriteTx,
 };
 use lemur::repr::df::DataFrame;
-use lemur::repr::expr::{ExplainRelationExpr, ScalarExpr, RelationKey};
+use lemur::repr::expr::{ExplainRelationExpr, RelationKey};
 use lemur::repr::value::{Value, ValueVec};
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;

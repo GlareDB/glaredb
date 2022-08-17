@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Result};
-use lemur::{repr::value::ValueType, execute::stream::source::MemoryDataSource};
+use anyhow::Result;
+use lemur::repr::value::ValueType;
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::sync::Arc;
