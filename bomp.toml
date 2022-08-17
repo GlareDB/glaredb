@@ -1,0 +1,14 @@
+[file."Cargo.lock"]
+search_value = "lemur|logutil|sqlengine"
+
+[file."flake-parts/packages/default.nix"]
+search_value = "glaredb-cli"
+
+[file."crates/lemur/Cargo.toml"]
+search_value = "lemur"
+
+[file."crates/logutil/Cargo.toml"]
+search_value = "logutil"
+
+[file."crates/sqlengine/Cargo.toml"]
+search_value = "sqlengine"
