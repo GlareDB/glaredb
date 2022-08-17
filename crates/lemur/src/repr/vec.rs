@@ -490,10 +490,6 @@ impl BinaryVec {
         Self(VarLengthVec::one(val))
     }
 
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a [u8]>>) -> Self {
-        Self(VarLengthVec::from_iter(iter))
-    }
-
     pub fn push(&mut self, val: Option<&[u8]>) {
         self.0.push(val)
     }
@@ -551,6 +547,12 @@ impl BinaryVec {
 
     pub fn iter_validity(&self) -> impl Iterator<Item = bool> + '_ {
         self.0.iter_validity()
+    }
+}
+
+impl<'a> FromIterator<Option<&'a [u8]>> for BinaryVec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a [u8]>>>(iter: I) -> Self {
+        Self(VarLengthVec::from_iter(iter))
     }
 }
 
