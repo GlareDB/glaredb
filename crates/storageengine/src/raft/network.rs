@@ -17,7 +17,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::{self, Duration};
 use tokio_serde::formats::SymmetricalBincode;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 #[derive(Debug, thiserror::Error)]
 pub enum NetworkError {
@@ -143,10 +143,26 @@ impl Server {
 
     /// Start serving with the given listener.
     pub async fn serve(mut self, listener: TcpListener) -> Result<(), NetworkError> {
+        // Any sends to this channel should immediately return from the function
+        // with the result sent on the channel.
+        let (join_sender, mut join_receiver) = mpsc::unbounded_channel();
+        let (incoming_sender, mut incoming_receiver) = mpsc::unbounded_channel();
+
+        // Start up the listener.
+        tokio::spawn(async move {
+            let result = Self::listen(listener, incoming_sender).await;
+            let _ = join_sender.send(result);
+        });
+
         let mut debug_ticker = time::interval(DEBUG_LOG_TICK);
         loop {
             select! {
+                // Send on the join channel, exit with the result.
+                Some(join_result) = join_receiver.recv() => return join_result,
+
                 _ = debug_ticker.tick() => debug!("debug tick"),
+
+                Some(msg) = incoming_receiver.recv() => self.handle_incoming(msg).await,
 
                 Some((req, sender)) = self.requests.recv() => {
                     let resp = self.connect_to_peer(req.addr).await;
@@ -154,6 +170,30 @@ impl Server {
                 }
             }
         }
+    }
+
+    /// Accept messages from peers on the provided listener, sending all
+    /// messages from all peers that connect to this server to the provided
+    /// channel.
+    async fn listen(
+        listener: TcpListener,
+        incoming_sender: mpsc::UnboundedSender<Message>,
+    ) -> Result<(), NetworkError> {
+        loop {
+            let (socket, addr) = listener.accept().await?;
+            debug!(%addr, "peer connected");
+            let sender = incoming_sender.clone();
+            tokio::spawn(async move {
+                match Self::recv_peer(socket, sender.clone()).await {
+                    Ok(_) => debug!(%addr, "peer disconnected"),
+                    Err(e) => error!(%e, %addr, "error receiving from peer"),
+                }
+            });
+        }
+    }
+
+    async fn handle_incoming(&mut self, msg: Message) {
+        unimplemented!()
     }
 
     /// Connect to a peer with the given address.
@@ -193,6 +233,15 @@ impl Server {
 
         self.peers.insert(addr, sender.clone());
         Ok(ClusterClient { sender })
+    }
+
+    /// Continually read messages from the tcp stream, sending them into the
+    /// provided channel.
+    async fn recv_peer(
+        socket: TcpStream,
+        sender: mpsc::UnboundedSender<Message>,
+    ) -> Result<(), NetworkError> {
+        unimplemented!()
     }
 
     /// Continually send messages from `receiver` into the provided tcp stream
