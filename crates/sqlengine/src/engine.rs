@@ -253,7 +253,7 @@ impl<T: ReadTx> CatalogReader for T {
             ).await?;
             match table {
                 Some(mut stream) => {
-                    while let Some(stream_result) = stream.next().await {
+                    if let Some(stream_result) = stream.next().await {
                         let df = stream_result?;
                         let schema = df.get_column_ref(1).ok_or_else(|| {
                             anyhow!("table schema not found")
