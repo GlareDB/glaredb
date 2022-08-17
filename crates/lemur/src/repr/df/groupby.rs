@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use std::sync::Arc;
 
 // TODO: Use this.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SortOrder {
     Asc,
     Desc,
@@ -39,14 +39,15 @@ impl SortedGroupByDataFrame {
         let mut columns = df.columns;
 
         for &grouping_idx in grouping_idxs.iter() {
-            let col = columns
-                .get_mut(grouping_idx)
-                .ok_or(anyhow!("missing column for grouping"))?;
+            let perms = {
+                let col = columns
+                    .get_mut(grouping_idx)
+                    .ok_or_else(|| anyhow!("missing column for grouping"))?;
 
-            // Sort the column according to any previously defined groups.
-            // TODO: Check if sorted before making mut.
-            let perms = (*Arc::make_mut(col)).sort_each_group(&curr_groups);
-            std::mem::drop(col);
+                // Sort the column according to any previously defined groups.
+                // TODO: Check if sorted before making mut.
+                (*Arc::make_mut(col)).sort_each_group(&curr_groups)
+            };
 
             // Apply the permutations resulting from the sort to the current
             // groups.
@@ -102,7 +103,7 @@ impl SortedGroupByDataFrame {
             let col = self
                 .columns
                 .get(acc.column)
-                .ok_or(anyhow!("missing column for accumulating: {}", acc.column))?;
+                .ok_or_else(|| anyhow!("missing column for accumulating: {}", acc.column))?;
             let out = (acc.op.func_for_operation())(col, &self.groups)?;
             columns.push(out);
         }

@@ -11,7 +11,7 @@ use crate::repr::vec::BoolVec;
 pub mod groupby;
 pub use groupby::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Schema {
     pub types: Vec<ValueType>,
 }
@@ -24,7 +24,7 @@ impl Schema {
     pub fn project(&self, idxs: &[usize]) -> Result<Schema> {
         let mut out = Vec::with_capacity(idxs.len());
         for &idx in idxs.iter() {
-            out.push(self.types.get(idx).cloned().ok_or(anyhow!(
+            out.push(self.types.get(idx).cloned().ok_or_else(|| anyhow!(
                 "attempt to project out of bound for schema: {:?}, idx: {}",
                 self.types,
                 idx
@@ -79,7 +79,7 @@ impl DataFrame {
             .map(|ty| ValueVec::with_capacity_for_type(ty, cap))
             .collect::<Result<Vec<_>>>()?
             .into_iter()
-            .map(|v| Arc::new(v))
+            .map(Arc::new)
             .collect();
 
         Ok(DataFrame { columns })
@@ -133,7 +133,7 @@ impl DataFrame {
     pub fn from_columns(cols: impl IntoIterator<Item = ValueVec>) -> Result<Self> {
         // TODO: Check lengths.
         Ok(DataFrame {
-            columns: cols.into_iter().map(|col| Arc::new(col)).collect(),
+            columns: cols.into_iter().map(Arc::new).collect(),
         })
     }
 
@@ -180,7 +180,7 @@ impl DataFrame {
             .into_iter()
             .map(|idx| self.columns.get(idx).cloned())
             .collect::<Option<Vec<_>>>()
-            .ok_or(anyhow!("select index out of bounds"))?;
+            .ok_or_else(|| anyhow!("select index out of bounds"))?;
 
         Ok(DataFrame { columns: selected })
     }
@@ -202,7 +202,7 @@ impl DataFrame {
         let bools = evaled
             .as_ref()
             .downcast_bool_vec()
-            .ok_or(anyhow!("cannot downcast expresion result to bool vector"))?;
+            .ok_or_else(|| anyhow!("cannot downcast expresion result to bool vector"))?;
         // TODO: Turn boolvec into bitvec to avoid doing this.
         let mut mask = BitVec::with_capacity(bools.len());
         // TODO: How to handle nulls?
@@ -244,7 +244,7 @@ impl DataFrame {
             return Err(anyhow!("invalid number of rows for hstack"));
         }
         self.columns
-            .extend(other.columns.iter().map(|col| col.clone()));
+            .extend(other.columns.iter().cloned());
 
         Ok(self)
     }
@@ -302,7 +302,7 @@ impl DataFrame {
         let left = self.repeat_each_row(left_repeat);
         let right = other.vertical_repeat(right_repeat);
 
-        Ok(left.hstack(&right)?)
+        left.hstack(&right)
     }
 
     /// Order by and group by the provided columns.
@@ -324,7 +324,7 @@ impl DataFrame {
     pub fn num_rows(&self) -> usize {
         self.columns
             .get(0)
-            .and_then(|col| Some(col.len()))
+            .map(|col| col.len())
             .unwrap_or(0)
     }
 }
@@ -379,7 +379,7 @@ impl OwnedDataFrame {
 
     fn into_data_frame(self) -> DataFrame {
         DataFrame {
-            columns: self.columns.into_iter().map(|col| Arc::new(col)).collect(),
+            columns: self.columns.into_iter().map(Arc::new).collect(),
         }
     }
 }

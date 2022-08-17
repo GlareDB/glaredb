@@ -53,7 +53,7 @@ impl BytesRef for [u8] {
 }
 
 /// A vector holding fixed length values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FixedLengthVec<T> {
     validity: BitVec,
     values: Vec<T>,
@@ -80,18 +80,6 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
     pub fn from_parts(validity: BitVec, values: Vec<T>) -> Self {
         assert_eq!(validity.len(), values.len());
         FixedLengthVec { validity, values }
-    }
-
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a T>>) -> Self {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut vec = Self::with_capacity(lower);
-
-        for val in iter {
-            vec.push(val.cloned());
-        }
-
-        vec
     }
 
     pub fn split_off(&mut self, at: usize) -> Self {
@@ -169,6 +157,10 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         self.validity.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.validity.is_empty()
+    }
+
     pub fn resize_null(&mut self, len: usize) {
         self.validity.resize(len, false);
         self.values.resize(len, T::default());
@@ -200,8 +192,22 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
     }
 }
 
+impl<'a, T: FixedLengthType> FromIterator<Option<&'a T>> for FixedLengthVec<T> {
+    fn from_iter<I: IntoIterator<Item=Option<&'a T>>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower);
+
+        for val in iter {
+            vec.push(val.cloned());
+        }
+
+        vec
+    }
+}
+
 /// Vector type for storing variable length values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VarLengthVec {
     validity: BitVec,
     offsets: Vec<usize>,
@@ -234,22 +240,6 @@ impl VarLengthVec {
         let mut v = Self::with_capacity(1);
         v.push(val);
         v
-    }
-
-    pub fn from_iter<'a, T: 'a, I>(iter: I) -> Self
-    where
-        T: BytesRef + ?Sized,
-        I: IntoIterator<Item = Option<&'a T>>,
-    {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut vec = Self::with_capacity(lower);
-
-        for val in iter {
-            vec.push(val);
-        }
-
-        vec
     }
 
     pub fn get_validity(&self) -> &BitVec {
@@ -302,7 +292,7 @@ impl VarLengthVec {
 
         groups
             .iter_lens()
-            .map(|len| SortPermutation::same_order(len))
+            .map(SortPermutation::same_order)
             .collect()
     }
 
@@ -355,6 +345,10 @@ impl VarLengthVec {
         self.validity.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get a value, ignoring its validity.
     pub fn get_value<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<&T> {
         let start = *self.offsets.get(idx)?;
@@ -368,7 +362,21 @@ impl VarLengthVec {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+impl<'a, T: BytesRef + ?Sized + 'a> FromIterator<Option<&'a T>> for VarLengthVec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a T>>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower);
+
+        for val in iter {
+            vec.push(val);
+        }
+
+        vec
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Utf8Vec(VarLengthVec);
 
 impl Utf8Vec {
@@ -382,10 +390,6 @@ impl Utf8Vec {
 
     pub fn one(val: Option<&str>) -> Self {
         Self(VarLengthVec::one(val))
-    }
-
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a str>>) -> Self {
-        Self(VarLengthVec::from_iter(iter))
     }
 
     pub fn push(&mut self, val: Option<&str>) {
@@ -424,6 +428,10 @@ impl Utf8Vec {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn get_value(&self, idx: usize) -> Option<&str> {
         self.0.get_value(idx)
     }
@@ -443,6 +451,13 @@ impl Utf8Vec {
         self.0.iter_validity()
     }
 }
+
+impl<'a> FromIterator<Option<&'a str>> for Utf8Vec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a str>>>(iter: I) -> Self {
+        Self(VarLengthVec::from_iter(iter))
+    }
+}
+
 
 pub struct Utf8Iter<'a> {
     vec: &'a VarLengthVec,

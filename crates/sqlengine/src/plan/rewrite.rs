@@ -20,7 +20,7 @@ impl FilterPushdown {
                 }
                 _ => Ok(plan),
             },
-            &mut |plan| Ok(plan),
+            &mut Ok,
         )
     }
 

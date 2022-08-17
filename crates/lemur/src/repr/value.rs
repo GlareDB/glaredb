@@ -8,7 +8,7 @@ use std::ops::Range;
 
 use crate::repr::vec::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValueType {
     Unknown,
     Bool,
@@ -24,7 +24,7 @@ impl ValueType {
 }
 
 /// A single, nullable scalar value.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Value {
     /// A `Null` value is a value that does not carry any type information.
     ///
@@ -55,19 +55,19 @@ impl Value {
         Ok(match self {
             Value::Bool(v) => {
                 let mut vec = BoolVec::with_capacity(n);
-                vec.push(v.clone());
+                vec.push(*v);
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
             Value::Int8(v) => {
                 let mut vec = Int8Vec::with_capacity(n);
-                vec.push(v.clone());
+                vec.push(*v);
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
             Value::Int32(v) => {
                 let mut vec = Int32Vec::with_capacity(n);
-                vec.push(v.clone());
+                vec.push(*v);
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
@@ -86,14 +86,11 @@ impl Value {
     }
 
     pub fn is_null(&self) -> bool {
-        match self {
-            Value::Null
+        matches!(self, Value::Null
             | Value::Bool(None)
             | Value::Int8(None)
             | Value::Int32(None)
-            | Value::Utf8(None) => true,
-            _ => false,
-        }
+            | Value::Utf8(None))
     }
 
     /// Cast self into some other type.
@@ -145,7 +142,7 @@ impl From<Option<String>> for Value {
 }
 
 /// A list of some values representing a single row.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Row {
     pub values: Vec<Value>,
 }
@@ -172,15 +169,15 @@ pub enum ValueVec {
 
 impl ValueVec {
     pub fn bools(vals: &[bool]) -> Self {
-        BoolVec::from_iter(vals.iter().map(|v| Some(v))).into()
+        BoolVec::from_iter(vals.iter().map(Some)).into()
     }
 
     pub fn int8s(vals: &[i8]) -> Self {
-        Int8Vec::from_iter(vals.iter().map(|v| Some(v))).into()
+        Int8Vec::from_iter(vals.iter().map(Some)).into()
     }
 
     pub fn int32s(vals: &[i32]) -> Self {
-        Int32Vec::from_iter(vals.iter().map(|v| Some(v))).into()
+        Int32Vec::from_iter(vals.iter().map(Some)).into()
     }
 
     pub fn utf8s(vals: &[&str]) -> Self {
@@ -222,21 +219,30 @@ impl ValueVec {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        match self {
+            ValueVec::Bool(v) => v.is_empty(),
+            ValueVec::Int8(v) => v.is_empty(),
+            ValueVec::Int32(v) => v.is_empty(),
+            ValueVec::Utf8(v) => v.is_empty(),
+        }
+    }
+
     pub fn is_singular_value(&self) -> bool {
         self.len() == 1
     }
 
     pub fn filter(&self, mask: &BitVec) -> Self {
         match self {
-            ValueVec::Bool(v) => BoolVec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Int8(v) => Int8Vec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Int32(v) => Int32Vec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Utf8(v) => Utf8Vec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
+            ValueVec::Bool(v) => BoolVec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Int8(v) => Int8Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Int32(v) => Int32Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Utf8(v) => Utf8Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
         }
     }
 
     pub fn try_push(&mut self, value: Value) -> Result<()> {
-        Ok(match (self, value) {
+        match (self, value) {
             (ValueVec::Bool(vec), Value::Bool(val)) => vec.push(val),
             (ValueVec::Int8(vec), Value::Int8(val)) => vec.push(val),
             (ValueVec::Int32(vec), Value::Int32(val)) => vec.push(val),
@@ -248,7 +254,8 @@ impl ValueVec {
                     vec.value_type()
                 ))
             }
-        })
+        };
+        Ok(())
     }
 
     /// Try to append other to the end of self.
