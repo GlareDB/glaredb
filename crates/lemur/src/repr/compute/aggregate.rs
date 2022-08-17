@@ -377,10 +377,11 @@ impl VecUnaryCmpAggregate for BinaryVec {
             self,
             |s| s.to_vec(),
             |acc, v| {
-                if acc < v.to_owned() {
+                let owned = v.to_owned();
+                if acc < owned {
                     acc
                 } else {
-                    v.to_owned() // TODO: Be efficient.
+                    owned
                 }
             },
         ))
@@ -391,14 +392,28 @@ impl VecUnaryCmpAggregate for BinaryVec {
             self,
             groups,
             |v| v.to_vec(),
-            |acc, v| if acc < v.to_owned() { acc } else { v.to_vec() },
+            |acc, v| {
+                let vec = v.to_vec();
+                if acc < vec {
+                    acc
+                } else {
+                    vec
+                }
+            },
         ))
     }
     fn max(&self) -> Result<Self> {
         Ok(agg_binary_init_first(
             self,
             |v| v.to_vec(),
-            |acc, v| if acc > v.to_owned() { acc } else { v.to_vec() },
+            |acc, v| {
+                let vec = v.to_owned();
+                if acc < vec {
+                    acc
+                } else {
+                    vec
+                }
+            },
         ))
     }
     fn max_groups(&self, groups: &GroupRanges) -> Result<Self> {
@@ -406,7 +421,14 @@ impl VecUnaryCmpAggregate for BinaryVec {
             self,
             groups,
             |v| v.to_vec(),
-            |acc, v| if acc > v.to_owned() { acc } else { v.to_vec() },
+            |acc, v| {
+                let vec = v.to_owned();
+                if acc < vec {
+                    acc
+                } else {
+                    vec
+                }
+            },
         ))
     }
 }
