@@ -28,7 +28,7 @@ pub trait CatalogWriter: CatalogReader {
     fn add_table(&self, reference: &TableReference, schema: TableSchema) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TableSchema {
     pub name: String,
     pub columns: Vec<Column>,
@@ -51,7 +51,7 @@ impl From<TableSchema> for Schema {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Column {
     pub name: String,
     pub ty: ValueType,

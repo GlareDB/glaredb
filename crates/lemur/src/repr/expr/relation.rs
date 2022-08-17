@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub type RelationKey = String;
 
 /// Expressions that happen on entire relations.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RelationExpr {
     Project(Project),
     Aggregate(Aggregate),
@@ -21,7 +21,7 @@ pub enum RelationExpr {
     Placeholder,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub columns: Vec<ScalarExpr>,
     pub input: Box<RelationExpr>,
@@ -29,7 +29,7 @@ pub struct Project {
 
 pub type AggregateFunc = Box<dyn Fn(&ValueVec, &GroupRanges) -> Result<ValueVec> + Send>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateOperation {
     First,
     Count,
@@ -63,7 +63,7 @@ impl AggregateOperation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateExpr {
     pub op: AggregateOperation,
     pub column: usize,
@@ -75,38 +75,38 @@ impl AggregateExpr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Aggregate {
     pub exprs: Vec<AggregateExpr>,
     pub group_by: Vec<usize>,
     pub input: Box<RelationExpr>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderByGroupBy {
     pub columns: Vec<usize>,
     pub input: Box<RelationExpr>,
     // TODO: Asc/desc,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrossJoin {
     pub left: Box<RelationExpr>,
     pub right: Box<RelationExpr>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Filter {
     pub predicate: ScalarExpr,
     pub input: Box<RelationExpr>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Values {
     pub rows: Vec<Row>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Source {
     pub source: RelationKey,
     pub filter: Option<ScalarExpr>,

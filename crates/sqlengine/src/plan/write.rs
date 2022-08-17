@@ -15,7 +15,7 @@ pub struct Insert {
     pub input: ReadPlan,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateTable {
     pub schema: TableSchema,
 }

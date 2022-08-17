@@ -8,7 +8,7 @@ use std::ops::Range;
 
 use crate::repr::vec::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValueType {
     Unknown,
     Bool,
@@ -25,7 +25,7 @@ impl ValueType {
 }
 
 /// A single, nullable scalar value.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Value {
     /// A `Null` value is a value that does not carry any type information.
     ///
@@ -163,7 +163,7 @@ impl From<Option<Vec<u8>>> for Value {
 }
 
 /// A list of some values representing a single row.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Row {
     pub values: Vec<Value>,
 }

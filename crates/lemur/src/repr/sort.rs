@@ -2,7 +2,7 @@ use bitvec::slice::BitSlice;
 use std::ops::Range;
 
 /// The permutation of a sort.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SortPermutation(Vec<usize>);
 
 impl SortPermutation {
@@ -91,7 +91,7 @@ impl SortPermutation {
 }
 
 /// Ranges for unique groups in a sorted vector.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupRanges {
     pub ranges: Vec<Range<usize>>,
 }

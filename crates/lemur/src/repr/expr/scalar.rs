@@ -45,7 +45,7 @@ impl From<ValueVec> for ScalarExprVec {
 /// An expression tree that is evaluated against columns in a dataframe.
 ///
 /// All expressions produce a single output column.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScalarExpr {
     /// Reference a column in the input.
     Column(usize),
@@ -128,13 +128,13 @@ impl ScalarExpr {
                 op.evaluate(left, right, &DataFrame::empty())?
             }
         };
-        output.as_ref().first_value().ok_or(anyhow!(
+        output.as_ref().first_value().ok_or_else(|| anyhow!(
             "failed to get output of constant expression evaluation"
         ))
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOperation {
     IsNull,
     IsNotNull,
@@ -153,7 +153,7 @@ impl UnaryOperation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOperation {
     Eq,
     Neq,
