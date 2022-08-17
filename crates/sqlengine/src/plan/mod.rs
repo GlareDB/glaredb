@@ -24,7 +24,7 @@ pub enum QueryPlan {
 }
 
 impl QueryPlan {
-    pub fn plan<'a, C>(stmt: ast::Statement, catalog: &'a C) -> Result<QueryPlan>
+    pub fn plan<C>(stmt: ast::Statement, catalog: &C) -> Result<QueryPlan>
     where
         C: CatalogReader,
     {
