@@ -73,6 +73,12 @@ impl DummyCatalog {
     }
 }
 
+impl Default for DummyCatalog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CatalogReader for DummyCatalog {
     fn get_table(&self, reference: &TableReference) -> Result<Option<TableSchema>> {
         let tables = self.tables.read();
