@@ -405,15 +405,15 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
             1 => self
                 .catalog
                 .get_table_by_name(catalog_name, schema_name, &name.0[0].value)?
-                .ok_or(anyhow!("missing table: {}", name))?,
+                .ok_or_else(|| anyhow!("missing table: {}", name))?,
             2 => self
                 .catalog
                 .get_table_by_name(catalog_name, &name.0[0].value, &name.0[1].value)?
-                .ok_or(anyhow!("missing table: {}", name))?,
+                .ok_or_else(|| anyhow!("missing table: {}", name))?,
             3 => self
                 .catalog
                 .get_table_by_name(&name.0[2].value, &name.0[1].value, &name.0[0].value)?
-                .ok_or(anyhow!("missing table: {}", name))?,
+                .ok_or_else(|| anyhow!("missing table: {}", name))?,
             _ => return Err(anyhow!("invalid object name: {}", name)),
         };
 
@@ -618,7 +618,7 @@ impl Scope {
         self.columns
             .get(idx)
             .cloned()
-            .ok_or(anyhow!("column not found for idx: {}", idx))
+            .ok_or_else(|| anyhow!("column not found for idx: {}", idx))
     }
 
     fn merge(&mut self, other: Scope) -> Result<()> {
@@ -644,14 +644,14 @@ impl Scope {
             self.qualified
                 .get(&(table.into(), name.into()))
                 .cloned()
-                .ok_or(anyhow!("missing column: {}.{}", table, name))
+                .ok_or_else(|| anyhow!("missing column: {}.{}", table, name))
         } else if self.ambiguous.contains(name) {
             Err(anyhow!("ambiguous column name: {}", name))
         } else {
             self.unqualified
                 .get(name)
                 .cloned()
-                .ok_or(anyhow!("missing column: {}", name))
+                .ok_or_else(|| anyhow!("missing column: {}", name))
         }
     }
 

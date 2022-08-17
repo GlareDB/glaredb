@@ -72,7 +72,7 @@ impl ScalarExpr {
                 .types
                 .get(*idx)
                 .cloned()
-                .ok_or(anyhow!("missing column in input: {}", idx))?,
+                .ok_or_else(|| anyhow!("missing column in input: {}", idx))?,
             ScalarExpr::Constant(v) => v.value_type(),
             ScalarExpr::Unary { op, input } => op.output_type(input, schema)?,
             ScalarExpr::Binary { op, left, right } => op.output_type(left, right, schema)?,
@@ -109,7 +109,7 @@ impl ScalarExpr {
             ScalarExpr::Column(idx) => df
                 .get_column_ref(*idx)
                 .cloned()
-                .ok_or(anyhow!("missing column in dataframe: {}", idx))?
+                .ok_or_else(|| anyhow!("missing column in dataframe: {}", idx))?
                 .into(),
             ScalarExpr::Constant(v) => v.repeat(df.num_rows())?.into(),
             ScalarExpr::Unary { op, input } => op.evaluate(input, df)?,
