@@ -1,4 +1,4 @@
-use openraft::RaftTypeConfig;
+use openraft::{BasicNode, RaftTypeConfig};
 use serde::{Deserialize, Serialize};
 
 pub mod network;
