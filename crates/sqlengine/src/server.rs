@@ -79,6 +79,7 @@ impl Client {
     }
 
     /// Execute a query.
+    #[allow(clippy::await_holding_lock)]
     pub async fn execute(&self, query: String) -> Result<Vec<ExecutionResult>> {
         // Currently assumes that for every request, we only get a single
         // response back. This assumption may change in the future.
