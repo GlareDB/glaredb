@@ -260,7 +260,9 @@ impl<T: ReadTx> CatalogReader for T {
                         })?;
                         match schema.as_ref() {
                             &ValueVec::Binary(ref binary_vec) => {
-                                let bytes = binary_vec.as_ref();
+                                let bytes = binary_vec.get_value(0).ok_or_else(|| {
+                                    anyhow!("table schema not found")
+                                })?;
                                 let decoded: TableSchema = bincode::deserialize(&bytes[..])?;
                                 return Ok(Some(decoded));
                             }
