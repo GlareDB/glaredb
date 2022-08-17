@@ -222,6 +222,15 @@ impl ValueVec {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        match self {
+            ValueVec::Bool(v) => v.is_empty(),
+            ValueVec::Int8(v) => v.is_empty(),
+            ValueVec::Int32(v) => v.is_empty(),
+            ValueVec::Utf8(v) => v.is_empty(),
+        }
+    }
+
     pub fn is_singular_value(&self) -> bool {
         self.len() == 1
     }

@@ -157,6 +157,10 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         self.validity.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.validity.is_empty()
+    }
+
     pub fn resize_null(&mut self, len: usize) {
         self.validity.resize(len, false);
         self.values.resize(len, T::default());
@@ -341,6 +345,10 @@ impl VarLengthVec {
         self.validity.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get a value, ignoring its validity.
     pub fn get_value<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<&T> {
         let start = *self.offsets.get(idx)?;
@@ -418,6 +426,10 @@ impl Utf8Vec {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn get_value(&self, idx: usize) -> Option<&str> {
