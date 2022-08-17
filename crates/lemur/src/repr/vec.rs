@@ -304,7 +304,7 @@ impl VarLengthVec {
 
         groups
             .iter_lens()
-            .map(|len| SortPermutation::same_order(len))
+            .map(SortPermutation::same_order)
             .collect()
     }
 

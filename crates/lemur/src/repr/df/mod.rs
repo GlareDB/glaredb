@@ -79,7 +79,7 @@ impl DataFrame {
             .map(|ty| ValueVec::with_capacity_for_type(ty, cap))
             .collect::<Result<Vec<_>>>()?
             .into_iter()
-            .map(|v| Arc::new(v))
+            .map(Arc::new)
             .collect();
 
         Ok(DataFrame { columns })
@@ -133,7 +133,7 @@ impl DataFrame {
     pub fn from_columns(cols: impl IntoIterator<Item = ValueVec>) -> Result<Self> {
         // TODO: Check lengths.
         Ok(DataFrame {
-            columns: cols.into_iter().map(|col| Arc::new(col)).collect(),
+            columns: cols.into_iter().map(Arc::new).collect(),
         })
     }
 
@@ -244,7 +244,7 @@ impl DataFrame {
             return Err(anyhow!("invalid number of rows for hstack"));
         }
         self.columns
-            .extend(other.columns.iter().map(|col| col.clone()));
+            .extend(other.columns.iter().cloned());
 
         Ok(self)
     }
@@ -379,7 +379,7 @@ impl OwnedDataFrame {
 
     fn into_data_frame(self) -> DataFrame {
         DataFrame {
-            columns: self.columns.into_iter().map(|col| Arc::new(col)).collect(),
+            columns: self.columns.into_iter().map(Arc::new).collect(),
         }
     }
 }

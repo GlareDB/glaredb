@@ -46,7 +46,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
 
                 let columns: Vec<_> = columns
                     .into_iter()
-                    .map(|col| column_def_to_column(col))
+                    .map(column_def_to_column)
                     .collect::<Result<Vec<_>>>()?;
                 // TODO: Get primary keys and other options.
                 let schema = TableSchema {
@@ -172,7 +172,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     }
                     // Put everything that's currently in scope in the
                     // project expressions.
-                    exprs.extend((0..scope.num_columns()).map(|idx| PlanExpr::Column(idx)))
+                    exprs.extend((0..scope.num_columns()).map(PlanExpr::Column))
                 }
                 other => return Err(anyhow!("unsupported select item: {:?}", other)),
             }
@@ -216,7 +216,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                             }
                             _ => Ok(expr),
                         },
-                        &mut |expr| Ok(expr),
+                        &mut Ok,
                     )?;
                     pre_exprs.push(expr.clone());
                 }
