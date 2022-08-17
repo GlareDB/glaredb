@@ -82,18 +82,6 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         FixedLengthVec { validity, values }
     }
 
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a T>>) -> Self {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut vec = Self::with_capacity(lower);
-
-        for val in iter {
-            vec.push(val.cloned());
-        }
-
-        vec
-    }
-
     pub fn split_off(&mut self, at: usize) -> Self {
         let validity = self.validity.split_off(at);
         let values = self.values.split_off(at);
@@ -197,6 +185,20 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
 
     pub fn iter_validity(&self) -> impl Iterator<Item = bool> + '_ {
         self.validity.iter().by_vals()
+    }
+}
+
+impl<'a, T: FixedLengthType> FromIterator<Option<&'a T>> for FixedLengthVec<T> {
+    fn from_iter<I: IntoIterator<Item=Option<&'a T>>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower);
+
+        for val in iter {
+            vec.push(val.cloned());
+        }
+
+        vec
     }
 }
 
