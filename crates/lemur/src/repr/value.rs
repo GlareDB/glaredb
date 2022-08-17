@@ -251,6 +251,7 @@ impl ValueVec {
             ValueVec::Int8(v) => v.is_empty(),
             ValueVec::Int32(v) => v.is_empty(),
             ValueVec::Utf8(v) => v.is_empty(),
+            ValueVec::Binary(v) => v.is_empty(),
         }
     }
 

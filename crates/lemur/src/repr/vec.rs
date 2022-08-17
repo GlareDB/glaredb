@@ -531,6 +531,10 @@ impl BinaryVec {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn get_value(&self, idx: usize) -> Option<&[u8]> {
         self.0.get_value(idx)
     }
