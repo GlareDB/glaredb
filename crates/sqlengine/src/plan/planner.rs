@@ -9,6 +9,7 @@ use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation};
 use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
+use std::collections::hash_map;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 pub struct Planner<'a, C> {
@@ -604,8 +605,8 @@ impl Scope {
                 self.qualified.insert((t, l.clone()), self.columns.len());
             }
             if !self.ambiguous.contains(&l) {
-                if !self.unqualified.contains_key(&l) {
-                    self.unqualified.insert(l, self.columns.len());
+                if let hash_map::Entry::Vacant(e) = self.unqualified.entry(l.clone()) {
+                    e.insert(self.columns.len());
                 } else {
                     self.unqualified.remove(&l);
                     self.ambiguous.insert(l);
