@@ -1,3 +1,13 @@
+# rust
 /target
+
+# nix
 /result
+
+# project-specific nix
 .pre-commit-config.yaml
+db
+
+# direnv
+.envrc
+.direnv
