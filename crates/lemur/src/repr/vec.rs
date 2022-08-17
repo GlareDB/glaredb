@@ -474,7 +474,7 @@ impl<'a> Iterator for Utf8Iter<'a> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BinaryVec(VarLengthVec);
 
 impl BinaryVec {

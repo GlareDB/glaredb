@@ -1,11 +1,11 @@
 use crate::catalog::TableSchema;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DataDefinitionPlan {
     CreateTable(CreateTable),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateTable {
     pub schema: TableSchema,
 }
