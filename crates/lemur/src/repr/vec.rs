@@ -478,7 +478,6 @@ impl<'a> Iterator for Utf8Iter<'a> {
 pub struct BinaryVec(VarLengthVec);
 
 impl BinaryVec {
-    // TODO: Implement
     pub fn empty() -> Self {
         Self(VarLengthVec::empty())
     }
