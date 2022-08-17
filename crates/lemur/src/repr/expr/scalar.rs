@@ -45,7 +45,7 @@ impl From<ValueVec> for ScalarExprVec {
 /// An expression tree that is evaluated against columns in a dataframe.
 ///
 /// All expressions produce a single output column.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScalarExpr {
     /// Reference a column in the input.
     Column(usize),
@@ -72,7 +72,7 @@ impl ScalarExpr {
                 .types
                 .get(*idx)
                 .cloned()
-                .ok_or(anyhow!("missing column in input: {}", idx))?,
+                .ok_or_else(|| anyhow!("missing column in input: {}", idx))?,
             ScalarExpr::Constant(v) => v.value_type(),
             ScalarExpr::Unary { op, input } => op.output_type(input, schema)?,
             ScalarExpr::Binary { op, left, right } => op.output_type(left, right, schema)?,
@@ -109,7 +109,7 @@ impl ScalarExpr {
             ScalarExpr::Column(idx) => df
                 .get_column_ref(*idx)
                 .cloned()
-                .ok_or(anyhow!("missing column in dataframe: {}", idx))?
+                .ok_or_else(|| anyhow!("missing column in dataframe: {}", idx))?
                 .into(),
             ScalarExpr::Constant(v) => v.repeat(df.num_rows())?.into(),
             ScalarExpr::Unary { op, input } => op.evaluate(input, df)?,
@@ -128,13 +128,13 @@ impl ScalarExpr {
                 op.evaluate(left, right, &DataFrame::empty())?
             }
         };
-        output.as_ref().first_value().ok_or(anyhow!(
+        output.as_ref().first_value().ok_or_else(|| anyhow!(
             "failed to get output of constant expression evaluation"
         ))
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOperation {
     IsNull,
     IsNotNull,
@@ -153,7 +153,7 @@ impl UnaryOperation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOperation {
     Eq,
     Neq,
@@ -210,7 +210,7 @@ impl BinaryOperation {
                     ));
                 }
 
-                left.clone()
+                left
             }
         })
     }

@@ -25,7 +25,7 @@ pub struct CrossJoin {
     pub right: Box<ReadPlan>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum JoinType {
     Inner,
     Left,
@@ -69,14 +69,14 @@ pub struct Filter {
     pub input: Box<ReadPlan>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ScanSource {
     pub table: TableReference,
     pub filter: Option<ScalarExpr>,
     pub schema: Schema,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Values {
     pub rows: Vec<Row>,
 }

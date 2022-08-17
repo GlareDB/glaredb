@@ -191,7 +191,7 @@ impl<R: ReadTx> ReadExecutor<R> for Filter {
             while let Some(df) = input.next().await {
                 let df = match_send_err!(df, tx);
                 let df = match_send_err!(df.filter_expr(&self.predicate), tx);
-                if let Err(_) = tx.send(Ok(df)).await {
+                if (tx.send(Ok(df)).await).is_err() {
                     error!("failed to send filtered dataframe to channel");
                 };
             }
