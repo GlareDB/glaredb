@@ -306,7 +306,7 @@ impl DataFrame {
         let left = self.repeat_each_row(left_repeat);
         let right = other.vertical_repeat(right_repeat);
 
-        Ok(left.hstack(&right)?)
+        left.hstack(&right)
     }
 
     /// Order by and group by the provided columns.
@@ -328,7 +328,7 @@ impl DataFrame {
     pub fn num_rows(&self) -> usize {
         self.columns
             .get(0)
-            .and_then(|col| Some(col.len()))
+            .map(|col| col.len())
             .unwrap_or(0)
     }
 }

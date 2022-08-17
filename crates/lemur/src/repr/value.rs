@@ -1,4 +1,3 @@
-
 use crate::repr::sort::{GroupRanges, SortPermutation};
 use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
@@ -95,15 +94,13 @@ impl Value {
     }
 
     pub fn is_null(&self) -> bool {
-        match self {
-            Value::Null
+        matches!(self, Value::Null
             | Value::Bool(None)
             | Value::Int8(None)
             | Value::Int32(None)
             | Value::Utf8(None) 
-            | Value::Binary(None) => true,
-            _ => false,
-        }
+            | Value::Binary(None)
+        )
     }
 
     /// Cast self into some other type.
@@ -272,7 +269,7 @@ impl ValueVec {
     }
 
     pub fn try_push(&mut self, value: Value) -> Result<()> {
-        Ok(match (self, value) {
+        match (self, value) {
             (ValueVec::Bool(vec), Value::Bool(val)) => vec.push(val),
             (ValueVec::Int8(vec), Value::Int8(val)) => vec.push(val),
             (ValueVec::Int32(vec), Value::Int32(val)) => vec.push(val),
@@ -285,7 +282,8 @@ impl ValueVec {
                     vec.value_type()
                 ))
             }
-        })
+        };
+        Ok(())
     }
 
     /// Try to append other to the end of self.
