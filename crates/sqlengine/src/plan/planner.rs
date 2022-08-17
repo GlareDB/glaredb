@@ -129,7 +129,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
 
         // WHERE ...
         if let Some(expr) = select.selection {
-            let expr = self.translate_expr(&scope, expr)?;
+            let expr = self.translate_expr(scope, expr)?;
             plan = ReadPlan::Filter(Filter {
                 predicate: expr.lower_scalar()?,
                 input: Box::new(plan),
@@ -159,11 +159,11 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
         for item in select.projection {
             match item {
                 ast::SelectItem::UnnamedExpr(expr) => {
-                    let expr = self.translate_expr(&scope, expr)?;
+                    let expr = self.translate_expr(scope, expr)?;
                     exprs.push(expr);
                 }
                 ast::SelectItem::ExprWithAlias { expr, .. } => {
-                    let expr = self.translate_expr(&scope, expr)?;
+                    let expr = self.translate_expr(scope, expr)?;
                     exprs.push(expr);
                 }
                 ast::SelectItem::Wildcard => {
@@ -228,7 +228,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
             let group_by = select
                 .group_by
                 .into_iter()
-                .map(|expr| self.translate_expr(&scope, expr))
+                .map(|expr| self.translate_expr(scope, expr))
                 .collect::<Result<Vec<_>>>()?;
             for _group_by in group_by.iter() {
                 scope.add_column(None, None);
@@ -261,12 +261,12 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
         // by.
         //
         // Note that order by does not modify scope.
-        if query.order_by.len() > 0 {
+        if !query.order_by.is_empty() {
             // TODO: Collect asc/desc and nulls first.
             let order_by_exprs = query
                 .order_by
                 .into_iter()
-                .map(|expr| self.translate_expr(&scope, expr.expr))
+                .map(|expr| self.translate_expr(scope, expr.expr))
                 .collect::<Result<Vec<_>>>()?;
             let mut exprs = exprs.clone();
             let order_by_cols: Vec<_> = (0..order_by_exprs.len())

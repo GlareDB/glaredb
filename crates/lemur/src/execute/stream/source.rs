@@ -199,7 +199,7 @@ impl ReadTx for MemoryDataSource {
                 match filter {
                     Some(filter) => {
                         // Logic duplicated with the filter node.
-                        let evaled = filter.evaluate(&df)?;
+                        let evaled = filter.evaluate(df)?;
                         let bools = evaled
                             .as_ref()
                             .downcast_bool_vec()
