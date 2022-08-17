@@ -210,7 +210,7 @@ impl BinaryOperation {
                     ));
                 }
 
-                left.clone()
+                left
             }
         })
     }
