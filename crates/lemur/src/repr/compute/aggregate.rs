@@ -24,12 +24,10 @@ where
     F2: Fn(O, T) -> O,
 {
     let mut acc = None;
-    for val in vec.iter() {
-        if let Some(val) = val {
-            match acc {
-                Some(inner) => acc = Some(reduce(inner, *val)),
-                None => acc = Some(init(*val)),
-            }
+    for val in vec.iter().flatten() {
+        match acc {
+            Some(inner) => acc = Some(reduce(inner, *val)),
+            None => acc = Some(init(*val)),
         }
     }
     FixedLengthVec::one(acc)
@@ -54,12 +52,10 @@ where
         let mut acc = None;
         let len = range.end - range.start;
         let iter = vec.iter().skip(range.start).take(len);
-        for val in iter {
-            if let Some(val) = val {
-                match acc {
-                    Some(inner) => acc = Some(reduce(inner, *val)),
-                    None => acc = Some(init(*val)),
-                }
+        for val in iter.flatten() {
+            match acc {
+                Some(inner) => acc = Some(reduce(inner, *val)),
+                None => acc = Some(init(*val)),
             }
         }
         output.push(acc)
@@ -75,12 +71,10 @@ where
 {
     // TODO: Possibly COW
     let mut acc = None;
-    for val in vec.iter() {
-        if let Some(val) = val {
-            match acc {
-                Some(inner) => acc = Some(reduce(inner, val)),
-                None => acc = Some(init(val)),
-            }
+    for val in vec.iter().flatten() {
+        match acc {
+            Some(inner) => acc = Some(reduce(inner, val)),
+            None => acc = Some(init(val)),
         }
     }
     Utf8Vec::one(acc.as_deref())
@@ -101,12 +95,10 @@ where
         let mut acc = None;
         let len = range.end - range.start;
         let iter = vec.iter().skip(range.start).take(len);
-        for val in iter {
-            if let Some(val) = val {
-                match acc {
-                    Some(inner) => acc = Some(reduce(inner, val)),
-                    None => acc = Some(init(val)),
-                }
+        for val in iter.flatten() {
+            match acc {
+                Some(inner) => acc = Some(reduce(inner, val)),
+                None => acc = Some(init(val)),
             }
         }
         output.push(acc.as_deref())
