@@ -155,7 +155,7 @@ impl<S: DataSource> Session<S> {
                 let explained: ExplainRelationExpr = match plan {
                     QueryPlan::Read(plan) => plan.lower()?.into(),
                     QueryPlan::Write(plan) => plan.lower()?.into(),
-                    QueryPlan::DataDefinition(_) => todo!(),
+                    QueryPlan::DataDefinition(_) => return Err(anyhow!("cannot explain data definition")),
                 };
                 Ok(ExecutionResult::Explain(explained))
             }
