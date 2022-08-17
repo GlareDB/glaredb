@@ -238,22 +238,6 @@ impl VarLengthVec {
         v
     }
 
-    pub fn from_iter<'a, T: 'a, I>(iter: I) -> Self
-    where
-        T: BytesRef + ?Sized,
-        I: IntoIterator<Item = Option<&'a T>>,
-    {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut vec = Self::with_capacity(lower);
-
-        for val in iter {
-            vec.push(val);
-        }
-
-        vec
-    }
-
     pub fn get_validity(&self) -> &BitVec {
         &self.validity
     }
@@ -370,6 +354,20 @@ impl VarLengthVec {
     }
 }
 
+impl<'a, T: BytesRef + ?Sized + 'a> FromIterator<Option<&'a T>> for VarLengthVec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a T>>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower);
+
+        for val in iter {
+            vec.push(val);
+        }
+
+        vec
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Utf8Vec(VarLengthVec);
 
@@ -384,10 +382,6 @@ impl Utf8Vec {
 
     pub fn one(val: Option<&str>) -> Self {
         Self(VarLengthVec::one(val))
-    }
-
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a str>>) -> Self {
-        Self(VarLengthVec::from_iter(iter))
     }
 
     pub fn push(&mut self, val: Option<&str>) {
@@ -445,6 +439,13 @@ impl Utf8Vec {
         self.0.iter_validity()
     }
 }
+
+impl<'a> FromIterator<Option<&'a str>> for Utf8Vec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a str>>>(iter: I) -> Self {
+        Self(VarLengthVec::from_iter(iter))
+    }
+}
+
 
 pub struct Utf8Iter<'a> {
     vec: &'a VarLengthVec,
