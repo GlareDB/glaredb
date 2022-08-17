@@ -682,17 +682,17 @@ mod tests {
     fn sanity_tests() {
         let catalog = DummyCatalog::new();
         let queries = vec![
-            // "select 1 + 1",
-            // "select * from (values (1), (2))",
+            "select 1 + 1",
+            "select * from (values (1), (2))",
             "select a from t1",
             "select * from t1",
             "select a from t1 where b < 10",
-            // "select * from t1 inner join t2 on t1.b = t2.b",
+            "select * from t1 inner join t2 on t1.b = t2.b",
             "select * from t1 join t2 on t1.b = t2.b",
-            // "select sum(a) + 1, b from t1 group by b",
-            // "select sum(t3.a + 4), c from t1 as t3 inner join t2 as t4 on t3.b = t4.b where a > 5 group by c",
-            // "select a from t1 order by a",
-            // "select sum(a), b from t1 where a > 10 group by b order by b",
+            "select sum(a) + 1, b from t1 group by b",
+            "select sum(t3.a + 4), c from t1 as t3 inner join t2 as t4 on t3.b = t4.b where a > 5 group by c",
+            "select a from t1 order by a",
+            "select sum(a), b from t1 where a > 10 group by b order by b",
             "insert into t1 values (1, 2)",
         ];
 
