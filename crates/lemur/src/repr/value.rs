@@ -58,19 +58,19 @@ impl Value {
         Ok(match self {
             Value::Bool(v) => {
                 let mut vec = BoolVec::with_capacity(n);
-                vec.push(v.clone());
+                vec.push(*v);
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
             Value::Int8(v) => {
                 let mut vec = Int8Vec::with_capacity(n);
-                vec.push(v.clone());
+                vec.push(*v);
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
             Value::Int32(v) => {
                 let mut vec = Int32Vec::with_capacity(n);
-                vec.push(v.clone());
+                vec.push(*v);
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
