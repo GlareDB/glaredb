@@ -16,7 +16,7 @@
       default = packages.cli;
       cli = pkgs.rustPlatform.buildRustPackage {
         pname = "glaredb-cli";
-        version = "0.1.0";
+        version = "0.2.0";
 
         buildAndTestSubdir = "crates/sqlengine";
         src = self.lib.flake_source;
