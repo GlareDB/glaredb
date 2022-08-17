@@ -203,7 +203,7 @@ impl ReadTx for MemoryDataSource {
                         let bools = evaled
                             .as_ref()
                             .downcast_bool_vec()
-                            .ok_or(anyhow!("vec not a bool vec"))?;
+                            .ok_or_else(|| anyhow!("vec not a bool vec"))?;
                         let mut mask = BitVec::with_capacity(bools.len());
                         for v in bools.iter_values() {
                             mask.push(*v);
@@ -264,7 +264,7 @@ impl WriteTx for MemoryDataSource {
         let mut tables = self.tables.write();
         let df = tables
             .get_mut(table)
-            .ok_or(anyhow!("missing table {}", table))?;
+            .ok_or_else(|| anyhow!("missing table {}", table))?;
         *df = df.clone().vstack(data)?;
         Ok(())
     }

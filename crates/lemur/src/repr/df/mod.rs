@@ -24,7 +24,7 @@ impl Schema {
     pub fn project(&self, idxs: &[usize]) -> Result<Schema> {
         let mut out = Vec::with_capacity(idxs.len());
         for &idx in idxs.iter() {
-            out.push(self.types.get(idx).cloned().ok_or(anyhow!(
+            out.push(self.types.get(idx).cloned().ok_or_else(|| anyhow!(
                 "attempt to project out of bound for schema: {:?}, idx: {}",
                 self.types,
                 idx
@@ -184,7 +184,7 @@ impl DataFrame {
             .into_iter()
             .map(|idx| self.columns.get(idx).cloned())
             .collect::<Option<Vec<_>>>()
-            .ok_or(anyhow!("select index out of bounds"))?;
+            .ok_or_else(|| anyhow!("select index out of bounds"))?;
 
         Ok(DataFrame { columns: selected })
     }
@@ -206,7 +206,7 @@ impl DataFrame {
         let bools = evaled
             .as_ref()
             .downcast_bool_vec()
-            .ok_or(anyhow!("cannot downcast expresion result to bool vector"))?;
+            .ok_or_else(|| anyhow!("cannot downcast expresion result to bool vector"))?;
         // TODO: Turn boolvec into bitvec to avoid doing this.
         let mut mask = BitVec::with_capacity(bools.len());
         // TODO: How to handle nulls?
