@@ -191,15 +191,15 @@ pub enum ValueVec {
 
 impl ValueVec {
     pub fn bools(vals: &[bool]) -> Self {
-        BoolVec::from_iter(vals.iter().map(|v| Some(v))).into()
+        BoolVec::from_iter(vals.iter().map(Some)).into()
     }
 
     pub fn int8s(vals: &[i8]) -> Self {
-        Int8Vec::from_iter(vals.iter().map(|v| Some(v))).into()
+        Int8Vec::from_iter(vals.iter().map(Some)).into()
     }
 
     pub fn int32s(vals: &[i32]) -> Self {
-        Int32Vec::from_iter(vals.iter().map(|v| Some(v))).into()
+        Int32Vec::from_iter(vals.iter().map(Some)).into()
     }
 
     pub fn utf8s(vals: &[&str]) -> Self {
