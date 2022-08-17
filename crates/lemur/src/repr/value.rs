@@ -254,11 +254,11 @@ impl ValueVec {
 
     pub fn filter(&self, mask: &BitVec) -> Self {
         match self {
-            ValueVec::Bool(v) => BoolVec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Int8(v) => Int8Vec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Int32(v) => Int32Vec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Utf8(v) => Utf8Vec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
-            ValueVec::Binary(v) => BinaryVec::from_iter(make_filter_iter(v.iter(), &mask)).into(),
+            ValueVec::Bool(v) => BoolVec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Int8(v) => Int8Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Int32(v) => Int32Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Utf8(v) => Utf8Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Binary(v) => BinaryVec::from_iter(make_filter_iter(v.iter(), mask)).into(),
         }
     }
 

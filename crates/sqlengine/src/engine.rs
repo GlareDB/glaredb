@@ -76,7 +76,7 @@ impl<'a, T> RefOrOwnedTx<'a, T> {
     fn as_ref(&self) -> &T {
         match self {
             RefOrOwnedTx::Ref(t) => t,
-            RefOrOwnedTx::Owned(t) => &t,
+            RefOrOwnedTx::Owned(t) => t,
         }
     }
 }
