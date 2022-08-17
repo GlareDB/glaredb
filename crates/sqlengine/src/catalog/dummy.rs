@@ -96,7 +96,7 @@ impl CatalogReader for DummyCatalog {
         }
         let tables = self.tables.read();
         for (reference, table) in tables.iter() {
-            if &table.name == name {
+            if table.name == name {
                 return Ok(Some((reference.clone(), table.clone())));
             }
         }
