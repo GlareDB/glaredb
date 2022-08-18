@@ -9,15 +9,22 @@
     system,
     inputs',
     ...
-  }: let
+  } @ per-system-inputs: let
     rust-stable = self.lib.rust-stable system;
     rust-nightly = self.lib.rust-nightly system;
+
+    scripts = import ./scripts.nix per-system-inputs;
     devTools = with pkgs; [
       rustfmt
       bacon
       cargo-udeps
       cocogitto
       inputs'.bomper.packages.cli
+
+      scripts.ci.bump-version
+      scripts.ci.check-commits
+      scripts.ci.generate-changelog
+      scripts.ci.print-version
     ];
   in rec {
     devShells = {
