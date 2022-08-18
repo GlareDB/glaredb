@@ -1,4 +1,4 @@
-use anyhow::{Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use lemur::execute::stream::source::MemoryDataSource;
 use rustyline::{error::ReadlineError, Editor};
@@ -6,7 +6,7 @@ use sqlengine::engine::Engine;
 use sqlengine::server::{Client, Server};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::ToSocketAddrs;
-use tokio::runtime::{Builder};
+use tokio::runtime::Builder;
 use tracing::{error, info};
 
 #[derive(Parser)]
@@ -54,11 +54,18 @@ fn main() -> Result<()> {
                 .build()?;
             runtime.block_on(async move {
                 let source = MemoryDataSource::new();
-                let engine = Engine::new(source);
+                let mut engine = Engine::new(source);
+                match engine.ensure_system_tables().await {
+                    Ok(_) => info!("system tables ensured"),
+                    Err(e) => {
+                        error!(%e, "failed to ensure system tables, exiting...");
+                        return;
+                    }
+                }
                 let server = Server::new(engine);
                 match server.serve(&bind).await {
                     Ok(_) => info!("server exiting"),
-                    Err(e) => error!("server exited with error: {}", e),
+                    Err(e) => error!(%e, "server exited with error"),
                 }
             });
         }
