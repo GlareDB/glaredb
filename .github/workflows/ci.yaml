@@ -26,3 +26,19 @@ jobs:
 
       - name: Tests (Stable)
         run: cargo test
+  check-commits:
+    name: Check conventional commits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install nix
+        uses: cachix/install-nix-action@v15
+        with:
+          extra_nix_config: |
+            access-tokens = github=${{ secrets.GITHUB_TOKEN }}
+
+      - name: check commits for non-conformers
+        run: nix develop -c 'check-commits'
