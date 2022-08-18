@@ -9,7 +9,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query = std::env::args().nth(1).ok_or("expected query argument")?;
 
     let source = MemoryDataSource::new();
-    let engine = Engine::new(source);
+    let mut engine = Engine::new(source);
+    engine.ensure_system_tables().await?;
     let mut session = engine.begin_session()?;
 
     let results = session.execute_query(&query).await?;
