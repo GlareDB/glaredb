@@ -3,6 +3,7 @@ pub mod planner;
 pub mod read;
 pub mod rewrite;
 pub mod write;
+pub mod data_definition;
 
 use crate::catalog::CatalogReader;
 use planner::Planner;
@@ -13,14 +14,17 @@ use write::WritePlan;
 use anyhow::Result;
 use sqlparser::ast;
 
+use self::data_definition::DataDefinitionPlan;
+
 #[derive(Debug)]
 pub enum QueryPlan {
     Read(ReadPlan),
     Write(WritePlan),
+    DataDefinition(DataDefinitionPlan),
 }
 
 impl QueryPlan {
-    pub fn plan<'a, C>(stmt: ast::Statement, catalog: &'a C) -> Result<QueryPlan>
+    pub fn plan<C>(stmt: ast::Statement, catalog: &C) -> Result<QueryPlan>
     where
         C: CatalogReader,
     {
@@ -34,6 +38,7 @@ impl QueryPlan {
                 Some(read) => read,
                 None => return Ok(()),
             },
+            QueryPlan::DataDefinition(_) => return Ok(()),
         };
 
         FilterPushdown.rewrite(read_plan)?;

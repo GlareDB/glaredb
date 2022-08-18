@@ -1,12 +1,15 @@
-use crate::catalog::{CatalogReader, TableReference, TableSchema};
+use crate::catalog::{CatalogReader, TableReference, TableSchema, CatalogWriter};
 use crate::plan::QueryPlan;
+use crate::plan::data_definition::DataDefinitionPlan;
+use crate::system::{system_tables, ColumnsTable, SystemTable};
 use anyhow::{anyhow, Result};
-use futures::{StreamExt};
+use futures::{StreamExt, executor};
 use lemur::execute::stream::source::{
     DataSource, ReadExecutor, ReadTx, TxInteractivity, WriteExecutor, WriteTx,
 };
 use lemur::repr::df::DataFrame;
-use lemur::repr::expr::ExplainRelationExpr;
+use lemur::repr::expr::{ExplainRelationExpr, RelationKey};
+use lemur::repr::value::{Value, ValueVec};
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 use sqlparser::dialect::PostgreSqlDialect;
@@ -32,6 +35,20 @@ impl<S: DataSource> Engine<S> {
             source: self.source.clone(),
             tx: None,
         })
+    }
+
+    pub async fn ensure_system_tables(&mut self) -> Result<()> {
+        let tx = self.source.begin(TxInteractivity::NonInteractive).await?;
+        for table in system_tables().into_iter() {
+            let table_ref = table.generate_table_reference();
+            let schema = tx.get_table(&table_ref)?;
+            if schema.is_none() {
+                let schema = table.generate_table_schema();
+                tx.create_table(table_ref.into(), schema.into()).await?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -59,7 +76,7 @@ impl<'a, T> RefOrOwnedTx<'a, T> {
     fn as_ref(&self) -> &T {
         match self {
             RefOrOwnedTx::Ref(t) => t,
-            RefOrOwnedTx::Owned(t) => &t,
+            RefOrOwnedTx::Owned(t) => t,
         }
     }
 }
@@ -138,6 +155,7 @@ impl<S: DataSource> Session<S> {
                 let explained: ExplainRelationExpr = match plan {
                     QueryPlan::Read(plan) => plan.lower()?.into(),
                     QueryPlan::Write(plan) => plan.lower()?.into(),
+                    QueryPlan::DataDefinition(_) => return Err(anyhow!("cannot explain data definition")),
                 };
                 Ok(ExecutionResult::Explain(explained))
             }
@@ -155,6 +173,22 @@ impl<S: DataSource> Session<S> {
                         match lowered.execute_write(tx.as_ref()).await? {
                             Some(stream) => stream,
                             None => return Ok(ExecutionResult::WriteSuccess),
+                        }
+                    }
+                    QueryPlan::DataDefinition(plan) => {
+                        match plan {
+                            DataDefinitionPlan::CreateTable(plan) => {
+                                let source = tx.as_ref();
+                                let schema: TableSchema = plan.into();
+                                // TODO: Make use of different catalog/schema
+                                let table_ref = TableReference { 
+                                    catalog: ColumnsTable.catalog().to_string(),
+                                    schema: ColumnsTable.schema().to_string(),
+                                    table: schema.name.clone(),
+                                };
+                                source.add_table(&table_ref, schema)?;
+                                return Ok(ExecutionResult::WriteSuccess);
+                            }
                         }
                     }
                 };
@@ -205,31 +239,90 @@ impl<S: DataSource> fmt::Debug for Session<S> {
             match &self.tx {
                 Some(_) => "(interactive)",
                 None => "(none)",
-            }
+            },
         )
     }
 }
 
 impl<T: ReadTx> CatalogReader for T {
-    fn get_table(&self, _reference: &TableReference) -> Result<Option<TableSchema>> {
-        todo!()
+    fn get_table(&self, reference: &TableReference) -> Result<Option<TableSchema>> {
+        executor::block_on(async move {
+            let table = self.scan_values_equal(
+                &ColumnsTable.generate_table_reference().into(),
+                &[(0, Value::Utf8(Some(reference.to_string())))],
+            ).await?;
+            match table {
+                Some(mut stream) => {
+                    if let Some(stream_result) = stream.next().await {
+                        let df = stream_result?;
+                        let schema = df.get_column_ref(1).ok_or_else(|| {
+                            anyhow!("table schema not found")
+                        })?;
+                        match schema.as_ref() {
+                            &ValueVec::Binary(ref binary_vec) => {
+                                let bytes = binary_vec.get_value(0).ok_or_else(|| {
+                                    anyhow!("table schema not found")
+                                })?;
+                                let decoded: TableSchema = bincode::deserialize(bytes)?;
+                                return Ok(Some(decoded));
+                            }
+                            _ => {
+                                return Err(anyhow!("table schema not found"));
+                            }
+                        }
+                    }
+                    Ok(None)
+                }
+                None => {
+                    Ok(None)
+                }
+            }
+        })
     }
 
     fn get_table_by_name(
         &self,
-        _catalog: &str,
-        _schema: &str,
-        _name: &str,
+        catalog: &str,
+        schema: &str,
+        name: &str,
     ) -> Result<Option<(TableReference, TableSchema)>> {
-        todo!()
+        let table_ref = TableReference {
+            catalog: catalog.to_string(),
+            schema: schema.to_string(),
+            table: name.to_string(),
+        };
+        let table = self.get_table(&table_ref)?;
+        Ok(table.map(|table| (table_ref, table)))
     }
 
     fn current_catalog(&self) -> &str {
-        todo!()
+        ColumnsTable.catalog()
     }
 
     fn current_schema(&self) -> &str {
-        todo!()
+        ColumnsTable.schema()
+    }
+}
+
+impl<T: WriteTx> CatalogWriter for T {
+    fn add_table(&self, reference: &TableReference, schema: TableSchema) -> Result<()> {
+        executor::block_on(async {
+            let key: RelationKey = reference.into();
+
+            // construct a dataframe with the data as a row
+            let df = DataFrame::from_row(vec![
+                Value::Utf8(Some(key.clone())),
+                Value::Binary(Some(bincode::serialize(&schema)?)),
+            ])?;
+            // store the table in the columns table
+            let columns_key: RelationKey = ColumnsTable.generate_table_reference().into();
+            self.insert(&columns_key, df).await?;
+
+            // allocate the table in the source
+            self.create_table(key, schema.into()).await?;
+
+            Ok(())
+        })
     }
 }
 
@@ -307,5 +400,69 @@ mod tests {
             let got = unwrap_df(results.get(0).unwrap());
             assert_dfs_visually_eq(&expected, got);
         }
+    }
+
+    async fn prepare_session<S: DataSource>(source: S) -> Session<S> {
+        let mut engine = Engine::new(source);
+        engine.ensure_system_tables().await.unwrap();
+        let session = engine.begin_session().unwrap();
+        session
+    }
+
+    #[tokio::test]
+    async fn create_table() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+
+        let query = "create table foo (a int, b int)";
+        let create_table = session.execute_query(query).await.unwrap();
+
+        let query = "create table bar (a int, b int)";
+        let create_table = session.execute_query(query).await.unwrap();
+        println!("session: {:?}", session);
+        let record_a = session.execute_query("insert into foo values (10000001, 10000002)").await.unwrap();
+        let record_b = session.execute_query("insert into bar values (10000003, 10000002)").await.unwrap();
+        let select = session.execute_query("select * from foo").await.unwrap();
+        println!("select: {:?}", select);
+        let select = session.execute_query("select * from bar join foo on foo.b = bar.b").await.unwrap();
+        println!("select: {:?}", select);
+
+    }
+
+    #[tokio::test]
+    async fn insert_into_table() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+
+        session.execute_query("create table foo (a int, b int)").await.unwrap();
+        session.execute_query("insert into foo values (10000001, 10000002)").await.unwrap();
+        let results = session.execute_query("select * from foo").await.unwrap();
+
+        let expected = DataFrame::from_row(vec![
+            Value::Int32(Some(10000001)),
+            Value::Int32(Some(10000002)),
+        ]).unwrap();
+        let got = unwrap_df(results.get(0).unwrap());
+        assert_dfs_visually_eq(&expected, got);
+    }
+
+    #[tokio::test]
+    async fn join_tables() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+
+        session.execute_query("create table foo (a int, b int)").await.unwrap();
+        session.execute_query("insert into foo values (10000001, 10000002)").await.unwrap();
+        session.execute_query("create table bar (a int, b int)").await.unwrap();
+        session.execute_query("insert into bar values (10000003, 10000002)").await.unwrap();
+        let results = session.execute_query("select * from foo join bar on foo.b = bar.b").await.unwrap();
+
+        let expected = DataFrame::from_rows(vec![
+            Row::from(vec![
+                Value::Int32(Some(10000001)),
+                Value::Int32(Some(10000002)),
+                Value::Int32(Some(10000003)),
+                Value::Int32(Some(10000002)),
+            ]),
+        ]).unwrap();
+        let got = unwrap_df(results.get(0).unwrap());
+        assert_dfs_visually_eq(&expected, got);
     }
 }

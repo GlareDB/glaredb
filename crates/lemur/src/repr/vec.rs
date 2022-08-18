@@ -53,7 +53,7 @@ impl BytesRef for [u8] {
 }
 
 /// A vector holding fixed length values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FixedLengthVec<T> {
     validity: BitVec,
     values: Vec<T>,
@@ -80,18 +80,6 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
     pub fn from_parts(validity: BitVec, values: Vec<T>) -> Self {
         assert_eq!(validity.len(), values.len());
         FixedLengthVec { validity, values }
-    }
-
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a T>>) -> Self {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut vec = Self::with_capacity(lower);
-
-        for val in iter {
-            vec.push(val.cloned());
-        }
-
-        vec
     }
 
     pub fn split_off(&mut self, at: usize) -> Self {
@@ -169,6 +157,10 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         self.validity.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.validity.is_empty()
+    }
+
     pub fn resize_null(&mut self, len: usize) {
         self.validity.resize(len, false);
         self.values.resize(len, T::default());
@@ -183,6 +175,7 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         Ok(())
     }
 
+    /// Get the value at some index, ignoring the validity at that index.
     pub fn get_value(&self, idx: usize) -> Option<&T> {
         self.values.get(idx)
     }
@@ -200,8 +193,22 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
     }
 }
 
+impl<'a, T: FixedLengthType> FromIterator<Option<&'a T>> for FixedLengthVec<T> {
+    fn from_iter<I: IntoIterator<Item=Option<&'a T>>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower);
+
+        for val in iter {
+            vec.push(val.cloned());
+        }
+
+        vec
+    }
+}
+
 /// Vector type for storing variable length values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VarLengthVec {
     validity: BitVec,
     offsets: Vec<usize>,
@@ -234,22 +241,6 @@ impl VarLengthVec {
         let mut v = Self::with_capacity(1);
         v.push(val);
         v
-    }
-
-    pub fn from_iter<'a, T: 'a, I>(iter: I) -> Self
-    where
-        T: BytesRef + ?Sized,
-        I: IntoIterator<Item = Option<&'a T>>,
-    {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut vec = Self::with_capacity(lower);
-
-        for val in iter {
-            vec.push(val);
-        }
-
-        vec
     }
 
     pub fn get_validity(&self) -> &BitVec {
@@ -302,7 +293,7 @@ impl VarLengthVec {
 
         groups
             .iter_lens()
-            .map(|len| SortPermutation::same_order(len))
+            .map(SortPermutation::same_order)
             .collect()
     }
 
@@ -339,7 +330,6 @@ impl VarLengthVec {
     }
 
     pub fn broadcast_single(&mut self, len: usize) -> Result<()> {
-        println!("broadcasting: {:?}, len: {}", self, self.len());
         if self.len() != 1 {
             return Err(anyhow!("can only broadcast single value vectors"));
         }
@@ -355,6 +345,10 @@ impl VarLengthVec {
         self.validity.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get a value, ignoring its validity.
     pub fn get_value<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<&T> {
         let start = *self.offsets.get(idx)?;
@@ -368,7 +362,21 @@ impl VarLengthVec {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+impl<'a, T: BytesRef + ?Sized + 'a> FromIterator<Option<&'a T>> for VarLengthVec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a T>>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower);
+
+        for val in iter {
+            vec.push(val);
+        }
+
+        vec
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Utf8Vec(VarLengthVec);
 
 impl Utf8Vec {
@@ -382,10 +390,6 @@ impl Utf8Vec {
 
     pub fn one(val: Option<&str>) -> Self {
         Self(VarLengthVec::one(val))
-    }
-
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = Option<&'a str>>) -> Self {
-        Self(VarLengthVec::from_iter(iter))
     }
 
     pub fn push(&mut self, val: Option<&str>) {
@@ -424,6 +428,10 @@ impl Utf8Vec {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn get_value(&self, idx: usize) -> Option<&str> {
         self.0.get_value(idx)
     }
@@ -444,6 +452,13 @@ impl Utf8Vec {
     }
 }
 
+impl<'a> FromIterator<Option<&'a str>> for Utf8Vec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a str>>>(iter: I) -> Self {
+        Self(VarLengthVec::from_iter(iter))
+    }
+}
+
+
 pub struct Utf8Iter<'a> {
     vec: &'a VarLengthVec,
     idx: usize,
@@ -459,11 +474,101 @@ impl<'a> Iterator for Utf8Iter<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BinaryVec(VarLengthVec);
 
 impl BinaryVec {
-    // TODO: Implement
+    pub fn empty() -> Self {
+        Self(VarLengthVec::empty())
+    }
+
+    pub fn with_capacity(cap: usize) -> Self {
+        Self(VarLengthVec::with_capacity(cap))
+    }
+
+    pub fn one(val: Option<&[u8]>) -> Self {
+        Self(VarLengthVec::one(val))
+    }
+
+    pub fn push(&mut self, val: Option<&[u8]>) {
+        self.0.push(val)
+    }
+
+    pub fn get_validity(&self) -> &BitVec {
+        self.0.get_validity()
+    }
+
+    pub fn group_ranges_at(&self, range: &Range<usize>) -> GroupRanges {
+        self.0.group_ranges_at(range)
+    }
+
+    pub fn apply_permutation_at(&mut self, range: &Range<usize>, perm: &SortPermutation) {
+        self.0.apply_permutation_at(range, perm)
+    }
+
+    pub fn sort_each_group(&mut self, groups: &GroupRanges) -> Vec<SortPermutation> {
+        self.0.sort_each_group(groups)
+    }
+
+    pub fn append(&mut self, other: Self) {
+        self.0.append(other.0)
+    }
+
+    pub fn resize_null(&mut self, len: usize) {
+        self.0.resize_null(len)
+    }
+
+    pub fn broadcast_single(&mut self, len: usize) -> Result<()> {
+        self.0.broadcast_single(len)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn get_value(&self, idx: usize) -> Option<&[u8]> {
+        self.0.get_value(idx)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Option<&[u8]>> {
+        zip_with_validity(self.iter_values(), &self.0.validity)
+    }
+
+    pub fn iter_values(&self) -> BinaryIter<'_> {
+        BinaryIter {
+            vec: &self.0,
+            idx: 0,
+        }
+    }
+
+    pub fn iter_validity(&self) -> impl Iterator<Item = bool> + '_ {
+        self.0.iter_validity()
+    }
+}
+
+impl<'a> FromIterator<Option<&'a [u8]>> for BinaryVec {
+    fn from_iter<I: IntoIterator<Item = Option<&'a [u8]>>>(iter: I) -> Self {
+        Self(VarLengthVec::from_iter(iter))
+    }
+}
+
+pub struct BinaryIter<'a> {
+    vec: &'a VarLengthVec,
+    idx: usize,
+}
+
+impl<'a> Iterator for BinaryIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.vec.get_value(self.idx)?;
+        self.idx += 1;
+        Some(item)
+    }
 }
 
 pub type BoolVec = FixedLengthVec<bool>; // TODO: Change to bitvec.
@@ -507,8 +612,74 @@ mod tests {
     }
 
     #[test]
-    fn varlen_push() {
+    fn varlen_push_many() {
         let mut vec = Utf8Vec::empty();
+
         vec.push(Some("hello"));
+        vec.push(Some("world"));
+        vec.push(None);
+        vec.push(Some("goodbye"));
+
+        let values: Vec<_> = vec.iter().collect();
+        assert_eq!(
+            vec![Some("hello"), Some("world"), None, Some("goodbye")],
+            values
+        );
+
+        // Note that we're ignoring validity here (which might be a shit api).
+        // So while the third item has its validity set to 0, we will get
+        // something, but we don't have a guarantee about its contents.
+        assert_eq!(Some("hello"), vec.get_value(0));
+        assert_eq!(Some("world"), vec.get_value(1));
+        assert!(vec.get_value(2).is_some());
+        assert_eq!(Some("goodbye"), vec.get_value(3));
+    }
+
+    #[test]
+    fn varlen_broadcast_single() {
+        let mut vec = Utf8Vec::one(Some("mario"));
+        vec.broadcast_single(3).unwrap();
+
+        let values: Vec<_> = vec.iter().collect();
+        assert_eq!(vec![Some("mario"), Some("mario"), Some("mario")], values);
+    }
+
+    #[test]
+    fn varlen_resize_null() {
+        let mut vec = Utf8Vec::one(Some("yoshi"));
+
+        // Extends with nulls.
+        vec.resize_null(3);
+        let values: Vec<_> = vec.iter().collect();
+        assert_eq!(vec![Some("yoshi"), None, None], values);
+
+        // Truncate.
+        vec.resize_null(0);
+        let values: Vec<_> = vec.iter().collect();
+        assert_eq!(0, values.len());
+
+        // We should not get the original value back.
+        vec.resize_null(1);
+        let values: Vec<_> = vec.iter().collect();
+        assert_eq!(vec![None], values);
+    }
+
+    #[test]
+    fn varlen_append() {
+        let mut a = Utf8Vec::from_iter([Some("peach"), Some("luigi")]);
+        let b = Utf8Vec::from_iter([Some("mario"), None, Some("wario")]);
+        a.append(b);
+
+        let values: Vec<_> = a.iter().collect();
+        assert_eq!(
+            vec![
+                Some("peach"),
+                Some("luigi"),
+                Some("mario"),
+                None,
+                Some("wario")
+            ],
+            values
+        );
     }
 }

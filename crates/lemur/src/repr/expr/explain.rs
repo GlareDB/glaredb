@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// A union between querying and mutating relation expressions. Useful for
 /// explains.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExplainRelationExpr {
     Query(RelationExpr),
     Mutate(MutateRelationExpr),

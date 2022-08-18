@@ -15,7 +15,7 @@ pub struct Insert {
     pub input: ReadPlan,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateTable {
     pub schema: TableSchema,
 }
@@ -39,7 +39,7 @@ impl WritePlan {
             }
             WritePlan::CreateTable(CreateTable { schema }) => {
                 MutateRelationExpr::CreateTable(expr::CreateTable {
-                    table: "TODO".to_string(),
+                    table: schema.name.clone(),
                     schema: schema.to_schema(),
                 })
             }
