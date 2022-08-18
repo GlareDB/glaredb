@@ -253,20 +253,6 @@ impl DataFrame {
         Ok(self)
     }
 
-    pub fn hstack_pred(mut self, other: &Self, pred: &ScalarExpr) -> Result<Self> {
-        if self.num_rows() != other.num_rows() {
-            return Err(anyhow!("invalid number of rows for hstack"));
-        }
-
-        self.columns
-            .extend(other.columns.iter().filter_map(|col| {
-                // TODO: Check pred here
-                Some(col.clone())
-            }));
-
-        Ok(self)
-    }
-
     /// Push a row onto this dataframe.
     pub fn push_row(&mut self, row: Row) -> Result<()> {
         if self.arity() != row.arity() {
@@ -331,7 +317,7 @@ impl DataFrame {
         let left = self.repeat_each_row(left_repeat);
         let right = other.vertical_repeat(right_repeat);
 
-        Ok(left.hstack_pred(&right, predicate)?)
+        left.hstack(&right)?.filter_expr(predicate)
     }
 
     /// Order by and group by the provided columns.

@@ -665,7 +665,7 @@ impl Scope {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::{Column, dummy::DummyCatalog};
+    use crate::catalog::{dummy::DummyCatalog};
     use lemur::repr::value::ValueType;
     use parking_lot::RwLock;
     use sqlparser::dialect::PostgreSqlDialect;
