@@ -200,7 +200,6 @@ impl<R: ReadTx> ReadExecutor<R> for CrossJoin {
 #[async_trait]
 impl<R: ReadTx> ReadExecutor<R> for NestedLoopJoin {
     async fn execute_read(self, source: &R) -> Result<DataFrameStream> {
-        println!("NestedLoopJoin {:?}", self);
         let (mut left, mut right) = futures::try_join!(
             self.left.execute_read(source),
             self.right.execute_read(source)
@@ -212,20 +211,35 @@ impl<R: ReadTx> ReadExecutor<R> for NestedLoopJoin {
             let mut rights: Vec<DataFrame> = Vec::new();
 
             // TODO: Run awaiting for left and right dataframes in parallel..
-            while let Some(left_df) = left.next().await {
-                let left_df = match_send_err!(left_df, tx);
-                while let Some(right_df) = right.next().await {
-                    let right_df = match_send_err!(right_df, tx);
-
-                    let joined = match_send_err!(
-                        left_df.clone().nested_loop_join(right_df.clone(), &self.predicate),
-                        tx
-                    );
+            loop {
+                if let Some(left_df) = left.next().await {
+                    let left_df = match_send_err!(left_df, tx);
+                    for right_df in rights.iter() {
+                        let joined =
+                            match_send_err!(left_df.clone().nested_loop_join(right_df.clone(), &self.predicate), tx);
                     match_send_ok!(joined, tx, "failed to send result of nested loop join");
 
-                    rights.push(right_df);
+                    }
+                    lefts.push(left_df);
+                    // Continuing here may result in us reading in all lefts
+                    // before processing a single right, but that should be fine
+                    // for now.
+                    continue;
                 }
-                lefts.push(left_df);
+
+                if let Some(right_df) = right.next().await {
+                    let right_df = match_send_err!(right_df, tx);
+                    for left_df in lefts.iter() {
+                        let joined =
+                            match_send_err!(left_df.clone().nested_loop_join(right_df.clone(), &self.predicate), tx);
+                    match_send_ok!(joined, tx, "failed to send result of nested loop join");
+                    }
+                    rights.push(right_df);
+                    continue;
+                }
+
+                // Left and right streams exhausted, we're done.
+                return;
             }
         });
 
