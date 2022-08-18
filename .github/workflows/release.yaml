@@ -1,0 +1,48 @@
+name: GlareDB release
+
+on: workflow_dispatch
+
+jobs:
+  release:
+    name: SemVer release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: configure git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git config --global user.name github-actions
+          git config --global user.email github-actions@github.com
+
+      - name: install nix
+        uses: cachix/install-nix-action@v15
+        with:
+          extra_nix_config: |
+            access-tokens = github=${{ secrets.GITHUB_TOKEN }}
+
+      - name: bump version
+        run: nix develop -c 'bump-version'
+
+      - name: get version
+        id: get-version
+        run: |
+          VERSION=`nix develop -c "print-version"`
+          echo ::set-output name=version::"$VERSION"
+
+      - name: push to git
+        run: |
+          git push
+          git push --tags
+
+      - name: generate changelog
+        run: nix develop -c "generate-changelog ${{ steps.get-version.outputs.version }}" > GITHUB_CHANGELOG.md
+
+      - name: upload github release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: GITHUB_CHANGELOG.md
+          tag_name: ${{ steps.get-version.outputs.version }}
