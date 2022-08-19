@@ -50,7 +50,7 @@ macro_rules! match_send_err {
     };
 }
 
-/// Utility macro for returning an error when a result fails to be sent through
+/// Utility macro for logging an error when a result fails to be sent through
 /// a channel.
 macro_rules! match_send_ok {
     ($item:ident, $tx:ident, $error_message:expr) => {
