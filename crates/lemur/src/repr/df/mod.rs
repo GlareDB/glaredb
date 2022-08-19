@@ -309,6 +309,17 @@ impl DataFrame {
         left.hstack(&right)
     }
 
+    /// Nested loop join two dataframes
+    pub fn nested_loop_join(self, other: Self, predicate: &ScalarExpr) -> Result<Self> {
+        let left_repeat = other.num_rows();
+        let right_repeat = self.num_rows();
+
+        let left = self.repeat_each_row(left_repeat);
+        let right = other.vertical_repeat(right_repeat);
+
+        left.hstack(&right)?.filter_expr(predicate)
+    }
+
     /// Order by and group by the provided columns.
     pub fn order_by_group_by(self, columns: &[usize]) -> Result<Self> {
         let df = SortedGroupByDataFrame::from_dataframe(self, columns)?;

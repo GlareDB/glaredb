@@ -382,6 +382,15 @@ mod tests {
                     vec![Value::Int8(Some(2)), Value::Int8(Some(4))],
                 ],
             ),
+            (
+                "select * from (values (1), (2)) join (values (3), (4)) on 1=1",
+                vec![
+                    vec![Value::Int8(Some(1)), Value::Int8(Some(3))],
+                    vec![Value::Int8(Some(1)), Value::Int8(Some(4))],
+                    vec![Value::Int8(Some(2)), Value::Int8(Some(3))],
+                    vec![Value::Int8(Some(2)), Value::Int8(Some(4))],
+                ],
+            ),
         ];
 
         for test in tests.into_iter() {
@@ -483,6 +492,55 @@ mod tests {
             Value::Int32(Some(10000002)),
         ])])
         .unwrap();
+        let got = unwrap_df(results.get(0).unwrap());
+        assert_dfs_visually_eq(&expected, got);
+    }
+
+    #[tokio::test]
+    async fn join_tables_many() {
+        let mut session = prepare_session(MemoryDataSource::new()).await;
+        let foo_records = vec![
+            (10000001, 10000010),
+            (10000002, 10000020),
+            (10000003, 10000030),
+        ];
+
+        let bar_records = vec![
+            (10000001, 10000100),
+            (10000002, 10000200),
+            (10000003, 10000300),
+        ];
+
+        session.execute_query("create table foo (a int, b int)").await.unwrap();
+        for record in foo_records.iter() {
+            session.execute_query(&format!("insert into foo values ({}, {})", record.0, record.1)).await.unwrap();
+        }
+        session.execute_query("create table bar (a int, b int)").await.unwrap();
+        for record in bar_records.iter() {
+            session.execute_query(&format!("insert into bar values ({}, {})", record.0, record.1)).await.unwrap();
+        }
+        let results = session.execute_query("select * from foo join bar on foo.a = bar.a").await.unwrap();
+
+        let expected = DataFrame::from_rows(vec![
+            Row::from(vec![
+                Value::Int32(Some(10000001)),
+                Value::Int32(Some(10000010)),
+                Value::Int32(Some(10000001)),
+                Value::Int32(Some(10000100)),
+            ]),
+            Row::from(vec![
+                Value::Int32(Some(10000002)),
+                Value::Int32(Some(10000020)),
+                Value::Int32(Some(10000002)),
+                Value::Int32(Some(10000200)),
+            ]),
+            Row::from(vec![
+                Value::Int32(Some(10000003)),
+                Value::Int32(Some(10000030)),
+                Value::Int32(Some(10000003)),
+                Value::Int32(Some(10000300)),
+            ]),
+        ]).unwrap();
         let got = unwrap_df(results.get(0).unwrap());
         assert_dfs_visually_eq(&expected, got);
     }

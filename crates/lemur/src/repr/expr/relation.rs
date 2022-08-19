@@ -15,6 +15,7 @@ pub enum RelationExpr {
     Aggregate(Aggregate),
     OrderByGroupBy(OrderByGroupBy),
     CrossJoin(CrossJoin),
+    NestedLoopJoin(NestedLoopJoin),
     Filter(Filter),
     Values(Values),
     Source(Source),
@@ -91,6 +92,13 @@ pub struct OrderByGroupBy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrossJoin {
+    pub left: Box<RelationExpr>,
+    pub right: Box<RelationExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NestedLoopJoin {
+    pub predicate: ScalarExpr,
     pub left: Box<RelationExpr>,
     pub right: Box<RelationExpr>,
 }
