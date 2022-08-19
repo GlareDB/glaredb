@@ -17,15 +17,27 @@
       cargo-udeps
       cocogitto
     ];
+
+    otherNativeBuildInputs = with pkgs; [pkgconfig llvmPackages.bintools];
+    otherBuildInputs = with pkgs; [
+      clang
+    ];
+    LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
   in rec {
     devShells = {
       default = devShells.nightly;
       stable = pkgs.mkShell rec {
-        buildInputs = [rust-stable] ++ devTools;
+        buildInputs = [rust-stable] ++ devTools ++ otherBuildInputs;
+        nativeBuildInputs = otherNativeBuildInputs;
+        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
+        inherit LIBCLANG_PATH;
         inherit (self.checks.${system}.pre-commit) shellHook;
       };
       nightly = pkgs.mkShell rec {
-        buildInputs = [rust-nightly] ++ devTools;
+        buildInputs = [rust-nightly] ++ devTools ++ otherBuildInputs;
+        nativeBuildInputs = otherNativeBuildInputs;
+        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
+        inherit LIBCLANG_PATH;
         inherit (self.checks.${system}.pre-commit) shellHook;
       };
       postgres = with pkgs;
