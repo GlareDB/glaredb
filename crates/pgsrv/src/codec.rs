@@ -1,7 +1,12 @@
 use crate::errors::{PgSrvError, Result};
-use crate::messages::{BackendMessage, FrontendMessage, StartupMessage, VERSION};
+use crate::messages::{
+    BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION,
+};
+use crate::types::PgValue;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
+use ioutil::fmt::HexBuf;
+use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
 use std::str;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
@@ -138,6 +143,33 @@ impl PgCodec {
             password: buf.read_cstring()?.to_string(),
         })
     }
+
+    fn encode_value_as_text(val: PgValue, buf: &mut BytesMut) -> Result<()> {
+        if matches!(val, PgValue::Null) {
+            buf.put_i32(-1);
+            return Ok(());
+        }
+
+        // Write placeholder length.
+        let len_idx = buf.len();
+        buf.put_i32(0);
+
+        match val {
+            PgValue::Null => unreachable!(), // Checked above.
+            PgValue::Bool(v) => write!(buf, "{}", if v { "t" } else { "f" }),
+            PgValue::Int2(v) => write!(buf, "{}", v),
+            PgValue::Int4(v) => write!(buf, "{}", v),
+            PgValue::Text(v) => buf.write_str(&v),
+            PgValue::Bytea(v) => write!(buf, "{:#x}", HexBuf(&v)),
+        };
+
+        // Note the value of length does not include itself.
+        let val_len = buf.len() - len_idx - 4;
+        let val_len = i32::try_from(val_len).map_err(|_| PgSrvError::MsgTooLarge(val_len))?;
+        buf[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(val_len));
+
+        Ok(())
+    }
 }
 
 impl Encoder<BackendMessage> for PgCodec {
@@ -146,9 +178,10 @@ impl Encoder<BackendMessage> for PgCodec {
     fn encode(&mut self, item: BackendMessage, dst: &mut BytesMut) -> Result<()> {
         let byte = match &item {
             BackendMessage::ErrorResponse(_) => b'E',
+            BackendMessage::NoticeResponse(_) => b'N',
             BackendMessage::AuthenticationOk => b'R',
             BackendMessage::AuthenticationCleartextPassword => b'R',
-            BackendMessage::ReadyForQuery => b'Z',
+            BackendMessage::ReadyForQuery(_) => b'Z',
             BackendMessage::CommandComplete => b'C',
             BackendMessage::RowDescription => b'T',
             _ => unimplemented!(),
@@ -162,12 +195,48 @@ impl Encoder<BackendMessage> for PgCodec {
         match item {
             BackendMessage::AuthenticationOk => dst.put_i32(0),
             BackendMessage::AuthenticationCleartextPassword => dst.put_i32(3),
-            BackendMessage::ReadyForQuery => dst.put_u8(b'I'), // TODO: Proper status.
+            BackendMessage::ReadyForQuery(status) => match status {
+                TransactionStatus::Idle => dst.put_u8(b'I'),
+                TransactionStatus::InBlock => dst.put_u8(b'T'),
+                TransactionStatus::Failed => dst.put_u8(b'E'),
+            },
+            BackendMessage::ErrorResponse(error) => {
+                // See https://www.postgresql.org/docs/current/protocol-error-fields.html
+
+                // Severity
+                dst.put_u8(b'S');
+                dst.put_cstring(error.severity.as_str());
+                dst.put_u8(b'V');
+                dst.put_cstring(error.severity.as_str());
+
+                // SQLSTATE error code
+                dst.put_u8(b'C');
+                dst.put_cstring(error.code.as_code_str());
+
+                // Message
+                dst.put_u8(b'M');
+                dst.put_cstring(&error.message);
+
+                // Terminate message.
+                dst.put_u8(0);
+            }
+            BackendMessage::NoticeResponse(notice) => {
+                // Pretty much the same as an error response.
+                dst.put_u8(b'S');
+                dst.put_cstring(notice.severity.as_str());
+                dst.put_u8(b'V');
+                dst.put_cstring(notice.severity.as_str());
+                dst.put_u8(b'C');
+                dst.put_cstring(notice.code.as_code_str());
+                dst.put_u8(b'M');
+                dst.put_cstring(&notice.message);
+                dst.put_u8(0);
+            }
+            BackendMessage::RowDescription 
             _ => unimplemented!(),
         }
 
         let msg_len = dst.len() - len_idx;
-        println!("msg len: {}", msg_len);
         let msg_len = i32::try_from(msg_len).map_err(|_| PgSrvError::MsgTooLarge(msg_len))?;
         dst[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(msg_len));
 

@@ -1,4 +1,5 @@
 use crate::messages::FrontendMessage;
+use crate::types::TypeError;
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -21,5 +22,11 @@ pub enum PgSrvError {
     InvalidMsgType(u8),
 
     #[error(transparent)]
+    TypeError(#[from] TypeError),
+
+    #[error(transparent)]
     Io(#[from] io::Error),
+
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error), // From sqlengine
 }

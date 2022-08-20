@@ -1,4 +1,6 @@
 use pgsrv::handler::Handler;
+use sqlengine::engine::Engine;
+use lemur::execute::stream::source::MemoryDataSource;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -14,7 +16,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listen_addr = listener.local_addr()?;
     info!(%listen_addr, "listening");
 
-    let handler = Arc::new(Handler::new());
+    let source = MemoryDataSource::new();
+    let mut engine = Engine::new(source);
+    engine.ensure_system_tables().await?;
+
+    let handler = Arc::new(Handler::new(engine));
 
     loop {
         let (socket, _) = listener.accept().await?;
