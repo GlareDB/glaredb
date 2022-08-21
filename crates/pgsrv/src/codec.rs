@@ -1,11 +1,11 @@
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
     BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
-    VERSION_PROTO, VERSION_SSL,
+    VERSION_SSL, VERSION_V3,
 };
 use crate::types::PgValue;
 use bytes::{Buf, BufMut, BytesMut};
-use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
+use futures::{SinkExt, TryStreamExt};
 use ioutil::fmt::HexBuf;
 use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
@@ -83,7 +83,7 @@ impl<'a> Cursor<'a> {
     }
 
     fn next_is_null_byte(&self) -> bool {
-        self.buf.len() > 0 && self.buf[0] == 0
+        !self.buf.is_empty() && self.buf[0] == 0
     }
 }
 
@@ -121,7 +121,7 @@ impl PgCodec {
         let version = buf.get_i32();
 
         match version {
-            VERSION_PROTO => (), // Continue with normal startup flow.
+            VERSION_V3 => (), // Continue with normal startup flow.
             VERSION_SSL => return Ok(StartupMessage::SSLRequest { version }),
             VERSION_CANCEL => return Ok(StartupMessage::CancelRequest { version }),
             other => return Err(PgSrvError::InvalidProtocolVersion(other)),
@@ -191,7 +191,6 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::DataRow(_) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
-            _ => unimplemented!(),
         };
         dst.put_u8(byte);
 
@@ -260,8 +259,6 @@ impl Encoder<BackendMessage> for PgCodec {
                 dst.put_cstring(&notice.message);
                 dst.put_u8(0);
             }
-            // BackendMessage::RowDescription
-            _ => unimplemented!(),
         }
 
         let msg_len = dst.len() - len_idx;

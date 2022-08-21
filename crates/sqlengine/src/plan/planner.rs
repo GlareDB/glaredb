@@ -10,8 +10,6 @@ use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation};
 use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
-use std::collections::hash_map;
-use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 pub struct Planner<'a, C> {
     catalog: &'a C,
@@ -563,13 +561,10 @@ fn column_def_to_column(col: ast::ColumnDef) -> Result<Column> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::{dummy::DummyCatalog, Column};
-    use lemur::repr::value::ValueType;
-    use parking_lot::RwLock;
+    use crate::catalog::dummy::DummyCatalog;
+
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
 
     fn parse(query: &str) -> ast::Statement {
         let mut stmts = Parser::parse_sql(&PostgreSqlDialect {}, query).unwrap();

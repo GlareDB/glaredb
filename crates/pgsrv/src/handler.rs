@@ -1,7 +1,7 @@
 use crate::codec::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, NoticeResponse,
+    BackendMessage, ErrorResponse, FieldDescription, FrontendMessage,
     StartupMessage, TransactionStatus,
 };
 use crate::types::PgValue;

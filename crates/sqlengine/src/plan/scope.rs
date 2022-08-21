@@ -1,5 +1,5 @@
-use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
-use crate::plan::Description;
+use crate::catalog::TableSchema;
+
 use anyhow::{anyhow, Result};
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 

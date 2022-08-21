@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::marker::PhantomData;
+
 use std::sync::Arc;
 
 use crate::repr::expr::{AggregateExpr, ScalarExpr, ScalarExprVec};
