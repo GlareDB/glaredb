@@ -1,6 +1,7 @@
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION,
+    BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
+    VERSION_PROTO, VERSION_SSL,
 };
 use crate::types::PgValue;
 use bytes::{Buf, BufMut, BytesMut};
@@ -118,8 +119,12 @@ impl PgCodec {
 
         let mut buf = Cursor::new(&buf);
         let version = buf.get_i32();
-        if version != VERSION {
-            return Err(PgSrvError::InvalidProtocolVersion(version));
+
+        match version {
+            VERSION_PROTO => (), // Continue with normal startup flow.
+            VERSION_SSL => return Ok(StartupMessage::SSLRequest { version }),
+            VERSION_CANCEL => return Ok(StartupMessage::CancelRequest { version }),
+            other => return Err(PgSrvError::InvalidProtocolVersion(other)),
         }
 
         let mut params = HashMap::new();
@@ -129,7 +134,7 @@ impl PgCodec {
             params.insert(key, val);
         }
 
-        Ok(StartupMessage::Startup { version, params })
+        Ok(StartupMessage::StartupRequest { version, params })
     }
 
     fn decode_query(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {

@@ -2,12 +2,22 @@ use crate::errors::Result;
 use crate::types::PgValue;
 use std::collections::HashMap;
 
-/// Protocol version number (v3.0).
-pub const VERSION: i32 = 0x30000;
+/// Version number (v3.0) used during normal frontend startup.
+pub const VERSION_PROTO: i32 = 0x30000;
+/// Version number used to request a cancellation.
+pub const VERSION_CANCEL: i32 = (1234 << 16) ^ 5678;
+/// Version number used to request an SSL connection.
+pub const VERSION_SSL: i32 = (1234 << 16) ^ 5679;
 
 #[derive(Debug)]
 pub enum StartupMessage {
-    Startup {
+    SSLRequest {
+        version: i32,
+    },
+    CancelRequest {
+        version: i32,
+    },
+    StartupRequest {
         version: i32,
         params: HashMap<String, String>,
     },

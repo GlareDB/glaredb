@@ -11,9 +11,11 @@ use lemur::repr::expr::ExplainRelationExpr;
 use sqlengine::engine::{Engine, ExecutionResult, Session};
 use sqlengine::plan::Description;
 use std::collections::HashMap;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::trace;
 
+/// A wrapper around a sqlengine that implements the Postgres frontend/backend
+/// protocol.
 pub struct Handler<S> {
     engine: Engine<S>,
 }
@@ -32,8 +34,31 @@ impl<S: DataSource> Handler<S> {
         trace!(?startup, "received startup message");
 
         match startup {
-            StartupMessage::Startup { version, params } => {
+            StartupMessage::StartupRequest { params, .. } => {
                 self.begin(conn, params).await?;
+            }
+            StartupMessage::SSLRequest { .. } => {
+                // 'N' for not supported, 'S' for supported.
+                //
+                // No SSL support for now, send back not supported and try
+                // reading in a new startup message.
+                conn.write_u8(b'N').await?;
+
+                // Frontend should continue on with an unencrypted connection
+                // (or exit).
+                let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+                match startup {
+                    StartupMessage::StartupRequest { params, .. } => {
+                        self.begin(conn, params).await?
+                    }
+                    other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
+                }
+            }
+            StartupMessage::CancelRequest { .. } => {
+                trace!("recieved cancel request");
+                // TODO: Properly handle requests to cancel sessions.
+
+                // Note that we should not respond to this request.
             }
         }
 
@@ -45,6 +70,8 @@ impl<S: DataSource> Handler<S> {
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
+        trace!("starting protocol with params: {:?}", params);
+
         let mut framed = FramedConn::new(conn);
 
         // TODO: Check username, password, database.
@@ -61,11 +88,6 @@ impl<S: DataSource> Handler<S> {
             Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.
             None => return Ok(()),
         }
-
-        // TODO: When we open a session, get the transaction status from that.
-        framed
-            .send(BackendMessage::ReadyForQuery(TransactionStatus::Idle))
-            .await?;
 
         let sess = match self.engine.begin_session() {
             Ok(sess) => sess,
@@ -100,6 +122,7 @@ where
     }
 
     async fn run(mut self) -> Result<()> {
+        self.ready_for_query().await?;
         loop {
             let msg = self.conn.read().await?;
 
@@ -164,17 +187,6 @@ where
                 ExecutionResult::Explain(explain) => {
                     self.send_explain(explain).await?;
                     self.command_complete("EXPLAIN").await?;
-                }
-                other => {
-                    self.conn
-                        .send(
-                            ErrorResponse::feature_not_supported(format!(
-                                "execution result: {:?}",
-                                other
-                            ))
-                            .into(),
-                        )
-                        .await?
                 }
             }
         }

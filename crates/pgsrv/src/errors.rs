@@ -1,4 +1,4 @@
-use crate::messages::FrontendMessage;
+use crate::messages::{FrontendMessage, StartupMessage};
 use crate::types::TypeError;
 use std::io;
 
@@ -11,6 +11,9 @@ pub enum PgSrvError {
 
     #[error("unexpected frontend message: {0:?}")]
     UnexpectedFrontendMessage(FrontendMessage),
+
+    #[error("unexpected startup message: {0:?}")]
+    UnexpectedStartupMessage(StartupMessage),
 
     #[error("message larger than i32 max, size: {0}")]
     MsgTooLarge(usize),

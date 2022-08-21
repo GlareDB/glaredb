@@ -1,4 +1,3 @@
-use bytes::BufMut;
 use lemur::repr::value::{Value, ValueRef, ValueType};
 use postgres_types::Type as PgType;
 
