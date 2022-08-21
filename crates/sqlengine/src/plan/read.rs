@@ -1,5 +1,5 @@
 use crate::catalog::TableReference;
-use anyhow::{Result};
+use anyhow::Result;
 use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::df::Schema;
 use lemur::repr::expr::{self, AggregateExpr, RelationExpr, ScalarExpr};

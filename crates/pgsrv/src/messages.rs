@@ -176,15 +176,15 @@ pub struct FieldDescription {
 }
 
 impl FieldDescription {
-    pub fn new() -> FieldDescription {
+    pub fn new_named(name: impl Into<String>) -> FieldDescription {
         FieldDescription {
-            name: "hello".to_string(),
+            name: name.into(),
             table_id: 0,
             col_id: 0,
             obj_id: 0,
             type_size: 0,
             type_mod: 0,
-            format: 0,
+            format: 0, // Text
         }
     }
 }

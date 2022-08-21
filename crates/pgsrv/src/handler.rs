@@ -9,6 +9,7 @@ use lemur::execute::stream::source::DataSource;
 use lemur::repr::df::DataFrame;
 use lemur::repr::expr::ExplainRelationExpr;
 use sqlengine::engine::{Engine, ExecutionResult, Session};
+use sqlengine::plan::Description;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::trace;
@@ -151,8 +152,8 @@ where
 
         for result in results.into_iter() {
             match result {
-                ExecutionResult::Query { df } => {
-                    self.send_dataframe(df).await?;
+                ExecutionResult::Query { desc, df } => {
+                    self.send_dataframe(desc, df).await?;
                     self.command_complete("SELECT").await?
                 }
                 ExecutionResult::Begin => self.command_complete("BEGIN").await?,
@@ -186,8 +187,12 @@ where
     }
 
     // TODO: Stream
-    async fn send_dataframe(&mut self, df: DataFrame) -> Result<()> {
-        let fields: Vec<_> = (0..df.arity()).map(|_| FieldDescription::new()).collect();
+    async fn send_dataframe(&mut self, desc: Description, df: DataFrame) -> Result<()> {
+        let fields: Vec<_> = desc
+            .columns
+            .into_iter()
+            .map(FieldDescription::new_named)
+            .collect();
         self.conn
             .send(BackendMessage::RowDescription(fields))
             .await?;
@@ -208,9 +213,9 @@ where
 
     async fn send_explain(&mut self, explain: ExplainRelationExpr) -> Result<()> {
         self.conn
-            .send(BackendMessage::RowDescription(
-                vec![FieldDescription::new()],
-            ))
+            .send(BackendMessage::RowDescription(vec![
+                FieldDescription::new_named("Query Plan"),
+            ]))
             .await?;
         self.conn
             .send(BackendMessage::DataRow(vec![PgValue::Text(
