@@ -1,11 +1,12 @@
 use crate::codec::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, ErrorResponse, FrontendMessage, NoticeResponse, StartupMessage,
-    TransactionStatus,
+    BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, NoticeResponse,
+    StartupMessage, TransactionStatus,
 };
 use lemur::execute::stream::source::DataSource;
-use sqlengine::engine::{Engine, Session};
+use lemur::repr::df::DataFrame;
+use sqlengine::engine::{Engine, ExecutionResult, Session};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::trace;
@@ -130,6 +131,62 @@ where
 
     async fn query(&mut self, sql: String) -> Result<()> {
         trace!(%sql, "received query");
+        // TODO: This needs some refactoring for starting an implicit
+        // transaction for multiple statements. Also might give us a chance to
+        // return a data frame stream over holding everything in memory.
+        let results = match self.session.execute_query(&sql).await {
+            Ok(results) => results,
+            Err(e) => {
+                self.conn
+                    .send(
+                        ErrorResponse::error_interanl(format!("failed to execute: {:?}", e)).into(),
+                    )
+                    .await?;
+                return self.ready_for_query().await;
+            }
+        };
+        let num_results = results.len();
+
+        for result in results.into_iter() {
+            match result {
+                ExecutionResult::QueryResult { df } => {
+                    self.send_dataframe(df).await?;
+                    self.command_complete("SELECT".to_string()).await?
+                }
+                other => {
+                    self.conn
+                        .send(
+                            ErrorResponse::feature_not_supported(format!(
+                                "execution result: {:?}",
+                                other
+                            ))
+                            .into(),
+                        )
+                        .await?
+                }
+            }
+        }
+
+        if num_results == 0 {
+            self.conn.send(BackendMessage::EmptyQueryResponse).await?;
+        }
+
         self.ready_for_query().await
+    }
+
+    // TODO: Stream
+    async fn send_dataframe(&mut self, df: DataFrame) -> Result<()> {
+        let fields: Vec<_> = (0..df.arity()).map(|_| FieldDescription::new()).collect();
+        self.conn
+            .send(BackendMessage::RowDescription(fields))
+            .await?;
+        // TODO: Rows
+        Ok(())
+    }
+
+    async fn command_complete(&mut self, tag: String) -> Result<()> {
+        self.conn
+            .send(BackendMessage::CommandComplete { tag })
+            .await
     }
 }

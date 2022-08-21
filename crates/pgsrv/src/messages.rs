@@ -34,9 +34,10 @@ pub enum BackendMessage {
     NoticeResponse(NoticeResponse),
     AuthenticationOk,
     AuthenticationCleartextPassword,
+    EmptyQueryResponse,
     ReadyForQuery(TransactionStatus),
-    CommandComplete,
-    RowDescription,
+    CommandComplete { tag: String },
+    RowDescription(Vec<FieldDescription>),
 }
 
 impl From<ErrorResponse> for BackendMessage {
@@ -106,6 +107,14 @@ impl ErrorResponse {
         }
     }
 
+    pub fn error_interanl(msg: impl Into<String>) -> ErrorResponse {
+        ErrorResponse {
+            severity: ErrorSeverity::Error,
+            code: SqlState::InternalError,
+            message: msg.into(),
+        }
+    }
+
     pub fn fatal_internal(msg: impl Into<String>) -> ErrorResponse {
         ErrorResponse {
             severity: ErrorSeverity::Fatal,
@@ -165,5 +174,15 @@ pub struct FieldDescription {
 }
 
 impl FieldDescription {
-    // pub fn
+    pub fn new() -> FieldDescription {
+        FieldDescription {
+            name: "hello".to_string(),
+            table_id: 0,
+            col_id: 0,
+            obj_id: 0,
+            type_size: 0,
+            type_mod: 0,
+            format: 0,
+        }
+    }
 }

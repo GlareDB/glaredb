@@ -177,13 +177,14 @@ impl Encoder<BackendMessage> for PgCodec {
 
     fn encode(&mut self, item: BackendMessage, dst: &mut BytesMut) -> Result<()> {
         let byte = match &item {
-            BackendMessage::ErrorResponse(_) => b'E',
-            BackendMessage::NoticeResponse(_) => b'N',
             BackendMessage::AuthenticationOk => b'R',
             BackendMessage::AuthenticationCleartextPassword => b'R',
+            BackendMessage::EmptyQueryResponse => b'I',
             BackendMessage::ReadyForQuery(_) => b'Z',
-            BackendMessage::CommandComplete => b'C',
-            BackendMessage::RowDescription => b'T',
+            BackendMessage::CommandComplete { .. } => b'C',
+            BackendMessage::RowDescription(_) => b'T',
+            BackendMessage::ErrorResponse(_) => b'E',
+            BackendMessage::NoticeResponse(_) => b'N',
             _ => unimplemented!(),
         };
         dst.put_u8(byte);
@@ -195,11 +196,25 @@ impl Encoder<BackendMessage> for PgCodec {
         match item {
             BackendMessage::AuthenticationOk => dst.put_i32(0),
             BackendMessage::AuthenticationCleartextPassword => dst.put_i32(3),
+            BackendMessage::EmptyQueryResponse => (),
             BackendMessage::ReadyForQuery(status) => match status {
                 TransactionStatus::Idle => dst.put_u8(b'I'),
                 TransactionStatus::InBlock => dst.put_u8(b'T'),
                 TransactionStatus::Failed => dst.put_u8(b'E'),
             },
+            BackendMessage::CommandComplete { tag } => dst.put_cstring(&tag),
+            BackendMessage::RowDescription(descs) => {
+                dst.put_i16(descs.len() as i16); // TODO: Check
+                for desc in descs.into_iter() {
+                    dst.put_cstring(&desc.name);
+                    dst.put_i32(desc.table_id);
+                    dst.put_i16(desc.col_id);
+                    dst.put_i32(desc.obj_id);
+                    dst.put_i16(desc.type_size);
+                    dst.put_i32(desc.type_mod);
+                    dst.put_i16(desc.format);
+                }
+            }
             BackendMessage::ErrorResponse(error) => {
                 // See https://www.postgresql.org/docs/current/protocol-error-fields.html
 
@@ -232,7 +247,7 @@ impl Encoder<BackendMessage> for PgCodec {
                 dst.put_cstring(&notice.message);
                 dst.put_u8(0);
             }
-            BackendMessage::RowDescription 
+            // BackendMessage::RowDescription
             _ => unimplemented!(),
         }
 
