@@ -4,8 +4,10 @@ use crate::messages::{
     BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, NoticeResponse,
     StartupMessage, TransactionStatus,
 };
+use crate::types::PgValue;
 use lemur::execute::stream::source::DataSource;
 use lemur::repr::df::DataFrame;
+use lemur::repr::expr::ExplainRelationExpr;
 use sqlengine::engine::{Engine, ExecutionResult, Session};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -149,9 +151,18 @@ where
 
         for result in results.into_iter() {
             match result {
-                ExecutionResult::QueryResult { df } => {
+                ExecutionResult::Query { df } => {
                     self.send_dataframe(df).await?;
-                    self.command_complete("SELECT".to_string()).await?
+                    self.command_complete("SELECT").await?
+                }
+                ExecutionResult::Begin => self.command_complete("BEGIN").await?,
+                ExecutionResult::Commit => self.command_complete("COMMIT").await?,
+                ExecutionResult::Rollback => self.command_complete("ROLLBACK").await?,
+                ExecutionResult::WriteSuccess => self.command_complete("INSERT").await?,
+                ExecutionResult::CreateTable => self.command_complete("CREATE_TABLE").await?,
+                ExecutionResult::Explain(explain) => {
+                    self.send_explain(explain).await?;
+                    self.command_complete("EXPLAIN").await?;
                 }
                 other => {
                     self.conn
@@ -180,13 +191,38 @@ where
         self.conn
             .send(BackendMessage::RowDescription(fields))
             .await?;
-        // TODO: Rows
+
+        for row in df.iter_row_refs() {
+            self.conn
+                .send(BackendMessage::DataRow(
+                    row.values
+                        .into_iter()
+                        .map(PgValue::from_value_ref)
+                        .collect(),
+                ))
+                .await?;
+        }
+
         Ok(())
     }
 
-    async fn command_complete(&mut self, tag: String) -> Result<()> {
+    async fn send_explain(&mut self, explain: ExplainRelationExpr) -> Result<()> {
         self.conn
-            .send(BackendMessage::CommandComplete { tag })
+            .send(BackendMessage::RowDescription(
+                vec![FieldDescription::new()],
+            ))
+            .await?;
+        self.conn
+            .send(BackendMessage::DataRow(vec![PgValue::Text(
+                explain.to_string(),
+            )]))
+            .await?;
+        Ok(())
+    }
+
+    async fn command_complete(&mut self, tag: impl Into<String>) -> Result<()> {
+        self.conn
+            .send(BackendMessage::CommandComplete { tag: tag.into() })
             .await
     }
 }

@@ -1,5 +1,5 @@
-use lemur::repr::value::{Value, ValueType};
 use bytes::BufMut;
+use lemur::repr::value::{Value, ValueRef, ValueType};
 use postgres_types::Type as PgType;
 
 #[derive(Debug, thiserror::Error)]
@@ -74,6 +74,14 @@ pub enum PgValue {
     Int4(i32),
     Text(String),
     Bytea(Vec<u8>),
+}
+
+impl PgValue {
+    // TODO: Try to remove needing to get owned data when converting to
+    // `PgValue`.
+    pub fn from_value_ref(val: ValueRef<'_>) -> PgValue {
+        val.into_value().into()
+    }
 }
 
 impl From<Value> for PgValue {

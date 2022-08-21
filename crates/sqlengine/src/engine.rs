@@ -51,16 +51,25 @@ impl<S: DataSource> Engine<S> {
     }
 }
 
+/// Results from execution.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutionResult {
-    Commit,
-    Rollback,
-    Begin,
-    WriteSuccess, // TODO: Give more detail about the write.
-    QueryResult {
+    /// Result of a select.
+    Query {
         // TODO: Column names.
         df: DataFrame,
     },
+    /// Transaction started.
+    Begin,
+    /// Transaction committed,
+    Commit,
+    /// Transaction rolled abck.
+    Rollback,
+    /// Data successfully written.
+    WriteSuccess,
+    /// Table created.
+    CreateTable,
+    /// An explained query plan.
     Explain(ExplainRelationExpr), // TODO: How to show pre-lowered plans?
 }
 
@@ -188,7 +197,7 @@ impl<S: DataSource> Session<S> {
                                     table: schema.name.clone(),
                                 };
                                 source.add_table(&table_ref, schema)?;
-                                return Ok(ExecutionResult::WriteSuccess);
+                                return Ok(ExecutionResult::CreateTable);
                             }
                         }
                     }
@@ -198,7 +207,7 @@ impl<S: DataSource> Session<S> {
                     Some(result) => result?,
                     None => {
                         debug!("empty stream");
-                        return Ok(ExecutionResult::QueryResult {
+                        return Ok(ExecutionResult::Query {
                             df: DataFrame::empty(),
                         });
                     }
@@ -209,7 +218,7 @@ impl<S: DataSource> Session<S> {
                     df = df.vstack(result?)?;
                 }
 
-                Ok(ExecutionResult::QueryResult { df })
+                Ok(ExecutionResult::Query { df })
             }
         }
     }
@@ -350,7 +359,7 @@ mod tests {
 
     fn unwrap_df(exec_result: &ExecutionResult) -> &DataFrame {
         match exec_result {
-            ExecutionResult::QueryResult { df } => df,
+            ExecutionResult::Query { df } => df,
             other => panic!("not a query result: {:?}", other),
         }
     }

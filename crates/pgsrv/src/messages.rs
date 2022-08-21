@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use crate::types::PgValue;
 use std::collections::HashMap;
 
 /// Protocol version number (v3.0).
@@ -38,6 +39,7 @@ pub enum BackendMessage {
     ReadyForQuery(TransactionStatus),
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
+    DataRow(Vec<PgValue>),
 }
 
 impl From<ErrorResponse> for BackendMessage {

@@ -183,6 +183,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::ReadyForQuery(_) => b'Z',
             BackendMessage::CommandComplete { .. } => b'C',
             BackendMessage::RowDescription(_) => b'T',
+            BackendMessage::DataRow(_) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
             _ => unimplemented!(),
@@ -213,6 +214,13 @@ impl Encoder<BackendMessage> for PgCodec {
                     dst.put_i16(desc.type_size);
                     dst.put_i32(desc.type_mod);
                     dst.put_i16(desc.format);
+                }
+            }
+            BackendMessage::DataRow(values) => {
+                dst.put_i16(values.len() as i16); // TODO: Check.
+                for value in values.into_iter() {
+                    // TODO: Encode into format.
+                    Self::encode_value_as_text(value, dst)?;
                 }
             }
             BackendMessage::ErrorResponse(error) => {
