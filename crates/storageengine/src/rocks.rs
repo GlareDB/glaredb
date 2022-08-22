@@ -3,7 +3,9 @@ use lemur::repr::expr::ScalarExpr;
 use lemur::repr::relation::{PrimaryKey, PrimaryKeyIndices, RelationKey};
 use lemur::repr::value::Row;
 use parking_lot::RwLock;
-use rocksdb::{Direction, IteratorMode, DB};
+use rocksdb::{
+    DBIteratorWithThreadMode, DBWithThreadMode, Direction, IteratorMode, SingleThreaded, DB,
+};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -111,7 +113,7 @@ impl StorageTx {
     }
 
     pub fn read_schema(&self, table: RelationKey) -> Result<Option<Schema>> {
-        let buf = Key::Schema(table.clone()).serialize()?;
+        let buf = Key::Schema(table).serialize()?;
         match self.inner.db.get_pinned(&buf)? {
             Some(val) => {
                 let internal = InternalValue::deserialize(val)?;
@@ -132,7 +134,7 @@ impl StorageTx {
     }
 
     pub fn insert(&self, table: RelationKey, idxs: PrimaryKeyIndices<'_>, row: Row) -> Result<()> {
-        let _ = self.must_read_schema(&table)?;
+        self.must_read_schema(&table)?;
 
         let mut pk = Vec::with_capacity(idxs.len());
         for idx in idxs.iter() {
@@ -153,7 +155,7 @@ impl StorageTx {
     }
 
     pub fn delete(&self, table: RelationKey, pk: PrimaryKey<'_>) -> Result<()> {
-        let _ = self.must_read_schema(&table)?;
+        self.must_read_schema(&table)?;
 
         let buf = Key::Primary(table, pk.to_vec()).serialize()?;
         self.inner
@@ -163,7 +165,7 @@ impl StorageTx {
     }
 
     pub fn get(&self, table: RelationKey, pk: PrimaryKey<'_>) -> Result<Option<Row>> {
-        let _ = self.must_read_schema(&table);
+        self.must_read_schema(&table)?;
 
         let buf = Key::Primary(table, pk.to_vec()).serialize()?;
         match self.inner.db.get_pinned(&buf)? {
@@ -179,13 +181,29 @@ impl StorageTx {
         }
     }
 
-    pub fn scan(
+    pub fn scan_all(
         &self,
         table: RelationKey,
         begin: PrimaryKey<'_>,
-        limit: usize,
         filter: Option<ScalarExpr>,
     ) -> Result<DataFrame> {
+        let cursor = self.cursor(table, begin, filter)?;
+        let df = DataFrame::with_schema_and_capacity(&cursor.schema, 0);
+        let df = Iterator::fold(cursor, df, |acc, next| match (acc, next) {
+            (Ok(acc), Ok(next)) => acc.vstack(next),
+            (Err(e), _) => Err(e), // Errors produced from vstacking (shouldn't happen).
+            (_, Err(e)) => Err(e.into()), // Errors produces from the cursor.
+        })?;
+        Ok(df)
+    }
+
+    /// Get a cursor for some table beginning at the given primary key.
+    pub fn cursor(
+        &self,
+        table: RelationKey,
+        begin: PrimaryKey<'_>,
+        filter: Option<ScalarExpr>,
+    ) -> Result<Cursor<'_>> {
         let schema = self.must_read_schema(&table)?;
 
         let begin = Key::Primary(table.clone(), begin.to_vec()).serialize()?;
@@ -194,15 +212,50 @@ impl StorageTx {
             .db
             .iterator(IteratorMode::From(&begin, Direction::Forward));
 
-        let mut stacked_df = DataFrame::with_schema_and_capacity(&schema, limit)?;
-        let mut rows_cap = limit;
+        Ok(Cursor {
+            table,
+            filter,
+            iter,
+            schema,
+            df_cap: DEFAULT_DF_CAP,
+            complete: false,
+        })
+    }
+}
+
+/// Type alias for a RocksDB iterator. Note this will need to be changed if the
+/// thread mode changes.
+type DBIterator<'a> = DBIteratorWithThreadMode<'a, DBWithThreadMode<SingleThreaded>>;
+
+/// Default data frame capacity for each cursor scan.
+const DEFAULT_DF_CAP: usize = 128;
+
+pub struct Cursor<'a> {
+    table: RelationKey,
+    filter: Option<ScalarExpr>,
+    iter: DBIterator<'a>,
+    schema: Schema,
+    df_cap: usize,
+    complete: bool,
+}
+
+impl<'a> Unpin for Cursor<'a> {}
+
+impl<'a> Cursor<'a> {
+    fn scan_inner(&mut self) -> Result<Option<DataFrame>> {
+        if self.complete {
+            return Ok(None);
+        }
+
+        let mut df = DataFrame::with_schema_and_capacity(&self.schema, self.df_cap)?;
+        let mut rows_cap = self.df_cap;
         let mut rows = Vec::with_capacity(rows_cap);
 
-        for item in iter {
+        for item in &mut self.iter {
             let (key, val) = item?;
             let key = Key::deserialize(&key)?;
             match key {
-                Key::Primary(scanned, _) if scanned == table => {
+                Key::Primary(scanned, _) if scanned == self.table => {
                     let val = InternalValue::deserialize(&val)?;
                     if let InternalValue::PrimaryRecord(row) = val {
                         rows.push(row);
@@ -212,14 +265,14 @@ impl StorageTx {
                             let chunk_rows =
                                 std::mem::replace(&mut rows, Vec::with_capacity(rows_cap));
                             let mut chunk = DataFrame::from_rows(chunk_rows)?;
-                            if let Some(ref filter) = filter {
+                            if let Some(ref filter) = self.filter {
                                 chunk = chunk.filter_expr(filter)?
                             }
                             // Filtering might've trimmed down the data frame,
                             // next iteration should try scan what's left to
                             // fill.
                             rows_cap -= chunk.num_rows();
-                            stacked_df = stacked_df.clone().vstack(chunk)?;
+                            df = df.clone().vstack(chunk)?;
                             // No more scanning needed.
                             if rows_cap == 0 {
                                 break;
@@ -227,19 +280,31 @@ impl StorageTx {
                         }
                     }
                 }
-                _ => break, // No longer scanning the same table.
+                _ => {
+                    // No longer scanning the same table.
+                    self.complete = true;
+                    break;
+                }
             }
         }
 
         // Might not have processed rows yet, create a chunk and stack onto the
         // dataframe.
         let mut chunk = DataFrame::from_rows(std::mem::take(&mut rows))?;
-        if let Some(ref filter) = filter {
+        if let Some(ref filter) = self.filter {
             chunk = chunk.filter_expr(filter)?
         }
-        stacked_df = stacked_df.clone().vstack(chunk)?;
+        df = df.clone().vstack(chunk)?;
 
-        Ok(stacked_df)
+        Ok(Some(df))
+    }
+}
+
+impl<'a> Iterator for Cursor<'a> {
+    type Item = Result<DataFrame>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.scan_inner().transpose()
     }
 }
 
@@ -281,7 +346,7 @@ mod tests {
 
         // Scan everything.
         let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(0))], 10, None)
+            .scan_all(table.clone(), &[Value::Int32(Some(0))], None)
             .unwrap();
         let expected = DataFrame::from_rows(
             vec![
@@ -298,7 +363,7 @@ mod tests {
 
         // Scan from middle.
         let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(7))], 10, None)
+            .scan_all(table.clone(), &[Value::Int32(Some(7))], None)
             .unwrap();
         let expected = DataFrame::from_rows(
             vec![vec![Value::Int32(Some(7))], vec![Value::Int32(Some(8))]]
@@ -310,7 +375,7 @@ mod tests {
 
         // Scan after end.
         let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(32))], 10, None)
+            .scan_all(table.clone(), &[Value::Int32(Some(32))], None)
             .unwrap();
         assert_eq!(0, df.num_rows());
 
@@ -321,7 +386,7 @@ mod tests {
             right: ScalarExpr::Constant(Value::Int32(Some(5))).boxed(),
         });
         let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(0))], 10, filter)
+            .scan_all(table.clone(), &[Value::Int32(Some(0))], filter)
             .unwrap();
         let expected = DataFrame::from_rows(
             vec![
@@ -331,18 +396,6 @@ mod tests {
             ]
             .into_iter()
             .map(Row::from),
-        )
-        .unwrap();
-        assert_eq!(expected, df);
-
-        // Scan with limit.
-        let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(0))], 2, None)
-            .unwrap();
-        let expected = DataFrame::from_rows(
-            vec![vec![Value::Int32(Some(4))], vec![Value::Int32(Some(6))]]
-                .into_iter()
-                .map(Row::from),
         )
         .unwrap();
         assert_eq!(expected, df);

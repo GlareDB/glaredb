@@ -28,7 +28,7 @@ impl ReadTx for StorageTx {
         table: &RelationKey,
         filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>> {
-        let df = self.scan(table.clone(), &[], 100, filter)?;
+        let df = self.scan_all(table.clone(), &[], filter)?;
         Ok(Some(Box::pin(MemoryStream::one(df))))
     }
 }

@@ -75,7 +75,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                 let input = self.plan_query(&mut Scope::empty(), *source)?;
                 Ok(WritePlan::Insert(Insert {
                     table: reference,
-                    pk_idxs: schema.pk_idxs.clone(),
+                    pk_idxs: schema.pk_idxs,
                     input,
                 }))
             }
