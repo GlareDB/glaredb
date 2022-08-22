@@ -1,6 +1,7 @@
 use crate::repr::df::{DataFrame, Schema};
-use crate::repr::expr::{RelationKey, ScalarExpr, BinaryOperation};
-use crate::repr::value::{Value};
+use crate::repr::expr::{BinaryOperation, ScalarExpr};
+use crate::repr::relation::{PrimaryKey, PrimaryKeyIndices, RelationKey};
+use crate::repr::value::{Row, Value};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bitvec::vec::BitVec;
@@ -17,25 +18,21 @@ use std::task::{Context, Poll};
 /// Every dataframe in the stream must have the same schema.
 pub type DataFrameStream = Pin<Box<dyn Stream<Item = Result<DataFrame>> + Send>>;
 
-/// Whether or not the transaction is interactive.
-///
-/// Data sources may avoid needing to do additional work for non-interactive transactions.
-#[derive(Debug, PartialEq, Eq)]
-pub enum TxInteractivity {
-    Interactive,
-    NonInteractive,
-}
-
 #[async_trait]
 pub trait DataSource: Clone + Sync + Send {
     type Tx: WriteTx;
 
-    async fn begin(&self, interactivity: TxInteractivity) -> Result<Self::Tx>;
+    async fn begin(&self) -> Result<Self::Tx>;
 }
 
 /// A readable source is able read dataframes and dataframe schemas.
 #[async_trait]
 pub trait ReadTx: Sync + Send {
+    /// Get the schema for a given table.
+    ///
+    /// Returns `None` if the table doesn't exist.
+    async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>>;
+
     /// Read from a source, returning a stream of dataframes.
     ///
     /// An optional filter expression can be provided.
@@ -47,11 +44,6 @@ pub trait ReadTx: Sync + Send {
         filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>>;
 
-    /// Get the schema for a given table.
-    ///
-    /// Returns `None` if the table doesn't exist.
-    async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>>;
-
     /// Read from a source, returning a stream of dataframes
     ///
     /// accepts a list of tuples with a column index and values
@@ -61,22 +53,20 @@ pub trait ReadTx: Sync + Send {
         table: &RelationKey,
         values: &[(usize, Value)],
     ) -> Result<Option<DataFrameStream>> {
-        let filter_values_equal = values.iter().map(|(i, v)| {
-            ScalarExpr::Binary {
+        let filter_values_equal = values
+            .iter()
+            .map(|(i, v)| ScalarExpr::Binary {
                 op: BinaryOperation::Eq,
                 left: ScalarExpr::Constant(v.clone()).boxed(),
                 right: ScalarExpr::Column(*i).boxed(),
-            }
-        }).reduce(|accum, expr| {
-            accum.and(expr)
-        });
+            })
+            .reduce(|accum, expr| accum.and(expr));
 
         match filter_values_equal {
             Some(expr) => self.scan(table, Some(expr)).await,
             None => Ok(None),
         }
     }
-
 }
 
 /// A writeable source is able to write dataframes to underlying tables, as well
@@ -94,7 +84,12 @@ pub trait WriteTx: ReadTx + Sync + Send {
     async fn drop_table(&self, table: &RelationKey) -> Result<()>;
 
     /// Insert data into a table. Errors if the table doesn't exist.
-    async fn insert(&self, table: &RelationKey, data: DataFrame) -> Result<()>;
+    async fn insert(
+        &self,
+        table: &RelationKey,
+        pk_idxs: PrimaryKeyIndices<'_>,
+        data: DataFrame,
+    ) -> Result<()>;
 }
 
 /// Execute a reading operation.
@@ -155,7 +150,6 @@ const MEMORY_SOURCE_DF_CAPACITY: usize = 256;
 /// every action.
 #[derive(Debug, Clone)]
 pub struct MemoryDataSource {
-    /// Each table is represented by a single dataframe.
     tables: Arc<RwLock<HashMap<RelationKey, DataFrame>>>,
 }
 
@@ -177,13 +171,21 @@ impl Default for MemoryDataSource {
 impl DataSource for MemoryDataSource {
     type Tx = Self;
 
-    async fn begin(&self, _interactivity: TxInteractivity) -> Result<Self::Tx> {
+    async fn begin(&self) -> Result<Self::Tx> {
         Ok(self.clone())
     }
 }
 
 #[async_trait]
 impl ReadTx for MemoryDataSource {
+    async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>> {
+        let tables = self.tables.read();
+        match tables.get(table) {
+            Some(df) => Ok(Some(df.schema())),
+            None => Ok(None),
+        }
+    }
+
     async fn scan(
         &self,
         table: &RelationKey,
@@ -214,14 +216,6 @@ impl ReadTx for MemoryDataSource {
                     None => Ok(Some(Box::pin(MemoryStream::one(df.clone())))),
                 }
             }
-            None => Ok(None),
-        }
-    }
-
-    async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>> {
-        let tables = self.tables.read();
-        match tables.get(table) {
-            Some(df) => Ok(Some(df.schema())),
             None => Ok(None),
         }
     }
@@ -260,7 +254,12 @@ impl WriteTx for MemoryDataSource {
         }
     }
 
-    async fn insert(&self, table: &RelationKey, data: DataFrame) -> Result<()> {
+    async fn insert(
+        &self,
+        table: &RelationKey,
+        pk_idxs: PrimaryKeyIndices<'_>,
+        data: DataFrame,
+    ) -> Result<()> {
         let mut tables = self.tables.write();
         let df = tables
             .get_mut(table)

@@ -1,12 +1,10 @@
-use crate::execute::stream::source::{
-    DataFrameStream, ReadExecutor, WriteExecutor, WriteTx,
-};
+use crate::execute::stream::source::{DataFrameStream, ReadExecutor, WriteExecutor, WriteTx};
 
 use crate::repr::expr::{CreateTable, Insert, MutateRelationExpr};
 
-use anyhow::{Result};
+use anyhow::Result;
 use async_trait::async_trait;
-use futures::{StreamExt};
+use futures::StreamExt;
 
 #[async_trait]
 impl<W: WriteTx> WriteExecutor<W> for MutateRelationExpr {
@@ -32,7 +30,7 @@ impl<W: WriteTx> WriteExecutor<W> for Insert {
         let mut input = self.input.execute_read(source).await?;
         while let Some(stream_result) = input.next().await {
             let df = stream_result?;
-            source.insert(&self.table, df).await?;
+            source.insert(&self.table, &self.pk_idxs, df).await?;
         }
         Ok(None)
     }

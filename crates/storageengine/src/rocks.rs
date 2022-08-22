@@ -1,5 +1,6 @@
-use lemur::repr::df::DataFrame;
+use lemur::repr::df::{DataFrame, Schema};
 use lemur::repr::expr::ScalarExpr;
+use lemur::repr::relation::{PrimaryKey, PrimaryKeyIndices, RelationKey};
 use lemur::repr::value::Row;
 use parking_lot::RwLock;
 use rocksdb::{Direction, IteratorMode, DB};
@@ -10,7 +11,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 use crate::errors::{Result, StorageError};
-use crate::repr::{InternalValue, Key, PrimaryKey, PrimaryKeyIndices, TableId};
+use crate::repr::{InternalValue, Key};
 
 const DB_FILENAME: &str = "rocks.db";
 
@@ -40,13 +41,13 @@ impl RocksStore {
 
     /// Begin a transaction.
     // TODO: There's currently no transactional semantics.
-    pub fn begin(&self) -> StorageTxRef {
+    pub fn begin(&self) -> StorageTx {
         static ID_GEN: AtomicU64 = AtomicU64::new(0);
         let id = ID_GEN.fetch_add(1, Ordering::Relaxed);
-        let tx = Arc::new(StorageTx {
+        let tx = StorageTx {
             id,
             inner: self.inner.clone(),
-        });
+        };
 
         {
             let mut active = self.inner.active_txs.write();
@@ -56,7 +57,7 @@ impl RocksStore {
     }
 
     /// Resume an active transaction.
-    pub fn resume(&self, id: u64) -> Option<StorageTxRef> {
+    pub fn resume(&self, id: u64) -> Option<StorageTx> {
         let active = self.inner.active_txs.read();
         active.get(&id).cloned()
     }
@@ -65,7 +66,7 @@ impl RocksStore {
 #[derive(Debug)]
 struct InnerDb {
     db: DB,
-    active_txs: RwLock<BTreeMap<u64, StorageTxRef>>,
+    active_txs: RwLock<BTreeMap<u64, StorageTx>>,
 }
 
 impl InnerDb {
@@ -80,9 +81,7 @@ impl InnerDb {
     }
 }
 
-pub type StorageTxRef = Arc<StorageTx>;
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StorageTx {
     id: u64,
     inner: Arc<InnerDb>,
@@ -103,7 +102,28 @@ impl StorageTx {
         Ok(())
     }
 
-    pub fn insert(&self, table: TableId, idxs: PrimaryKeyIndices<'_>, row: Row) -> Result<()> {
+    pub fn store_schema(&self, table: RelationKey, schema: Schema) -> Result<()> {
+        let key = Key::Schema(table);
+        let val = InternalValue::Schema(schema);
+        self.inner.db.put(key.serialize()?, val.serialize()?)?;
+        Ok(())
+    }
+
+    pub fn read_schema(&self, table: &RelationKey) -> Result<Option<Schema>> {
+        let buf = Key::Schema(table.clone()).serialize()?;
+        match self.inner.db.get_pinned(&buf)? {
+            Some(val) => {
+                let internal = InternalValue::deserialize(val)?;
+                match internal {
+                    InternalValue::Schema(schema) => Ok(Some(schema)),
+                    other => Err(StorageError::UnexpectedInternalValue(other)),
+                }
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub fn insert(&self, table: RelationKey, idxs: PrimaryKeyIndices<'_>, row: Row) -> Result<()> {
         let mut pk = Vec::with_capacity(idxs.len());
         for idx in idxs.iter() {
             pk.push(
@@ -122,7 +142,7 @@ impl StorageTx {
         Ok(())
     }
 
-    pub fn delete(&self, table: TableId, pk: PrimaryKey<'_>) -> Result<()> {
+    pub fn delete(&self, table: RelationKey, pk: PrimaryKey<'_>) -> Result<()> {
         let buf = Key::Primary(table, pk.to_vec()).serialize()?;
         self.inner
             .db
@@ -130,7 +150,7 @@ impl StorageTx {
         Ok(())
     }
 
-    pub fn get(&self, table: TableId, pk: PrimaryKey<'_>) -> Result<Option<Row>> {
+    pub fn get(&self, table: RelationKey, pk: PrimaryKey<'_>) -> Result<Option<Row>> {
         let buf = Key::Primary(table, pk.to_vec()).serialize()?;
         match self.inner.db.get_pinned(&buf)? {
             Some(val) => {
@@ -138,8 +158,7 @@ impl StorageTx {
                 match internal {
                     InternalValue::PrimaryRecord(row) => Ok(Some(row)),
                     InternalValue::Tombstone => Ok(None),
-                    // Note that there's currently no additional internal value
-                    // types, but there will be in the future.
+                    other => Err(StorageError::UnexpectedInternalValue(other)),
                 }
             }
             None => Ok(None),
@@ -148,7 +167,7 @@ impl StorageTx {
 
     pub fn scan(
         &self,
-        table: TableId,
+        table: &RelationKey,
         begin: PrimaryKey<'_>,
         limit: usize,
         filter: Option<ScalarExpr>,
@@ -167,7 +186,7 @@ impl StorageTx {
             let (key, val) = item?;
             let key = Key::deserialize(&key)?;
             match key {
-                Key::Primary(scanned, _) if scanned == table => {
+                Key::Primary(scanned, _) if &scanned == table => {
                     let val = InternalValue::deserialize(&val)?;
                     if let InternalValue::PrimaryRecord(row) = val {
                         rows.push(row);
@@ -248,9 +267,7 @@ mod tests {
         }
 
         // Scan everything.
-        let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(0))], 10, None)
-            .unwrap();
+        let df = tx.scan(&table, &[Value::Int32(Some(0))], 10, None).unwrap();
         let expected = DataFrame::from_rows(
             vec![
                 vec![Value::Int32(Some(4))],
@@ -265,9 +282,7 @@ mod tests {
         assert_eq!(expected, df);
 
         // Scan from middle.
-        let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(7))], 10, None)
-            .unwrap();
+        let df = tx.scan(&table, &[Value::Int32(Some(7))], 10, None).unwrap();
         let expected = DataFrame::from_rows(
             vec![vec![Value::Int32(Some(7))], vec![Value::Int32(Some(8))]]
                 .into_iter()
@@ -278,7 +293,7 @@ mod tests {
 
         // Scan after end.
         let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(32))], 10, None)
+            .scan(&table, &[Value::Int32(Some(32))], 10, None)
             .unwrap();
         assert_eq!(0, df.num_rows());
 
@@ -289,7 +304,7 @@ mod tests {
             right: ScalarExpr::Constant(Value::Int32(Some(5))).boxed(),
         });
         let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(0))], 10, filter)
+            .scan(&table, &[Value::Int32(Some(0))], 10, filter)
             .unwrap();
         let expected = DataFrame::from_rows(
             vec![
@@ -304,9 +319,7 @@ mod tests {
         assert_eq!(expected, df);
 
         // Scan with limit.
-        let df = tx
-            .scan(table.clone(), &[Value::Int32(Some(0))], 2, None)
-            .unwrap();
+        let df = tx.scan(&table, &[Value::Int32(Some(0))], 2, None).unwrap();
         let expected = DataFrame::from_rows(
             vec![vec![Value::Int32(Some(4))], vec![Value::Int32(Some(6))]]
                 .into_iter()

@@ -1,17 +1,18 @@
 use crate::execute::stream::source::{DataFrameStream, MemoryStream, ReadExecutor, ReadTx};
 use crate::repr::df::DataFrame;
 use crate::repr::expr::{
-    Aggregate, CrossJoin, Filter, OrderByGroupBy, Project, RelationExpr, Source, Values, NestedLoopJoin,
+    Aggregate, CrossJoin, Filter, NestedLoopJoin, OrderByGroupBy, Project, RelationExpr, Source,
+    Values,
 };
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
-use futures::{StreamExt};
+use futures::StreamExt;
 
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{error};
+use tracing::error;
 
 const STREAM_BUFFER: usize = 16;
 
@@ -215,10 +216,13 @@ impl<R: ReadTx> ReadExecutor<R> for NestedLoopJoin {
                 if let Some(left_df) = left.next().await {
                     let left_df = match_send_err!(left_df, tx);
                     for right_df in rights.iter() {
-                        let joined =
-                            match_send_err!(left_df.clone().nested_loop_join(right_df.clone(), &self.predicate), tx);
-                    match_send_ok!(joined, tx, "failed to send result of nested loop join");
-
+                        let joined = match_send_err!(
+                            left_df
+                                .clone()
+                                .nested_loop_join(right_df.clone(), &self.predicate),
+                            tx
+                        );
+                        match_send_ok!(joined, tx, "failed to send result of nested loop join");
                     }
                     lefts.push(left_df);
                     // Continuing here may result in us reading in all lefts
@@ -230,9 +234,13 @@ impl<R: ReadTx> ReadExecutor<R> for NestedLoopJoin {
                 if let Some(right_df) = right.next().await {
                     let right_df = match_send_err!(right_df, tx);
                     for left_df in lefts.iter() {
-                        let joined =
-                            match_send_err!(left_df.clone().nested_loop_join(right_df.clone(), &self.predicate), tx);
-                    match_send_ok!(joined, tx, "failed to send result of nested loop join");
+                        let joined = match_send_err!(
+                            left_df
+                                .clone()
+                                .nested_loop_join(right_df.clone(), &self.predicate),
+                            tx
+                        );
+                        match_send_ok!(joined, tx, "failed to send result of nested loop join");
                     }
                     rights.push(right_df);
                     continue;
@@ -287,12 +295,12 @@ impl<R: ReadTx> ReadExecutor<R> for Values {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::execute::stream::source::{DataSource, MemoryDataSource, TxInteractivity};
+    use crate::execute::stream::source::{DataSource, MemoryDataSource};
 
     #[tokio::test]
     async fn nothing_produces_dummy_row() {
         let source = MemoryDataSource::new();
-        let tx = source.begin(TxInteractivity::NonInteractive).await.unwrap();
+        let tx = source.begin().await.unwrap();
 
         let dfs = RelationExpr::Placeholder
             .execute_read(&tx)

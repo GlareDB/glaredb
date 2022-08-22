@@ -3,6 +3,7 @@ pub mod df;
 pub mod expr;
 pub mod node;
 pub mod ordfloat;
+pub mod relation;
 pub mod sort;
 pub mod value;
 pub mod vec;
