@@ -19,7 +19,7 @@ impl<W: WriteTx> WriteExecutor<W> for MutateRelationExpr {
 #[async_trait]
 impl<W: WriteTx> WriteExecutor<W> for CreateTable {
     async fn execute_write(self, source: &W) -> Result<Option<DataFrameStream>> {
-        source.create_table(self.table, self.schema).await?;
+        source.allocate_table(self.table, self.schema).await?;
         Ok(None)
     }
 }

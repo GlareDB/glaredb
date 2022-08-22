@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use lemur::execute::stream::source::{DataFrameStream, DataSource, MemoryStream, ReadTx, WriteTx};
 use lemur::repr::df::{DataFrame, Schema};
 use lemur::repr::expr::ScalarExpr;
-use lemur::repr::relation::{PrimaryKey, PrimaryKeyIndices, RelationKey};
+use lemur::repr::relation::{PrimaryKeyIndices, RelationKey};
 
 use crate::rocks::{RocksStore, StorageTx};
 
@@ -19,7 +19,7 @@ impl DataSource for RocksStore {
 #[async_trait]
 impl ReadTx for StorageTx {
     async fn get_schema(&self, table: &RelationKey) -> Result<Option<Schema>> {
-        let maybe_schema = self.read_schema(table)?;
+        let maybe_schema = self.read_schema(table.clone())?;
         Ok(maybe_schema)
     }
 
@@ -28,7 +28,7 @@ impl ReadTx for StorageTx {
         table: &RelationKey,
         filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>> {
-        let df = self.scan(table, &[], 100, filter)?;
+        let df = self.scan(table.clone(), &[], 100, filter)?;
         Ok(Some(Box::pin(MemoryStream::one(df))))
     }
 }
@@ -45,13 +45,13 @@ impl WriteTx for StorageTx {
         Ok(())
     }
 
-    async fn create_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
+    async fn allocate_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
         self.store_schema(table, schema)?;
         Ok(())
     }
 
-    async fn drop_table(&self, table: &RelationKey) -> Result<()> {
-        unimplemented!()
+    async fn deallocate_table(&self, _table: &RelationKey) -> Result<()> {
+        todo!() // Eventually
     }
 
     async fn insert(

@@ -1252,6 +1252,7 @@ dependencies = [
  "rustyline",
  "serde",
  "sqlparser",
+ "storageengine",
  "tokio",
  "tokio-serde",
  "tokio-util",

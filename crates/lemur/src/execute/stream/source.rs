@@ -1,7 +1,7 @@
 use crate::repr::df::{DataFrame, Schema};
 use crate::repr::expr::{BinaryOperation, ScalarExpr};
-use crate::repr::relation::{PrimaryKey, PrimaryKeyIndices, RelationKey};
-use crate::repr::value::{Row, Value};
+use crate::repr::relation::{PrimaryKeyIndices, RelationKey};
+use crate::repr::value::Value;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bitvec::vec::BitVec;
@@ -76,12 +76,28 @@ pub trait WriteTx: ReadTx + Sync + Send {
     async fn commit(self) -> Result<()>;
     async fn rollback(self) -> Result<()>;
 
-    /// Create a table with the given schema. Errors if the table already
+    /// Allocate a table with the given schema. Errors if the table already
     /// exists.
-    async fn create_table(&self, table: RelationKey, schema: Schema) -> Result<()>;
+    async fn allocate_table(&self, table: RelationKey, schema: Schema) -> Result<()>;
 
-    /// Drop a table. Errors if the table doesn't exist.
-    async fn drop_table(&self, table: &RelationKey) -> Result<()>;
+    /// Deallocate a table. Errors if the table doesn't exist.
+    async fn deallocate_table(&self, table: &RelationKey) -> Result<()>;
+
+    /// Allocate a table if it doens't exist, returning true if the table was
+    /// allocated.
+    async fn allocate_table_if_not_exists(
+        &self,
+        table: RelationKey,
+        schema: Schema,
+    ) -> Result<bool> {
+        match self.get_schema(&table).await? {
+            Some(_) => Ok(false),
+            None => {
+                self.allocate_table(table, schema).await?;
+                Ok(true)
+            }
+        }
+    }
 
     /// Insert data into a table. Errors if the table doesn't exist.
     async fn insert(
@@ -191,6 +207,10 @@ impl ReadTx for MemoryDataSource {
         table: &RelationKey,
         filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>> {
+        if self.get_schema(table).await?.is_none() {
+            return Err(anyhow!("missing table: {}", table));
+        }
+
         let tables = self.tables.read();
         match tables.get(table) {
             Some(df) => {
@@ -231,7 +251,7 @@ impl WriteTx for MemoryDataSource {
         Ok(())
     }
 
-    async fn create_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
+    async fn allocate_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
         use std::collections::hash_map::Entry;
         let mut tables = self.tables.write();
         match tables.entry(table) {
@@ -246,7 +266,7 @@ impl WriteTx for MemoryDataSource {
         }
     }
 
-    async fn drop_table(&self, table: &RelationKey) -> Result<()> {
+    async fn deallocate_table(&self, table: &RelationKey) -> Result<()> {
         let mut tables = self.tables.write();
         match tables.remove(table) {
             Some(_) => Ok(()),
@@ -257,9 +277,11 @@ impl WriteTx for MemoryDataSource {
     async fn insert(
         &self,
         table: &RelationKey,
-        pk_idxs: PrimaryKeyIndices<'_>,
+        _pk_idxs: PrimaryKeyIndices<'_>,
         data: DataFrame,
     ) -> Result<()> {
+        // TODO: Ensure no pk duplicates.
+
         let mut tables = self.tables.write();
         let df = tables
             .get_mut(table)

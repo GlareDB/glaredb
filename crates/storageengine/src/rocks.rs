@@ -29,6 +29,7 @@ pub struct RocksStore {
 impl RocksStore {
     /// Open a store backed by a RocksDB instance with the given config.
     pub fn open(conf: StorageConfig) -> Result<RocksStore> {
+        debug!("opening rocks store with conf: {:?}", conf);
         let path = Path::new(&conf.data_dir).join(DB_FILENAME);
         let db = DB::open_default(path)?;
         Ok(RocksStore {
@@ -109,7 +110,7 @@ impl StorageTx {
         Ok(())
     }
 
-    pub fn read_schema(&self, table: &RelationKey) -> Result<Option<Schema>> {
+    pub fn read_schema(&self, table: RelationKey) -> Result<Option<Schema>> {
         let buf = Key::Schema(table.clone()).serialize()?;
         match self.inner.db.get_pinned(&buf)? {
             Some(val) => {
@@ -123,7 +124,16 @@ impl StorageTx {
         }
     }
 
+    fn must_read_schema(&self, table: &RelationKey) -> Result<Schema> {
+        match self.read_schema(table.clone())? {
+            Some(schema) => Ok(schema),
+            None => Err(StorageError::MissingSchemaForRelation(table.clone())),
+        }
+    }
+
     pub fn insert(&self, table: RelationKey, idxs: PrimaryKeyIndices<'_>, row: Row) -> Result<()> {
+        let _ = self.must_read_schema(&table)?;
+
         let mut pk = Vec::with_capacity(idxs.len());
         for idx in idxs.iter() {
             pk.push(
@@ -143,6 +153,8 @@ impl StorageTx {
     }
 
     pub fn delete(&self, table: RelationKey, pk: PrimaryKey<'_>) -> Result<()> {
+        let _ = self.must_read_schema(&table)?;
+
         let buf = Key::Primary(table, pk.to_vec()).serialize()?;
         self.inner
             .db
@@ -151,6 +163,8 @@ impl StorageTx {
     }
 
     pub fn get(&self, table: RelationKey, pk: PrimaryKey<'_>) -> Result<Option<Row>> {
+        let _ = self.must_read_schema(&table);
+
         let buf = Key::Primary(table, pk.to_vec()).serialize()?;
         match self.inner.db.get_pinned(&buf)? {
             Some(val) => {
@@ -167,18 +181,20 @@ impl StorageTx {
 
     pub fn scan(
         &self,
-        table: &RelationKey,
+        table: RelationKey,
         begin: PrimaryKey<'_>,
         limit: usize,
         filter: Option<ScalarExpr>,
     ) -> Result<DataFrame> {
+        let schema = self.must_read_schema(&table)?;
+
         let begin = Key::Primary(table.clone(), begin.to_vec()).serialize()?;
         let iter = self
             .inner
             .db
             .iterator(IteratorMode::From(&begin, Direction::Forward));
 
-        let mut stacked_df: Option<DataFrame> = None;
+        let mut stacked_df = DataFrame::with_schema_and_capacity(&schema, limit)?;
         let mut rows_cap = limit;
         let mut rows = Vec::with_capacity(rows_cap);
 
@@ -186,7 +202,7 @@ impl StorageTx {
             let (key, val) = item?;
             let key = Key::deserialize(&key)?;
             match key {
-                Key::Primary(scanned, _) if &scanned == table => {
+                Key::Primary(scanned, _) if scanned == table => {
                     let val = InternalValue::deserialize(&val)?;
                     if let InternalValue::PrimaryRecord(row) = val {
                         rows.push(row);
@@ -203,10 +219,7 @@ impl StorageTx {
                             // next iteration should try scan what's left to
                             // fill.
                             rows_cap -= chunk.num_rows();
-                            match &mut stacked_df {
-                                Some(df) => *df = df.clone().vstack(chunk)?, // Clone is cheap.
-                                None => stacked_df = Some(chunk),
-                            }
+                            stacked_df = stacked_df.clone().vstack(chunk)?;
                             // No more scanning needed.
                             if rows_cap == 0 {
                                 break;
@@ -224,12 +237,9 @@ impl StorageTx {
         if let Some(ref filter) = filter {
             chunk = chunk.filter_expr(filter)?
         }
-        match &mut stacked_df {
-            Some(df) => *df = df.clone().vstack(chunk)?,
-            None => stacked_df = Some(chunk),
-        }
+        stacked_df = stacked_df.clone().vstack(chunk)?;
 
-        Ok(stacked_df.unwrap_or_else(DataFrame::empty))
+        Ok(stacked_df)
     }
 }
 
@@ -237,7 +247,7 @@ impl StorageTx {
 mod tests {
     use super::*;
     use lemur::repr::expr::BinaryOperation;
-    use lemur::repr::value::Value;
+    use lemur::repr::value::{Value, ValueType};
     use tempdir::TempDir;
 
     #[test]
@@ -253,6 +263,9 @@ mod tests {
         let table = "test_table".to_string();
         let tx = db.begin();
 
+        let schema = vec![ValueType::Int32].into();
+        tx.store_schema(table.clone(), schema).unwrap();
+
         let rows = vec![
             vec![Value::Int32(Some(4))],
             vec![Value::Int32(Some(6))],
@@ -267,7 +280,9 @@ mod tests {
         }
 
         // Scan everything.
-        let df = tx.scan(&table, &[Value::Int32(Some(0))], 10, None).unwrap();
+        let df = tx
+            .scan(table.clone(), &[Value::Int32(Some(0))], 10, None)
+            .unwrap();
         let expected = DataFrame::from_rows(
             vec![
                 vec![Value::Int32(Some(4))],
@@ -282,7 +297,9 @@ mod tests {
         assert_eq!(expected, df);
 
         // Scan from middle.
-        let df = tx.scan(&table, &[Value::Int32(Some(7))], 10, None).unwrap();
+        let df = tx
+            .scan(table.clone(), &[Value::Int32(Some(7))], 10, None)
+            .unwrap();
         let expected = DataFrame::from_rows(
             vec![vec![Value::Int32(Some(7))], vec![Value::Int32(Some(8))]]
                 .into_iter()
@@ -293,7 +310,7 @@ mod tests {
 
         // Scan after end.
         let df = tx
-            .scan(&table, &[Value::Int32(Some(32))], 10, None)
+            .scan(table.clone(), &[Value::Int32(Some(32))], 10, None)
             .unwrap();
         assert_eq!(0, df.num_rows());
 
@@ -304,7 +321,7 @@ mod tests {
             right: ScalarExpr::Constant(Value::Int32(Some(5))).boxed(),
         });
         let df = tx
-            .scan(&table, &[Value::Int32(Some(0))], 10, filter)
+            .scan(table.clone(), &[Value::Int32(Some(0))], 10, filter)
             .unwrap();
         let expected = DataFrame::from_rows(
             vec![
@@ -319,7 +336,9 @@ mod tests {
         assert_eq!(expected, df);
 
         // Scan with limit.
-        let df = tx.scan(&table, &[Value::Int32(Some(0))], 2, None).unwrap();
+        let df = tx
+            .scan(table.clone(), &[Value::Int32(Some(0))], 2, None)
+            .unwrap();
         let expected = DataFrame::from_rows(
             vec![vec![Value::Int32(Some(4))], vec![Value::Int32(Some(6))]]
                 .into_iter()

@@ -39,11 +39,9 @@ impl<S: DataSource> Engine<S> {
         let tx = self.source.begin().await?;
         for table in system_tables().into_iter() {
             let table_ref = table.generate_table_reference();
-            let schema = tx.get_table(&table_ref)?;
-            if schema.is_none() {
-                let schema = table.generate_table_schema();
-                tx.create_table(table_ref.into(), schema.into()).await?;
-            }
+            let schema = table.generate_table_schema();
+            tx.allocate_table_if_not_exists(table_ref.into(), schema.into())
+                .await?;
         }
 
         Ok(())
@@ -327,7 +325,7 @@ impl<T: WriteTx> CatalogWriter for T {
             self.insert(&columns_key, &schema.pk_idxs, df).await?;
 
             // allocate the table in the source
-            self.create_table(key, schema.into()).await?;
+            self.allocate_table(key, schema.into()).await?;
 
             Ok(())
         })
