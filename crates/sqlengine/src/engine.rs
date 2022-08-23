@@ -1,6 +1,6 @@
 use crate::catalog::{CatalogReader, CatalogWriter, TableReference, TableSchema};
 use crate::plan::data_definition::DataDefinitionPlan;
-use crate::plan::QueryPlan;
+use crate::plan::{Description, QueryPlan};
 use crate::system::{system_tables, ColumnsTable, SystemTable};
 use anyhow::{anyhow, Result};
 use futures::{executor, StreamExt};
@@ -51,16 +51,22 @@ impl<S: DataSource> Engine<S> {
     }
 }
 
+/// Results from execution.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutionResult {
-    Commit,
-    Rollback,
+    /// Result of a select.
+    Query { desc: Description, df: DataFrame },
+    /// Transaction started.
     Begin,
-    WriteSuccess, // TODO: Give more detail about the write.
-    QueryResult {
-        // TODO: Column names.
-        df: DataFrame,
-    },
+    /// Transaction committed,
+    Commit,
+    /// Transaction rolled abck.
+    Rollback,
+    /// Data successfully written.
+    WriteSuccess,
+    /// Table created.
+    CreateTable,
+    /// An explained query plan.
     Explain(ExplainRelationExpr), // TODO: How to show pre-lowered plans?
 }
 
@@ -152,7 +158,7 @@ impl<S: DataSource> Session<S> {
                 let tx = self.get_tx().await?;
                 let plan = QueryPlan::plan(*statement, tx.as_ref())?;
                 let explained: ExplainRelationExpr = match plan {
-                    QueryPlan::Read(plan) => plan.lower()?.into(),
+                    QueryPlan::Read { plan, .. } => plan.lower()?.into(),
                     QueryPlan::Write(plan) => plan.lower()?.into(),
                     QueryPlan::DataDefinition(_) => {
                         return Err(anyhow!("cannot explain data definition"))
@@ -164,15 +170,16 @@ impl<S: DataSource> Session<S> {
                 let tx = self.get_tx().await?;
                 let plan = QueryPlan::plan(stmt, tx.as_ref())?;
                 // TODO: Physical optimization.
-                let mut stream = match plan {
-                    QueryPlan::Read(plan) => {
+                let (mut stream, desc) = match plan {
+                    QueryPlan::Read { plan, desc } => {
                         let lowered = plan.lower()?;
-                        lowered.execute_read(tx.as_ref()).await?
+                        let stream = lowered.execute_read(tx.as_ref()).await?;
+                        (stream, desc)
                     }
                     QueryPlan::Write(plan) => {
                         let lowered = plan.lower()?;
                         match lowered.execute_write(tx.as_ref()).await? {
-                            Some(stream) => stream,
+                            Some(stream) => (stream, Description::empty()),
                             None => return Ok(ExecutionResult::WriteSuccess),
                         }
                     }
@@ -188,7 +195,7 @@ impl<S: DataSource> Session<S> {
                                     table: schema.name.clone(),
                                 };
                                 source.add_table(&table_ref, schema)?;
-                                return Ok(ExecutionResult::WriteSuccess);
+                                return Ok(ExecutionResult::CreateTable);
                             }
                         }
                     }
@@ -198,7 +205,8 @@ impl<S: DataSource> Session<S> {
                     Some(result) => result?,
                     None => {
                         debug!("empty stream");
-                        return Ok(ExecutionResult::QueryResult {
+                        return Ok(ExecutionResult::Query {
+                            desc: Description::empty(),
                             df: DataFrame::empty(),
                         });
                     }
@@ -209,7 +217,7 @@ impl<S: DataSource> Session<S> {
                     df = df.vstack(result?)?;
                 }
 
-                Ok(ExecutionResult::QueryResult { df })
+                Ok(ExecutionResult::Query { desc, df })
             }
         }
     }
@@ -350,7 +358,7 @@ mod tests {
 
     fn unwrap_df(exec_result: &ExecutionResult) -> &DataFrame {
         match exec_result {
-            ExecutionResult::QueryResult { df } => df,
+            ExecutionResult::Query { df, .. } => df,
             other => panic!("not a query result: {:?}", other),
         }
     }

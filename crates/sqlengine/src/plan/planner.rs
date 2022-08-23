@@ -1,16 +1,15 @@
-use super::data_definition::{DataDefinitionPlan, CreateTable};
+use super::data_definition::{CreateTable, DataDefinitionPlan};
 use super::expr::PlanExpr;
 use crate::catalog::{CatalogReader, Column, TableReference, TableSchema};
 use crate::plan::read::*;
+use crate::plan::scope::Scope;
 use crate::plan::write::*;
-use crate::plan::QueryPlan;
+use crate::plan::{Description, QueryPlan};
 use anyhow::{anyhow, Result};
 use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation};
 use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
-use std::collections::hash_map;
-use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 pub struct Planner<'a, C> {
     catalog: &'a C,
@@ -25,7 +24,10 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
     pub fn plan_statement(&self, stmt: ast::Statement) -> Result<QueryPlan> {
         Ok(match stmt {
             ast::Statement::Query(query) => {
-                QueryPlan::Read(self.plan_query(&mut Scope::empty(), *query)?)
+                let mut scope = Scope::empty();
+                let plan = self.plan_query(&mut scope, *query)?;
+                let desc = Description::from_read_plan_and_scope(&plan, &scope)?;
+                QueryPlan::Read { plan, desc }
             }
             stmt @ ast::Statement::Insert { .. } => QueryPlan::Write(self.plan_insert(stmt)?),
             stmt @ ast::Statement::CreateTable { .. } => {
@@ -556,122 +558,13 @@ fn column_def_to_column(col: ast::ColumnDef) -> Result<Column> {
     })
 }
 
-#[derive(Clone, Debug)]
-struct Scope {
-    ///. If true, the scope is constant and cannot contain any variables.
-    constant: bool,
-    /// Currently visible tables, by query name (i.e. alias or actual name).
-    tables: HashMap<String, TableSchema>,
-    /// Column labels, if any (qualified by table name when available)
-    columns: Vec<(Option<String>, Option<String>)>,
-    /// Qualified names to column indexes.
-    qualified: HashMap<(String, String), usize>,
-    /// Unqualified names to column indexes, if unique.
-    unqualified: HashMap<String, usize>,
-    /// Unqialified ambiguous names.
-    ambiguous: HashSet<String>,
-}
-
-impl Scope {
-    fn empty() -> Self {
-        Self {
-            constant: false,
-            tables: HashMap::new(),
-            columns: Vec::new(),
-            qualified: HashMap::new(),
-            unqualified: HashMap::new(),
-            ambiguous: HashSet::new(),
-        }
-    }
-
-    fn add_table(&mut self, alias: Option<String>, table: TableSchema) -> Result<()> {
-        let label = match alias {
-            Some(alias) => alias,
-            None => table.name.clone(),
-        };
-        if self.tables.contains_key(&label) {
-            return Err(anyhow!("duplicate table name: {}", label));
-        }
-        for column in table.columns.iter() {
-            self.add_column(Some(label.clone()), Some(column.name.clone()));
-        }
-        self.tables.insert(label, table);
-        Ok(())
-    }
-
-    fn add_column(&mut self, table: Option<String>, label: Option<String>) {
-        if let Some(l) = label.clone() {
-            if let Some(t) = table.clone() {
-                self.qualified.insert((t, l.clone()), self.columns.len());
-            }
-            if !self.ambiguous.contains(&l) {
-                if let hash_map::Entry::Vacant(e) = self.unqualified.entry(l.clone()) {
-                    e.insert(self.columns.len());
-                } else {
-                    self.unqualified.remove(&l);
-                    self.ambiguous.insert(l);
-                }
-            }
-        }
-        self.columns.push((table, label));
-    }
-
-    fn get_column(&self, idx: usize) -> Result<(Option<String>, Option<String>)> {
-        self.columns
-            .get(idx)
-            .cloned()
-            .ok_or_else(|| anyhow!("column not found for idx: {}", idx))
-    }
-
-    fn merge(&mut self, other: Scope) -> Result<()> {
-        for (label, table) in other.tables {
-            match self.tables.entry(label) {
-                Entry::Occupied(entry) => {
-                    return Err(anyhow!("duplicate table name from merge: {}", entry.key()))
-                }
-                Entry::Vacant(entry) => entry.insert(table),
-            };
-        }
-        for (table, label) in other.columns {
-            self.add_column(table, label);
-        }
-        Ok(())
-    }
-
-    fn resolve(&self, table: Option<&str>, name: &str) -> Result<usize> {
-        if let Some(table) = table {
-            if !self.tables.contains_key(table) {
-                return Err(anyhow!("missing table: {}", table));
-            }
-            self.qualified
-                .get(&(table.into(), name.into()))
-                .cloned()
-                .ok_or_else(|| anyhow!("missing column: {}.{}", table, name))
-        } else if self.ambiguous.contains(name) {
-            Err(anyhow!("ambiguous column name: {}", name))
-        } else {
-            self.unqualified
-                .get(name)
-                .cloned()
-                .ok_or_else(|| anyhow!("missing column: {}", name))
-        }
-    }
-
-    fn num_columns(&self) -> usize {
-        self.columns.len()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::{dummy::DummyCatalog};
-    use lemur::repr::value::ValueType;
-    use parking_lot::RwLock;
+    use crate::catalog::dummy::DummyCatalog;
+
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
 
     fn parse(query: &str) -> ast::Statement {
         let mut stmts = Parser::parse_sql(&PostgreSqlDialect {}, query).unwrap();
@@ -705,6 +598,40 @@ mod tests {
 
             let plan = planner.plan_statement(stmt).unwrap();
             println!("plan: {:#?}", plan);
+        }
+    }
+
+    #[test]
+    fn descriptions() {
+        let catalog = DummyCatalog::new();
+        let test_cases = vec![
+            ("select 1+1", vec!["?"]),
+            ("select a from t1", vec!["a"]),
+            ("select * from t1", vec!["a", "b"]),
+            (
+                "select * from t1 inner join t2 on t1.b = t2.b",
+                vec!["a", "b", "b", "c"],
+            ),
+            (
+                "select t1.b, t1.b, t2.b from t1 inner join t2 on t1.b = t2.b",
+                vec!["b", "b", "b"],
+            ),
+        ];
+
+        for (query, col_names) in test_cases.into_iter() {
+            let planner = Planner::new(&catalog);
+            let stmt = parse(query);
+            let plan = planner.plan_statement(stmt).unwrap();
+
+            match plan {
+                QueryPlan::Read { desc, .. } => {
+                    let expected = Description {
+                        columns: col_names.into_iter().map(String::from).collect(),
+                    };
+                    assert_eq!(expected, desc);
+                }
+                other => panic!("unexpected query plan: {:?}", other),
+            }
         }
     }
 }

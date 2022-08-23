@@ -2,10 +2,11 @@ use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+
 use std::sync::Arc;
 
 use crate::repr::expr::{AggregateExpr, ScalarExpr, ScalarExprVec};
-use crate::repr::value::{Row, ValueType, ValueVec};
+use crate::repr::value::{Row, RowRef, ValueType, ValueVec};
 use crate::repr::vec::BoolVec;
 
 pub mod groupby;
@@ -24,11 +25,13 @@ impl Schema {
     pub fn project(&self, idxs: &[usize]) -> Result<Schema> {
         let mut out = Vec::with_capacity(idxs.len());
         for &idx in idxs.iter() {
-            out.push(self.types.get(idx).cloned().ok_or_else(|| anyhow!(
-                "attempt to project out of bound for schema: {:?}, idx: {}",
-                self.types,
-                idx
-            ))?);
+            out.push(self.types.get(idx).cloned().ok_or_else(|| {
+                anyhow!(
+                    "attempt to project out of bound for schema: {:?}, idx: {}",
+                    self.types,
+                    idx
+                )
+            })?);
         }
         Ok(out.into())
     }
@@ -83,6 +86,36 @@ impl DataFrame {
             .collect();
 
         Ok(DataFrame { columns })
+    }
+
+    /// Get a row at some index.
+    pub fn get_row_ref(&self, idx: usize) -> Option<RowRef<'_>> {
+        let mut values = Vec::with_capacity(self.columns.len());
+        for col in self.columns.iter() {
+            values.push(col.get_value_ref(idx)?);
+        }
+        Some(values.into())
+    }
+
+    /// Read a row into the provided `RowRef`. Returns true if `idx` was
+    /// inbounds and the values were placed into the row.
+    ///
+    /// This is helper for the row iterator, and should not be exposed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the arity of `row` does match the arity for the dataframe.
+    fn reuse_get_row_ref<'a>(&'a self, row: &'a mut RowRef<'a>, idx: usize) -> bool {
+        debug_assert_eq!(self.arity(), row.arity());
+        if idx >= self.num_rows() {
+            return false;
+        }
+        for (col_idx, col) in self.columns.iter().enumerate() {
+            row.values[col_idx] = col
+                .get_value_ref(idx)
+                .expect("expected index to be inbounds");
+        }
+        true
     }
 
     /// Create a new dataframe from a list of rows.
@@ -247,8 +280,7 @@ impl DataFrame {
         if self.num_rows() != other.num_rows() {
             return Err(anyhow!("invalid number of rows for hstack"));
         }
-        self.columns
-            .extend(other.columns.iter().cloned());
+        self.columns.extend(other.columns.iter().cloned());
 
         Ok(self)
     }
@@ -337,10 +369,12 @@ impl DataFrame {
 
     /// Get the number of rows for this dataframe.
     pub fn num_rows(&self) -> usize {
-        self.columns
-            .get(0)
-            .map(|col| col.len())
-            .unwrap_or(0)
+        self.columns.get(0).map(|col| col.len()).unwrap_or(0)
+    }
+
+    /// Iterator row references for this dataframe.
+    pub fn iter_row_refs(&self) -> RowRefIter<'_> {
+        RowRefIter { df: self, idx: 0 }
     }
 }
 
@@ -373,6 +407,22 @@ impl fmt::Debug for DataFrame {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct RowRefIter<'a> {
+    df: &'a DataFrame,
+    idx: usize,
+}
+
+impl<'a> Iterator for RowRefIter<'a> {
+    type Item = RowRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.df.get_row_ref(self.idx)?;
+        self.idx += 1;
+        Some(row)
     }
 }
 

@@ -23,6 +23,36 @@ impl ValueType {
     }
 }
 
+/// Like `Value`, but with references for larger values (specifically for
+/// variable length types).
+///
+/// Note that this doesn't have the separate `Null` variant since this type is
+/// only used with reading from value vectors, and we already have the type
+/// information.
+#[derive(Debug)]
+pub enum ValueRef<'a> {
+    Bool(Option<bool>),
+    Int8(Option<i8>),
+    Int32(Option<i32>),
+    Utf8(Option<&'a str>),
+    Binary(Option<&'a [u8]>),
+}
+
+impl<'a> ValueRef<'a> {
+    /// Create an owned value from self.
+    pub fn into_value(self) -> Value {
+        match self {
+            ValueRef::Bool(v) => Value::Bool(v),
+            ValueRef::Int8(v) => Value::Int8(v),
+            ValueRef::Int32(v) => Value::Int32(v),
+            ValueRef::Utf8(Some(v)) => Value::Utf8(Some(v.to_string())),
+            ValueRef::Utf8(None) => Value::Utf8(None),
+            ValueRef::Binary(Some(v)) => Value::Binary(Some(v.to_vec())),
+            ValueRef::Binary(None) => Value::Binary(None),
+        }
+    }
+}
+
 /// A single, nullable scalar value.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Value {
@@ -94,12 +124,14 @@ impl Value {
     }
 
     pub fn is_null(&self) -> bool {
-        matches!(self, Value::Null
-            | Value::Bool(None)
-            | Value::Int8(None)
-            | Value::Int32(None)
-            | Value::Utf8(None) 
-            | Value::Binary(None)
+        matches!(
+            self,
+            Value::Null
+                | Value::Bool(None)
+                | Value::Int8(None)
+                | Value::Int32(None)
+                | Value::Utf8(None)
+                | Value::Binary(None)
         )
     }
 
@@ -156,6 +188,33 @@ impl From<Option<String>> for Value {
 impl From<Option<Vec<u8>>> for Value {
     fn from(v: Option<Vec<u8>>) -> Self {
         Value::Binary(v)
+    }
+}
+
+/// A row made up of value refs.
+#[derive(Debug)]
+pub struct RowRef<'a> {
+    pub values: Vec<ValueRef<'a>>,
+}
+
+impl<'a> RowRef<'a> {
+    /// Create an owned row from self.
+    pub fn into_row(self) -> Row {
+        self.values
+            .into_iter()
+            .map(ValueRef::into_value)
+            .collect::<Vec<_>>()
+            .into()
+    }
+
+    pub fn arity(&self) -> usize {
+        self.values.len()
+    }
+}
+
+impl<'a> From<Vec<ValueRef<'a>>> for RowRef<'a> {
+    fn from(values: Vec<ValueRef<'a>>) -> Self {
+        RowRef { values }
     }
 }
 
@@ -233,6 +292,16 @@ impl ValueVec {
             ValueVec::Utf8(_) => ValueType::Utf8,
             ValueVec::Binary(_) => ValueType::Binary,
         }
+    }
+
+    pub fn get_value_ref(&self, idx: usize) -> Option<ValueRef<'_>> {
+        Some(match self {
+            ValueVec::Bool(v) => ValueRef::Bool(v.get(idx)?.cloned()),
+            ValueVec::Int8(v) => ValueRef::Int8(v.get(idx)?.cloned()),
+            ValueVec::Int32(v) => ValueRef::Int32(v.get(idx)?.cloned()),
+            ValueVec::Utf8(v) => ValueRef::Utf8(v.get(idx)?),
+            ValueVec::Binary(v) => ValueRef::Binary(v.get(idx)?),
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -405,7 +474,9 @@ impl PartialEq for ValueVec {
             (ValueVec::Int8(a), ValueVec::Int8(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
             (ValueVec::Int32(a), ValueVec::Int32(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
             (ValueVec::Utf8(a), ValueVec::Utf8(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
-            (ValueVec::Binary(a), ValueVec::Binary(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
+            (ValueVec::Binary(a), ValueVec::Binary(b)) => {
+                a.iter().zip(b.iter()).all(|(a, b)| a == b)
+            }
             _ => false,
         }
     }
