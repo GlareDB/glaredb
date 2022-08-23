@@ -1,5 +1,6 @@
-use super::{RelationExpr, RelationKey};
+use super::RelationExpr;
 use crate::repr::df::Schema;
+use crate::repr::relation::RelationKey;
 
 use serde::{Deserialize, Serialize};
 
@@ -19,5 +20,6 @@ pub struct CreateTable {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Insert {
     pub table: RelationKey,
+    pub pk_idxs: Vec<usize>,
     pub input: RelationExpr,
 }

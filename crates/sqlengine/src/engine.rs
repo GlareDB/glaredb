@@ -4,11 +4,10 @@ use crate::plan::{Description, QueryPlan};
 use crate::system::{system_tables, ColumnsTable, SystemTable};
 use anyhow::{anyhow, Result};
 use futures::{executor, StreamExt};
-use lemur::execute::stream::source::{
-    DataSource, ReadExecutor, ReadTx, TxInteractivity, WriteExecutor, WriteTx,
-};
+use lemur::execute::stream::source::{DataSource, ReadExecutor, ReadTx, WriteExecutor, WriteTx};
 use lemur::repr::df::DataFrame;
-use lemur::repr::expr::{ExplainRelationExpr, RelationKey};
+use lemur::repr::expr::ExplainRelationExpr;
+use lemur::repr::relation::RelationKey;
 use lemur::repr::value::{Value, ValueVec};
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;
@@ -37,14 +36,12 @@ impl<S: DataSource> Engine<S> {
     }
 
     pub async fn ensure_system_tables(&mut self) -> Result<()> {
-        let tx = self.source.begin(TxInteractivity::NonInteractive).await?;
+        let tx = self.source.begin().await?;
         for table in system_tables().into_iter() {
             let table_ref = table.generate_table_reference();
-            let schema = tx.get_table(&table_ref)?;
-            if schema.is_none() {
-                let schema = table.generate_table_schema();
-                tx.create_table(table_ref.into(), schema.into()).await?;
-            }
+            let schema = table.generate_table_schema();
+            tx.allocate_table_if_not_exists(table_ref.into(), schema.into())
+                .await?;
         }
 
         Ok(())
@@ -131,7 +128,7 @@ impl<S: DataSource> Session<S> {
                 if self.tx.is_some() {
                     return Err(anyhow!("nested transactions unsupported"));
                 }
-                let tx = self.source.begin(TxInteractivity::Interactive).await?;
+                let tx = self.source.begin().await?;
                 self.tx = Some(tx);
                 Ok(ExecutionResult::Begin)
             }
@@ -231,7 +228,7 @@ impl<S: DataSource> Session<S> {
         Ok(match &self.tx {
             Some(tx) => tx.into(),
             None => {
-                let tx = self.source.begin(TxInteractivity::NonInteractive).await?;
+                let tx = self.source.begin().await?;
                 tx.into()
             }
         })
@@ -325,10 +322,10 @@ impl<T: WriteTx> CatalogWriter for T {
             ])?;
             // store the table in the columns table
             let columns_key: RelationKey = ColumnsTable.generate_table_reference().into();
-            self.insert(&columns_key, df).await?;
+            self.insert(&columns_key, &schema.pk_idxs, df).await?;
 
             // allocate the table in the source
-            self.create_table(key, schema.into()).await?;
+            self.allocate_table(key, schema.into()).await?;
 
             Ok(())
         })
@@ -519,15 +516,36 @@ mod tests {
             (10000003, 10000300),
         ];
 
-        session.execute_query("create table foo (a int, b int)").await.unwrap();
+        session
+            .execute_query("create table foo (a int, b int)")
+            .await
+            .unwrap();
         for record in foo_records.iter() {
-            session.execute_query(&format!("insert into foo values ({}, {})", record.0, record.1)).await.unwrap();
+            session
+                .execute_query(&format!(
+                    "insert into foo values ({}, {})",
+                    record.0, record.1
+                ))
+                .await
+                .unwrap();
         }
-        session.execute_query("create table bar (a int, b int)").await.unwrap();
+        session
+            .execute_query("create table bar (a int, b int)")
+            .await
+            .unwrap();
         for record in bar_records.iter() {
-            session.execute_query(&format!("insert into bar values ({}, {})", record.0, record.1)).await.unwrap();
+            session
+                .execute_query(&format!(
+                    "insert into bar values ({}, {})",
+                    record.0, record.1
+                ))
+                .await
+                .unwrap();
         }
-        let results = session.execute_query("select * from foo join bar on foo.a = bar.a").await.unwrap();
+        let results = session
+            .execute_query("select * from foo join bar on foo.a = bar.a")
+            .await
+            .unwrap();
 
         let expected = DataFrame::from_rows(vec![
             Row::from(vec![
@@ -548,7 +566,8 @@ mod tests {
                 Value::Int32(Some(10000003)),
                 Value::Int32(Some(10000300)),
             ]),
-        ]).unwrap();
+        ])
+        .unwrap();
         let got = unwrap_df(results.get(0).unwrap());
         assert_dfs_visually_eq(&expected, got);
     }

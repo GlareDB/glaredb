@@ -1,12 +1,10 @@
 use super::ScalarExpr;
 use crate::repr::compute::*;
-
+use crate::repr::relation::RelationKey;
 use crate::repr::sort::GroupRanges;
 use crate::repr::value::{Row, ValueVec};
-use anyhow::{Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-
-pub type RelationKey = String;
 
 /// Expressions that happen on entire relations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

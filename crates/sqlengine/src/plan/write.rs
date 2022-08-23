@@ -1,6 +1,6 @@
 use super::read::ReadPlan;
 use crate::catalog::{TableReference, TableSchema};
-use anyhow::{Result};
+use anyhow::Result;
 use lemur::repr::expr::{self, MutateRelationExpr};
 
 #[derive(Debug, PartialEq)]
@@ -12,6 +12,7 @@ pub enum WritePlan {
 #[derive(Debug, PartialEq)]
 pub struct Insert {
     pub table: TableReference,
+    pub pk_idxs: Vec<usize>,
     pub input: ReadPlan,
 }
 
@@ -31,12 +32,15 @@ impl WritePlan {
 
     pub fn lower(self) -> Result<MutateRelationExpr> {
         Ok(match self {
-            WritePlan::Insert(Insert { table, input }) => {
-                MutateRelationExpr::Insert(expr::Insert {
-                    table: table.to_string(),
-                    input: input.lower()?,
-                })
-            }
+            WritePlan::Insert(Insert {
+                table,
+                pk_idxs,
+                input,
+            }) => MutateRelationExpr::Insert(expr::Insert {
+                table: table.to_string(),
+                pk_idxs,
+                input: input.lower()?,
+            }),
             WritePlan::CreateTable(CreateTable { schema }) => {
                 MutateRelationExpr::CreateTable(expr::CreateTable {
                     table: schema.name.clone(),

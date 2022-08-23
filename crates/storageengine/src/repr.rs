@@ -1,12 +1,8 @@
 use crate::errors::Result;
+use lemur::repr::df::Schema;
+use lemur::repr::relation::RelationKey;
 use lemur::repr::value::{Row, Value};
 use serde::{Deserialize, Serialize};
-
-pub type TableId = String;
-
-pub type PrimaryKeyIndices<'a> = &'a [usize];
-
-pub type PrimaryKey<'a> = &'a [Value];
 
 /// Key representations.
 ///
@@ -14,7 +10,9 @@ pub type PrimaryKey<'a> = &'a [Value];
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Key {
     /// A primary record.
-    Primary(TableId, Vec<Value>),
+    Primary(RelationKey, Vec<Value>),
+    /// Schema for a table.
+    Schema(RelationKey),
 }
 
 impl Key {
@@ -31,6 +29,7 @@ impl Key {
 pub enum InternalValue {
     PrimaryRecord(Row),
     Tombstone,
+    Schema(Schema),
 }
 
 impl InternalValue {

@@ -10,6 +10,7 @@ path = "src/bin/glaredb.rs"
 [dependencies]
 logutil = {path = "../logutil"}
 lemur = {path = "../lemur"}
+storageengine = {path = "../storageengine"}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 tokio = { version = "1", features = ["full"] }

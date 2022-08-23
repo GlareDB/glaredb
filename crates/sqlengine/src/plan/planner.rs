@@ -71,10 +71,11 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                 table_name, source, ..
             } => {
                 // TODO: Check columns.
-                let (reference, _schema) = self.table_from_catalog(table_name)?;
+                let (reference, schema) = self.table_from_catalog(table_name)?;
                 let input = self.plan_query(&mut Scope::empty(), *source)?;
                 Ok(WritePlan::Insert(Insert {
                     table: reference,
+                    pk_idxs: schema.pk_idxs,
                     input,
                 }))
             }
@@ -562,7 +563,6 @@ fn column_def_to_column(col: ast::ColumnDef) -> Result<Column> {
 mod tests {
     use super::*;
     use crate::catalog::dummy::DummyCatalog;
-
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
 
