@@ -4,7 +4,7 @@ use std::fmt;
 /// A trait representing infallible writes to some underlying buffer.
 ///
 /// The methods provided by this trait are the same as the methods provided by
-/// `std::fmt::Write` except that they do no return a result.
+/// `std::fmt::Write` except that they do not return a result.
 ///
 /// Types that implment this trait can be used with the `write!` macro without
 /// having to check for an error.
