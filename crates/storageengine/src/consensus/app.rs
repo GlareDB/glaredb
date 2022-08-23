@@ -1,4 +1,4 @@
-use super::{GlareNodeId, GlareRaft, network::ConsensusNetwork};
+use super::{GlareNodeId, GlareRaft};
 
 pub struct ApplicationState {
     pub id: GlareNodeId,

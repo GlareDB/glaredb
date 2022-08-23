@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use messaging::{GlareRequest, GlareResponse};
-use network::{GlareNetworkConnection, ConsensusNetwork};
+use network::ConsensusNetwork;
 use openraft::{BasicNode, Raft};
-use crate::rocks::RocksStore;
+
+use self::store::ConsensusStore;
 
 pub mod app;
 pub mod error;
@@ -28,7 +29,7 @@ impl std::fmt::Display for GlareNode {
 }
 */
 
-pub type GlareRaft = Raft<GlareTypeConfig, Arc<ConsensusNetwork>, Arc<RocksStore>>;
+pub type GlareRaft = Raft<GlareTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusStore>>;
 
 openraft::declare_raft_types!(
     pub GlareTypeConfig: D = GlareRequest, R = GlareResponse, NodeId = GlareNodeId, Node = GlareNode

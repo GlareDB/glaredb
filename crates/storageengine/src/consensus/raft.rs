@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use openraft::{RaftNetworkFactory, RaftNetwork, AnyError};
 use openraft::raft::{AppendEntriesRequest, AppendEntriesResponse, VoteRequest, VoteResponse, InstallSnapshotRequest, InstallSnapshotResponse};
 use toy_rpc::macros::export_impl;
 
