@@ -2,62 +2,44 @@ use anyhow::{anyhow, Result};
 use futures::{SinkExt, TryStreamExt};
 use lemur::execute::stream::source::DataSource;
 use parking_lot::Mutex;
+use pgsrv::handler::Handler;
 use serde::{Deserialize, Serialize};
 use sqlengine::engine::Engine;
 use sqlengine::engine::{ExecutionResult, Session};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio_serde::formats::Bincode;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tracing::{debug, error, info, warn};
 
-#[derive(Debug)]
+pub struct ServerConfig {
+    pub pg_listener: TcpListener,
+}
+
 pub struct Server<S> {
-    engine: Arc<Engine<S>>,
+    pg_handler: Arc<Handler<S>>,
 }
 
 impl<S: DataSource + 'static> Server<S> {
-    pub fn new(engine: Engine<S>) -> Self {
+    pub fn new(source: S) -> Self {
         Server {
-            engine: Arc::new(engine),
+            pg_handler: Arc::new(Handler::new(Engine::new(source))),
         }
     }
 
-    /// Start listening on the provided addr and serve sql requests.
-    pub async fn serve(self, addr: &str) -> Result<()> {
-        // TODO: Add listener for accord/storage.
-        let listener = TcpListener::bind(addr).await?;
-        info!("listening on {}", addr);
-
+    pub async fn serve(self, conf: ServerConfig) -> Result<()> {
         loop {
-            let (socket, client_addr) = listener.accept().await?;
-            let engine = self.engine.clone();
+            let (conn, client_addr) = conf.pg_listener.accept().await?;
+            let pg_handler = self.pg_handler.clone();
             tokio::spawn(async move {
-                debug!("client connected, addr: {}", client_addr);
-                match engine.begin_session() {
-                    Ok(session) => match Self::handle_conn(socket, session).await {
-                        Ok(_) => debug!(%client_addr, "session finished"),
-                        Err(e) => error!(%e, "session exited with error"),
-                    },
-                    Err(e) => error!(%e, %client_addr, "failed to begin session for connection"),
+                debug!(%client_addr, "client connected (pg)");
+                match pg_handler.handle_connection(conn).await {
+                    Ok(_) => debug!(%client_addr, "client disconnected"),
+                    Err(e) => debug!(%e, %client_addr, "client disconnected with error."),
                 }
             });
         }
-    }
-
-    async fn handle_conn(socket: TcpStream, mut sess: Session<S>) -> Result<()> {
-        // let mut stream = new_server_stream(socket);
-        // while let Some(msg) = stream.try_next().await? {
-        //     match msg {
-        //         Request::Execute(query) => match sess.execute_query(&query).await {
-        //             Ok(results) => stream.send(Response::ExecutionResults(results)).await?,
-        //             Err(e) => {
-        //                 warn!(%e, "failed to execute query");
-        //                 stream.send(Response::Error(e.to_string())).await?;
-        //             }
-        //         },
-        //     }
-        // }
-        Ok(())
     }
 }

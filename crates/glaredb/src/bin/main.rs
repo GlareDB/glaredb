@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
-use glaredb::server::Server;
+use glaredb::server::{Server, ServerConfig};
 use lemur::execute::stream::source::{DataSource, MemoryDataSource};
 use rustyline::{error::ReadlineError, Editor};
 use sqlengine::engine::Engine;
 use std::sync::atomic::{AtomicU64, Ordering};
 use storageengine::rocks::{RocksStore, StorageConfig};
-use tokio::net::ToSocketAddrs;
-use tokio::runtime::Builder;
+use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::runtime::{Builder, Runtime};
 use tracing::{error, info};
 
 #[derive(Parser)]
@@ -65,11 +65,13 @@ fn main() -> Result<()> {
             storage,
             data_path,
         } => match storage {
-            StorageBackend::Memory => begin_server(MemoryDataSource::new(), &bind)?,
+            StorageBackend::Memory => {
+                begin_server(MemoryDataSource::new(), &bind)?;
+            }
             StorageBackend::Rocks => match data_path {
                 Some(path) => {
-                    let conf = StorageConfig { data_dir: path };
-                    let source = RocksStore::open(conf)?;
+                    let storage_conf = StorageConfig { data_dir: path };
+                    let source = RocksStore::open(storage_conf)?;
                     begin_server(source, &bind)?;
                 }
                 None => {
@@ -87,10 +89,20 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server<S>(source: S, bind: &str) -> Result<()>
+fn begin_server<S>(source: S, pg_bind: &str) -> Result<()>
 where
     S: DataSource + 'static,
 {
+    let runtime = build_runtime()?;
+    runtime.block_on(async move {
+        let pg_listener = TcpListener::bind(pg_bind).await?;
+        let conf = ServerConfig { pg_listener };
+        let server = Server::new(source);
+        server.serve(conf).await
+    })
+}
+
+fn build_runtime() -> Result<Runtime> {
     let runtime = Builder::new_multi_thread()
         .thread_name_fn(|| {
             static THREAD_ID: AtomicU64 = AtomicU64::new(0);
@@ -99,20 +111,5 @@ where
         })
         .enable_all()
         .build()?;
-    runtime.block_on(async move {
-        let mut engine = Engine::new(source);
-        match engine.ensure_system_tables().await {
-            Ok(_) => info!("system tables ensured"),
-            Err(e) => {
-                error!(%e, "failed to ensure system tables, exiting...");
-                return;
-            }
-        }
-        let server = Server::new(engine);
-        match server.serve(bind).await {
-            Ok(_) => info!("server exiting"),
-            Err(e) => error!(%e, "server exited with error"),
-        }
-    });
-    Ok(())
+    Ok(runtime)
 }
