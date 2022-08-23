@@ -491,6 +491,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "glaredb"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "clap",
+ "futures",
+ "lemur",
+ "logutil",
+ "parking_lot",
+ "pgsrv",
+ "rand 0.8.5",
+ "rustyline",
+ "serde",
+ "sqlengine",
+ "sqlparser",
+ "storageengine",
+ "tokio",
+ "tokio-serde",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
