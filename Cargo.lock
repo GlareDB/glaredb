@@ -1443,6 +1443,7 @@ dependencies = [
  "futures",
  "lemur",
  "logutil",
+ "maplit",
  "openraft",
  "parking_lot",
  "rocksdb",

@@ -1,4 +1,4 @@
-use std::{sync::Arc, io::Cursor, ops::RangeBounds, fmt::Debug, error::Error, collections::BTreeMap};
+use std::{sync::Arc, io::Cursor, ops::RangeBounds, fmt::Debug, error::Error, collections::BTreeMap, path::Path};
 
 use async_trait::async_trait;
 use openraft::{RaftStorage, Vote, StorageError, Entry, LogId, EffectiveMembership, StateMachineChanges, storage::{Snapshot, LogState}, RaftLogReader, RaftSnapshotBuilder, SnapshotMeta, ErrorSubject, ErrorVerb, StorageIOError, AnyError, EntryPayload};
@@ -463,7 +463,7 @@ impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
             .next()
             .and_then(|r| {
                 if let Ok((_, ent)) = r {
-                    Some(serde_json::from_slice(&ent).unwrap())
+                    Some(serde_json::from_slice::<Entry<GlareTypeConfig>>(&ent).unwrap().log_id)
                 } else {
                     None
                 }
@@ -559,5 +559,24 @@ impl RaftSnapshotBuilder<GlareTypeConfig, Cursor<Vec<u8>>> for Arc<ConsensusStor
             meta,
             snapshot: Box::new(Cursor::new(data)),
         })
+    }
+}
+
+impl ConsensusStore {
+    pub(crate) async fn new<P: AsRef<Path>>(db_path: P) -> Arc<ConsensusStore> {
+        let mut db_opts = rocksdb::Options::default();
+        db_opts.create_missing_column_families(true);
+        db_opts.create_if_missing(true);
+
+        let store = rocksdb::ColumnFamilyDescriptor::new("store", rocksdb::Options::default());
+        let state_machine = rocksdb::ColumnFamilyDescriptor::new("state_machine", rocksdb::Options::default());
+        let data = rocksdb::ColumnFamilyDescriptor::new("data", rocksdb::Options::default());
+        let logs = rocksdb::ColumnFamilyDescriptor::new("logs", rocksdb::Options::default());
+
+        let db = rocksdb::DB::open_cf_descriptors(&db_opts, db_path.as_ref(), vec![store, state_machine, data, logs]).unwrap();
+
+        let db = Arc::new(db);
+        let state_machine = RwLock::new(ConsensusStateMachine::new(db.clone()));
+        Arc::new(ConsensusStore { db, state_machine })
     }
 }

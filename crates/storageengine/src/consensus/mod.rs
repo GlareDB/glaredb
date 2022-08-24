@@ -34,3 +34,34 @@ pub type GlareRaft = Raft<GlareTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusS
 openraft::declare_raft_types!(
     pub GlareTypeConfig: D = GlareRequest, R = GlareResponse, NodeId = GlareNodeId, Node = GlareNode
 );
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use futures::Future;
+    use openraft::{testing::StoreBuilder, StorageError};
+
+    use super::{store::ConsensusStore, GlareTypeConfig, GlareNodeId};
+
+    struct ConsensusBuilder {}
+
+    #[async_trait]
+    impl StoreBuilder<GlareTypeConfig, Arc<ConsensusStore>> for ConsensusBuilder {
+        async fn run_test<Fun, Ret, Res>(&self, t: Fun) -> Result<Ret, StorageError<GlareNodeId>>
+            where
+                Res: Future<Output = Result<Ret, StorageError<GlareNodeId>>> + Send,
+                Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
+            {
+                let store = ConsensusStore::new("test1").await;
+                t(store).await
+            }
+
+    }
+
+    #[test]
+    pub fn test_store() {
+        openraft::testing::Suite::test_all(ConsensusBuilder {}).expect("failed");
+    }
+}
