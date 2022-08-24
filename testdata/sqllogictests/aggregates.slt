@@ -21,6 +21,7 @@ select count(a) from t_aggs;
 ----
 4
 
+# SKIP: count(*) not planned appropriately.
 # query I
 # select count(*) from t_aggs;
 # ----
@@ -31,6 +32,7 @@ select sum(a), sum(b) from t_aggs;
 ----
 10 10
 
+# SKIP: Avg not implemented.
 # query IR
 # select avg(a), avg(b) from t_aggs;
 # ----

@@ -5,6 +5,7 @@ select 1, 1 + 1
 ----
 1 2
 
+# SKIP: Weak null handling right now.
 # query I
 # select null;
 # ----
@@ -41,6 +42,7 @@ select * from t1 order by a
 3 4
 5 6
 
+# SKIP: Everything is ordered asc right now.
 # query II nosort
 # select * from t1 order by a desc
 # ----
@@ -62,6 +64,23 @@ query II
 select sum(b), sum(a) from t1
 ----
 12 9
+
+# SKIP: Failing to lower.
+# query I
+# select sum(b) + sum(a) from t1
+# ----
+# 21
+
+query I
+select sum(b + a) from t1;
+----
+21
+
+query I
+select sum(b - a) from t1;
+----
+3
+
 
 query II
 select * from t1 where false;
@@ -92,9 +111,17 @@ select * from t1 cross join t2 order by t1.a, t1.b, t2.b, t2.c;
 5  6   9  10
 5  6  11  12
 
-# query II
-# select t1.a, sum(t2.b) from t1 cross join t2 group by t1.a order by t1.a;
-# ----
-# 1   27
-# 3   27
-# 5   27
+query III
+select t1.a, sum(t2.b), t1.a - 1 from t1 cross join t2 group by t1.a order by t1.a;
+----
+1   27   0
+3   27   2
+5   27   4
+
+query IIII
+select * from t1 inner join t2 on t1.b * 2 > t2.b order by t1.a, t1.b, t2.b, t2.c;
+----
+3  4   7   8
+5  6   7   8
+5  6   9  10
+5  6  11  12
