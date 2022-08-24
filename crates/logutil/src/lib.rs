@@ -1,6 +1,6 @@
 //! Utilities for logging and tracing.
 use tracing::{subscriber, trace, Level};
-use tracing_subscriber::{FmtSubscriber};
+use tracing_subscriber::FmtSubscriber;
 
 /// Initialize a trace subsriber for a test.
 pub fn init_test() {

@@ -1,23 +1,27 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use openraft::raft::{AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse};
-use openraft::{RaftNetworkFactory, RaftNetwork, AnyError};
 use openraft::async_trait::async_trait;
-use openraft::error::{RPCError, NetworkError, AppendEntriesError, InstallSnapshotError, VoteError, RemoteError};
-use serde::Serialize;
+use openraft::error::{
+    AppendEntriesError, InstallSnapshotError, NetworkError, RPCError, RemoteError, VoteError,
+};
+use openraft::raft::{
+    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
+    VoteRequest, VoteResponse,
+};
+use openraft::{AnyError, RaftNetwork, RaftNetworkFactory};
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use toy_rpc::pubsub::AckModeNone;
 
-use super::{GlareNodeId, GlareNode, GlareTypeConfig};
-use super::error::{Error, RpcResult, RpcError};
+use super::error::{Error, RpcError, RpcResult};
 use super::raft::RaftClientStub;
+use super::{GlareNode, GlareNodeId, GlareTypeConfig};
 
 pub struct ConsensusNetwork {}
 
 impl ConsensusNetwork {
-    pub async fn send_rpc<Req, Resp>(
-    ) -> Result<Resp, RPCError<GlareNodeId, GlareNode, Error>>
+    pub async fn send_rpc<Req, Resp>() -> Result<Resp, RPCError<GlareNodeId, GlareNode, Error>>
     where
         Req: Serialize,
         Resp: DeserializeOwned,
@@ -39,7 +43,11 @@ impl RaftNetworkFactory<GlareTypeConfig> for Arc<ConsensusNetwork> {
         dbg!(&node);
         let addr = &node.addr;
         let client = toy_rpc::Client::dial(addr).await.ok();
-        Ok(GlareNetworkConnection { addr: addr.to_string(), client, target })
+        Ok(GlareNetworkConnection {
+            addr: addr.to_string(),
+            client,
+            target,
+        })
     }
 }
 
@@ -53,13 +61,15 @@ type RpcClient = toy_rpc::client::Client<AckModeNone>;
 
 impl GlareNetworkConnection {
     async fn client<E>(&mut self) -> RpcResult<&RpcClient, E>
-        where E: std::error::Error {
-            if self.client.is_none() {
-                self.client = toy_rpc::Client::dial(&self.addr).await.ok();
-            }
-            self.client.as_ref().ok_or_else(|| {
-                RPCError::Network(NetworkError::from(AnyError::default()))
-            })
+    where
+        E: std::error::Error,
+    {
+        if self.client.is_none() {
+            self.client = toy_rpc::Client::dial(&self.addr).await.ok();
+        }
+        self.client
+            .as_ref()
+            .ok_or_else(|| RPCError::Network(NetworkError::from(AnyError::default())))
     }
 }
 
@@ -69,24 +79,36 @@ impl RaftNetwork<GlareTypeConfig> for GlareNetworkConnection {
         &mut self,
         req: AppendEntriesRequest<GlareTypeConfig>,
     ) -> RpcResult<AppendEntriesResponse<GlareNodeId>, AppendEntriesError<GlareNodeId>> {
-        self.client().await?.raft().append(req).await.map_err(|e| to_error(e, self.target))
+        self.client()
+            .await?
+            .raft()
+            .append(req)
+            .await
+            .map_err(|e| to_error(e, self.target))
     }
 
     async fn send_install_snapshot(
         &mut self,
         req: InstallSnapshotRequest<GlareTypeConfig>,
-    ) -> RpcResult<
-        InstallSnapshotResponse<GlareNodeId>,
-        InstallSnapshotError<GlareNodeId>> 
-    {
-        self.client().await?.raft().snapshot(req).await.map_err(|e| to_error(e, self.target))
+    ) -> RpcResult<InstallSnapshotResponse<GlareNodeId>, InstallSnapshotError<GlareNodeId>> {
+        self.client()
+            .await?
+            .raft()
+            .snapshot(req)
+            .await
+            .map_err(|e| to_error(e, self.target))
     }
 
     async fn send_vote(
         &mut self,
         req: VoteRequest<GlareNodeId>,
     ) -> RpcResult<VoteResponse<GlareNodeId>, VoteError<GlareNodeId>> {
-        self.client().await?.raft().vote(req).await.map_err(|e| to_error(e, self.target))
+        self.client()
+            .await?
+            .raft()
+            .vote(req)
+            .await
+            .map_err(|e| to_error(e, self.target))
     }
 }
 

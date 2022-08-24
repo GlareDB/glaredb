@@ -7,18 +7,20 @@ use openraft::{BasicNode, Raft};
 use self::store::ConsensusStore;
 
 pub mod app;
+pub mod client;
 pub mod error;
 pub mod messaging;
 pub mod network;
+pub mod node;
 pub mod raft;
 pub mod store;
 
 pub type GlareNodeId = u64;
 
-type GlareNode = BasicNode;
+pub type GlareNode = BasicNode;
 /*
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
-pub struct GlareNode { 
+pub struct GlareNode {
     pub rpc_addr: String,
 }
 
@@ -43,21 +45,20 @@ mod tests {
     use futures::Future;
     use openraft::{testing::StoreBuilder, StorageError};
 
-    use super::{store::ConsensusStore, GlareTypeConfig, GlareNodeId};
+    use super::{store::ConsensusStore, GlareNodeId, GlareTypeConfig};
 
     struct ConsensusBuilder {}
 
     #[async_trait]
     impl StoreBuilder<GlareTypeConfig, Arc<ConsensusStore>> for ConsensusBuilder {
         async fn run_test<Fun, Ret, Res>(&self, t: Fun) -> Result<Ret, StorageError<GlareNodeId>>
-            where
-                Res: Future<Output = Result<Ret, StorageError<GlareNodeId>>> + Send,
-                Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
-            {
-                let store = ConsensusStore::new("test1").await;
-                t(store).await
-            }
-
+        where
+            Res: Future<Output = Result<Ret, StorageError<GlareNodeId>>> + Send,
+            Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
+        {
+            let store = ConsensusStore::new("test2").await;
+            t(store).await
+        }
     }
 
     #[test]

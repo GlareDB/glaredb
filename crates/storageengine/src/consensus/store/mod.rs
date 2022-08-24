@@ -1,12 +1,23 @@
-use std::{sync::Arc, io::Cursor, ops::RangeBounds, fmt::Debug, error::Error, collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap, error::Error, fmt::Debug, io::Cursor, ops::RangeBounds, path::Path,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
-use openraft::{RaftStorage, Vote, StorageError, Entry, LogId, EffectiveMembership, StateMachineChanges, storage::{Snapshot, LogState}, RaftLogReader, RaftSnapshotBuilder, SnapshotMeta, ErrorSubject, ErrorVerb, StorageIOError, AnyError, EntryPayload};
-use rocksdb::{ColumnFamily};
-use serde::{Serialize, Deserialize};
+use openraft::{
+    storage::{LogState, Snapshot},
+    AnyError, EffectiveMembership, Entry, EntryPayload, ErrorSubject, ErrorVerb, LogId,
+    RaftLogReader, RaftSnapshotBuilder, RaftStorage, SnapshotMeta, StateMachineChanges,
+    StorageError, StorageIOError, Vote,
+};
+use rocksdb::ColumnFamily;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use super::{GlareTypeConfig, GlareNodeId, GlareNode, messaging::{GlareResponse, GlareRequest}};
+use super::{
+    messaging::{GlareRequest, GlareResponse},
+    GlareNode, GlareNodeId, GlareTypeConfig,
+};
 
 pub struct ConsensusStore {
     db: Arc<rocksdb::DB>,
@@ -37,11 +48,21 @@ pub struct ConsensusStateMachine {
 }
 
 fn sm_r_err<E: Error + 'static>(e: E) -> StorageError<GlareNodeId> {
-    StorageIOError::new(ErrorSubject::StateMachine, ErrorVerb::Read, AnyError::new(&e)).into()
+    StorageIOError::new(
+        ErrorSubject::StateMachine,
+        ErrorVerb::Read,
+        AnyError::new(&e),
+    )
+    .into()
 }
 
 fn sm_w_err<E: Error + 'static>(e: E) -> StorageError<GlareNodeId> {
-    StorageIOError::new(ErrorSubject::StateMachine, ErrorVerb::Write, AnyError::new(&e)).into()
+    StorageIOError::new(
+        ErrorSubject::StateMachine,
+        ErrorVerb::Write,
+        AnyError::new(&e),
+    )
+    .into()
 }
 
 impl ConsensusStateMachine {
@@ -59,7 +80,10 @@ impl ConsensusStateMachine {
             })
     }
 
-    fn set_last_membership(&self, membership: EffectiveMembership<GlareNodeId, GlareNode>) -> StorageResult<()> {
+    fn set_last_membership(
+        &self,
+        membership: EffectiveMembership<GlareNodeId, GlareNode>,
+    ) -> StorageResult<()> {
         self.db
             .put_cf(
                 self.db.cf_handle("state_machine").expect("cf_handle"),
@@ -93,9 +117,17 @@ impl ConsensusStateMachine {
             .map_err(sm_w_err)
     }
 
-    fn from_serializable(sm: SerializableConsensusStateMachine, db: Arc<rocksdb::DB>) -> StorageResult<Self> {
+    fn from_serializable(
+        sm: SerializableConsensusStateMachine,
+        db: Arc<rocksdb::DB>,
+    ) -> StorageResult<Self> {
         for (key, value) in sm.data {
-            db.put_cf(db.cf_handle("data").unwrap(), key.as_bytes(), value.as_bytes()).map_err(sm_w_err)?;
+            db.put_cf(
+                db.cf_handle("data").unwrap(),
+                key.as_bytes(),
+                value.as_bytes(),
+            )
+            .map_err(sm_w_err)?;
         }
 
         let r = Self { db };
@@ -113,8 +145,14 @@ impl ConsensusStateMachine {
 
     fn insert(&self, key: String, value: String) -> StorageResult<()> {
         self.db
-            .put_cf(self.db.cf_handle("data").unwrap(), key.as_bytes(), value.as_bytes())
-            .map_err(|e| StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)).into())
+            .put_cf(
+                self.db.cf_handle("data").unwrap(),
+                key.as_bytes(),
+                value.as_bytes(),
+            )
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)).into()
+            })
     }
 
     pub fn get(&self, key: &str) -> StorageResult<Option<String>> {
@@ -124,7 +162,9 @@ impl ConsensusStateMachine {
             .map(|value| {
                 value.map(|value| String::from_utf8(value.to_vec()).expect("invalid data"))
             })
-            .map_err(|e| StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)).into())
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)).into()
+            })
     }
 }
 
@@ -185,7 +225,9 @@ impl ConsensusStore {
         Ok(self
             .db
             .get_cf(self.store(), b"last_purged_log_id")
-            .map_err(|e| StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)))?
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e))
+            })?
             .and_then(|v| serde_json::from_slice(&v).ok()))
     }
 
@@ -196,18 +238,20 @@ impl ConsensusStore {
                 b"last_purged_log_id",
                 serde_json::to_vec(&log_id).unwrap().as_slice(),
             )
-            .map_err(|e| StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)).into())
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)).into()
+            })
     }
 
     fn get_snapshot_index_(&self) -> StorageResult<u64> {
         Ok(self
             .db
             .get_cf(self.store(), b"snapshot_index")
-            .map_err(|e| StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)))?
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e))
+            })?
             .and_then(|v| serde_json::from_slice(&v).ok())
-            .unwrap_or(0)
-        )
-
+            .unwrap_or(0))
     }
 
     fn set_snapshot_index_(&self, snapshot_index: u64) -> StorageResult<()> {
@@ -218,7 +262,11 @@ impl ConsensusStore {
                 serde_json::to_vec(&snapshot_index).unwrap().as_slice(),
             )
             .map_err(|e| StorageError::IO {
-                source: StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)),
+                source: StorageIOError::new(
+                    ErrorSubject::Store,
+                    ErrorVerb::Write,
+                    AnyError::new(&e),
+                ),
             })?;
 
         Ok(())
@@ -226,9 +274,17 @@ impl ConsensusStore {
 
     fn set_vote_(&self, vote: &Vote<GlareNodeId>) -> StorageResult<()> {
         self.db
-            .put_cf(self.store(), b"vote", serde_json::to_vec(vote).unwrap().as_slice())
+            .put_cf(
+                self.store(),
+                b"vote",
+                serde_json::to_vec(vote).unwrap().as_slice(),
+            )
             .map_err(|e| StorageError::IO {
-                source: StorageIOError::new(ErrorSubject::Vote, ErrorVerb::Write, AnyError::new(&e)),
+                source: StorageIOError::new(
+                    ErrorSubject::Vote,
+                    ErrorVerb::Write,
+                    AnyError::new(&e),
+                ),
             })
     }
 
@@ -236,25 +292,35 @@ impl ConsensusStore {
         Ok(self
             .db
             .get_cf(self.store(), b"vote")
-            .map_err(|e| StorageIOError::new(ErrorSubject::Vote, ErrorVerb::Read, AnyError::new(&e)))?
-            .and_then(|v| serde_json::from_slice(&v).ok())
-        )
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Vote, ErrorVerb::Read, AnyError::new(&e))
+            })?
+            .and_then(|v| serde_json::from_slice(&v).ok()))
     }
 
     fn get_current_snapshot_(&self) -> StorageResult<Option<ConsensusSnapshot>> {
         Ok(self
             .db
             .get_cf(self.store(), b"current_snapshot")
-            .map_err(|e| StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)))?
-            .and_then(|v| serde_json::from_slice(&v).ok())
-        )
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e))
+            })?
+            .and_then(|v| serde_json::from_slice(&v).ok()))
     }
 
     fn set_current_snapshot_(&self, snapshot: ConsensusSnapshot) -> StorageResult<()> {
         self.db
-            .put_cf(self.store(), b"current_snapshot", serde_json::to_vec(&snapshot).unwrap().as_slice())
+            .put_cf(
+                self.store(),
+                b"current_snapshot",
+                serde_json::to_vec(&snapshot).unwrap().as_slice(),
+            )
             .map_err(|e| StorageError::IO {
-                source: StorageIOError::new(ErrorSubject::Snapshot(snapshot.meta.signature()), ErrorVerb::Write, AnyError::new(&e)),
+                source: StorageIOError::new(
+                    ErrorSubject::Snapshot(snapshot.meta.signature()),
+                    ErrorVerb::Write,
+                    AnyError::new(&e),
+                ),
             })?;
 
         Ok(())
@@ -279,10 +345,7 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     }
 
     #[tracing::instrument(level = "trace", skip(self, entries))]
-    async fn append_to_log(
-        &mut self,
-        entries: &[&Entry<GlareTypeConfig>]
-    ) -> StorageResult<()> {
+    async fn append_to_log(&mut self, entries: &[&Entry<GlareTypeConfig>]) -> StorageResult<()> {
         for entry in entries {
             let id = id_to_bin(entry.log_id.index);
 
@@ -292,10 +355,13 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
                 .put_cf(
                     self.logs(),
                     id,
-                    serde_json::to_vec(entry)
-                        .map_err(|e| StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)))?,
+                    serde_json::to_vec(entry).map_err(|e| {
+                        StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e))
+                    })?,
                 )
-                .map_err(|e| StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)))?;
+                .map_err(|e| {
+                    StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e))
+                })?;
         }
 
         Ok(())
@@ -313,14 +379,13 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
 
         self.db
             .delete_range_cf(self.logs(), &from, &to)
-            .map_err(|e| StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)).into())
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)).into()
+            })
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn purge_logs_upto(
-        &mut self,
-        log_id: LogId<GlareNodeId>,
-    ) -> StorageResult<()> {
+    async fn purge_logs_upto(&mut self, log_id: LogId<GlareNodeId>) -> StorageResult<()> {
         tracing::debug!("purge_logs_upto: [{:?}, +oo)", log_id);
 
         self.set_last_purged_(log_id)?;
@@ -330,7 +395,9 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
 
         self.db
             .delete_range_cf(self.logs(), &from, &to)
-            .map_err(|e| StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)).into())
+            .map_err(|e| {
+                StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)).into()
+            })
     }
 
     async fn last_applied_state(
@@ -374,21 +441,26 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
                     }
                 },
                 EntryPayload::Membership(ref mem) => {
-                    sm.set_last_membership(EffectiveMembership::new(Some(entry.log_id), mem.clone()))?;
+                    sm.set_last_membership(EffectiveMembership::new(
+                        Some(entry.log_id),
+                        mem.clone(),
+                    ))?;
                     res.push(GlareResponse { value: None })
                 }
             };
         }
 
-        self.db
-            .flush_wal(true)
-            .map_err(|e| StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e)))?;
+        self.db.flush_wal(true).map_err(|e| {
+            StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e))
+        })?;
 
         Ok(res)
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    async fn begin_receiving_snapshot(&mut self) -> Result<Box<Self::SnapshotData>, StorageError<GlareNodeId>> {
+    async fn begin_receiving_snapshot(
+        &mut self,
+    ) -> Result<Box<Self::SnapshotData>, StorageError<GlareNodeId>> {
         Ok(Box::new(Cursor::new(Vec::new())))
     }
 
@@ -407,11 +479,11 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
             meta: meta.clone(),
             data: snapshot.into_inner(),
         };
-        
+
         // update the state machine
         {
-            let updated_state_machine: SerializableConsensusStateMachine = serde_json::from_slice(&new_snapshot.data)
-                .map_err(|e| {
+            let updated_state_machine: SerializableConsensusStateMachine =
+                serde_json::from_slice(&new_snapshot.data).map_err(|e| {
                     StorageIOError::new(
                         ErrorSubject::Snapshot(new_snapshot.meta.signature()),
                         ErrorVerb::Read,
@@ -419,7 +491,8 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
                     )
                 })?;
             let mut state_machine = self.state_machine.write().await;
-            *state_machine = ConsensusStateMachine::from_serializable(updated_state_machine, self.db.clone())?;
+            *state_machine =
+                ConsensusStateMachine::from_serializable(updated_state_machine, self.db.clone())?;
         }
 
         self.set_current_snapshot_(new_snapshot)?;
@@ -432,7 +505,10 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "trace", skip(self))]
     async fn get_current_snapshot(
         &mut self,
-    ) -> Result<Option<Snapshot<GlareNodeId, GlareNode, Self::SnapshotData>>, StorageError<GlareNodeId>> {
+    ) -> Result<
+        Option<Snapshot<GlareNodeId, GlareNode, Self::SnapshotData>>,
+        StorageError<GlareNodeId>,
+    > {
         match ConsensusStore::get_current_snapshot_(self)? {
             Some(snapshot) => {
                 let data = snapshot.data.clone();
@@ -463,7 +539,11 @@ impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
             .next()
             .and_then(|r| {
                 if let Ok((_, ent)) = r {
-                    Some(serde_json::from_slice::<Entry<GlareTypeConfig>>(&ent).unwrap().log_id)
+                    Some(
+                        serde_json::from_slice::<Entry<GlareTypeConfig>>(&ent)
+                            .unwrap()
+                            .log_id,
+                    )
                 } else {
                     None
                 }
@@ -492,12 +572,20 @@ impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
             std::ops::Bound::Unbounded => id_to_bin(0),
         };
         self.db
-            .iterator_cf(self.logs(), rocksdb::IteratorMode::From(&start, rocksdb::Direction::Forward))
+            .iterator_cf(
+                self.logs(),
+                rocksdb::IteratorMode::From(&start, rocksdb::Direction::Forward),
+            )
             .map(|r| {
                 if let Ok((id, val)) = r {
-                    let entry: StorageResult<Entry<_>> = serde_json::from_slice(&val).map_err(|e| StorageError::IO {
-                        source: StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Read, AnyError::new(&e)),
-                    });
+                    let entry: StorageResult<Entry<_>> =
+                        serde_json::from_slice(&val).map_err(|e| StorageError::IO {
+                            source: StorageIOError::new(
+                                ErrorSubject::Logs,
+                                ErrorVerb::Read,
+                                AnyError::new(&e),
+                            ),
+                        });
                     let id = bin_to_id(&id);
 
                     assert_eq!(Ok(id), entry.as_ref().map(|e| e.log_id.index));
@@ -524,9 +612,15 @@ impl RaftSnapshotBuilder<GlareTypeConfig, Cursor<Vec<u8>>> for Arc<ConsensusStor
 
         {
             // serialize the data of the satate machine
-            let state_machine = SerializableConsensusStateMachine::from(&*self.state_machine.read().await);
-            data = serde_json::to_vec(&state_machine)
-                .map_err(|e| StorageIOError::new(ErrorSubject::StateMachine, ErrorVerb::Read, AnyError::new(&e)))?;
+            let state_machine =
+                SerializableConsensusStateMachine::from(&*self.state_machine.read().await);
+            data = serde_json::to_vec(&state_machine).map_err(|e| {
+                StorageIOError::new(
+                    ErrorSubject::StateMachine,
+                    ErrorVerb::Read,
+                    AnyError::new(&e),
+                )
+            })?;
 
             last_applied_log = state_machine.last_applied_log;
             last_membership = state_machine.last_membership;
@@ -569,11 +663,17 @@ impl ConsensusStore {
         db_opts.create_if_missing(true);
 
         let store = rocksdb::ColumnFamilyDescriptor::new("store", rocksdb::Options::default());
-        let state_machine = rocksdb::ColumnFamilyDescriptor::new("state_machine", rocksdb::Options::default());
+        let state_machine =
+            rocksdb::ColumnFamilyDescriptor::new("state_machine", rocksdb::Options::default());
         let data = rocksdb::ColumnFamilyDescriptor::new("data", rocksdb::Options::default());
         let logs = rocksdb::ColumnFamilyDescriptor::new("logs", rocksdb::Options::default());
 
-        let db = rocksdb::DB::open_cf_descriptors(&db_opts, db_path.as_ref(), vec![store, state_machine, data, logs]).unwrap();
+        let db = rocksdb::DB::open_cf_descriptors(
+            &db_opts,
+            db_path.as_ref(),
+            vec![store, state_machine, data, logs],
+        )
+        .unwrap();
 
         let db = Arc::new(db);
         let state_machine = RwLock::new(ConsensusStateMachine::new(db.clone()));

@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
-use openraft::raft::{AppendEntriesRequest, AppendEntriesResponse, VoteRequest, VoteResponse, InstallSnapshotRequest, InstallSnapshotResponse};
+use openraft::raft::{
+    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
+    VoteRequest, VoteResponse,
+};
 use toy_rpc::macros::export_impl;
 
-use super::{GlareTypeConfig, app::ApplicationState};
+use super::{app::ApplicationState, GlareTypeConfig};
 
 pub struct Raft {
     app: Arc<ApplicationState>,
@@ -20,15 +23,20 @@ impl Raft {
         &self,
         req: AppendEntriesRequest<GlareTypeConfig>,
     ) -> Result<AppendEntriesResponse<u64>, toy_rpc::Error> {
-        self.app.raft.append_entries(req).await.map_err(|e| toy_rpc::Error::Internal(Box::new(e)))
+        self.app
+            .raft
+            .append_entries(req)
+            .await
+            .map_err(|e| toy_rpc::Error::Internal(Box::new(e)))
     }
 
     #[export_method]
-    pub async fn vote(
-        &self,
-        vote: VoteRequest<u64>
-    ) -> Result<VoteResponse<u64>, toy_rpc::Error> {
-        self.app.raft.vote(vote).await.map_err(|e| toy_rpc::Error::Internal(Box::new(e)))
+    pub async fn vote(&self, vote: VoteRequest<u64>) -> Result<VoteResponse<u64>, toy_rpc::Error> {
+        self.app
+            .raft
+            .vote(vote)
+            .await
+            .map_err(|e| toy_rpc::Error::Internal(Box::new(e)))
     }
 
     #[export_method]
@@ -36,6 +44,10 @@ impl Raft {
         &self,
         req: InstallSnapshotRequest<GlareTypeConfig>,
     ) -> Result<InstallSnapshotResponse<u64>, toy_rpc::Error> {
-        self.app.raft.install_snapshot(req).await.map_err(|e| toy_rpc::Error::Internal(Box::new(e)))
+        self.app
+            .raft
+            .install_snapshot(req)
+            .await
+            .map_err(|e| toy_rpc::Error::Internal(Box::new(e)))
     }
 }
