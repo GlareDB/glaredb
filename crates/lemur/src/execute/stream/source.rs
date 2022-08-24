@@ -282,6 +282,16 @@ impl WriteTx for MemoryDataSource {
     ) -> Result<()> {
         // TODO: Ensure no pk duplicates.
 
+        let schema = self.get_schema(table).await?;
+        match schema {
+            Some(schema) => {
+                if !data.has_schema(&schema) {
+                    return Err(anyhow!("schema mismatch, expected: {:?}", schema));
+                }
+            }
+            None => return Err(anyhow!("missing table")),
+        }
+
         let mut tables = self.tables.write();
         let df = tables
             .get_mut(table)

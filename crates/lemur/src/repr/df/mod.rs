@@ -195,6 +195,11 @@ impl DataFrame {
             .into()
     }
 
+    /// Check if this dataframe matches some schema.
+    pub fn has_schema(&self, other: &Schema) -> bool {
+        &self.schema() == other
+    }
+
     pub fn get_column_ref(&self, idx: usize) -> Option<&Arc<ValueVec>> {
         self.columns.get(idx)
     }
