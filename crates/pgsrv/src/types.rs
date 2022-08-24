@@ -95,7 +95,7 @@ impl From<Value> for PgValue {
             Value::Bool(Some(v)) => PgValue::Bool(v),
             Value::Int8(Some(v)) => PgValue::Int2(v),
             Value::Int32(Some(v)) => PgValue::Int4(v),
-            Value::Float32(Some(v)) => PgValue::Float4(**&v),
+            Value::Float32(Some(v)) => PgValue::Float4(v.into()),
             Value::Utf8(Some(v)) => PgValue::Text(v),
             Value::Binary(Some(v)) => PgValue::Bytea(v),
             _ => PgValue::Null,

@@ -13,6 +13,12 @@ macro_rules! trait_impls {
             }
         }
 
+        impl From<$wrapper> for $prim {
+            fn from(v: $wrapper) -> Self {
+                v.0
+            }
+        }
+
         impl Deref for $wrapper {
             type Target = $prim;
 
