@@ -2,13 +2,11 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use glaredb::server::{Server, ServerConfig};
 use lemur::execute::stream::source::{DataSource, MemoryDataSource};
-use rustyline::{error::ReadlineError, Editor};
-use sqlengine::engine::Engine;
 use std::sync::atomic::{AtomicU64, Ordering};
 use storageengine::rocks::{RocksStore, StorageConfig};
-use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::{error, info};
+use tracing::error;
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
@@ -79,7 +77,7 @@ fn main() -> Result<()> {
                 }
             },
         },
-        Commands::Client { addr } => {
+        Commands::Client { .. } => {
             // TODO: Eventually there will be some "management" client. E.g.
             // adding nodes to the cluster, graceful shutdowns, etc.
             error!("client not implemented");

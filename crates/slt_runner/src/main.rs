@@ -65,7 +65,7 @@ fn main() -> Result<()> {
         let server = Server::connect(MemoryDataSource::new()).await?;
         let _ = tokio::spawn(server.serve(conf));
 
-        let runner = TestRunner::connect(pg_addr.clone()).await?;
+        let runner = TestRunner::connect(pg_addr).await?;
         match runner.exec_tests(&files).await {
             Ok(taken) => {
                 println!("tests completed in {:?}", taken);
