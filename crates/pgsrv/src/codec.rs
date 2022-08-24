@@ -164,6 +164,7 @@ impl PgCodec {
             PgValue::Bool(v) => write!(buf, "{}", if v { "t" } else { "f" }),
             PgValue::Int2(v) => write!(buf, "{}", v),
             PgValue::Int4(v) => write!(buf, "{}", v),
+            PgValue::Float4(v) => write!(buf, "{}", v),
             PgValue::Text(v) => buf.write_str(&v),
             PgValue::Bytea(v) => write!(buf, "{:#x}", HexBuf(&v)),
         };

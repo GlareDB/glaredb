@@ -19,9 +19,9 @@ impl From<u8> for Verbosity {
     }
 }
 
-impl Into<Level> for Verbosity {
-    fn into(self) -> Level {
-        match self {
+impl From<Verbosity> for Level {
+    fn from(v: Verbosity) -> Self {
+        match v {
             Verbosity::Info => Level::INFO,
             Verbosity::Debug => Level::DEBUG,
             Verbosity::Trace => Level::TRACE,

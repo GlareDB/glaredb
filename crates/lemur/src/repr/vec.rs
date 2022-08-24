@@ -603,8 +603,8 @@ pub type Int8Vec = FixedLengthVec<i8>;
 pub type Int16Vec = FixedLengthVec<i16>;
 pub type Int32Vec = FixedLengthVec<i32>;
 pub type Int64Vec = FixedLengthVec<i64>;
-pub type Float32Vec = FixedLengthVec<f32>;
-pub type Float64Vec = FixedLengthVec<f64>;
+pub type Float32Vec = FixedLengthVec<OrdF32>;
+pub type Float64Vec = FixedLengthVec<OrdF64>;
 
 /// Zip an iterator with a validity vector.
 ///

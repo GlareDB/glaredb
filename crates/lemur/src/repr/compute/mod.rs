@@ -1,9 +1,7 @@
 //! General compute operations on vectors.
 use crate::repr::ordfloat::{OrdF32, OrdF64};
 
-use crate::repr::vec::{
-    FixedLengthType, FixedLengthVec, NativeType, Utf8Vec,
-};
+use crate::repr::vec::{FixedLengthType, FixedLengthVec, NativeType, Utf8Vec};
 
 use bitvec::vec::BitVec;
 use std::ops::{Add, Div, Mul, Sub};
@@ -33,6 +31,18 @@ impl NumericType for i32 {}
 impl NumericType for i64 {}
 impl NumericType for OrdF32 {}
 impl NumericType for OrdF64 {}
+
+pub trait IntegerType: NumericType {}
+
+impl IntegerType for i8 {}
+impl IntegerType for i16 {}
+impl IntegerType for i32 {}
+impl IntegerType for i64 {}
+
+pub trait FloatType: NumericType {}
+
+impl FloatType for OrdF32 {}
+impl FloatType for OrdF64 {}
 
 fn binary_op_fixedlen<T1, T2, O, F>(
     left: &FixedLengthVec<T1>,
@@ -96,7 +106,9 @@ macro_rules! value_vec_dispatch_binary {
             (ValueVec::Bool(left), ValueVec::Bool(right)) => $func(left, right)?.into(),
             (ValueVec::Int8(left), ValueVec::Int8(right)) => $func(left, right)?.into(),
             (ValueVec::Int32(left), ValueVec::Int32(right)) => $func(left, right)?.into(),
+            (ValueVec::Float32(left), ValueVec::Float32(right)) => $func(left, right)?.into(),
             (ValueVec::Utf8(left), ValueVec::Utf8(right)) => $func(left, right)?.into(),
+            (ValueVec::Binary(left), ValueVec::Binary(right)) => $func(left, right)?.into(),
             (left, right) => {
                 return Err(anyhow!(
                     "value vector types mismatch, left: {:?}, right: {:?}",
@@ -116,6 +128,7 @@ macro_rules! value_vec_dispatch_unary {
             ValueVec::Bool(v) => $func(v)?.into(),
             ValueVec::Int8(v) => $func(v)?.into(),
             ValueVec::Int32(v) => $func(v)?.into(),
+            ValueVec::Float32(v) => $func(v)?.into(),
             ValueVec::Utf8(v) => $func(v)?.into(),
             ValueVec::Binary(v) => $func(v)?.into(),
         }
@@ -130,6 +143,7 @@ macro_rules! value_vec_dispatch_unary_groups {
             ValueVec::Bool(v) => $func(v, $groups)?.into(),
             ValueVec::Int8(v) => $func(v, $groups)?.into(),
             ValueVec::Int32(v) => $func(v, $groups)?.into(),
+            ValueVec::Float32(v) => $func(v, $groups)?.into(),
             ValueVec::Utf8(v) => $func(v, $groups)?.into(),
             ValueVec::Binary(v) => $func(v, $groups)?.into(),
         }

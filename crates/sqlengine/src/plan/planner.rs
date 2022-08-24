@@ -527,6 +527,9 @@ fn parse_number(s: &str) -> Result<Value> {
     if let Ok(n) = s.parse::<i32>() {
         return Ok(Value::Int32(Some(n)));
     }
+    if let Ok(n) = s.parse::<f32>() {
+        return Ok(Value::Float32(Some(n.into())));
+    }
     Err(anyhow!("unable to parse into number: {}", s))
 }
 
@@ -538,6 +541,9 @@ fn column_def_to_column(col: ast::ColumnDef) -> Result<Column> {
         | ast::DataType::String => ValueType::Utf8,
         ast::DataType::SmallInt(_) => ValueType::Int8,
         ast::DataType::Int(_) => ValueType::Int32,
+        ast::DataType::Real | ast::DataType::Float(None) | ast::DataType::Float(Some(4)) => {
+            ValueType::Float32
+        }
         ast::DataType::Boolean => ValueType::Bool,
         other => return Err(anyhow!("invalid column data type: {}", other)),
     };
