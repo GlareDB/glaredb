@@ -1,6 +1,4 @@
-use super::{
-    value_vec_dispatch_unary, value_vec_dispatch_unary_groups, FloatType, IntegerType, NumericType,
-};
+use super::{value_vec_dispatch_unary, value_vec_dispatch_unary_groups, IntegerType};
 use crate::repr::ordfloat::OrdF32;
 use crate::repr::sort::GroupRanges;
 use crate::repr::value::ValueVec;
