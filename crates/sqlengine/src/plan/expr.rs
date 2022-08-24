@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use lemur::repr::expr::{AggregateOperation, BinaryOperation, ScalarExpr, UnaryOperation};
 use lemur::repr::value::Value;
+use tracing::trace;
 
 /// An intermediate expression representation that's used during planning.
 ///
@@ -54,6 +55,7 @@ impl PlanExpr {
     }
 
     pub fn lower_scalar(self) -> Result<ScalarExpr> {
+        trace!(?self, "lowering scalar expression");
         Ok(match self {
             PlanExpr::Column(idx) => ScalarExpr::Column(idx),
             PlanExpr::Constant(val) => ScalarExpr::Constant(val),
@@ -129,5 +131,12 @@ impl PlanExpr {
         F2: FnMut(Self) -> Result<Self>,
     {
         self.replace(|expr| expr.transform(pre, post))
+    }
+
+    pub fn transform_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
+    where
+        F: FnMut(Self) -> Result<Self>,
+    {
+        self.replace(|expr| expr.transform(pre, &mut Ok))
     }
 }

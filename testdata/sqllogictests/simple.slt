@@ -65,11 +65,10 @@ select sum(b), sum(a) from t1
 ----
 12 9
 
-# SKIP: Failing to lower.
-# query I
-# select sum(b) + sum(a) from t1
-# ----
-# 21
+query I
+select sum(b) + sum(a) from t1
+----
+21
 
 query I
 select sum(b + a) from t1;

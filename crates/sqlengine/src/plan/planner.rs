@@ -215,24 +215,22 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     let pre = std::mem::replace(expr, PlanExpr::Column(idx));
                     pre_exprs.push(pre);
                 } else {
-                    expr.transform_mut(
-                        &mut |expr| match expr {
-                            PlanExpr::Aggregate { op, arg } => {
-                                agg_exprs.push(AggregateExpr { op, column: idx });
-                                pre_exprs.push(*arg);
-                                // The resulting expression should just
-                                // reference the new aggregate.
-                                Ok(PlanExpr::Column(idx))
-                            }
-                            _ => {
-                                pre_exprs.push(expr.clone());
-                                Ok(expr)
-                            }
-                        },
-                        &mut Ok,
-                    )?;
+                    expr.transform_mut_pre(&mut |expr| match expr {
+                        PlanExpr::Aggregate { op, arg } => {
+                            pre_exprs.push(*arg);
+                            agg_exprs.push(AggregateExpr {
+                                op,
+                                column: pre_exprs.len() - 1,
+                            });
+                            // The resulting expression should just
+                            // reference the new aggregate.
+                            Ok(PlanExpr::Column(agg_exprs.len() - 1))
+                        }
+                        _ => Ok(expr),
+                    })?;
                 }
             }
+            trace!(?exprs, "expressions after aggregates extracted");
 
             // Append references to what we're grouping by in pre-projection.
             //
@@ -251,6 +249,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
             pre_exprs.extend(group_by);
 
             // Pre-projection.
+            trace!(?pre_exprs, "creating pre-projection for aggregates");
             plan = ReadPlan::Project(Project {
                 columns: pre_exprs
                     .into_iter()
@@ -587,6 +586,7 @@ mod tests {
 
     #[test]
     fn sanity_tests() {
+        logutil::init_test();
         let catalog = DummyCatalog::new();
         let queries = vec![
             "select 1 + 1",
