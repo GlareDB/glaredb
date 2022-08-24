@@ -22,5 +22,8 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Tests (Stable)
+      - name: Unit Tests
         run: cargo test
+
+      - name: SQL Logic Tests
+        run: cargo run --bin slt_runner -- testdata/sqllogictests/*.slt

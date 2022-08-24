@@ -9,6 +9,7 @@ pub const VERSION_CANCEL: i32 = (1234 << 16) ^ 5678;
 pub const VERSION_SSL: i32 = (1234 << 16) ^ 5679;
 
 /// Messages sent by the frontend during connection startup.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum StartupMessage {
     SSLRequest {

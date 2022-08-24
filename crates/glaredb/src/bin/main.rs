@@ -97,7 +97,7 @@ where
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::new(source);
+        let server = Server::connect(source).await?;
         server.serve(conf).await
     })
 }
