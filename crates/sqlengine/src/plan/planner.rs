@@ -10,6 +10,7 @@ use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation};
 use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
+use tracing::trace;
 
 pub struct Planner<'a, C> {
     catalog: &'a C,
@@ -185,6 +186,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
 
         // If we have aggregates or window functions, we need to produce a
         // pre-projection.
+        trace!(?exprs, "checking for non-scalar expressions");
         if !exprs.iter().all(|expr| expr.is_scalar()) {
             // Build the expression list for the pre-projection.
             //
@@ -217,13 +219,18 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                         &mut |expr| match expr {
                             PlanExpr::Aggregate { op, arg } => {
                                 agg_exprs.push(AggregateExpr { op, column: idx });
-                                Ok(*arg)
+                                pre_exprs.push(*arg);
+                                // The resulting expression should just
+                                // reference the new aggregate.
+                                Ok(PlanExpr::Column(idx))
                             }
-                            _ => Ok(expr),
+                            _ => {
+                                pre_exprs.push(expr.clone());
+                                Ok(expr)
+                            }
                         },
                         &mut Ok,
                     )?;
-                    pre_exprs.push(expr.clone());
                 }
             }
 
