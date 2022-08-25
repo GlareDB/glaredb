@@ -44,10 +44,11 @@ mod tests {
     use async_trait::async_trait;
     use futures::Future;
     use openraft::{testing::StoreBuilder, StorageError};
+    use tempdir::TempDir;
 
     use super::{store::ConsensusStore, GlareNodeId, GlareTypeConfig};
 
-    struct ConsensusBuilder {}
+    struct ConsensusBuilder;
 
     #[async_trait]
     impl StoreBuilder<GlareTypeConfig, Arc<ConsensusStore>> for ConsensusBuilder {
@@ -56,7 +57,8 @@ mod tests {
             Res: Future<Output = Result<Ret, StorageError<GlareNodeId>>> + Send,
             Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
         {
-            let store = ConsensusStore::new("test2").await;
+            let temp = TempDir::new("consensus").unwrap();
+            let store = ConsensusStore::new(&temp).await;
             t(store).await
         }
     }
