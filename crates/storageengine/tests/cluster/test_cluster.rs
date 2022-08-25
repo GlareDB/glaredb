@@ -50,21 +50,18 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     let d2 = tempdir::TempDir::new("test_cluster")?;
     let d3 = tempdir::TempDir::new("test_cluster")?;
 
-    let _h1 = thread::spawn(|| {
-        let x =
-            executor::block_on(async move { start_raft_node(1, d1.path(), get_rpc_addr(1)).await });
+    let _h1 = tokio::spawn(async move {
+        let x = start_raft_node(1, d1.path(), get_rpc_addr(1)).await;
         println!("x: {:?}", x);
     });
 
-    let _h2 = thread::spawn(|| {
-        let x =
-            executor::block_on(async move { start_raft_node(2, d2.path(), get_rpc_addr(2)).await });
+    let _h2 = tokio::spawn(async move {
+        let x = start_raft_node(2, d2.path(), get_rpc_addr(2)).await;
         println!("x: {:?}", x);
     });
 
-    let _h3 = thread::spawn(|| {
-        let x =
-            executor::block_on(async move { start_raft_node(3, d3.path(), get_rpc_addr(3)).await });
+    let _h3 = tokio::spawn(async move {
+        let x = start_raft_node(3, d3.path(), get_rpc_addr(3)).await;
         println!("x: {:?}", x);
     });
 
