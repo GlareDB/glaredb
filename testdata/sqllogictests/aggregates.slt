@@ -1,0 +1,50 @@
+# Aggregate queries.
+
+# Built ins
+
+statement ok
+create table t_aggs (a smallint, b real, c text);
+
+statement ok
+insert into t_aggs values (1, 1.0, '1'), (2, 2.0, '2'), (3, 3.0, '3'), (4, 4.0, '4');
+
+query IRT
+select * from t_aggs order by a;
+----
+1 1 1
+2 2 2
+3 3 3
+4 4 4
+
+query I
+select count(a) from t_aggs;
+----
+4
+
+# SKIP: count(*) not planned appropriately.
+# query I
+# select count(*) from t_aggs;
+# ----
+# 3
+
+query IR
+select sum(a), sum(b) from t_aggs;
+----
+10 10
+
+# SKIP: Avg not implemented.
+# query IR
+# select avg(a), avg(b) from t_aggs;
+# ----
+# 2 2
+
+query IRT
+select min(a), min(b), min(c) from t_aggs;
+----
+1 1 1
+
+query IRT
+select max(a), max(b), max(c) from t_aggs;
+----
+4 4 4
+

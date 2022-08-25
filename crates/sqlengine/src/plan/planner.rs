@@ -10,6 +10,7 @@ use lemur::repr::df::groupby::SortOrder;
 use lemur::repr::expr::{AggregateExpr, AggregateOperation, BinaryOperation};
 use lemur::repr::value::{Row, Value, ValueType};
 use sqlparser::ast;
+use tracing::trace;
 
 pub struct Planner<'a, C> {
     catalog: &'a C,
@@ -185,6 +186,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
 
         // If we have aggregates or window functions, we need to produce a
         // pre-projection.
+        trace!(?exprs, "checking for non-scalar expressions");
         if !exprs.iter().all(|expr| expr.is_scalar()) {
             // Build the expression list for the pre-projection.
             //
@@ -213,19 +215,22 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
                     let pre = std::mem::replace(expr, PlanExpr::Column(idx));
                     pre_exprs.push(pre);
                 } else {
-                    expr.transform_mut(
-                        &mut |expr| match expr {
-                            PlanExpr::Aggregate { op, arg } => {
-                                agg_exprs.push(AggregateExpr { op, column: idx });
-                                Ok(*arg)
-                            }
-                            _ => Ok(expr),
-                        },
-                        &mut Ok,
-                    )?;
-                    pre_exprs.push(expr.clone());
+                    expr.transform_mut_pre(&mut |expr| match expr {
+                        PlanExpr::Aggregate { op, arg } => {
+                            pre_exprs.push(*arg);
+                            agg_exprs.push(AggregateExpr {
+                                op,
+                                column: pre_exprs.len() - 1,
+                            });
+                            // The resulting expression should just
+                            // reference the new aggregate.
+                            Ok(PlanExpr::Column(agg_exprs.len() - 1))
+                        }
+                        _ => Ok(expr),
+                    })?;
                 }
             }
+            trace!(?exprs, "expressions after aggregates extracted");
 
             // Append references to what we're grouping by in pre-projection.
             //
@@ -244,6 +249,7 @@ impl<'a, C: CatalogReader> Planner<'a, C> {
             pre_exprs.extend(group_by);
 
             // Pre-projection.
+            trace!(?pre_exprs, "creating pre-projection for aggregates");
             plan = ReadPlan::Project(Project {
                 columns: pre_exprs
                     .into_iter()
@@ -527,6 +533,9 @@ fn parse_number(s: &str) -> Result<Value> {
     if let Ok(n) = s.parse::<i32>() {
         return Ok(Value::Int32(Some(n)));
     }
+    if let Ok(n) = s.parse::<f32>() {
+        return Ok(Value::Float32(Some(n.into())));
+    }
     Err(anyhow!("unable to parse into number: {}", s))
 }
 
@@ -538,6 +547,9 @@ fn column_def_to_column(col: ast::ColumnDef) -> Result<Column> {
         | ast::DataType::String => ValueType::Utf8,
         ast::DataType::SmallInt(_) => ValueType::Int8,
         ast::DataType::Int(_) => ValueType::Int32,
+        ast::DataType::Real | ast::DataType::Float(None) | ast::DataType::Float(Some(4)) => {
+            ValueType::Float32
+        }
         ast::DataType::Boolean => ValueType::Bool,
         other => return Err(anyhow!("invalid column data type: {}", other)),
     };
@@ -574,6 +586,7 @@ mod tests {
 
     #[test]
     fn sanity_tests() {
+        logutil::init_test();
         let catalog = DummyCatalog::new();
         let queries = vec![
             "select 1 + 1",

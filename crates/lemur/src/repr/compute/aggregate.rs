@@ -1,10 +1,8 @@
-use super::{
-    value_vec_dispatch_unary,
-    value_vec_dispatch_unary_groups, NumericType,
-};
+use super::{value_vec_dispatch_unary, value_vec_dispatch_unary_groups, IntegerType};
+use crate::repr::ordfloat::OrdF32;
 use crate::repr::sort::GroupRanges;
 use crate::repr::value::ValueVec;
-use crate::repr::vec::{BoolVec, FixedLengthType, FixedLengthVec, Int32Vec, Utf8Vec, BinaryVec};
+use crate::repr::vec::{BinaryVec, BoolVec, FixedLengthType, FixedLengthVec, Int32Vec, Utf8Vec};
 use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
 
@@ -479,8 +477,8 @@ pub trait VecNumericAggregate {
     }
 }
 
-impl<T: NumericType + FixedLengthType> VecNumericAggregate for FixedLengthVec<T> {
-    type Output = Self; // TODO: Change this to numeric.
+impl<T: IntegerType + FixedLengthType> VecNumericAggregate for FixedLengthVec<T> {
+    type Output = Self; // TODO: Change to numeric.
 
     fn sum(&self) -> Result<Self::Output> {
         Ok(agg_fixedlen_init_first(self, |v| v, |acc, v| acc + v))
@@ -494,9 +492,22 @@ impl<T: NumericType + FixedLengthType> VecNumericAggregate for FixedLengthVec<T>
             |acc, v| acc + v,
         ))
     }
+}
 
-    fn avg(&self) -> Result<Self::Output> {
-        unimplemented!()
+impl VecNumericAggregate for FixedLengthVec<OrdF32> {
+    type Output = Self; // TODO: Change this to float64.
+
+    fn sum(&self) -> Result<Self::Output> {
+        Ok(agg_fixedlen_init_first(self, |v| v, |acc, v| acc + v))
+    }
+
+    fn sum_groups(&self, groups: &GroupRanges) -> Result<Self::Output> {
+        Ok(agg_fixedlen_init_first_groups(
+            self,
+            groups,
+            |v| v,
+            |acc, v| acc + v,
+        ))
     }
 }
 

@@ -12,6 +12,7 @@ pub enum Type {
     Bool,
     Int2,
     Int4,
+    Float4,
     Text,
     Bytea,
 }
@@ -35,6 +36,7 @@ impl Type {
             Type::Bool => 1,
             Type::Int2 => 2,
             Type::Int4 => 4,
+            Type::Float4 => 4,
             Type::Text => -1,
             Type::Bytea => -1,
         }
@@ -45,6 +47,7 @@ impl Type {
             Type::Bool => &PgType::BOOL,
             Type::Int2 => &PgType::INT2,
             Type::Int4 => &PgType::INT4,
+            Type::Float4 => &PgType::FLOAT4,
             Type::Text => &PgType::TEXT,
             Type::Bytea => &PgType::BYTEA,
         }
@@ -58,6 +61,7 @@ impl TryFrom<ValueType> for Type {
             ValueType::Bool => Type::Bool,
             ValueType::Int8 => Type::Int2,
             ValueType::Int32 => Type::Int4,
+            ValueType::Float32 => Type::Float4,
             ValueType::Utf8 => Type::Text,
             ValueType::Binary => Type::Bytea,
             other => return Err(TypeError::NonconvertibleType(other)),
@@ -71,6 +75,7 @@ pub enum PgValue {
     Bool(bool),
     Int2(i8),
     Int4(i32),
+    Float4(f32),
     Text(String),
     Bytea(Vec<u8>),
 }
@@ -90,6 +95,7 @@ impl From<Value> for PgValue {
             Value::Bool(Some(v)) => PgValue::Bool(v),
             Value::Int8(Some(v)) => PgValue::Int2(v),
             Value::Int32(Some(v)) => PgValue::Int4(v),
+            Value::Float32(Some(v)) => PgValue::Float4(v.into()),
             Value::Utf8(Some(v)) => PgValue::Text(v),
             Value::Binary(Some(v)) => PgValue::Bytea(v),
             _ => PgValue::Null,

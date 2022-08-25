@@ -1,4 +1,5 @@
 //! Transparent float wrappers providing total order for floats.
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::ops::{Add, Deref, DerefMut, Div, Mul, Sub};
 
@@ -9,6 +10,12 @@ macro_rules! trait_impls {
         impl From<$prim> for $wrapper {
             fn from(v: $prim) -> Self {
                 Self(v)
+            }
+        }
+
+        impl From<$wrapper> for $prim {
+            fn from(v: $wrapper) -> Self {
+                v.0
             }
         }
 
@@ -81,14 +88,14 @@ macro_rules! trait_impls {
 }
 
 /// A totally ordered float32.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct OrdF32(f32);
 
 trait_impls!(OrdF32, f32);
 
 /// A totally ordered float64.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct OrdF64(f64);
 

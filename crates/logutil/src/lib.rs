@@ -1,6 +1,33 @@
 //! Utilities for logging and tracing.
-use tracing::{subscriber, trace, Level};
-use tracing_subscriber::{FmtSubscriber};
+use tracing::{info, subscriber, Level};
+use tracing_subscriber::FmtSubscriber;
+
+#[derive(Debug)]
+pub enum Verbosity {
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<u8> for Verbosity {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => Verbosity::Info,
+            1 => Verbosity::Debug,
+            _ => Verbosity::Trace,
+        }
+    }
+}
+
+impl From<Verbosity> for Level {
+    fn from(v: Verbosity) -> Self {
+        match v {
+            Verbosity::Info => Level::INFO,
+            Verbosity::Debug => Level::DEBUG,
+            Verbosity::Trace => Level::TRACE,
+        }
+    }
+}
 
 /// Initialize a trace subsriber for a test.
 pub fn init_test() {
@@ -15,12 +42,10 @@ pub fn init_test() {
 
 /// Initialize a trace subsriber printing to the console using the given
 /// verbosity count.
-pub fn init(verbose: u8) {
-    let level = match verbose {
-        0 => Level::INFO,
-        _ => Level::TRACE,
-    };
+pub fn init(verbosity: impl Into<Verbosity>) {
+    let verbosity = verbosity.into();
+    let level: Level = verbosity.into();
     let subscriber = FmtSubscriber::builder().with_max_level(level).finish();
     subscriber::set_global_default(subscriber).unwrap();
-    trace!(%level, "log level set");
+    info!(%level, "log level set");
 }
