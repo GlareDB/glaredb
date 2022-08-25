@@ -1,8 +1,8 @@
-use std::{sync::Arc, net::SocketAddr};
+use std::sync::Arc;
 
 use messaging::{GlareRequest, GlareResponse};
 use network::ConsensusNetwork;
-use openraft::{BasicNode, Raft};
+use openraft::Raft;
 
 use self::store::ConsensusStore;
 

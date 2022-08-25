@@ -2,10 +2,8 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
-use std::thread;
 use std::time::Duration;
 
-use futures::executor;
 use maplit::btreemap;
 use maplit::btreeset;
 use storageengine::consensus::client::ConsensusClient;
@@ -70,7 +68,7 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Create a client to the first node, as a control handle to the cluster.
 
-    let leader = ConsensusClient::new(1, get_addr(1)).await?;
+    let leader = ConsensusClient::new(1, get_http_addr(1));
 
     // --- 1. Initialize the target node as a cluster of only one node.
     //        After init(), the single node cluster will be fully functional.
@@ -85,10 +83,10 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     //        leader.
 
     println!("=== add-learner 2");
-    let _x = leader.add_learner((2, get_rpc_addr(2))).await?;
+    let _x = leader.add_learner((2, get_http_addr(2).to_string(), get_rpc_addr(2).to_string())).await?;
 
     println!("=== add-learner 3");
-    let _x = leader.add_learner((3, get_rpc_addr(3))).await?;
+    let _x = leader.add_learner((3, get_http_addr(2).to_string(), get_rpc_addr(3).to_string())).await?;
 
     println!("=== metrics after add-learner");
     let x = leader.metrics().await?;
@@ -102,9 +100,9 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<BTreeMap<_, _>>();
     assert_eq!(
         btreemap! {
-            1 => GlareNode{addr: get_rpc_addr(1).to_string() },
-            2 => GlareNode{addr: get_rpc_addr(2).to_string() },
-            3 => GlareNode{addr: get_rpc_addr(3).to_string() },
+            1 => GlareNode{rpc_addr: get_rpc_addr(1).to_string(), api_addr: get_http_addr(1).to_string(), },
+            2 => GlareNode{rpc_addr: get_rpc_addr(2).to_string(), api_addr: get_http_addr(2).to_string(), },
+            3 => GlareNode{rpc_addr: get_rpc_addr(3).to_string(), api_addr: get_http_addr(3).to_string(), },
         },
         nodes_in_cluster
     );
@@ -154,12 +152,12 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!("bar", x);
 
     println!("=== read `foo` on node 2");
-    let client2 = ConsensusClient::new(2, get_addr(2)).await?;
+    let client2 = ConsensusClient::new(2, get_http_addr(2));
     let x = client2.read(&("foo".to_string())).await?;
     assert_eq!("bar", x);
 
     println!("=== read `foo` on node 3");
-    let client3 = ConsensusClient::new(3, get_addr(3)).await?;
+    let client3 = ConsensusClient::new(3, get_http_addr(3));
     let x = client3.read(&("foo".to_string())).await?;
     assert_eq!("bar", x);
 
@@ -182,12 +180,12 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!("wow", x);
 
     println!("=== read `foo` on node 2");
-    let client2 = ConsensusClient::new(2, get_addr(2)).await?;
+    let client2 = ConsensusClient::new(2, get_http_addr(2));
     let x = client2.read(&("foo".to_string())).await?;
     assert_eq!("wow", x);
 
     println!("=== read `foo` on node 3");
-    let client3 = ConsensusClient::new(3, get_addr(3)).await?;
+    let client3 = ConsensusClient::new(3, get_http_addr(3));
     let x = client3.read(&("foo".to_string())).await?;
     assert_eq!("wow", x);
 
