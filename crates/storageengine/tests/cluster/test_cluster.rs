@@ -26,7 +26,7 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     //     Thus we need a supporting component to provide mapping from node id to node address.
     //     This is only used by the client. A raft node in this example stores node addresses in its store.
 
-    fn get_addr(node_id: u32) -> SocketAddr {
+    fn get_http_addr(node_id: u32) -> SocketAddr {
         let addr = match node_id {
             1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21001),
             2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21002),
@@ -51,17 +51,17 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     let d3 = tempdir::TempDir::new("test_cluster")?;
 
     let _h1 = tokio::spawn(async move {
-        let x = start_raft_node(1, d1.path(), get_rpc_addr(1)).await;
+        let x = start_raft_node(1, d1.path(), get_rpc_addr(1), get_http_addr(1)).await;
         println!("x: {:?}", x);
     });
 
     let _h2 = tokio::spawn(async move {
-        let x = start_raft_node(2, d2.path(), get_rpc_addr(2)).await;
+        let x = start_raft_node(2, d2.path(), get_rpc_addr(2), get_http_addr(2)).await;
         println!("x: {:?}", x);
     });
 
     let _h3 = tokio::spawn(async move {
-        let x = start_raft_node(3, d3.path(), get_rpc_addr(3)).await;
+        let x = start_raft_node(3, d3.path(), get_rpc_addr(3), get_http_addr(3)).await;
         println!("x: {:?}", x);
     });
 

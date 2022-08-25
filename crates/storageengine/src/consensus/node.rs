@@ -10,6 +10,7 @@ pub async fn start_raft_node<P>(
     node_id: GlareNodeId,
     dir: P,
     rpc_addr: SocketAddr,
+    http_addr: SocketAddr,
 ) -> std::io::Result<()>
 where
     P: AsRef<Path>,
@@ -33,12 +34,16 @@ where
 
     let server = toy_rpc::Server::builder().register(service).build();
 
+    // Initialize RPC server
     let listener = TcpListener::bind(rpc_addr).await.unwrap();
-    let handle = task::spawn(async move {
+    let rpc_handler = task::spawn(async move {
         server.accept(listener).await.unwrap();
     });
 
-    handle.await?;
+    // Initialize HTTP server
+
+    // Run both tasks
+    rpc_handler.await?;
     Ok(())
     /*
     let mut app: Server = tide::Server::with_state(app);

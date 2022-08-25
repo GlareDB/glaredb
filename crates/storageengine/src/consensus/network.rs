@@ -41,7 +41,7 @@ impl RaftNetworkFactory<GlareTypeConfig> for Arc<ConsensusNetwork> {
         node: &GlareNode,
     ) -> Result<Self::Network, Self::ConnectionError> {
         dbg!(&node);
-        let addr = &node.addr;
+        let addr = &node.rpc_addr;
         let client = toy_rpc::Client::dial(addr).await.ok();
         Ok(GlareNetworkConnection {
             addr: addr.to_string(),

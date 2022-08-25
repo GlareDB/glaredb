@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, net::SocketAddr};
 
 use messaging::{GlareRequest, GlareResponse};
 use network::ConsensusNetwork;
@@ -17,19 +17,19 @@ pub mod store;
 
 pub type GlareNodeId = u64;
 
-pub type GlareNode = BasicNode;
-/*
+// pub type GlareNode = BasicNode;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
 pub struct GlareNode {
     pub rpc_addr: String,
+    pub api_addr: String,
 }
 
 impl std::fmt::Display for GlareNode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "GlareNode {{ }}")
     }
 }
-*/
 
 pub type GlareRaft = Raft<GlareTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusStore>>;
 

@@ -27,5 +27,5 @@ tempdir = "0.3.7"
 clap = { version = "3.2.14", features = ["derive"] }
 openraft = { git = "https://github.com/datafuselabs/openraft", branch = "main", features = ["serde"] }
 toy-rpc = { version = "0.8.6", features = ["tokio_runtime", "server", "client", "http_axum"] }
-hyper = { version = "0.14.20", features = ["client", "server"] }
+reqwest = { version = "0.11", features = ["json"] }
 axum = "0.5.0"
