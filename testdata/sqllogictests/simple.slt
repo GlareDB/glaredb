@@ -1,0 +1,23 @@
+# Simple queries.
+
+query II nosort
+select 1, 1 + 1
+----
+1 2
+
+query III nosort
+select * from (values (1, 2, 3), (3, 4, 5))
+----
+1 2 3
+3 4 5
+
+statement ok
+create table test_table (a smallint, b smallint)
+
+# Table already exists.
+statement error
+create table test_table (a smallint, b smallint)
+
+statement ok
+insert into test_table values (1, 2), (3, 4), (5, 6)
+

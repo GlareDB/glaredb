@@ -18,7 +18,7 @@
         pname = "glaredb-cli";
         version = "0.1.0";
 
-        buildAndTestSubdir = "crates/sqlengine";
+        buildAndTestSubdir = "crates/glaredb";
         src = self.lib.flake_source;
         cargoLock = {
           lockFile = self.lib.cargo_lock;
@@ -29,7 +29,7 @@
         name = "glaredb-tcp-server";
         tag = "latest";
         contents = [packages.cli];
-        config.Cmd = ["${packages.cli}/bin/glaredb" "server"];
+        config.Cmd = ["${packages.cli}/bin/main" "server"];
       };
     };
   };

@@ -1,5 +1,6 @@
-pub mod codec;
+#![allow(dead_code)]
+mod codec;
 pub mod errors;
 pub mod handler;
-pub mod messages;
-pub mod types;
+mod messages;
+mod types;

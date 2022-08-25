@@ -1,12 +1,18 @@
 [package]
-name = "sqlengine"
+name = "glaredb"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "glaredb"
+path = "src/bin/main.rs"
 
 [dependencies]
 logutil = {path = "../logutil"}
 lemur = {path = "../lemur"}
 storageengine = {path = "../storageengine"}
+sqlengine = {path = "../sqlengine"}
+pgsrv = {path = "../pgsrv"}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 tokio = { version = "1", features = ["full"] }

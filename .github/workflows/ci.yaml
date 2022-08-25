@@ -34,3 +34,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- -D warnings
 
+      - name: SQL Logic Tests
+        run: cargo run --bin slt_runner -- testdata/sqllogictests/*.slt
