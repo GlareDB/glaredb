@@ -3,10 +3,13 @@ use tokio::{net::TcpListener, task};
 
 use crate::repr::{NodeId, Raft};
 use super::{
-    app::ApplicationState, network::ConsensusNetwork, client::rpc::Raft as RaftRpc, store::ConsensusStore,
+    network::ConsensusNetwork, client::rpc::Raft as RaftRpc, store::ConsensusStore,
 };
 
+pub mod app;
 mod management;
+
+use app::ApplicationState;
 
 pub type HttpServer = tide::Server<Arc<ApplicationState>>;
 pub async fn start_raft_node<P>(

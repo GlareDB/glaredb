@@ -11,8 +11,8 @@ use tide::StatusCode;
 
 use crate::openraft_types::types::RaftMetrics;
 use crate::repr::{Node, NodeId};
-use crate::app::ApplicationState;
 
+use super::app::ApplicationState;
 use super::HttpServer;
 
 // --- Cluster management

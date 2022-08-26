@@ -1,4 +1,4 @@
-use super::repr::{NodeId, Raft};
+use crate::repr::{NodeId, Raft};
 
 pub struct ApplicationState {
     pub id: NodeId,
