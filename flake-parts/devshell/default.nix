@@ -18,7 +18,7 @@
       cocogitto
     ];
 
-    otherNativeBuildInputs = with pkgs; [pkgconfig llvmPackages.bintools];
+    otherNativeBuildInputs = with pkgs; [pkgconfig openssl openssl.dev llvmPackages.bintools];
     otherBuildInputs = with pkgs; [
       clang
     ];
