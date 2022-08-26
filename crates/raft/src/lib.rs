@@ -16,8 +16,8 @@ mod tests {
     use openraft::testing::StoreBuilder;
     use tempdir::TempDir;
 
-    use crate::{repr::{RaftTypeConfig}, openraft_types::types::StorageError};
     use super::store::ConsensusStore;
+    use crate::{openraft_types::types::StorageError, repr::RaftTypeConfig};
 
     struct ConsensusBuilder;
 

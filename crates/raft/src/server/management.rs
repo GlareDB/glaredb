@@ -8,7 +8,6 @@ use tide::Request;
 use tide::Response;
 use tide::StatusCode;
 
-
 use crate::openraft_types::types::RaftMetrics;
 use crate::repr::{Node, NodeId};
 
@@ -34,14 +33,18 @@ async fn add_learner(mut req: Request<Arc<ApplicationState>>) -> tide::Result {
     let (node_id, api_addr, rpc_addr): (NodeId, String, String) = req.body_json().await?;
     let node = Node { rpc_addr, api_addr };
     let res = req.state().raft.add_learner(node_id, node, true).await;
-    Ok(Response::builder(StatusCode::Ok).body(Body::from_json(&res)?).build())
+    Ok(Response::builder(StatusCode::Ok)
+        .body(Body::from_json(&res)?)
+        .build())
 }
 
 /// Changes specified learners to members, or remove members.
 async fn change_membership(mut req: Request<Arc<ApplicationState>>) -> tide::Result {
     let body: BTreeSet<NodeId> = req.body_json().await?;
     let res = req.state().raft.change_membership(body, true, false).await;
-    Ok(Response::builder(StatusCode::Ok).body(Body::from_json(&res)?).build())
+    Ok(Response::builder(StatusCode::Ok)
+        .body(Body::from_json(&res)?)
+        .build())
 }
 
 /// Initialize a single-node cluster.
@@ -54,7 +57,9 @@ async fn init(req: Request<Arc<ApplicationState>>) -> tide::Result {
 
     nodes.insert(req.state().id, node);
     let res = req.state().raft.initialize(nodes).await;
-    Ok(Response::builder(StatusCode::Ok).body(Body::from_json(&res)?).build())
+    Ok(Response::builder(StatusCode::Ok)
+        .body(Body::from_json(&res)?)
+        .build())
 }
 
 /// Get the latest metrics of the cluster
@@ -62,5 +67,7 @@ async fn metrics(req: Request<Arc<ApplicationState>>) -> tide::Result {
     let metrics = req.state().raft.metrics().borrow().clone();
 
     let res: Result<RaftMetrics, Infallible> = Ok(metrics);
-    Ok(Response::builder(StatusCode::Ok).body(Body::from_json(&res)?).build())
+    Ok(Response::builder(StatusCode::Ok)
+        .body(Body::from_json(&res)?)
+        .build())
 }

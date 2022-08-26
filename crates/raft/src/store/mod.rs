@@ -5,18 +5,19 @@ use std::{
 
 use async_trait::async_trait;
 use openraft::{
-    storage::LogState,
-    AnyError, Entry, EntryPayload, ErrorSubject, ErrorVerb,
-    RaftLogReader, RaftSnapshotBuilder, RaftStorage,
-    StorageIOError,
+    storage::LogState, AnyError, Entry, EntryPayload, ErrorSubject, ErrorVerb, RaftLogReader,
+    RaftSnapshotBuilder, RaftStorage, StorageIOError,
 };
 use rocksdb::ColumnFamily;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use crate::{repr::RaftTypeConfig, openraft_types::types::{SnapshotMeta, StorageError, Snapshot, EffectiveMembership, LogId, Vote, StateMachineChanges}};
-use super::{
-    message::{Request, Response},
+use super::message::{Request, Response};
+use crate::{
+    openraft_types::types::{
+        EffectiveMembership, LogId, Snapshot, SnapshotMeta, StateMachineChanges, StorageError, Vote,
+    },
+    repr::RaftTypeConfig,
 };
 
 pub struct ConsensusStore {
@@ -80,10 +81,7 @@ impl ConsensusStateMachine {
             })
     }
 
-    fn set_last_membership(
-        &self,
-        membership: EffectiveMembership,
-    ) -> StorageResult<()> {
+    fn set_last_membership(&self, membership: EffectiveMembership) -> StorageResult<()> {
         self.db
             .put_cf(
                 self.db.cf_handle("state_machine").expect("cf_handle"),
@@ -333,10 +331,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
     type LogReader = Self;
     type SnapshotBuilder = Self;
 
-    async fn save_vote(
-        &mut self,
-        vote: &Vote,
-    ) -> Result<(), StorageError> {
+    async fn save_vote(&mut self, vote: &Vote) -> Result<(), StorageError> {
         self.set_vote_(vote)
     }
 
@@ -368,10 +363,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn delete_conflict_logs_since(
-        &mut self,
-        log_id: LogId,
-    ) -> StorageResult<()> {
+    async fn delete_conflict_logs_since(&mut self, log_id: LogId) -> StorageResult<()> {
         tracing::debug!("delete_logs_since: [{:?}, +oo)", log_id);
 
         let from = id_to_bin(log_id.index);
@@ -402,13 +394,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
 
     async fn last_applied_state(
         &mut self,
-    ) -> Result<
-        (
-            Option<LogId>,
-            EffectiveMembership,
-        ),
-        StorageError,
-    > {
+    ) -> Result<(Option<LogId>, EffectiveMembership), StorageError> {
         let state_machine = self.state_machine.read().await;
         Ok((
             state_machine.get_last_applied_log()?,
@@ -458,9 +444,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    async fn begin_receiving_snapshot(
-        &mut self,
-    ) -> Result<Box<Self::SnapshotData>, StorageError> {
+    async fn begin_receiving_snapshot(&mut self) -> Result<Box<Self::SnapshotData>, StorageError> {
         Ok(Box::new(Cursor::new(Vec::new())))
     }
 
@@ -505,10 +489,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "trace", skip(self))]
     async fn get_current_snapshot(
         &mut self,
-    ) -> Result<
-        Option<Snapshot<Self::SnapshotData>>,
-        StorageError,
-    > {
+    ) -> Result<Option<Snapshot<Self::SnapshotData>>, StorageError> {
         match ConsensusStore::get_current_snapshot_(self)? {
             Some(snapshot) => {
                 let data = snapshot.data.clone();
@@ -603,9 +584,7 @@ impl RaftLogReader<RaftTypeConfig> for Arc<ConsensusStore> {
 #[async_trait]
 impl RaftSnapshotBuilder<RaftTypeConfig, Cursor<Vec<u8>>> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "trace", skip(self))]
-    async fn build_snapshot(
-        &mut self,
-    ) -> Result<Snapshot<Cursor<Vec<u8>>>, StorageError> {
+    async fn build_snapshot(&mut self) -> Result<Snapshot<Cursor<Vec<u8>>>, StorageError> {
         let data;
         let last_applied_log;
         let last_membership;

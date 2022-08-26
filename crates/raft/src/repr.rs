@@ -1,12 +1,27 @@
 use std::sync::Arc;
 
-use openraft::{Raft as OpenRaft};
+use openraft::Raft as OpenRaft;
 
-use crate::{network::ConsensusNetwork, store::ConsensusStore, message::{Request, Response}};
+use crate::{
+    message::{Request, Response},
+    network::ConsensusNetwork,
+    store::ConsensusStore,
+};
 
 pub type NodeId = u64;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    PartialEq,
+    Eq,
+    Default,
+    PartialOrd,
+    Ord,
+    Hash,
+)]
 pub struct Node {
     pub rpc_addr: String,
     pub api_addr: String,
@@ -23,4 +38,3 @@ pub type Raft = OpenRaft<RaftTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusSto
 openraft::declare_raft_types!(
     pub RaftTypeConfig: D = Request, R = Response, NodeId = NodeId, Node = Node
 );
-

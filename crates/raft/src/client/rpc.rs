@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use toy_rpc::macros::export_impl;
 
-use crate::{openraft_types::types::{InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse, AppendEntriesRequest, AppendEntriesResponse}};
+use crate::openraft_types::types::{
+    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
+    VoteRequest, VoteResponse,
+};
 use crate::server::app::ApplicationState;
 
 pub struct Raft {

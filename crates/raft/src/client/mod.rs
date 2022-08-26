@@ -1,12 +1,19 @@
 use std::{collections::BTreeSet, net::SocketAddr, sync::Arc};
 
 use openraft::error::{NetworkError, RemoteError};
-use serde::{Serialize, de::DeserializeOwned, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::{error::RpcResult, message::Request};
-use crate::{repr::NodeId, openraft_types::types::{AddLearnerResponse, AddLearnerError, CheckIsLeaderError, ClientWriteError, InitializeError, ForwardToLeader, Infallible, ClientWriteResponse, RaftMetrics}, error::RpcError};
 use crate::error::Result;
+use crate::{
+    error::RpcError,
+    openraft_types::types::{
+        AddLearnerError, AddLearnerResponse, CheckIsLeaderError, ClientWriteError,
+        ClientWriteResponse, ForwardToLeader, Infallible, InitializeError, RaftMetrics,
+    },
+    repr::NodeId,
+};
 
 pub mod rpc;
 
@@ -20,7 +27,6 @@ pub struct ConsensusClient {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Empty;
-
 
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
@@ -39,13 +45,7 @@ impl ConsensusClient {
     /// state machine.
     ///
     /// The result of applying the request will be returned.
-    pub async fn write(
-        &self,
-        req: &Request,
-    ) -> RpcResult<
-        ClientWriteResponse,
-        ClientWriteError,
-    > {
+    pub async fn write(&self, req: &Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
         self.send_rpc_to_leader("api/write", Some(req)).await
     }
 
@@ -59,11 +59,9 @@ impl ConsensusClient {
     /// Consistent Read value by key, in an inconsistent mode.
     ///
     /// This method MUST return consitent value or CheckIsLeaderError.
-    pub async fn consistent_read(
-        &self,
-        req: &String,
-    ) -> RpcResult<String, CheckIsLeaderError> {
-        self.do_send_rpc_to_leader("api/consistent_read", Some(req)).await
+    pub async fn consistent_read(&self, req: &String) -> RpcResult<String, CheckIsLeaderError> {
+        self.do_send_rpc_to_leader("api/consistent_read", Some(req))
+            .await
     }
 
     // --- Cluster management API
@@ -74,10 +72,9 @@ impl ConsensusClient {
     /// With a initialized cluster, new node can be added with [`write`].
     /// Then setup replication with [`add_learner`].
     /// Then make the new node a member with [`change_membership`].
-    pub async fn init(
-        &self,
-    ) -> RpcResult<(), InitializeError> {
-        self.do_send_rpc_to_leader("cluster/init", Some(&Empty {})).await
+    pub async fn init(&self) -> RpcResult<(), InitializeError> {
+        self.do_send_rpc_to_leader("cluster/init", Some(&Empty {}))
+            .await
     }
 
     /// Add a node as learner.
@@ -86,11 +83,9 @@ impl ConsensusClient {
     pub async fn add_learner(
         &self,
         req: (NodeId, String, String),
-    ) -> RpcResult<
-        AddLearnerResponse,
-        AddLearnerError,
-    > {
-        self.send_rpc_to_leader("cluster/add-learner", Some(&req)).await
+    ) -> RpcResult<AddLearnerResponse, AddLearnerError> {
+        self.send_rpc_to_leader("cluster/add-learner", Some(&req))
+            .await
     }
 
     /// Change membership to the specified set of nodes.
@@ -100,11 +95,9 @@ impl ConsensusClient {
     pub async fn change_membership(
         &self,
         req: &BTreeSet<NodeId>,
-    ) -> RpcResult<
-        ClientWriteResponse,
-        ClientWriteError,
-    > {
-        self.send_rpc_to_leader("cluster/change-membership", Some(req)).await
+    ) -> RpcResult<ClientWriteResponse, ClientWriteError> {
+        self.send_rpc_to_leader("cluster/change-membership", Some(req))
+            .await
     }
 
     /// Get the metrics about the cluster.
@@ -112,10 +105,9 @@ impl ConsensusClient {
     /// Metrics contains various information about the cluster, such as current leader,
     /// membership config, replication status etc.
     /// See [`RaftMetrics`].
-    pub async fn metrics(
-        &self,
-    ) -> RpcResult<RaftMetrics, Infallible> {
-        self.do_send_rpc_to_leader("cluster/metrics", None::<&()>).await
+    pub async fn metrics(&self) -> RpcResult<RaftMetrics, Infallible> {
+        self.do_send_rpc_to_leader("cluster/metrics", None::<&()>)
+            .await
     }
 
     // --- Internal methods
@@ -156,7 +148,10 @@ impl ConsensusClient {
         .await
         .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
-        let res: Result<Resp, Err> = resp.json().await.map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+        let res: Result<Resp, Err> = resp
+            .json()
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
         println!(
             "<<< client recv reply from {}: {}",
             url,
@@ -178,18 +173,13 @@ impl ConsensusClient {
     where
         Req: Serialize + 'static,
         Resp: Serialize + DeserializeOwned,
-        Err: std::error::Error
-            + Serialize
-            + DeserializeOwned
-            + TryInto<ForwardToLeader>
-            + Clone,
+        Err: std::error::Error + Serialize + DeserializeOwned + TryInto<ForwardToLeader> + Clone,
     {
         // Retry at most 3 times to find a valid leader.
         let mut n_retry = 3;
 
         loop {
-            let res: RpcResult<Resp, Err> =
-                self.do_send_rpc_to_leader(uri, req).await;
+            let res: RpcResult<Resp, Err> = self.do_send_rpc_to_leader(uri, req).await;
 
             let rpc_err = match res {
                 Ok(x) => return Ok(x),

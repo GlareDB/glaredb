@@ -1,10 +1,8 @@
 use std::{net::SocketAddr, path::Path, sync::Arc};
 use tokio::{net::TcpListener, task};
 
+use super::{client::rpc::Raft as RaftRpc, network::ConsensusNetwork, store::ConsensusStore};
 use crate::repr::{NodeId, Raft};
-use super::{
-    network::ConsensusNetwork, client::rpc::Raft as RaftRpc, store::ConsensusStore,
-};
 
 pub mod app;
 mod management;

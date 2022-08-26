@@ -8,8 +8,8 @@ use maplit::btreemap;
 use maplit::btreeset;
 use raft::client::ConsensusClient;
 use raft::message::Request;
-use raft::server::start_raft_node;
 use raft::repr::Node;
+use raft::server::start_raft_node;
 use tokio::time::sleep;
 
 /// Setup a cluster of 3 nodes.
@@ -68,10 +68,14 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
     //        leader.
 
     println!("=== add-learner 2");
-    let _x = leader.add_learner((2, get_http_addr(2).to_string(), get_rpc_addr(2).to_string())).await?;
+    let _x = leader
+        .add_learner((2, get_http_addr(2).to_string(), get_rpc_addr(2).to_string()))
+        .await?;
 
     println!("=== add-learner 3");
-    let _x = leader.add_learner((3, get_http_addr(2).to_string(), get_rpc_addr(3).to_string())).await?;
+    let _x = leader
+        .add_learner((3, get_http_addr(2).to_string(), get_rpc_addr(3).to_string()))
+        .await?;
 
     println!("=== metrics after add-learner");
     let x = leader.metrics().await?;

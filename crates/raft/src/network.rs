@@ -2,18 +2,19 @@ use std::any::Any;
 use std::sync::Arc;
 
 use openraft::async_trait::async_trait;
-use openraft::error::{
-    NetworkError, RemoteError,
-};
+use openraft::error::{NetworkError, RemoteError};
 use openraft::{AnyError, RaftNetwork, RaftNetworkFactory};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use toy_rpc::pubsub::AckModeNone;
 
-use crate::openraft_types::types::{AppendEntriesResponse, AppendEntriesError, AppendEntriesRequest, InstallSnapshotError, InstallSnapshotResponse, InstallSnapshotRequest, VoteError, VoteResponse, VoteRequest};
+use crate::openraft_types::types::{
+    AppendEntriesError, AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotError,
+    InstallSnapshotRequest, InstallSnapshotResponse, VoteError, VoteRequest, VoteResponse,
+};
 
-use super::error::{Error, RpcError, RpcResult};
 use super::client::rpc::RaftClientStub;
+use super::error::{Error, RpcError, RpcResult};
 use super::repr::{Node, NodeId, RaftTypeConfig};
 
 pub struct ConsensusNetwork {}
@@ -97,10 +98,7 @@ impl RaftNetwork<RaftTypeConfig> for GlareNetworkConnection {
             .map_err(|e| to_error(e, self.target))
     }
 
-    async fn send_vote(
-        &mut self,
-        req: VoteRequest,
-    ) -> RpcResult<VoteResponse, VoteError> {
+    async fn send_vote(&mut self, req: VoteRequest) -> RpcResult<VoteResponse, VoteError> {
         self.client()
             .await?
             .raft()
