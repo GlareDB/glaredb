@@ -175,6 +175,16 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
         Ok(())
     }
 
+    /// Get a value at some index, taking into account the validity at that
+    /// index.
+    pub fn get(&self, idx: usize) -> Option<Option<&T>> {
+        if *self.validity.get(idx)? {
+            Some(Some(self.values.get(idx)?))
+        } else {
+            Some(None)
+        }
+    }
+
     /// Get the value at some index, ignoring the validity at that index.
     pub fn get_value(&self, idx: usize) -> Option<&T> {
         self.values.get(idx)
@@ -194,7 +204,7 @@ impl<T: FixedLengthType> FixedLengthVec<T> {
 }
 
 impl<'a, T: FixedLengthType> FromIterator<Option<&'a T>> for FixedLengthVec<T> {
-    fn from_iter<I: IntoIterator<Item=Option<&'a T>>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = Option<&'a T>>>(iter: I) -> Self {
         let iter = iter.into_iter();
         let (lower, _) = iter.size_hint();
         let mut vec = Self::with_capacity(lower);
@@ -349,6 +359,16 @@ impl VarLengthVec {
         self.len() == 0
     }
 
+    /// Get a value at some index, taking into account the validity at that
+    /// index.
+    pub fn get<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<Option<&T>> {
+        if *self.validity.get(idx)? {
+            Some(Some(self.get_value(idx)?))
+        } else {
+            Some(None)
+        }
+    }
+
     /// Get a value, ignoring its validity.
     pub fn get_value<T: BytesRef + ?Sized>(&self, idx: usize) -> Option<&T> {
         let start = *self.offsets.get(idx)?;
@@ -432,6 +452,10 @@ impl Utf8Vec {
         self.0.is_empty()
     }
 
+    pub fn get(&self, idx: usize) -> Option<Option<&str>> {
+        self.0.get(idx)
+    }
+
     pub fn get_value(&self, idx: usize) -> Option<&str> {
         self.0.get_value(idx)
     }
@@ -457,7 +481,6 @@ impl<'a> FromIterator<Option<&'a str>> for Utf8Vec {
         Self(VarLengthVec::from_iter(iter))
     }
 }
-
 
 pub struct Utf8Iter<'a> {
     vec: &'a VarLengthVec,
@@ -530,6 +553,10 @@ impl BinaryVec {
         self.0.is_empty()
     }
 
+    pub fn get(&self, idx: usize) -> Option<Option<&[u8]>> {
+        self.0.get(idx)
+    }
+
     pub fn get_value(&self, idx: usize) -> Option<&[u8]> {
         self.0.get_value(idx)
     }
@@ -576,8 +603,8 @@ pub type Int8Vec = FixedLengthVec<i8>;
 pub type Int16Vec = FixedLengthVec<i16>;
 pub type Int32Vec = FixedLengthVec<i32>;
 pub type Int64Vec = FixedLengthVec<i64>;
-pub type Float32Vec = FixedLengthVec<f32>;
-pub type Float64Vec = FixedLengthVec<f64>;
+pub type Float32Vec = FixedLengthVec<OrdF32>;
+pub type Float64Vec = FixedLengthVec<OrdF64>;
 
 /// Zip an iterator with a validity vector.
 ///

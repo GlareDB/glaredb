@@ -4,7 +4,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   test:
-    name: Tests
+    name: CI
     runs-on: ubuntu-latest
 
     steps:
@@ -12,17 +12,27 @@ jobs:
         uses: actions/checkout@v2
 
       # Taken from: https://github.com/actions/cache/blob/main/examples.md#rust---cargo
-      #
-      # Does not include the "target" directory as running the miri script will
-      # remove it anyways.
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Tests (Stable)
+      - name: Configure toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Unit tests
         run: cargo test
+
+      - name: Clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features -- -D warnings
+
+      - name: SQL Logic Tests
+        run: cargo run --bin slt_runner -- testdata/sqllogictests/*.slt

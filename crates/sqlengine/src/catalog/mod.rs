@@ -1,11 +1,11 @@
-use anyhow::{Result};
-use lemur::repr::{df::Schema, expr::RelationKey};
+use anyhow::Result;
 use lemur::repr::value::ValueType;
+use lemur::repr::{df::Schema, relation::RelationKey};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-pub mod system;
 pub mod dummy;
+pub mod system;
 
 pub trait CatalogReader: Sync + Send {
     /// Get a table by a reference, returning `None` if no table exists (or

@@ -1,4 +1,5 @@
 use crate::repr::InternalValue;
+use lemur::repr::relation::RelationKey;
 use std::io;
 
 pub type Result<T, E = StorageError> = std::result::Result<T, E>;
@@ -9,20 +10,29 @@ pub enum StorageError {
     /// this error means we're attempting to access a non-existent column.
     #[error("missing value for pk at idx: {idx}")]
     MissingPkPart { idx: usize },
+
     /// A value lookup is not of the type we're looking for.
     #[error("unexpected internal value: {0:?}")]
     UnexpectedInternalValue(InternalValue),
+
+    #[error("missing schema for relation: {0}")]
+    MissingSchemaForRelation(RelationKey),
+
     /// (De)serialization errors related to bincode.
     #[error(transparent)]
     Bincode(#[from] bincode::Error),
+
     /// IO errors
     #[error(transparent)]
     Io(#[from] io::Error),
+
     /// FFI errors for RocksDB.
     #[error(transparent)]
     Rocks(#[from] rocksdb::Error),
+
     #[error("internal: {0}")]
     Internal(String),
+
     /// Laziness. Anyhow is not used in this crate, but other crates that are
     /// depended upon do use it.
     #[error(transparent)]

@@ -12,7 +12,7 @@
     apps = {
       cli = {
         type = "app";
-        program = "${self.packages.${system}.cli}/bin/glaredb";
+        program = "${self.packages.${system}.cli}/bin/main";
       };
       default = apps.cli;
     };

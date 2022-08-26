@@ -128,9 +128,10 @@ impl ScalarExpr {
                 op.evaluate(left, right, &DataFrame::empty())?
             }
         };
-        output.as_ref().first_value().ok_or_else(|| anyhow!(
-            "failed to get output of constant expression evaluation"
-        ))
+        output
+            .as_ref()
+            .first_value()
+            .ok_or_else(|| anyhow!("failed to get output of constant expression evaluation"))
     }
 }
 

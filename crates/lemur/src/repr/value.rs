@@ -1,3 +1,4 @@
+use crate::repr::ordfloat::OrdF32;
 use crate::repr::sort::{GroupRanges, SortPermutation};
 use anyhow::{anyhow, Result};
 use bitvec::vec::BitVec;
@@ -13,6 +14,7 @@ pub enum ValueType {
     Bool,
     Int8,
     Int32,
+    Float32,
     Utf8,
     Binary,
 }
@@ -20,6 +22,38 @@ pub enum ValueType {
 impl ValueType {
     pub fn is_numeric(&self) -> bool {
         matches!(self, ValueType::Int8 | ValueType::Int32)
+    }
+}
+
+/// Like `Value`, but with references for larger values (specifically for
+/// variable length types).
+///
+/// Note that this doesn't have the separate `Null` variant since this type is
+/// only used with reading from value vectors, and we already have the type
+/// information.
+#[derive(Debug)]
+pub enum ValueRef<'a> {
+    Bool(Option<bool>),
+    Int8(Option<i8>),
+    Int32(Option<i32>),
+    Float32(Option<OrdF32>),
+    Utf8(Option<&'a str>),
+    Binary(Option<&'a [u8]>),
+}
+
+impl<'a> ValueRef<'a> {
+    /// Create an owned value from self.
+    pub fn into_value(self) -> Value {
+        match self {
+            ValueRef::Bool(v) => Value::Bool(v),
+            ValueRef::Int8(v) => Value::Int8(v),
+            ValueRef::Int32(v) => Value::Int32(v),
+            ValueRef::Float32(v) => Value::Float32(v),
+            ValueRef::Utf8(Some(v)) => Value::Utf8(Some(v.to_string())),
+            ValueRef::Utf8(None) => Value::Utf8(None),
+            ValueRef::Binary(Some(v)) => Value::Binary(Some(v.to_vec())),
+            ValueRef::Binary(None) => Value::Binary(None),
+        }
     }
 }
 
@@ -36,6 +70,7 @@ pub enum Value {
     Bool(Option<bool>),
     Int8(Option<i8>),
     Int32(Option<i32>),
+    Float32(Option<OrdF32>),
     Utf8(Option<String>),
     Binary(Option<Vec<u8>>),
 }
@@ -47,6 +82,7 @@ impl Value {
             Value::Bool(_) => ValueType::Bool,
             Value::Int8(_) => ValueType::Int8,
             Value::Int32(_) => ValueType::Int32,
+            Value::Float32(_) => ValueType::Float32,
             Value::Utf8(_) => ValueType::Utf8,
             Value::Binary(_) => ValueType::Binary,
         }
@@ -73,6 +109,12 @@ impl Value {
                 vec.broadcast_single(n).unwrap();
                 vec.into()
             }
+            Value::Float32(v) => {
+                let mut vec = Float32Vec::with_capacity(n);
+                vec.push(*v);
+                vec.broadcast_single(n).unwrap();
+                vec.into()
+            }
             Value::Utf8(v) => {
                 let mut vec = Utf8Vec::with_capacity(n);
                 vec.push(v.as_ref().map(|s| s.as_str()));
@@ -94,12 +136,15 @@ impl Value {
     }
 
     pub fn is_null(&self) -> bool {
-        matches!(self, Value::Null
-            | Value::Bool(None)
-            | Value::Int8(None)
-            | Value::Int32(None)
-            | Value::Utf8(None) 
-            | Value::Binary(None)
+        matches!(
+            self,
+            Value::Null
+                | Value::Bool(None)
+                | Value::Int8(None)
+                | Value::Int32(None)
+                | Value::Float32(None)
+                | Value::Utf8(None)
+                | Value::Binary(None)
         )
     }
 
@@ -111,6 +156,7 @@ impl Value {
                 ValueType::Bool => Value::Bool(None),
                 ValueType::Int8 => Value::Int8(None),
                 ValueType::Int32 => Value::Int32(None),
+                ValueType::Float32 => Value::Float32(None),
                 ValueType::Utf8 => Value::Utf8(None),
                 ValueType::Binary => Value::Binary(None),
                 ValueType::Unknown => return Err(anyhow!("cannot cast to type unknown")),
@@ -121,6 +167,7 @@ impl Value {
                 (Value::Bool(v), ValueType::Bool) => Value::Bool(v),
                 (Value::Int8(v), ValueType::Int8) => Value::Int8(v),
                 (Value::Int32(v), ValueType::Int32) => Value::Int32(v),
+                (Value::Float32(v), ValueType::Float32) => Value::Float32(v),
                 (Value::Utf8(v), ValueType::Utf8) => Value::Utf8(v),
                 (Value::Binary(v), ValueType::Binary) => Value::Binary(v),
                 (value, ty) => return Err(anyhow!("cannot cast '{:?}' to {:?}", value, ty)),
@@ -147,6 +194,12 @@ impl From<Option<i32>> for Value {
     }
 }
 
+impl From<Option<OrdF32>> for Value {
+    fn from(v: Option<OrdF32>) -> Self {
+        Value::Float32(v)
+    }
+}
+
 impl From<Option<String>> for Value {
     fn from(v: Option<String>) -> Self {
         Value::Utf8(v)
@@ -156,6 +209,33 @@ impl From<Option<String>> for Value {
 impl From<Option<Vec<u8>>> for Value {
     fn from(v: Option<Vec<u8>>) -> Self {
         Value::Binary(v)
+    }
+}
+
+/// A row made up of value refs.
+#[derive(Debug)]
+pub struct RowRef<'a> {
+    pub values: Vec<ValueRef<'a>>,
+}
+
+impl<'a> RowRef<'a> {
+    /// Create an owned row from self.
+    pub fn into_row(self) -> Row {
+        self.values
+            .into_iter()
+            .map(ValueRef::into_value)
+            .collect::<Vec<_>>()
+            .into()
+    }
+
+    pub fn arity(&self) -> usize {
+        self.values.len()
+    }
+}
+
+impl<'a> From<Vec<ValueRef<'a>>> for RowRef<'a> {
+    fn from(values: Vec<ValueRef<'a>>) -> Self {
+        RowRef { values }
     }
 }
 
@@ -182,6 +262,7 @@ pub enum ValueVec {
     Bool(BoolVec),
     Int8(Int8Vec),
     Int32(Int32Vec),
+    Float32(Float32Vec),
     Utf8(Utf8Vec),
     Binary(BinaryVec),
 }
@@ -212,6 +293,7 @@ impl ValueVec {
             ValueType::Bool => BoolVec::with_capacity(cap).into(),
             ValueType::Int8 => Int8Vec::with_capacity(cap).into(),
             ValueType::Int32 => Int32Vec::with_capacity(cap).into(),
+            ValueType::Float32 => Float32Vec::with_capacity(cap).into(),
             ValueType::Utf8 => Utf8Vec::with_capacity(cap).into(),
             ValueType::Binary => BinaryVec::with_capacity(cap).into(),
             ValueType::Unknown => return Err(anyhow!("cannot create vector of unknown type")),
@@ -230,9 +312,21 @@ impl ValueVec {
             ValueVec::Bool(_) => ValueType::Bool,
             ValueVec::Int8(_) => ValueType::Int8,
             ValueVec::Int32(_) => ValueType::Int32,
+            ValueVec::Float32(_) => ValueType::Float32,
             ValueVec::Utf8(_) => ValueType::Utf8,
             ValueVec::Binary(_) => ValueType::Binary,
         }
+    }
+
+    pub fn get_value_ref(&self, idx: usize) -> Option<ValueRef<'_>> {
+        Some(match self {
+            ValueVec::Bool(v) => ValueRef::Bool(v.get(idx)?.cloned()),
+            ValueVec::Int8(v) => ValueRef::Int8(v.get(idx)?.cloned()),
+            ValueVec::Int32(v) => ValueRef::Int32(v.get(idx)?.cloned()),
+            ValueVec::Float32(v) => ValueRef::Float32(v.get(idx)?.cloned()),
+            ValueVec::Utf8(v) => ValueRef::Utf8(v.get(idx)?),
+            ValueVec::Binary(v) => ValueRef::Binary(v.get(idx)?),
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -240,6 +334,7 @@ impl ValueVec {
             ValueVec::Bool(v) => v.len(),
             ValueVec::Int8(v) => v.len(),
             ValueVec::Int32(v) => v.len(),
+            ValueVec::Float32(v) => v.len(),
             ValueVec::Utf8(v) => v.len(),
             ValueVec::Binary(v) => v.len(),
         }
@@ -250,6 +345,7 @@ impl ValueVec {
             ValueVec::Bool(v) => v.is_empty(),
             ValueVec::Int8(v) => v.is_empty(),
             ValueVec::Int32(v) => v.is_empty(),
+            ValueVec::Float32(v) => v.is_empty(),
             ValueVec::Utf8(v) => v.is_empty(),
             ValueVec::Binary(v) => v.is_empty(),
         }
@@ -264,6 +360,7 @@ impl ValueVec {
             ValueVec::Bool(v) => BoolVec::from_iter(make_filter_iter(v.iter(), mask)).into(),
             ValueVec::Int8(v) => Int8Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
             ValueVec::Int32(v) => Int32Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
+            ValueVec::Float32(v) => Float32Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
             ValueVec::Utf8(v) => Utf8Vec::from_iter(make_filter_iter(v.iter(), mask)).into(),
             ValueVec::Binary(v) => BinaryVec::from_iter(make_filter_iter(v.iter(), mask)).into(),
         }
@@ -274,6 +371,7 @@ impl ValueVec {
             (ValueVec::Bool(vec), Value::Bool(val)) => vec.push(val),
             (ValueVec::Int8(vec), Value::Int8(val)) => vec.push(val),
             (ValueVec::Int32(vec), Value::Int32(val)) => vec.push(val),
+            (ValueVec::Float32(vec), Value::Float32(val)) => vec.push(val),
             (ValueVec::Utf8(vec), Value::Utf8(val)) => vec.push(val.as_deref()),
             (ValueVec::Binary(vec), Value::Binary(val)) => vec.push(val.as_deref()),
             (vec, val) => {
@@ -295,6 +393,7 @@ impl ValueVec {
             (ValueVec::Bool(v1), ValueVec::Bool(v2)) => v1.append(v2),
             (ValueVec::Int8(v1), ValueVec::Int8(v2)) => v1.append(v2),
             (ValueVec::Int32(v1), ValueVec::Int32(v2)) => v1.append(v2),
+            (ValueVec::Float32(v1), ValueVec::Float32(v2)) => v1.append(v2),
             (ValueVec::Utf8(v1), ValueVec::Utf8(v2)) => v1.append(v2),
             (ValueVec::Binary(v1), ValueVec::Binary(v2)) => v1.append(v2),
             (_, other) => return Err(other),
@@ -307,6 +406,7 @@ impl ValueVec {
             ValueVec::Bool(v) => v.iter().next()?.cloned().into(),
             ValueVec::Int8(v) => v.iter().next()?.cloned().into(),
             ValueVec::Int32(v) => v.iter().next()?.cloned().into(),
+            ValueVec::Float32(v) => v.iter().next()?.cloned().into(),
             ValueVec::Utf8(v) => v.iter().next()?.map(|s| s.to_string()).into(),
             ValueVec::Binary(v) => v.iter().next()?.map(|s| s.to_vec()).into(),
         })
@@ -317,6 +417,7 @@ impl ValueVec {
             ValueVec::Bool(v) => v.group_ranges_at(range),
             ValueVec::Int8(v) => v.group_ranges_at(range),
             ValueVec::Int32(v) => v.group_ranges_at(range),
+            ValueVec::Float32(v) => v.group_ranges_at(range),
             ValueVec::Utf8(v) => v.group_ranges_at(range),
             ValueVec::Binary(v) => v.group_ranges_at(range),
         }
@@ -327,6 +428,7 @@ impl ValueVec {
             ValueVec::Bool(v) => v.apply_permutation_at(range, perm),
             ValueVec::Int8(v) => v.apply_permutation_at(range, perm),
             ValueVec::Int32(v) => v.apply_permutation_at(range, perm),
+            ValueVec::Float32(v) => v.apply_permutation_at(range, perm),
             ValueVec::Utf8(v) => v.apply_permutation_at(range, perm),
             ValueVec::Binary(v) => v.apply_permutation_at(range, perm),
         }
@@ -337,6 +439,7 @@ impl ValueVec {
             ValueVec::Bool(v) => v.sort_each_group(groups),
             ValueVec::Int8(v) => v.sort_each_group(groups),
             ValueVec::Int32(v) => v.sort_each_group(groups),
+            ValueVec::Float32(v) => v.sort_each_group(groups),
             ValueVec::Utf8(v) => v.sort_each_group(groups),
             ValueVec::Binary(v) => v.sort_each_group(groups),
         }
@@ -348,6 +451,9 @@ impl ValueVec {
             ValueVec::Bool(v) => BoolVec::from_iter(make_repeat_value_iter(v.iter(), n)).into(),
             ValueVec::Int8(v) => Int8Vec::from_iter(make_repeat_value_iter(v.iter(), n)).into(),
             ValueVec::Int32(v) => Int32Vec::from_iter(make_repeat_value_iter(v.iter(), n)).into(),
+            ValueVec::Float32(v) => {
+                Float32Vec::from_iter(make_repeat_value_iter(v.iter(), n)).into()
+            }
             ValueVec::Utf8(v) => Utf8Vec::from_iter(make_repeat_value_iter(v.iter(), n)).into(),
             ValueVec::Binary(v) => BinaryVec::from_iter(make_repeat_value_iter(v.iter(), n)).into(),
         }
@@ -359,6 +465,7 @@ impl ValueVec {
             ValueVec::Bool(v) => Box::new(v.iter().map(|v| Value::from(v.cloned()))),
             ValueVec::Int8(v) => Box::new(v.iter().map(|v| Value::from(v.cloned()))),
             ValueVec::Int32(v) => Box::new(v.iter().map(|v| Value::from(v.cloned()))),
+            ValueVec::Float32(v) => Box::new(v.iter().map(|v| Value::from(v.cloned()))),
             ValueVec::Utf8(v) => Box::new(v.iter().map(|v| Value::from(v.map(|v| v.to_string())))),
             ValueVec::Binary(v) => Box::new(v.iter().map(|v| Value::from(v.map(|v| v.to_vec())))),
         }
@@ -380,6 +487,12 @@ impl From<Int8Vec> for ValueVec {
 impl From<Int32Vec> for ValueVec {
     fn from(v: Int32Vec) -> Self {
         ValueVec::Int32(v)
+    }
+}
+
+impl From<Float32Vec> for ValueVec {
+    fn from(v: Float32Vec) -> Self {
+        ValueVec::Float32(v)
     }
 }
 
@@ -405,7 +518,9 @@ impl PartialEq for ValueVec {
             (ValueVec::Int8(a), ValueVec::Int8(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
             (ValueVec::Int32(a), ValueVec::Int32(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
             (ValueVec::Utf8(a), ValueVec::Utf8(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
-            (ValueVec::Binary(a), ValueVec::Binary(b)) => a.iter().zip(b.iter()).all(|(a, b)| a == b),
+            (ValueVec::Binary(a), ValueVec::Binary(b)) => {
+                a.iter().zip(b.iter()).all(|(a, b)| a == b)
+            }
             _ => false,
         }
     }
