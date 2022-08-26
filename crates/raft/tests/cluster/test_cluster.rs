@@ -7,7 +7,7 @@ use std::time::Duration;
 use maplit::btreemap;
 use maplit::btreeset;
 use raft::client::ConsensusClient;
-use raft::messaging::GlareRequest;
+use raft::message::Request;
 use raft::server::start_raft_node;
 use raft::repr::Node;
 use tokio::time::sleep;
@@ -120,7 +120,7 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== write `foo=bar`");
     let _x = leader
-        .write(&GlareRequest::Set {
+        .write(&Request::Set {
             key: "foo".to_string(),
             value: "bar".to_string(),
         })
@@ -150,7 +150,7 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== read `foo` on node 2");
     let _x = client2
-        .write(&GlareRequest::Set {
+        .write(&Request::Set {
             key: "foo".to_string(),
             value: "wow".to_string(),
         })

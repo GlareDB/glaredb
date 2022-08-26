@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use openraft::{Raft as OpenRaft};
 
-use crate::{network::ConsensusNetwork, store::ConsensusStore, messaging::{GlareRequest, GlareResponse}};
+use crate::{network::ConsensusNetwork, store::ConsensusStore, message::{Request, Response}};
 
 pub type NodeId = u64;
 
@@ -21,6 +21,6 @@ impl std::fmt::Display for Node {
 pub type Raft = OpenRaft<RaftTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusStore>>;
 
 openraft::declare_raft_types!(
-    pub RaftTypeConfig: D = GlareRequest, R = GlareResponse, NodeId = NodeId, Node = Node
+    pub RaftTypeConfig: D = Request, R = Response, NodeId = NodeId, Node = Node
 );
 

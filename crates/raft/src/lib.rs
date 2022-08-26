@@ -1,7 +1,7 @@
 pub mod app;
 pub mod client;
 pub mod error;
-pub mod messaging;
+pub mod message;
 pub mod network;
 pub mod openraft_types;
 pub mod repr;

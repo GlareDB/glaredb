@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 
 use crate::{repr::RaftTypeConfig, openraft_types::types::{SnapshotMeta, StorageError, Snapshot, EffectiveMembership, LogId, Vote, StateMachineChanges}};
 use super::{
-    messaging::{GlareRequest, GlareResponse},
+    message::{Request, Response},
 };
 
 pub struct ConsensusStore {
@@ -420,7 +420,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
     async fn apply_to_state_machine(
         &mut self,
         entries: &[&Entry<RaftTypeConfig>],
-    ) -> Result<Vec<GlareResponse>, StorageError> {
+    ) -> Result<Vec<Response>, StorageError> {
         let mut res = Vec::with_capacity(entries.len());
 
         let sm = self.state_machine.write().await;
@@ -431,11 +431,11 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
             sm.set_last_applied_log(entry.log_id)?;
 
             match entry.payload {
-                EntryPayload::Blank => res.push(GlareResponse { value: None }),
+                EntryPayload::Blank => res.push(Response { value: None }),
                 EntryPayload::Normal(ref req) => match req {
-                    GlareRequest::Set { key, value } => {
+                    Request::Set { key, value } => {
                         sm.insert(key.clone(), value.clone())?;
-                        res.push(GlareResponse {
+                        res.push(Response {
                             value: Some(value.clone()),
                         })
                     }
@@ -445,7 +445,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
                         Some(entry.log_id),
                         mem.clone(),
                     ))?;
-                    res.push(GlareResponse { value: None })
+                    res.push(Response { value: None })
                 }
             };
         }

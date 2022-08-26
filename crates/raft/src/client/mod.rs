@@ -4,7 +4,7 @@ use openraft::error::{NetworkError, RemoteError};
 use serde::{Serialize, de::DeserializeOwned, Deserialize};
 use tokio::sync::Mutex;
 
-use super::{error::RpcResult, messaging::GlareRequest};
+use super::{error::RpcResult, message::Request};
 use crate::{repr::NodeId, openraft_types::types::{AddLearnerResponse, AddLearnerError, CheckIsLeaderError, ClientWriteError, InitializeError, ForwardToLeader, Infallible, ClientWriteResponse, RaftMetrics}, error::RpcError};
 use crate::error::Result;
 
@@ -41,7 +41,7 @@ impl ConsensusClient {
     /// The result of applying the request will be returned.
     pub async fn write(
         &self,
-        req: &GlareRequest,
+        req: &Request,
     ) -> RpcResult<
         ClientWriteResponse,
         ClientWriteError,
@@ -82,7 +82,7 @@ impl ConsensusClient {
 
     /// Add a node as learner.
     ///
-    /// The node to add has to exist, i.e., being added with `write(GlareRequest::AddNode{})`
+    /// The node to add has to exist, i.e., being added with `write(Request::AddNode{})`
     pub async fn add_learner(
         &self,
         req: (NodeId, String, String),
