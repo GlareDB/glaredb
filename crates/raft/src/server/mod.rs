@@ -3,7 +3,7 @@ use tokio::{net::TcpListener, task};
 
 use crate::repr::{NodeId, Raft};
 use super::{
-    app::ApplicationState, network::ConsensusNetwork, rpc::Raft as RaftRpc, store::ConsensusStore,
+    app::ApplicationState, network::ConsensusNetwork, client::rpc::Raft as RaftRpc, store::ConsensusStore,
 };
 
 mod management;

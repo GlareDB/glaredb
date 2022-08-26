@@ -3,7 +3,6 @@ pub mod client;
 pub mod error;
 pub mod messaging;
 pub mod network;
-pub mod rpc;
 pub mod openraft_types;
 pub mod repr;
 pub mod server;

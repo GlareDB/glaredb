@@ -13,7 +13,7 @@ use toy_rpc::pubsub::AckModeNone;
 use crate::openraft_types::types::{AppendEntriesResponse, AppendEntriesError, AppendEntriesRequest, InstallSnapshotError, InstallSnapshotResponse, InstallSnapshotRequest, VoteError, VoteResponse, VoteRequest};
 
 use super::error::{Error, RpcError, RpcResult};
-use super::rpc::RaftClientStub;
+use super::client::rpc::RaftClientStub;
 use super::repr::{Node, NodeId, RaftTypeConfig};
 
 pub struct ConsensusNetwork {}

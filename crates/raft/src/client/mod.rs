@@ -8,6 +8,8 @@ use super::{error::RpcResult, messaging::GlareRequest};
 use crate::{repr::NodeId, openraft_types::types::{AddLearnerResponse, AddLearnerError, CheckIsLeaderError, ClientWriteError, InitializeError, ForwardToLeader, Infallible, ClientWriteResponse, RaftMetrics}, error::RpcError};
 use crate::error::Result;
 
+pub mod rpc;
+
 pub struct ConsensusClient {
     pub leader: Arc<Mutex<(NodeId, SocketAddr)>>,
     // pub inner: toy_rpc::Client<AckModeNone>,
