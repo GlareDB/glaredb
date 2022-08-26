@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
-use openraft::raft::{
-    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
-    VoteRequest, VoteResponse,
-};
 use toy_rpc::macros::export_impl;
 
-use super::{app::ApplicationState, GlareTypeConfig};
+use crate::{openraft_types::types::{InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse, AppendEntriesRequest, AppendEntriesResponse}};
+use super::app::ApplicationState;
 
 pub struct Raft {
     app: Arc<ApplicationState>,
@@ -21,8 +18,8 @@ impl Raft {
     #[export_method]
     pub async fn append(
         &self,
-        req: AppendEntriesRequest<GlareTypeConfig>,
-    ) -> Result<AppendEntriesResponse<u64>, toy_rpc::Error> {
+        req: AppendEntriesRequest,
+    ) -> Result<AppendEntriesResponse, toy_rpc::Error> {
         self.app
             .raft
             .append_entries(req)
@@ -31,7 +28,7 @@ impl Raft {
     }
 
     #[export_method]
-    pub async fn vote(&self, vote: VoteRequest<u64>) -> Result<VoteResponse<u64>, toy_rpc::Error> {
+    pub async fn vote(&self, vote: VoteRequest) -> Result<VoteResponse, toy_rpc::Error> {
         self.app
             .raft
             .vote(vote)
@@ -42,8 +39,8 @@ impl Raft {
     #[export_method]
     pub async fn snapshot(
         &self,
-        req: InstallSnapshotRequest<GlareTypeConfig>,
-    ) -> Result<InstallSnapshotResponse<u64>, toy_rpc::Error> {
+        req: InstallSnapshotRequest,
+    ) -> Result<InstallSnapshotResponse, toy_rpc::Error> {
         self.app
             .raft
             .install_snapshot(req)

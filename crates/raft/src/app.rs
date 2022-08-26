@@ -1,8 +1,8 @@
-use super::{GlareNodeId, GlareRaft};
+use super::repr::{NodeId, Raft};
 
 pub struct ApplicationState {
-    pub id: GlareNodeId,
-    pub raft: GlareRaft,
+    pub id: NodeId,
+    pub raft: Raft,
     pub api_addr: String,
     pub rpc_addr: String,
 }

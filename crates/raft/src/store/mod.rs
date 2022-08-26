@@ -5,18 +5,18 @@ use std::{
 
 use async_trait::async_trait;
 use openraft::{
-    storage::{LogState, Snapshot},
-    AnyError, EffectiveMembership, Entry, EntryPayload, ErrorSubject, ErrorVerb, LogId,
-    RaftLogReader, RaftSnapshotBuilder, RaftStorage, SnapshotMeta, StateMachineChanges,
-    StorageError, StorageIOError, Vote,
+    storage::LogState,
+    AnyError, Entry, EntryPayload, ErrorSubject, ErrorVerb,
+    RaftLogReader, RaftSnapshotBuilder, RaftStorage,
+    StorageIOError,
 };
 use rocksdb::ColumnFamily;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
+use crate::{repr::RaftTypeConfig, openraft_types::types::{SnapshotMeta, StorageError, Snapshot, EffectiveMembership, LogId, Vote, StateMachineChanges}};
 use super::{
     messaging::{GlareRequest, GlareResponse},
-    GlareNode, GlareNodeId, GlareTypeConfig,
 };
 
 pub struct ConsensusStore {
@@ -24,7 +24,7 @@ pub struct ConsensusStore {
 
     pub state_machine: RwLock<ConsensusStateMachine>,
 }
-type StorageResult<T> = Result<T, StorageError<GlareNodeId>>;
+type StorageResult<T> = Result<T, StorageError>;
 
 fn id_to_bin(id: u64) -> Vec<u8> {
     bincode::serialize(&id).unwrap()
@@ -36,7 +36,7 @@ fn bin_to_id(buf: &[u8]) -> u64 {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ConsensusSnapshot {
-    pub meta: SnapshotMeta<GlareNodeId, GlareNode>,
+    pub meta: SnapshotMeta,
 
     /// the data of the state machine at the time of this snapshot
     pub data: Vec<u8>,
@@ -47,7 +47,7 @@ pub struct ConsensusStateMachine {
     pub db: Arc<rocksdb::DB>,
 }
 
-fn sm_r_err<E: Error + 'static>(e: E) -> StorageError<GlareNodeId> {
+fn sm_r_err<E: Error + 'static>(e: E) -> StorageError {
     StorageIOError::new(
         ErrorSubject::StateMachine,
         ErrorVerb::Read,
@@ -56,7 +56,7 @@ fn sm_r_err<E: Error + 'static>(e: E) -> StorageError<GlareNodeId> {
     .into()
 }
 
-fn sm_w_err<E: Error + 'static>(e: E) -> StorageError<GlareNodeId> {
+fn sm_w_err<E: Error + 'static>(e: E) -> StorageError {
     StorageIOError::new(
         ErrorSubject::StateMachine,
         ErrorVerb::Write,
@@ -66,7 +66,7 @@ fn sm_w_err<E: Error + 'static>(e: E) -> StorageError<GlareNodeId> {
 }
 
 impl ConsensusStateMachine {
-    fn get_last_membership(&self) -> StorageResult<EffectiveMembership<GlareNodeId, GlareNode>> {
+    fn get_last_membership(&self) -> StorageResult<EffectiveMembership> {
         self.db
             .get_cf(
                 self.db.cf_handle("state_machine").expect("cf_handle"),
@@ -82,7 +82,7 @@ impl ConsensusStateMachine {
 
     fn set_last_membership(
         &self,
-        membership: EffectiveMembership<GlareNodeId, GlareNode>,
+        membership: EffectiveMembership,
     ) -> StorageResult<()> {
         self.db
             .put_cf(
@@ -93,7 +93,7 @@ impl ConsensusStateMachine {
             .map_err(sm_w_err)
     }
 
-    fn get_last_applied_log(&self) -> StorageResult<Option<LogId<GlareNodeId>>> {
+    fn get_last_applied_log(&self) -> StorageResult<Option<LogId>> {
         self.db
             .get_cf(
                 self.db.cf_handle("state_machine").expect("cf_handle"),
@@ -107,7 +107,7 @@ impl ConsensusStateMachine {
             })
     }
 
-    fn set_last_applied_log(&self, log_id: LogId<GlareNodeId>) -> StorageResult<()> {
+    fn set_last_applied_log(&self, log_id: LogId) -> StorageResult<()> {
         self.db
             .put_cf(
                 self.db.cf_handle("state_machine").expect("cf_handle"),
@@ -170,8 +170,8 @@ impl ConsensusStateMachine {
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct SerializableConsensusStateMachine {
-    pub last_applied_log: Option<LogId<GlareNodeId>>,
-    pub last_membership: EffectiveMembership<GlareNodeId, GlareNode>,
+    pub last_applied_log: Option<LogId>,
+    pub last_membership: EffectiveMembership,
     /// application data
     pub data: BTreeMap<String, String>,
 }
@@ -221,7 +221,7 @@ impl ConsensusStore {
         self.db.cf_handle("logs").unwrap()
     }
 
-    fn get_last_purged_(&self) -> StorageResult<Option<LogId<u64>>> {
+    fn get_last_purged_(&self) -> StorageResult<Option<LogId>> {
         Ok(self
             .db
             .get_cf(self.store(), b"last_purged_log_id")
@@ -231,7 +231,7 @@ impl ConsensusStore {
             .and_then(|v| serde_json::from_slice(&v).ok()))
     }
 
-    fn set_last_purged_(&self, log_id: LogId<u64>) -> StorageResult<()> {
+    fn set_last_purged_(&self, log_id: LogId) -> StorageResult<()> {
         self.db
             .put_cf(
                 self.store(),
@@ -272,7 +272,7 @@ impl ConsensusStore {
         Ok(())
     }
 
-    fn set_vote_(&self, vote: &Vote<GlareNodeId>) -> StorageResult<()> {
+    fn set_vote_(&self, vote: &Vote) -> StorageResult<()> {
         self.db
             .put_cf(
                 self.store(),
@@ -288,7 +288,7 @@ impl ConsensusStore {
             })
     }
 
-    fn get_vote_(&self) -> StorageResult<Option<Vote<GlareNodeId>>> {
+    fn get_vote_(&self) -> StorageResult<Option<Vote>> {
         Ok(self
             .db
             .get_cf(self.store(), b"vote")
@@ -328,24 +328,24 @@ impl ConsensusStore {
 }
 
 #[async_trait]
-impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
+impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
     type SnapshotData = Cursor<Vec<u8>>;
     type LogReader = Self;
     type SnapshotBuilder = Self;
 
     async fn save_vote(
         &mut self,
-        vote: &Vote<GlareNodeId>,
-    ) -> Result<(), StorageError<GlareNodeId>> {
+        vote: &Vote,
+    ) -> Result<(), StorageError> {
         self.set_vote_(vote)
     }
 
-    async fn read_vote(&mut self) -> Result<Option<Vote<GlareNodeId>>, StorageError<GlareNodeId>> {
+    async fn read_vote(&mut self) -> Result<Option<Vote>, StorageError> {
         self.get_vote_()
     }
 
     #[tracing::instrument(level = "trace", skip(self, entries))]
-    async fn append_to_log(&mut self, entries: &[&Entry<GlareTypeConfig>]) -> StorageResult<()> {
+    async fn append_to_log(&mut self, entries: &[&Entry<RaftTypeConfig>]) -> StorageResult<()> {
         for entry in entries {
             let id = id_to_bin(entry.log_id.index);
 
@@ -370,7 +370,7 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "debug", skip(self))]
     async fn delete_conflict_logs_since(
         &mut self,
-        log_id: LogId<GlareNodeId>,
+        log_id: LogId,
     ) -> StorageResult<()> {
         tracing::debug!("delete_logs_since: [{:?}, +oo)", log_id);
 
@@ -385,7 +385,7 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn purge_logs_upto(&mut self, log_id: LogId<GlareNodeId>) -> StorageResult<()> {
+    async fn purge_logs_upto(&mut self, log_id: LogId) -> StorageResult<()> {
         tracing::debug!("purge_logs_upto: [{:?}, +oo)", log_id);
 
         self.set_last_purged_(log_id)?;
@@ -404,10 +404,10 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
         &mut self,
     ) -> Result<
         (
-            Option<LogId<GlareNodeId>>,
-            EffectiveMembership<GlareNodeId, GlareNode>,
+            Option<LogId>,
+            EffectiveMembership,
         ),
-        StorageError<GlareNodeId>,
+        StorageError,
     > {
         let state_machine = self.state_machine.read().await;
         Ok((
@@ -419,8 +419,8 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "trace", skip(self, entries))]
     async fn apply_to_state_machine(
         &mut self,
-        entries: &[&Entry<GlareTypeConfig>],
-    ) -> Result<Vec<GlareResponse>, StorageError<GlareNodeId>> {
+        entries: &[&Entry<RaftTypeConfig>],
+    ) -> Result<Vec<GlareResponse>, StorageError> {
         let mut res = Vec::with_capacity(entries.len());
 
         let sm = self.state_machine.write().await;
@@ -460,16 +460,16 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "trace", skip(self))]
     async fn begin_receiving_snapshot(
         &mut self,
-    ) -> Result<Box<Self::SnapshotData>, StorageError<GlareNodeId>> {
+    ) -> Result<Box<Self::SnapshotData>, StorageError> {
         Ok(Box::new(Cursor::new(Vec::new())))
     }
 
     #[tracing::instrument(level = "trace", skip(self, snapshot))]
     async fn install_snapshot(
         &mut self,
-        meta: &SnapshotMeta<GlareNodeId, GlareNode>,
+        meta: &SnapshotMeta,
         snapshot: Box<Self::SnapshotData>,
-    ) -> Result<StateMachineChanges<GlareTypeConfig>, StorageError<GlareNodeId>> {
+    ) -> Result<StateMachineChanges, StorageError> {
         tracing::info!(
             { snapshot_size = snapshot.get_ref().len() },
             "decoding snapshot for installation"
@@ -506,8 +506,8 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
     async fn get_current_snapshot(
         &mut self,
     ) -> Result<
-        Option<Snapshot<GlareNodeId, GlareNode, Self::SnapshotData>>,
-        StorageError<GlareNodeId>,
+        Option<Snapshot<Self::SnapshotData>>,
+        StorageError,
     > {
         match ConsensusStore::get_current_snapshot_(self)? {
             Some(snapshot) => {
@@ -531,8 +531,8 @@ impl RaftStorage<GlareTypeConfig> for Arc<ConsensusStore> {
 }
 
 #[async_trait]
-impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
-    async fn get_log_state(&mut self) -> StorageResult<LogState<GlareTypeConfig>> {
+impl RaftLogReader<RaftTypeConfig> for Arc<ConsensusStore> {
+    async fn get_log_state(&mut self) -> StorageResult<LogState<RaftTypeConfig>> {
         let last = self
             .db
             .iterator_cf(self.logs(), rocksdb::IteratorMode::End)
@@ -540,7 +540,7 @@ impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
             .and_then(|r| {
                 if let Ok((_, ent)) = r {
                     Some(
-                        serde_json::from_slice::<Entry<GlareTypeConfig>>(&ent)
+                        serde_json::from_slice::<Entry<RaftTypeConfig>>(&ent)
                             .unwrap()
                             .log_id,
                     )
@@ -565,7 +565,7 @@ impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
     async fn try_get_log_entries<RB: RangeBounds<u64> + Clone + Debug + Send + Sync>(
         &mut self,
         range: RB,
-    ) -> StorageResult<Vec<Entry<GlareTypeConfig>>> {
+    ) -> StorageResult<Vec<Entry<RaftTypeConfig>>> {
         let start = match range.start_bound() {
             std::ops::Bound::Included(x) => id_to_bin(*x),
             std::ops::Bound::Excluded(x) => id_to_bin(*x + 1),
@@ -601,11 +601,11 @@ impl RaftLogReader<GlareTypeConfig> for Arc<ConsensusStore> {
 }
 
 #[async_trait]
-impl RaftSnapshotBuilder<GlareTypeConfig, Cursor<Vec<u8>>> for Arc<ConsensusStore> {
+impl RaftSnapshotBuilder<RaftTypeConfig, Cursor<Vec<u8>>> for Arc<ConsensusStore> {
     #[tracing::instrument(level = "trace", skip(self))]
     async fn build_snapshot(
         &mut self,
-    ) -> Result<Snapshot<GlareNodeId, GlareNode, Cursor<Vec<u8>>>, StorageError<GlareNodeId>> {
+    ) -> Result<Snapshot<Cursor<Vec<u8>>>, StorageError> {
         let data;
         let last_applied_log;
         let last_membership;

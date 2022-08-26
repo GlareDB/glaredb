@@ -1,14 +1,15 @@
 use std::{net::SocketAddr, path::Path, sync::Arc};
 use tokio::{net::TcpListener, task};
 
+use crate::repr::{NodeId, Raft};
 use super::{
-    app::ApplicationState, network::ConsensusNetwork, raft::Raft, store::ConsensusStore,
-    GlareNodeId, GlareRaft, management::{rest},
+    app::ApplicationState, network::ConsensusNetwork, rpc::Raft as RaftRpc, store::ConsensusStore,
+    management::{rest},
 };
 
 pub type HttpServer = tide::Server<Arc<ApplicationState>>;
 pub async fn start_raft_node<P>(
-    node_id: GlareNodeId,
+    node_id: NodeId,
     dir: P,
     rpc_addr: SocketAddr,
     http_addr: SocketAddr,
@@ -27,7 +28,7 @@ where
     let network = Arc::new(ConsensusNetwork {});
 
     // Create a local raft instance.
-    let raft = GlareRaft::new(node_id, config.clone(), network, store.clone());
+    let raft = Raft::new(node_id, config.clone(), network, store.clone());
 
     let app = Arc::new(ApplicationState {
         id: node_id,
@@ -36,7 +37,7 @@ where
         rpc_addr: rpc_addr.to_string(),
     });
 
-    let service = Arc::new(Raft::new(app.clone()));
+    let service = Arc::new(RaftRpc::new(app.clone()));
 
     let server = toy_rpc::Server::builder().register(service).build();
 

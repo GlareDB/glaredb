@@ -1,18 +1,15 @@
 use std::{collections::BTreeSet, net::SocketAddr, sync::Arc};
 
-use openraft::{
-    error::{AddLearnerError, CheckIsLeaderError, ClientWriteError, Infallible, InitializeError, ForwardToLeader, RPCError, NetworkError, RemoteError},
-    raft::{AddLearnerResponse, ClientWriteResponse},
-    RaftMetrics,
-};
+use openraft::error::{NetworkError, RemoteError};
 use serde::{Serialize, de::DeserializeOwned, Deserialize};
 use tokio::sync::Mutex;
 
-use super::{error::RpcResult, messaging::GlareRequest, GlareNode, GlareNodeId, GlareTypeConfig};
+use super::{error::RpcResult, messaging::GlareRequest};
+use crate::{repr::NodeId, openraft_types::types::{AddLearnerResponse, AddLearnerError, CheckIsLeaderError, ClientWriteError, InitializeError, ForwardToLeader, Infallible, ClientWriteResponse, RaftMetrics}, error::RpcError};
 use crate::error::Result;
 
 pub struct ConsensusClient {
-    pub leader: Arc<Mutex<(GlareNodeId, SocketAddr)>>,
+    pub leader: Arc<Mutex<(NodeId, SocketAddr)>>,
     // pub inner: toy_rpc::Client<AckModeNone>,
     pub inner: reqwest::Client,
 }
@@ -25,7 +22,7 @@ pub struct Empty;
 
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
-    pub fn new(leader_id: GlareNodeId, leader_addr: SocketAddr) -> Self {
+    pub fn new(leader_id: NodeId, leader_addr: SocketAddr) -> Self {
         Self {
             leader: Arc::new(Mutex::new((leader_id, leader_addr))),
             inner: reqwest::Client::new(),
@@ -43,9 +40,9 @@ impl ConsensusClient {
     pub async fn write(
         &self,
         req: &GlareRequest,
-    ) -> Result<
-        ClientWriteResponse<GlareTypeConfig>,
-        RPCError<GlareNodeId, GlareNode, ClientWriteError<GlareNodeId, GlareNode>>,
+    ) -> RpcResult<
+        ClientWriteResponse,
+        ClientWriteError,
     > {
         self.send_rpc_to_leader("api/write", Some(req)).await
     }
@@ -53,7 +50,7 @@ impl ConsensusClient {
     /// Read value by key, in an inconsistent mode.
     ///
     /// This method may return stale value because it does not force to read on a legal leader.
-    pub async fn read(&self, req: &String) -> Result<String, RPCError<GlareNodeId, GlareNode, Infallible>> {
+    pub async fn read(&self, req: &String) -> RpcResult<String, Infallible> {
         self.do_send_rpc_to_leader("api/read", Some(req)).await
     }
 
@@ -63,7 +60,7 @@ impl ConsensusClient {
     pub async fn consistent_read(
         &self,
         req: &String,
-    ) -> Result<String, RPCError<GlareNodeId, GlareNode, CheckIsLeaderError<GlareNodeId, GlareNode>>> {
+    ) -> RpcResult<String, CheckIsLeaderError> {
         self.do_send_rpc_to_leader("api/consistent_read", Some(req)).await
     }
 
@@ -77,7 +74,7 @@ impl ConsensusClient {
     /// Then make the new node a member with [`change_membership`].
     pub async fn init(
         &self,
-    ) -> Result<(), RPCError<GlareNodeId, GlareNode, InitializeError<GlareNodeId, GlareNode>>> {
+    ) -> RpcResult<(), InitializeError> {
         self.do_send_rpc_to_leader("cluster/init", Some(&Empty {})).await
     }
 
@@ -86,10 +83,10 @@ impl ConsensusClient {
     /// The node to add has to exist, i.e., being added with `write(GlareRequest::AddNode{})`
     pub async fn add_learner(
         &self,
-        req: (GlareNodeId, String, String),
+        req: (NodeId, String, String),
     ) -> RpcResult<
-        AddLearnerResponse<GlareNodeId>,
-        AddLearnerError<GlareNodeId, GlareNode>,
+        AddLearnerResponse,
+        AddLearnerError,
     > {
         self.send_rpc_to_leader("cluster/add-learner", Some(&req)).await
     }
@@ -100,10 +97,10 @@ impl ConsensusClient {
     /// or an error [`LearnerNotFound`] will be returned.
     pub async fn change_membership(
         &self,
-        req: &BTreeSet<GlareNodeId>,
+        req: &BTreeSet<NodeId>,
     ) -> RpcResult<
-        ClientWriteResponse<GlareTypeConfig>,
-        ClientWriteError<GlareNodeId, GlareNode>,
+        ClientWriteResponse,
+        ClientWriteError,
     > {
         self.send_rpc_to_leader("cluster/change-membership", Some(req)).await
     }
@@ -115,7 +112,7 @@ impl ConsensusClient {
     /// See [`RaftMetrics`].
     pub async fn metrics(
         &self,
-    ) -> RpcResult<RaftMetrics<GlareNodeId, GlareNode>, Infallible> {
+    ) -> RpcResult<RaftMetrics, Infallible> {
         self.do_send_rpc_to_leader("cluster/metrics", None::<&()>).await
     }
 
@@ -155,16 +152,16 @@ impl ConsensusClient {
         }
         .send()
         .await
-        .map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
+        .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
-        let res: Result<Resp, Err> = resp.json().await.map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
+        let res: Result<Resp, Err> = resp.json().await.map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
         println!(
             "<<< client recv reply from {}: {}",
             url,
             serde_json::to_string_pretty(&res).unwrap()
         );
 
-        res.map_err(|e| RPCError::RemoteError(RemoteError::new(leader_id, e)))
+        res.map_err(|e| RpcError::RemoteError(RemoteError::new(leader_id, e)))
     }
 
     /// Try the best to send a request to the leader.
@@ -182,7 +179,7 @@ impl ConsensusClient {
         Err: std::error::Error
             + Serialize
             + DeserializeOwned
-            + TryInto<ForwardToLeader<GlareNodeId, GlareNode>>
+            + TryInto<ForwardToLeader>
             + Clone,
     {
         // Retry at most 3 times to find a valid leader.
@@ -197,9 +194,9 @@ impl ConsensusClient {
                 Err(rpc_err) => rpc_err,
             };
 
-            if let RPCError::RemoteError(remote_err) = &rpc_err {
+            if let RpcError::RemoteError(remote_err) = &rpc_err {
                 let forward_err_res =
-                    <Err as TryInto<ForwardToLeader<GlareNodeId, GlareNode>>>::try_into(remote_err.source.clone());
+                    <Err as TryInto<ForwardToLeader>>::try_into(remote_err.source.clone());
 
                 if let Ok(ForwardToLeader {
                     leader_id: Some(leader_id),

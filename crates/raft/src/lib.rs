@@ -1,11 +1,3 @@
-use std::sync::Arc;
-
-use messaging::{GlareRequest, GlareResponse};
-use network::ConsensusNetwork;
-use openraft::Raft;
-
-use self::store::ConsensusStore;
-
 pub mod app;
 pub mod client;
 pub mod error;
@@ -13,30 +5,10 @@ pub mod management;
 pub mod messaging;
 pub mod network;
 pub mod node;
-pub mod raft;
+pub mod rpc;
+pub mod openraft_types;
+pub mod repr;
 pub mod store;
-
-pub type GlareNodeId = u64;
-
-// pub type GlareNode = BasicNode;
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
-pub struct GlareNode {
-    pub rpc_addr: String,
-    pub api_addr: String,
-}
-
-impl std::fmt::Display for GlareNode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GlareNode {{ }}")
-    }
-}
-
-pub type GlareRaft = Raft<GlareTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusStore>>;
-
-openraft::declare_raft_types!(
-    pub GlareTypeConfig: D = GlareRequest, R = GlareResponse, NodeId = GlareNodeId, Node = GlareNode
-);
 
 #[cfg(test)]
 mod tests {
@@ -47,15 +19,16 @@ mod tests {
     use openraft::{testing::StoreBuilder, StorageError};
     use tempdir::TempDir;
 
-    use super::{store::ConsensusStore, GlareNodeId, GlareTypeConfig};
+    use crate::repr::{NodeId, RaftTypeConfig};
+    use super::store::ConsensusStore;
 
     struct ConsensusBuilder;
 
     #[async_trait]
-    impl StoreBuilder<GlareTypeConfig, Arc<ConsensusStore>> for ConsensusBuilder {
-        async fn run_test<Fun, Ret, Res>(&self, t: Fun) -> Result<Ret, StorageError<GlareNodeId>>
+    impl StoreBuilder<RaftTypeConfig, Arc<ConsensusStore>> for ConsensusBuilder {
+        async fn run_test<Fun, Ret, Res>(&self, t: Fun) -> Result<Ret, StorageError>
         where
-            Res: Future<Output = Result<Ret, StorageError<GlareNodeId>>> + Send,
+            Res: Future<Output = Result<Ret, StorageError>> + Send,
             Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
         {
             let temp = TempDir::new("consensus").unwrap();

@@ -9,7 +9,7 @@ use maplit::btreeset;
 use raft::client::ConsensusClient;
 use raft::messaging::GlareRequest;
 use raft::node::start_raft_node;
-use raft::GlareNode;
+use raft::repr::Node;
 use tokio::time::sleep;
 
 /// Setup a cluster of 3 nodes.
@@ -85,9 +85,9 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<BTreeMap<_, _>>();
     assert_eq!(
         btreemap! {
-            1 => GlareNode{rpc_addr: get_rpc_addr(1).to_string(), api_addr: get_http_addr(1).to_string(), },
-            2 => GlareNode{rpc_addr: get_rpc_addr(2).to_string(), api_addr: get_http_addr(2).to_string(), },
-            3 => GlareNode{rpc_addr: get_rpc_addr(3).to_string(), api_addr: get_http_addr(3).to_string(), },
+            1 => Node{rpc_addr: get_rpc_addr(1).to_string(), api_addr: get_http_addr(1).to_string(), },
+            2 => Node{rpc_addr: get_rpc_addr(2).to_string(), api_addr: get_http_addr(2).to_string(), },
+            3 => Node{rpc_addr: get_rpc_addr(3).to_string(), api_addr: get_http_addr(3).to_string(), },
         },
         nodes_in_cluster
     );
