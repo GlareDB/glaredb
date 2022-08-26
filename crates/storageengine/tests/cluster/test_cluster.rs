@@ -15,6 +15,7 @@ use tokio::time::sleep;
 // use raft_key_value_rocks::start_example_raft_node;
 // use raft_key_value_rocks::store::GlareRequest;
 // use raft_key_value_rocks::ExampleNode;
+//
 
 /// Setup a cluster of 3 nodes.
 /// Write to it and read from it.
@@ -23,25 +24,6 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     // --- The client itself does not store addresses for all nodes, but just node id.
     //     Thus we need a supporting component to provide mapping from node id to node address.
     //     This is only used by the client. A raft node in this example stores node addresses in its store.
-
-    fn get_http_addr(node_id: u32) -> SocketAddr {
-        let addr = match node_id {
-            1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21001),
-            2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21002),
-            3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21003),
-            _ => panic!("node not found"),
-        };
-        addr
-    }
-    fn get_rpc_addr(node_id: u32) -> SocketAddr {
-        let addr = match node_id {
-            1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22001),
-            2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22002),
-            3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22003),
-            _ => panic!("node not found"),
-        };
-        addr
-    }
 
     // --- Start 3 raft node in 3 threads.
     let d1 = tempdir::TempDir::new("test_cluster")?;
@@ -66,6 +48,14 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     // Wait for server to start up.
     sleep(Duration::from_millis(500)).await;
 
+    let _h4 = tokio::spawn(async move {
+        run_tests().await.expect("test_cluster");
+    });
+
+    Ok(())
+}
+
+async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
     // --- Create a client to the first node, as a control handle to the cluster.
 
     let leader = ConsensusClient::new(1, get_http_addr(1));
@@ -206,4 +196,23 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn get_http_addr(node_id: u32) -> SocketAddr {
+    let addr = match node_id {
+        1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21001),
+        2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21002),
+        3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21003),
+        _ => panic!("node not found"),
+    };
+    addr
+}
+fn get_rpc_addr(node_id: u32) -> SocketAddr {
+    let addr = match node_id {
+        1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22001),
+        2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22002),
+        3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22003),
+        _ => panic!("node not found"),
+    };
+    addr
 }

@@ -9,6 +9,7 @@ use self::store::ConsensusStore;
 pub mod app;
 pub mod client;
 pub mod error;
+pub mod management;
 pub mod messaging;
 pub mod network;
 pub mod node;

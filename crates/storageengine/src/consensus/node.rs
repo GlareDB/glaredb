@@ -3,9 +3,10 @@ use tokio::{net::TcpListener, task};
 
 use super::{
     app::ApplicationState, network::ConsensusNetwork, raft::Raft, store::ConsensusStore,
-    GlareNodeId, GlareRaft,
+    GlareNodeId, GlareRaft, management::{rest},
 };
 
+pub type HttpServer = tide::Server<Arc<ApplicationState>>;
 pub async fn start_raft_node<P>(
     node_id: GlareNodeId,
     dir: P,
@@ -28,7 +29,12 @@ where
     // Create a local raft instance.
     let raft = GlareRaft::new(node_id, config.clone(), network, store.clone());
 
-    let app = Arc::new(ApplicationState { id: node_id, raft });
+    let app = Arc::new(ApplicationState {
+        id: node_id,
+        raft,
+        api_addr: http_addr.to_string(),
+        rpc_addr: rpc_addr.to_string(),
+    });
 
     let service = Arc::new(Raft::new(app.clone()));
 
@@ -41,18 +47,15 @@ where
     });
 
     // Initialize HTTP server
+    let mut app: HttpServer = tide::Server::with_state(app);
 
+    rest(&mut app);
+    let http_handler = task::spawn(async move {
+        app.listen(http_addr).await.unwrap();
+    });
     // Run both tasks
-    rpc_handler.await?;
+    let (rpc_res, http_res) = futures::join!(rpc_handler, http_handler);
+    rpc_res.unwrap();
+    http_res.unwrap();
     Ok(())
-    /*
-    let mut app: Server = tide::Server::with_state(app);
-
-    management::rest(&mut app);
-    api::rest(&mut app);
-
-    app.listen(http_addr).await?;
-    handle.await;
-    Ok(())
-    */
 }
