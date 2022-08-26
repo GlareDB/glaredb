@@ -4,8 +4,9 @@ use tokio::{net::TcpListener, task};
 use crate::repr::{NodeId, Raft};
 use super::{
     app::ApplicationState, network::ConsensusNetwork, rpc::Raft as RaftRpc, store::ConsensusStore,
-    management::{rest},
 };
+
+mod management;
 
 pub type HttpServer = tide::Server<Arc<ApplicationState>>;
 pub async fn start_raft_node<P>(
@@ -50,7 +51,7 @@ where
     // Initialize HTTP server
     let mut app: HttpServer = tide::Server::with_state(app);
 
-    rest(&mut app);
+    management::rest(&mut app);
     let http_handler = task::spawn(async move {
         app.listen(http_addr).await.unwrap();
     });

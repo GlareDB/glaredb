@@ -8,7 +8,7 @@ use maplit::btreemap;
 use maplit::btreeset;
 use raft::client::ConsensusClient;
 use raft::messaging::GlareRequest;
-use raft::node::start_raft_node;
+use raft::server::start_raft_node;
 use raft::repr::Node;
 use tokio::time::sleep;
 
