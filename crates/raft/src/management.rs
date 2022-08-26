@@ -9,7 +9,7 @@ use tide::Request;
 use tide::Response;
 use tide::StatusCode;
 
-use crate::consensus::node::HttpServer;
+use crate::node::HttpServer;
 
 use super::GlareNode;
 use super::GlareNodeId;

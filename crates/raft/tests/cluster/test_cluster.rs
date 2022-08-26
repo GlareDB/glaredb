@@ -6,16 +6,11 @@ use std::time::Duration;
 
 use maplit::btreemap;
 use maplit::btreeset;
-use storageengine::consensus::client::ConsensusClient;
-use storageengine::consensus::messaging::GlareRequest;
-use storageengine::consensus::node::start_raft_node;
-use storageengine::consensus::GlareNode;
+use raft::client::ConsensusClient;
+use raft::messaging::GlareRequest;
+use raft::node::start_raft_node;
+use raft::GlareNode;
 use tokio::time::sleep;
-// use raft_key_value_rocks::client::ConsensusClient;
-// use raft_key_value_rocks::start_example_raft_node;
-// use raft_key_value_rocks::store::GlareRequest;
-// use raft_key_value_rocks::ExampleNode;
-//
 
 /// Setup a cluster of 3 nodes.
 /// Write to it and read from it.

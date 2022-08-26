@@ -2030,6 +2030,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "raft"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "clap",
+ "futures",
+ "logutil",
+ "maplit",
+ "openraft",
+ "parking_lot",
+ "reqwest",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "tempdir",
+ "thiserror",
+ "tide",
+ "tokio",
+ "tokio-serde",
+ "toy-rpc",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rand"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

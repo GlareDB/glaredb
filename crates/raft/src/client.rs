@@ -9,7 +9,7 @@ use serde::{Serialize, de::DeserializeOwned, Deserialize};
 use tokio::sync::Mutex;
 
 use super::{error::RpcResult, messaging::GlareRequest, GlareNode, GlareNodeId, GlareTypeConfig};
-use crate::consensus::error::Result;
+use crate::error::Result;
 
 pub struct ConsensusClient {
     pub leader: Arc<Mutex<(GlareNodeId, SocketAddr)>>,
