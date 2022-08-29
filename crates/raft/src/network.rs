@@ -4,8 +4,6 @@ use std::sync::Arc;
 use openraft::async_trait::async_trait;
 use openraft::error::{NetworkError, RemoteError};
 use openraft::{AnyError, RaftNetwork, RaftNetworkFactory};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use toy_rpc::pubsub::AckModeNone;
 
 use crate::openraft_types::types::{
@@ -14,7 +12,7 @@ use crate::openraft_types::types::{
 };
 
 use super::client::rpc::RaftClientStub;
-use super::error::{Error, RpcError, RpcResult};
+use super::error::{RpcError, RpcResult};
 use super::repr::{Node, NodeId, RaftTypeConfig};
 
 pub struct ConsensusNetwork {}
