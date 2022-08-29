@@ -1,25 +1,25 @@
 use crate::errors::{Result, WalError};
-use async_trait::async_trait;
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use lemur::execute::stream::source::{DataFrameStream, DataSource, ReadTx, WriteTx};
+use bytes::Buf;
+use lemur::execute::stream::source::{DataSource, WriteTx};
 use lemur::repr::df::{DataFrame, Schema};
-use lemur::repr::relation::{PrimaryKeyIndices, RelationKey};
+use lemur::repr::relation::RelationKey;
 use object_store::{path::Path, ObjectStore};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io::{Read, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
-use tracing::{info, trace, warn};
+use tracing::{error, info, trace, warn};
 
 /// Messages that correspond to mutable lemur data source operations.
 // TODO: Not zero copy.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LemurOp {
-    Begin,
+    Begin {
+        tx_id: u64,
+    },
     Commit {
         tx_id: u64,
     },
@@ -43,18 +43,20 @@ pub enum LemurOp {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalMessage {
     lsn: u64,
     op: LemurOp,
 }
 
+const TARGET_WAL_MESSAGES_PER_FILE: usize = 100_000;
+const WAL_MESSAGE_BUF: usize = 256;
 const MANIFEST_PATH: &'static str = "MANIFEST";
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct Manifest {
-    num_wal_files: usize,
-    latest_complete: bool,
+    num_complete_wal_files: usize,
+    has_incomplete_wal_file: bool,
     last_lsn: u64,
 }
 
@@ -101,11 +103,54 @@ where
         Ok(Wal {
             inner: Arc::new(WalInner {
                 source,
-                handle,
                 control: control_tx,
                 incoming: incoming_tx,
+                handle,
             }),
         })
+    }
+
+    pub async fn shutdown_wait(&self) -> Result<()> {
+        self.inner
+            .control
+            .send(ControlMessage::DrainShutdown)
+            .await
+            .map_err(|_| WalError::BrokenChannel)?;
+        loop {
+            trace!("awaiting handle finished");
+            if self.inner.handle.is_finished() {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(400)).await;
+        }
+    }
+
+    pub async fn send_op(&self, op: LemurOp) -> Result<()> {
+        self.inner
+            .incoming
+            .send(op)
+            .await
+            .map_err(|_| WalError::BrokenChannel)
+    }
+
+    pub async fn latest_lsn(&self) -> Result<u64> {
+        let (tx, rx) = oneshot::channel();
+        self.inner
+            .control
+            .send(ControlMessage::Lsn(tx))
+            .await
+            .map_err(|_| WalError::BrokenChannel)?;
+        rx.await.map_err(|_| WalError::BrokenChannel)
+    }
+
+    pub async fn flush_wal(&self) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.inner
+            .control
+            .send(ControlMessage::FlushToStore(tx))
+            .await
+            .map_err(|_| WalError::BrokenChannel)?;
+        rx.await.map_err(|_| WalError::BrokenChannel)
     }
 }
 
@@ -127,6 +172,7 @@ unsafe impl<S> Sync for Wal<S> {}
 unsafe impl<S> Send for Wal<S> {}
 
 enum ControlMessage<S> {
+    DrainShutdown,
     /// Get the most recent lsn.
     Lsn(oneshot::Sender<u64>),
     /// Flush all messages to the store.
@@ -138,15 +184,13 @@ enum ControlMessage<S> {
 impl<S> fmt::Debug for ControlMessage<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ControlMessage::DrainShutdown => write!(f, "DrainShutdown"),
             ControlMessage::Lsn(_) => write!(f, "Lsn"),
             ControlMessage::FlushToStore(_) => write!(f, "FlushToStore"),
             ControlMessage::ReplayAll(_, _) => write!(f, "ReplayAll"),
         }
     }
 }
-
-const TARGET_WAL_MESSAGES_PER_FILE: usize = 100_000;
-const WAL_MESSAGE_BUF: usize = 256;
 
 #[derive(Debug)]
 struct WalWorker<O, S> {
@@ -170,11 +214,17 @@ where
         incoming: mpsc::Receiver<LemurOp>,
     ) -> Result<Self> {
         let manifest = Self::read_manifest_or_default(&store, &root).await?;
+        let buf = if manifest.has_incomplete_wal_file {
+            Self::load_incomplete_wal_file(&store, &root).await?
+        } else {
+            Vec::new()
+        };
+
         Ok(WalWorker {
             store,
             root,
             manifest,
-            buf: Vec::new(),
+            buf,
             control,
             incoming,
         })
@@ -182,8 +232,15 @@ where
 
     async fn run(mut self) -> Result<()> {
         info!("wal worker running");
+        let mut interval = tokio::time::interval(Duration::from_secs(10));
+
         loop {
             tokio::select! {
+                _ = interval.tick() => {
+                    trace!("interval flush");
+                    self.flush().await?;
+                }
+
                 Some(msg) = self.incoming.recv() => {
                     trace!(?msg, "received lemur op message");
                     self.handle_wal(msg).await?;
@@ -195,8 +252,14 @@ where
                 }
 
                 else => {
-                    info!("channel closed, exiting wal worker");
-                    return Ok(())
+                    info!("channel closed, flushing and exiting");
+                    match self.flush().await {
+                        Ok(_) => return Ok(()),
+                        Err(e) => {
+                            error!(?e, "failed to flush");
+                            return Err(e);
+                        }
+                    }
                 }
             };
         }
@@ -204,11 +267,17 @@ where
 
     async fn handle_control(&mut self, msg: ControlMessage<S>) -> Result<()> {
         match msg {
+            ControlMessage::DrainShutdown => {
+                // Prevent any additional wal messages. This will cause the run
+                // loop to exit, allowing use to await the join handle.
+                self.incoming.close();
+                self.control.close();
+            }
             ControlMessage::Lsn(ch) => ch
                 .send(self.manifest.last_lsn)
                 .map_err(|_| WalError::BrokenChannel)?,
             ControlMessage::FlushToStore(ch) => {
-                self.write_wal().await?;
+                self.flush().await?;
                 ch.send(()).map_err(|_| WalError::BrokenChannel)?;
             }
             ControlMessage::ReplayAll(source, ch) => {
@@ -219,23 +288,40 @@ where
         Ok(())
     }
 
+    async fn flush(&mut self) -> Result<()> {
+        self.write_wal(true).await?;
+        self.manifest.has_incomplete_wal_file = true;
+        self.write_manifest().await?;
+        Ok(())
+    }
+
     async fn handle_wal(&mut self, op: LemurOp) -> Result<()> {
         let lsn = self.manifest.last_lsn;
         self.manifest.last_lsn += 1;
-        self.buf.push(WalMessage { lsn, op });
+        let wal = WalMessage { lsn, op };
+
+        trace!(?wal, "wal message");
+
+        self.buf.push(wal);
         if self.buf.len() >= TARGET_WAL_MESSAGES_PER_FILE {
-            self.write_wal().await?;
+            self.write_wal(false).await?;
             self.buf.truncate(0);
-            self.manifest.num_wal_files += 1;
+            self.manifest.num_complete_wal_files += 1;
+            self.manifest.has_incomplete_wal_file = false;
             self.write_manifest().await?;
         }
         Ok(())
     }
 
-    async fn write_wal(&self) -> Result<()> {
-        let path = self
-            .root
-            .child(Self::format_wal_file_name(self.manifest.num_wal_files));
+    async fn write_wal(&mut self, incomplete: bool) -> Result<()> {
+        trace!(?incomplete, "writing wal");
+        let path = if incomplete {
+            self.root.child(Self::incomplete_wal_file_name())
+        } else {
+            self.root.child(Self::format_wal_file_name(
+                self.manifest.num_complete_wal_files,
+            ))
+        };
         let buf = bincode::serialize(&self.buf)?;
         self.store.put(&path, buf.into()).await?;
         Ok(())
@@ -254,7 +340,7 @@ where
     async fn replay_all(&self, source: &S) -> Result<()> {
         let mut replayer = WalReplayer::new(source);
 
-        for i in 0..self.manifest.num_wal_files {
+        for i in 0..self.manifest.num_complete_wal_files {
             let path = self.root.child(Self::format_wal_file_name(i));
             let buf = self.store.get(&path).await?.bytes().await?;
             let msgs: Vec<WalMessage> = bincode::deserialize(&buf)?;
@@ -266,6 +352,14 @@ where
                 }
             }
         }
+
+        for msg in self.buf.iter() {
+            match replayer.replay_msg(msg.clone()).await {
+                Ok(_) => trace!("message replayed"),
+                Err(e) => warn!(?e, "source returned error during replay"),
+            }
+        }
+
         Ok(())
     }
 
@@ -283,6 +377,17 @@ where
         let manifest: Manifest = bincode::deserialize_from(buf.reader())?;
         info!(?manifest, "manifest found");
         Ok(manifest)
+    }
+
+    async fn load_incomplete_wal_file(store: &O, root: &Path) -> Result<Vec<WalMessage>> {
+        let path = root.child(Self::incomplete_wal_file_name());
+        let buf = store.get(&path).await?.bytes().await?;
+        let msgs: Vec<WalMessage> = bincode::deserialize(&buf)?;
+        Ok(msgs)
+    }
+
+    const fn incomplete_wal_file_name() -> &'static str {
+        "wal-incomplete"
     }
 
     fn format_wal_file_name(num: usize) -> String {
@@ -307,12 +412,11 @@ impl<'a, S: DataSource> WalReplayer<'a, S> {
         use std::collections::btree_map::Entry;
 
         trace!(?msg, "replaying message");
-        static TX_ID: AtomicU64 = AtomicU64::new(0);
 
         match msg.op {
-            LemurOp::Begin => {
+            LemurOp::Begin { tx_id } => {
                 let tx = self.source.begin().await?;
-                match self.active_txs.entry(TX_ID.fetch_add(1, Ordering::Relaxed)) {
+                match self.active_txs.entry(tx_id) {
                     Entry::Vacant(entry) => {
                         entry.insert(vec![tx]);
                     }

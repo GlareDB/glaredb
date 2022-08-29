@@ -1,12 +1,14 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
+use cloudwal::wal::Wal;
 use glaredb::server::{Server, ServerConfig};
 use lemur::execute::stream::source::{DataSource, MemoryDataSource};
+use object_store::gcp::GoogleCloudStorageBuilder;
 use std::sync::atomic::{AtomicU64, Ordering};
 use storageengine::rocks::{RocksStore, StorageConfig};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::error;
+use tracing::{error, info};
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
@@ -37,6 +39,12 @@ enum Commands {
         /// Applicable only with the RocksDB storage backend.
         #[clap(long, value_parser)]
         data_path: Option<String>,
+
+        #[clap(long, value_parser)]
+        cloud_wal_bucket: Option<String>,
+
+        #[clap(long, value_parser)]
+        cloud_wal_service_account: Option<String>,
     },
 
     /// Starts a client to some server.
@@ -62,15 +70,22 @@ fn main() -> Result<()> {
             bind,
             storage,
             data_path,
+            cloud_wal_bucket,
+            cloud_wal_service_account,
         } => match storage {
             StorageBackend::Memory => {
-                begin_server(MemoryDataSource::new(), &bind)?;
+                begin_server(
+                    MemoryDataSource::new(),
+                    &bind,
+                    cloud_wal_bucket,
+                    cloud_wal_service_account,
+                )?;
             }
             StorageBackend::Rocks => match data_path {
                 Some(path) => {
                     let storage_conf = StorageConfig { data_dir: path };
                     let source = RocksStore::open(storage_conf)?;
-                    begin_server(source, &bind)?;
+                    begin_server(source, &bind, cloud_wal_bucket, cloud_wal_service_account)?;
                 }
                 None => {
                     error!("`data-path` arg required with RocksDB");
@@ -87,7 +102,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server<S>(source: S, pg_bind: &str) -> Result<()>
+fn begin_server<S>(
+    source: S,
+    pg_bind: &str,
+    wal_bucket: Option<String>,
+    wal_sa: Option<String>,
+) -> Result<()>
 where
     S: DataSource + 'static,
 {
@@ -95,8 +115,22 @@ where
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(source).await?;
-        server.serve(conf).await
+
+        if let (Some(bucket), Some(sa)) = (wal_bucket, wal_sa) {
+            info!("enabling cloud wal");
+
+            let store = GoogleCloudStorageBuilder::new()
+                .with_bucket_name(bucket)
+                .with_service_account_path(sa)
+                .build()?;
+            let source = Wal::open(source, store, "wal").await?;
+
+            let server = Server::connect(source).await?;
+            server.serve(conf).await
+        } else {
+            let server = Server::connect(source).await?;
+            server.serve(conf).await
+        }
     })
 }
 
