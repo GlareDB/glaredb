@@ -19,16 +19,6 @@ use super::repr::{Node, NodeId, RaftTypeConfig};
 
 pub struct ConsensusNetwork {}
 
-impl ConsensusNetwork {
-    pub async fn send_rpc<Req, Resp>() -> RpcResult<Resp, Error>
-    where
-        Req: Serialize,
-        Resp: DeserializeOwned,
-    {
-        todo!()
-    }
-}
-
 #[async_trait]
 impl RaftNetworkFactory<RaftTypeConfig> for Arc<ConsensusNetwork> {
     type Network = GlareNetworkConnection;

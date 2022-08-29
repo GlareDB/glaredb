@@ -3,6 +3,7 @@ use std::{collections::BTreeSet, net::SocketAddr, sync::Arc};
 use openraft::error::{NetworkError, RemoteError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::Mutex;
+use tracing::trace;
 
 use super::{error::RpcResult, message::Request};
 use crate::error::Result;
@@ -132,14 +133,14 @@ impl ConsensusClient {
         };
 
         let resp = if let Some(r) = req {
-            println!(
+            trace!(
                 ">>> client send request to {}: {}",
                 url,
                 serde_json::to_string_pretty(&r).unwrap()
             );
             self.inner.post(url.clone()).json(r)
         } else {
-            println!(">>> client send request to {}", url,);
+            trace!(">>> client send request to {}", url,);
             self.inner.get(url.clone())
         }
         .send()
@@ -150,7 +151,7 @@ impl ConsensusClient {
             .json()
             .await
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-        println!(
+        trace!(
             "<<< client recv reply from {}: {}",
             url,
             serde_json::to_string_pretty(&res).unwrap()
