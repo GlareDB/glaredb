@@ -19,11 +19,9 @@ pub mod rpc;
 
 pub struct ConsensusClient {
     pub leader: Arc<Mutex<(NodeId, SocketAddr)>>,
-    // pub inner: toy_rpc::Client<AckModeNone>,
     pub inner: reqwest::Client,
 }
 
-// TODO: Implement functions
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Empty;
