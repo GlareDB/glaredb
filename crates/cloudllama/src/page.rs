@@ -1,8 +1,8 @@
 use crate::codec::{Decodeable, Encodeable};
-use bytes::{Buf, BufMut};
+use bytes::{Buf, BufMut, Bytes};
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PageId {
     pub pid: u64,
 }
@@ -23,28 +23,103 @@ impl Decodeable for PageId {
     }
 }
 
+pub type PagePtr = *const PageAddr;
+
 pub enum PageAddr {
-    Mem(PagePtr),
+    Mem(MemPtr),
     Disk(DiskPtr),
 }
 
-/// A "pointer" to page on disk.
-#[derive(Debug)]
-pub struct DiskPtr {
-    partition_num: usize,
-    offset: usize,
+impl From<MemPtr> for PageAddr {
+    fn from(ptr: MemPtr) -> Self {
+        PageAddr::Mem(ptr)
+    }
 }
 
-pub enum PagePtr {
+impl From<DiskPtr> for PageAddr {
+    fn from(ptr: DiskPtr) -> Self {
+        PageAddr::Disk(ptr)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DiskPtr {
+    pub partition_num: usize,
+    pub offset: usize,
+}
+
+pub enum MemPtr {
     Delta(DeltaPage),
     Base(BasePage),
 }
 
 pub struct DeltaPage {
-    data: Box<[u8]>,
-    ptr: Box<PagePtr>,
+    pub(crate) data: Bytes,
+    pub(crate) ptr: PagePtr,
 }
 
 pub struct BasePage {
-    buf: Box<[u8]>,
+    pub(crate) data: Bytes,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum PageKind {
+    Unknown = 0,
+    Base = 1,
+    Delta = 2,
+}
+
+impl PageKind {
+    fn from_u8(b: u8) -> PageKind {
+        match b {
+            1 => PageKind::Base,
+            2 => PageKind::Delta,
+            _ => PageKind::Unknown,
+        }
+    }
+}
+
+/// Header at the beginning of every page.
+///
+/// The page size is the size of the page minus the header.
+///
+/// ```text
+/// <page size> // 8 bytes
+/// <page kind> // 1 byte
+/// <empty>     // 7 bytes
+/// ```
+#[derive(Debug, Clone)]
+pub struct PageHeader {
+    pub size: u64,
+    pub kind: PageKind,
+}
+
+impl PageHeader {
+    pub const fn min_decode_size() -> usize {
+        16
+    }
+}
+
+impl Encodeable for PageHeader {
+    fn encode_size(&self) -> usize {
+        Self::min_decode_size()
+    }
+
+    fn encode<B: BufMut>(&self, dst: &mut B) {
+        dst.put_u64(self.size);
+        dst.put_u8(self.kind as u8);
+        dst.put(&[0; 7][..]);
+    }
+}
+
+impl Decodeable for PageHeader {
+    fn decode<B: Buf>(src: &mut B) -> Self {
+        let hdr = PageHeader {
+            size: src.get_u64(),
+            kind: PageKind::from_u8(src.get_u8()),
+        };
+        src.advance(7);
+        hdr
+    }
 }
