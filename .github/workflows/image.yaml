@@ -11,9 +11,6 @@ jobs:
       contents: write # required to checkout code
 
     env:
-      NIX_FLAKE: server_image
-      IMAGE_NAME: glaredb
-      IMAGE_VERSION: test
       GCP_PROJECT_ID: glaredb-dev-playground
 
     steps:
@@ -26,53 +23,11 @@ jobs:
           extra_nix_config: |
             access-tokens = github=${{ github.token }}
 
-      - name: Build image
-        run:
-          nix build .#${{ env.NIX_FLAKE }}
-
-      - name: Load built image into docker
-        run: docker load --input result
-
-      - name: Determine image tag
-        id: determine-image-tag
-        shell: bash
-        run: |
-          IMAGE_TAG=latest
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-          IMAGE_TAG=${GITHUB_REF#refs/tags/}
-          elif [[ $GITHUB_REF == refs/heads/* ]]; then
-          IMAGE_TAG=$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')
-          elif [[ $GITHUB_REF == refs/pull/* ]]; then
-          IMAGE_TAG=pr-${{ github.event.number }}
-          elif [ "${{ github.event_name }}" = "push" ]; then
-          IMAGE_TAG="sha-${GITHUB_SHA::7}"
-          fi
-          echo ::set-output name=image-tag::${IMAGE_TAG}
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v0
 
       - name: Configure docker
         run: gcloud auth configure-docker -q
 
-      - name: Get docker image ID
-        id: get-image-id
-        run: |
-          IMAGE_ID=`docker images --filter=reference=${{ env.IMAGE_NAME }} --format "{{.ID}}"`
-          echo ::set-output name=image-id::${IMAGE_ID}
-
-      - name: Tag image
-        env:
-          IMAGE_ID: ${{ steps.get-image-id.outputs.image-id }}
-          REPO_URL: "gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}"
-        run: docker tag ${IMAGE_ID} ${REPO_URL}
-
-      - name: Push image to GCR
-        env:
-          REPO_URL: "gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}"
-        run: docker push ${REPO_URL}
+      - name: Build and push image
+        run: ./scripts/build-and-push-glaredb.sh

@@ -38,10 +38,9 @@
         LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
       };
       server_image = pkgs.dockerTools.buildLayeredImage {
-        name = "glaredb-tcp-server";
-        tag = "latest";
+        name = "glaredb";
         contents = [packages.cli];
-        config.Cmd = ["${packages.cli}/bin/main" "server"];
+        config.Cmd = ["${packages.cli}/bin/main"];
       };
     };
   };
