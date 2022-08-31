@@ -2901,7 +2901,6 @@ dependencies = [
  "lemur",
  "logutil",
  "maplit",
- "openraft",
  "parking_lot",
  "reqwest",
  "rocksdb",
