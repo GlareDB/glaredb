@@ -1899,7 +1899,7 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 [[package]]
 name = "openraft"
 version = "0.6.4"
-source = "git+https://github.com/datafuselabs/openraft?branch=main#c52cb6502c38baec5c5fb3cf23a0834a9fd8c82d"
+source = "git+https://github.com/glaredb/openraft?rev=e6be6640455e58944bada6c1fc4ef4270c988dbc#e6be6640455e58944bada6c1fc4ef4270c988dbc"
 dependencies = [
  "anyerror",
  "async-trait",
