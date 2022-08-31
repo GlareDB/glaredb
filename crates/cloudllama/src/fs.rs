@@ -95,7 +95,7 @@ impl<F: FileSystem> FileSystemWorker<F> {
                 buf.clear();
                 buf.reserve(header.size as usize);
                 file.read_exact(&mut buf[0..header.size as usize]).await?;
-                let data = buf.split_off(header.size as usize);
+                let data = buf.split_to(header.size as usize);
                 let base = BasePage {
                     data: data.freeze(),
                 };

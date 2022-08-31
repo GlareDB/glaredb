@@ -188,6 +188,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))] // Slow
     #[test]
     fn simple_iter() {
         let mt = MappingTable::<Large>::default();
