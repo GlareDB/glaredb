@@ -40,7 +40,8 @@
       server_image = pkgs.dockerTools.buildLayeredImage {
         name = "glaredb";
         contents = [packages.cli];
-        config.Cmd = ["${packages.cli}/bin/main"];
+        created = "now";
+        config.Cmd = ["${packages.cli}/bin/glaredb"];
       };
     };
   };
