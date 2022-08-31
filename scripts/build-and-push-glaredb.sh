@@ -8,16 +8,16 @@
 # GITHUB_REF_NAME - Branch name or tag.
 # GCP_PROJECT_ID - Project id for google cloud.
 
-set -e
+set -ex
 
-: ${GITHUB_REF?"GITHUB_REF needs to be set"}
+: ${GITHUB_REF_NAME?"GITHUB_REF_NAME needs to be set"}
 : ${GCP_PROJECT_ID?"GCP_PROJECT_ID needs to be set"}
 
 nix build .#server_image
 docker load --input result
 
 image_id=$(docker images --filter=reference=glaredb --format "{{.ID}}")
-image_tag=$(echo ${GITHUB_REF} | sed -r 's#/+#-#g')
+image_tag=$(echo ${GITHUB_REF_NAME} | sed -r 's#/+#-#g')
 
 docker tag ${image_id} ${image_id}
 
