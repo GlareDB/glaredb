@@ -6,6 +6,11 @@ jobs:
   build-image:
     name: Build and push image
     runs-on: ubuntu-latest
+
+    concurrency:
+      group: image-${{ github.ref }}
+      cancel-in-progress: true
+
     permissions:
       id-token: write # required to use OIDC auth
       contents: write # required to checkout code
@@ -22,6 +27,11 @@ jobs:
         with:
           extra_nix_config: |
             access-tokens = github=${{ github.token }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v0

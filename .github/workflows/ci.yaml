@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     concurrency:
-      group: ${{ github.ref }}
+      group: ci-${{ github.ref }}
       cancel-in-progress: true
 
     steps:
