@@ -63,6 +63,8 @@ pub enum ExecutionResult {
     WriteSuccess,
     /// Table created.
     CreateTable,
+    /// A client local variable was set.
+    SetLocal,
     /// An explained query plan.
     Explain(ExplainRelationExpr), // TODO: How to show pre-lowered plans?
 }
@@ -145,6 +147,12 @@ impl<S: DataSource> Session<S> {
                     None => return Err(anyhow!("cannot rollback when not in a transaction")),
                 }
                 Ok(ExecutionResult::Rollback)
+            }
+            ast::Statement::SetVariable {
+                value, variable, ..
+            } => {
+                debug!(?value, ?variable, "attempting to set variable");
+                Ok(ExecutionResult::SetLocal)
             }
             ast::Statement::Explain {
                 analyze, statement, ..
