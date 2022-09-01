@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package glaredb.data;
+
+service RemoteRocksStore {
+    rpc LemurOp (LemurOpRequest) returns (LemurOpResponse) {}
+}
+
+message LemurOpRequest {
+    bytes blob = 1;
+}
+
+message LemurOpResponse {
+    bytes blob = 1;
+}
+
+// ReadTx
+message GetSchema {
+    string table = 1;
+}
+message Scan {
+    string relation_key = 1;
+    string predicate = 2;
+}
+
+// WriteTx

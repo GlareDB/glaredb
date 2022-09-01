@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap, error::Error, fmt::Debug, io::Cursor, ops::RangeBounds, path::Path,
+    fmt::Debug, io::Cursor, ops::RangeBounds, path::Path,
     sync::Arc,
 };
 
@@ -12,6 +12,8 @@ use rocksdb::ColumnFamily;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
+use self::state::{ConsensusStateMachine, RaftStateMachine};
+
 use super::message::{Request, Response};
 use crate::{
     openraft_types::types::{
@@ -19,6 +21,10 @@ use crate::{
     },
     repr::RaftTypeConfig,
 };
+
+mod state;
+
+use state::serializable::SerializableConsensusStateMachine;
 
 pub struct ConsensusStore {
     db: Arc<rocksdb::DB>,
@@ -41,165 +47,6 @@ pub struct ConsensusSnapshot {
 
     /// the data of the state machine at the time of this snapshot
     pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug)]
-pub struct ConsensusStateMachine {
-    pub db: Arc<rocksdb::DB>,
-}
-
-fn sm_r_err<E: Error + 'static>(e: E) -> StorageError {
-    StorageIOError::new(
-        ErrorSubject::StateMachine,
-        ErrorVerb::Read,
-        AnyError::new(&e),
-    )
-    .into()
-}
-
-fn sm_w_err<E: Error + 'static>(e: E) -> StorageError {
-    StorageIOError::new(
-        ErrorSubject::StateMachine,
-        ErrorVerb::Write,
-        AnyError::new(&e),
-    )
-    .into()
-}
-
-impl ConsensusStateMachine {
-    fn get_last_membership(&self) -> StorageResult<EffectiveMembership> {
-        self.db
-            .get_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_membership".as_bytes(),
-            )
-            .map_err(sm_r_err)
-            .and_then(|value| {
-                value
-                    .map(|v| serde_json::from_slice(&v).map_err(sm_r_err))
-                    .unwrap_or_else(|| Ok(EffectiveMembership::default()))
-            })
-    }
-
-    fn set_last_membership(&self, membership: EffectiveMembership) -> StorageResult<()> {
-        self.db
-            .put_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_membership".as_bytes(),
-                serde_json::to_vec(&membership).map_err(sm_w_err)?,
-            )
-            .map_err(sm_w_err)
-    }
-
-    fn get_last_applied_log(&self) -> StorageResult<Option<LogId>> {
-        self.db
-            .get_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_applied_log".as_bytes(),
-            )
-            .map_err(sm_r_err)
-            .and_then(|value| {
-                value
-                    .map(|v| serde_json::from_slice(&v).map_err(sm_r_err))
-                    .transpose()
-            })
-    }
-
-    fn set_last_applied_log(&self, log_id: LogId) -> StorageResult<()> {
-        self.db
-            .put_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_applied_log".as_bytes(),
-                serde_json::to_vec(&log_id).map_err(sm_w_err)?,
-            )
-            .map_err(sm_w_err)
-    }
-
-    fn from_serializable(
-        sm: SerializableConsensusStateMachine,
-        db: Arc<rocksdb::DB>,
-    ) -> StorageResult<Self> {
-        for (key, value) in sm.data {
-            db.put_cf(
-                db.cf_handle("data").unwrap(),
-                key.as_bytes(),
-                value.as_bytes(),
-            )
-            .map_err(sm_w_err)?;
-        }
-
-        let r = Self { db };
-        if let Some(log_id) = sm.last_applied_log {
-            r.set_last_applied_log(log_id)?;
-        }
-        r.set_last_membership(sm.last_membership)?;
-
-        Ok(r)
-    }
-
-    pub fn new(db: Arc<rocksdb::DB>) -> Self {
-        Self { db }
-    }
-
-    fn insert(&self, key: String, value: String) -> StorageResult<()> {
-        self.db
-            .put_cf(
-                self.db.cf_handle("data").unwrap(),
-                key.as_bytes(),
-                value.as_bytes(),
-            )
-            .map_err(|e| {
-                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)).into()
-            })
-    }
-
-    pub fn get(&self, key: &str) -> StorageResult<Option<String>> {
-        let key = key.as_bytes();
-        self.db
-            .get_cf(self.db.cf_handle("data").unwrap(), key)
-            .map(|value| {
-                value.map(|value| String::from_utf8(value.to_vec()).expect("invalid data"))
-            })
-            .map_err(|e| {
-                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)).into()
-            })
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct SerializableConsensusStateMachine {
-    pub last_applied_log: Option<LogId>,
-    pub last_membership: EffectiveMembership,
-    /// application data
-    pub data: BTreeMap<String, String>,
-}
-
-impl From<&ConsensusStateMachine> for SerializableConsensusStateMachine {
-    fn from(state: &ConsensusStateMachine) -> Self {
-        let mut data = BTreeMap::new();
-
-        for r in state.db.iterator_cf(
-            state.db.cf_handle("data").expect("cf_handle"),
-            rocksdb::IteratorMode::Start,
-        ) {
-            if let Ok((key, value)) = r {
-                let key: &[u8] = &key;
-                let value: &[u8] = &value;
-                data.insert(
-                    String::from_utf8(key.to_vec()).expect("invalid key"),
-                    String::from_utf8(value.to_vec()).expect("invalid data"),
-                );
-            } else {
-                panic!("iterator error");
-            }
-        }
-
-        Self {
-            last_applied_log: state.get_last_applied_log().unwrap(),
-            last_membership: state.get_last_membership().unwrap(),
-            data,
-        }
-    }
 }
 
 /// Utility macro to return an io error
@@ -407,6 +254,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
         &mut self,
         entries: &[&Entry<RaftTypeConfig>],
     ) -> Result<Vec<Response>, StorageError> {
+        println!("apply_to_state_machine: {:?}", entries);
         let mut res = Vec::with_capacity(entries.len());
 
         let sm = self.state_machine.write().await;
@@ -417,13 +265,15 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
             sm.set_last_applied_log(entry.log_id)?;
 
             match entry.payload {
-                EntryPayload::Blank => res.push(Response { value: None }),
+                EntryPayload::Blank => res.push(Response::None),
                 EntryPayload::Normal(ref req) => match req {
                     Request::Set { key, value } => {
                         sm.insert(key.clone(), value.clone())?;
-                        res.push(Response {
-                            value: Some(value.clone()),
-                        })
+                        res.push(Response::Value(value.into()))
+                    }
+                    Request::Begin => {
+                        let tx_id = sm.begin()?;
+                        res.push(Response::Begin(tx_id))
                     }
                 },
                 EntryPayload::Membership(ref mem) => {
@@ -431,7 +281,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
                         Some(entry.log_id),
                         mem.clone(),
                     ))?;
-                    res.push(Response { value: None })
+                    res.push(Response::None)
                 }
             };
         }
@@ -463,21 +313,6 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
             meta: meta.clone(),
             data: snapshot.into_inner(),
         };
-
-        // update the state machine
-        {
-            let updated_state_machine: SerializableConsensusStateMachine =
-                serde_json::from_slice(&new_snapshot.data).map_err(|e| {
-                    StorageIOError::new(
-                        ErrorSubject::Snapshot(new_snapshot.meta.signature()),
-                        ErrorVerb::Read,
-                        AnyError::new(&e),
-                    )
-                })?;
-            let mut state_machine = self.state_machine.write().await;
-            *state_machine =
-                ConsensusStateMachine::from_serializable(updated_state_machine, self.db.clone())?;
-        }
 
         self.set_current_snapshot_(new_snapshot)?;
         Ok(StateMachineChanges {
@@ -657,5 +492,9 @@ impl ConsensusStore {
         let db = Arc::new(db);
         let state_machine = RwLock::new(ConsensusStateMachine::new(db.clone()));
         Arc::new(ConsensusStore { db, state_machine })
+    }
+
+    pub fn get_rocksdb(&self) -> Arc<rocksdb::DB> {
+        self.db.clone()
     }
 }

@@ -1,9 +1,11 @@
 pub mod client;
 pub mod error;
+pub mod lemur_impl;
 pub mod message;
 pub mod network;
 pub mod openraft_types;
 pub mod repr;
+pub mod rpc;
 pub mod server;
 pub mod store;
 

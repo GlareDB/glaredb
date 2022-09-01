@@ -1,26 +1,26 @@
-use std::{collections::BTreeSet, net::SocketAddr, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 
-use openraft::error::{NetworkError, RemoteError};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use openraft::error::{NetworkError, ForwardToLeader, RPCError};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use tracing::trace;
+use tonic::transport::Endpoint;
 
 use super::{error::RpcResult, message::Request};
-use crate::error::Result;
+use crate::openraft_types::prelude::*;
+use crate::rpc::pb::{AddLearnerRequest, AddLearnerResponse, ChangeMembershipRequest};
+use crate::rpc::pb::raft_node_client::RaftNodeClient;
 use crate::{
     error::RpcError,
     openraft_types::types::{
-        AddLearnerError, AddLearnerResponse, CheckIsLeaderError, ClientWriteError,
-        ClientWriteResponse, ForwardToLeader, Infallible, InitializeError, RaftMetrics,
+        AddLearnerError, CheckIsLeaderError, ClientWriteError,
+        ClientWriteResponse, Infallible, InitializeError, RaftMetrics,
     },
     repr::NodeId,
 };
 
-pub mod rpc;
-
 pub struct ConsensusClient {
-    pub leader: Arc<Mutex<(NodeId, SocketAddr)>>,
-    pub inner: reqwest::Client,
+    pub leader: Arc<Mutex<(NodeId, Endpoint)>>,
+    // pub inner: RaftNodeClient<tonic::transport::Channel>,
 }
 
 
@@ -29,10 +29,13 @@ pub struct Empty;
 
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
-    pub fn new(leader_id: NodeId, leader_addr: SocketAddr) -> Self {
+    pub fn new(leader_id: NodeId, leader_url: String) -> Self {
+        let endpoint = Endpoint::from_shared(leader_url)
+            .expect("failed to create endpoint");
+
         Self {
-            leader: Arc::new(Mutex::new((leader_id, leader_addr))),
-            inner: reqwest::Client::new(),
+            leader: Arc::new(Mutex::new((leader_id, endpoint))),
+            // inner: RaftNodeClient::connect(endpoint).await.expect("failed to connect to leader"),
         }
     }
 
@@ -44,23 +47,26 @@ impl ConsensusClient {
     /// state machine.
     ///
     /// The result of applying the request will be returned.
-    pub async fn write(&self, req: &Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
-        self.send_rpc_to_leader("api/write", Some(req)).await
+    pub async fn write(&self, _req: &Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
+        // self.send_rpc_to_leader("api/write", Some(req)).await
+        todo!();
     }
 
     /// Read value by key, in an inconsistent mode.
     ///
     /// This method may return stale value because it does not force to read on a legal leader.
-    pub async fn read(&self, req: &String) -> RpcResult<String, Infallible> {
-        self.do_send_rpc_to_leader("api/read", Some(req)).await
+    pub async fn read(&self, _req: &str) -> RpcResult<String, Infallible> {
+        todo!();
+        // self.do_send_rpc_to_leader("api/read", Some(req)).await
     }
 
     /// Consistent Read value by key, in an inconsistent mode.
     ///
     /// This method MUST return consitent value or CheckIsLeaderError.
-    pub async fn consistent_read(&self, req: &String) -> RpcResult<String, CheckIsLeaderError> {
-        self.do_send_rpc_to_leader("api/consistent_read", Some(req))
-            .await
+    pub async fn consistent_read(&self, _req: &str) -> RpcResult<String, CheckIsLeaderError> {
+        todo!();
+        // self.do_send_rpc_to_leader("api/consistent_read", Some(req))
+        //  .await
     }
 
     // --- Cluster management API
@@ -68,12 +74,37 @@ impl ConsensusClient {
     /// Initialize a cluster of only the node that receives this request.
     ///
     /// This is the first step to initialize a cluster.
-    /// With a initialized cluster, new node can be added with [`write`].
+    /// With a initialized cluster, new nodes can be added with [`write`].
     /// Then setup replication with [`add_learner`].
-    /// Then make the new node a member with [`change_membership`].
+    /// and ake the new node a member with [`change_membership`].
     pub async fn init(&self) -> RpcResult<(), InitializeError> {
-        self.do_send_rpc_to_leader("cluster/init", Some(&Empty {}))
+        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+
+        let mut client = RaftNodeClient::connect(endpoint)
             .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        client.init(()).await.map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        Ok(())
+    }
+
+    async fn add_learner_rpc(
+        &self,
+        req: &AddLearnerRequest,
+    ) -> RpcResult<AddLearnerResponse, AddLearnerError> {
+        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+
+        let mut client = RaftNodeClient::connect(endpoint)
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        let resp = client
+            .add_learner(req.clone())
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        Ok(resp.into_inner())
     }
 
     /// Add a node as learner.
@@ -81,11 +112,68 @@ impl ConsensusClient {
     /// The node to add has to exist, i.e., being added with `write(Request::AddNode{})`
     pub async fn add_learner(
         &self,
-        req: (NodeId, String, String),
-    ) -> RpcResult<AddLearnerResponse, AddLearnerError> {
-        self.send_rpc_to_leader("cluster/add-learner", Some(&req))
-            .await
+        req: AddLearnerRequest
+    ) -> RpcResult<OAddLearnerResponse, AddLearnerError> {
+        let mut n_retry = 3;
+
+        loop {
+            let resp = self.add_learner_rpc(&req).await?;
+            let res: RpcResult<OAddLearnerResponse, OAddLearnerError> = bincode::deserialize(&resp.payload).expect("failed to deserialize");
+
+            let rpc_err = match res {
+                Ok(res) => return Ok(res),
+                Err(rpc_err) => rpc_err,
+            };
+
+            if let RPCError::RemoteError(remote_err) = &rpc_err {
+                let forward_err_res = 
+                    <AddLearnerError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+
+                if let Ok(ForwardToLeader {
+                    leader_id: Some(leader_id),
+                    leader_node: Some(leader_node),
+                }) = forward_err_res {
+                    // Update target to the "new" leader
+                    {
+                        let mut t = self.leader.lock().await;
+                        let url = leader_node.address.clone();
+                        let endpoint = Endpoint::from_shared(url)
+                            .expect("failed to create endpoint");
+                        *t = (leader_id, endpoint);
+                    }
+
+                    n_retry -= 1;
+                    if n_retry > 0 {
+                        continue;
+                    }
+
+                }
+            }
+
+            return Err(rpc_err);
+        }
     }
+
+    async fn change_membership_rpc(
+        &self,
+        req: &ChangeMembershipRequest,
+    ) -> RpcResult<OClientWriteResponse, OClientWriteError> {
+        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+
+        let mut client = RaftNodeClient::connect(endpoint)
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        let resp = client
+            .change_membership(req.clone())
+            .await
+            .map(|resp| bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize"))
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        Ok(resp)
+    }
+
+
 
     /// Change membership to the specified set of nodes.
     ///
@@ -94,9 +182,48 @@ impl ConsensusClient {
     pub async fn change_membership(
         &self,
         req: &BTreeSet<NodeId>,
-    ) -> RpcResult<ClientWriteResponse, ClientWriteError> {
-        self.send_rpc_to_leader("cluster/change-membership", Some(req))
-            .await
+    ) -> RpcResult<OClientWriteResponse, OClientWriteError> {
+        let mut n_retry = 3;
+
+        let req = ChangeMembershipRequest {
+            payload: bincode::serialize(req).expect("failed to serialize"),
+        };
+
+        loop {
+            let res = self.change_membership_rpc(&req).await;
+
+            let rpc_err = match res {
+                Ok(res) => return Ok(res),
+                Err(rpc_err) => rpc_err,
+            };
+
+            if let RPCError::RemoteError(remote_err) = &rpc_err {
+                let forward_err_res = 
+                    <ClientWriteError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+
+                if let Ok(ForwardToLeader {
+                    leader_id: Some(leader_id),
+                    leader_node: Some(leader_node),
+                }) = forward_err_res {
+                    // Update target to the "new" leader
+                    {
+                        let mut t = self.leader.lock().await;
+                        let url = leader_node.address.clone();
+                        let endpoint = Endpoint::from_shared(url)
+                            .expect("failed to create endpoint");
+                        *t = (leader_id, endpoint);
+                    }
+
+                    n_retry -= 1;
+                    if n_retry > 0 {
+                        continue;
+                    }
+
+                }
+            }
+
+            return Err(rpc_err);
+        }
     }
 
     /// Get the metrics about the cluster.
@@ -105,111 +232,15 @@ impl ConsensusClient {
     /// membership config, replication status etc.
     /// See [`RaftMetrics`].
     pub async fn metrics(&self) -> RpcResult<RaftMetrics, Infallible> {
-        self.do_send_rpc_to_leader("cluster/metrics", None::<&()>)
-            .await
-    }
+        let (_leader_id, endpoint) = self.leader.lock().await.clone();
 
-    // --- Internal methods
-
-    /// Send RPC to specified node.
-    ///
-    /// It sends out a POST request if `req` is Some. Otherwise a GET request.
-    /// The remote endpoint must respond a reply in form of `Result<T, E>`.
-    /// An `Err` happened on remote will be wrapped in an [`RPCError::RemoteError`].
-    async fn do_send_rpc_to_leader<Req, Resp, Err>(
-        &self,
-        uri: &str,
-        req: Option<&Req>,
-    ) -> RpcResult<Resp, Err>
-    where
-        Req: Serialize + 'static,
-        Resp: Serialize + DeserializeOwned,
-        Err: std::error::Error + Serialize + DeserializeOwned,
-    {
-        let (leader_id, url) = {
-            let t = self.leader.lock().await;
-            let target_addr = &t.1;
-            (t.0, format!("http://{}/{}", target_addr, uri))
-        };
-
-        let resp = if let Some(r) = req {
-            trace!(
-                ">>> client send request to {}: {}",
-                url,
-                serde_json::to_string_pretty(&r).unwrap()
-            );
-            self.inner.post(url.clone()).json(r)
-        } else {
-            trace!(">>> client send request to {}", url,);
-            self.inner.get(url.clone())
-        }
-        .send()
-        .await
-        .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-
-        let res: Result<Resp, Err> = resp
-            .json()
+        let mut client = RaftNodeClient::connect(endpoint)
             .await
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-        trace!(
-            "<<< client recv reply from {}: {}",
-            url,
-            serde_json::to_string_pretty(&res).unwrap()
-        );
 
-        res.map_err(|e| RpcError::RemoteError(RemoteError::new(leader_id, e)))
-    }
-
-    /// Try the best to send a request to the leader.
-    ///
-    /// If the target node is not a leader, a `ForwardToLeader` error will be
-    /// returned and this client will retry at most 3 times to contact the updated leader.
-    async fn send_rpc_to_leader<Req, Resp, Err>(
-        &self,
-        uri: &str,
-        req: Option<&Req>,
-    ) -> RpcResult<Resp, Err>
-    where
-        Req: Serialize + 'static,
-        Resp: Serialize + DeserializeOwned,
-        Err: std::error::Error + Serialize + DeserializeOwned + TryInto<ForwardToLeader> + Clone,
-    {
-        // Retry at most 3 times to find a valid leader.
-        let mut n_retry = 3;
-
-        loop {
-            let res: RpcResult<Resp, Err> = self.do_send_rpc_to_leader(uri, req).await;
-
-            let rpc_err = match res {
-                Ok(x) => return Ok(x),
-                Err(rpc_err) => rpc_err,
-            };
-
-            if let RpcError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res =
-                    <Err as TryInto<ForwardToLeader>>::try_into(remote_err.source.clone());
-
-                if let Ok(ForwardToLeader {
-                    leader_id: Some(leader_id),
-                    leader_node: Some(leader_node),
-                    ..
-                }) = forward_err_res
-                {
-                    // Update target to the new leader.
-                    {
-                        let mut t = self.leader.lock().await;
-                        let api_addr = leader_node.api_addr.clone();
-                        *t = (leader_id, api_addr.parse::<SocketAddr>().unwrap());
-                    }
-
-                    n_retry -= 1;
-                    if n_retry > 0 {
-                        continue;
-                    }
-                }
-            }
-
-            return Err(rpc_err);
+        match client.metrics(()).await {
+            Ok(resp) => Ok(resp.into_inner().try_into().unwrap()),
+            Err(e) => Err(RpcError::Network(NetworkError::new(&e))),
         }
     }
 }

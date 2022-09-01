@@ -1,21 +1,22 @@
 use std::{net::SocketAddr, path::Path, sync::Arc};
-use tokio::{net::TcpListener, task};
+use tonic::transport::Server;
 
-use super::{client::rpc::Raft as RaftRpc, network::ConsensusNetwork, store::ConsensusStore};
+use super::{network::ConsensusNetwork, store::ConsensusStore};
 use crate::repr::{NodeId, Raft};
+use crate::rpc::{RaftRpcHandler, ManagementRpcHandler};
+use crate::rpc::pb::raft_network_server::RaftNetworkServer;
+use crate::rpc::pb::raft_node_server::RaftNodeServer;
 
 pub mod app;
-mod management;
 
 use app::ApplicationState;
 
-pub type HttpServer = tide::Server<Arc<ApplicationState>>;
 pub async fn start_raft_node<P>(
     node_id: NodeId,
     dir: P,
-    rpc_addr: SocketAddr,
-    http_addr: SocketAddr,
-) -> std::io::Result<()>
+    address: String,
+    socket_addr: SocketAddr,
+) -> Result<(), Box<dyn std::error::Error>>
 where
     P: AsRef<Path>,
 {
@@ -35,30 +36,17 @@ where
     let app = Arc::new(ApplicationState {
         id: node_id,
         raft,
-        api_addr: http_addr.to_string(),
-        rpc_addr: rpc_addr.to_string(),
+        address,
     });
 
-    let service = Arc::new(RaftRpc::new(app.clone()));
+    let raft_service = RaftNetworkServer::new(RaftRpcHandler::new(app.clone()));
+    let node_handler = RaftNodeServer::new(ManagementRpcHandler::new(app.clone()));
 
-    let server = toy_rpc::Server::builder().register(service).build();
+    Server::builder()
+        .add_service(raft_service)
+        .add_service(node_handler)
+        .serve(socket_addr)
+        .await?;
 
-    // Initialize RPC server
-    let listener = TcpListener::bind(rpc_addr).await.unwrap();
-    let rpc_handler = task::spawn(async move {
-        server.accept(listener).await.unwrap();
-    });
-
-    // Initialize HTTP server
-    let mut app: HttpServer = tide::Server::with_state(app);
-
-    management::rest(&mut app);
-    let http_handler = task::spawn(async move {
-        app.listen(http_addr).await.unwrap();
-    });
-    // Run both tasks
-    let (rpc_res, http_res) = futures::join!(rpc_handler, http_handler);
-    rpc_res.unwrap();
-    http_res.unwrap();
     Ok(())
 }

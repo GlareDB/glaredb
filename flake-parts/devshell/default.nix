@@ -16,13 +16,19 @@
       bacon
       cargo-udeps
       cocogitto
+      protobuf
+      gdb
+      miniserve
     ];
 
     otherNativeBuildInputs = with pkgs; [pkgconfig openssl openssl.dev llvmPackages.bintools];
     otherBuildInputs = with pkgs; [
       clang
     ];
+
     LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+    PROTOC = "${pkgs.protobuf}/bin/protoc";
+    PROTOC_INCLUDE = "${pkgs.protobuf}/include";
   in rec {
     devShells = {
       default = devShells.nightly;
@@ -39,6 +45,7 @@
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
         inherit (self.checks.${system}.pre-commit) shellHook;
+        inherit PROTOC PROTOC_INCLUDE;
       };
       postgres = with pkgs;
         mkShell rec {

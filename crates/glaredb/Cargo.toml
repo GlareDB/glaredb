@@ -10,6 +10,7 @@ path = "src/bin/main.rs"
 [dependencies]
 logutil = {path = "../logutil"}
 lemur = {path = "../lemur"}
+raft = {path = "../raft"}
 storageengine = {path = "../storageengine"}
 sqlengine = {path = "../sqlengine"}
 pgsrv = {path = "../pgsrv"}

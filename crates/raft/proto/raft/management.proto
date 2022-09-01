@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package glaredb.raft.management;
+
+// raft node management
+service RaftNode {
+    rpc Init(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc AddLearner(AddLearnerRequest) returns (AddLearnerResponse) {}
+    rpc ChangeMembership(ChangeMembershipRequest) returns (ChangeMembershipResponse) {}
+    rpc Metrics(google.protobuf.Empty) returns (MetricsResponse) {}
+}
+
+message AddLearnerRequest {
+    uint64 node_id = 1;
+    string address = 2;
+}
+
+/*
+message AddLearnerRequest {
+    bytes payload = 1;
+}
+
+message AddLearnerResponseSuccess {
+    bytes payload = 1;
+}
+
+message ForwardToLeader {
+    uint64 leader_id = 1;
+    string leader_address = 2;
+}
+
+message AddLearnerResponse {
+    oneof response {
+        AddLearnerResponseSuccess success = 1;
+        ForwardToLeader forward = 2;
+    }
+}
+*/
+
+message AddLearnerResponse {
+    bytes payload = 1;
+}
+
+message InitResponse {
+    bytes payload = 1;
+}
+
+message ClientWriteResponse {
+    bytes payload = 1;
+}
+
+message ChangeMembershipRequest {
+    bytes payload = 1;
+}
+
+message ChangeMembershipResponse {
+    bytes payload = 1;
+}
+
+message MetricsRequest {
+    bytes payload = 1;
+}
+
+message MetricsResponse {
+    bytes payload = 1;
+}

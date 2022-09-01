@@ -2,6 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use glaredb::server::{Server, ServerConfig};
 use lemur::execute::stream::source::{DataSource, MemoryDataSource};
+use raft::server::start_raft_node;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use storageengine::rocks::{RocksStore, StorageConfig};
 use tokio::net::TcpListener;
@@ -45,6 +47,20 @@ enum Commands {
         #[clap(value_parser)]
         addr: String,
     },
+
+    /// Starts the sql server portion of GlareDB, using a cluster of raft nodes.
+    Cluster {
+        /// TCP address to bind to.
+        #[clap(long, value_parser, default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 22001))]
+        address: SocketAddr,
+
+        /// Directory for storing data.
+        data_path: String,
+
+        /// leader node address.
+        #[clap(long, value_parser)]
+        leader: Option<String>,
+    },
 }
 
 #[derive(ValueEnum, Clone)]
@@ -77,6 +93,24 @@ fn main() -> Result<()> {
                 }
             },
         },
+        Commands::Cluster {
+            data_path,
+            leader: _,
+            address,
+        } => {
+            // let storage_conf = StorageConfig { data_dir: data_path };
+            // let source = RocksStore::open(storage_conf)?;
+            let rt = tokio::runtime::Runtime::new()?;
+
+            rt.block_on(async {
+                start_raft_node(
+                    0,
+                    data_path,
+                    format!("http://{}", address),
+                    address,
+                ).await.expect("raft node");
+            });
+        }
         Commands::Client { .. } => {
             // TODO: Eventually there will be some "management" client. E.g.
             // adding nodes to the cluster, graceful shutdowns, etc.

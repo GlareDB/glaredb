@@ -5,8 +5,6 @@ use crate::repr::{Node, NodeId};
 #[derive(thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    ToyRpcError(#[from] toy_rpc::Error),
-    #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
