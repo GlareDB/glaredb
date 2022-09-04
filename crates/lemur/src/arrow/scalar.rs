@@ -91,6 +91,111 @@ impl ScalarOwned {
         }
     }
 
+    pub fn unwrap_bool(self) -> Result<Option<bool>, Self> {
+        match self {
+            ScalarOwned::Bool(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_int8(self) -> Result<Option<i8>, Self> {
+        match self {
+            ScalarOwned::Int8(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_int16(self) -> Result<Option<i16>, Self> {
+        match self {
+            ScalarOwned::Int16(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_int32(self) -> Result<Option<i32>, Self> {
+        match self {
+            ScalarOwned::Int32(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_int64(self) -> Result<Option<i64>, Self> {
+        match self {
+            ScalarOwned::Int64(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_uint8(self) -> Result<Option<u8>, Self> {
+        match self {
+            ScalarOwned::Uint8(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_uint16(self) -> Result<Option<u16>, Self> {
+        match self {
+            ScalarOwned::Uint16(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_uint32(self) -> Result<Option<u32>, Self> {
+        match self {
+            ScalarOwned::Uint32(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_uint64(self) -> Result<Option<u64>, Self> {
+        match self {
+            ScalarOwned::Uint64(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_float32(self) -> Result<Option<f32>, Self> {
+        match self {
+            ScalarOwned::Float32(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_float64(self) -> Result<Option<f64>, Self> {
+        match self {
+            ScalarOwned::Float64(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_binary(self) -> Result<Option<Vec<u8>>, Self> {
+        match self {
+            ScalarOwned::Binary(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_utf8(self) -> Result<Option<String>, Self> {
+        match self {
+            ScalarOwned::Utf8(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_date32(self) -> Result<Option<u32>, Self> {
+        match self {
+            ScalarOwned::Date32(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
+    pub fn unwrap_date64(self) -> Result<Option<u64>, Self> {
+        match self {
+            ScalarOwned::Date64(v) => Ok(v),
+            other => Err(other),
+        }
+    }
+
     pub fn cast(&self, _dt: DataType) -> Result<Self> {
         todo!()
     }

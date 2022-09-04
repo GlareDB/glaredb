@@ -36,5 +36,9 @@
 #![allow(dead_code)]
 pub mod arrow;
 pub mod errors;
+
+// #[deprecated]
 pub mod execute;
+
+// #[deprecated]
 pub mod repr;

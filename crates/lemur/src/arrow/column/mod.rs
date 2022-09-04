@@ -1,7 +1,10 @@
 use crate::arrow::datatype::{DataType, GetArrowDataType};
 use crate::arrow::scalar::ScalarOwned;
 use crate::errors::{internal, LemurError, Result};
-use arrow2::array::{Array, BooleanArray, PrimitiveArray};
+use arrow2::array::{
+    Array, BinaryArray, BooleanArray, MutableBinaryArray, MutableBooleanArray,
+    MutablePrimitiveArray, MutableUtf8Array, NullArray, PrimitiveArray, Utf8Array,
+};
 use arrow2::compute::filter::filter;
 use arrow2::compute::{
     arithmetics::basic::{add, add_scalar},
@@ -21,7 +24,7 @@ pub mod compute;
 ///
 /// Useful to have this as a concrete type since it's used as a mask.
 #[derive(Debug, Clone, Copy)]
-pub struct BoolColumn<'a>(&'a BooleanArray);
+pub struct BoolColumn<'a>(pub(crate) &'a BooleanArray);
 
 impl<'a> BoolColumn<'a> {
     pub fn len(&self) -> usize {
@@ -33,6 +36,187 @@ impl<'a> BoolColumn<'a> {
 pub struct Column(pub(crate) Arc<dyn Array + 'static>);
 
 impl Column {
+    pub fn empty() -> Column {
+        NullArray::new(ArrowDataType::Null, 0).arced().into()
+    }
+
+    /// Create a column from vector of scalars.
+    ///
+    /// Errors if the any of the scalars do not match the provided data type.
+    pub fn try_from_scalars(datatype: DataType, scalars: Vec<ScalarOwned>) -> Result<Self> {
+        // Beautiful.
+        Ok(match datatype {
+            DataType::Null => NullArray::new_null(ArrowDataType::Null, scalars.len())
+                .arced()
+                .into(),
+            DataType::Bool => {
+                let mut arr = MutableBooleanArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_bool()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Int8 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_int8()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Int16 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_int16()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Int32 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_int32()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Int64 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_int64()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Uint8 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_uint8()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Uint16 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_uint16()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Uint32 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_uint32()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Uint64 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_uint64()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Float32 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_float32()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Float64 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_float64()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Binary => {
+                let mut arr = MutableBinaryArray::<i32>::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_binary()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Utf8 => {
+                let mut arr = MutableUtf8Array::<i32>::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_utf8()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Date32 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_date32()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+            DataType::Date64 => {
+                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
+                for scalar in scalars {
+                    arr.push(
+                        scalar
+                            .unwrap_date64()
+                            .map_err(|_| internal!("invalid scalar type"))?,
+                    )
+                }
+                arr.into_arc().into()
+            }
+        })
+    }
+
     pub fn len(&self) -> usize {
         self.0.len()
     }

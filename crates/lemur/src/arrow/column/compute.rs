@@ -2,9 +2,8 @@
 use super::Column;
 use crate::arrow::datatype::GetArrowDataType;
 use crate::arrow::scalar::ScalarOwned;
-use crate::errors::{internal, LemurError, Result};
+use crate::errors::{internal, Result};
 use arrow2::array::{Array, BooleanArray, PrimitiveArray};
-use arrow2::bitmap::{Bitmap, MutableBitmap};
 use arrow2::compute::arithmetics::basic;
 use arrow2::compute::comparison;
 use arrow2::datatypes::DataType as ArrowDataType;
@@ -236,26 +235,95 @@ macro_rules! dispatch_comparison_op {
     }};
 }
 
+macro_rules! dispatch_comparison_scalar_op {
+    ($left:expr, $right:expr, $op:path) => {{
+        let result: Result<Column> = match ($left.get_arrow_data_type(), $right) {
+            (ArrowDataType::Int8, ScalarOwned::Int8(right)) => Ok(
+                compute_primitive_comparison_scalar::<i8, _>($left, right, $op),
+            ),
+            (ArrowDataType::Int16, ScalarOwned::Int16(right)) => Ok(
+                compute_primitive_comparison_scalar::<i16, _>($left, right, $op),
+            ),
+            (ArrowDataType::Int32, ScalarOwned::Int32(right)) => Ok(
+                compute_primitive_comparison_scalar::<i32, _>($left, right, $op),
+            ),
+            (ArrowDataType::Int64, ScalarOwned::Int64(right)) => Ok(
+                compute_primitive_comparison_scalar::<i64, _>($left, right, $op),
+            ),
+            (ArrowDataType::UInt8, ScalarOwned::Uint8(right)) => Ok(
+                compute_primitive_comparison_scalar::<u8, _>($left, right, $op),
+            ),
+            (ArrowDataType::UInt16, ScalarOwned::Uint16(right)) => Ok(
+                compute_primitive_comparison_scalar::<u16, _>($left, right, $op),
+            ),
+            (ArrowDataType::UInt32, ScalarOwned::Uint32(right)) => Ok(
+                compute_primitive_comparison_scalar::<u32, _>($left, right, $op),
+            ),
+            (ArrowDataType::UInt64, ScalarOwned::Uint64(right)) => Ok(
+                compute_primitive_comparison_scalar::<u64, _>($left, right, $op),
+            ),
+            (ArrowDataType::Float32, ScalarOwned::Float32(right)) => Ok(
+                compute_primitive_comparison_scalar::<f32, _>($left, right, $op),
+            ),
+            (ArrowDataType::Float64, ScalarOwned::Float64(right)) => Ok(
+                compute_primitive_comparison_scalar::<f64, _>($left, right, $op),
+            ),
+
+            (left, right) => Err(internal!(
+                "cannot compute '{}' for data types {:?} and {:?}",
+                stringify!($op),
+                left,
+                right
+            )),
+        };
+        result
+    }};
+}
+
 pub fn eq(left: &Column, right: &Column) -> Result<Column> {
     dispatch_comparison_op!(left, right, comparison::primitive::eq_and_validity)
+}
+
+pub fn eq_scalar(left: &Column, right: &ScalarOwned) -> Result<Column> {
+    dispatch_comparison_scalar_op!(left, right, comparison::primitive::eq_scalar_and_validity)
 }
 
 pub fn neq(left: &Column, right: &Column) -> Result<Column> {
     dispatch_comparison_op!(left, right, comparison::primitive::neq_and_validity)
 }
 
+pub fn neq_scalar(left: &Column, right: &ScalarOwned) -> Result<Column> {
+    dispatch_comparison_scalar_op!(left, right, comparison::primitive::neq_scalar_and_validity)
+}
+
 pub fn gt(left: &Column, right: &Column) -> Result<Column> {
     dispatch_comparison_op!(left, right, comparison::primitive::gt)
+}
+
+pub fn gt_scalar(left: &Column, right: &ScalarOwned) -> Result<Column> {
+    dispatch_comparison_scalar_op!(left, right, comparison::primitive::gt_scalar)
 }
 
 pub fn lt(left: &Column, right: &Column) -> Result<Column> {
     dispatch_comparison_op!(left, right, comparison::primitive::lt)
 }
 
+pub fn lt_scalar(left: &Column, right: &ScalarOwned) -> Result<Column> {
+    dispatch_comparison_scalar_op!(left, right, comparison::primitive::lt_scalar)
+}
+
 pub fn gt_eq(left: &Column, right: &Column) -> Result<Column> {
     dispatch_comparison_op!(left, right, comparison::primitive::gt_eq)
 }
 
+pub fn gt_eq_scalar(left: &Column, right: &ScalarOwned) -> Result<Column> {
+    dispatch_comparison_scalar_op!(left, right, comparison::primitive::gt_eq_scalar)
+}
+
 pub fn lt_eq(left: &Column, right: &Column) -> Result<Column> {
     dispatch_comparison_op!(left, right, comparison::primitive::lt_eq)
+}
+
+pub fn lt_eq_scalar(left: &Column, right: &ScalarOwned) -> Result<Column> {
+    dispatch_comparison_scalar_op!(left, right, comparison::primitive::lt_eq_scalar)
 }

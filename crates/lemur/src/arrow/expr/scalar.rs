@@ -58,6 +58,30 @@ impl ScalarExpr {
             ScalarExpr::Binary { op, left, right } => op.evaluate(left, right, chunk)?,
         })
     }
+
+    pub fn is_constant(&self) -> bool {
+        match self {
+            ScalarExpr::Column(_) => false,
+            ScalarExpr::Constant(_) => true,
+            ScalarExpr::Unary { input, .. } => input.is_constant(),
+            ScalarExpr::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
+        }
+    }
+
+    /// Try to evaluate the expression as a constant expression.
+    ///
+    /// Note that this will always return a scalar.
+    pub fn try_evaluate_constant(&self) -> Result<ScalarOwned> {
+        if !self.is_constant() {
+            return Err(internal!("expression not constant: {:?}", self));
+        }
+
+        let empty = Chunk::empty();
+        match self.evaluate(&empty)? {
+            ScalarExprResult::Column(_) => Err(internal!("expression evaluation returned column")),
+            ScalarExprResult::Scalar(v) => Ok(v),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,6 +187,12 @@ impl BinaryOperation {
         }
 
         match self {
+            BinaryOperation::Eq => compute::eq_scalar(left, right),
+            BinaryOperation::Neq => compute::neq_scalar(left, right),
+            BinaryOperation::LtEq => compute::lt_eq_scalar(left, right),
+            BinaryOperation::GtEq => compute::gt_eq_scalar(left, right),
+            BinaryOperation::Gt => compute::gt_scalar(left, right),
+            BinaryOperation::Lt => compute::lt_scalar(left, right),
             BinaryOperation::Add => compute::add_scalar(left, right),
             BinaryOperation::Sub => compute::sub_scalar(left, right),
             BinaryOperation::Mul => compute::mul_scalar(left, right),

@@ -1,9 +1,17 @@
 use crate::arrow::column::{BoolColumn, Column};
 use crate::arrow::datatype::DataType;
-use crate::errors::{LemurError, Result};
+use crate::arrow::row::Row;
+use crate::errors::{internal, LemurError, Result};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema(pub Vec<DataType>);
+
+impl TypeSchema {
+    pub fn num_columns(&self) -> usize {
+        self.0.len()
+    }
+}
 
 impl From<Vec<DataType>> for TypeSchema {
     fn from(types: Vec<DataType>) -> Self {
@@ -11,7 +19,7 @@ impl From<Vec<DataType>> for TypeSchema {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
     schema: TypeSchema,
     columns: Vec<Column>,
@@ -23,6 +31,40 @@ impl Chunk {
             schema: TypeSchema::default(),
             columns: Vec::new(),
         }
+    }
+
+    pub fn empty_with_schema(schema: TypeSchema) -> Chunk {
+        let mut columns = Vec::with_capacity(schema.num_columns());
+        for _i in 0..columns.len() {
+            columns.push(Column::empty());
+        }
+        Chunk { schema, columns }
+    }
+
+    pub fn from_rows(rows: impl IntoIterator<Item = Row>) -> Result<Chunk> {
+        let mut rows: Vec<_> = rows.into_iter().collect();
+        let first = match rows.first() {
+            Some(first) => first,
+            None => return Ok(Self::empty()),
+        };
+
+        let schema = first.type_schema();
+        let mut columns = Vec::with_capacity(schema.num_columns());
+
+        // TODO: Kinda inefficient.
+        for datatype in schema.0.iter() {
+            let mut scalars = Vec::with_capacity(rows.len());
+            // Note that we're starting from the last column, so we'll need to
+            // reverse everything at the end.
+            for row in rows.iter_mut() {
+                scalars.push(row.pop_last().ok_or(internal!("missing column for row"))?);
+            }
+            let column = Column::try_from_scalars(*datatype, scalars)?;
+            columns.push(column);
+        }
+        columns.reverse();
+
+        Ok(Chunk { schema, columns })
     }
 
     pub fn type_schema(&self) -> &TypeSchema {
