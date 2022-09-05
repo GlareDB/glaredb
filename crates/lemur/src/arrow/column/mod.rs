@@ -7,10 +7,8 @@ use arrow2::array::{
 };
 use arrow2::compute::filter::filter;
 use arrow2::compute::{
-    arithmetics::basic::{add, add_scalar},
     boolean::{is_not_null, is_null, not},
     cast::{cast, CastOptions},
-    comparison::{can_eq, eq_and_validity, eq_scalar_and_validity},
     concatenate::concatenate,
 };
 use arrow2::datatypes::DataType as ArrowDataType;
@@ -32,6 +30,19 @@ impl<'a> BoolColumn<'a> {
     }
 }
 
+macro_rules! push_scalars {
+    ($arr:expr, $scalars:expr, $unwrap:ident) => {{
+        let mut arr = $arr;
+        for scalar in $scalars {
+            let unwrapped = scalar
+                .$unwrap()
+                .map_err(|_| internal!("invalid scalar type"))?;
+            arr.push(unwrapped);
+        }
+        arr.into_arc().into()
+    }};
+}
+
 #[derive(Debug, Clone)]
 pub struct Column(pub(crate) Arc<dyn Array + 'static>);
 
@@ -43,176 +54,121 @@ impl Column {
     /// Create a column from vector of scalars.
     ///
     /// Errors if the any of the scalars do not match the provided data type.
-    pub fn try_from_scalars(datatype: DataType, scalars: Vec<ScalarOwned>) -> Result<Self> {
+    pub fn try_from_scalars(
+        datatype: DataType,
+        scalars: impl IntoIterator<Item = ScalarOwned>,
+    ) -> Result<Self> {
+        let scalars = scalars.into_iter();
+        let (lower, _) = scalars.size_hint();
         // Beautiful.
         Ok(match datatype {
-            DataType::Null => NullArray::new_null(ArrowDataType::Null, scalars.len())
+            DataType::Null => NullArray::new_null(ArrowDataType::Null, lower)
                 .arced()
                 .into(),
             DataType::Bool => {
-                let mut arr = MutableBooleanArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_bool()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutableBooleanArray::with_capacity(lower),
+                    scalars,
+                    unwrap_bool
+                )
             }
             DataType::Int8 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_int8()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<i8>::with_capacity(lower),
+                    scalars,
+                    unwrap_int8
+                )
             }
             DataType::Int16 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_int16()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<i16>::with_capacity(lower),
+                    scalars,
+                    unwrap_int16
+                )
             }
             DataType::Int32 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_int32()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<i32>::with_capacity(lower),
+                    scalars,
+                    unwrap_int32
+                )
             }
             DataType::Int64 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_int64()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<i64>::with_capacity(lower),
+                    scalars,
+                    unwrap_int64
+                )
             }
             DataType::Uint8 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_uint8()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<u8>::with_capacity(lower),
+                    scalars,
+                    unwrap_uint8
+                )
             }
             DataType::Uint16 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_uint16()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<u16>::with_capacity(lower),
+                    scalars,
+                    unwrap_uint16
+                )
             }
             DataType::Uint32 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_uint32()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<u32>::with_capacity(lower),
+                    scalars,
+                    unwrap_uint32
+                )
             }
             DataType::Uint64 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_uint64()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<u64>::with_capacity(lower),
+                    scalars,
+                    unwrap_uint64
+                )
             }
             DataType::Float32 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_float32()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<f32>::with_capacity(lower),
+                    scalars,
+                    unwrap_float32
+                )
             }
             DataType::Float64 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_float64()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<f64>::with_capacity(lower),
+                    scalars,
+                    unwrap_float64
+                )
             }
             DataType::Binary => {
-                let mut arr = MutableBinaryArray::<i32>::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_binary()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutableBinaryArray::<i32>::with_capacity(lower),
+                    scalars,
+                    unwrap_binary
+                )
             }
             DataType::Utf8 => {
-                let mut arr = MutableUtf8Array::<i32>::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_utf8()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutableUtf8Array::<i32>::with_capacity(lower),
+                    scalars,
+                    unwrap_utf8
+                )
             }
             DataType::Date32 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_date32()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<i32>::with_capacity(lower),
+                    scalars,
+                    unwrap_date32
+                )
             }
             DataType::Date64 => {
-                let mut arr = MutablePrimitiveArray::with_capacity(scalars.len());
-                for scalar in scalars {
-                    arr.push(
-                        scalar
-                            .unwrap_date64()
-                            .map_err(|_| internal!("invalid scalar type"))?,
-                    )
-                }
-                arr.into_arc().into()
+                push_scalars!(
+                    MutablePrimitiveArray::<i64>::with_capacity(lower),
+                    scalars,
+                    unwrap_date64
+                )
             }
         })
     }
@@ -234,6 +190,15 @@ impl Column {
     pub fn get_datatype(&self) -> Result<DataType> {
         let arrow = self.0.data_type();
         arrow.try_into()
+    }
+
+    /// Get an owned scalar at some index.
+    pub fn get_owned_scalar(&self, idx: usize) -> Option<ScalarOwned> {
+        if idx >= self.len() {
+            return None;
+        }
+        let arrow_scalar = arrow2::scalar::new_scalar(self.0.as_ref(), idx);
+        Some(arrow_scalar.try_into().unwrap())
     }
 
     pub fn filter(&self, mask: BoolColumn<'_>) -> Result<Self> {

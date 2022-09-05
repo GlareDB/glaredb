@@ -4,11 +4,27 @@ use crate::arrow::datatype::{DataType, GetArrowDataType};
 use crate::arrow::scalar::ScalarOwned;
 use crate::errors::{internal, LemurError, Result};
 use serde::{Deserialize, Serialize};
+use tracing::trace;
 
 #[derive(Debug)]
 pub enum ScalarExprResult {
     Column(Column),
     Scalar(ScalarOwned),
+}
+
+impl ScalarExprResult {
+    /// Convert self into column.
+    ///
+    /// If self is a scalar, a Column of size `size` will be produced, otherwise
+    /// the column is returned as is with no modifications.
+    pub fn try_into_column(self, size: usize) -> Result<Column> {
+        match self {
+            ScalarExprResult::Column(col) => Ok(col),
+            ScalarExprResult::Scalar(scalar) => {
+                Column::try_from_scalars(scalar.data_type(), std::iter::repeat(scalar).take(size))
+            }
+        }
+    }
 }
 
 impl From<Column> for ScalarExprResult {

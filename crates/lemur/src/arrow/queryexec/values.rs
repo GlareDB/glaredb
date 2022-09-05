@@ -3,28 +3,58 @@ use crate::arrow::row::Row;
 use crate::errors::{LemurError, Result};
 use futures::stream::{self, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use tracing::trace;
 
-use super::{ChunkStream, MemoryStream, PinnedChunkStream, QueryExecutor};
+use super::{MemoryStream, PinnedChunkStream, QueryExecutor};
 
 const DEFAULT_VALUES_CHUNK_SIZE: usize = 256;
 
 #[derive(Debug, Clone)]
-pub struct Values {
+pub struct ChunkValues {
+    chunks: Vec<Chunk>,
+}
+
+impl ChunkValues {
+    pub fn from_chunk(chunk: Chunk) -> ChunkValues {
+        ChunkValues {
+            chunks: vec![chunk],
+        }
+    }
+
+    pub fn from_chunks(chunks: Vec<Chunk>) -> ChunkValues {
+        ChunkValues { chunks }
+    }
+}
+
+impl QueryExecutor for ChunkValues {
+    fn execute_boxed(self: Box<Self>) -> Result<PinnedChunkStream> {
+        Ok(Box::pin(MemoryStream::new(self.chunks)))
+    }
+}
+
+impl Into<Box<dyn QueryExecutor>> for ChunkValues {
+    fn into(self) -> Box<dyn QueryExecutor> {
+        Box::new(self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RowValues {
     rows: Vec<Row>,
     chunk_size: usize,
 }
 
-impl Values {
-    pub fn new(rows: Vec<Row>) -> Values {
-        Values {
+impl RowValues {
+    pub fn new(rows: Vec<Row>) -> RowValues {
+        RowValues {
             rows,
             chunk_size: DEFAULT_VALUES_CHUNK_SIZE,
         }
     }
 }
 
-impl QueryExecutor for Values {
-    fn execute(self) -> Result<PinnedChunkStream> {
+impl QueryExecutor for RowValues {
+    fn execute_boxed(self: Box<Self>) -> Result<PinnedChunkStream> {
         let row_chunks: Vec<_> = self.rows.chunks(self.chunk_size).collect();
         let chunks = row_chunks
             .into_iter()
@@ -32,5 +62,11 @@ impl QueryExecutor for Values {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Box::pin(MemoryStream::new(chunks)))
+    }
+}
+
+impl Into<Box<dyn QueryExecutor>> for RowValues {
+    fn into(self) -> Box<dyn QueryExecutor> {
+        Box::new(self)
     }
 }

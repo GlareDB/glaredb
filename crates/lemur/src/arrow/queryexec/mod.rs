@@ -1,27 +1,46 @@
+//! Executors for queries from the database.
+
 use crate::arrow::chunk::Chunk;
-use crate::errors::{LemurError, Result};
+use crate::errors::Result;
 use futures::Stream;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
-mod values;
-pub use values::*;
+mod aggregate;
+mod crossjoin;
+mod filter;
+mod hashjoin;
+mod index;
+mod mergejoin;
 mod placeholder;
+mod project;
+mod table;
+mod values;
+
+pub use aggregate::*;
+pub use crossjoin::*;
+pub use filter::*;
+pub use hashjoin::*;
+pub use index::*;
+pub use mergejoin::*;
 pub use placeholder::*;
+pub use project::*;
+pub use table::*;
+pub use values::*;
 
-/// Types that stream dataframes.
-pub trait ChunkStream: Stream<Item = Result<Chunk>> {}
-
-pub type PinnedChunkStream = Pin<Box<dyn ChunkStream + Send>>;
+pub type PinnedChunkStream = Pin<Box<dyn Stream<Item = Result<Chunk>> + Send>>;
 
 pub trait QueryExecutor: Debug + Sync + Send {
-    /// Return an execution stream.
-    fn execute(self) -> Result<PinnedChunkStream>;
+    /// Execute self against a chunk stream.
+    ///
+    /// Note that this takes a boxed self.
+    fn execute_boxed(self: Box<Self>) -> Result<PinnedChunkStream>;
 }
 
+/// Stream an in-memory set of chunks. This will never produce an error on the
+/// stream.
 pub struct MemoryStream {
     chunks: VecDeque<Chunk>,
 }
@@ -37,12 +56,10 @@ impl MemoryStream {
 impl Stream for MemoryStream {
     type Item = Result<Chunk>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.chunks.pop_front() {
             Some(chunk) => Poll::Ready(Some(Ok(chunk))),
             None => Poll::Ready(None),
         }
     }
 }
-
-impl ChunkStream for MemoryStream {}

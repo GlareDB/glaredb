@@ -1,7 +1,9 @@
 use crate::arrow::datatype::{DataType, GetArrowDataType};
-use crate::errors::{LemurError, Result};
+use crate::errors::{internal, LemurError, Result};
 use arrow2::datatypes::DataType as ArrowDataType;
-use arrow2::scalar::Scalar as ArrowScalar;
+use arrow2::scalar::{
+    BinaryScalar, BooleanScalar, PrimitiveScalar, Scalar as ArrowScalar, Utf8Scalar,
+};
 use serde::{Deserialize, Serialize};
 
 /// A scalar value that owns all of it's data.
@@ -22,8 +24,8 @@ pub enum ScalarOwned {
     Float64(Option<f64>),
     Binary(Option<Vec<u8>>),
     Utf8(Option<String>),
-    Date32(Option<u32>),
-    Date64(Option<u64>),
+    Date32(Option<i32>),
+    Date64(Option<i64>),
 }
 
 impl ScalarOwned {
@@ -182,27 +184,140 @@ impl ScalarOwned {
         }
     }
 
-    pub fn unwrap_date32(self) -> Result<Option<u32>, Self> {
+    pub fn unwrap_date32(self) -> Result<Option<i32>, Self> {
         match self {
             ScalarOwned::Date32(v) => Ok(v),
             other => Err(other),
         }
     }
 
-    pub fn unwrap_date64(self) -> Result<Option<u64>, Self> {
+    pub fn unwrap_date64(self) -> Result<Option<i64>, Self> {
         match self {
             ScalarOwned::Date64(v) => Ok(v),
             other => Err(other),
         }
-    }
-
-    pub fn cast(&self, _dt: DataType) -> Result<Self> {
-        todo!()
     }
 }
 
 impl GetArrowDataType for ScalarOwned {
     fn get_arrow_data_type(&self) -> ArrowDataType {
         self.data_type().into()
+    }
+}
+
+impl TryFrom<Box<dyn ArrowScalar>> for ScalarOwned {
+    type Error = LemurError;
+    fn try_from(value: Box<dyn ArrowScalar>) -> Result<Self> {
+        Ok(match value.data_type() {
+            ArrowDataType::Null => ScalarOwned::Null,
+            ArrowDataType::Boolean => ScalarOwned::Bool(
+                value
+                    .as_any()
+                    .downcast_ref::<BooleanScalar>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Int8 => ScalarOwned::Int8(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<i8>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Int16 => ScalarOwned::Int16(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<i16>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Int32 => ScalarOwned::Int32(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<i32>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Int64 => ScalarOwned::Int64(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<i64>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::UInt8 => ScalarOwned::Uint8(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<u8>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::UInt16 => ScalarOwned::Uint16(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<u16>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::UInt32 => ScalarOwned::Uint32(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<u32>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::UInt64 => ScalarOwned::Uint64(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<u64>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Float32 => ScalarOwned::Float32(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<f32>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Float64 => ScalarOwned::Float64(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<f64>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Binary => ScalarOwned::Binary(
+                value
+                    .as_any()
+                    .downcast_ref::<BinaryScalar<i32>>()
+                    .unwrap()
+                    .value()
+                    .map(|s| s.to_vec()),
+            ),
+            ArrowDataType::Utf8 => ScalarOwned::Utf8(
+                value
+                    .as_any()
+                    .downcast_ref::<Utf8Scalar<i32>>()
+                    .unwrap()
+                    .value()
+                    .map(|s| s.to_string()),
+            ),
+            ArrowDataType::Date32 => ScalarOwned::Date32(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<i32>>()
+                    .unwrap()
+                    .value(),
+            ),
+            ArrowDataType::Date64 => ScalarOwned::Int64(
+                *value
+                    .as_any()
+                    .downcast_ref::<PrimitiveScalar<i64>>()
+                    .unwrap()
+                    .value(),
+            ),
+            other => return Err(internal!("unsupported arrow data type: {:?}", other)),
+        })
     }
 }

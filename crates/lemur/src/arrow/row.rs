@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 // Note this a pretty inefficient way of storing row data. Eventually we'll want
 // to have "packed" and "unpacked" variants.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Row(Vec<ScalarOwned>);
 
 impl Row {

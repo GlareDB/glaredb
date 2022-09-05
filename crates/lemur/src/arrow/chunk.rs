@@ -1,8 +1,10 @@
 use crate::arrow::column::{BoolColumn, Column};
 use crate::arrow::datatype::DataType;
+use crate::arrow::expr::ScalarExpr;
 use crate::arrow::row::Row;
 use crate::errors::{internal, LemurError, Result};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema(pub Vec<DataType>);
@@ -67,6 +69,26 @@ impl Chunk {
         Ok(Chunk { schema, columns })
     }
 
+    pub fn get_row(&self, idx: usize) -> Option<Row> {
+        let scalars = self
+            .columns
+            .iter()
+            .map(|col| col.get_owned_scalar(idx))
+            .collect::<Option<Vec<_>>>()?;
+        Some(scalars.into())
+    }
+
+    /// Iterate over rows.
+    ///
+    /// Note that this makes a relatively large number of allocations. Do not
+    /// use in performance sensitive areas.
+    pub fn row_iter(&self) -> RowIter<'_> {
+        RowIter {
+            chunk: self,
+            idx: 0,
+        }
+    }
+
     pub fn type_schema(&self) -> &TypeSchema {
         &self.schema
     }
@@ -113,6 +135,24 @@ impl Chunk {
             .first()
             .and_then(|col| Some(col.len()))
             .unwrap_or(0)
+    }
+}
+
+pub struct RowIter<'a> {
+    chunk: &'a Chunk,
+    idx: usize,
+}
+
+impl<'a> Iterator for RowIter<'a> {
+    type Item = Row;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.chunk.num_rows() {
+            return None;
+        }
+        let row = self.chunk.get_row(self.idx);
+        self.idx += 1;
+        row
     }
 }
 

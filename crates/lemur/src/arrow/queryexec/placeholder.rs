@@ -4,7 +4,7 @@ use crate::errors::{LemurError, Result};
 use futures::stream::{self, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 
-use super::{ChunkStream, MemoryStream, PinnedChunkStream, QueryExecutor};
+use super::{MemoryStream, PinnedChunkStream, QueryExecutor};
 
 #[derive(Debug, Clone)]
 pub struct Placeholder {
@@ -18,7 +18,7 @@ impl Placeholder {
 }
 
 impl QueryExecutor for Placeholder {
-    fn execute(self) -> Result<PinnedChunkStream> {
+    fn execute_boxed(self: Box<Self>) -> Result<PinnedChunkStream> {
         let chunk = Chunk::empty_with_schema(self.schema);
         Ok(Box::pin(MemoryStream::new([chunk])))
     }
