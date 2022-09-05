@@ -4,8 +4,8 @@ use crate::arrow::datatype::{DataType, GetArrowDataType};
 use crate::arrow::scalar::ScalarOwned;
 use crate::errors::{internal, LemurError, Result};
 use serde::{Deserialize, Serialize};
-use tracing::trace;
 
+/// The result of an expression evaluation.
 #[derive(Debug)]
 pub enum ScalarExprResult {
     Column(Column),
@@ -62,6 +62,7 @@ pub enum ScalarExpr {
 }
 
 impl ScalarExpr {
+    /// Evaluate an expression against a chunk.
     pub fn evaluate(&self, chunk: &Chunk) -> Result<ScalarExprResult> {
         Ok(match self {
             ScalarExpr::Column(idx) => chunk
@@ -222,10 +223,13 @@ impl BinaryOperation {
             return Err(LemurError::TypeMismatch);
         }
 
-        // TODO: Once comparisons with scalars is implemented, need to make sure
-        // that they get flipped.
-
-        self.evaluate_column_scalar(right, left)
+        match self {
+            BinaryOperation::LtEq => compute::gt_scalar(right, left),
+            BinaryOperation::GtEq => compute::lt_scalar(right, left),
+            BinaryOperation::Gt => compute::lt_eq_scalar(right, left),
+            BinaryOperation::Lt => compute::gt_eq_scalar(right, left),
+            _ => self.evaluate_column_scalar(right, left),
+        }
     }
 
     fn evaluate_scalar_scalar(&self, left: &ScalarOwned, right: &ScalarOwned) -> Result<Column> {

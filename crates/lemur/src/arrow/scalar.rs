@@ -7,7 +7,11 @@ use arrow2::scalar::{
 use serde::{Deserialize, Serialize};
 
 /// A scalar value that owns all of it's data.
-// TODO: Custom partial eq/ord
+///
+/// PERF: This always needs to take ownership for the underlying data, resulting
+/// in more allocations than necessary.
+///
+/// TODO: Custome eq/partial eq.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScalarOwned {
     Null,

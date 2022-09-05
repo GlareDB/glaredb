@@ -1,12 +1,9 @@
 use crate::arrow::chunk::Chunk;
 use crate::arrow::expr::ScalarExpr;
-use crate::arrow::row::Row;
-use crate::errors::{LemurError, Result};
-use futures::stream::{self, Stream, StreamExt};
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use crate::errors::Result;
+use futures::stream::StreamExt;
 
-use super::{MemoryStream, PinnedChunkStream, QueryExecutor};
+use super::{PinnedChunkStream, QueryExecutor};
 
 #[derive(Debug)]
 pub struct Project {
@@ -58,6 +55,7 @@ mod tests {
     use super::*;
     use crate::arrow::expr::ScalarExpr;
     use crate::arrow::queryexec::RowValues;
+    use crate::arrow::row::Row;
     use crate::arrow::scalar::ScalarOwned;
     use crate::arrow::testutil;
 

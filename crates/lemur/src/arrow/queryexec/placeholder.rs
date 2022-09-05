@@ -1,8 +1,5 @@
 use crate::arrow::chunk::{Chunk, TypeSchema};
-use crate::arrow::row::Row;
-use crate::errors::{LemurError, Result};
-use futures::stream::{self, Stream, StreamExt};
-use serde::{Deserialize, Serialize};
+use crate::errors::Result;
 
 use super::{MemoryStream, PinnedChunkStream, QueryExecutor};
 

@@ -1,11 +1,13 @@
 use crate::arrow::chunk::TypeSchema;
-use crate::arrow::expr::{ScalarExpr, ScalarExprResult};
+use crate::arrow::expr::ScalarExpr;
 use crate::arrow::scalar::ScalarOwned;
-use crate::errors::{LemurError, Result};
+use crate::errors::Result;
 use serde::{Deserialize, Serialize};
 
-// Note this a pretty inefficient way of storing row data. Eventually we'll want
-// to have "packed" and "unpacked" variants.
+/// A single row of data.
+///
+/// PERF: Note this a pretty inefficient way of storing row data. Eventually
+/// we'll want to have "packed" and "unpacked" variants.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Row(Vec<ScalarOwned>);
 

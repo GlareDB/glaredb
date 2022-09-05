@@ -3,7 +3,7 @@ use super::Column;
 use crate::arrow::datatype::GetArrowDataType;
 use crate::arrow::scalar::ScalarOwned;
 use crate::errors::{internal, Result};
-use arrow2::array::{Array, BooleanArray, PrimitiveArray};
+use arrow2::array::{BooleanArray, PrimitiveArray};
 use arrow2::compute::arithmetics::basic;
 use arrow2::compute::comparison;
 use arrow2::datatypes::DataType as ArrowDataType;

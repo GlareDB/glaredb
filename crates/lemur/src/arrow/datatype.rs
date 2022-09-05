@@ -2,16 +2,17 @@ use crate::errors::{LemurError, Result};
 use arrow2::datatypes::DataType as ArrowDataType;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
-pub struct Schema {
-    pub types: Vec<DataType>,
-}
-
 /// A trait that has a type that's convertible to an arrow data type.
 pub trait GetArrowDataType {
     fn get_arrow_data_type(&self) -> ArrowDataType;
 }
 
+/// Supported datatypes for the database.
+///
+/// These data types are a subset of data types supported by arrow. Logical
+/// mappings between this and the equivalent arrow data type must use the same
+/// underlying physical type. For example, a `Date32` must use i32 as the
+/// primitive, not u32.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DataType {
     Null,

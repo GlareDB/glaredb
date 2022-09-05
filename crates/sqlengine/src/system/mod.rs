@@ -1,13 +1,11 @@
 use lemur::repr::value::ValueType;
 
-use crate::catalog::{Column, TableSchema, TableReference};
+use crate::catalog::{Column, TableReference, TableSchema};
 
 mod constants;
 
 pub fn system_tables() -> Vec<Box<dyn SystemTable>> {
-    vec![
-        Box::new(ColumnsTable),
-    ]
+    vec![Box::new(ColumnsTable)]
 }
 
 pub trait SystemTable {

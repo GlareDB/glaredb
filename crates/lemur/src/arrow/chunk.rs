@@ -1,10 +1,9 @@
-use crate::arrow::column::{BoolColumn, Column};
+use crate::arrow::column::Column;
 use crate::arrow::datatype::DataType;
-use crate::arrow::expr::ScalarExpr;
+
 use crate::arrow::row::Row;
 use crate::errors::{internal, LemurError, Result};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema(pub Vec<DataType>);
@@ -21,6 +20,8 @@ impl From<Vec<DataType>> for TypeSchema {
     }
 }
 
+/// A column orient set of data. Every column in the chunk must be of the same
+/// length.
 #[derive(Debug, Clone)]
 pub struct Chunk {
     schema: TypeSchema,
@@ -28,6 +29,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    /// Create an empty chunk with zero logical columns.
     pub fn empty() -> Chunk {
         Chunk {
             schema: TypeSchema::default(),
@@ -35,6 +37,8 @@ impl Chunk {
         }
     }
 
+    /// Create an empty chunk with some number of columns that match the
+    /// provided schema.
     pub fn empty_with_schema(schema: TypeSchema) -> Chunk {
         let mut columns = Vec::with_capacity(schema.num_columns());
         for _i in 0..columns.len() {
@@ -43,6 +47,9 @@ impl Chunk {
         Chunk { schema, columns }
     }
 
+    /// Create a chunk from the provided row iterator.
+    ///
+    /// Errors if all rows do not have the same schema and/or number of columns.
     pub fn from_rows(rows: impl IntoIterator<Item = Row>) -> Result<Chunk> {
         let mut rows: Vec<_> = rows.into_iter().collect();
         let first = match rows.first() {
@@ -69,6 +76,9 @@ impl Chunk {
         Ok(Chunk { schema, columns })
     }
 
+    /// Get a row at some index.
+    ///
+    /// PERF: Allocates.
     pub fn get_row(&self, idx: usize) -> Option<Row> {
         let scalars = self
             .columns
@@ -80,8 +90,8 @@ impl Chunk {
 
     /// Iterate over rows.
     ///
-    /// Note that this makes a relatively large number of allocations. Do not
-    /// use in performance sensitive areas.
+    /// PERF: This makes a relatively large number of allocations. Do not use in
+    /// performance sensitive areas.
     pub fn row_iter(&self) -> RowIter<'_> {
         RowIter {
             chunk: self,
@@ -93,10 +103,14 @@ impl Chunk {
         &self.schema
     }
 
+    /// Get a column at some index.
     pub fn get_column(&self, idx: usize) -> Option<&Column> {
         self.columns.get(idx)
     }
 
+    /// Horizontally stack two chunks.
+    ///
+    /// Errors if both chunks do not have the same number of rows.
     pub fn hstack(&self, other: &Self) -> Result<Chunk> {
         if self.num_rows() != other.num_rows() {
             return Err(LemurError::StaggeredLengths);
@@ -111,6 +125,9 @@ impl Chunk {
         Ok(columns.try_into()?)
     }
 
+    /// Vertically stack two chunks.
+    ///
+    /// Errors if the chunks do not have the same type schema.
     pub fn vstack(&self, other: &Self) -> Result<Chunk> {
         if self.type_schema() != other.type_schema() {
             return Err(LemurError::TypeMismatch);

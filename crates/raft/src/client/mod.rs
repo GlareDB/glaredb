@@ -23,7 +23,6 @@ pub struct ConsensusClient {
     pub inner: reqwest::Client,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Empty;
 

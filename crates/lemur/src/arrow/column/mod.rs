@@ -13,7 +13,7 @@ use arrow2::compute::{
 };
 use arrow2::datatypes::DataType as ArrowDataType;
 use arrow2::types::NativeType;
-use serde::{Deserialize, Serialize};
+
 use std::sync::Arc;
 
 pub mod compute;
@@ -279,7 +279,6 @@ impl From<BooleanArray> for Column {
 // compute ops on scalars.
 impl From<ScalarOwned> for Column {
     fn from(scalar: ScalarOwned) -> Self {
-        use arrow2::array::{BinaryArray, NullArray, PrimitiveArray, Utf8Array};
         match scalar {
             ScalarOwned::Null => NullArray::new(ArrowDataType::Null, 1).boxed().into(),
             ScalarOwned::Bool(None) => NullArray::new(ArrowDataType::Boolean, 1).boxed().into(),
