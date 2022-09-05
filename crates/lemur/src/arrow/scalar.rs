@@ -76,25 +76,25 @@ impl ScalarOwned {
     }
 
     pub fn is_null(&self) -> bool {
-        match self {
+        matches!(
+            self,
             ScalarOwned::Null
-            | ScalarOwned::Bool(None)
-            | ScalarOwned::Int8(None)
-            | ScalarOwned::Int16(None)
-            | ScalarOwned::Int32(None)
-            | ScalarOwned::Int64(None)
-            | ScalarOwned::Uint8(None)
-            | ScalarOwned::Uint16(None)
-            | ScalarOwned::Uint32(None)
-            | ScalarOwned::Uint64(None)
-            | ScalarOwned::Float32(None)
-            | ScalarOwned::Float64(None)
-            | ScalarOwned::Binary(None)
-            | ScalarOwned::Utf8(None)
-            | ScalarOwned::Date32(None)
-            | ScalarOwned::Date64(None) => true,
-            _ => false,
-        }
+                | ScalarOwned::Bool(None)
+                | ScalarOwned::Int8(None)
+                | ScalarOwned::Int16(None)
+                | ScalarOwned::Int32(None)
+                | ScalarOwned::Int64(None)
+                | ScalarOwned::Uint8(None)
+                | ScalarOwned::Uint16(None)
+                | ScalarOwned::Uint32(None)
+                | ScalarOwned::Uint64(None)
+                | ScalarOwned::Float32(None)
+                | ScalarOwned::Float64(None)
+                | ScalarOwned::Binary(None)
+                | ScalarOwned::Utf8(None)
+                | ScalarOwned::Date32(None)
+                | ScalarOwned::Date64(None)
+        )
     }
 
     pub fn unwrap_bool(self) -> Result<Option<bool>, Self> {

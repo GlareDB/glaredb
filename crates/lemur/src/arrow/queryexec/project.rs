@@ -25,8 +25,7 @@ impl Project {
                 let size = chunk.num_rows();
                 let cols = exprs
                     .iter()
-                    .map(|expr| expr.evaluate(&chunk).map(|r| r.try_into_column(size)))
-                    .flatten()
+                    .flat_map(|expr| expr.evaluate(&chunk).map(|r| r.try_into_column(size)))
                     .collect::<Result<Vec<_>>>()?;
                 cols.try_into()
             }
@@ -44,9 +43,9 @@ impl QueryExecutor for Project {
     }
 }
 
-impl Into<Box<dyn QueryExecutor>> for Project {
-    fn into(self) -> Box<dyn QueryExecutor> {
-        Box::new(self)
+impl From<Project> for Box<dyn QueryExecutor> {
+    fn from(v: Project) -> Self {
+        Box::new(v)
     }
 }
 

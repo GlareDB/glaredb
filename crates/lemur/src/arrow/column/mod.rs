@@ -28,6 +28,10 @@ impl<'a> BoolColumn<'a> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 macro_rules! push_scalars {
@@ -177,6 +181,10 @@ impl Column {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn try_downcast_bool(&self) -> Option<BoolColumn<'_>> {
         if !matches!(self.0.data_type(), ArrowDataType::Boolean) {
             return None;
@@ -184,7 +192,7 @@ impl Column {
         self.0
             .as_any()
             .downcast_ref::<BooleanArray>()
-            .and_then(|b| Some(BoolColumn(b)))
+            .map(|b| BoolColumn(b))
     }
 
     pub fn get_datatype(&self) -> Result<DataType> {
@@ -202,7 +210,7 @@ impl Column {
     }
 
     pub fn filter(&self, mask: BoolColumn<'_>) -> Result<Self> {
-        let arr = filter(self.0.as_ref(), &mask.0)?;
+        let arr = filter(self.0.as_ref(), mask.0)?;
         Ok(Column(arr.into()))
     }
 

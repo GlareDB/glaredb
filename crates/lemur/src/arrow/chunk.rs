@@ -66,7 +66,10 @@ impl Chunk {
             // Note that we're starting from the last column, so we'll need to
             // reverse everything at the end.
             for row in rows.iter_mut() {
-                scalars.push(row.pop_last().ok_or(internal!("missing column for row"))?);
+                scalars.push(
+                    row.pop_last()
+                        .ok_or_else(|| internal!("missing column for row"))?,
+                );
             }
             let column = Column::try_from_scalars(*datatype, scalars)?;
             columns.push(column);
@@ -122,7 +125,7 @@ impl Chunk {
             .cloned()
             .collect();
 
-        Ok(columns.try_into()?)
+        columns.try_into()
     }
 
     /// Vertically stack two chunks.
@@ -148,10 +151,7 @@ impl Chunk {
     }
 
     pub fn num_rows(&self) -> usize {
-        self.columns
-            .first()
-            .and_then(|col| Some(col.len()))
-            .unwrap_or(0)
+        self.columns.first().map(|col| col.len()).unwrap_or(0)
     }
 }
 

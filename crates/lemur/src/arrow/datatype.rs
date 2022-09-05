@@ -58,9 +58,9 @@ impl TryFrom<&ArrowDataType> for DataType {
     }
 }
 
-impl Into<ArrowDataType> for DataType {
-    fn into(self) -> ArrowDataType {
-        match self {
+impl From<DataType> for ArrowDataType {
+    fn from(dt: DataType) -> Self {
+        match dt {
             DataType::Null => ArrowDataType::Null,
             DataType::Bool => ArrowDataType::Boolean,
             DataType::Int8 => ArrowDataType::Int8,

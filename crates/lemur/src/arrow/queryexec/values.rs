@@ -29,9 +29,9 @@ impl QueryExecutor for ChunkValues {
     }
 }
 
-impl Into<Box<dyn QueryExecutor>> for ChunkValues {
-    fn into(self) -> Box<dyn QueryExecutor> {
-        Box::new(self)
+impl From<ChunkValues> for Box<dyn QueryExecutor> {
+    fn from(v: ChunkValues) -> Self {
+        Box::new(v)
     }
 }
 
@@ -52,9 +52,9 @@ impl RowValues {
 
 impl QueryExecutor for RowValues {
     fn execute_boxed(self: Box<Self>) -> Result<PinnedChunkStream> {
-        let row_chunks: Vec<_> = self.rows.chunks(self.chunk_size).collect();
-        let chunks = row_chunks
-            .into_iter()
+        let chunks = self
+            .rows
+            .chunks(self.chunk_size)
             .map(|rows| Chunk::from_rows(rows.to_vec()))
             .collect::<Result<Vec<_>>>()?;
 
@@ -62,8 +62,8 @@ impl QueryExecutor for RowValues {
     }
 }
 
-impl Into<Box<dyn QueryExecutor>> for RowValues {
-    fn into(self) -> Box<dyn QueryExecutor> {
-        Box::new(self)
+impl From<RowValues> for Box<dyn QueryExecutor> {
+    fn from(v: RowValues) -> Self {
+        Box::new(v)
     }
 }
