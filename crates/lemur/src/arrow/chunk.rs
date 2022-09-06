@@ -129,7 +129,7 @@ impl Chunk {
     pub fn project(&self, idxs: &[usize]) -> Result<Chunk> {
         let cols = idxs
             .iter()
-            .map(|idx| self.columns.get(idx).cloned())
+            .map(|idx| self.columns.get(*idx).cloned())
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| internal!("missing projection columns"))?;
         cols.try_into()

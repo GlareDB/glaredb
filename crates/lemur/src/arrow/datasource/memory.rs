@@ -53,7 +53,7 @@ impl QueryDataSource for MemorySource {
             .ok_or_else(|| internal!("missing table: {}", table))?;
 
         let chunks = table.chunks.clone(); // Cheap, columns behind an arc.
-        std::mem::drop(table);
+        std::mem::drop(tables);
 
         let (tx, rx) = mpsc::channel(SCAN_BUFFER);
         tokio::spawn(async move {
