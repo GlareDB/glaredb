@@ -8,6 +8,20 @@ Repository for the core GlareDB database.
 - **scripts**: Miscellaneous scripts for CI and whatnot.
 - **testdata**: Data that can be used for testing the system, including TPC-H queries.
 
+## Running
+
+An in-memory version of GlareDB can be started with the following command:
+
+``` shell
+cargo run --bin glaredb -- -vv server --storage memory -b 0.0.0.0:6543
+```
+
+To connect, use any Postgres compatible client. E.g. `psql`:
+
+``` shell
+psql "host=localhost dbname=glaredb port=6543 password=glaredb"
+```
+
 ## Testing
 
 ### Unit Tests
@@ -53,3 +67,9 @@ cases to allow for accurate comparisons with expected results). Everything after
 the `----` is the expected results for the query.
 
 More details on the [sqllogictest wiki page](https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
+
+## Contributing
+
+All commits to `main` should first go through a PR. All CI checks should pass
+before merging in a PR. Since we squash merge, PR titles should follow
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
