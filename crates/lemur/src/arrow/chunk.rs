@@ -40,10 +40,7 @@ impl Chunk {
     /// Create an empty chunk with some number of columns that match the
     /// provided schema.
     pub fn empty_with_schema(schema: TypeSchema) -> Chunk {
-        let mut columns = Vec::with_capacity(schema.num_columns());
-        for _i in 0..columns.len() {
-            columns.push(Column::empty());
-        }
+        let columns = (0..schema.num_columns()).map(|_| Column::empty()).collect();
         Chunk { schema, columns }
     }
 
@@ -195,5 +192,49 @@ impl TryFrom<Vec<Column>> for Chunk {
             columns,
             schema: schema.into(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrow::scalar::ScalarOwned;
+
+    #[test]
+    fn empty_with_schema_has_non_zero_columns() {
+        let schema = vec![DataType::Int32, DataType::Int32].into();
+        let empty = Chunk::empty_with_schema(schema);
+        assert_eq!(0, empty.num_rows());
+        assert_eq!(2, empty.num_cols());
+    }
+
+    #[test]
+    fn from_rows_to_rows() {
+        let rows: Vec<Row> = vec![
+            vec![ScalarOwned::Int32(Some(1)), ScalarOwned::Int32(Some(2))].into(),
+            vec![ScalarOwned::Int32(Some(3)), ScalarOwned::Int32(Some(4))].into(),
+        ];
+
+        let expected = rows.clone();
+        let chunk = Chunk::from_rows(rows).unwrap();
+        let got: Vec<_> = chunk.row_iter().collect();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn vstack_repeating() {
+        let rows: Vec<Row> = vec![
+            vec![ScalarOwned::Int32(Some(1)), ScalarOwned::Int32(Some(2))].into(),
+            vec![ScalarOwned::Int32(Some(3)), ScalarOwned::Int32(Some(4))].into(),
+        ];
+
+        let chunk = Chunk::from_rows(rows.clone()).unwrap();
+        let vstack_3 = chunk.vstack(&chunk).unwrap().vstack(&chunk).unwrap();
+
+        let repeated_rows: Vec<_> = vec![rows; 3].into_iter().flatten().collect();
+
+        assert_eq!(6, vstack_3.num_rows());
+        let got: Vec<_> = vstack_3.row_iter().collect();
+        assert_eq!(repeated_rows, got);
     }
 }
