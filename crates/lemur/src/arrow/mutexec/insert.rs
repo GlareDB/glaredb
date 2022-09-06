@@ -1,4 +1,4 @@
-use crate::arrow::datasource::{MutableDataSource, TableSchema};
+use crate::arrow::datasource::MutableDataSource;
 use crate::arrow::queryexec::QueryExecutor;
 use crate::errors::Result;
 use futures::StreamExt;
@@ -27,7 +27,7 @@ impl Insert {
 
     async fn execute_inner(self) -> Result<()> {
         let mut stream = self.data.execute_boxed()?;
-        for chunk in stream.next().await {
+        while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
             self.source.insert_chunk(&self.table, chunk).await?;
         }

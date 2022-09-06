@@ -123,7 +123,7 @@ impl MutableDataSource for MemorySource {
         Ok(())
     }
 
-    async fn deallocate_table(&self, table: &str) -> Result<()> {
+    async fn deallocate_table(&self, _table: &str) -> Result<()> {
         todo!()
     }
 
@@ -136,11 +136,11 @@ impl MutableDataSource for MemorySource {
         Ok(())
     }
 
-    async fn delete_one(&self, table: &str, key: PkRowRef) -> Result<()> {
+    async fn delete_one(&self, _table: &str, _key: PkRowRef) -> Result<()> {
         todo!()
     }
 
-    async fn delete_many(&self, table: &str, filter: ScalarExpr) -> Result<()> {
+    async fn delete_many(&self, _table: &str, _filter: ScalarExpr) -> Result<()> {
         todo!()
     }
 }
@@ -190,7 +190,7 @@ impl Indexes {
         let mut pk_index = BTreeMap::new();
         for (row_num, pk_row) in pk_chunk.row_iter().enumerate() {
             let pk_val = PkRowRef(pk_row.into_boxed_scalars());
-            if let Some(_) = pk_index.insert(pk_val, row_num) {
+            if pk_index.insert(pk_val, row_num).is_some() {
                 return Err(internal!("duplicate primary key"));
             }
         }
