@@ -20,4 +20,5 @@ futures = "0.3.21"
 rand = "0.8"
 parking_lot = "0.12.1"
 arrow2 = { version = "0.13", features = ["compute", "io_ipc", "io_print", "io_parquet"] }
+ordered-float = { version = "3.0.0", features = ["serde"] }
 

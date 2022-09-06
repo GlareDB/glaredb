@@ -299,8 +299,12 @@ impl From<ScalarOwned> for Column {
             ScalarOwned::Uint16(v) => PrimitiveArray::from([v]).boxed().into(),
             ScalarOwned::Uint32(v) => PrimitiveArray::from([v]).boxed().into(),
             ScalarOwned::Uint64(v) => PrimitiveArray::from([v]).boxed().into(),
-            ScalarOwned::Float32(v) => PrimitiveArray::from([v]).boxed().into(),
-            ScalarOwned::Float64(v) => PrimitiveArray::from([v]).boxed().into(),
+            ScalarOwned::Float32(v) => PrimitiveArray::from([v.map(|f| f.into_inner())])
+                .boxed()
+                .into(),
+            ScalarOwned::Float64(v) => PrimitiveArray::from([v.map(|f| f.into_inner())])
+                .boxed()
+                .into(),
             ScalarOwned::Binary(v) => BinaryArray::<i32>::from([v]).boxed().into(),
             ScalarOwned::Utf8(v) => Utf8Array::<i32>::from([v]).boxed().into(),
             ScalarOwned::Date32(v) => PrimitiveArray::from([v]).boxed().into(),

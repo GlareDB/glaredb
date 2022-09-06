@@ -1795,6 +1795,7 @@ dependencies = [
  "bitvec",
  "futures",
  "logutil",
+ "ordered-float",
  "parking_lot",
  "paste",
  "rand 0.8.5",
@@ -2213,6 +2214,16 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "ordered-float"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96bcbab4bfea7a59c2c0fe47211a1ac4e3e96bea6eb446d704f310bc5c732ae2"
+dependencies = [
+ "num-traits",
+ "serde",
 ]
 
 [[package]]
