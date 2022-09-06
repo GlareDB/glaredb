@@ -6,6 +6,8 @@ use crate::arrow::scalar::ScalarOwned;
 use crate::errors::Result;
 use async_trait::async_trait;
 
+pub mod memory;
+
 #[derive(Debug, Clone)]
 pub struct TableSchema {
     /// Column indices for determining the primary key for records.
@@ -15,24 +17,22 @@ pub struct TableSchema {
 }
 
 /// A unique reference to a single row.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PkRowRef(Box<[ScalarOwned]>);
 
 // TODO: Index scan.
+// TODO: Start/end for scan.
 #[async_trait]
 pub trait QueryDataSource: Sync + Send + std::fmt::Debug {
     /// Get a single row with the given key.
-    async fn get(&self, key: PkRowRef) -> Result<Option<Row>>;
+    async fn get(&self, table: &str, key: PkRowRef) -> Result<Option<Row>>;
 
-    /// Scan from a table, returning a stream of chunks with and option start
-    /// and end (inclusive).
+    /// Scan from a table, returning a stream of chunks.
     ///
     /// An optional filtering expression and projection list may be provided.
     async fn scan(
         &self,
         table: &str,
-        start: Option<PkRowRef>,
-        end: Option<PkRowRef>,
         filter: Option<ScalarExpr>,
         projection: Option<Vec<usize>>,
     ) -> Result<PinnedChunkStream>;

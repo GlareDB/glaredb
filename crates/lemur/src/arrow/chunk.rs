@@ -1,4 +1,4 @@
-use crate::arrow::column::Column;
+use crate::arrow::column::{BoolColumn, Column};
 use crate::arrow::datatype::DataType;
 
 use crate::arrow::row::Row;
@@ -99,6 +99,14 @@ impl Chunk {
         }
     }
 
+    pub fn chunk_slice_iter(&self, chunk_size: usize) -> ChunkSliceIter<'_> {
+        ChunkSliceIter {
+            chunk: self,
+            chunk_size,
+            offset: 0,
+        }
+    }
+
     pub fn type_schema(&self) -> &TypeSchema {
         &self.schema
     }
@@ -106,6 +114,35 @@ impl Chunk {
     /// Get a column at some index.
     pub fn get_column(&self, idx: usize) -> Option<&Column> {
         self.columns.get(idx)
+    }
+
+    pub fn slice(&self, offset: usize, len: usize) -> Option<Chunk> {
+        let cols = self
+            .columns
+            .iter()
+            .map(|col| col.slice(offset, len))
+            .collect::<Option<Vec<_>>>()?;
+        cols.try_into().ok()
+    }
+
+    /// Project the given columns.
+    pub fn project(&self, idxs: &[usize]) -> Result<Chunk> {
+        let cols = idxs
+            .iter()
+            .map(|idx| self.columns.get(idx).cloned())
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| internal!("missing projection columns"))?;
+        cols.try_into()
+    }
+
+    /// Filter on a given mask.
+    pub fn filter(&self, mask: BoolColumn<'_>) -> Result<Chunk> {
+        let cols = self
+            .columns
+            .iter()
+            .map(|col| col.filter(mask))
+            .collect::<Result<Vec<_>>>()?;
+        cols.try_into()
     }
 
     /// Horizontally stack two chunks.
@@ -167,6 +204,22 @@ impl<'a> Iterator for RowIter<'a> {
         let row = self.chunk.get_row(self.idx);
         self.idx += 1;
         row
+    }
+}
+
+pub struct ChunkSliceIter<'a> {
+    chunk: &'a Chunk,
+    chunk_size: usize,
+    offset: usize,
+}
+
+impl<'a> Iterator for ChunkSliceIter<'a> {
+    type Item = Chunk;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let chunk = self.chunk.slice(self.offset, self.chunk_size)?;
+        self.offset += chunk.num_rows();
+        Some(chunk)
     }
 }
 

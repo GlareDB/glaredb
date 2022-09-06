@@ -51,6 +51,10 @@ impl Row {
     pub fn pop_last(&mut self) -> Option<ScalarOwned> {
         self.0.pop()
     }
+
+    pub fn into_boxed_scalars(self) -> Box<[ScalarOwned]> {
+        self.0.into_boxed_slice()
+    }
 }
 
 impl From<Vec<ScalarOwned>> for Row {

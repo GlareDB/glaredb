@@ -5,11 +5,11 @@ use arrow2::array::{
     Array, BinaryArray, BooleanArray, MutableBinaryArray, MutableBooleanArray,
     MutablePrimitiveArray, MutableUtf8Array, NullArray, PrimitiveArray, Utf8Array,
 };
-use arrow2::compute::filter::filter;
 use arrow2::compute::{
     boolean::{is_not_null, is_null, not},
     cast::{cast, CastOptions},
     concatenate::concatenate,
+    filter::filter,
 };
 use arrow2::datatypes::DataType as ArrowDataType;
 use arrow2::types::NativeType;
@@ -219,12 +219,17 @@ impl Column {
         Ok(Column(arr.into()))
     }
 
-    pub fn slice(&self, offset: usize, len: usize) -> Result<Column> {
-        if offset + len > self.len() {
-            return Err(LemurError::RangeOutOfBounds { offset, len });
+    pub fn slice(&self, offset: usize, len: usize) -> Option<Column> {
+        if offset >= self.len() {
+            return None;
         }
+        let len = if offset + len > self.len() {
+            self.len() - offset
+        } else {
+            len
+        };
         let arr = self.0.as_ref().slice(offset, len);
-        Ok(Column(arr.into()))
+        Some(Column(arr.into()))
     }
 
     pub fn cast(&self, dt: DataType) -> Result<Column> {
