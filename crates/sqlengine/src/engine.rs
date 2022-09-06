@@ -428,16 +428,16 @@ mod tests {
         let mut session = prepare_session(MemoryDataSource::new()).await;
 
         let query = "create table foo (a int, b int)";
-        let create_table = session.execute_query(query).await.unwrap();
+        let _create_table = session.execute_query(query).await.unwrap();
 
         let query = "create table bar (a int, b int)";
-        let create_table = session.execute_query(query).await.unwrap();
+        let _create_table = session.execute_query(query).await.unwrap();
         println!("session: {:?}", session);
-        let record_a = session
+        let _record_a = session
             .execute_query("insert into foo values (10000001, 10000002)")
             .await
             .unwrap();
-        let record_b = session
+        let _record_b = session
             .execute_query("insert into bar values (10000003, 10000002)")
             .await
             .unwrap();
