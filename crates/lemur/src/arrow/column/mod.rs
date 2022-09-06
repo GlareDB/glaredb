@@ -192,7 +192,7 @@ impl Column {
         self.0
             .as_any()
             .downcast_ref::<BooleanArray>()
-            .map(|b| BoolColumn(b))
+            .map(BoolColumn)
     }
 
     pub fn get_datatype(&self) -> Result<DataType> {
