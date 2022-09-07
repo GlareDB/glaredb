@@ -17,12 +17,19 @@ impl ScalarExprResult {
     ///
     /// If self is a scalar, a Column of size `size` will be produced, otherwise
     /// the column is returned as is with no modifications.
-    pub fn try_into_column(self, size: usize) -> Result<Column> {
+    pub fn into_column_or_expand(self, size: usize) -> Result<Column> {
         match self {
             ScalarExprResult::Column(col) => Ok(col),
             ScalarExprResult::Scalar(scalar) => {
                 Column::try_from_scalars(scalar.data_type(), std::iter::repeat(scalar).take(size))
             }
+        }
+    }
+
+    pub fn try_get_column(&self) -> Option<Column> {
+        match self {
+            ScalarExprResult::Column(column) => Some(column.clone()),
+            ScalarExprResult::Scalar(_) => None,
         }
     }
 }

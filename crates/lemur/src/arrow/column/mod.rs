@@ -55,6 +55,14 @@ impl Column {
         NullArray::new(ArrowDataType::Null, 0).arced().into()
     }
 
+    pub fn try_repeat_scalar(
+        datatype: DataType,
+        scalar: ScalarOwned,
+        amount: usize,
+    ) -> Result<Self> {
+        Self::try_from_scalars(datatype, std::iter::repeat(scalar).take(amount))
+    }
+
     /// Create a column from vector of scalars.
     ///
     /// Errors if the any of the scalars do not match the provided data type.

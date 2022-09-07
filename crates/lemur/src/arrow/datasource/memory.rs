@@ -61,7 +61,7 @@ impl QueryDataSource for MemorySource {
                 // Filter chunks.
                 if let Some(filter) = &filter {
                     let col = match filter.evaluate(&chunk) {
-                        Ok(col) => match col.try_into_column(chunk.num_rows()) {
+                        Ok(col) => match col.into_column_or_expand(chunk.num_rows()) {
                             Ok(col) => col,
                             Err(e) => {
                                 let _ = tx.send(Err(e)).await;

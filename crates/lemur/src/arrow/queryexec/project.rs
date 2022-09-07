@@ -25,7 +25,7 @@ impl Project {
                 let size = chunk.num_rows();
                 let cols = exprs
                     .iter()
-                    .flat_map(|expr| expr.evaluate(&chunk).map(|r| r.try_into_column(size)))
+                    .flat_map(|expr| expr.evaluate(&chunk).map(|r| r.into_column_or_expand(size)))
                     .collect::<Result<Vec<_>>>()?;
                 cols.try_into()
             }
