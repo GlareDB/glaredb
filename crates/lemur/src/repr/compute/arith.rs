@@ -1,8 +1,6 @@
 use super::{binary_op_fixedlen, value_vec_dispatch_binary, NumericType};
 use crate::repr::value::ValueVec;
-use crate::repr::vec::{
-    BinaryVec, FixedLengthType, FixedLengthVec, Utf8Vec,
-};
+use crate::repr::vec::{BinaryVec, FixedLengthType, FixedLengthVec, Utf8Vec};
 use anyhow::{anyhow, Result};
 use std::ops::{Add, Div, Mul, Sub};
 

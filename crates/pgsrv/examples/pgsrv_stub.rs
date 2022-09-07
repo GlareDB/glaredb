@@ -1,6 +1,6 @@
+use lemur::execute::stream::source::MemoryDataSource;
 use pgsrv::handler::Handler;
 use sqlengine::engine::Engine;
-use lemur::execute::stream::source::MemoryDataSource;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{error, info};

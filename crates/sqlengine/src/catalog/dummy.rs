@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use super::{Column, CatalogReader, TableReference, TableSchema};
+use super::{CatalogReader, Column, TableReference, TableSchema};
 
 /// A dummy catalog that always returns the same schema.
 ///
