@@ -17,6 +17,7 @@ use arrow2::types::NativeType;
 use std::sync::Arc;
 
 pub mod compute;
+pub mod hash;
 
 /// A boolean column.
 ///

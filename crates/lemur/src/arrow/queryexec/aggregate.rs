@@ -3,6 +3,7 @@ use crate::arrow::column::Column;
 use crate::arrow::expr::{Accumulator, AggregateExpr, GroupByExpr, ScalarExpr};
 use crate::arrow::scalar::ScalarOwned;
 use crate::errors::Result;
+use futures::StreamExt;
 use tracing::trace;
 
 use super::{PinnedChunkStream, QueryExecutor};
@@ -25,16 +26,47 @@ struct HashAggregate {
     input_exprs: Vec<Vec<ScalarExpr>>,
     accumulators: Vec<Box<dyn Accumulator>>,
     group_by: GroupByExpr,
-    input: Box<dyn QueryExecutor>,
 }
 
 impl HashAggregate {
-    async fn execute_inner(self) -> Result<PinnedChunkStream> {
+    fn new(agg_exprs: Vec<Box<dyn AggregateExpr>>, group_by: GroupByExpr) -> Self {
+        let input_exprs: Vec<_> = agg_exprs.iter().map(|expr| expr.inputs()).collect();
+        let accumulators: Vec<_> = agg_exprs.iter().map(|expr| expr.accumulator()).collect();
+
+        HashAggregate {
+            input_exprs,
+            accumulators,
+            group_by,
+        }
+    }
+
+    /// Execute the hash aggregate on the stream returned from the provided
+    /// input.
+    ///
+    /// Note that this will block the stream since a hash aggregate requires the
+    /// entire input.
+    async fn execute_inner(mut self, input: Box<dyn QueryExecutor>) -> Result<PinnedChunkStream> {
+        let mut stream = input.execute_boxed()?;
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            self.aggregate(chunk)?;
+        }
+
         unimplemented!()
     }
 
-    fn aggregate(&mut self) -> Result<()> {
-        unimplemented!()
+    /// Execute aggregations on a chunk, updating the internal states for
+    /// accumulators.
+    fn aggregate(&mut self, chunk: Chunk) -> Result<()> {
+        let grouping_sets_columns = self.eval_group_by(&chunk)?;
+
+        // Compute aggregates per grouping set.
+        for grouping_set_columns in grouping_sets_columns.into_iter() {
+            unimplemented!()
+        }
+
+        Ok(())
     }
 
     /// Evaluate the expressions in the group by against the provided chunk.
