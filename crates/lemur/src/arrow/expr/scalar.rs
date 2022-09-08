@@ -46,7 +46,7 @@ impl From<ScalarOwned> for ScalarExprResult {
     }
 }
 
-/// An expression tree that is evaluated against columns in a dataframe.
+/// An expression tree that is evaluated against columns in a Chunk.
 ///
 /// All expressions produce a single output column.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
