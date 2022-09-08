@@ -10,6 +10,8 @@ pub trait AggregateExpr: Sync + Send + Debug {
     fn inputs(&self) -> Vec<ScalarExpr>;
 
     /// The accumulator that this aggregate should use.
+    ///
+    /// Every call to this should return an accumulator with a "clean" slate.
     fn accumulator(&self) -> Box<dyn Accumulator>;
 }
 

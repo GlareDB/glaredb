@@ -10,6 +10,7 @@ use arrow2::compute::{
     cast::{cast, CastOptions},
     concatenate::concatenate,
     filter::filter,
+    take::{can_take, take},
 };
 use arrow2::datatypes::DataType as ArrowDataType;
 use arrow2::types::NativeType;
@@ -263,6 +264,17 @@ impl Column {
     pub fn not(&self) -> Result<Column> {
         let bools = self.try_downcast_bool().ok_or(LemurError::TypeMismatch)?;
         let arr = not(bools.0);
+        Ok(Column(arr.to_boxed().into()))
+    }
+
+    pub fn take(&self, idxs: &[u64]) -> Result<Column> {
+        if !can_take(self.0.data_type()) {
+            return Err(internal!("cannot take from self"));
+        }
+
+        let idxs = PrimitiveArray::from_slice(idxs);
+        let arr = take(self.0.as_ref(), &idxs)?;
+
         Ok(Column(arr.to_boxed().into()))
     }
 }

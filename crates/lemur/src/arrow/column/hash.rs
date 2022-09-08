@@ -2,18 +2,79 @@
 use super::Column;
 use crate::arrow::datatype::DataType;
 use crate::errors::{internal, Result};
-use arrow2::array::{Array, BinaryArray, PrimitiveArray, Utf8Array};
+use arrow2::array::{
+    Array, BinaryArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+    PrimitiveArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+};
 use arrow2::types::NativeType;
 use fasthash::{xx, FastHasher};
 use std::hash::{Hash, Hasher};
 
-/// Hash all rows in a column.
-pub fn hash_column(col: &Column) -> Result<Vec<u64>> {
-    let hashes = vec![0; col.len()];
+macro_rules! downcast_and_hash {
+    ($type:ty, $arr:expr, $hash_fn:ident, $buf:ident, $combine:ident) => {
+        let arr = $arr.as_any().downcast_ref::<$type>().unwrap();
+        $hash_fn(arr, &mut $buf, $combine)
+    };
+}
 
-    match col.get_datatype()? {
-        DataType::Null => (),
-        other => return Err(internal!("cannot hash data type: {:?}", other)),
+/// Hash all rows in a column.
+pub fn hash_column(cols: &[Column]) -> Result<Vec<u64>> {
+    let mut hashes = vec![0; cols.get(0).and_then(|col| Some(col.len())).unwrap_or(0)];
+    let combine = cols.len() > 1;
+
+    for col in cols {
+        match col.get_datatype()? {
+            DataType::Null => (),
+            DataType::Int8 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<i8>(arr, &mut hashes, combine);
+            }
+            DataType::Int16 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<i16>(arr, &mut hashes, combine);
+            }
+            DataType::Int32 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<i32>(arr, &mut hashes, combine);
+            }
+            DataType::Int64 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<i64>(arr, &mut hashes, combine);
+            }
+            DataType::Uint8 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<u8>(arr, &mut hashes, combine);
+            }
+            DataType::Uint16 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<u16>(arr, &mut hashes, combine);
+            }
+            DataType::Uint32 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<u32>(arr, &mut hashes, combine);
+            }
+            DataType::Uint64 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_primitive_array::<u64>(arr, &mut hashes, combine);
+            }
+            DataType::Float32 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_float32_array(arr, &mut hashes, combine);
+            }
+            DataType::Float64 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_float32_array(arr, &mut hashes, combine);
+            }
+            DataType::Utf8 => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_utf8_array(arr, &mut hashes, combine);
+            }
+            DataType::Binary => {
+                let arr = col.0.as_any().downcast_ref().unwrap();
+                hash_binary_array(arr, &mut hashes, combine);
+            }
+            other => return Err(internal!("cannot hash data type: {:?}", other)),
+        }
     }
 
     Ok(hashes)
