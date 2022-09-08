@@ -25,7 +25,7 @@ impl Filter {
                 let size = chunk.num_rows();
                 if let Some(mask) = predicate
                     .evaluate(&chunk)?
-                    .try_into_column(size)?
+                    .into_column_or_expand(size)?
                     .try_downcast_bool()
                 {
                     chunk.filter(mask)
