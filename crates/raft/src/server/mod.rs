@@ -3,6 +3,8 @@ use tonic::transport::Server;
 
 use super::{network::ConsensusNetwork, store::ConsensusStore};
 use crate::repr::{NodeId, Raft};
+use crate::rpc::glaredb::GlaredbRpcHandler;
+use crate::rpc::pb::remote_data_source_server::RemoteDataSourceServer;
 use crate::rpc::{RaftRpcHandler, ManagementRpcHandler};
 use crate::rpc::pb::raft_network_server::RaftNetworkServer;
 use crate::rpc::pb::raft_node_server::RaftNodeServer;
@@ -33,6 +35,7 @@ where
     // Create a local raft instance.
     let raft = Raft::new(node_id, config.clone(), network, store.clone());
 
+    // TODO: derive address from socket_addr
     let app = Arc::new(ApplicationState {
         id: node_id,
         raft,
@@ -41,10 +44,12 @@ where
 
     let raft_service = RaftNetworkServer::new(RaftRpcHandler::new(app.clone()));
     let node_handler = RaftNodeServer::new(ManagementRpcHandler::new(app.clone()));
+    let glaredb_handler = RemoteDataSourceServer::new(GlaredbRpcHandler::new(app.clone()));
 
     Server::builder()
         .add_service(raft_service)
         .add_service(node_handler)
+        .add_service(glaredb_handler)
         .serve(socket_addr)
         .await?;
 

@@ -2,25 +2,95 @@ syntax = "proto3";
 
 package glaredb.data;
 
-service RemoteRocksStore {
-    rpc LemurOp (LemurOpRequest) returns (LemurOpResponse) {}
+import "google/protobuf/empty.proto";
+
+/*
+service RemoteDataSource {
+    rpc Begin (google.protobuf.Empty) returns (BeginResponse);
+}
+*/
+service RemoteDataSource {
+    rpc Write (BinaryWriteRequest) returns (BinaryWriteResponse);
 }
 
-message LemurOpRequest {
-    bytes blob = 1;
+message BinaryWriteRequest {
+    bytes payload = 1;
 }
 
-message LemurOpResponse {
-    bytes blob = 1;
+message BinaryWriteResponse {
+    bytes payload = 1;
+}
+
+/*
+message Request {
+    oneof {
+        DataSourceRequest data_source_request = 1;
+        WriteRequest write_request = 2;
+    }
+}
+*/
+
+service RemoteReadTx {
+    rpc Read (ReadRequest) returns (ReadResponse) {}
+}
+
+service RemoteWriteTx {
+    rpc Write (WriteRequest) returns (WriteResponse) {}
+}
+
+message BeginResponse {
+    uint64 tx_id = 1;
 }
 
 // ReadTx
-message GetSchema {
+message ReadRequest {
+    oneof request {
+        GetSchemaRequest get_schema = 1;
+        ScanRequest scan = 2;
+        ScanValuesEqualRequest scan_values_equal = 3;
+    }
+}
+
+message ReadResponse {
+}
+
+message GetSchemaRequest {
     string table = 1;
 }
-message Scan {
+
+message ScanRequest {
     string relation_key = 1;
-    string predicate = 2;
+    optional bytes filter = 2;
+}
+
+message IndexValue {
+    string index_key = 1;
+    bytes value = 2;
+}
+
+message ScanValuesEqualRequest {
+    string relation_key = 1;
 }
 
 // WriteTx
+message WriteRequest {
+}
+
+message WriteResponse {
+}
+
+message AllocateTableRequest {
+    bytes payload = 1;
+}
+
+message DeallocateTableRequest {
+    bytes payload = 1;
+}
+
+message InsertRequest {
+    bytes payload = 1;
+}
+
+message AllocateTableIfNotExistsRequest {
+    bytes payload = 1;
+}

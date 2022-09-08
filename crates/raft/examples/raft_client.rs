@@ -15,21 +15,21 @@ async fn start_cluster() -> Result<()> {
 
     let _h1 = tokio::spawn(async move {
         let addr = get_rpc_addr(1);
-        let url = format!("http://{}", addr);
+        let url = get_rpc_str(1);
         let x = start_raft_node(1, d1.path(), url, addr).await;
         println!("x: {:?}", x);
     });
 
     let _h2 = tokio::spawn(async move {
         let addr = get_rpc_addr(2);
-        let url = format!("http://{}", addr);
+        let url = get_rpc_str(2);
         let x = start_raft_node(2, d2.path(), url, addr).await;
         println!("x: {:?}", x);
     });
 
     let _h3 = tokio::spawn(async move {
         let addr = get_rpc_addr(3);
-        let url = format!("http://{}", addr);
+        let url = get_rpc_str(3);
         let x = start_raft_node(3, d3.path(), url, addr).await;
         println!("x: {:?}", x);
     });
@@ -44,37 +44,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let leader_id = std::env::args().nth(1).ok_or("expected leader_id argument")?;
     // let leader_addr = std::env::args().nth(2).ok_or("expected leader_addr argument")?;
     let leader_id = 1;
-    let leader_addr = get_rpc_addr(leader_id);
 
     let query = std::env::args().nth(3).ok_or("expected query argument")?;
 
+    let client = ConsensusClient::new(1, get_rpc_str(1));
+
+    /*
     tokio::spawn(async move {
         start_cluster().await.unwrap();
     });
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
     
     // Initiate the leader
-    let url = format!("http://{}", get_rpc_addr(1));
-    let client = ConsensusClient::new(1, url);
-    client.init().await.expect("failed to init cluster");
+    client.init().await.expect("failed to init cluster from client");
     client
         .add_learner(AddLearnerRequest {
             node_id: 2,
-            address: get_rpc_addr(2).to_string(),
+            address: get_rpc_str(2),
         })
         .await?;
 
     client
         .add_learner(AddLearnerRequest {
             node_id: 3,
-            address: get_rpc_addr(3).to_string(),
+            address: get_rpc_str(3),
         })
         .await?;
     let _x = client.change_membership(&btreeset! {1,2,3}).await?;
     let metrics = client.metrics().await?;
     println!("printed metrics {:?}", metrics);
 
-
     sleep(Duration::from_millis(10000)).await;
+    */
 
     let source = RaftClientSource::from_client(client);
     let mut engine = Engine::new(source);
@@ -93,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn get_rpc_addr(node_id: u32) -> SocketAddr {
     let addr = match node_id {
-        1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22001),
+        1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 6001),
         2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22002),
         3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22003),
         _ => panic!("node not found"),
@@ -103,5 +105,5 @@ fn get_rpc_addr(node_id: u32) -> SocketAddr {
 
 fn get_rpc_str(node_id: u32) -> String {
     let addr = get_rpc_addr(node_id);
-    addr.to_string()
+    format!("http://{}", addr)
 }

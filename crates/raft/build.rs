@@ -17,6 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
 
     tonic_build::configure()
+        .type_attribute("GetSchemaRequest", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .type_attribute("BinaryWriteRequest", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .type_attribute("BinaryWriteResponse", "#[derive(serde::Serialize, serde::Deserialize)]")
         .compile(
             &[
                 "proto/glaredb.proto",

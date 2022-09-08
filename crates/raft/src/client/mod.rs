@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tonic::transport::Endpoint;
 
-use super::{error::RpcResult, message::Request};
+use super::{error::RpcResult, message::DataSourceRequest};
+use crate::message::{ReadTxRequest, WriteTxRequest, Request, RequestData};
 use crate::openraft_types::prelude::*;
+use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
 use crate::rpc::pb::{AddLearnerRequest, AddLearnerResponse, ChangeMembershipRequest};
 use crate::rpc::pb::raft_node_client::RaftNodeClient;
 use crate::{
@@ -41,15 +43,23 @@ impl ConsensusClient {
 
     // --- Application API
 
-    /// Submit a write request to the raft cluster.
-    ///
-    /// The request will be processed by raft protocol: it will be replicated to a quorum and then will be applied to
-    /// state machine.
-    ///
-    /// The result of applying the request will be returned.
-    pub async fn write(&self, _req: &Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
-        // self.send_rpc_to_leader("api/write", Some(req)).await
-        todo!();
+    async fn write_rpc(
+        &self,
+        req: &Request,
+    ) -> RpcResult<ClientWriteResponse, ClientWriteError> {
+        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+
+        let mut client = RemoteDataSourceClient::connect(endpoint)
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        let resp = client
+            .write(req.clone())
+            .await
+            .map(|resp| bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize"))
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        Ok(resp)
     }
 
     /// Read value by key, in an inconsistent mode.
@@ -58,6 +68,21 @@ impl ConsensusClient {
     pub async fn read(&self, _req: &str) -> RpcResult<String, Infallible> {
         todo!();
         // self.do_send_rpc_to_leader("api/read", Some(req)).await
+    }
+
+    pub async fn data_source(&self, _req: &DataSourceRequest) -> RpcResult<Empty, Infallible> {
+        todo!();
+        // self.do_send_rpc_to_leader("api/data_source", Some(req)).await
+    }
+
+    pub async fn read_tx(&self, _req: &ReadTxRequest) -> RpcResult<Empty, Infallible> {
+        todo!();
+        // self.do_send_rpc_to_leader("api/read_tx", Some(req)).await
+    }
+
+    pub async fn write_tx(&self, _req: &WriteTxRequest) -> RpcResult<Empty, Infallible> {
+        todo!();
+        // self.do_send_rpc_to_leader("api/write_tx", Some(req)).await
     }
 
     /// Consistent Read value by key, in an inconsistent mode.
@@ -243,4 +268,55 @@ impl ConsensusClient {
             Err(e) => Err(RpcError::Network(NetworkError::new(&e))),
         }
     }
+
+    /// Submit a write request to the raft cluster.
+    ///
+    /// The request will be processed by raft protocol: it will be replicated to a quorum and then will be applied to
+    /// state machine.
+    ///
+    /// The result of applying the request will be returned.
+    pub async fn write(&self, req: RequestData) -> RpcResult<ClientWriteResponse, ClientWriteError> {
+        let req: Request = req.into();
+
+        let mut n_retry = 3;
+
+        loop {
+            let res = self.write_rpc(&req).await;
+
+            let rpc_err = match res {
+                Ok(res) => return Ok(res),
+                Err(rpc_err) => rpc_err,
+            };
+
+            if let RPCError::RemoteError(remote_err) = &rpc_err {
+                let forward_err_res = 
+                    <ClientWriteError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+
+                if let Ok(ForwardToLeader {
+                    leader_id: Some(leader_id),
+                    leader_node: Some(leader_node),
+                }) = forward_err_res {
+                    // Update target to the "new" leader
+                    {
+                        let mut t = self.leader.lock().await;
+                        let url = leader_node.address.clone();
+                        let endpoint = Endpoint::from_shared(url)
+                            .expect("failed to create endpoint");
+                        *t = (leader_id, endpoint);
+                    }
+
+                    n_retry -= 1;
+                    if n_retry > 0 {
+                        continue;
+                    }
+
+                }
+            }
+
+            return Err(rpc_err);
+        }
+
+    }
+
+
 }

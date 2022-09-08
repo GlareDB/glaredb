@@ -3,7 +3,7 @@ use std::{sync::Arc, net::SocketAddr};
 
 use async_trait::async_trait;
 use lemur::{execute::stream::source::{DataSource, ReadTx, WriteTx, DataFrameStream}, repr::{relation::{RelationKey, PrimaryKeyIndices}, df::{Schema, DataFrame}, expr::ScalarExpr}};
-use crate::{client::ConsensusClient, message::Request, repr::NodeId};
+use crate::{client::ConsensusClient, message::DataSourceRequest, repr::NodeId};
 
 #[derive(Clone)]
 pub struct RaftClientSource {
@@ -31,7 +31,7 @@ impl DataSource for RaftClientSource {
 
     async fn begin(&self) -> Result<Self::Tx> {
         println!("begin");
-        let _resp = self.inner.write(&Request::Begin).await?;
+        let _resp = self.inner.write(DataSourceRequest::Begin.into()).await?;
         // resp.data.
         todo!();
         /*

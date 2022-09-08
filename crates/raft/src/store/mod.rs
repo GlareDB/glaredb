@@ -14,12 +14,12 @@ use tokio::sync::RwLock;
 
 use self::state::{ConsensusStateMachine, RaftStateMachine};
 
-use super::message::{Request, Response};
+use super::message::{Response, RequestData, ResponseData};
 use crate::{
     openraft_types::types::{
         EffectiveMembership, LogId, Snapshot, SnapshotMeta, StateMachineChanges, StorageError, Vote,
     },
-    repr::RaftTypeConfig,
+    repr::RaftTypeConfig, message::{DataSourceRequest, DataSourceResponse}, rpc::pb::BinaryWriteResponse,
 };
 
 mod state;
@@ -265,15 +265,16 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
             sm.set_last_applied_log(entry.log_id)?;
 
             match entry.payload {
-                EntryPayload::Blank => res.push(Response::None),
-                EntryPayload::Normal(ref req) => match req {
-                    Request::Set { key, value } => {
-                        sm.insert(key.clone(), value.clone())?;
-                        res.push(Response::Value(value.into()))
-                    }
-                    Request::Begin => {
+                EntryPayload::Blank => res.push(ResponseData::None),
+                EntryPayload::Normal(ref req) => match bincode::deserialize(&req.payload).expect("failed to deserialize request") {
+                    RequestData::DataSource(DataSourceRequest::Begin) => {
                         let tx_id = sm.begin()?;
-                        res.push(Response::Begin(tx_id))
+                        res.push(ResponseData::DataSource(DataSourceResponse::Begin(tx_id)))
+                    }
+                    RequestData::WriteTx(ref req) => {
+                        match req {
+                            _ => unimplemented!(),
+                        }
                     }
                 },
                 EntryPayload::Membership(ref mem) => {
@@ -281,7 +282,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
                         Some(entry.log_id),
                         mem.clone(),
                     ))?;
-                    res.push(Response::None)
+                    res.push(ResponseData::None)
                 }
             };
         }
@@ -290,7 +291,14 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
             StorageIOError::new(ErrorSubject::Logs, ErrorVerb::Write, AnyError::new(&e))
         })?;
 
-        Ok(res)
+        Ok(
+            res.into_iter()
+            .map(|r| 
+                 BinaryWriteResponse {
+                     payload: bincode::serialize(&r).unwrap()
+                 }
+            ).collect()
+        )
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
