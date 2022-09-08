@@ -109,12 +109,20 @@ macro_rules! dispatch_primitive_binary_scalar_op {
             (ArrowDataType::UInt64, ScalarOwned::Uint64(right)) => Ok(
                 compute_primitive_binary_scalar::<u64, _>($left, right, $int_op),
             ),
-            (ArrowDataType::Float32, ScalarOwned::Float32(right)) => Ok(
-                compute_primitive_binary_scalar::<f32, _>($left, right, $float_op),
-            ),
-            (ArrowDataType::Float64, ScalarOwned::Float64(right)) => Ok(
-                compute_primitive_binary_scalar::<f64, _>($left, right, $float_op),
-            ),
+            (ArrowDataType::Float32, ScalarOwned::Float32(right)) => {
+                Ok(compute_primitive_binary_scalar::<f32, _>(
+                    $left,
+                    &right.map(|f| f.into_inner()),
+                    $float_op,
+                ))
+            }
+            (ArrowDataType::Float64, ScalarOwned::Float64(right)) => {
+                Ok(compute_primitive_binary_scalar::<f64, _>(
+                    $left,
+                    &right.map(|f| f.into_inner()),
+                    $float_op,
+                ))
+            }
 
             (left, right) => Err(internal!(
                 "cannot compute '{}' for data types {:?} and {:?}",
@@ -262,12 +270,20 @@ macro_rules! dispatch_comparison_scalar_op {
             (ArrowDataType::UInt64, ScalarOwned::Uint64(right)) => Ok(
                 compute_primitive_comparison_scalar::<u64, _>($left, right, $op),
             ),
-            (ArrowDataType::Float32, ScalarOwned::Float32(right)) => Ok(
-                compute_primitive_comparison_scalar::<f32, _>($left, right, $op),
-            ),
-            (ArrowDataType::Float64, ScalarOwned::Float64(right)) => Ok(
-                compute_primitive_comparison_scalar::<f64, _>($left, right, $op),
-            ),
+            (ArrowDataType::Float32, ScalarOwned::Float32(right)) => {
+                Ok(compute_primitive_comparison_scalar::<f32, _>(
+                    $left,
+                    &right.map(|f| f.into_inner()),
+                    $op,
+                ))
+            }
+            (ArrowDataType::Float64, ScalarOwned::Float64(right)) => {
+                Ok(compute_primitive_comparison_scalar::<f64, _>(
+                    $left,
+                    &right.map(|f| f.into_inner()),
+                    $op,
+                ))
+            }
 
             (left, right) => Err(internal!(
                 "cannot compute '{}' for data types {:?} and {:?}",

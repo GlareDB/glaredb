@@ -5,6 +5,7 @@ pub mod expr;
 pub mod row;
 pub mod scalar;
 
+pub mod ddlexec;
 pub mod mutexec;
 pub mod queryexec;
 

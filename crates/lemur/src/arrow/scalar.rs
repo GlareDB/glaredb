@@ -4,6 +4,7 @@ use arrow2::datatypes::DataType as ArrowDataType;
 use arrow2::scalar::{
     BinaryScalar, BooleanScalar, PrimitiveScalar, Scalar as ArrowScalar, Utf8Scalar,
 };
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 
 /// A scalar value that owns all of it's data.
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// in more allocations than necessary.
 ///
 /// TODO: Custome eq/partial eq.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ScalarOwned {
     Null,
     Bool(Option<bool>),
@@ -24,8 +25,8 @@ pub enum ScalarOwned {
     Uint16(Option<u16>),
     Uint32(Option<u32>),
     Uint64(Option<u64>),
-    Float32(Option<f32>),
-    Float64(Option<f64>),
+    Float32(Option<OrderedFloat<f32>>),
+    Float64(Option<OrderedFloat<f64>>),
     Binary(Option<Vec<u8>>),
     Utf8(Option<String>),
     Date32(Option<i32>),
@@ -162,14 +163,14 @@ impl ScalarOwned {
 
     pub fn unwrap_float32(self) -> Result<Option<f32>, Self> {
         match self {
-            ScalarOwned::Float32(v) => Ok(v),
+            ScalarOwned::Float32(v) => Ok(v.map(|f| f.into_inner())),
             other => Err(other),
         }
     }
 
     pub fn unwrap_float64(self) -> Result<Option<f64>, Self> {
         match self {
-            ScalarOwned::Float64(v) => Ok(v),
+            ScalarOwned::Float64(v) => Ok(v.map(|f| f.into_inner())),
             other => Err(other),
         }
     }
@@ -278,18 +279,20 @@ impl TryFrom<Box<dyn ArrowScalar>> for ScalarOwned {
                     .value(),
             ),
             ArrowDataType::Float32 => ScalarOwned::Float32(
-                *value
+                value
                     .as_any()
                     .downcast_ref::<PrimitiveScalar<f32>>()
                     .unwrap()
-                    .value(),
+                    .value()
+                    .map(|f| f.into()),
             ),
             ArrowDataType::Float64 => ScalarOwned::Float64(
-                *value
+                value
                     .as_any()
                     .downcast_ref::<PrimitiveScalar<f64>>()
                     .unwrap()
-                    .value(),
+                    .value()
+                    .map(|f| f.into()),
             ),
             ArrowDataType::Binary => ScalarOwned::Binary(
                 value

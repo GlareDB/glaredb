@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// PERF: Note this a pretty inefficient way of storing row data. Eventually
 /// we'll want to have "packed" and "unpacked" variants.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Row(Vec<ScalarOwned>);
 
 impl Row {
@@ -50,6 +50,10 @@ impl Row {
     /// Pop the right-most scalar from the row.
     pub fn pop_last(&mut self) -> Option<ScalarOwned> {
         self.0.pop()
+    }
+
+    pub fn into_boxed_scalars(self) -> Box<[ScalarOwned]> {
+        self.0.into_boxed_slice()
     }
 }
 
