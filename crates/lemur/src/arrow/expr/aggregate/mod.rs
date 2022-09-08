@@ -4,6 +4,10 @@ use crate::arrow::scalar::ScalarOwned;
 use crate::errors::{internal, Result};
 use std::fmt::Debug;
 
+mod count;
+
+pub use count::*;
+
 pub trait AggregateExpr: Sync + Send + Debug {
     /// Return the required inputs for this aggregate expression. The results of
     /// execution for these expressions will be passed into the accumulator.

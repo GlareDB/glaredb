@@ -2,24 +2,14 @@
 use super::Column;
 use crate::arrow::datatype::DataType;
 use crate::errors::{internal, Result};
-use arrow2::array::{
-    Array, BinaryArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    PrimitiveArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
-};
+use arrow2::array::{Array, BinaryArray, PrimitiveArray, Utf8Array};
 use arrow2::types::NativeType;
 use fasthash::{xx, FastHasher};
 use std::hash::{Hash, Hasher};
 
-macro_rules! downcast_and_hash {
-    ($type:ty, $arr:expr, $hash_fn:ident, $buf:ident, $combine:ident) => {
-        let arr = $arr.as_any().downcast_ref::<$type>().unwrap();
-        $hash_fn(arr, &mut $buf, $combine)
-    };
-}
-
 /// Hash all rows in a column.
-pub fn hash_column(cols: &[Column]) -> Result<Vec<u64>> {
-    let mut hashes = vec![0; cols.get(0).and_then(|col| Some(col.len())).unwrap_or(0)];
+pub fn hash_columns(cols: &[Column]) -> Result<Vec<u64>> {
+    let mut hashes = vec![0; cols.get(0).map(|col| col.len()).unwrap_or(0)];
     let combine = cols.len() > 1;
 
     for col in cols {
@@ -96,6 +86,7 @@ fn combine_hashes(a: u64, b: u64) -> u64 {
 ///
 /// If `combine` is true, the output hash for a value will be combined with the
 /// hash in `buf`.
+#[allow(clippy::collapsible_else_if)] // Readability
 fn hash_primitive_array<T: NativeType + Hash>(
     arr: &PrimitiveArray<T>,
     buf: &mut [u64],
@@ -104,18 +95,18 @@ fn hash_primitive_array<T: NativeType + Hash>(
     if arr.null_count() == 0 {
         if combine {
             for (value, hash) in arr.values_iter().zip(buf.iter_mut()) {
-                *hash = hash_one(value);
+                *hash = combine_hashes(*hash, hash_one(value));
             }
         } else {
             for (value, hash) in arr.values_iter().zip(buf.iter_mut()) {
-                *hash = combine_hashes(*hash, hash_one(value));
+                *hash = hash_one(value);
             }
         }
     } else {
         if combine {
             for (idx, (value, hash)) in arr.values_iter().zip(buf.iter_mut()).enumerate() {
                 if arr.is_valid(idx) {
-                    *hash = hash_one(value);
+                    *hash = combine_hashes(*hash, hash_one(value));
                 }
             }
         } else {
@@ -173,18 +164,18 @@ macro_rules! hash_binary_or_utf8_array_body {
         if $arr.null_count() == 0 {
             if $combine {
                 for (idx, hash) in $buf.iter_mut().enumerate() {
-                    *hash = hash_one($arr.value(idx));
+                    *hash = combine_hashes(*hash, hash_one($arr.value(idx)));
                 }
             } else {
                 for (idx, hash) in $buf.iter_mut().enumerate() {
-                    *hash = combine_hashes(*hash, hash_one($arr.value(idx)));
+                    *hash = hash_one($arr.value(idx));
                 }
             }
         } else {
             if $combine {
                 for (idx, hash) in $buf.iter_mut().enumerate() {
                     if $arr.is_valid(idx) {
-                        *hash = hash_one($arr.value(idx));
+                        *hash = combine_hashes(*hash, hash_one($arr.value(idx)));
                     }
                 }
             } else {

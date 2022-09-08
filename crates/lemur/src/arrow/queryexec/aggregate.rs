@@ -3,12 +3,12 @@ use crate::arrow::column::{hash, Column};
 use crate::arrow::expr::{Accumulator, AggregateExpr, GroupByExpr, ScalarExpr};
 use crate::arrow::row::Row;
 use crate::arrow::scalar::ScalarOwned;
-use crate::errors::Result;
+use crate::errors::{internal, Result};
 use futures::{stream, StreamExt};
 use std::collections::HashMap;
 use tracing::trace;
 
-use super::{MemoryStream, PinnedChunkStream, QueryExecutor};
+use super::{PinnedChunkStream, QueryExecutor};
 
 #[derive(Debug)]
 pub struct Aggregate {
@@ -17,10 +17,26 @@ pub struct Aggregate {
     input: Box<dyn QueryExecutor>,
 }
 
+impl Aggregate {
+    pub fn new(
+        exprs: Vec<Box<dyn AggregateExpr>>,
+        group_by: GroupByExpr,
+        input: Box<dyn QueryExecutor>,
+    ) -> Aggregate {
+        Aggregate {
+            exprs,
+            group_by,
+            input,
+        }
+    }
+}
+
 impl QueryExecutor for Aggregate {
     fn execute_boxed(self: Box<Self>) -> Result<PinnedChunkStream> {
+        let input_exprs = self.exprs.iter().map(|expr| expr.inputs()).collect();
+        trace!(?input_exprs, "input expressions from aggregate expressions");
         let hash_agg = HashAggregate {
-            input_exprs: self.exprs.iter().map(|expr| expr.inputs()).collect(),
+            input_exprs,
             agg_exprs: self.exprs,
             states: AggregateStates::default(),
             group_by: self.group_by,
@@ -28,14 +44,16 @@ impl QueryExecutor for Aggregate {
 
         let input = self.input;
         Ok(Box::pin(stream::once(async move {
-            let chunk = hash_agg.execute_inner(input).await;
-            chunk
+            hash_agg.execute_inner(input).await
         })))
     }
 }
 
 #[derive(Debug)]
 struct AggregateState {
+    /// Evaluated expression that this state is grouping on.
+    scalars: Vec<ScalarOwned>,
+    /// Accumulators for this aggregate state.
     accs: Vec<Box<dyn Accumulator>>,
     /// Temporary per-chunk state to track indexes for each chunk. Cleared when
     /// moving to a new chunk.
@@ -95,17 +113,18 @@ impl HashAggregate {
 
         // Compute aggregates per grouping set.
         for grouping_set_columns in grouping_sets_columns.into_iter() {
-            let hashes = hash::hash_column(&grouping_set_columns)?;
+            let hashes = hash::hash_columns(&grouping_set_columns)?;
+            trace!(?hashes, ?grouping_set_columns, "computed column hashes");
 
             // Ensure we have aggregate states for each hash, and track the
             // current chunk rows that belong to each state.
             for (row_idx, hash) in hashes.iter().enumerate() {
                 // TODO: Check values actually equal the group values.
 
-                let ent = self.states.group_accs.get_mut(hash);
-                match ent {
-                    Some(ent) => {
-                        ent.idxs.push(row_idx as u64);
+                let state = self.states.group_accs.get_mut(hash);
+                match state {
+                    Some(state) => {
+                        state.idxs.push(row_idx as u64);
                     }
                     None => {
                         // Create a new "aggregate state" for this hash group,
@@ -116,7 +135,14 @@ impl HashAggregate {
                             .map(|agg_expr| agg_expr.accumulator())
                             .collect();
 
+                        let scalars = grouping_set_columns
+                            .iter()
+                            .map(|col| col.get_owned_scalar(row_idx))
+                            .collect::<Option<Vec<_>>>()
+                            .ok_or_else(|| internal!("missing row: {}", row_idx))?;
+
                         let state = AggregateState {
+                            scalars,
                             accs,
                             idxs: vec![row_idx as u64],
                         };
@@ -128,9 +154,16 @@ impl HashAggregate {
 
             // For each group, update each aggregate with that aggregator's
             // input.
-            for (_hash, state) in self.states.group_accs.iter_mut() {
-                for (acc, input) in state.accs.iter_mut().zip(inputs.iter()) {
-                    acc.accumulate(input)?;
+            for (hash, state) in self.states.group_accs.iter_mut() {
+                let scalars = &state.scalars;
+                trace!(?hash, ?scalars, "iter state for hash");
+                for (acc, inputs) in state.accs.iter_mut().zip(inputs.iter()) {
+                    // Take only the rows that matche for this aggregator.
+                    let inputs = inputs
+                        .iter()
+                        .map(|input| input.take(&state.idxs))
+                        .collect::<Result<Vec<_>>>()?;
+                    acc.accumulate(inputs.as_slice())?;
                 }
 
                 state.idxs.clear();
@@ -142,12 +175,16 @@ impl HashAggregate {
 
     /// Evaluate the input expressions for the aggregates.
     fn eval_input_exprs(&self, chunk: &Chunk) -> Result<Vec<Vec<Column>>> {
-        let inputs = Vec::with_capacity(self.input_exprs.len());
+        let mut inputs = Vec::with_capacity(self.input_exprs.len());
         for exprs in self.input_exprs.iter() {
+            let mut cols = Vec::with_capacity(exprs.len());
             for expr in exprs.iter() {
-                expr.evaluate(chunk)?
+                let col = expr
+                    .evaluate(chunk)?
                     .into_column_or_expand(chunk.num_rows())?;
+                cols.push(col);
             }
+            inputs.push(cols);
         }
         Ok(inputs)
     }
@@ -205,6 +242,71 @@ impl HashAggregate {
             })
             .collect::<Vec<_>>();
 
+        trace!(?grouping_set_cols, "grouping set columns");
+
         Ok(grouping_set_cols)
+    }
+}
+
+impl From<Aggregate> for Box<dyn QueryExecutor> {
+    fn from(v: Aggregate) -> Self {
+        Box::new(v)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrow::expr::Count;
+    use crate::arrow::queryexec::RowValues;
+    use crate::arrow::row::Row;
+    use crate::arrow::scalar::ScalarOwned;
+    use crate::arrow::testutil;
+    use std::collections::BTreeSet;
+
+    #[tokio::test]
+    async fn simple_count() {
+        logutil::init_test();
+
+        let input = RowValues::new(vec![
+            vec![ScalarOwned::Int8(Some(1)), ScalarOwned::Int8(Some(2))].into(),
+            vec![ScalarOwned::Int8(Some(3)), ScalarOwned::Int8(Some(2))].into(),
+            vec![ScalarOwned::Int8(Some(3)), ScalarOwned::Int8(Some(3))].into(),
+            vec![ScalarOwned::Int8(Some(3)), ScalarOwned::Int8(Some(4))].into(),
+        ]);
+
+        let groups = vec![ScalarExpr::Column(0), ScalarExpr::Column(1)];
+        let null_mask = vec![
+            // Group on both c0 and c1,
+            vec![false, false],
+            // Group on c1,
+            vec![true, false],
+        ];
+        let group_by = GroupByExpr::new(groups, null_mask).unwrap();
+        let aggs: Vec<Box<dyn AggregateExpr>> = vec![Box::new(Count::count_star())];
+
+        let agg = Aggregate::new(aggs, group_by, Box::new(input));
+
+        let out = testutil::collect_result(agg).await.unwrap();
+
+        // Note that we're using a btree set since the output ordering is not
+        // guaranteed (since each column/column group is hashed and we iterate
+        // over hashes).
+        let expected: BTreeSet<Row> = vec![
+            // First grouping set (c0, c1).
+            // Every row is unique, so no grouping.
+            vec![ScalarOwned::Int64(Some(1))].into(),
+            vec![ScalarOwned::Int64(Some(1))].into(),
+            vec![ScalarOwned::Int64(Some(1))].into(),
+            vec![ScalarOwned::Int64(Some(1))].into(),
+            // Second grouping set (c1)
+            vec![ScalarOwned::Int64(Some(1))].into(),
+            vec![ScalarOwned::Int64(Some(1))].into(),
+            vec![ScalarOwned::Int64(Some(2))].into(),
+        ]
+        .into_iter()
+        .collect();
+        let got: BTreeSet<_> = out.row_iter().collect();
+        assert_eq!(expected, got);
     }
 }

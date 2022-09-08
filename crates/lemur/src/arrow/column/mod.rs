@@ -277,6 +277,11 @@ impl Column {
 
         Ok(Column(arr.to_boxed().into()))
     }
+
+    pub fn non_null_count(&self) -> usize {
+        let arr = self.0.as_ref();
+        arr.len() - arr.null_count()
+    }
 }
 
 impl GetArrowDataType for Column {
