@@ -40,6 +40,7 @@ where
         id: node_id,
         raft,
         address,
+        store,
     });
 
     let raft_service = RaftNetworkServer::new(RaftRpcHandler::new(app.clone()));

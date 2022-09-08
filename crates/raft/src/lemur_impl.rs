@@ -1,9 +1,9 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use std::{sync::Arc, net::SocketAddr};
 
 use async_trait::async_trait;
 use lemur::{execute::stream::source::{DataSource, ReadTx, WriteTx, DataFrameStream}, repr::{relation::{RelationKey, PrimaryKeyIndices}, df::{Schema, DataFrame}, expr::ScalarExpr}};
-use crate::{client::ConsensusClient, message::DataSourceRequest, repr::NodeId};
+use crate::{client::ConsensusClient, message::{Response, DataSourceRequest, DataSourceResponse, ReadTxRequest, ReadTxResponse, WriteTxRequest}, repr::NodeId, rpc::pb::GetSchemaRequest};
 
 #[derive(Clone)]
 pub struct RaftClientSource {
@@ -31,15 +31,17 @@ impl DataSource for RaftClientSource {
 
     async fn begin(&self) -> Result<Self::Tx> {
         println!("begin");
-        let _resp = self.inner.write(DataSourceRequest::Begin.into()).await?;
-        // resp.data.
-        todo!();
-        /*
-        Ok(TxClient {
-            client: self.clone(),
-            tx_id: 0,
-        })
-        */
+        let resp = self.inner.write(DataSourceRequest::Begin.into()).await?;
+
+        match resp.data {
+            Response::DataSource(DataSourceResponse::Begin(tx_id)) => {
+                Ok(TxClient {
+                    client: self.clone(),
+                    tx_id,
+                })
+            }
+            _ => Err(anyhow!("unexpected response: {:?}", resp)),
+        }
     }
 }
 
@@ -51,7 +53,16 @@ pub struct TxClient {
 #[async_trait]
 impl ReadTx for TxClient {
     async fn get_schema(&self, _table: &RelationKey) -> Result<Option<Schema>> {
-        todo!();
+        let resp = self.client.inner.read(
+            ReadTxRequest::GetSchema(GetSchemaRequest {
+                table: _table.clone(),
+            }).into()
+        ).await.unwrap();
+
+        match resp {
+            ReadTxResponse::TableSchema(schema) => Ok(schema),
+            _ => Err(anyhow!("unexpected response: {:?}", resp)),
+        }
     }
 
     async fn scan(
@@ -73,8 +84,12 @@ impl WriteTx for TxClient {
         todo!();
     }
 
-    async fn allocate_table(&self, _table: RelationKey, _schema: Schema) -> Result<()> {
-        todo!();
+    async fn allocate_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
+        let resp = self.client.inner.write(
+            WriteTxRequest::AllocateTable(table, schema).into()
+        ).await.unwrap();
+
+        Ok(())
     }
 
     async fn deallocate_table(&self, _table: &RelationKey) -> Result<()> {

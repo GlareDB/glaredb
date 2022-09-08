@@ -11,6 +11,7 @@ service RemoteDataSource {
 */
 service RemoteDataSource {
     rpc Write (BinaryWriteRequest) returns (BinaryWriteResponse);
+    rpc Read (BinaryReadRequest) returns (BinaryReadResponse);
 }
 
 message BinaryWriteRequest {
@@ -18,6 +19,14 @@ message BinaryWriteRequest {
 }
 
 message BinaryWriteResponse {
+    bytes payload = 1;
+}
+
+message BinaryReadRequest {
+    bytes payload = 1;
+}
+
+message BinaryReadResponse {
     bytes payload = 1;
 }
 

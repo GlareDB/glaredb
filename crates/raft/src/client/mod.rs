@@ -6,10 +6,10 @@ use tokio::sync::Mutex;
 use tonic::transport::Endpoint;
 
 use super::{error::RpcResult, message::DataSourceRequest};
-use crate::message::{ReadTxRequest, WriteTxRequest, Request, RequestData};
+use crate::message::{ReadTxRequest, WriteTxRequest, Request, RequestData, ReadTxResponse};
 use crate::openraft_types::prelude::*;
 use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
-use crate::rpc::pb::{AddLearnerRequest, AddLearnerResponse, ChangeMembershipRequest};
+use crate::rpc::pb::{AddLearnerRequest, AddLearnerResponse, ChangeMembershipRequest, BinaryWriteRequest, BinaryReadRequest};
 use crate::rpc::pb::raft_node_client::RaftNodeClient;
 use crate::{
     error::RpcError,
@@ -45,7 +45,7 @@ impl ConsensusClient {
 
     async fn write_rpc(
         &self,
-        req: &Request,
+        req: &BinaryWriteRequest,
     ) -> RpcResult<ClientWriteResponse, ClientWriteError> {
         let (_leader_id, endpoint) = self.leader.lock().await.clone();
 
@@ -62,12 +62,81 @@ impl ConsensusClient {
         Ok(resp)
     }
 
+    /// Submit a write request to the raft cluster.
+    ///
+    /// The request will be processed by raft protocol: it will be replicated to a quorum and then will be applied to
+    /// state machine.
+    ///
+    /// The result of applying the request will be returned.
+    pub async fn write(&self, req: Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
+        let req: BinaryWriteRequest = req.into();
+
+        let mut n_retry = 3;
+
+        loop {
+            let res = self.write_rpc(&req).await;
+
+            let rpc_err = match res {
+                Ok(res) => return Ok(res),
+                Err(rpc_err) => rpc_err,
+            };
+
+            if let RPCError::RemoteError(remote_err) = &rpc_err {
+                let forward_err_res = 
+                    <ClientWriteError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+
+                if let Ok(ForwardToLeader {
+                    leader_id: Some(leader_id),
+                    leader_node: Some(leader_node),
+                }) = forward_err_res {
+                    // Update target to the "new" leader
+                    {
+                        let mut t = self.leader.lock().await;
+                        let url = leader_node.address.clone();
+                        let endpoint = Endpoint::from_shared(url)
+                            .expect("failed to create endpoint");
+                        *t = (leader_id, endpoint);
+                    }
+
+                    n_retry -= 1;
+                    if n_retry > 0 {
+                        continue;
+                    }
+
+                }
+            }
+
+            return Err(rpc_err);
+        }
+
+    }
+
+    async fn read_rpc(
+        &self,
+        req: &BinaryReadRequest,
+    ) -> RpcResult<ReadTxResponse, Infallible> {
+        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+
+        let mut client = RemoteDataSourceClient::connect(endpoint)
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        let resp = client
+            .read(req.clone())
+            .await
+            .map(|resp| bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize"))
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+
+        Ok(resp)
+    }
+
     /// Read value by key, in an inconsistent mode.
     ///
     /// This method may return stale value because it does not force to read on a legal leader.
-    pub async fn read(&self, _req: &str) -> RpcResult<String, Infallible> {
-        todo!();
-        // self.do_send_rpc_to_leader("api/read", Some(req)).await
+    pub async fn read(&self, req: ReadTxRequest) -> RpcResult<ReadTxResponse, Infallible> {
+        let req: BinaryReadRequest = req.into();
+
+        self.read_rpc(&req).await
     }
 
     pub async fn data_source(&self, _req: &DataSourceRequest) -> RpcResult<Empty, Infallible> {
@@ -268,55 +337,5 @@ impl ConsensusClient {
             Err(e) => Err(RpcError::Network(NetworkError::new(&e))),
         }
     }
-
-    /// Submit a write request to the raft cluster.
-    ///
-    /// The request will be processed by raft protocol: it will be replicated to a quorum and then will be applied to
-    /// state machine.
-    ///
-    /// The result of applying the request will be returned.
-    pub async fn write(&self, req: RequestData) -> RpcResult<ClientWriteResponse, ClientWriteError> {
-        let req: Request = req.into();
-
-        let mut n_retry = 3;
-
-        loop {
-            let res = self.write_rpc(&req).await;
-
-            let rpc_err = match res {
-                Ok(res) => return Ok(res),
-                Err(rpc_err) => rpc_err,
-            };
-
-            if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = 
-                    <ClientWriteError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
-
-                if let Ok(ForwardToLeader {
-                    leader_id: Some(leader_id),
-                    leader_node: Some(leader_node),
-                }) = forward_err_res {
-                    // Update target to the "new" leader
-                    {
-                        let mut t = self.leader.lock().await;
-                        let url = leader_node.address.clone();
-                        let endpoint = Endpoint::from_shared(url)
-                            .expect("failed to create endpoint");
-                        *t = (leader_id, endpoint);
-                    }
-
-                    n_retry -= 1;
-                    if n_retry > 0 {
-                        continue;
-                    }
-
-                }
-            }
-
-            return Err(rpc_err);
-        }
-
-    }
-
 
 }

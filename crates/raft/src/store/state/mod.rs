@@ -1,3 +1,4 @@
+use lemur::{repr::{relation::RelationKey, df::Schema, expr::ScalarExpr}, execute::stream::source::{ReadTx, WriteTx, DataFrameStream}};
 use openraft::{AnyError, ErrorSubject, ErrorVerb, StorageIOError};
 use std::{error::Error, fmt::Debug, sync::Arc};
 use storageengine::rocks::RocksStore;
@@ -55,6 +56,36 @@ impl ConsensusStateMachine {
 
     pub fn begin(&self) -> StorageResult<u64> {
         Ok(self.inner.begin().get_id())
+    }
+
+    pub async fn get_schema(&self, table: &RelationKey) -> StorageResult<Option<Schema>> {
+        let tx = self.inner.begin();
+        
+        let schema = tx.get_schema(table).await.map_err(|e| {
+            StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::error(e.to_string()))
+        })?;
+
+        Ok(schema)
+    }
+
+    pub async fn scan(&self, table: &RelationKey, filter: Option<ScalarExpr>) -> StorageResult<Option<DataFrameStream>> {
+        let tx = self.inner.begin();
+        
+        let stream = tx.scan(table, filter).await.map_err(|e| {
+            StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::error(e.to_string()))
+        })?;
+
+        Ok(stream)
+    }
+
+    pub async fn allocate_table(&self, table: RelationKey, schema: Schema) -> StorageResult<()> {
+        let tx = self.inner.begin();
+
+        tx.allocate_table(table, schema).await.map_err(|e| {
+            StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::error(e.to_string()))
+        })?;
+
+        Ok(())
     }
 }
 
