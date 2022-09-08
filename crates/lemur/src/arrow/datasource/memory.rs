@@ -47,13 +47,14 @@ impl QueryDataSource for MemorySource {
         filter: Option<ScalarExpr>,
         projection: Option<Vec<usize>>,
     ) -> Result<PinnedChunkStream> {
-        let tables = self.tables.lock();
-        let table = tables
-            .get(table)
-            .ok_or_else(|| internal!("missing table: {}", table))?;
+        let chunks = {
+            let tables = self.tables.lock();
+            let table = tables
+                .get(table)
+                .ok_or_else(|| internal!("missing table: {}", table))?;
 
-        let chunks = table.chunks.clone(); // Cheap, columns behind an arc.
-        std::mem::drop(tables);
+            table.chunks.clone() // Cheap, columns behind an arc.
+        };
 
         let (tx, rx) = mpsc::channel(SCAN_BUFFER);
         tokio::spawn(async move {
