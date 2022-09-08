@@ -2,6 +2,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use glaredb::server::{Server, ServerConfig};
 use lemur::execute::stream::source::{DataSource, MemoryDataSource};
+use raft::client::ConsensusClient;
+use raft::repr::NodeId;
+use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -46,13 +49,16 @@ enum Commands {
         /// Address of server to connect to.
         #[clap(value_parser)]
         addr: String,
+
+        #[clap(subcommand)]
+        command: ClientCommands,
     },
 
     /// Starts the sql server portion of GlareDB, using a cluster of raft nodes.
-    Cluster {
-        /// TCP address to bind to.
-        #[clap(long, value_parser, default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 22001))]
-        address: SocketAddr,
+    RaftNode {
+        /// TCP port to bind to.
+        #[clap(long, value_parser, default_value_t = 6000)]
+        port: u16,
 
         /// Directory for storing data.
         data_path: String,
@@ -60,7 +66,27 @@ enum Commands {
         /// leader node address.
         #[clap(long, value_parser)]
         leader: Option<String>,
+
+        /// node id.
+        #[clap(long, value_parser)]
+        node_id: u64,
     },
+}
+
+#[derive(Subcommand)]
+enum ClientCommands {
+    Init,
+    AddLearner {
+        #[clap(short, long)]
+        address: String,
+
+        #[clap(short, long)]
+        node_id: NodeId,
+    },
+    ChangeMembership {
+        // TODO: add a command to change membership
+    },
+    Metrics,
 }
 
 #[derive(ValueEnum, Clone)]
@@ -93,28 +119,56 @@ fn main() -> Result<()> {
                 }
             },
         },
-        Commands::Cluster {
+        Commands::RaftNode {
             data_path,
             leader: _,
-            address,
+            port,
+            node_id,
         } => {
             // let storage_conf = StorageConfig { data_dir: data_path };
             // let source = RocksStore::open(storage_conf)?;
             let rt = tokio::runtime::Runtime::new()?;
 
+            let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
+            let url = format!("http://{}", addr);
+
             rt.block_on(async {
                 start_raft_node(
-                    0,
+                    node_id,
                     data_path,
-                    format!("http://{}", address),
-                    address,
+                    url,
+                    addr,
                 ).await.expect("raft node");
             });
         }
-        Commands::Client { .. } => {
-            // TODO: Eventually there will be some "management" client. E.g.
-            // adding nodes to the cluster, graceful shutdowns, etc.
-            error!("client not implemented");
+        Commands::Client {
+            addr,
+            command,
+        } => {
+            let rt = tokio::runtime::Runtime::new()?;
+            let client = ConsensusClient::new(1, addr);
+
+            rt.block_on(async {
+
+                match command {
+                    ClientCommands::Init => {
+                        client.init().await.expect("failed to init cluster");
+                    }
+                    ClientCommands::AddLearner { address, node_id } => {
+                        client.add_learner(AddLearnerRequest {
+                            address,
+                            node_id,
+                        }).await.expect("failed to add learner");
+                    }
+                    ClientCommands::ChangeMembership { .. } => {
+                        todo!();
+                    }
+                    ClientCommands::Metrics => {
+                        let metrics = client.metrics().await.expect("failed to get metrics");
+                        println!("{:?}", metrics);
+                    }
+                }
+            });
         }
     }
 
