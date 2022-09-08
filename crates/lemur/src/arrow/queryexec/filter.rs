@@ -1,6 +1,6 @@
-use crate::arrow::chunk::Chunk;
 use crate::arrow::expr::ScalarExpr;
 use crate::errors::Result;
+use crate::{arrow::chunk::Chunk, errors::internal};
 use futures::stream::StreamExt;
 
 use super::{PinnedChunkStream, QueryExecutor};
@@ -30,7 +30,9 @@ impl Filter {
                 {
                     chunk.filter(mask)
                 } else {
-                    todo!();
+                    Err(internal!(
+                        "predicate expression failed to down cast to BoolColumn mask"
+                    ))
                 }
             }
             Err(e) => Err(e),
@@ -74,7 +76,6 @@ mod tests {
             vec![ScalarOwned::Int8(Some(3)), ScalarOwned::Int8(None)].into(),
         ]);
 
-        // let predicate = ScalarExpr::Column(1);
         let predicate = ScalarExpr::Constant(ScalarOwned::Bool(Some(true)));
 
         let filter = Filter::new(predicate, input);
