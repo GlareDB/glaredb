@@ -1,4 +1,4 @@
-use lemur::repr::{df::Schema, relation::RelationKey, expr::ScalarExpr};
+use lemur::repr::{df::{Schema, DataFrame}, relation::RelationKey, expr::ScalarExpr};
 use serde::{Deserialize, Serialize};
 
 use crate::rpc::pb::{GetSchemaRequest, BinaryReadRequest, BinaryReadResponse};
@@ -28,6 +28,7 @@ pub enum ReadTxRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ReadTxResponse {
     TableSchema(Option<Schema>),
+    Scan(Option<Vec<DataFrame>>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

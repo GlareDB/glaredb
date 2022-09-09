@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 use tonic::transport::Endpoint;
 
 use super::{error::RpcResult, message::DataSourceRequest};
-use crate::message::{ReadTxRequest, WriteTxRequest, Request, RequestData, ReadTxResponse};
+use crate::message::{ReadTxRequest, WriteTxRequest, Request, ReadTxResponse};
 use crate::openraft_types::prelude::*;
 use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
 use crate::rpc::pb::{AddLearnerRequest, AddLearnerResponse, ChangeMembershipRequest, BinaryWriteRequest, BinaryReadRequest};

@@ -5,7 +5,7 @@ use openraft::Raft as OpenRaft;
 use crate::{
     message::{Request, Response},
     network::ConsensusNetwork,
-    store::ConsensusStore, rpc::pb::{BinaryWriteRequest, BinaryWriteResponse},
+    store::ConsensusStore,
 };
 
 pub type NodeId = u64;

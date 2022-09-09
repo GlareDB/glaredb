@@ -30,30 +30,6 @@ impl ConsensusStateMachine {
         }
     }
 
-    pub(super) fn insert(&self, key: String, value: String) -> StorageResult<()> {
-        self.db
-            .put_cf(
-                self.db.cf_handle("data").unwrap(),
-                key.as_bytes(),
-                value.as_bytes(),
-            )
-            .map_err(|e| {
-                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Write, AnyError::new(&e)).into()
-            })
-    }
-
-    pub fn get(&self, key: &str) -> StorageResult<Option<String>> {
-        let key = key.as_bytes();
-        self.db
-            .get_cf(self.db.cf_handle("data").unwrap(), key)
-            .map(|value| {
-                value.map(|value| String::from_utf8(value.to_vec()).expect("invalid data"))
-            })
-            .map_err(|e| {
-                StorageIOError::new(ErrorSubject::Store, ErrorVerb::Read, AnyError::new(&e)).into()
-            })
-    }
-
     pub fn begin(&self) -> StorageResult<u64> {
         Ok(self.inner.begin().get_id())
     }

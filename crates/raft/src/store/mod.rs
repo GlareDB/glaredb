@@ -14,12 +14,12 @@ use tokio::sync::RwLock;
 
 use self::state::{ConsensusStateMachine, RaftStateMachine};
 
-use super::message::{Response, RequestData, ResponseData};
+use super::message::{Response, RequestData};
 use crate::{
     openraft_types::types::{
         EffectiveMembership, LogId, Snapshot, SnapshotMeta, StateMachineChanges, StorageError, Vote,
     },
-    repr::RaftTypeConfig, message::{DataSourceRequest, DataSourceResponse, WriteTxRequest}, rpc::pb::BinaryWriteResponse,
+    repr::RaftTypeConfig, message::{DataSourceRequest, DataSourceResponse, WriteTxRequest},
 };
 
 mod state;

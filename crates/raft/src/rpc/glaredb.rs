@@ -4,7 +4,8 @@ use super::{pb::{
     remote_data_source_server::{RemoteDataSource}, BinaryWriteRequest, BinaryWriteResponse, GetSchemaRequest, BinaryReadResponse, BinaryReadRequest,
 }, TonicResult};
 
-use crate::{server::app::ApplicationState, message::{Request, Response, ReadTxRequest, ReadTxResponse, ScanRequest}};
+use crate::{server::app::ApplicationState, message::{Request, ReadTxRequest, ReadTxResponse, ScanRequest}};
+use futures::StreamExt;
 
 #[derive(Clone)]
 pub struct GlaredbRpcHandler {
@@ -46,11 +47,14 @@ impl RemoteDataSource for GlaredbRpcHandler {
                 ReadTxResponse::TableSchema(schema)
             }
             ReadTxRequest::Scan(ScanRequest { table, filter }) => {
-                let stream = state_machine.scan(&table, filter).await.unwrap();
-
-                todo!();
+                let scan = state_machine.scan(&table, filter).await.unwrap();
+                if let Some(stream) = scan {
+                    let chunks = stream.map(|df| df.unwrap()).collect().await;
+                    ReadTxResponse::Scan(Some(chunks))
+                } else {
+                    ReadTxResponse::Scan(None)
+                }
             }
-            _ => return Err(tonic::Status::new(tonic::Code::Internal, "not implemented".to_string())),
         };
 
         Ok(tonic::Response::new(BinaryReadResponse { payload: bincode::serialize(&resp).unwrap() }))

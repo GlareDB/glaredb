@@ -2,8 +2,8 @@ use anyhow::{Result, anyhow};
 use std::{sync::Arc, net::SocketAddr};
 
 use async_trait::async_trait;
-use lemur::{execute::stream::source::{DataSource, ReadTx, WriteTx, DataFrameStream}, repr::{relation::{RelationKey, PrimaryKeyIndices}, df::{Schema, DataFrame}, expr::ScalarExpr}};
-use crate::{client::ConsensusClient, message::{Response, DataSourceRequest, DataSourceResponse, ReadTxRequest, ReadTxResponse, WriteTxRequest}, repr::NodeId, rpc::pb::GetSchemaRequest};
+use lemur::{execute::stream::source::{DataSource, ReadTx, WriteTx, DataFrameStream, MemoryStream}, repr::{relation::{RelationKey, PrimaryKeyIndices}, df::{Schema, DataFrame}, expr::ScalarExpr}};
+use crate::{client::ConsensusClient, message::{Response, DataSourceRequest, DataSourceResponse, ReadTxRequest, ReadTxResponse, WriteTxRequest, ScanRequest}, repr::NodeId, rpc::pb::GetSchemaRequest};
 
 #[derive(Clone)]
 pub struct RaftClientSource {
@@ -47,6 +47,7 @@ impl DataSource for RaftClientSource {
 
 pub struct TxClient {
     client: RaftClientSource,
+    #[allow(dead_code)]
     tx_id: u64,
 }
 
@@ -56,7 +57,7 @@ impl ReadTx for TxClient {
         let resp = self.client.inner.read(
             ReadTxRequest::GetSchema(GetSchemaRequest {
                 table: _table.clone(),
-            }).into()
+            })
         ).await.unwrap();
 
         match resp {
@@ -67,10 +68,21 @@ impl ReadTx for TxClient {
 
     async fn scan(
         &self,
-        _table: &RelationKey,
-        _filter: Option<ScalarExpr>,
+        table: &RelationKey,
+        filter: Option<ScalarExpr>,
     ) -> Result<Option<DataFrameStream>> {
-        todo!();
+        let resp = self.client.inner.read(
+            ReadTxRequest::Scan(ScanRequest {
+                table: table.to_string(),
+                filter,
+            })
+        ).await.unwrap();
+
+        match resp {
+            ReadTxResponse::Scan(Some(chunks)) => Ok(Some(Box::pin(MemoryStream::with_dataframes(chunks)))),
+            ReadTxResponse::Scan(None) => Ok(None),
+            _ => Err(anyhow!("unexpected response: {:?}", resp)),
+        }
     }
 }
 
@@ -85,9 +97,10 @@ impl WriteTx for TxClient {
     }
 
     async fn allocate_table(&self, table: RelationKey, schema: Schema) -> Result<()> {
-        let resp = self.client.inner.write(
+        self.client.inner.write(
             WriteTxRequest::AllocateTable(table, schema).into()
         ).await.unwrap();
+
 
         Ok(())
     }
