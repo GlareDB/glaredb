@@ -19,7 +19,7 @@ use crate::{
     openraft_types::types::{
         EffectiveMembership, LogId, Snapshot, SnapshotMeta, StateMachineChanges, StorageError, Vote,
     },
-    repr::RaftTypeConfig, message::{DataSourceRequest, DataSourceResponse, WriteTxRequest},
+    repr::RaftTypeConfig, message::{DataSourceRequest, DataSourceResponse, WriteTxRequest, InsertRequest},
 };
 
 mod state;
@@ -277,6 +277,14 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
                         match req {
                             WriteTxRequest::AllocateTable(table, schema) => {
                                 sm.allocate_table(table.to_string(), schema.clone()).await?;
+                                res.push(Response::None)
+                            }
+                            WriteTxRequest::Insert(InsertRequest {
+                                table,
+                                data,
+                                pk_idxs,
+                            }) => {
+                                sm.insert(table.to_string(), pk_idxs, data).await?;
                                 res.push(Response::None)
                             }
                             _ => unimplemented!(),

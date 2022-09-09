@@ -3,7 +3,7 @@ use std::{sync::Arc, net::SocketAddr};
 
 use async_trait::async_trait;
 use lemur::{execute::stream::source::{DataSource, ReadTx, WriteTx, DataFrameStream, MemoryStream}, repr::{relation::{RelationKey, PrimaryKeyIndices}, df::{Schema, DataFrame}, expr::ScalarExpr}};
-use crate::{client::ConsensusClient, message::{Response, DataSourceRequest, DataSourceResponse, ReadTxRequest, ReadTxResponse, WriteTxRequest, ScanRequest}, repr::NodeId, rpc::pb::GetSchemaRequest};
+use crate::{client::ConsensusClient, message::{Response, DataSourceRequest, DataSourceResponse, ReadTxRequest, ReadTxResponse, WriteTxRequest, ScanRequest, InsertRequest}, repr::NodeId, rpc::pb::GetSchemaRequest};
 
 #[derive(Clone)]
 pub struct RaftClientSource {
@@ -111,10 +111,18 @@ impl WriteTx for TxClient {
 
     async fn insert(
         &self,
-        _table: &RelationKey,
-        _pk_idxs: PrimaryKeyIndices<'_>,
-        _data: DataFrame,
+        table: &RelationKey,
+        pk_idxs: PrimaryKeyIndices<'_>,
+        data: DataFrame,
     ) -> Result<()> {
-        todo!();
+         self.client.inner.write(
+            WriteTxRequest::Insert(InsertRequest {
+                table: table.clone(),
+                pk_idxs: pk_idxs.to_vec(),
+                data,
+            }).into()
+        ).await.unwrap();
+
+        Ok(())
     }
 }

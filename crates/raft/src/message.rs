@@ -37,8 +37,15 @@ pub enum WriteTxRequest {
     Rollback,
     AllocateTable(RelationKey, Schema),
     DeallocateTable,
-    Insert,
+    Insert(InsertRequest),
     AllocateTableIfNotExists,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct InsertRequest {
+    pub table: RelationKey,
+    pub data: DataFrame,
+    pub pk_idxs: Vec<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,10 +61,17 @@ pub enum RequestData {
     // ReadTx(ReadTxRequest),
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ResponseData {
+    None,
+    DataSource(DataSourceResponse),
+    WriteTx(WriteTxResponse),
+    // ReadTx(ReadTxResponse),
+}
+
 pub use RequestData as Request;
 pub use ResponseData as Response;
 use crate::rpc::pb::BinaryWriteRequest;
-// pub use crate::rpc::pb::BinaryWriteResponse as Response;
 
 impl From<DataSourceRequest> for RequestData {
     fn from(req: DataSourceRequest) -> Self {
@@ -91,12 +105,4 @@ impl From<BinaryReadResponse> for ReadTxResponse {
     fn from(resp: BinaryReadResponse) -> Self {
         bincode::deserialize(&resp.payload).unwrap()
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ResponseData {
-    None,
-    DataSource(DataSourceResponse),
-    WriteTx(WriteTxResponse),
-    // ReadTx(ReadTxResponse),
 }
