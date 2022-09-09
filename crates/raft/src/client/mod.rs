@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tonic::transport::Endpoint;
 
-use super::{error::RpcResult, message::DataSourceRequest};
-use crate::message::{ReadTxRequest, ReadTxResponse, Request, WriteTxRequest};
+use super::{error::RpcResult};
+use crate::message::{ReadTxRequest, ReadTxResponse, Request};
 use crate::openraft_types::prelude::*;
 use crate::rpc::pb::raft_node_client::RaftNodeClient;
 use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
@@ -141,28 +141,11 @@ impl ConsensusClient {
         self.read_rpc(&req).await
     }
 
-    pub async fn data_source(&self, _req: &DataSourceRequest) -> RpcResult<Empty, Infallible> {
-        todo!();
-        // self.do_send_rpc_to_leader("api/data_source", Some(req)).await
-    }
-
-    pub async fn read_tx(&self, _req: &ReadTxRequest) -> RpcResult<Empty, Infallible> {
-        todo!();
-        // self.do_send_rpc_to_leader("api/read_tx", Some(req)).await
-    }
-
-    pub async fn write_tx(&self, _req: &WriteTxRequest) -> RpcResult<Empty, Infallible> {
-        todo!();
-        // self.do_send_rpc_to_leader("api/write_tx", Some(req)).await
-    }
-
     /// Consistent Read value by key, in an inconsistent mode.
     ///
     /// This method MUST return consitent value or CheckIsLeaderError.
-    pub async fn consistent_read(&self, _req: &str) -> RpcResult<String, CheckIsLeaderError> {
+    pub async fn consistent_read(&self, _req: ReadTxRequest) -> RpcResult<ReadTxResponse, CheckIsLeaderError> {
         todo!();
-        // self.do_send_rpc_to_leader("api/consistent_read", Some(req))
-        //  .await
     }
 
     // --- Cluster management API
