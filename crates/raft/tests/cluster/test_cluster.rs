@@ -134,6 +134,9 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Try to write some application data through the leader.
 
+    /* 
+     * TODO: write tests that are relevant to glaredb here.
+     * The commented code is from a KV store example and is not relevant
     println!("=== write `foo=bar`");
     let _x = leader
         .write(&Request::Set {
@@ -205,6 +208,7 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(_) => panic!("MUST return CheckIsLeaderError"),
     }
+    */
 
     Ok(())
 }
