@@ -1,7 +1,7 @@
 pub mod consensus;
 mod encode_impl;
-pub mod management;
 pub mod glaredb;
+pub mod management;
 
 pub mod pb {
     #![allow(clippy::derive_partial_eq_without_eq)]

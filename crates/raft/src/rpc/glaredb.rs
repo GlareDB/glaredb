@@ -1,10 +1,17 @@
 use std::sync::Arc;
 
-use super::{pb::{
-    remote_data_source_server::{RemoteDataSource}, BinaryWriteRequest, BinaryWriteResponse, GetSchemaRequest, BinaryReadResponse, BinaryReadRequest,
-}, TonicResult};
+use super::{
+    pb::{
+        remote_data_source_server::RemoteDataSource, BinaryReadRequest, BinaryReadResponse,
+        BinaryWriteRequest, BinaryWriteResponse, GetSchemaRequest,
+    },
+    TonicResult,
+};
 
-use crate::{server::app::ApplicationState, message::{Request, ReadTxRequest, ReadTxResponse, ScanRequest}};
+use crate::{
+    message::{ReadTxRequest, ReadTxResponse, Request, ScanRequest},
+    server::app::ApplicationState,
+};
 use futures::StreamExt;
 
 #[derive(Clone)]
@@ -27,7 +34,9 @@ impl RemoteDataSource for GlaredbRpcHandler {
         let req: Request = bincode::deserialize(&req.into_inner().payload).unwrap();
 
         match self.app.raft.client_write(req).await {
-            Ok(resp) => Ok(tonic::Response::new(BinaryWriteResponse { payload: bincode::serialize(&resp).unwrap() })),
+            Ok(resp) => Ok(tonic::Response::new(BinaryWriteResponse {
+                payload: bincode::serialize(&resp).unwrap(),
+            })),
             Err(e) => Err(tonic::Status::new(tonic::Code::Internal, e.to_string())),
         }
     }
@@ -57,7 +66,8 @@ impl RemoteDataSource for GlaredbRpcHandler {
             }
         };
 
-        Ok(tonic::Response::new(BinaryReadResponse { payload: bincode::serialize(&resp).unwrap() }))
+        Ok(tonic::Response::new(BinaryReadResponse {
+            payload: bincode::serialize(&resp).unwrap(),
+        }))
     }
 }
-

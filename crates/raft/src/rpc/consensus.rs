@@ -3,12 +3,13 @@ use std::sync::Arc;
 use crate::openraft_types::prelude::*;
 use crate::server::app::ApplicationState;
 
-use super::{pb::{
-    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
-    VoteRequest, VoteResponse,
-    raft_network_server::RaftNetwork,
-}, TonicResult};
-
+use super::{
+    pb::{
+        raft_network_server::RaftNetwork, AppendEntriesRequest, AppendEntriesResponse,
+        InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse,
+    },
+    TonicResult,
+};
 
 #[derive(Clone)]
 pub struct RaftRpcHandler {
@@ -29,17 +30,15 @@ impl RaftNetwork for RaftRpcHandler {
     ) -> TonicResult<AppendEntriesResponse> {
         let req: OAppendEntriesRequest = req.into_inner().try_into().expect("invalid request");
 
-        match self.app.raft
-            .append_entries(req).await {
-            Ok(resp) => Ok(tonic::Response::new(resp.try_into().expect("invalid response"))),
+        match self.app.raft.append_entries(req).await {
+            Ok(resp) => Ok(tonic::Response::new(
+                resp.try_into().expect("invalid response"),
+            )),
             Err(e) => Err(tonic::Status::new(tonic::Code::Internal, e.to_string())),
         }
     }
 
-    async fn vote(
-        &self,
-        req: tonic::Request<VoteRequest>,
-    ) -> TonicResult<VoteResponse> {
+    async fn vote(&self, req: tonic::Request<VoteRequest>) -> TonicResult<VoteResponse> {
         let req: OVoteRequest = req.into_inner().try_into().expect("invalid request");
 
         self.app

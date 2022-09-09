@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::{repr::{NodeId, Raft}, store::ConsensusStore};
+use crate::{
+    repr::{NodeId, Raft},
+    store::ConsensusStore,
+};
 
 pub struct ApplicationState {
     pub id: NodeId,

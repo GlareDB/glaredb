@@ -1,11 +1,19 @@
 //! Execute a query string against an in-memory data source.
-use std::{net::{SocketAddr, IpAddr, Ipv4Addr}, str::FromStr, ops::Deref, time::Duration};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    ops::Deref,
+    str::FromStr,
+    time::Duration,
+};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use maplit::btreeset;
 use sqlengine::engine::Engine;
 
-use raft::{lemur_impl::RaftClientSource, repr::NodeId, server::start_raft_node, client::ConsensusClient, rpc::pb::AddLearnerRequest};
+use raft::{
+    client::ConsensusClient, lemur_impl::RaftClientSource, repr::NodeId,
+    rpc::pb::AddLearnerRequest, server::start_raft_node,
+};
 use tokio::time::sleep;
 
 async fn start_cluster() -> Result<()> {
@@ -49,40 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = ConsensusClient::new(1, get_rpc_str(1));
 
-    /*
-    tokio::spawn(async move {
-        start_cluster().await.unwrap();
-    });
-
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    
-    // Initiate the leader
-    client.init().await.expect("failed to init cluster from client");
-    client
-        .add_learner(AddLearnerRequest {
-            node_id: 2,
-            address: get_rpc_str(2),
-        })
-        .await?;
-
-    client
-        .add_learner(AddLearnerRequest {
-            node_id: 3,
-            address: get_rpc_str(3),
-        })
-        .await?;
-    let _x = client.change_membership(&btreeset! {1,2,3}).await?;
-    let metrics = client.metrics().await?;
-    println!("printed metrics {:?}", metrics);
-
-    sleep(Duration::from_millis(10000)).await;
-    */
-
     let source = RaftClientSource::from_client(client);
     let mut engine = Engine::new(source);
-    println!("ensuring tables");
     engine.ensure_system_tables().await?;
-    println!("begining session");
     let mut session = engine.begin_session()?;
 
     let results = session.execute_query(&query).await?;
@@ -96,8 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn get_rpc_addr(node_id: u32) -> SocketAddr {
     let addr = match node_id {
         1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 6001),
-        2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22002),
-        3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22003),
+        2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 6002),
+        3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 6003),
         _ => panic!("node not found"),
     };
     addr

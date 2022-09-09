@@ -1,11 +1,8 @@
 use crate::openraft_types::prelude::*;
 
 use super::pb::{
-    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
-    VoteRequest, VoteResponse,
-    ClientWriteResponse,
-    MetricsResponse,
-    AddLearnerResponse,
+    AddLearnerResponse, AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse,
+    InstallSnapshotRequest, InstallSnapshotResponse, MetricsResponse, VoteRequest, VoteResponse,
 };
 
 macro_rules! bincode_try_from_rpc {

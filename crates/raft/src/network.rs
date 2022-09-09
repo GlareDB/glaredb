@@ -27,14 +27,10 @@ impl RaftNetworkFactory<RaftTypeConfig> for Arc<ConsensusNetwork> {
         node: &Node,
     ) -> Result<Self::Network, Self::ConnectionError> {
         dbg!(&node);
-        let endpoint = Endpoint::from_str(&node.address)
-            .map_err(|e| NetworkError::new(&e))?;
+        let endpoint = Endpoint::from_str(&node.address).map_err(|e| NetworkError::new(&e))?;
 
         match RpcClient::connect(endpoint).await {
-            Ok(client) => Ok(GlareNetworkConnection {
-                client,
-                target,
-            }),
+            Ok(client) => Ok(GlareNetworkConnection { client, target }),
             Err(e) => Err(NetworkError::new(&e)),
         }
     }
@@ -109,7 +105,6 @@ fn tonic_rpc_error<E: std::error::Error + 'static + Clone>(
 
     RpcError::Network(NetworkError::new(&e))
 }
-
 
 #[derive(Debug)]
 struct ErrWrap(Box<dyn std::error::Error>);

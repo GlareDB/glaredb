@@ -1,15 +1,8 @@
 pub use crate::openraft_types::types::{
-    AppendEntriesRequest as OAppendEntriesRequest,
-    AppendEntriesResponse as OAppendEntriesResponse,
-    InstallSnapshotRequest as OInstallSnapshotRequest,
-    InstallSnapshotResponse as OInstallSnapshotResponse,
-    VoteRequest as OVoteRequest,
-    VoteResponse as OVoteResponse,
-    ClientWriteResponse as OClientWriteResponse,
-    ClientWriteError as OClientWriteError,
-    RaftMetrics as ORaftMetrics,
-    AddLearnerResponse as OAddLearnerResponse,
-    AddLearnerError as OAddLearnerError,
-    ForwardToLeader as OForwardToLeader,
+    AddLearnerError as OAddLearnerError, AddLearnerResponse as OAddLearnerResponse,
+    AppendEntriesRequest as OAppendEntriesRequest, AppendEntriesResponse as OAppendEntriesResponse,
+    ClientWriteError as OClientWriteError, ClientWriteResponse as OClientWriteResponse,
+    ForwardToLeader as OForwardToLeader, InstallSnapshotRequest as OInstallSnapshotRequest,
+    InstallSnapshotResponse as OInstallSnapshotResponse, RaftMetrics as ORaftMetrics,
+    VoteRequest as OVoteRequest, VoteResponse as OVoteResponse,
 };
-

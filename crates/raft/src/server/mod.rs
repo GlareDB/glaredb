@@ -4,10 +4,10 @@ use tonic::transport::Server;
 use super::{network::ConsensusNetwork, store::ConsensusStore};
 use crate::repr::{NodeId, Raft};
 use crate::rpc::glaredb::GlaredbRpcHandler;
-use crate::rpc::pb::remote_data_source_server::RemoteDataSourceServer;
-use crate::rpc::{RaftRpcHandler, ManagementRpcHandler};
 use crate::rpc::pb::raft_network_server::RaftNetworkServer;
 use crate::rpc::pb::raft_node_server::RaftNodeServer;
+use crate::rpc::pb::remote_data_source_server::RemoteDataSourceServer;
+use crate::rpc::{ManagementRpcHandler, RaftRpcHandler};
 
 pub mod app;
 

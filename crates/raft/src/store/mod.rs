@@ -1,7 +1,4 @@
-use std::{
-    fmt::Debug, io::Cursor, ops::RangeBounds, path::Path,
-    sync::Arc,
-};
+use std::{fmt::Debug, io::Cursor, ops::RangeBounds, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use openraft::{
@@ -11,15 +8,17 @@ use openraft::{
 use rocksdb::ColumnFamily;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
+use tracing::trace;
 
 use self::state::{ConsensusStateMachine, RaftStateMachine};
 
-use super::message::{Response, RequestData};
+use super::message::{Request, Response};
 use crate::{
+    message::{DataSourceRequest, DataSourceResponse, InsertRequest, WriteTxRequest},
     openraft_types::types::{
         EffectiveMembership, LogId, Snapshot, SnapshotMeta, StateMachineChanges, StorageError, Vote,
     },
-    repr::RaftTypeConfig, message::{DataSourceRequest, DataSourceResponse, WriteTxRequest, InsertRequest},
+    repr::RaftTypeConfig,
 };
 
 mod state;
@@ -254,7 +253,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
         &mut self,
         entries: &[&Entry<RaftTypeConfig>],
     ) -> Result<Vec<Response>, StorageError> {
-        println!("apply_to_state_machine: {:?}", entries);
+        trace!("apply_to_state_machine: {:?}", entries);
         let mut res = Vec::with_capacity(entries.len());
 
         let sm = self.state_machine.write().await;
@@ -266,37 +265,27 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
 
             match entry.payload {
                 EntryPayload::Blank => res.push(Response::None),
-                // EntryPayload::Normal(ref req) => match bincode::deserialize(&req.payload).expect("failed to deserialize request") {
                 // Messages for the application
                 EntryPayload::Normal(ref req) => match req {
-                    RequestData::DataSource(DataSourceRequest::Begin) => {
+                    Request::DataSource(DataSourceRequest::Begin) => {
                         let tx_id = sm.begin()?;
                         res.push(Response::DataSource(DataSourceResponse::Begin(tx_id)))
                     }
-                    RequestData::WriteTx(ref req) => {
-                        match req {
-                            WriteTxRequest::AllocateTable(table, schema) => {
-                                sm.allocate_table(table.to_string(), schema.clone()).await?;
-                                res.push(Response::None)
-                            }
-                            WriteTxRequest::Insert(InsertRequest {
-                                table,
-                                data,
-                                pk_idxs,
-                            }) => {
-                                sm.insert(table.to_string(), pk_idxs, data).await?;
-                                res.push(Response::None)
-                            }
-                            _ => unimplemented!(),
+                    Request::WriteTx(ref req) => match req {
+                        WriteTxRequest::AllocateTable(table, schema) => {
+                            sm.allocate_table(table.to_string(), schema.clone()).await?;
+                            res.push(Response::None)
                         }
-                    }
-                    /*
-                    RequestData::ReadTx(ref req) => {
-                        match req {
-                            _ => unimplemented!(),
+                        WriteTxRequest::Insert(InsertRequest {
+                            table,
+                            data,
+                            pk_idxs,
+                        }) => {
+                            sm.insert(table.to_string(), pk_idxs, data).await?;
+                            res.push(Response::None)
                         }
-                    }
-                    */
+                        _ => unimplemented!(),
+                    },
                 },
                 EntryPayload::Membership(ref mem) => {
                     sm.set_last_membership(EffectiveMembership::new(

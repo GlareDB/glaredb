@@ -1,7 +1,11 @@
-use lemur::repr::{df::{Schema, DataFrame}, relation::RelationKey, expr::ScalarExpr};
+use lemur::repr::{
+    df::{DataFrame, Schema},
+    expr::ScalarExpr,
+    relation::RelationKey,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::rpc::pb::{GetSchemaRequest, BinaryReadRequest, BinaryReadResponse};
+use crate::rpc::pb::{BinaryReadRequest, BinaryReadResponse, BinaryWriteRequest, GetSchemaRequest};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DataSourceRequest {
@@ -55,38 +59,34 @@ pub enum WriteTxResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum RequestData {
+pub enum Request {
     DataSource(DataSourceRequest),
     WriteTx(WriteTxRequest),
     // ReadTx(ReadTxRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ResponseData {
+pub enum Response {
     None,
     DataSource(DataSourceResponse),
     WriteTx(WriteTxResponse),
     // ReadTx(ReadTxResponse),
 }
 
-pub use RequestData as Request;
-pub use ResponseData as Response;
-use crate::rpc::pb::BinaryWriteRequest;
-
-impl From<DataSourceRequest> for RequestData {
+impl From<DataSourceRequest> for Request {
     fn from(req: DataSourceRequest) -> Self {
-        RequestData::DataSource(req)
+        Request::DataSource(req)
     }
 }
 
-impl From<WriteTxRequest> for RequestData {
+impl From<WriteTxRequest> for Request {
     fn from(req: WriteTxRequest) -> Self {
-        RequestData::WriteTx(req)
+        Request::WriteTx(req)
     }
 }
 
-impl From<RequestData> for BinaryWriteRequest {
-    fn from(req: RequestData) -> Self {
+impl From<Request> for BinaryWriteRequest {
+    fn from(req: Request) -> Self {
         Self {
             payload: bincode::serialize(&req).unwrap(),
         }

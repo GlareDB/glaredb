@@ -1,21 +1,24 @@
 use std::{collections::BTreeSet, sync::Arc};
 
-use openraft::error::{NetworkError, ForwardToLeader, RPCError};
+use openraft::error::{ForwardToLeader, NetworkError, RPCError};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tonic::transport::Endpoint;
 
 use super::{error::RpcResult, message::DataSourceRequest};
-use crate::message::{ReadTxRequest, WriteTxRequest, Request, ReadTxResponse};
+use crate::message::{ReadTxRequest, ReadTxResponse, Request, WriteTxRequest};
 use crate::openraft_types::prelude::*;
-use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
-use crate::rpc::pb::{AddLearnerRequest, AddLearnerResponse, ChangeMembershipRequest, BinaryWriteRequest, BinaryReadRequest};
 use crate::rpc::pb::raft_node_client::RaftNodeClient;
+use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
+use crate::rpc::pb::{
+    AddLearnerRequest, AddLearnerResponse, BinaryReadRequest, BinaryWriteRequest,
+    ChangeMembershipRequest,
+};
 use crate::{
     error::RpcError,
     openraft_types::types::{
-        AddLearnerError, CheckIsLeaderError, ClientWriteError,
-        ClientWriteResponse, Infallible, InitializeError, RaftMetrics,
+        AddLearnerError, CheckIsLeaderError, ClientWriteError, ClientWriteResponse, Infallible,
+        InitializeError, RaftMetrics,
     },
     repr::NodeId,
 };
@@ -25,15 +28,13 @@ pub struct ConsensusClient {
     // pub inner: RaftNodeClient<tonic::transport::Channel>,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Empty;
 
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
     pub fn new(leader_id: NodeId, leader_url: String) -> Self {
-        let endpoint = Endpoint::from_shared(leader_url)
-            .expect("failed to create endpoint");
+        let endpoint = Endpoint::from_shared(leader_url).expect("failed to create endpoint");
 
         Self {
             leader: Arc::new(Mutex::new((leader_id, endpoint))),
@@ -56,7 +57,9 @@ impl ConsensusClient {
         let resp = client
             .write(req.clone())
             .await
-            .map(|resp| bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize"))
+            .map(|resp| {
+                bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize")
+            })
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
         Ok(resp)
@@ -82,19 +85,21 @@ impl ConsensusClient {
             };
 
             if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = 
-                    <ClientWriteError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+                let forward_err_res = <ClientWriteError as TryInto<OForwardToLeader>>::try_into(
+                    remote_err.source.clone(),
+                );
 
                 if let Ok(ForwardToLeader {
                     leader_id: Some(leader_id),
                     leader_node: Some(leader_node),
-                }) = forward_err_res {
+                }) = forward_err_res
+                {
                     // Update target to the "new" leader
                     {
                         let mut t = self.leader.lock().await;
                         let url = leader_node.address.clone();
-                        let endpoint = Endpoint::from_shared(url)
-                            .expect("failed to create endpoint");
+                        let endpoint =
+                            Endpoint::from_shared(url).expect("failed to create endpoint");
                         *t = (leader_id, endpoint);
                     }
 
@@ -102,19 +107,14 @@ impl ConsensusClient {
                     if n_retry > 0 {
                         continue;
                     }
-
                 }
             }
 
             return Err(rpc_err);
         }
-
     }
 
-    async fn read_rpc(
-        &self,
-        req: &BinaryReadRequest,
-    ) -> RpcResult<ReadTxResponse, Infallible> {
+    async fn read_rpc(&self, req: &BinaryReadRequest) -> RpcResult<ReadTxResponse, Infallible> {
         let (_leader_id, endpoint) = self.leader.lock().await.clone();
 
         let mut client = RemoteDataSourceClient::connect(endpoint)
@@ -124,7 +124,9 @@ impl ConsensusClient {
         let resp = client
             .read(req.clone())
             .await
-            .map(|resp| bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize"))
+            .map(|resp| {
+                bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize")
+            })
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
         Ok(resp)
@@ -178,7 +180,10 @@ impl ConsensusClient {
             .await
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
-        client.init(()).await.map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+        client
+            .init(())
+            .await
+            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
         Ok(())
     }
@@ -206,13 +211,14 @@ impl ConsensusClient {
     /// The node to add has to exist, i.e., being added with `write(Request::AddNode{})`
     pub async fn add_learner(
         &self,
-        req: AddLearnerRequest
+        req: AddLearnerRequest,
     ) -> RpcResult<OAddLearnerResponse, AddLearnerError> {
         let mut n_retry = 3;
 
         loop {
             let resp = self.add_learner_rpc(&req).await?;
-            let res: RpcResult<OAddLearnerResponse, OAddLearnerError> = bincode::deserialize(&resp.payload).expect("failed to deserialize");
+            let res: RpcResult<OAddLearnerResponse, OAddLearnerError> =
+                bincode::deserialize(&resp.payload).expect("failed to deserialize");
 
             let rpc_err = match res {
                 Ok(res) => return Ok(res),
@@ -220,19 +226,21 @@ impl ConsensusClient {
             };
 
             if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = 
-                    <AddLearnerError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+                let forward_err_res = <AddLearnerError as TryInto<OForwardToLeader>>::try_into(
+                    remote_err.source.clone(),
+                );
 
                 if let Ok(ForwardToLeader {
                     leader_id: Some(leader_id),
                     leader_node: Some(leader_node),
-                }) = forward_err_res {
+                }) = forward_err_res
+                {
                     // Update target to the "new" leader
                     {
                         let mut t = self.leader.lock().await;
                         let url = leader_node.address.clone();
-                        let endpoint = Endpoint::from_shared(url)
-                            .expect("failed to create endpoint");
+                        let endpoint =
+                            Endpoint::from_shared(url).expect("failed to create endpoint");
                         *t = (leader_id, endpoint);
                     }
 
@@ -240,7 +248,6 @@ impl ConsensusClient {
                     if n_retry > 0 {
                         continue;
                     }
-
                 }
             }
 
@@ -261,13 +268,13 @@ impl ConsensusClient {
         let resp = client
             .change_membership(req.clone())
             .await
-            .map(|resp| bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize"))
+            .map(|resp| {
+                bincode::deserialize(&resp.into_inner().payload).expect("failed to deserialize")
+            })
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
 
         Ok(resp)
     }
-
-
 
     /// Change membership to the specified set of nodes.
     ///
@@ -292,19 +299,21 @@ impl ConsensusClient {
             };
 
             if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = 
-                    <ClientWriteError as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
+                let forward_err_res = <ClientWriteError as TryInto<OForwardToLeader>>::try_into(
+                    remote_err.source.clone(),
+                );
 
                 if let Ok(ForwardToLeader {
                     leader_id: Some(leader_id),
                     leader_node: Some(leader_node),
-                }) = forward_err_res {
+                }) = forward_err_res
+                {
                     // Update target to the "new" leader
                     {
                         let mut t = self.leader.lock().await;
                         let url = leader_node.address.clone();
-                        let endpoint = Endpoint::from_shared(url)
-                            .expect("failed to create endpoint");
+                        let endpoint =
+                            Endpoint::from_shared(url).expect("failed to create endpoint");
                         *t = (leader_id, endpoint);
                     }
 
@@ -312,7 +321,6 @@ impl ConsensusClient {
                     if n_retry > 0 {
                         continue;
                     }
-
                 }
             }
 
@@ -337,5 +345,4 @@ impl ConsensusClient {
             Err(e) => Err(RpcError::Network(NetworkError::new(&e))),
         }
     }
-
 }
