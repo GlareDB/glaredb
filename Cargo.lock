@@ -3879,6 +3879,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlexec"
+version = "0.1.0"
+dependencies = [
+ "arrow 22.0.0",
+ "async-trait",
+ "datafusion",
+ "hashbrown",
+ "logutil",
+ "parking_lot",
+ "sqlparser 0.23.0",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sqllogictest"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
