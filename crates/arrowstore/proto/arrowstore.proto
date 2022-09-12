@@ -134,9 +134,6 @@ message PrepareScanResponse {
 // Start scanning with the given cursor. Cursors should not be reused.
 message ScanRequest {
     CursorId cursor_id = 1;
-    // Restrict which columns are returned. An empty list indicates all columns
-    // should be returned.
-    repeated uint64 column_projection = 2;
 }
 
 // Arrow record batches part of a stream.
