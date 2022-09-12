@@ -164,7 +164,6 @@ impl MemorySource {
         let mut tables = self.tables.write();
         match tables.entry(table) {
             Entry::Vacant(ent) => {
-                // ent.insert(value)
                 let table = MemoryTable::new(schema, pk_idxs);
                 ent.insert(Arc::new(RwLock::new(table)));
                 Ok(())
