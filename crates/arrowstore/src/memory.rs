@@ -136,6 +136,7 @@ impl From<MemoryError> for Status {
     fn from(e: MemoryError) -> Self {
         match e {
             e @ MemoryError::DuplicateTable(_) => Status::already_exists(e.to_string()),
+            e @ MemoryError::DuplicatePrimaryKey => Status::already_exists(e.to_string()),
             other => Status::unknown(other.to_string()),
         }
     }
