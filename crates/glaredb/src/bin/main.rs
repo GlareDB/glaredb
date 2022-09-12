@@ -6,6 +6,7 @@ use raft::client::ConsensusClient;
 use raft::repr::NodeId;
 use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
+use std::collections::BTreeSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use storageengine::rocks::{RocksStore, StorageConfig};
@@ -85,6 +86,7 @@ enum ClientCommands {
     },
     ChangeMembership {
         // TODO: add a command to change membership
+        membership: Vec<NodeId>,
     },
     Metrics,
 }
@@ -130,7 +132,7 @@ fn main() -> Result<()> {
             let rt = tokio::runtime::Runtime::new()?;
 
             let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
-            let url = format!("http://{}", addr);
+            let url = format!("http://127.0.0.1:{}", port);
 
             rt.block_on(async {
                 start_raft_node(
@@ -160,8 +162,9 @@ fn main() -> Result<()> {
                             node_id,
                         }).await.expect("failed to add learner");
                     }
-                    ClientCommands::ChangeMembership { .. } => {
-                        todo!();
+                    ClientCommands::ChangeMembership { membership } => {
+                        let new_membership = BTreeSet::from_iter(membership);
+                        client.change_membership(&new_membership).await.expect("failed to change membership");
                     }
                     ClientCommands::Metrics => {
                         let metrics = client.metrics().await.expect("failed to get metrics");
