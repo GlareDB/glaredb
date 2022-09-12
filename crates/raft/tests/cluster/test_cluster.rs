@@ -7,10 +7,12 @@ use std::time::Duration;
 use maplit::btreemap;
 use maplit::btreeset;
 use raft::client::ConsensusClient;
+use raft::lemur_impl::RaftClientSource;
 use raft::message::Request;
 use raft::repr::Node;
 use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
+use sqlengine::engine::Engine;
 use tokio::time::sleep;
 
 /// Setup a cluster of 3 nodes.
@@ -48,16 +50,17 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Wait for server to start up.
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(2000)).await;
 
-    run_tests().await?;
+    let leader = prepare_cluster().await?;
+
+    run_tests(leader).await?;
 
     Ok(())
 }
 
-async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
+async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>> {
     // --- Create a client to the first node, as a control handle to the cluster.
-
     let leader = ConsensusClient::new(1, get_rpc_str(1));
 
     // --- 1. Initialize the target node as a cluster of only one node.
@@ -132,8 +135,24 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
     let x = leader.metrics().await?;
     assert_eq!(&vec![vec![1, 2, 3]], x.membership_config.get_joint_config());
 
-    // --- Try to write some application data through the leader.
+    Ok(leader)
+}
 
+async fn run_tests(leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
+    // --- Try to write some application data through the leader.
+    //
+    // /*
+
+    println!("=== running sql engine raft tests");
+    let source = RaftClientSource::from_client(leader);
+    let mut engine = Engine::new(source);
+    engine.ensure_system_tables().await?;
+    let mut session = engine.begin_session()?;
+
+    let query = "SELECT * FROM VALUES (1, 2)";
+    let results = session.execute_query(&query).await?;
+    println!("results: {:?}", results);
+    // */
     /* 
      * TODO: write tests that are relevant to glaredb here.
      * The commented code is from a KV store example and is not relevant
