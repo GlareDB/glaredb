@@ -1,4 +1,5 @@
 use crate::errors::{internal, Result};
+use arrowstore::proto::arrow_store_service_server::ArrowStoreService;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -11,14 +12,29 @@ use datafusion::physical_plan::{memory::MemoryExec, ExecutionPlan};
 use std::any::Any;
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub struct MemoryTableProvider {
+/// Implements the table provider for datafusion using a local arrow store
+/// service.
+pub struct LocalArrowStoreTable<S> {
     schema: SchemaRef,
-    batches: Vec<RecordBatch>,
+    /// Identifier for the table.
+    table: String,
+    /// The underlying arrow store. Note that this will be shared across
+    /// different table providers.
+    local: S,
+}
+
+impl<S: ArrowStoreService> LocalArrowStoreTable<S> {
+    pub fn new(store: S, schema: SchemaRef, table: impl Into<String>) -> Self {
+        LocalArrowStoreTable {
+            schema,
+            table: table.into(),
+            local: store,
+        }
+    }
 }
 
 #[async_trait]
-impl TableProvider for MemoryTableProvider {
+impl<S: ArrowStoreService> TableProvider for LocalArrowStoreTable<S> {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -28,7 +44,7 @@ impl TableProvider for MemoryTableProvider {
     }
 
     fn table_type(&self) -> TableType {
-        unimplemented!()
+        TableType::Base
     }
 
     fn get_table_definition(&self) -> Option<&str> {
@@ -42,11 +58,7 @@ impl TableProvider for MemoryTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        Ok(Arc::new(MemoryExec::try_new(
-            &[self.batches.clone()],
-            self.schema.clone(),
-            projection.clone(),
-        )?))
+        unimplemented!()
     }
 
     fn supports_filter_pushdown(&self, _filter: &Expr) -> DfResult<TableProviderFilterPushDown> {

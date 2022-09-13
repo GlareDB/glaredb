@@ -1,4 +1,3 @@
-use crate::datasource::MemoryTableProvider;
 use crate::errors::{internal, Result};
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;

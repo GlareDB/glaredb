@@ -4,3 +4,4 @@ pub mod proto {
 }
 pub mod memory;
 pub mod serialize;
+pub mod timestamp;
