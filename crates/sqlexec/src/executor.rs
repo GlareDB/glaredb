@@ -94,6 +94,10 @@ impl<'a> Executor<'a> {
                 self.session.create_external_table(plan).await?;
                 Ok(ExecutionResult::CreateTable)
             }
+            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
+                self.session.create_table_as(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.session.insert(plan).await?;
                 Ok(ExecutionResult::WriteSuccess)

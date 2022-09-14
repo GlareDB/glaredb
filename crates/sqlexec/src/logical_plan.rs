@@ -49,6 +49,7 @@ pub enum DdlPlan {
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
+    CreateTableAs(CreateTableAs),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -90,6 +91,12 @@ pub struct CreateExternalTable {
     pub table_name: String,
     pub location: String,
     pub file_type: FileType,
+}
+
+#[derive(Debug)]
+pub struct CreateTableAs {
+    pub table_name: String,
+    pub source: DfLogicalPlan,
 }
 
 #[derive(Debug)]
