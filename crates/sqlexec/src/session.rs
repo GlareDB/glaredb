@@ -4,7 +4,11 @@ use crate::errors::{internal, Result};
 use crate::logical_plan::*;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
+use datafusion::datasource::listing::{
+    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
+use datafusion::execution::options::ParquetReadOptions;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
@@ -102,6 +106,23 @@ impl Session {
                 .into())
             }
 
+            ast::Statement::CreateTable {
+                external: true,
+                if_not_exists: false,
+                name,
+                file_format: Some(file_format),
+                location: Some(location),
+                ..
+            } => {
+                let file_type: FileType = file_format.try_into()?;
+                Ok(DdlPlan::CreateExternalTable(CreateExternalTable {
+                    table_name: name.to_string(),
+                    location,
+                    file_type,
+                })
+                .into())
+            }
+
             ast::Statement::Insert {
                 table_name,
                 columns,
@@ -166,6 +187,36 @@ impl Session {
         let mem_table = MemTable::new(Arc::new(table_schema));
 
         schema.register_table(resolved.table.to_string(), Arc::new(mem_table))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
+        let table_ref: TableReference = plan.table_name.as_str().into();
+        let resolved = table_ref.resolve(self.catalog.name(), DEFAULT_SCHEMA);
+
+        let catalog = self
+            .catalog
+            .catalog(resolved.catalog)
+            .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
+        let schema = catalog
+            .schema(resolved.schema)
+            .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
+
+        let target_partitions = self.state.config.target_partitions;
+        let opts = match plan.file_type {
+            FileType::Parquet => {
+                ParquetReadOptions::default().to_listing_options(target_partitions)
+            }
+        };
+        let path = ListingTableUrl::parse(&plan.location)?;
+        let file_schema = opts.infer_schema(&self.state, &path).await?;
+        let config = ListingTableConfig::new(path)
+            .with_listing_options(opts)
+            .with_schema(file_schema);
+
+        let table = ListingTable::try_new(config)?;
+        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
 
         Ok(())
     }
