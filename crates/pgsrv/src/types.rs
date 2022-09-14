@@ -1,4 +1,4 @@
-use lemur::repr::value::{Value, ValueRef, ValueType};
+use lemur::repr::value::ValueType;
 use postgres_types::Type as PgType;
 
 #[derive(Debug, thiserror::Error)]

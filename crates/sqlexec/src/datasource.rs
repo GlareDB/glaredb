@@ -1,20 +1,17 @@
-use crate::errors::{internal, Result};
-use arrowstore::proto::arrow_store_service_server::ArrowStoreService;
+use crate::errors::Result;
 use async_trait::async_trait;
-use datafusion::arrow::compute::kernels::cast::cast;
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DfResult;
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
 use datafusion::physical_plan::{memory::MemoryExec, ExecutionPlan};
 use dfutil::cast::cast_record_batch;
 use parking_lot::RwLock;
 use std::any::Any;
 use std::sync::Arc;
-use tracing::debug;
 
 const DEFAULT_BUFFER_SIZE: usize = 128;
 
@@ -35,7 +32,7 @@ pub struct MemTable {
 impl MemTable {
     pub fn new(schema: SchemaRef) -> MemTable {
         MemTable {
-            schema: schema.clone(),
+            schema,
             inner: Arc::new(RwLock::new(MemTableInner {
                 latest_buffer: DEFAULT_BUFFER_SIZE,
                 latest: Vec::new(),
@@ -77,10 +74,10 @@ impl TableProvider for MemTable {
 
     async fn scan(
         &self,
-        ctx: &SessionState,
+        _ctx: &SessionState,
         projection: &Option<Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
         let inner = self.inner.read();
         let mut partitions = inner.rest.clone();

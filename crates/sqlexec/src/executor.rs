@@ -1,15 +1,12 @@
-use crate::errors::{internal, ExecError, Result};
+use crate::errors::{internal, Result};
 use crate::logical_plan::*;
 use crate::session::Session;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::sql::sqlparser::ast;
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::parser::Parser;
-use futures::Stream;
 use std::collections::VecDeque;
 use std::fmt;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {

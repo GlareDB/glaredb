@@ -4,7 +4,7 @@ use crate::messages::{
     BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, StartupMessage,
     TransactionStatus,
 };
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use sqlexec::{
     engine::Engine,

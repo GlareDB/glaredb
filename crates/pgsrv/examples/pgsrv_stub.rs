@@ -1,4 +1,3 @@
-use lemur::execute::stream::source::MemoryDataSource;
 use pgsrv::handler::Handler;
 use sqlexec::engine::Engine;
 use std::sync::Arc;

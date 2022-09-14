@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use glaredb::server::{Server, ServerConfig};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;

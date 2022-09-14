@@ -2,7 +2,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub trait IntoByteVec {
-    fn into_vec(&self) -> Vec<u8>;
+    fn encode(&self) -> Vec<u8>;
 }
 
 pub trait TimestampGen {
@@ -16,7 +16,7 @@ pub trait TimestampGen {
 }
 
 impl IntoByteVec for u64 {
-    fn into_vec(&self) -> Vec<u8> {
+    fn encode(&self) -> Vec<u8> {
         self.to_be_bytes().to_vec()
     }
 }

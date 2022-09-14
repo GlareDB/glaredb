@@ -71,8 +71,8 @@ impl CatalogList for DatabaseCatalog {
 
     fn register_catalog(
         &self,
-        name: String,
-        catalog: Arc<dyn CatalogProvider>,
+        _name: String,
+        _catalog: Arc<dyn CatalogProvider>,
     ) -> Option<Arc<dyn CatalogProvider>> {
         // Purposely unimplemented.
         //
@@ -106,11 +106,11 @@ impl CatalogProvider for DatabaseCatalog {
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         let schemas = self.schemas.read();
-        schemas.get(name).map(|schema| schema.clone())
+        schemas.get(name).cloned()
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SchemaCatalog {
     tables: Arc<RwLock<HashMap<String, Arc<dyn TableProvider>>>>,
 }
@@ -157,7 +157,7 @@ impl SchemaProvider for SchemaCatalog {
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
         let tables = self.tables.read();
-        tables.get(name).map(|table| table.clone())
+        tables.get(name).cloned()
     }
 
     fn table_exist(&self, name: &str) -> bool {

@@ -1,27 +1,22 @@
 use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
 use crate::datasource::MemTable;
-use crate::errors::{internal, ExecError, Result};
+use crate::errors::{internal, Result};
 use crate::logical_plan::*;
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
-use datafusion::error::Result as DfResult;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
-use datafusion::optimizer::{self, optimizer::Optimizer};
-use datafusion::physical_optimizer::{self, optimizer::PhysicalOptimizerRule};
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
 };
-use datafusion::sql::planner::{convert_data_type, ContextProvider, SqlToRel};
+use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast;
 use datafusion::sql::TableReference;
 use futures::StreamExt;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, trace};
+use tracing::debug;
 
 /// A per-client user session.
 ///

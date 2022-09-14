@@ -1,10 +1,5 @@
-use crate::catalog::DatabaseCatalog;
-use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::Field;
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
-use datafusion::sql::planner::{ContextProvider, SqlToRel};
-use datafusion::sql::sqlparser::ast;
-use datafusion::sql::TableReference;
 
 #[derive(Debug)]
 pub enum LogicalPlan {

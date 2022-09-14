@@ -6,7 +6,6 @@ use crate::messages::{
 use bytes::{Buf, BufMut, BytesMut};
 use datafusion::scalar::ScalarValue;
 use futures::{SinkExt, TryStreamExt};
-use ioutil::fmt::HexBuf;
 use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
 use std::str;
