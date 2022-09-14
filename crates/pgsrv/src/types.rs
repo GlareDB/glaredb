@@ -68,37 +68,3 @@ impl TryFrom<ValueType> for Type {
         })
     }
 }
-
-#[derive(Debug)]
-pub enum PgValue {
-    Null,
-    Bool(bool),
-    Int2(i8),
-    Int4(i32),
-    Float4(f32),
-    Text(String),
-    Bytea(Vec<u8>),
-}
-
-impl PgValue {
-    // TODO: Try to remove needing to get owned data when converting to
-    // `PgValue`.
-    pub fn from_value_ref(val: ValueRef<'_>) -> PgValue {
-        val.into_value().into()
-    }
-}
-
-impl From<Value> for PgValue {
-    fn from(val: Value) -> Self {
-        match val {
-            Value::Null => PgValue::Null,
-            Value::Bool(Some(v)) => PgValue::Bool(v),
-            Value::Int8(Some(v)) => PgValue::Int2(v),
-            Value::Int32(Some(v)) => PgValue::Int4(v),
-            Value::Float32(Some(v)) => PgValue::Float4(v.into()),
-            Value::Utf8(Some(v)) => PgValue::Text(v),
-            Value::Binary(Some(v)) => PgValue::Bytea(v),
-            _ => PgValue::Null,
-        }
-    }
-}

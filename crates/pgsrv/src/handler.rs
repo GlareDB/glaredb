@@ -4,8 +4,8 @@ use crate::messages::{
     BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, StartupMessage,
     TransactionStatus,
 };
-use crate::types::PgValue;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use futures::StreamExt;
 use sqlexec::{
     engine::Engine,
     executor::{ExecutionResult, Executor},
@@ -182,7 +182,7 @@ where
 
             match result {
                 ExecutionResult::Query { stream } => {
-                    // self.send_dataframe(desc, df).await?;
+                    Self::stream_batch(conn, stream).await?;
                     Self::command_complete(conn, "SELECT").await?
                 }
                 ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
@@ -205,34 +205,24 @@ where
 
     async fn stream_batch(
         conn: &mut FramedConn<C>,
-        batch: SendableRecordBatchStream,
+        mut stream: SendableRecordBatchStream,
     ) -> Result<()> {
-        let schema = batch.schema();
+        let schema = stream.schema();
         let fields: Vec<_> = schema
             .fields
             .iter()
-            .map(|field| field.name().clone())
+            .map(|field| FieldDescription::new_named(field.name()))
             .collect();
-        // let fields: Vec<_> = desc
-        //     .columns
-        //     .into_iter()
-        //     .map(FieldDescription::new_named)
-        //     .collect();
-        // self.conn
-        //     .send(BackendMessage::RowDescription(fields))
-        //     .await?;
+        conn.send(BackendMessage::RowDescription(fields)).await?;
 
-        // for row in df.iter_row_refs() {
-        //     self.conn
-        //         .send(BackendMessage::DataRow(
-        //             row.values
-        //                 .into_iter()
-        //                 .map(PgValue::from_value_ref)
-        //                 .collect(),
-        //         ))
-        //         .await?;
-        // }
-
+        while let Some(result) = stream.next().await {
+            let batch = result?;
+            for row_idx in 0..batch.num_rows() {
+                // Clone is cheapish here, all columns behind an arc.
+                conn.send(BackendMessage::DataRow(batch.clone(), row_idx))
+                    .await?;
+            }
+        }
         Ok(())
     }
 

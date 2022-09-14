@@ -198,6 +198,9 @@ impl Session {
         let physical = self.create_physical_plan(plan.source).await?;
         let mut stream = self.execute_physical(physical)?;
 
+        let schema = stream.schema();
+        debug!(?schema, "inserting with schema");
+
         while let Some(result) = stream.next().await {
             let result = result?;
             table.insert_batch(result)?;
