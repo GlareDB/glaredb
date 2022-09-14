@@ -1401,6 +1401,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "dfutil"
+version = "0.1.0"
+dependencies = [
+ "datafusion",
+]
+
+[[package]]
 name = "difference"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1872,7 +1879,7 @@ dependencies = [
  "rand 0.8.5",
  "rustyline",
  "serde",
- "sqlengine",
+ "sqlexec",
  "sqlparser 0.18.0",
  "storageengine",
  "tokio",
@@ -3899,10 +3906,10 @@ dependencies = [
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
- "arrow 22.0.0",
  "arrowstore",
  "async-trait",
  "datafusion",
+ "dfutil",
  "futures",
  "hashbrown",
  "logutil",

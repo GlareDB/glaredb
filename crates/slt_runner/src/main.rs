@@ -62,7 +62,7 @@ fn main() -> Result<()> {
         let pg_addr = pg_listener.local_addr()?;
         let conf = ServerConfig { pg_listener };
 
-        let server = Server::connect(MemoryDataSource::new()).await?;
+        let server = Server::connect("slt_test").await?;
         let _ = tokio::spawn(server.serve(conf));
 
         let runner = TestRunner::connect(pg_addr).await?;

@@ -10,6 +10,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::logical_plan::Expr;
 use datafusion::physical_plan::{memory::MemoryExec, ExecutionPlan};
+use dfutil::cast::cast_record_batch;
 use parking_lot::RwLock;
 use std::any::Any;
 use std::sync::Arc;
@@ -43,6 +44,7 @@ impl MemTable {
         }
     }
 
+    /// Insert a batch into the table, attempting to cast as appropriate.
     pub fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
         let batch = cast_record_batch(batch, self.schema.clone())?;
 
@@ -86,16 +88,4 @@ impl TableProvider for MemTable {
         let exec = MemoryExec::try_new(&[partitions], self.schema.clone(), projection.clone())?;
         Ok(Arc::new(exec))
     }
-}
-
-fn cast_record_batch(batch: RecordBatch, schema: SchemaRef) -> Result<RecordBatch> {
-    let columns = batch
-        .columns()
-        .iter()
-        .zip(schema.fields.iter())
-        .map(|(col, field)| cast(col, field.data_type()))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let batch = RecordBatch::try_new(schema, columns)?;
-    Ok(batch)
 }

@@ -48,7 +48,6 @@ impl fmt::Debug for ExecutionResult {
 ///
 /// The underlying session will go through the following phases on every call to
 /// "next".
-/// - Parsing
 /// - Logical planning and optimization
 /// - Physical query execution
 ///
@@ -63,6 +62,7 @@ pub struct Executor<'a> {
 }
 
 impl<'a> Executor<'a> {
+    /// Create a new executor with the provided sql string and session.
     pub fn new(sql: &'a str, session: &'a mut Session) -> Result<Self> {
         let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?
             .into_iter()
