@@ -2,15 +2,66 @@ use crate::errors::{internal, Result};
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
-use datafusion::sql::planner::ContextProvider;
-use parking_lot::Mutex;
+use datafusion::error::{DataFusionError, Result as DfResult};
+use parking_lot::RwLock;
 use std::any::Any;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub const DEFAULT_SCHEMA: &str = "public";
+
 #[derive(Clone, Default)]
 pub struct DatabaseCatalog {
-    schemas: Arc<Mutex<HashMap<String, Arc<dyn SchemaProvider>>>>,
+    name: String,
+    schemas: Arc<RwLock<HashMap<String, Arc<dyn SchemaProvider>>>>,
+}
+
+impl DatabaseCatalog {
+    /// Create a new database catalog.
+    pub fn new(name: impl Into<String>) -> DatabaseCatalog {
+        DatabaseCatalog {
+            name: name.into(),
+            schemas: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Insert the default "public" schema.
+    pub fn insert_default_schema(&self) -> Result<()> {
+        let schema = Arc::new(SchemaCatalog::new());
+        self.insert_schema(DEFAULT_SCHEMA, schema)?;
+        Ok(())
+    }
+
+    /// Insert a schema with the given name.
+    pub fn insert_schema(
+        &self,
+        name: impl Into<String>,
+        schema: Arc<dyn SchemaProvider>,
+    ) -> Result<()> {
+        let mut schemas = self.schemas.write();
+        match schemas.entry(name.into()) {
+            Entry::Occupied(ent) => return Err(internal!("duplicate schema: {}", ent.key())),
+            Entry::Vacant(ent) => {
+                ent.insert(schema);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Drop a schema.
+    pub fn drop_schema(&self, name: &str) -> Result<()> {
+        let mut schemas = self.schemas.write();
+        if schemas.remove(name).is_none() {
+            return Err(internal!("cannot drop non-existent schema: {}", name));
+        }
+        Ok(())
+    }
 }
 
 impl CatalogList for DatabaseCatalog {
@@ -23,15 +74,19 @@ impl CatalogList for DatabaseCatalog {
         name: String,
         catalog: Arc<dyn CatalogProvider>,
     ) -> Option<Arc<dyn CatalogProvider>> {
-        unimplemented!() // Purposely unimplemented.
+        // Purposely unimplemented.
+        //
+        // The unreleased version of datafusion has a default impl that errors.
+        // We'll want to switch to that once it's released.
+        unimplemented!()
     }
 
     fn catalog_names(&self) -> Vec<String> {
-        vec!["glaredb".into()]
+        vec![self.name.clone()]
     }
 
     fn catalog(&self, name: &str) -> Option<Arc<dyn CatalogProvider>> {
-        if name == "glaredb" {
+        if name == self.name {
             Some(Arc::new(self.clone()))
         } else {
             None
@@ -45,19 +100,39 @@ impl CatalogProvider for DatabaseCatalog {
     }
 
     fn schema_names(&self) -> Vec<String> {
-        let schemas = self.schemas.lock();
+        let schemas = self.schemas.read();
         schemas.iter().map(|(name, _)| name).cloned().collect()
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
-        let schemas = self.schemas.lock();
+        let schemas = self.schemas.read();
         schemas.get(name).map(|schema| schema.clone())
     }
 }
 
 #[derive(Clone)]
 pub struct SchemaCatalog {
-    tables: Arc<Mutex<HashMap<String, Arc<dyn TableProvider>>>>,
+    tables: Arc<RwLock<HashMap<String, Arc<dyn TableProvider>>>>,
+}
+
+impl SchemaCatalog {
+    pub fn new() -> SchemaCatalog {
+        SchemaCatalog {
+            tables: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn insert_table(&self, name: String, table: Arc<dyn TableProvider>) -> Result<()> {
+        let mut tables = self.tables.write();
+        match tables.entry(name) {
+            Entry::Occupied(ent) => return Err(internal!("duplicate table: {}", ent.key())),
+            Entry::Vacant(ent) => {
+                ent.insert(table);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl SchemaProvider for SchemaCatalog {
@@ -66,17 +141,27 @@ impl SchemaProvider for SchemaCatalog {
     }
 
     fn table_names(&self) -> Vec<String> {
-        let tables = self.tables.lock();
+        let tables = self.tables.read();
         tables.iter().map(|(name, _)| name).cloned().collect()
     }
 
+    fn register_table(
+        &self,
+        name: String,
+        table: Arc<dyn TableProvider>,
+    ) -> DfResult<Option<Arc<dyn TableProvider>>> {
+        self.insert_table(name, table)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        Ok(None)
+    }
+
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        let tables = self.tables.lock();
+        let tables = self.tables.read();
         tables.get(name).map(|table| table.clone())
     }
 
     fn table_exist(&self, name: &str) -> bool {
-        let tables = self.tables.lock();
+        let tables = self.tables.read();
         tables.contains_key(name)
     }
 }

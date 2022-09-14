@@ -9,32 +9,54 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::logical_plan::Expr;
 use datafusion::physical_plan::{memory::MemoryExec, ExecutionPlan};
+use parking_lot::RwLock;
 use std::any::Any;
 use std::sync::Arc;
 
-/// Implements the table provider for datafusion using a local arrow store
-/// service.
-pub struct LocalArrowStoreTable<S> {
-    schema: SchemaRef,
-    /// Identifier for the table.
-    table: String,
-    /// The underlying arrow store. Note that this will be shared across
-    /// different table providers.
-    local: S,
+const DEFAULT_BUFFER_SIZE: usize = 128;
+
+struct MemTableInner {
+    latest_buffer: usize,
+    /// The most recent batches we've received.
+    latest: Vec<RecordBatch>,
+    /// All the previous record batches.
+    rest: Vec<RecordBatch>,
 }
 
-impl<S: ArrowStoreService> LocalArrowStoreTable<S> {
-    pub fn new(store: S, schema: SchemaRef, table: impl Into<String>) -> Self {
-        LocalArrowStoreTable {
-            schema,
-            table: table.into(),
-            local: store,
+#[derive(Clone)]
+pub struct MemTable {
+    schema: SchemaRef,
+    inner: Arc<RwLock<MemTableInner>>,
+}
+
+impl MemTable {
+    pub fn new(schema: SchemaRef) -> MemTable {
+        MemTable {
+            schema: schema.clone(),
+            inner: Arc::new(RwLock::new(MemTableInner {
+                latest_buffer: DEFAULT_BUFFER_SIZE,
+                latest: Vec::new(),
+                rest: Vec::new(),
+            })),
         }
+    }
+
+    pub fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
+        let mut inner = self.inner.write();
+        inner.latest.push(batch);
+
+        if inner.latest.len() > inner.latest_buffer {
+            let batch = RecordBatch::concat(&self.schema, &inner.latest[..])?;
+            inner.rest.push(batch);
+            inner.latest.clear();
+        }
+
+        Ok(())
     }
 }
 
 #[async_trait]
-impl<S: ArrowStoreService> TableProvider for LocalArrowStoreTable<S> {
+impl TableProvider for MemTable {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -47,10 +69,6 @@ impl<S: ArrowStoreService> TableProvider for LocalArrowStoreTable<S> {
         TableType::Base
     }
 
-    fn get_table_definition(&self) -> Option<&str> {
-        None
-    }
-
     async fn scan(
         &self,
         ctx: &SessionState,
@@ -58,10 +76,10 @@ impl<S: ArrowStoreService> TableProvider for LocalArrowStoreTable<S> {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
-    }
-
-    fn supports_filter_pushdown(&self, _filter: &Expr) -> DfResult<TableProviderFilterPushDown> {
-        Ok(TableProviderFilterPushDown::Unsupported)
+        let inner = self.inner.read();
+        let mut partitions = inner.rest.clone();
+        partitions.append(&mut inner.latest.clone());
+        let exec = MemoryExec::try_new(&[partitions], self.schema.clone(), projection.clone())?;
+        Ok(Arc::new(exec))
     }
 }

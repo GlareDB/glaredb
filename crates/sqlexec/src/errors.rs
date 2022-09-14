@@ -5,6 +5,12 @@ pub enum ExecError {
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
+
+    #[error(transparent)]
+    ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

@@ -120,7 +120,7 @@ impl ErrorResponse {
         }
     }
 
-    pub fn error_interanl(msg: impl Into<String>) -> ErrorResponse {
+    pub fn error_internal(msg: impl Into<String>) -> ErrorResponse {
         ErrorResponse {
             severity: ErrorSeverity::Error,
             code: SqlState::InternalError,

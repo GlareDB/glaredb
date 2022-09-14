@@ -5,23 +5,24 @@ use crate::messages::{
     TransactionStatus,
 };
 use crate::types::PgValue;
-use lemur::execute::stream::source::DataSource;
-use lemur::repr::df::DataFrame;
-use lemur::repr::expr::ExplainRelationExpr;
-use sqlengine::engine::{Engine, ExecutionResult, Session};
-use sqlengine::plan::Description;
+use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use sqlexec::{
+    engine::Engine,
+    executor::{ExecutionResult, Executor},
+    session::Session,
+};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::trace;
 
 /// A wrapper around a sqlengine that implements the Postgres frontend/backend
 /// protocol.
-pub struct Handler<S> {
-    engine: Engine<S>,
+pub struct Handler {
+    engine: Engine,
 }
 
-impl<S: DataSource> Handler<S> {
-    pub fn new(engine: Engine<S>) -> Handler<S> {
+impl Handler {
+    pub fn new(engine: Engine) -> Handler {
         Handler { engine }
     }
 
@@ -89,7 +90,7 @@ impl<S: DataSource> Handler<S> {
             None => return Ok(()),
         }
 
-        let sess = match self.engine.begin_session() {
+        let sess = match self.engine.new_session() {
             Ok(sess) => sess,
             Err(e) => {
                 framed
@@ -107,17 +108,16 @@ impl<S: DataSource> Handler<S> {
     }
 }
 
-struct ClientSession<C, S: DataSource> {
+struct ClientSession<C> {
     conn: FramedConn<C>,
-    session: Session<S>, // TODO: Make this a trait for stubbability?
+    session: Session, // TODO: Make this a trait for stubbability?
 }
 
-impl<C, S> ClientSession<C, S>
+impl<C> ClientSession<C>
 where
     C: AsyncRead + AsyncWrite + Unpin,
-    S: DataSource,
 {
-    fn new(session: Session<S>, conn: FramedConn<C>) -> Self {
+    fn new(session: Session, conn: FramedConn<C>) -> Self {
         ClientSession { session, conn }
     }
 
@@ -157,90 +157,87 @@ where
 
     async fn query(&mut self, sql: String) -> Result<()> {
         trace!(%sql, "received query");
-        // TODO: This needs some refactoring for starting an implicit
-        // transaction for multiple statements. Also might give us a chance to
-        // return a data frame stream over holding everything in memory.
-        let results = match self.session.execute_query(&sql).await {
-            Ok(results) => results,
-            Err(e) => {
-                self.conn
-                    .send(
-                        ErrorResponse::error_interanl(format!("failed to execute: {:?}", e)).into(),
-                    )
-                    .await?;
-                return self.ready_for_query().await;
-            }
-        };
-        let num_results = results.len();
 
-        for result in results.into_iter() {
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+        let mut executor = Executor::new(&sql, session)?;
+        // Determines if we send back an empty query response.
+        let num_statements = executor.statements_remaining();
+
+        // Iterate over all statements to completion, returning on the first
+        // error.
+        while let Some(result) = executor.execute_next().await {
+            let result = match result {
+                Ok(result) => result,
+                Err(e) => {
+                    self.conn
+                        .send(
+                            ErrorResponse::error_internal(format!("failed to execute: {:?}", e))
+                                .into(),
+                        )
+                        .await?;
+                    return self.ready_for_query().await;
+                }
+            };
+
             match result {
-                ExecutionResult::Query { desc, df } => {
-                    self.send_dataframe(desc, df).await?;
-                    self.command_complete("SELECT").await?
+                ExecutionResult::Query { stream } => {
+                    // self.send_dataframe(desc, df).await?;
+                    Self::command_complete(conn, "SELECT").await?
                 }
-                ExecutionResult::Begin => self.command_complete("BEGIN").await?,
-                ExecutionResult::Commit => self.command_complete("COMMIT").await?,
-                ExecutionResult::Rollback => self.command_complete("ROLLBACK").await?,
-                ExecutionResult::WriteSuccess => self.command_complete("INSERT").await?,
-                ExecutionResult::CreateTable => self.command_complete("CREATE_TABLE").await?,
-                ExecutionResult::SetLocal => self.command_complete("SET").await?,
-                ExecutionResult::Explain(explain) => {
-                    self.send_explain(explain).await?;
-                    self.command_complete("EXPLAIN").await?;
+                ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
+                ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
+                ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
+                ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
+                ExecutionResult::CreateTable => {
+                    Self::command_complete(conn, "CREATE_TABLE").await?
                 }
+                ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             }
         }
 
-        if num_results == 0 {
+        if num_statements == 0 {
             self.conn.send(BackendMessage::EmptyQueryResponse).await?;
         }
 
         self.ready_for_query().await
     }
 
-    // TODO: Stream
-    async fn send_dataframe(&mut self, desc: Description, df: DataFrame) -> Result<()> {
-        let fields: Vec<_> = desc
-            .columns
-            .into_iter()
-            .map(FieldDescription::new_named)
+    async fn stream_batch(
+        conn: &mut FramedConn<C>,
+        batch: SendableRecordBatchStream,
+    ) -> Result<()> {
+        let schema = batch.schema();
+        let fields: Vec<_> = schema
+            .fields
+            .iter()
+            .map(|field| field.name().clone())
             .collect();
-        self.conn
-            .send(BackendMessage::RowDescription(fields))
-            .await?;
+        // let fields: Vec<_> = desc
+        //     .columns
+        //     .into_iter()
+        //     .map(FieldDescription::new_named)
+        //     .collect();
+        // self.conn
+        //     .send(BackendMessage::RowDescription(fields))
+        //     .await?;
 
-        for row in df.iter_row_refs() {
-            self.conn
-                .send(BackendMessage::DataRow(
-                    row.values
-                        .into_iter()
-                        .map(PgValue::from_value_ref)
-                        .collect(),
-                ))
-                .await?;
-        }
+        // for row in df.iter_row_refs() {
+        //     self.conn
+        //         .send(BackendMessage::DataRow(
+        //             row.values
+        //                 .into_iter()
+        //                 .map(PgValue::from_value_ref)
+        //                 .collect(),
+        //         ))
+        //         .await?;
+        // }
 
         Ok(())
     }
 
-    async fn send_explain(&mut self, explain: ExplainRelationExpr) -> Result<()> {
-        self.conn
-            .send(BackendMessage::RowDescription(vec![
-                FieldDescription::new_named("Query Plan"),
-            ]))
-            .await?;
-        self.conn
-            .send(BackendMessage::DataRow(vec![PgValue::Text(
-                explain.to_string(),
-            )]))
-            .await?;
-        Ok(())
-    }
-
-    async fn command_complete(&mut self, tag: impl Into<String>) -> Result<()> {
-        self.conn
-            .send(BackendMessage::CommandComplete { tag: tag.into() })
+    async fn command_complete(conn: &mut FramedConn<C>, tag: impl Into<String>) -> Result<()> {
+        conn.send(BackendMessage::CommandComplete { tag: tag.into() })
             .await
     }
 }
