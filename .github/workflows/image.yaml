@@ -1,0 +1,43 @@
+name: Build and push image
+
+on: workflow_dispatch
+
+jobs:
+  build-image:
+    name: Build and push image
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: image-${{ github.ref }}
+      cancel-in-progress: true
+
+    permissions:
+      id-token: write # required to use OIDC auth
+      contents: write # required to checkout code
+
+    env:
+      GCP_PROJECT_ID: glaredb-dev-playground
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v15
+        with:
+          extra_nix_config: |
+            access-tokens = github=${{ github.token }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Configure docker
+        run: gcloud auth configure-docker -q
+
+      - name: Build and push image
+        run: ./scripts/build-and-push-glaredb.sh

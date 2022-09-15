@@ -63,6 +63,8 @@ pub enum ExecutionResult {
     WriteSuccess,
     /// Table created.
     CreateTable,
+    /// A client local variable was set.
+    SetLocal,
     /// An explained query plan.
     Explain(ExplainRelationExpr), // TODO: How to show pre-lowered plans?
 }
@@ -145,6 +147,12 @@ impl<S: DataSource> Session<S> {
                     None => return Err(anyhow!("cannot rollback when not in a transaction")),
                 }
                 Ok(ExecutionResult::Rollback)
+            }
+            ast::Statement::SetVariable {
+                value, variable, ..
+            } => {
+                debug!(?value, ?variable, "attempting to set variable");
+                Ok(ExecutionResult::SetLocal)
             }
             ast::Statement::Explain {
                 analyze, statement, ..
@@ -420,16 +428,16 @@ mod tests {
         let mut session = prepare_session(MemoryDataSource::new()).await;
 
         let query = "create table foo (a int, b int)";
-        let create_table = session.execute_query(query).await.unwrap();
+        let _create_table = session.execute_query(query).await.unwrap();
 
         let query = "create table bar (a int, b int)";
-        let create_table = session.execute_query(query).await.unwrap();
+        let _create_table = session.execute_query(query).await.unwrap();
         println!("session: {:?}", session);
-        let record_a = session
+        let _record_a = session
             .execute_query("insert into foo values (10000001, 10000002)")
             .await
             .unwrap();
-        let record_b = session
+        let _record_b = session
             .execute_query("insert into bar values (10000003, 10000002)")
             .await
             .unwrap();

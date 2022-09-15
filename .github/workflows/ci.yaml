@@ -7,9 +7,17 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
 
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - uses: abelfodil/protoc-action@v1
+        with:
+          protoc-version: '21.5'
 
       # Taken from: https://github.com/actions/cache/blob/main/examples.md#rust---cargo
       - uses: actions/cache@v3

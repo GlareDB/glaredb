@@ -1,10 +1,9 @@
 use super::*;
 
-use crate::repr::expr::{AggregateExpr};
-use crate::repr::sort::{GroupRanges};
+use crate::repr::expr::AggregateExpr;
+use crate::repr::sort::GroupRanges;
 use crate::repr::value::ValueVec;
 use anyhow::{anyhow, Result};
-
 
 use std::sync::Arc;
 
@@ -118,7 +117,6 @@ mod tests {
     use crate::repr::expr::AggregateOperation;
 
     use super::*;
-    
 
     #[test]
     fn no_group() {

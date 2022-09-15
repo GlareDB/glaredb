@@ -1,8 +1,8 @@
 use crate::codec::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, ErrorResponse, FieldDescription, FrontendMessage,
-    StartupMessage, TransactionStatus,
+    BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, StartupMessage,
+    TransactionStatus,
 };
 use crate::types::PgValue;
 use lemur::execute::stream::source::DataSource;
@@ -184,6 +184,7 @@ where
                 ExecutionResult::Rollback => self.command_complete("ROLLBACK").await?,
                 ExecutionResult::WriteSuccess => self.command_complete("INSERT").await?,
                 ExecutionResult::CreateTable => self.command_complete("CREATE_TABLE").await?,
+                ExecutionResult::SetLocal => self.command_complete("SET").await?,
                 ExecutionResult::Explain(explain) => {
                     self.send_explain(explain).await?;
                     self.command_complete("EXPLAIN").await?;
