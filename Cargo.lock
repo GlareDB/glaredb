@@ -265,6 +265,7 @@ dependencies = [
  "arrow 22.0.0",
  "async-trait",
  "datafusion",
+ "datafusion-proto",
  "futures",
  "logutil",
  "parking_lot",
@@ -1346,6 +1347,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "datafusion-proto"
+version = "11.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "394d1f43af3f8536f1f843c9ed2fc46e773939941a006e97dec8e9d37d9989e5"
+dependencies = [
+ "arrow 20.0.0",
+ "datafusion",
+ "datafusion-common",
+ "datafusion-expr",
+ "prost",
+ "prost-build",
+]
+
+[[package]]
 name = "datafusion-row"
 version = "11.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1383,6 +1398,13 @@ dependencies = [
  "quote",
  "rustc_version 0.4.0",
  "syn",
+]
+
+[[package]]
+name = "dfutil"
+version = "0.1.0"
+dependencies = [
+ "datafusion",
 ]
 
 [[package]]
@@ -1857,7 +1879,7 @@ dependencies = [
  "rand 0.8.5",
  "rustyline",
  "serde",
- "sqlengine",
+ "sqlexec",
  "sqlparser 0.18.0",
  "storageengine",
  "tokio",
@@ -2964,12 +2986,13 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
+ "datafusion",
  "futures",
  "ioutil",
  "lemur",
  "logutil",
  "postgres-types",
- "sqlengine",
+ "sqlexec",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -3869,6 +3892,7 @@ dependencies = [
  "rand 0.8.5",
  "rustyline",
  "serde",
+ "sqlexec",
  "sqlparser 0.18.0",
  "storageengine",
  "tokio",
@@ -3876,6 +3900,25 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "sqlexec"
+version = "0.1.0"
+dependencies = [
+ "arrowstore",
+ "async-trait",
+ "datafusion",
+ "dfutil",
+ "futures",
+ "hashbrown",
+ "logutil",
+ "parking_lot",
+ "sqlparser 0.23.0",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3911,6 +3954,15 @@ name = "sqlparser"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30c67d4d5de027da1da5a4ed4623f09ab5131d808364279a5f5abee5de9b8db3"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0beb13adabbdda01b63d595f38c8bfd19a361e697fd94ce0098a634077bc5b25"
 dependencies = [
  "log",
 ]
@@ -4715,6 +4767,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
 dependencies = [
  "getrandom 0.2.7",
+ "rand 0.8.5",
+ "uuid-macro-internal",
+]
+
+[[package]]
+name = "uuid-macro-internal"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "548f7181a5990efa50237abb7ebca410828b57a8955993334679f8b50b35c97d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

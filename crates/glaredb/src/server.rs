@@ -1,7 +1,6 @@
 use anyhow::Result;
-use lemur::execute::stream::source::DataSource;
 use pgsrv::handler::Handler;
-use sqlengine::engine::Engine;
+use sqlexec::engine::Engine;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::debug;
@@ -10,16 +9,15 @@ pub struct ServerConfig {
     pub pg_listener: TcpListener,
 }
 
-pub struct Server<S> {
-    pg_handler: Arc<Handler<S>>,
+pub struct Server {
+    pg_handler: Arc<Handler>,
 }
 
-impl<S: DataSource + 'static> Server<S> {
+impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
-    pub async fn connect(source: S) -> Result<Self> {
-        let mut engine = Engine::new(source);
-        engine.ensure_system_tables().await?;
+    pub async fn connect(db_name: impl Into<String>) -> Result<Self> {
+        let engine = Engine::new(db_name)?;
         Ok(Server {
             pg_handler: Arc::new(Handler::new(engine)),
         })

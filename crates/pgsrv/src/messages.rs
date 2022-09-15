@@ -1,4 +1,4 @@
-use crate::types::PgValue;
+use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashMap;
 
 /// Version number (v3.0) used during normal frontend startup.
@@ -50,7 +50,7 @@ pub enum BackendMessage {
     ReadyForQuery(TransactionStatus),
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
-    DataRow(Vec<PgValue>),
+    DataRow(RecordBatch, usize),
 }
 
 impl From<ErrorResponse> for BackendMessage {
@@ -120,7 +120,7 @@ impl ErrorResponse {
         }
     }
 
-    pub fn error_interanl(msg: impl Into<String>) -> ErrorResponse {
+    pub fn error_internal(msg: impl Into<String>) -> ErrorResponse {
         ErrorResponse {
             severity: ErrorSeverity::Error,
             code: SqlState::InternalError,

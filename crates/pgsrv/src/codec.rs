@@ -3,10 +3,9 @@ use crate::messages::{
     BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
     VERSION_SSL, VERSION_V3,
 };
-use crate::types::PgValue;
 use bytes::{Buf, BufMut, BytesMut};
+use datafusion::scalar::ScalarValue;
 use futures::{SinkExt, TryStreamExt};
-use ioutil::fmt::HexBuf;
 use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
 use std::str;
@@ -149,8 +148,8 @@ impl PgCodec {
         })
     }
 
-    fn encode_value_as_text(val: PgValue, buf: &mut BytesMut) -> Result<()> {
-        if matches!(val, PgValue::Null) {
+    fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
+        if scalar.is_null() {
             buf.put_i32(-1);
             return Ok(());
         }
@@ -159,15 +158,10 @@ impl PgCodec {
         let len_idx = buf.len();
         buf.put_i32(0);
 
-        match val {
-            PgValue::Null => unreachable!(), // Checked above.
-            PgValue::Bool(v) => write!(buf, "{}", if v { "t" } else { "f" }),
-            PgValue::Int2(v) => write!(buf, "{}", v),
-            PgValue::Int4(v) => write!(buf, "{}", v),
-            PgValue::Float4(v) => write!(buf, "{}", v),
-            PgValue::Text(v) => buf.write_str(&v),
-            PgValue::Bytea(v) => write!(buf, "{:#x}", HexBuf(&v)),
-        };
+        match scalar {
+            ScalarValue::Boolean(Some(v)) => write!(buf, "{}", if v { "t" } else { "f" }),
+            scalar => write!(buf, "{}", scalar), // Note this won't write null, that's checked above.
+        }
 
         // Note the value of length does not include itself.
         let val_len = buf.len() - len_idx - 4;
@@ -189,7 +183,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::ReadyForQuery(_) => b'Z',
             BackendMessage::CommandComplete { .. } => b'C',
             BackendMessage::RowDescription(_) => b'T',
-            BackendMessage::DataRow(_) => b'D',
+            BackendMessage::DataRow(_, _) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
         };
@@ -221,11 +215,11 @@ impl Encoder<BackendMessage> for PgCodec {
                     dst.put_i16(desc.format);
                 }
             }
-            BackendMessage::DataRow(values) => {
-                dst.put_i16(values.len() as i16); // TODO: Check.
-                for value in values.into_iter() {
-                    // TODO: Encode into format.
-                    Self::encode_value_as_text(value, dst)?;
+            BackendMessage::DataRow(batch, row_idx) => {
+                dst.put_i16(batch.num_columns() as i16); // TODO: Check.
+                for col in batch.columns().iter() {
+                    let scalar = ScalarValue::try_from_array(col, row_idx)?;
+                    Self::encode_scalar_as_text(scalar, dst)?;
                 }
             }
             BackendMessage::ErrorResponse(error) => {

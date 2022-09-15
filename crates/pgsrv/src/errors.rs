@@ -31,5 +31,11 @@ pub enum PgSrvError {
     Io(#[from] io::Error),
 
     #[error(transparent)]
-    Anyhow(#[from] anyhow::Error), // From sqlengine
+    SqlExec(#[from] sqlexec::errors::ExecError),
+
+    #[error(transparent)]
+    Datafusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
 }
