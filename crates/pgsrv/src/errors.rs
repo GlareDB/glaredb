@@ -21,7 +21,7 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
-    #[error("invalid message type: {0}")]
+    #[error("invalid message type: {}", *.0 as char)] // Easier to debug character representation.
     InvalidMsgType(u8),
 
     #[error(transparent)]

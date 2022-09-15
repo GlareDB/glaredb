@@ -46,6 +46,7 @@ pub enum BackendMessage {
     NoticeResponse(NoticeResponse),
     AuthenticationOk,
     AuthenticationCleartextPassword,
+    ParameterStatus { key: String, val: String },
     EmptyQueryResponse,
     ReadyForQuery(TransactionStatus),
     CommandComplete { tag: String },
