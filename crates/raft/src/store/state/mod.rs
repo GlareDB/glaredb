@@ -1,179 +1,40 @@
-use lemur::{
-    execute::stream::source::{DataFrameStream, ReadTx, WriteTx},
-    repr::{
-        df::{DataFrame, Schema},
-        expr::ScalarExpr,
-        relation::RelationKey,
-    },
-};
-use openraft::{AnyError, ErrorSubject, ErrorVerb, StorageIOError};
-use std::{error::Error, fmt::Debug, sync::Arc};
-use storageengine::rocks::RocksStore;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
-use crate::openraft_types::types::{EffectiveMembership, LogId, StorageError};
+use crate::openraft_types::types::{EffectiveMembership, LogId};
 
 use super::StorageResult;
 
-pub(super) mod serializable;
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ConsensusStateMachine {
-    pub db: Arc<rocksdb::DB>,
-    pub inner: RocksStore,
+    pub last_applied_log: Option<LogId>,
+    pub last_membership: EffectiveMembership,
+
 }
 
 pub(super) trait RaftStateMachine {
     fn get_last_membership(&self) -> StorageResult<EffectiveMembership>;
-    fn set_last_membership(&self, membership: EffectiveMembership) -> StorageResult<()>;
+    fn set_last_membership(&mut self, membership: EffectiveMembership) -> StorageResult<()>;
     fn get_last_applied_log(&self) -> StorageResult<Option<LogId>>;
-    fn set_last_applied_log(&self, log_id: LogId) -> StorageResult<()>;
-}
-
-impl ConsensusStateMachine {
-    pub fn new(db: Arc<rocksdb::DB>) -> Self {
-        Self {
-            db: db.clone(),
-            inner: RocksStore::with_db(db),
-        }
-    }
-
-    pub fn begin(&self) -> StorageResult<u64> {
-        Ok(self.inner.begin().get_id())
-    }
-
-    pub async fn get_schema(&self, table: &RelationKey) -> StorageResult<Option<Schema>> {
-        let tx = self.inner.begin();
-
-        let schema = tx.get_schema(table).await.map_err(|e| {
-            StorageIOError::new(
-                ErrorSubject::Store,
-                ErrorVerb::Read,
-                AnyError::error(e.to_string()),
-            )
-        })?;
-
-        Ok(schema)
-    }
-
-    pub async fn scan(
-        &self,
-        table: &RelationKey,
-        filter: Option<ScalarExpr>,
-    ) -> StorageResult<Option<DataFrameStream>> {
-        let tx = self.inner.begin();
-
-        let stream = tx.scan(table, filter).await.map_err(|e| {
-            StorageIOError::new(
-                ErrorSubject::Store,
-                ErrorVerb::Read,
-                AnyError::error(e.to_string()),
-            )
-        })?;
-
-        Ok(stream)
-    }
-
-    pub async fn allocate_table(&self, table: RelationKey, schema: Schema) -> StorageResult<()> {
-        let tx = self.inner.begin();
-
-        tx.allocate_table(table, schema).await.map_err(|e| {
-            StorageIOError::new(
-                ErrorSubject::Store,
-                ErrorVerb::Write,
-                AnyError::error(e.to_string()),
-            )
-        })?;
-
-        Ok(())
-    }
-
-    pub async fn insert(
-        &self,
-        table: RelationKey,
-        pk_idxs: &[usize],
-        data: &DataFrame,
-    ) -> StorageResult<()> {
-        let tx = self.inner.begin();
-
-        for row_ref in data.iter_row_refs() {
-            tx.insert(table.clone(), pk_idxs, row_ref.into_row())
-                .map_err(|e| {
-                    StorageIOError::new(
-                        ErrorSubject::Store,
-                        ErrorVerb::Write,
-                        AnyError::error(e.to_string()),
-                    )
-                })?;
-        }
-
-        Ok(())
-    }
+    fn set_last_applied_log(&mut self, log_id: LogId) -> StorageResult<()>;
 }
 
 impl RaftStateMachine for ConsensusStateMachine {
     fn get_last_membership(&self) -> StorageResult<EffectiveMembership> {
-        self.db
-            .get_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_membership".as_bytes(),
-            )
-            .map_err(sm_r_err)
-            .and_then(|value| {
-                value
-                    .map(|v| serde_json::from_slice(&v).map_err(sm_r_err))
-                    .unwrap_or_else(|| Ok(EffectiveMembership::default()))
-            })
+        Ok(self.last_membership.clone())
     }
 
-    fn set_last_membership(&self, membership: EffectiveMembership) -> StorageResult<()> {
-        self.db
-            .put_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_membership".as_bytes(),
-                serde_json::to_vec(&membership).map_err(sm_w_err)?,
-            )
-            .map_err(sm_w_err)
+    fn set_last_membership(&mut self, membership: EffectiveMembership) -> StorageResult<()> {
+        self.last_membership = membership;
+        Ok(())
     }
 
     fn get_last_applied_log(&self) -> StorageResult<Option<LogId>> {
-        self.db
-            .get_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_applied_log".as_bytes(),
-            )
-            .map_err(sm_r_err)
-            .and_then(|value| {
-                value
-                    .map(|v| serde_json::from_slice(&v).map_err(sm_r_err))
-                    .transpose()
-            })
+        Ok(self.last_applied_log)
     }
 
-    fn set_last_applied_log(&self, log_id: LogId) -> StorageResult<()> {
-        self.db
-            .put_cf(
-                self.db.cf_handle("state_machine").expect("cf_handle"),
-                "last_applied_log".as_bytes(),
-                serde_json::to_vec(&log_id).map_err(sm_w_err)?,
-            )
-            .map_err(sm_w_err)
+    fn set_last_applied_log(&mut self, log_id: LogId) -> StorageResult<()> {
+        self.last_applied_log = Some(log_id);
+        Ok(())
     }
-}
-
-fn sm_r_err<E: Error + 'static>(e: E) -> StorageError {
-    StorageIOError::new(
-        ErrorSubject::StateMachine,
-        ErrorVerb::Read,
-        AnyError::new(&e),
-    )
-    .into()
-}
-
-fn sm_w_err<E: Error + 'static>(e: E) -> StorageError {
-    StorageIOError::new(
-        ErrorSubject::StateMachine,
-        ErrorVerb::Write,
-        AnyError::new(&e),
-    )
-    .into()
 }

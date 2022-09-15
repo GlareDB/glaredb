@@ -50,6 +50,7 @@ impl RaftNetwork<RaftTypeConfig> for GlareNetworkConnection {
         req: AppendEntriesRequest,
     ) -> RpcResult<AppendEntriesResponse, AppendEntriesError> {
         let req: crate::rpc::pb::AppendEntriesRequest = req.try_into().expect("invalid request");
+
         self.client
             .append_entries(req)
             .await

@@ -61,9 +61,6 @@ enum Commands {
         #[clap(long, value_parser, default_value_t = 6000)]
         port: u16,
 
-        /// Directory for storing data.
-        data_path: String,
-
         /// leader node address.
         #[clap(long, value_parser)]
         leader: Option<String>,
@@ -122,7 +119,6 @@ fn main() -> Result<()> {
             },
         },
         Commands::RaftNode {
-            data_path,
             leader: _,
             port,
             node_id,
@@ -137,7 +133,6 @@ fn main() -> Result<()> {
             rt.block_on(async {
                 start_raft_node(
                     node_id,
-                    data_path,
                     url,
                     addr,
                 ).await.expect("raft node");

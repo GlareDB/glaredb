@@ -2265,7 +2265,6 @@ dependencies = [
  "parking_lot",
  "prost",
  "reqwest",
- "rocksdb",
  "serde",
  "serde_json",
  "sqlengine",

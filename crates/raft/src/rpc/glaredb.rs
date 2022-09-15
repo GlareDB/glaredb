@@ -3,16 +3,15 @@ use std::sync::Arc;
 use super::{
     pb::{
         remote_data_source_server::RemoteDataSource, BinaryReadRequest, BinaryReadResponse,
-        BinaryWriteRequest, BinaryWriteResponse, GetSchemaRequest,
+        BinaryWriteRequest, BinaryWriteResponse,
     },
     TonicResult,
 };
 
 use crate::{
-    message::{ReadTxRequest, ReadTxResponse, Request, ScanRequest},
+    message::{ReadTxRequest, Request},
     server::app::ApplicationState,
 };
-use futures::StreamExt;
 
 #[derive(Clone)]
 pub struct GlaredbRpcHandler {
@@ -45,29 +44,10 @@ impl RemoteDataSource for GlaredbRpcHandler {
         &self,
         req: tonic::Request<BinaryReadRequest>,
     ) -> TonicResult<BinaryReadResponse> {
-        let req: ReadTxRequest = bincode::deserialize(&req.into_inner().payload).unwrap();
+        let _req: ReadTxRequest = bincode::deserialize(&req.into_inner().payload).unwrap();
 
-        let state_machine = self.app.store.state_machine.read().await;
+        let _state_machine = self.app.store.state_machine.read().await;
 
-        let resp = match req {
-            ReadTxRequest::GetSchema(GetSchemaRequest { table }) => {
-                let schema = state_machine.get_schema(&table).await.unwrap();
-
-                ReadTxResponse::TableSchema(schema)
-            }
-            ReadTxRequest::Scan(ScanRequest { table, filter }) => {
-                let scan = state_machine.scan(&table, filter).await.unwrap();
-                if let Some(stream) = scan {
-                    let chunks = stream.map(|df| df.unwrap()).collect().await;
-                    ReadTxResponse::Scan(Some(chunks))
-                } else {
-                    ReadTxResponse::Scan(None)
-                }
-            }
-        };
-
-        Ok(tonic::Response::new(BinaryReadResponse {
-            payload: bincode::serialize(&resp).unwrap(),
-        }))
+        todo!();
     }
 }

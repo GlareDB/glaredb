@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use tonic::transport::Server;
 
 use super::{network::ConsensusNetwork, store::ConsensusStore};
@@ -13,20 +13,16 @@ pub mod app;
 
 use app::ApplicationState;
 
-pub async fn start_raft_node<P>(
+pub async fn start_raft_node(
     node_id: NodeId,
-    dir: P,
     address: String,
     socket_addr: SocketAddr,
-) -> Result<(), Box<dyn std::error::Error>>
-where
-    P: AsRef<Path>,
-{
+) -> Result<(), Box<dyn std::error::Error>> {
     // Create a configuration for the raft instance.
     let config = Arc::new(openraft::Config::default().validate().unwrap());
 
     // Create a instance of where the Raft data will be stored.
-    let store = ConsensusStore::new(&dir).await;
+    let store = Arc::new(ConsensusStore::default());
 
     // Create the network layer that will connect and communicate the raft instances and
     // will be used in conjunction with the store created above.

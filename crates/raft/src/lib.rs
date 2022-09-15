@@ -30,9 +30,8 @@ mod tests {
             Res: Future<Output = Result<Ret, StorageError>> + Send,
             Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
         {
-            let temp = TempDir::new("consensus").unwrap();
-            let store = ConsensusStore::new(&temp).await;
-            t(store).await
+            let store = ConsensusStore::default();
+            t(Arc::new(store)).await
         }
     }
 
