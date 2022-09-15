@@ -101,7 +101,7 @@ impl CatalogProvider for DatabaseCatalog {
 
     fn schema_names(&self) -> Vec<String> {
         let schemas = self.schemas.read();
-        schemas.iter().map(|(name, _)| name).cloned().collect()
+        schemas.keys().cloned().collect()
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
@@ -142,7 +142,7 @@ impl SchemaProvider for SchemaCatalog {
 
     fn table_names(&self) -> Vec<String> {
         let tables = self.tables.read();
-        tables.iter().map(|(name, _)| name).cloned().collect()
+        tables.keys().cloned().collect()
     }
 
     fn register_table(
