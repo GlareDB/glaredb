@@ -9,7 +9,6 @@ use super::StorageResult;
 pub struct ConsensusStateMachine {
     pub last_applied_log: Option<LogId>,
     pub last_membership: EffectiveMembership,
-
 }
 
 pub(super) trait RaftStateMachine {

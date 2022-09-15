@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::Cursor, ops::RangeBounds, sync::Arc, collections::BTreeMap};
+use std::{collections::BTreeMap, fmt::Debug, io::Cursor, ops::RangeBounds, sync::Arc};
 
 use async_trait::async_trait;
 use openraft::{
@@ -6,7 +6,7 @@ use openraft::{
     RaftSnapshotBuilder, RaftStorage, StorageIOError,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use tracing::trace;
 
 use self::state::ConsensusStateMachine;
@@ -14,7 +14,8 @@ use self::state::ConsensusStateMachine;
 use super::message::Response;
 use crate::{
     openraft_types::types::{
-        EffectiveMembership, LogId, Snapshot, SnapshotMeta, StateMachineChanges, StorageError, Vote, Entry,
+        EffectiveMembership, Entry, LogId, Snapshot, SnapshotMeta, StateMachineChanges,
+        StorageError, Vote,
     },
     repr::RaftTypeConfig,
 };
@@ -84,7 +85,10 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
         tracing::debug!("delete_logs_since: [{:?}, +oo)", log_id);
 
         let mut log = self.log.write().await;
-        let keys = log.range(log_id.index..).map(|(k, _v)| *k).collect::<Vec<_>>();
+        let keys = log
+            .range(log_id.index..)
+            .map(|(k, _v)| *k)
+            .collect::<Vec<_>>();
         for key in keys {
             log.remove(&key);
         }
@@ -105,7 +109,10 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
         {
             let mut log = self.log.write().await;
 
-            let keys = log.range(..=log_id.index).map(|(k, _v)| *k).collect::<Vec<_>>();
+            let keys = log
+                .range(..=log_id.index)
+                .map(|(k, _v)| *k)
+                .collect::<Vec<_>>();
             for key in keys {
                 log.remove(&key);
             }
@@ -144,10 +151,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
                 // TODO: handle messages for the application in 'Normal'
                 EntryPayload::Normal(ref _req) => todo!(),
                 EntryPayload::Membership(ref mem) => {
-                    sm.last_membership = EffectiveMembership::new(
-                        Some(entry.log_id),
-                        mem.clone(),
-                    );
+                    sm.last_membership = EffectiveMembership::new(Some(entry.log_id), mem.clone());
                     res.push(Response::None)
                 }
             };
@@ -179,7 +183,7 @@ impl RaftStorage<RaftTypeConfig> for Arc<ConsensusStore> {
 
         // update the state machine
         {
-            let updated_state_machine: ConsensusStateMachine = 
+            let updated_state_machine: ConsensusStateMachine =
                 serde_json::from_slice(&new_snapshot.data).map_err(|e| {
                     StorageIOError::new(
                         ErrorSubject::Snapshot(new_snapshot.meta.signature()),
@@ -250,7 +254,10 @@ impl RaftLogReader<RaftTypeConfig> for Arc<ConsensusStore> {
         range: RB,
     ) -> StorageResult<Vec<Entry>> {
         let log = self.log.read().await;
-        let response = log.range(range.clone()).map(|(_, val)| val.clone()).collect();
+        let response = log
+            .range(range.clone())
+            .map(|(_, val)| val.clone())
+            .collect();
         Ok(response)
     }
 }

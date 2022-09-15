@@ -80,7 +80,6 @@ async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>
 
     println!("=== add-learner 3");
     let _x = leader
-
         .add_learner(AddLearnerRequest {
             node_id: 3,
             address: get_rpc_str(3),
@@ -148,7 +147,7 @@ async fn run_tests(leader: ConsensusClient) -> Result<(), Box<dyn std::error::Er
     let results = session.execute_query(&query).await?;
     println!("results: {:?}", results);
     // */
-    /* 
+    /*
      * TODO: write tests that are relevant to glaredb here.
      * The commented code is from a KV store example and is not relevant
     println!("=== write `foo=bar`");

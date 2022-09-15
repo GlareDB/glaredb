@@ -131,35 +131,32 @@ fn main() -> Result<()> {
             let url = format!("http://127.0.0.1:{}", port);
 
             rt.block_on(async {
-                start_raft_node(
-                    node_id,
-                    url,
-                    addr,
-                ).await.expect("raft node");
+                start_raft_node(node_id, url, addr)
+                    .await
+                    .expect("raft node");
             });
         }
-        Commands::Client {
-            addr,
-            command,
-        } => {
+        Commands::Client { addr, command } => {
             let rt = tokio::runtime::Runtime::new()?;
             let client = ConsensusClient::new(1, addr);
 
             rt.block_on(async {
-
                 match command {
                     ClientCommands::Init => {
                         client.init().await.expect("failed to init cluster");
                     }
                     ClientCommands::AddLearner { address, node_id } => {
-                        client.add_learner(AddLearnerRequest {
-                            address,
-                            node_id,
-                        }).await.expect("failed to add learner");
+                        client
+                            .add_learner(AddLearnerRequest { address, node_id })
+                            .await
+                            .expect("failed to add learner");
                     }
                     ClientCommands::ChangeMembership { membership } => {
                         let new_membership = BTreeSet::from_iter(membership);
-                        client.change_membership(&new_membership).await.expect("failed to change membership");
+                        client
+                            .change_membership(&new_membership)
+                            .await
+                            .expect("failed to change membership");
                     }
                     ClientCommands::Metrics => {
                         let metrics = client.metrics().await.expect("failed to get metrics");

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tonic::transport::Endpoint;
 
-use super::{error::RpcResult};
+use super::error::RpcResult;
 use crate::message::{ReadTxRequest, ReadTxResponse, Request};
 use crate::openraft_types::prelude::*;
 use crate::rpc::pb::raft_node_client::RaftNodeClient;
@@ -144,7 +144,10 @@ impl ConsensusClient {
     /// Consistent Read value by key, in an inconsistent mode.
     ///
     /// This method MUST return consitent value or CheckIsLeaderError.
-    pub async fn consistent_read(&self, _req: ReadTxRequest) -> RpcResult<ReadTxResponse, CheckIsLeaderError> {
+    pub async fn consistent_read(
+        &self,
+        _req: ReadTxRequest,
+    ) -> RpcResult<ReadTxResponse, CheckIsLeaderError> {
         todo!();
     }
 
