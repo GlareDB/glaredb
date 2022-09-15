@@ -24,6 +24,7 @@ impl RaftRpcHandler {
 
 #[tonic::async_trait]
 impl RaftNetwork for RaftRpcHandler {
+    #[tracing::instrument(skip(self, req))]
     async fn append_entries(
         &self,
         req: tonic::Request<AppendEntriesRequest>,
@@ -38,6 +39,7 @@ impl RaftNetwork for RaftRpcHandler {
         }
     }
 
+    #[tracing::instrument(skip(self, req))]
     async fn vote(&self, req: tonic::Request<VoteRequest>) -> TonicResult<VoteResponse> {
         let req: OVoteRequest = req.into_inner().try_into().expect("invalid request");
 
@@ -49,6 +51,7 @@ impl RaftNetwork for RaftRpcHandler {
             .map(|r| tonic::Response::new(r.try_into().expect("invalid response")))
     }
 
+    #[tracing::instrument(skip(self, req))]
     async fn snapshot(
         &self,
         req: tonic::Request<InstallSnapshotRequest>,

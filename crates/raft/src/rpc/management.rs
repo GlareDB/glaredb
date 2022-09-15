@@ -27,6 +27,7 @@ impl ManagementRpcHandler {
 
 #[tonic::async_trait]
 impl RaftNode for ManagementRpcHandler {
+    #[tracing::instrument(skip(self, _request))]
     async fn init(&self, _request: tonic::Request<()>) -> TonicResult<()> {
         let mut nodes = BTreeMap::new();
         let node = Node {
@@ -40,6 +41,7 @@ impl RaftNode for ManagementRpcHandler {
         }
     }
 
+    #[tracing::instrument(skip(self, request))]
     async fn add_learner(
         &self,
         request: tonic::Request<AddLearnerRequest>,
@@ -55,6 +57,7 @@ impl RaftNode for ManagementRpcHandler {
         Ok(tonic::Response::new(AddLearnerResponse { payload: data }))
     }
 
+    #[tracing::instrument(skip(self, request))]
     async fn change_membership(
         &self,
         request: tonic::Request<ChangeMembershipRequest>,
