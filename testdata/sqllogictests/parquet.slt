@@ -1,0 +1,16 @@
+# Creating external tables with parquet files.
+
+statement ok
+create external table userdata1 stored as parquet location 'testdata/parquet/userdata1.parquet';
+
+query I
+select count(*) from userdata1;
+----
+1000
+
+query IT
+select count(*), gender from userdata1 group by gender order by gender;
+----
+67   (empty)
+482  Female
+451  Male

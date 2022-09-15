@@ -1,5 +1,7 @@
+use crate::errors::{internal, ExecError};
 use datafusion::arrow::datatypes::Field;
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
+use datafusion::sql::sqlparser::ast;
 
 #[derive(Debug)]
 pub enum LogicalPlan {
@@ -46,6 +48,8 @@ pub struct Insert {
 pub enum DdlPlan {
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
+    CreateExternalTable(CreateExternalTable),
+    CreateTableAs(CreateTableAs),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -65,6 +69,34 @@ pub struct CreateTable {
     pub table_name: String,
     pub if_not_exists: bool,
     pub columns: Vec<Field>,
+}
+
+#[derive(Debug)]
+pub enum FileType {
+    Parquet,
+}
+
+impl TryFrom<ast::FileFormat> for FileType {
+    type Error = ExecError;
+    fn try_from(value: ast::FileFormat) -> Result<Self, Self::Error> {
+        Ok(match value {
+            ast::FileFormat::PARQUET => FileType::Parquet,
+            other => return Err(internal!("unsupported file format: {:?}", other)),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateExternalTable {
+    pub table_name: String,
+    pub location: String,
+    pub file_type: FileType,
+}
+
+#[derive(Debug)]
+pub struct CreateTableAs {
+    pub table_name: String,
+    pub source: DfLogicalPlan,
 }
 
 #[derive(Debug)]

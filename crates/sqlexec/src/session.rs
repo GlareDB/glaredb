@@ -4,7 +4,10 @@ use crate::errors::{internal, Result};
 use crate::logical_plan::*;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
+use datafusion::catalog::schema::SchemaProvider;
+use datafusion::datasource::listing::{ListingTable, ListingTableConfig, ListingTableUrl};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
+use datafusion::execution::options::ParquetReadOptions;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
@@ -13,7 +16,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast;
-use datafusion::sql::TableReference;
+use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use std::sync::Arc;
 use tracing::debug;
@@ -80,11 +83,13 @@ impl Session {
             })
             .into()),
 
+            // Normal tables.
             ast::Statement::CreateTable {
                 external: false,
                 if_not_exists,
                 name,
                 columns,
+                query: None,
                 ..
             } => {
                 let mut arrow_cols = Vec::with_capacity(columns.len());
@@ -98,6 +103,42 @@ impl Session {
                     table_name: name.to_string(),
                     columns: arrow_cols,
                     if_not_exists,
+                })
+                .into())
+            }
+
+            // External tables.
+            ast::Statement::CreateTable {
+                external: true,
+                if_not_exists: false,
+                name,
+                file_format: Some(file_format),
+                location: Some(location),
+                query: None,
+                ..
+            } => {
+                let file_type: FileType = file_format.try_into()?;
+                Ok(DdlPlan::CreateExternalTable(CreateExternalTable {
+                    table_name: name.to_string(),
+                    location,
+                    file_type,
+                })
+                .into())
+            }
+
+            // Tables generated from a source query.
+            //
+            // CREATE TABLE table2 AS (SELECT * FROM table1);
+            ast::Statement::CreateTable {
+                external: false,
+                name,
+                query: Some(query),
+                ..
+            } => {
+                let source = planner.query_to_plan(*query, &mut hashbrown::HashMap::new())?;
+                Ok(DdlPlan::CreateTableAs(CreateTableAs {
+                    table_name: name.to_string(),
+                    source,
                 })
                 .into())
             }
@@ -170,17 +211,68 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn insert(&self, plan: Insert) -> Result<()> {
-        let table_ref: TableReference = plan.table_name.as_str().into();
-        let resolved = table_ref.resolve(self.catalog.name(), DEFAULT_SCHEMA);
+    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
+        let resolved = self.resolve_table_name(&plan.table_name);
+        let schema = self.get_schema_for_reference(&resolved)?;
 
-        let catalog = self
-            .catalog
-            .catalog(resolved.catalog)
-            .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
-        let schema = catalog
-            .schema(resolved.schema)
-            .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
+        let target_partitions = self.state.config.target_partitions;
+        let opts = match plan.file_type {
+            FileType::Parquet => {
+                ParquetReadOptions::default().to_listing_options(target_partitions)
+            }
+        };
+        let path = ListingTableUrl::parse(&plan.location)?;
+        let file_schema = opts.infer_schema(&self.state, &path).await?;
+        let config = ListingTableConfig::new(path)
+            .with_listing_options(opts)
+            .with_schema(file_schema);
+
+        let table = ListingTable::try_new(config)?;
+        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn create_table_as(&self, plan: CreateTableAs) -> Result<()> {
+        let resolved = self.resolve_table_name(&plan.table_name);
+        let schema = self.get_schema_for_reference(&resolved)?;
+
+        // Plan and execute the source. We'll use the first batch from the
+        // stream to create the table with the correct schema.
+        let physical = self.create_physical_plan(plan.source).await?;
+        let mut stream = self.execute_physical(physical)?;
+
+        let table = match stream.next().await {
+            Some(result) => {
+                let batch = result?;
+                let schema = batch.schema();
+                let table = MemTable::new(schema);
+                table.insert_batch(batch)?;
+                table
+            }
+            None => {
+                return Err(internal!(
+                    "source stream empty, cannot infer schema from empty stream"
+                ))
+            }
+        };
+
+        // Insert the rest of the stream.
+        while let Some(result) = stream.next().await {
+            let batch = result?;
+            table.insert_batch(batch)?;
+        }
+
+        // Finally register the table.
+        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn insert(&self, plan: Insert) -> Result<()> {
+        let resolved = self.resolve_table_name(&plan.table_name);
+        let schema = self.get_schema_for_reference(&resolved)?;
+
         let table = schema
             .table(resolved.table)
             .ok_or_else(|| internal!("missing table: {}", resolved.table))?;
@@ -202,5 +294,25 @@ impl Session {
         }
 
         Ok(())
+    }
+
+    fn resolve_table_name<'a>(&'a self, table_name: &'a str) -> ResolvedTableReference<'a> {
+        let table_ref: TableReference = table_name.into();
+        table_ref.resolve(self.catalog.name(), DEFAULT_SCHEMA)
+    }
+
+    /// Get a schema provider given some resolved table reference.
+    fn get_schema_for_reference(
+        &self,
+        resolved: &ResolvedTableReference,
+    ) -> Result<Arc<dyn SchemaProvider>> {
+        let catalog = self
+            .catalog
+            .catalog(resolved.catalog)
+            .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
+        let schema = catalog
+            .schema(resolved.schema)
+            .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
+        Ok(schema)
     }
 }
