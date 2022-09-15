@@ -1,55 +1,20 @@
-use lemur::repr::{
-    df::{DataFrame, Schema},
-    expr::ScalarExpr,
-    relation::RelationKey,
-};
 use serde::{Deserialize, Serialize};
 
-use crate::rpc::pb::{BinaryReadRequest, BinaryReadResponse, BinaryWriteRequest, GetSchemaRequest};
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum DataSourceRequest {
-    Begin,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum DataSourceResponse {
-    Begin(u64),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ScanRequest {
-    pub table: RelationKey,
-    pub filter: Option<ScalarExpr>,
-}
+use crate::rpc::pb::{BinaryReadRequest, BinaryReadResponse, BinaryWriteRequest};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ReadTxRequest {
-    GetSchema(GetSchemaRequest),
-    Scan(ScanRequest),
+    Placeholder,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ReadTxResponse {
-    TableSchema(Option<Schema>),
-    Scan(Option<Vec<DataFrame>>),
+    Placeholder,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum WriteTxRequest {
-    Commit,
-    Rollback,
-    AllocateTable(RelationKey, Schema),
-    DeallocateTable,
-    Insert(InsertRequest),
-    AllocateTableIfNotExists,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InsertRequest {
-    pub table: RelationKey,
-    pub data: DataFrame,
-    pub pk_idxs: Vec<usize>,
+    Placeholder,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -60,23 +25,12 @@ pub enum WriteTxResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
-    DataSource(DataSourceRequest),
     WriteTx(WriteTxRequest),
-    // ReadTx(ReadTxRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Response {
     None,
-    DataSource(DataSourceResponse),
-    WriteTx(WriteTxResponse),
-    // ReadTx(ReadTxResponse),
-}
-
-impl From<DataSourceRequest> for Request {
-    fn from(req: DataSourceRequest) -> Self {
-        Request::DataSource(req)
-    }
 }
 
 impl From<WriteTxRequest> for Request {

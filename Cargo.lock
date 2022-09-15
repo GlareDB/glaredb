@@ -2258,7 +2258,6 @@ dependencies = [
  "bincode",
  "clap",
  "futures",
- "lemur",
  "logutil",
  "maplit",
  "openraft",

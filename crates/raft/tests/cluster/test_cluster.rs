@@ -7,7 +7,6 @@ use std::time::Duration;
 use maplit::btreemap;
 use maplit::btreeset;
 use raft::client::ConsensusClient;
-use raft::lemur_impl::RaftClientSource;
 use raft::repr::Node;
 use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
@@ -134,9 +133,8 @@ async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>
 
 async fn run_tests(leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
     // --- Try to write some application data through the leader.
-    //
-    // /*
 
+    /*
     println!("=== running sql engine raft tests");
     let source = RaftClientSource::from_client(leader);
     let mut engine = Engine::new(source);
@@ -146,8 +144,6 @@ async fn run_tests(leader: ConsensusClient) -> Result<(), Box<dyn std::error::Er
     let query = "SELECT * FROM VALUES (1, 2)";
     let results = session.execute_query(&query).await?;
     println!("results: {:?}", results);
-    // */
-    /*
      * TODO: write tests that are relevant to glaredb here.
      * The commented code is from a KV store example and is not relevant
     println!("=== write `foo=bar`");
