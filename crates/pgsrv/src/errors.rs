@@ -21,7 +21,10 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
-    #[error("invalid message type: {0}")]
+    /// We've received an unexpected message identifier from the frontend.
+    /// Includes the char representation to allow for easy cross referencing
+    /// with the Postgres message format documentation.
+    #[error("invalid message type: byte={0}, char={}", *.0 as char)]
     InvalidMsgType(u8),
 
     #[error(transparent)]
@@ -31,5 +34,11 @@ pub enum PgSrvError {
     Io(#[from] io::Error),
 
     #[error(transparent)]
-    Anyhow(#[from] anyhow::Error), // From sqlengine
+    SqlExec(#[from] sqlexec::errors::ExecError),
+
+    #[error(transparent)]
+    Datafusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
 }

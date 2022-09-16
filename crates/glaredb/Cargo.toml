@@ -12,7 +12,7 @@ logutil = {path = "../logutil"}
 lemur = {path = "../lemur"}
 raft = {path = "../raft"}
 storageengine = {path = "../storageengine"}
-sqlengine = {path = "../sqlengine"}
+sqlexec = {path = "../sqlexec"}
 pgsrv = {path = "../pgsrv"}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }

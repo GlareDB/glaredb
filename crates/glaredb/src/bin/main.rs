@@ -1,15 +1,14 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use glaredb::server::{Server, ServerConfig};
-use lemur::execute::stream::source::{DataSource, MemoryDataSource};
 use raft::client::ConsensusClient;
 use raft::repr::NodeId;
 use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
 use std::collections::BTreeSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
 use std::sync::atomic::{AtomicU64, Ordering};
-use storageengine::rocks::{RocksStore, StorageConfig};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
 use tracing::error;
@@ -34,15 +33,9 @@ enum Commands {
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
         bind: String,
 
-        /// Storage backend.
-        #[clap(long, value_enum)]
-        storage: StorageBackend,
-
-        /// Directory for storing data.
-        ///
-        /// Applicable only with the RocksDB storage backend.
-        #[clap(long, value_parser)]
-        data_path: Option<String>,
+        /// Name of the database to connect to.
+        #[clap(short, long, value_parser, default_value_t = String::from("glaredb"))]
+        db_name: String,
     },
 
     /// Starts a client to some server.
@@ -71,6 +64,7 @@ enum Commands {
     },
 }
 
+
 #[derive(Subcommand)]
 enum ClientCommands {
     Init,
@@ -88,36 +82,11 @@ enum ClientCommands {
     Metrics,
 }
 
-#[derive(ValueEnum, Clone)]
-enum StorageBackend {
-    Memory,
-    Rocks,
-}
-
 fn main() -> Result<()> {
     let cli = Cli::parse();
     logutil::init(cli.verbose);
 
     match cli.command {
-        Commands::Server {
-            bind,
-            storage,
-            data_path,
-        } => match storage {
-            StorageBackend::Memory => {
-                begin_server(MemoryDataSource::new(), &bind)?;
-            }
-            StorageBackend::Rocks => match data_path {
-                Some(path) => {
-                    let storage_conf = StorageConfig { data_dir: path };
-                    let source = RocksStore::open(storage_conf)?;
-                    begin_server(source, &bind)?;
-                }
-                None => {
-                    error!("`data-path` arg required with RocksDB");
-                }
-            },
-        },
         Commands::RaftNode {
             leader: _,
             port,
@@ -163,21 +132,25 @@ fn main() -> Result<()> {
                     }
                 }
             });
+        Commands::Server { bind, db_name } => {
+            begin_server(db_name, &bind)?;
+        }
+        Commands::Client { .. } => {
+            // TODO: Eventually there will be some "management" client. E.g.
+            // adding nodes to the cluster, graceful shutdowns, etc.
+            error!("client not implemented");
         }
     }
 
     Ok(())
 }
 
-fn begin_server<S>(source: S, pg_bind: &str) -> Result<()>
-where
-    S: DataSource + 'static,
-{
+fn begin_server(db_name: impl Into<String>, pg_bind: &str) -> Result<()> {
     let runtime = build_runtime()?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(source).await?;
+        let server = Server::connect(db_name).await?;
         server.serve(conf).await
     })
 }
