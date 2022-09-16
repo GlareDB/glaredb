@@ -1,5 +1,9 @@
 # Contributing to GlareDB
 
+All commits to `main` should first go through a PR. All CI checks should pass
+before merging in a PR. Since we squash merge, PR titles should follow
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
 Development dependencies may (optionally) be installed using nix.
 By using nix all programs needed (cargo, protoc, &c) will be installed and you will be placed into a shell configured with them in your PATH.
 
