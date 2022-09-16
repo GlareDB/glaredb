@@ -52,6 +52,8 @@ pub struct ConsensusClient {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Empty;
 
+const DEFAULT_NUM_RETRIES: usize = 3;
+
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
     pub async fn new(leader_id: NodeId, leader_url: String) -> RpcResult<Self, NetworkError> {
@@ -61,7 +63,7 @@ impl ConsensusClient {
 
         Ok(Self {
             leader: Arc::new(Mutex::new((leader_id, clients))),
-            num_retries: 3,
+            num_retries: DEFAULT_NUM_RETRIES,
         })
     }
 
