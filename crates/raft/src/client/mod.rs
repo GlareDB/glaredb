@@ -25,7 +25,6 @@ use crate::{
 
 pub struct ConsensusClient {
     pub leader: Arc<Mutex<(NodeId, Endpoint)>>,
-    // pub inner: RaftNodeClient<tonic::transport::Channel>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

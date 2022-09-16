@@ -123,8 +123,6 @@ fn main() -> Result<()> {
             port,
             node_id,
         } => {
-            // let storage_conf = StorageConfig { data_dir: data_path };
-            // let source = RocksStore::open(storage_conf)?;
             let rt = tokio::runtime::Runtime::new()?;
 
             let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);

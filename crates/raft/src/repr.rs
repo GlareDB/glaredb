@@ -35,6 +35,5 @@ impl std::fmt::Display for Node {
 pub type Raft = OpenRaft<RaftTypeConfig, Arc<ConsensusNetwork>, Arc<ConsensusStore>>;
 
 openraft::declare_raft_types!(
-    // pub RaftTypeConfig: D = BinaryWriteRequest, R = BinaryWriteResponse, NodeId = NodeId, Node = Node
     pub RaftTypeConfig: D = Request, R = Response, NodeId = NodeId, Node = Node
 );

@@ -17,27 +17,6 @@ message AddLearnerRequest {
     string address = 2;
 }
 
-/*
-message AddLearnerRequest {
-    bytes payload = 1;
-}
-
-message AddLearnerResponseSuccess {
-    bytes payload = 1;
-}
-
-message ForwardToLeader {
-    uint64 leader_id = 1;
-    string leader_address = 2;
-}
-
-message AddLearnerResponse {
-    oneof response {
-        AddLearnerResponseSuccess success = 1;
-        ForwardToLeader forward = 2;
-    }
-}
-*/
 
 message AddLearnerResponse {
     bytes payload = 1;
