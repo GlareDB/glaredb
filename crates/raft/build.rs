@@ -6,6 +6,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "AddLearnerRequest",
             "#[derive(serde::Serialize, serde::Deserialize)]",
         )
+        .type_attribute(
+            "AddLearnerResponse",
+            "#[derive(serde::Serialize, serde::Deserialize)]",
+        )
         .compile(&["proto/raft/management.proto"], &["proto"])?;
 
     tonic_build::configure()

@@ -54,6 +54,43 @@ pub struct Empty;
 
 const DEFAULT_NUM_RETRIES: usize = 3;
 
+macro_rules! retry_rpc_on_leader {
+    ($client:ident, $func:ident, $req:ident, $errtype:ident) => {
+        let mut n_retry = $client.num_retries;
+
+        loop {
+            let res = $client.$func(&$req).await;
+
+            let rpc_err = match res {
+                Ok(res) => return Ok(res),
+                Err(rpc_err) => rpc_err,
+            };
+
+            if let RPCError::RemoteError(remote_err) = &rpc_err {
+                let forward_err_res = <$errtype as TryInto<OForwardToLeader>>::try_into(
+                    remote_err.source.clone(),
+                );
+
+                if let Ok(ForwardToLeader {
+                    leader_id: Some(leader_id),
+                    leader_node: Some(leader_node),
+                }) = forward_err_res
+                {
+                    // Update target to the "new" leader
+                    $client.update_leader(leader_id, leader_node).await.expect("failed to update leader");
+
+                    n_retry -= 1;
+                    if n_retry > 0 {
+                        continue;
+                    }
+                }
+            }
+
+            return Err(rpc_err);
+        }
+    }
+}
+
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
     pub async fn new(leader_id: NodeId, leader_url: String) -> RpcResult<Self, NetworkError> {
@@ -96,38 +133,7 @@ impl ConsensusClient {
     pub async fn write(&self, req: Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
         let req: BinaryWriteRequest = req.into();
 
-        let mut n_retry = self.num_retries;
-
-        loop {
-            let res = self.write_rpc(&req).await;
-
-            let rpc_err = match res {
-                Ok(res) => return Ok(res),
-                Err(rpc_err) => rpc_err,
-            };
-
-            if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = <ClientWriteError as TryInto<OForwardToLeader>>::try_into(
-                    remote_err.source.clone(),
-                );
-
-                if let Ok(ForwardToLeader {
-                    leader_id: Some(leader_id),
-                    leader_node: Some(leader_node),
-                }) = forward_err_res
-                {
-                    // Update target to the "new" leader
-                    self.update_leader(leader_id, leader_node).await.expect("failed to update leader");
-
-                    n_retry -= 1;
-                    if n_retry > 0 {
-                        continue;
-                    }
-                }
-            }
-
-            return Err(rpc_err);
-        }
+        retry_rpc_on_leader!(self, write_rpc, req, ClientWriteError);
     }
 
     async fn read_rpc(&self, req: &BinaryReadRequest) -> RpcResult<ReadTxResponse, Infallible> {
@@ -205,41 +211,8 @@ impl ConsensusClient {
     pub async fn add_learner(
         &self,
         req: AddLearnerRequest,
-    ) -> RpcResult<OAddLearnerResponse, AddLearnerError> {
-        let mut n_retry = self.num_retries;
-
-        loop {
-            let resp = self.add_learner_rpc(&req).await?;
-            let res: RpcResult<OAddLearnerResponse, OAddLearnerError> =
-                bincode::deserialize(&resp.payload).expect("failed to deserialize");
-
-            let rpc_err = match res {
-                Ok(res) => return Ok(res),
-                Err(rpc_err) => rpc_err,
-            };
-
-            if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = <AddLearnerError as TryInto<OForwardToLeader>>::try_into(
-                    remote_err.source.clone(),
-                );
-
-                if let Ok(ForwardToLeader {
-                    leader_id: Some(leader_id),
-                    leader_node: Some(leader_node),
-                }) = forward_err_res
-                {
-                    // Update target to the "new" leader
-                    self.update_leader(leader_id, leader_node).await.expect("failed to update leader");
-
-                    n_retry -= 1;
-                    if n_retry > 0 {
-                        continue;
-                    }
-                }
-            }
-
-            return Err(rpc_err);
-        }
+    ) -> RpcResult<AddLearnerResponse, AddLearnerError> {
+        retry_rpc_on_leader!(self, add_learner_rpc, req, AddLearnerError);
     }
 
     async fn change_membership_rpc(
@@ -268,41 +241,12 @@ impl ConsensusClient {
         &self,
         req: &BTreeSet<NodeId>,
     ) -> RpcResult<OClientWriteResponse, OClientWriteError> {
-        let mut n_retry = self.num_retries;
 
         let req = ChangeMembershipRequest {
             payload: bincode::serialize(req).expect("failed to serialize"),
         };
 
-        loop {
-            let res = self.change_membership_rpc(&req).await;
-
-            let rpc_err = match res {
-                Ok(res) => return Ok(res),
-                Err(rpc_err) => rpc_err,
-            };
-
-            if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = <ClientWriteError as TryInto<OForwardToLeader>>::try_into(
-                    remote_err.source.clone(),
-                );
-
-                if let Ok(ForwardToLeader {
-                    leader_id: Some(leader_id),
-                    leader_node: Some(leader_node),
-                }) = forward_err_res
-                {
-                    self.update_leader(leader_id, leader_node).await.expect("failed to update leader");
-
-                    n_retry -= 1;
-                    if n_retry > 0 {
-                        continue;
-                    }
-                }
-            }
-
-            return Err(rpc_err);
-        }
+        retry_rpc_on_leader!(self, change_membership_rpc, req, OClientWriteError);
     }
 
     /// Get the metrics about the cluster.
