@@ -156,7 +156,7 @@ impl ConsensusClient {
 
     /// Consistent Read value by key, in an inconsistent mode.
     ///
-    /// This method MUST return consitent value or CheckIsLeaderError.
+    /// This method MUST return consistent value or CheckIsLeaderError.
     pub async fn consistent_read(
         &self,
         _req: ReadTxRequest,
@@ -171,7 +171,7 @@ impl ConsensusClient {
     /// This is the first step to initialize a cluster.
     /// With a initialized cluster, new nodes can be added with [`write`].
     /// Then setup replication with [`add_learner`].
-    /// and ake the new node a member with [`change_membership`].
+    /// and make the new node a member with [`change_membership`].
     pub async fn init(&self) -> RpcResult<(), InitializeError> {
         let (_leader_id, mut clients) = self.leader.lock().await.clone();
 
