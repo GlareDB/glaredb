@@ -1,6 +1,5 @@
 pub mod client;
 pub mod error;
-// pub mod lemur_impl;
 pub mod message;
 pub mod network;
 pub mod openraft_types;
