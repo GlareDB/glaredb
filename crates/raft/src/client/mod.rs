@@ -8,6 +8,7 @@ use tonic::transport::Endpoint;
 use super::error::RpcResult;
 use crate::message::{ReadTxRequest, ReadTxResponse, Request};
 use crate::openraft_types::prelude::*;
+use crate::repr::Node;
 use crate::rpc::pb::raft_node_client::RaftNodeClient;
 use crate::rpc::pb::remote_data_source_client::RemoteDataSourceClient;
 use crate::rpc::pb::{
@@ -23,8 +24,28 @@ use crate::{
     repr::NodeId,
 };
 
+#[derive(Debug, Clone)]
+pub struct NodeClients {
+    pub app_client: RemoteDataSourceClient<tonic::transport::Channel>,
+    pub node_client: RaftNodeClient<tonic::transport::Channel>,
+}
+
+impl NodeClients {
+    pub async fn from_endpoint(
+        endpoint: Endpoint,
+    ) -> Result<Self, tonic::transport::Error> {
+        let app_client = RemoteDataSourceClient::connect(endpoint.clone()).await?;
+        let node_client = RaftNodeClient::connect(endpoint).await?;
+
+        Ok(Self {
+            app_client,
+            node_client,
+        })
+    }
+}
+
 pub struct ConsensusClient {
-    pub leader: Arc<Mutex<(NodeId, Endpoint)>>,
+    pub leader: Arc<Mutex<(NodeId, NodeClients)>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,13 +53,14 @@ pub struct Empty;
 
 impl ConsensusClient {
     /// Create a client with a leader node id and a node manager to get node address by node id.
-    pub fn new(leader_id: NodeId, leader_url: String) -> Self {
+    pub async fn new(leader_id: NodeId, leader_url: String) -> RpcResult<Self, NetworkError> {
         let endpoint = Endpoint::from_shared(leader_url).expect("failed to create endpoint");
 
-        Self {
-            leader: Arc::new(Mutex::new((leader_id, endpoint))),
-            // inner: RaftNodeClient::connect(endpoint).await.expect("failed to connect to leader"),
-        }
+        let clients = NodeClients::from_endpoint(endpoint).await.expect("failed to create clients to leader");
+
+        Ok(Self {
+            leader: Arc::new(Mutex::new((leader_id, clients))),
+        })
     }
 
     // --- Application API
@@ -47,13 +69,10 @@ impl ConsensusClient {
         &self,
         req: &BinaryWriteRequest,
     ) -> RpcResult<ClientWriteResponse, ClientWriteError> {
-        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+        let (_leader_id, mut clients) = self.leader.lock().await.clone();
 
-        let mut client = RemoteDataSourceClient::connect(endpoint)
-            .await
-            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-
-        let resp = client
+        let resp = clients
+            .app_client
             .write(req.clone())
             .await
             .map(|resp| {
@@ -94,13 +113,7 @@ impl ConsensusClient {
                 }) = forward_err_res
                 {
                     // Update target to the "new" leader
-                    {
-                        let mut t = self.leader.lock().await;
-                        let url = leader_node.address.clone();
-                        let endpoint =
-                            Endpoint::from_shared(url).expect("failed to create endpoint");
-                        *t = (leader_id, endpoint);
-                    }
+                    self.update_leader(leader_id, leader_node).await.expect("failed to update leader");
 
                     n_retry -= 1;
                     if n_retry > 0 {
@@ -114,13 +127,10 @@ impl ConsensusClient {
     }
 
     async fn read_rpc(&self, req: &BinaryReadRequest) -> RpcResult<ReadTxResponse, Infallible> {
-        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+        let (_leader_id, mut clients) = self.leader.lock().await.clone();
 
-        let mut client = RemoteDataSourceClient::connect(endpoint)
-            .await
-            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-
-        let resp = client
+        let resp = clients
+            .app_client
             .read(req.clone())
             .await
             .map(|resp| {
@@ -159,13 +169,10 @@ impl ConsensusClient {
     /// Then setup replication with [`add_learner`].
     /// and ake the new node a member with [`change_membership`].
     pub async fn init(&self) -> RpcResult<(), InitializeError> {
-        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+        let (_leader_id, mut clients) = self.leader.lock().await.clone();
 
-        let mut client = RaftNodeClient::connect(endpoint)
-            .await
-            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-
-        client
+        clients
+            .node_client
             .init(())
             .await
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
@@ -177,13 +184,10 @@ impl ConsensusClient {
         &self,
         req: &AddLearnerRequest,
     ) -> RpcResult<AddLearnerResponse, AddLearnerError> {
-        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+        let (_leader_id, mut clients) = self.leader.lock().await.clone();
 
-        let mut client = RaftNodeClient::connect(endpoint)
-            .await
-            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-
-        let resp = client
+        let resp = clients
+            .node_client
             .add_learner(req.clone())
             .await
             .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
@@ -221,13 +225,7 @@ impl ConsensusClient {
                 }) = forward_err_res
                 {
                     // Update target to the "new" leader
-                    {
-                        let mut t = self.leader.lock().await;
-                        let url = leader_node.address.clone();
-                        let endpoint =
-                            Endpoint::from_shared(url).expect("failed to create endpoint");
-                        *t = (leader_id, endpoint);
-                    }
+                    self.update_leader(leader_id, leader_node).await.expect("failed to update leader");
 
                     n_retry -= 1;
                     if n_retry > 0 {
@@ -244,13 +242,10 @@ impl ConsensusClient {
         &self,
         req: &ChangeMembershipRequest,
     ) -> RpcResult<OClientWriteResponse, OClientWriteError> {
-        let (_leader_id, endpoint) = self.leader.lock().await.clone();
-
-        let mut client = RaftNodeClient::connect(endpoint)
-            .await
-            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
+        let (_leader_id, mut client) = self.leader.lock().await.clone();
 
         let resp = client
+            .node_client
             .change_membership(req.clone())
             .await
             .map(|resp| {
@@ -293,14 +288,7 @@ impl ConsensusClient {
                     leader_node: Some(leader_node),
                 }) = forward_err_res
                 {
-                    // Update target to the "new" leader
-                    {
-                        let mut t = self.leader.lock().await;
-                        let url = leader_node.address.clone();
-                        let endpoint =
-                            Endpoint::from_shared(url).expect("failed to create endpoint");
-                        *t = (leader_id, endpoint);
-                    }
+                    self.update_leader(leader_id, leader_node).await.expect("failed to update leader");
 
                     n_retry -= 1;
                     if n_retry > 0 {
@@ -319,15 +307,26 @@ impl ConsensusClient {
     /// membership config, replication status etc.
     /// See [`RaftMetrics`].
     pub async fn metrics(&self) -> RpcResult<RaftMetrics, Infallible> {
-        let (_leader_id, endpoint) = self.leader.lock().await.clone();
+        let (_leader_id, mut client) = self.leader.lock().await.clone();
 
-        let mut client = RaftNodeClient::connect(endpoint)
-            .await
-            .map_err(|e| RpcError::Network(NetworkError::new(&e)))?;
-
-        match client.metrics(()).await {
+        match client
+            .node_client
+            .metrics(()).await {
             Ok(resp) => Ok(resp.into_inner().try_into().unwrap()),
             Err(e) => Err(RpcError::Network(NetworkError::new(&e))),
         }
     }
+
+    pub async fn update_leader(&self, id: NodeId, node: Node) -> Result<(), tonic::transport::Error> {
+        let mut t = self.leader.lock().await;
+        let url = node.address.clone();
+        let endpoint =
+            Endpoint::from_shared(url).expect("failed to create endpoint");
+        let clients = NodeClients::from_endpoint(endpoint).await?;
+
+        *t = (id, clients);
+
+        Ok(())
+    }
+
 }

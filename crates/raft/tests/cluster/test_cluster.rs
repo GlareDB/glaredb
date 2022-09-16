@@ -55,7 +55,7 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>> {
     // --- Create a client to the first node, as a control handle to the cluster.
-    let leader = ConsensusClient::new(1, get_rpc_str(1));
+    let leader = ConsensusClient::new(1, get_rpc_str(1)).await?;
 
     // --- 1. Initialize the target node as a cluster of only one node.
     //        After init(), the single node cluster will be fully functional.

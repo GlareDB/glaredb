@@ -136,9 +136,10 @@ fn main() -> Result<()> {
         }
         Commands::Client { addr, command } => {
             let rt = tokio::runtime::Runtime::new()?;
-            let client = ConsensusClient::new(1, addr);
 
             rt.block_on(async {
+                let client = ConsensusClient::new(1, addr).await.expect("client");
+
                 match command {
                     ClientCommands::Init => {
                         client.init().await.expect("failed to init cluster");
