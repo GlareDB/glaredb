@@ -37,13 +37,6 @@ Insight into each of these may be gained by looking at the nix source and/or the
 | `nix build` | build packages (binaries, container images, &c) | [flake-parts/packages](flake-parts/packages) |
 | `nix flake show` | print all outputs provided by the flake. useful since the project is organized into multiple files | N/A |
 
-### pre-commit-hooks
-
-When a devshell is obtained with `nix develop`, [pre-commit-hooks.nix](https://github.com/cachix/pre-commit-hooks.nix) will configure git hooks that will run and verify certain code styling.
-The commit will not be allowed to be created if the checks fail.
-
-These hooks remain configured when not inside the nix devshell, but will fail due to not having the proper environment available.
-If you wish to commit while the shell is not active you will have to [remove the hooks.](https://stackoverflow.com/questions/39963695/how-to-remove-git-hooks)
 ### direnv
 
 [nix-direnv](https://github.com/nix-community/nix-direnv) works especially well with nix devshells.

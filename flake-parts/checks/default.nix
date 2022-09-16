@@ -10,7 +10,6 @@
     ...
   }: {
     checks = {
-      pre-commit = import ./pre-commit.nix part-inputs system;
     };
   };
 }

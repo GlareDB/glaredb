@@ -31,20 +31,17 @@
         nativeBuildInputs = otherNativeBuildInputs;
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
-        inherit (self.checks.${system}.pre-commit) shellHook;
       };
       nightly = pkgs.mkShell rec {
         buildInputs = [rust-nightly] ++ devTools ++ otherBuildInputs;
         nativeBuildInputs = otherNativeBuildInputs;
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
-        inherit (self.checks.${system}.pre-commit) shellHook;
       };
       postgres = with pkgs;
         mkShell rec {
           buildInputs = [postgresql rust-stable];
           shellHook = ''
-            ${self.checks.${system}.pre-commit.shellHook}
             export PGDATA="$PWD/db"
             export PGHOST="$PGDATA"
             export PGLOG=$PGDATA/postgres.log
