@@ -46,6 +46,7 @@ impl NodeClients {
 
 pub struct ConsensusClient {
     pub leader: Arc<Mutex<(NodeId, NodeClients)>>,
+    pub num_retries: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -60,6 +61,7 @@ impl ConsensusClient {
 
         Ok(Self {
             leader: Arc::new(Mutex::new((leader_id, clients))),
+            num_retries: 3,
         })
     }
 
@@ -92,7 +94,7 @@ impl ConsensusClient {
     pub async fn write(&self, req: Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
         let req: BinaryWriteRequest = req.into();
 
-        let mut n_retry = 3;
+        let mut n_retry = self.num_retries;
 
         loop {
             let res = self.write_rpc(&req).await;
@@ -202,7 +204,7 @@ impl ConsensusClient {
         &self,
         req: AddLearnerRequest,
     ) -> RpcResult<OAddLearnerResponse, AddLearnerError> {
-        let mut n_retry = 3;
+        let mut n_retry = self.num_retries;
 
         loop {
             let resp = self.add_learner_rpc(&req).await?;
@@ -264,7 +266,7 @@ impl ConsensusClient {
         &self,
         req: &BTreeSet<NodeId>,
     ) -> RpcResult<OClientWriteResponse, OClientWriteError> {
-        let mut n_retry = 3;
+        let mut n_retry = self.num_retries;
 
         let req = ChangeMembershipRequest {
             payload: bincode::serialize(req).expect("failed to serialize"),
