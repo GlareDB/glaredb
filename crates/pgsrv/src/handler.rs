@@ -15,6 +15,15 @@ use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::trace;
 
+/// Default parameters to send to the frontend on startup. Existing postgres
+/// drivers may expect these in the server response on startup.
+///
+/// See https://www.postgresql.org/docs/current/runtime-config-preset.html for
+/// other parameters we may want to provide.
+///
+/// Some parameters  will eventually be provided at runtime.
+const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "0.0.0")];
+
 /// A wrapper around a sqlengine that implements the Postgres frontend/backend
 /// protocol.
 pub struct Handler {
@@ -56,7 +65,7 @@ impl Handler {
                 }
             }
             StartupMessage::CancelRequest { .. } => {
-                trace!("recieved cancel request");
+                trace!("received cancel request");
                 // TODO: Properly handle requests to cancel sessions.
 
                 // Note that we should not respond to this request.
@@ -102,6 +111,16 @@ impl Handler {
                 return Err(e.into());
             }
         };
+
+        // Send server parameters.
+        for (key, val) in DEFAULT_READ_ONLY_PARAMS {
+            framed
+                .send(BackendMessage::ParameterStatus {
+                    key: key.to_string(),
+                    val: val.to_string(),
+                })
+                .await?;
+        }
 
         let cs = ClientSession::new(sess, framed);
         cs.run().await
