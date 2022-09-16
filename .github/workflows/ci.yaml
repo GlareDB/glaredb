@@ -33,11 +33,6 @@ jobs:
       - name: Configure toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Configure protoc
-        uses: abelfodil/protoc-action@v1
-        with:
-          protoc-version: '3.19.4'
-
       - name: Unit tests
         run: cargo test
 
