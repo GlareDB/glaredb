@@ -70,6 +70,4 @@ More details on the [sqllogictest wiki page](https://www.sqlite.org/sqllogictest
 
 ## Contributing
 
-All commits to `main` should first go through a PR. All CI checks should pass
-before merging in a PR. Since we squash merge, PR titles should follow
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+See [CONTRIBUTING.md](CONTRIBUTING.md)

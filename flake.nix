@@ -12,7 +12,6 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
     gitignore = {
       url = "github:hercules-ci/gitignore.nix";
       inputs.nixpkgs.follows = "nixpkgs";
