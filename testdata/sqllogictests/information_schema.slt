@@ -1,0 +1,10 @@
+# Queries related to the information_schema.
+
+statement ok
+create table schema_table (a int, b text);
+
+query TTT
+select table_name, column_name, data_type from information_schema.columns where table_name = 'schema_table' order by column_name;
+----
+schema_table  a  Int32
+schema_table  b  Utf8

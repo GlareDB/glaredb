@@ -1,4 +1,5 @@
 use crate::errors::{internal, Result};
+use crate::information_schema::{InformationSchemaProvider, INFORMATION_SCHEMA};
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
@@ -28,6 +29,16 @@ impl DatabaseCatalog {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Insert an information schema into this catalog.
+    ///
+    /// Note that this takes an arc as the information schema view needs a
+    /// reference to the catalog since everything is built during query time.
+    pub fn insert_information_schema(self: Arc<Self>) -> Result<()> {
+        let schema = InformationSchemaProvider::new(self.clone());
+        self.insert_schema(INFORMATION_SCHEMA, Arc::new(schema))?;
+        Ok(())
     }
 
     /// Insert the default "public" schema.
