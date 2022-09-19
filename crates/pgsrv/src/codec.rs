@@ -180,6 +180,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::AuthenticationOk => b'R',
             BackendMessage::AuthenticationCleartextPassword => b'R',
             BackendMessage::EmptyQueryResponse => b'I',
+            BackendMessage::ParameterStatus { .. } => b'S',
             BackendMessage::ReadyForQuery(_) => b'Z',
             BackendMessage::CommandComplete { .. } => b'C',
             BackendMessage::RowDescription(_) => b'T',
@@ -197,6 +198,10 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::AuthenticationOk => dst.put_i32(0),
             BackendMessage::AuthenticationCleartextPassword => dst.put_i32(3),
             BackendMessage::EmptyQueryResponse => (),
+            BackendMessage::ParameterStatus { key, val } => {
+                dst.put_cstring(&key);
+                dst.put_cstring(&val);
+            }
             BackendMessage::ReadyForQuery(status) => match status {
                 TransactionStatus::Idle => dst.put_u8(b'I'),
                 TransactionStatus::InBlock => dst.put_u8(b'T'),
@@ -279,7 +284,7 @@ impl Decoder for PgCodec {
         let msg_len = i32::from_be_bytes(src[1..5].try_into().unwrap()) as usize;
 
         // Not enough bytes to read the full message yet.
-        if src.len() < msg_len - 1 {
+        if src.len() < msg_len {
             src.reserve(msg_len - src.len());
             return Ok(None);
         }
