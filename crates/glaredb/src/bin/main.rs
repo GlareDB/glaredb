@@ -103,6 +103,9 @@ fn main() -> Result<()> {
                     .expect("raft node");
             });
         }
+        Commands::Server { bind, db_name } => {
+            begin_server(db_name, &bind)?;
+        }
         Commands::Client { addr, command } => {
             let rt = tokio::runtime::Runtime::new()?;
 
@@ -132,13 +135,6 @@ fn main() -> Result<()> {
                     }
                 }
             });
-        Commands::Server { bind, db_name } => {
-            begin_server(db_name, &bind)?;
-        }
-        Commands::Client { .. } => {
-            // TODO: Eventually there will be some "management" client. E.g.
-            // adding nodes to the cluster, graceful shutdowns, etc.
-            error!("client not implemented");
         }
     }
 
@@ -164,5 +160,6 @@ fn build_runtime() -> Result<Runtime> {
         })
         .enable_all()
         .build()?;
+
     Ok(runtime)
 }
