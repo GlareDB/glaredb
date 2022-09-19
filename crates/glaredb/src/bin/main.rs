@@ -11,7 +11,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::error;
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
