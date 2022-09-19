@@ -16,6 +16,7 @@ in {
       with pkgs; [
         clang
         openssl
+        protobuf
       ];
   };
 }
