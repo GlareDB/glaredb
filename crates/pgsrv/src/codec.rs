@@ -148,6 +148,21 @@ impl PgCodec {
         })
     }
 
+    fn decode_parse(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let name = buf.read_cstring()?.to_string();
+        let sql = buf.read_cstring()?.to_string();
+        let num_params = buf.get_i16() as usize;
+        let mut param_types = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            param_types.push(buf.get_i32());
+        }
+        Ok(FrontendMessage::Parse {
+            name,
+            sql,
+            param_types,
+        })
+    }
+
     fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
         if scalar.is_null() {
             buf.put_i32(-1);
@@ -187,6 +202,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::DataRow(_, _) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
+            BackendMessage::ParseComplete(_) => b'1',
         };
         dst.put_u8(byte);
 
@@ -259,6 +275,7 @@ impl Encoder<BackendMessage> for PgCodec {
                 dst.put_cstring(&notice.message);
                 dst.put_u8(0);
             }
+            BackendMessage::ParseComplete(length) => dst.put_i32(length),
         }
 
         let msg_len = dst.len() - len_idx;
@@ -296,6 +313,7 @@ impl Decoder for PgCodec {
         let msg = match msg_type {
             b'Q' => Self::decode_query(&mut buf)?,
             b'p' => Self::decode_password(&mut buf)?,
+            b'P' => Self::decode_parse(&mut buf)?,
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 

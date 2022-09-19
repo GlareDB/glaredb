@@ -31,6 +31,15 @@ pub enum FrontendMessage {
     Query { sql: String },
     /// An encrypted or unencrypted password.
     PasswordMessage { password: String },
+    /// An extended query parse message.
+    Parse {
+        /// The name of the prepared statement.
+        name: String,
+        /// The query string to be parsed
+        sql: String,
+        /// The object IDs of the parameter data types.
+        param_types: Vec<i32>,
+    },
 }
 
 #[derive(Debug)]
@@ -52,6 +61,7 @@ pub enum BackendMessage {
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
     DataRow(RecordBatch, usize),
+    ParseComplete(i32),
 }
 
 impl From<ErrorResponse> for BackendMessage {
