@@ -328,9 +328,9 @@ struct InformationSchemaColumnsBuilder {
 
 impl InformationSchemaColumnsBuilder {
     fn new() -> Self {
-        // StringBuilder requires providing an initial capacity, so
-        // pick 10 here arbitrarily as this is not performance
-        // critical code and the number of tables is unavailable here.
+        // Some array builders require providing an initial capacity, so pick 10
+        // here arbitrarily as this is not performance critical code and the
+        // number of tables is unavailable here.
         let default_capacity = 10;
         Self {
             catalog_names: StringBuilder::new(),
@@ -377,8 +377,8 @@ impl InformationSchemaColumnsBuilder {
         self.column_defaults.append_null();
 
         // "YES if the column is possibly nullable, NO if it is known not nullable. "
-        let nullable_str = if is_nullable { "YES" } else { "NO" };
-        self.is_nullables.append_value(nullable_str);
+        let is_nullable = if is_nullable { "YES" } else { "NO" };
+        self.is_nullables.append_value(is_nullable);
 
         // "System supplied type" --> Use debug format of the datatype
         self.data_types.append_value(format!("{:?}", data_type));
