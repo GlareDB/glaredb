@@ -5,3 +5,5 @@ pub mod errors;
 pub mod executor;
 pub mod logical_plan;
 pub mod session;
+
+mod information_schema;
