@@ -148,6 +148,7 @@ where
             match msg {
                 Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
                 Some(FrontendMessage::Parse { name, sql, param_types }) => self.parse(name, sql, param_types).await?,
+                Some(FrontendMessage::Bind { portal, statement, param_formats, param_values, result_formats }) => self.bind(portal, statement, param_formats, param_values, result_formats).await?,
                 Some(other) => {
                     self.conn
                         .send(
@@ -234,6 +235,45 @@ where
         let name = if name.is_empty() { None } else { Some(name) };
 
         session.create_prepared_statement(name, sql, param_types)?;
+
+        conn.send(BackendMessage::ParseComplete).await?;
+
+        self.ready_for_query().await
+    }
+
+    async fn bind(&mut self, portal: String, statement: String, param_formats: Vec<i16>, param_values: Vec<Option<Vec<u8>>>, result_formats: Vec<i16>) -> Result<()> {
+        trace!(%portal, %statement, "received bind");
+
+        let portal_name = if portal.is_empty() { None } else { Some(portal) };
+        let statement_name = if statement.is_empty() { None } else { Some(statement) };
+
+        // param_formats can be empty, in which case all parameters (if any) are assumed to be text
+        // or it may have one entry, in which case all parameters are assumed to be of that format
+        // or it may have one entry per parameter, in which case each parameter is assumed to be of that format
+        // each code must be 0 (text) or 1 (binary)
+        let param_formats = if param_formats.is_empty() {
+            if param_values.is_empty() {
+                vec![]
+            } else {
+                vec![0]
+            }
+        } else if param_formats.len() == 1 {
+            vec![param_formats[0]; param_values.len()]
+        } else {
+            param_formats
+        };
+
+
+        dbg!(&portal_name);
+        dbg!(&statement_name);
+        dbg!(&param_formats);
+        dbg!(&param_values);
+        dbg!(&result_formats);
+
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+
+        session.bind_prepared_statement(portal_name, statement_name, param_formats, param_values, result_formats)?;
 
         conn.send(BackendMessage::ParseComplete).await?;
 

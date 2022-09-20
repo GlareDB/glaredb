@@ -35,6 +35,30 @@ impl PreparedStatement {
     }
 }
 
+#[derive(Debug)]
+struct Portal {
+    pub statement: String,
+    pub param_formats: Vec<i16>,
+    pub param_values: Vec<Option<Vec<u8>>>,
+    pub result_formats: Vec<i16>,
+}
+
+impl Portal {
+    pub fn new(
+        statement: String,
+        param_formats: Vec<i16>,
+        param_values: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<i16>,
+    ) -> Self {
+        Self {
+            statement,
+            param_formats,
+            param_values,
+            result_formats,
+        }
+    }
+}
+
 /// A per-client user session.
 ///
 /// This type acts as the bridge between datafusion planning/execution and the
@@ -50,6 +74,8 @@ pub struct Session {
     // prepared statements
     unnamed_statement: Option<PreparedStatement>,
     named_statements: HashMap<String, PreparedStatement>,
+    named_portals: HashMap<String, Portal>,
+    unnamed_portal: Option<Portal>,
 }
 
 impl Session {
@@ -65,7 +91,14 @@ impl Session {
         let mut state = SessionState::with_config_rt(config, runtime);
         state.catalog_list = catalog.clone();
 
-        Session { state, catalog, unnamed_statement: None, named_statements: HashMap::new() }
+        Session {
+            state,
+            catalog,
+            unnamed_statement: None,
+            named_statements: HashMap::new(),
+            named_portals: HashMap::new(),
+            unnamed_portal: None,
+        }
     }
 
     pub(crate) fn plan_sql(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -349,6 +382,41 @@ impl Session {
                     Entry::Occupied(ent) => return Err(internal!("prepared statement already exists: {}", ent.key())),
                     Entry::Vacant(ent) => {
                         ent.insert(PreparedStatement::new(sql, params));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Bind the parameters of a prepared statement to the given values.
+    /// If successful, the bound statement will create a portal which can be used to execute the statement.
+    pub fn bind_prepared_statement(
+        &mut self,
+        portal_name: Option<String>, 
+        statement_name: Option<String>,
+        param_formats: Vec<i16>,
+        param_values: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<i16>,
+    ) -> Result<()> {
+        let statement = match statement_name {
+            None => self.unnamed_statement.as_ref().ok_or_else(|| internal!("no unnamed prepared statement"))?,
+            Some(name) => self.named_statements.get(&name).ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+        };
+
+        match portal_name {
+            None => {
+                // Store the unnamed portal.
+                // This will persist until the session is dropped or another unnamed portal is created
+                self.unnamed_portal = Some(Portal::new(statement.sql.clone(), param_formats, param_values, result_formats));
+            }
+            Some(name) => {
+                // Named portals must be explicitly closed before being redefined
+                match self.named_portals.entry(name) {
+                    Entry::Occupied(ent) => return Err(internal!("portal already exists: {}", ent.key())),
+                    Entry::Vacant(ent) => {
+                        ent.insert(Portal::new(statement.sql.clone(), param_formats, param_values, result_formats));
                     }
                 }
             }

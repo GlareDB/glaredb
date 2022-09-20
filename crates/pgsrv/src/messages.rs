@@ -40,6 +40,18 @@ pub enum FrontendMessage {
         /// The object IDs of the parameter data types. Placing a zero here is equivalent to leaving the type unspecified.
         param_types: Vec<i32>,
     },
+    Bind {
+        /// The name of the destination portal (an empty string selects the unnamed portal).
+        portal: String,
+        /// The name of the source prepared statement (an empty string selects the unnamed prepared statement).
+        statement: String,
+        /// The parameter format codes. Each must presently be zero (text) or one (binary).
+        param_formats: Vec<i16>,
+        /// The parameter values, in the format indicated by the associated format code. n is the above length.
+        param_values: Vec<Option<Vec<u8>>>,
+        /// The result-column format codes. Each must presently be zero (text) or one (binary).
+        result_formats: Vec<i16>,
+    },
 }
 
 #[derive(Debug)]

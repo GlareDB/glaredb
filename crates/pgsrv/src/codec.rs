@@ -163,6 +163,29 @@ impl PgCodec {
         })
     }
 
+    fn decode_bind(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let portal = buf.read_cstring()?.to_string();
+        let statement = buf.read_cstring()?.to_string();
+
+        let num_params = buf.get_i16() as usize;
+        let mut param_formats = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            param_formats.push(buf.get_i16());
+        }
+
+        let num_values = buf.get_i16() as usize; // must match num_params
+        let mut param_values = Vec::with_capacity(num_values);
+        for _ in 0..num_values {
+            let len = buf.get_i32();
+            if len == -1 {
+                param_values.push(None);
+            } else {
+                let mut val = vec![0; len as usize];
+                buf.copy_to_slice(&mut val);
+                param_values.push(Some(val));
+            }
+        }
+
     fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
         if scalar.is_null() {
             buf.put_i32(-1);
@@ -316,6 +339,7 @@ impl Decoder for PgCodec {
             b'Q' => Self::decode_query(&mut buf)?,
             b'p' => Self::decode_password(&mut buf)?,
             b'P' => Self::decode_parse(&mut buf)?,
+            b'B' => Self::decode_bind(&mut buf)?,
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 
