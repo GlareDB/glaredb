@@ -47,8 +47,13 @@ Transactional information column family:
 - Is there a need to consider separate LSM trees per table or collection of tables within one logical database
     - Should we further partition tables into separate LSM trees
 - Cleanup of old versions (configurable to keep everything, default for now, though default should be shorter so this can scale with use in cloud product)
+    - To start we can have 2 configs:
+        - Keep everything
+        - Keep a week (or max transaction length, which can default to a week)
 - Should index values in the key be in serialized form
 - Should column values be stored concatenated per key
     - Alternatively store in NSMish format with column id before timestamp/HCL
     - Alternatively store in DSMish format with column id before index_id 0
 - Should secondary indexes be in a separate column family
+- Investigate use of manual compaction to upload sst files to object store
+- Restoring db from object store sst files
