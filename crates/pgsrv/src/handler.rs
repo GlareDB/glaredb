@@ -147,6 +147,7 @@ where
 
             match msg {
                 Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
+                Some(FrontendMessage::Parse { name, sql, param_types }) => self.parse(name, sql, param_types).await?,
                 Some(other) => {
                     self.conn
                         .send(
@@ -218,6 +219,23 @@ where
         if num_statements == 0 {
             self.conn.send(BackendMessage::EmptyQueryResponse).await?;
         }
+
+        self.ready_for_query().await
+    }
+
+    /// Parse the provided SQL statement and store it in the session.
+    async fn parse(&mut self, name: String, sql: String, param_types: Vec<i32>) -> Result<()> {
+        trace!(%sql, "received parse");
+
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+
+        // an empty name selectss the unnamed prepared statement
+        let name = if name.is_empty() { None } else { Some(name) };
+
+        session.create_prepared_statement(name, sql, param_types)?;
+
+        conn.send(BackendMessage::ParseComplete).await?;
 
         self.ready_for_query().await
     }

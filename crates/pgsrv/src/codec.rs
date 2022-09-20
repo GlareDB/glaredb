@@ -202,7 +202,8 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::DataRow(_, _) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
-            BackendMessage::ParseComplete(_) => b'1',
+            BackendMessage::ParseComplete => b'1',
+            BackendMessage::BindComplete => b'2',
         };
         dst.put_u8(byte);
 
@@ -214,6 +215,8 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::AuthenticationOk => dst.put_i32(0),
             BackendMessage::AuthenticationCleartextPassword => dst.put_i32(3),
             BackendMessage::EmptyQueryResponse => (),
+            BackendMessage::ParseComplete => (),
+            BackendMessage::BindComplete => (),
             BackendMessage::ParameterStatus { key, val } => {
                 dst.put_cstring(&key);
                 dst.put_cstring(&val);
@@ -275,7 +278,6 @@ impl Encoder<BackendMessage> for PgCodec {
                 dst.put_cstring(&notice.message);
                 dst.put_u8(0);
             }
-            BackendMessage::ParseComplete(length) => dst.put_i32(length),
         }
 
         let msg_len = dst.len() - len_idx;

@@ -18,8 +18,22 @@ use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast;
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
+use hashbrown::HashMap;
+use hashbrown::hash_map::Entry;
 use std::sync::Arc;
 use tracing::debug;
+
+#[derive(Debug)]
+pub struct PreparedStatement {
+    pub sql: String,
+    pub param_types: Vec<i32>,
+}
+
+impl PreparedStatement {
+    pub fn new(sql: String, param_types: Vec<i32>) -> Self {
+        Self { sql, param_types }
+    }
+}
 
 /// A per-client user session.
 ///
@@ -32,6 +46,10 @@ pub struct Session {
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
     // TODO: Transaction context goes here.
+
+    // prepared statements
+    unnamed_statement: Option<PreparedStatement>,
+    named_statements: HashMap<String, PreparedStatement>,
 }
 
 impl Session {
@@ -47,7 +65,7 @@ impl Session {
         let mut state = SessionState::with_config_rt(config, runtime);
         state.catalog_list = catalog.clone();
 
-        Session { state, catalog }
+        Session { state, catalog, unnamed_statement: None, named_statements: HashMap::new() }
     }
 
     pub(crate) fn plan_sql(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -314,5 +332,28 @@ impl Session {
             .schema(resolved.schema)
             .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
         Ok(schema)
+    }
+
+    /// Store the prepared statement in the current session.
+    /// It will later be readied for execution by using `bind_prepared_statement`.
+    pub fn create_prepared_statement(&mut self, name: Option<String>, sql: String, params: Vec<i32>) -> Result<()> {
+        match name {
+            None => {
+                // Store the unnamed prepared statement.
+                // This will persist until the session is dropped or another unnamed prepared statement is created
+                self.unnamed_statement = Some(PreparedStatement::new(sql, params));
+            }
+            Some(name) => {
+                // Named prepared statements must be explicitly closed before being redefined
+                match self.named_statements.entry(name) {
+                    Entry::Occupied(ent) => return Err(internal!("prepared statement already exists: {}", ent.key())),
+                    Entry::Vacant(ent) => {
+                        ent.insert(PreparedStatement::new(sql, params));
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }

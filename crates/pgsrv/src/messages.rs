@@ -33,11 +33,11 @@ pub enum FrontendMessage {
     PasswordMessage { password: String },
     /// An extended query parse message.
     Parse {
-        /// The name of the prepared statement.
+        /// The name of the prepared statement. An empty string denotes the unnamed prepared statement.
         name: String,
-        /// The query string to be parsed
+        /// The query string to be parsed.
         sql: String,
-        /// The object IDs of the parameter data types.
+        /// The object IDs of the parameter data types. Placing a zero here is equivalent to leaving the type unspecified.
         param_types: Vec<i32>,
     },
 }
@@ -61,7 +61,8 @@ pub enum BackendMessage {
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
     DataRow(RecordBatch, usize),
-    ParseComplete(i32),
+    ParseComplete,
+    BindComplete,
 }
 
 impl From<ErrorResponse> for BackendMessage {
