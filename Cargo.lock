@@ -239,7 +239,6 @@ dependencies = [
  "arrow",
  "async-trait",
  "datafusion",
- "datafusion-proto",
  "futures",
  "logutil",
  "parking_lot",
@@ -1318,20 +1317,6 @@ dependencies = [
  "regex",
  "sha2 0.10.2",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "datafusion-proto"
-version = "12.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23ff1bd4294e862a1bd6d6c4278fee8d149f5125c138b9a3fb795540d8d9222e"
-dependencies = [
- "arrow",
- "datafusion",
- "datafusion-common",
- "datafusion-expr",
- "prost",
- "prost-build",
 ]
 
 [[package]]
