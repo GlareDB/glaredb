@@ -1,6 +1,8 @@
 use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashMap;
 
+use crate::errors::PgSrvError;
+
 /// Version number (v3.0) used during normal frontend startup.
 pub const VERSION_V3: i32 = 0x30000;
 /// Version number used to request a cancellation.
@@ -52,6 +54,20 @@ pub enum FrontendMessage {
         /// The result-column format codes. Each must presently be zero (text) or one (binary).
         result_formats: Vec<i16>,
     },
+    Describe {
+        /// The kind of item to describe: 'S' to describe a prepared statement; or 'P' to describe a portal.
+        object_type: DescribeObjectType,
+        /// The name of the item to describe (an empty string selects the unnamed prepared statement or portal).
+        name: String,
+    },
+    Execute {
+        /// The name of the portal to execute (an empty string selects the unnamed portal).
+        portal: String,
+        /// The maximum number of rows to return, if portal contains a query that returns rows (ignored otherwise). Zero denotes "no limit".
+        max_rows: i32,
+    },
+    Sync,
+    Terminate,
 }
 
 #[derive(Debug)]
@@ -75,6 +91,7 @@ pub enum BackendMessage {
     DataRow(RecordBatch, usize),
     ParseComplete,
     BindComplete,
+    NoData,
 }
 
 impl From<ErrorResponse> for BackendMessage {
@@ -220,6 +237,34 @@ impl FieldDescription {
             type_size: 0,
             type_mod: 0,
             format: 0, // Text
+        }
+    }
+}
+
+#[derive(Debug)]
+#[repr(u8)]
+pub enum DescribeObjectType {
+    Statement = b'S',
+    Portal = b'P',
+}
+
+impl std::fmt::Display for DescribeObjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DescribeObjectType::Statement => write!(f, "Statement"),
+            DescribeObjectType::Portal => write!(f, "Portal"),
+        }
+    }
+}
+
+impl TryFrom<u8> for DescribeObjectType {
+    type Error = PgSrvError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            b'S' => Ok(DescribeObjectType::Statement),
+            b'P' => Ok(DescribeObjectType::Portal),
+            _ => Err(PgSrvError::UnexpectedDescribeObjectType(value)),
         }
     }
 }

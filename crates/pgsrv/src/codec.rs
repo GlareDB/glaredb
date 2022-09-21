@@ -186,6 +186,45 @@ impl PgCodec {
             }
         }
 
+        let num_params = buf.get_i16() as usize;
+        let mut result_formats = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            result_formats.push(buf.get_i16());
+        }
+
+        Ok(FrontendMessage::Bind {
+            portal,
+            statement,
+            param_formats,
+            param_values,
+            result_formats,
+        })
+    }
+
+    fn decode_describe(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let object_type = buf.get_u8().try_into()?;
+        let name = buf.read_cstring()?.to_string();
+
+        Ok(FrontendMessage::Describe { object_type, name })
+    }
+
+    fn decode_execute(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let portal = buf.read_cstring()?.to_string();
+        let max_rows = buf.get_i32();
+        Ok(FrontendMessage::Execute {
+            portal,
+            max_rows,
+        })
+    }
+
+    fn decode_sync(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Sync)
+    }
+
+    fn decode_terminate(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Terminate)
+    }
+
     fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
         if scalar.is_null() {
             buf.put_i32(-1);
@@ -227,6 +266,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::NoticeResponse(_) => b'N',
             BackendMessage::ParseComplete => b'1',
             BackendMessage::BindComplete => b'2',
+            BackendMessage::NoData => b'n',
         };
         dst.put_u8(byte);
 
@@ -240,6 +280,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::EmptyQueryResponse => (),
             BackendMessage::ParseComplete => (),
             BackendMessage::BindComplete => (),
+            BackendMessage::NoData => (),
             BackendMessage::ParameterStatus { key, val } => {
                 dst.put_cstring(&key);
                 dst.put_cstring(&val);
@@ -340,6 +381,10 @@ impl Decoder for PgCodec {
             b'p' => Self::decode_password(&mut buf)?,
             b'P' => Self::decode_parse(&mut buf)?,
             b'B' => Self::decode_bind(&mut buf)?,
+            b'D' => Self::decode_describe(&mut buf)?,
+            b'E' => Self::decode_execute(&mut buf)?,
+            b'S' => Self::decode_sync(&mut buf)?,
+            b'X' => Self::decode_terminate(&mut buf)?,
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 

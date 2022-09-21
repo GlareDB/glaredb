@@ -24,6 +24,8 @@ pub enum ExecutionResult {
     CreateTable,
     /// A client local variable was set.
     SetLocal,
+    /// Tables dropped.
+    DropTables,
 }
 
 impl fmt::Debug for ExecutionResult {
@@ -36,6 +38,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::SetLocal => write!(f, "set local"),
+            ExecutionResult::DropTables => write!(f, "drop tables"),
         }
     }
 }

@@ -1,6 +1,8 @@
 use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
 use crate::datasource::MemTable;
 use crate::errors::{internal, Result};
+use crate::executor::ExecutionResult;
+use crate::extended::{PreparedStatement, Portal};
 use crate::logical_plan::*;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
@@ -15,49 +17,14 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
 };
 use datafusion::sql::planner::{convert_data_type, SqlToRel};
-use datafusion::sql::sqlparser::ast;
+use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
+use datafusion::sql::sqlparser::parser::Parser;
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
-use hashbrown::HashMap;
 use hashbrown::hash_map::Entry;
 use std::sync::Arc;
 use tracing::debug;
-
-#[derive(Debug)]
-pub struct PreparedStatement {
-    pub sql: String,
-    pub param_types: Vec<i32>,
-}
-
-impl PreparedStatement {
-    pub fn new(sql: String, param_types: Vec<i32>) -> Self {
-        Self { sql, param_types }
-    }
-}
-
-#[derive(Debug)]
-struct Portal {
-    pub statement: String,
-    pub param_formats: Vec<i16>,
-    pub param_values: Vec<Option<Vec<u8>>>,
-    pub result_formats: Vec<i16>,
-}
-
-impl Portal {
-    pub fn new(
-        statement: String,
-        param_formats: Vec<i16>,
-        param_values: Vec<Option<Vec<u8>>>,
-        result_formats: Vec<i16>,
-    ) -> Self {
-        Self {
-            statement,
-            param_formats,
-            param_values,
-            result_formats,
-        }
-    }
-}
 
 /// A per-client user session.
 ///
@@ -73,9 +40,9 @@ pub struct Session {
 
     // prepared statements
     unnamed_statement: Option<PreparedStatement>,
-    named_statements: HashMap<String, PreparedStatement>,
-    named_portals: HashMap<String, Portal>,
+    named_statements: hashbrown::HashMap<String, PreparedStatement>,
     unnamed_portal: Option<Portal>,
+    named_portals: hashbrown::HashMap<String, Portal>,
 }
 
 impl Session {
@@ -95,9 +62,9 @@ impl Session {
             state,
             catalog,
             unnamed_statement: None,
-            named_statements: HashMap::new(),
-            named_portals: HashMap::new(),
+            named_statements: hashbrown::HashMap::new(),
             unnamed_portal: None,
+            named_portals: hashbrown::HashMap::new(),
         }
     }
 
@@ -209,6 +176,25 @@ impl Session {
                     table_name,
                     columns,
                     source,
+                })
+                .into())
+            }
+
+            // Drop tables
+            ast::Statement::Drop {
+                object_type: ObjectType::Table,
+                if_exists,
+                names,
+                ..
+            } => {
+                let names = names
+                    .into_iter()
+                    .map(|name| name.to_string())
+                    .collect::<Vec<_>>();
+
+                Ok(DdlPlan::DropTable(DropTable {
+                    if_exists,
+                    names,
                 })
                 .into())
             }
@@ -390,6 +376,20 @@ impl Session {
         Ok(())
     }
 
+    pub fn get_prepared_statement(&self, name: &Option<String>) -> Option<&PreparedStatement> {
+        match name {
+            None => self.unnamed_statement.as_ref(),
+            Some(name) => self.named_statements.get(name),
+        }
+    }
+
+    pub fn get_portal(&self, portal_name: &Option<String>) -> Option<&Portal> {
+        match portal_name {
+            None => self.unnamed_portal.as_ref(),
+            Some(name) => self.named_portals.get(name),
+        }
+    }
+
     /// Bind the parameters of a prepared statement to the given values.
     /// If successful, the bound statement will create a portal which can be used to execute the statement.
     pub fn bind_prepared_statement(
@@ -401,27 +401,89 @@ impl Session {
         result_formats: Vec<i16>,
     ) -> Result<()> {
         let statement = match statement_name {
-            None => self.unnamed_statement.as_ref().ok_or_else(|| internal!("no unnamed prepared statement"))?,
-            Some(name) => self.named_statements.get(&name).ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+            None => self.unnamed_statement.as_mut().ok_or_else(|| internal!("no unnamed prepared statement"))?,
+            Some(name) => self.named_statements.get_mut(&name).ok_or_else(|| internal!("no prepared statement named: {}", name))?,
         };
+
+        let statements = Parser::parse_sql(&PostgreSqlDialect {}, &statement.sql)?
+            .into_iter()
+            .collect::<Vec<ast::Statement>>();
+
+        // a portal can only be bound to a single statement
+        if statements.len() != 1 {
+            return Err(internal!("portal can only be bound to a single statement"));
+        }
+
+        let statement = statements.into_iter().next().unwrap();
 
         match portal_name {
             None => {
                 // Store the unnamed portal.
                 // This will persist until the session is dropped or another unnamed portal is created
-                self.unnamed_portal = Some(Portal::new(statement.sql.clone(), param_formats, param_values, result_formats));
+                let plan = self.plan_sql(statement)?;
+                self.unnamed_portal = Some(Portal::new(plan, param_formats, param_values, result_formats)?);
             }
             Some(name) => {
                 // Named portals must be explicitly closed before being redefined
-                match self.named_portals.entry(name) {
+                match self.named_portals.entry(name.clone()) {
                     Entry::Occupied(ent) => return Err(internal!("portal already exists: {}", ent.key())),
                     Entry::Vacant(ent) => {
-                        ent.insert(Portal::new(statement.sql.clone(), param_formats, param_values, result_formats));
+                        todo!("plan named portal");
+                        // let plan = self.plan_sql(statement)?;
+                        // ent.insert(Portal::new(plan, param_formats, param_values, result_formats)?);
                     }
                 }
             }
         }
 
         Ok(())
+    }
+
+    pub async fn drop_table(&self, plan: DropTable) -> Result<()> {
+        dbg!(&plan);
+        for name in plan.names {
+            let resolved = self.resolve_table_name(&name);
+            let schema = self.get_schema_for_reference(&resolved)?;
+
+            schema.deregister_table(&resolved.table.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn execute_portal(&mut self, portal_name: &Option<String>, max_rows: i32) -> Result<ExecutionResult> {
+        let portal = match portal_name {
+            None => self.unnamed_portal.as_mut().ok_or_else(|| internal!("no unnamed portal"))?,
+            Some(name) => self.named_portals.get_mut(name).ok_or_else(|| internal!("no portal named: {}", name))?,
+        };
+
+        match portal.plan.clone() {
+            LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
+                self.create_table(plan)?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
+                self.create_external_table(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
+                self.create_table_as(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::DropTable(plan)) => {
+                self.drop_table(plan).await?;
+                Ok(ExecutionResult::DropTables)
+            }
+            LogicalPlan::Write(WritePlan::Insert(plan)) => {
+                self.insert(plan).await?;
+                Ok(ExecutionResult::WriteSuccess)
+            }
+            LogicalPlan::Query(plan) => {
+                let physical = self.create_physical_plan(plan).await?;
+                let stream = self.execute_physical(physical)?;
+                Ok(ExecutionResult::Query { stream })
+            }
+            other => Err(internal!("unimplemented logical plan: {:?}", other)),
+        }
     }
 }

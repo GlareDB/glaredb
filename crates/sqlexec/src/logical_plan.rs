@@ -1,9 +1,9 @@
 use crate::errors::{internal, ExecError};
 use datafusion::arrow::datatypes::Field;
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
-use datafusion::sql::sqlparser::ast;
+use datafusion::sql::sqlparser::ast::{self, ObjectType};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum LogicalPlan {
     /// DDL plans.
     Ddl(DdlPlan),
@@ -22,7 +22,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
 }
@@ -33,7 +33,7 @@ impl From<WritePlan> for LogicalPlan {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Insert {
     pub table_name: String,
     pub columns: Vec<String>,
@@ -44,12 +44,13 @@ pub struct Insert {
 ///
 /// Note that while datafusion has some support for DDL, it's very much focused
 /// on working with "external" data that won't be modified like parquet files.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DdlPlan {
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
+    DropTable(DropTable),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -58,20 +59,20 @@ impl From<DdlPlan> for LogicalPlan {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CreateSchema {
     pub schema_name: String,
     pub if_not_exists: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CreateTable {
     pub table_name: String,
     pub if_not_exists: bool,
     pub columns: Vec<Field>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum FileType {
     Parquet,
 }
@@ -86,20 +87,26 @@ impl TryFrom<ast::FileFormat> for FileType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CreateExternalTable {
     pub table_name: String,
     pub location: String,
     pub file_type: FileType,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CreateTableAs {
     pub table_name: String,
     pub source: DfLogicalPlan,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
+pub struct DropTable {
+    pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
 pub enum TransactionPlan {
     Begin,
     Commit,

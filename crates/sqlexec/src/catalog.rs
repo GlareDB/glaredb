@@ -164,4 +164,9 @@ impl SchemaProvider for SchemaCatalog {
         let tables = self.tables.read();
         tables.contains_key(name)
     }
+
+    fn deregister_table(&self, name: &str) -> DfResult<Option<Arc<dyn TableProvider>>> {
+        let mut tables = self.tables.write();
+        Ok(tables.remove(name))
+    }
 }
