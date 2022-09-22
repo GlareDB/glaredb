@@ -37,12 +37,17 @@ pub struct Session {
 impl Session {
     /// Create a new session.
     ///
-    /// All system schemas should already be in the provided catalog.
+    /// All system schemas (including `information_schema`) should already be in
+    /// the provided catalog.
     pub fn new(catalog: Arc<DatabaseCatalog>, runtime: Arc<RuntimeEnv>) -> Session {
+        // Note that the values for creating the default catalog/schema and
+        // information schema do not matter, as we're not using the datafusion's
+        // session context. Initializing the session context is what creates
+        // thoses.
         let config = SessionConfig::default()
             .with_default_catalog_and_schema(catalog.name(), DEFAULT_SCHEMA)
             .create_default_catalog_and_schema(false)
-            .with_information_schema(true);
+            .with_information_schema(false);
 
         let mut state = SessionState::with_config_rt(config, runtime);
         state.catalog_list = catalog.clone();

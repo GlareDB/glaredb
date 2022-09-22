@@ -16,8 +16,11 @@ impl Engine {
         let catalog = DatabaseCatalog::new(db_name);
         catalog.insert_default_schema()?;
 
+        let catalog = Arc::new(catalog);
+        DatabaseCatalog::insert_information_schema(catalog.clone())?;
+
         Ok(Engine {
-            catalog: Arc::new(catalog),
+            catalog,
             runtime: Arc::new(runtime),
         })
     }
