@@ -54,39 +54,47 @@ pub struct Empty;
 
 const DEFAULT_NUM_RETRIES: usize = 3;
 
+/// Perform an rpc caller to the leader node.
+/// If the contact node is not the leader, the request will be forwarded to the leader.
+/// The request will be retried if the leader is not available, up to the client's `num_retries`.
 macro_rules! retry_rpc_on_leader {
     ($client:ident, $func:ident, $req:ident, $errtype:ident) => {
-        let mut n_retry = $client.num_retries;
+        {
+            let mut n_retry = $client.num_retries;
 
-        loop {
-            let res = $client.$func(&$req).await;
+            loop {
+                let res = $client.$func(&$req).await;
 
-            let rpc_err = match res {
-                Ok(res) => return Ok(res),
-                Err(rpc_err) => rpc_err,
-            };
+                // If the request is successful, return the result.
+                let rpc_err = match res {
+                    Ok(res) => break Ok(res),
+                    Err(rpc_err) => rpc_err,
+                };
 
-            if let RPCError::RemoteError(remote_err) = &rpc_err {
-                let forward_err_res = <$errtype as TryInto<OForwardToLeader>>::try_into(
-                    remote_err.source.clone(),
-                );
+                // If the request is not successful, check if the error is a `ForwardToLeader` error.
+                if let RPCError::RemoteError(remote_err) = &rpc_err {
+                    let forward_err_res = <$errtype as TryInto<OForwardToLeader>>::try_into(
+                        remote_err.source.clone(),
+                    );
 
-                if let Ok(ForwardToLeader {
-                    leader_id: Some(leader_id),
-                    leader_node: Some(leader_node),
-                }) = forward_err_res
-                {
-                    // Update target to the "new" leader
-                    $client.update_leader(leader_id, leader_node).await.expect("failed to update leader");
+                    // If the error is a `ForwardToLeader` error, update the stored leader and retry.
+                    if let Ok(ForwardToLeader {
+                        leader_id: Some(leader_id),
+                        leader_node: Some(leader_node),
+                    }) = forward_err_res
+                    {
+                        $client.update_leader(leader_id, leader_node).await.expect("failed to update leader");
 
-                    n_retry -= 1;
-                    if n_retry > 0 {
-                        continue;
+                        n_retry -= 1;
+                        if n_retry > 0 {
+                            continue;
+                        }
                     }
                 }
-            }
 
-            return Err(rpc_err);
+                // If we reach here, we have exhausted all retries.
+                break Err(rpc_err);
+            }
         }
     }
 }
@@ -133,7 +141,7 @@ impl ConsensusClient {
     pub async fn write(&self, req: Request) -> RpcResult<ClientWriteResponse, ClientWriteError> {
         let req: BinaryWriteRequest = req.into();
 
-        retry_rpc_on_leader!(self, write_rpc, req, ClientWriteError);
+        retry_rpc_on_leader!(self, write_rpc, req, ClientWriteError)
     }
 
     async fn read_rpc(&self, req: &BinaryReadRequest) -> RpcResult<ReadTxResponse, Infallible> {
@@ -212,7 +220,7 @@ impl ConsensusClient {
         &self,
         req: AddLearnerRequest,
     ) -> RpcResult<AddLearnerResponse, AddLearnerError> {
-        retry_rpc_on_leader!(self, add_learner_rpc, req, AddLearnerError);
+        retry_rpc_on_leader!(self, add_learner_rpc, req, AddLearnerError)
     }
 
     async fn change_membership_rpc(
@@ -246,7 +254,7 @@ impl ConsensusClient {
             payload: bincode::serialize(req).expect("failed to serialize"),
         };
 
-        retry_rpc_on_leader!(self, change_membership_rpc, req, OClientWriteError);
+        retry_rpc_on_leader!(self, change_membership_rpc, req, OClientWriteError)
     }
 
     /// Get the metrics about the cluster.
