@@ -62,7 +62,9 @@ impl RaftNode for ManagementRpcHandler {
         &self,
         request: tonic::Request<ChangeMembershipRequest>,
     ) -> TonicResult<ChangeMembershipResponse> {
-        let req: BTreeSet<NodeId> = bincode::deserialize(&request.into_inner().payload).unwrap();
+        let req: BTreeSet<NodeId> = bincode::deserialize(&request.into_inner().payload).map_err(|e| {
+            tonic::Status::new(tonic::Code::InvalidArgument, format!("invalid request: {}", e))
+        })?;
         let resp = self.app.raft.change_membership(req, true, false).await;
 
         let data = bincode::serialize(&resp).unwrap();
