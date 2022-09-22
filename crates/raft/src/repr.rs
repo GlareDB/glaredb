@@ -23,8 +23,7 @@ pub type NodeId = u64;
     Hash,
 )]
 pub struct Node {
-    pub rpc_addr: String,
-    pub api_addr: String,
+    pub address: String,
 }
 
 impl std::fmt::Display for Node {

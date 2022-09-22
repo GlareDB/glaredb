@@ -7,9 +7,10 @@ use std::time::Duration;
 use maplit::btreemap;
 use maplit::btreeset;
 use raft::client::ConsensusClient;
-use raft::message::Request;
 use raft::repr::Node;
+use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
+use sqlengine::engine::Engine;
 use tokio::time::sleep;
 
 /// Setup a cluster of 3 nodes.
@@ -21,39 +22,40 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     //     This is only used by the client. A raft node in this example stores node addresses in its store.
 
     // --- Start 3 raft node in 3 threads.
-    let d1 = tempdir::TempDir::new("test_cluster")?;
-    let d2 = tempdir::TempDir::new("test_cluster")?;
-    let d3 = tempdir::TempDir::new("test_cluster")?;
-
     let _h1 = tokio::spawn(async move {
-        let x = start_raft_node(1, d1.path(), get_rpc_addr(1), get_http_addr(1)).await;
+        let addr = get_rpc_addr(1);
+        let url = format!("http://{}", addr);
+        let x = start_raft_node(1, url, addr).await;
         println!("x: {:?}", x);
     });
 
     let _h2 = tokio::spawn(async move {
-        let x = start_raft_node(2, d2.path(), get_rpc_addr(2), get_http_addr(2)).await;
+        let addr = get_rpc_addr(2);
+        let url = format!("http://{}", addr);
+        let x = start_raft_node(2, url, addr).await;
         println!("x: {:?}", x);
     });
 
     let _h3 = tokio::spawn(async move {
-        let x = start_raft_node(3, d3.path(), get_rpc_addr(3), get_http_addr(3)).await;
+        let addr = get_rpc_addr(3);
+        let url = format!("http://{}", addr);
+        let x = start_raft_node(3, url, addr).await;
         println!("x: {:?}", x);
     });
 
     // Wait for server to start up.
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(2000)).await;
 
-    let _h4 = tokio::spawn(async move {
-        run_tests().await.expect("test_cluster");
-    });
+    let leader = prepare_cluster().await?;
+
+    // run_tests(leader).await?;
 
     Ok(())
 }
 
-async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
+async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>> {
     // --- Create a client to the first node, as a control handle to the cluster.
-
-    let leader = ConsensusClient::new(1, get_http_addr(1));
+    let leader = ConsensusClient::new(1, get_rpc_str(1)).await?;
 
     // --- 1. Initialize the target node as a cluster of only one node.
     //        After init(), the single node cluster will be fully functional.
@@ -69,12 +71,18 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== add-learner 2");
     let _x = leader
-        .add_learner((2, get_http_addr(2).to_string(), get_rpc_addr(2).to_string()))
+        .add_learner(AddLearnerRequest {
+            node_id: 2,
+            address: get_rpc_str(2),
+        })
         .await?;
 
     println!("=== add-learner 3");
     let _x = leader
-        .add_learner((3, get_http_addr(2).to_string(), get_rpc_addr(3).to_string()))
+        .add_learner(AddLearnerRequest {
+            node_id: 3,
+            address: get_rpc_str(3),
+        })
         .await?;
 
     println!("=== metrics after add-learner");
@@ -89,9 +97,9 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<BTreeMap<_, _>>();
     assert_eq!(
         btreemap! {
-            1 => Node{rpc_addr: get_rpc_addr(1).to_string(), api_addr: get_http_addr(1).to_string(), },
-            2 => Node{rpc_addr: get_rpc_addr(2).to_string(), api_addr: get_http_addr(2).to_string(), },
-            3 => Node{rpc_addr: get_rpc_addr(3).to_string(), api_addr: get_http_addr(3).to_string(), },
+            1 => Node{ address: get_rpc_str(1), },
+            2 => Node{ address: get_rpc_str(2), },
+            3 => Node{ address: get_rpc_str(3), },
         },
         nodes_in_cluster
     );
@@ -120,8 +128,24 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
     let x = leader.metrics().await?;
     assert_eq!(&vec![vec![1, 2, 3]], x.membership_config.get_joint_config());
 
+    Ok(leader)
+}
+
+async fn run_tests(leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
     // --- Try to write some application data through the leader.
 
+    /*
+    println!("=== running sql engine raft tests");
+    let source = RaftClientSource::from_client(leader);
+    let mut engine = Engine::new(source);
+    engine.ensure_system_tables().await?;
+    let mut session = engine.begin_session()?;
+
+    let query = "SELECT * FROM VALUES (1, 2)";
+    let results = session.execute_query(&query).await?;
+    println!("results: {:?}", results);
+     * TODO: write tests that are relevant to glaredb here.
+     * The commented code is from a KV store example and is not relevant
     println!("=== write `foo=bar`");
     let _x = leader
         .write(&Request::Set {
@@ -141,12 +165,12 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!("bar", x);
 
     println!("=== read `foo` on node 2");
-    let client2 = ConsensusClient::new(2, get_http_addr(2));
+    let client2 = ConsensusClient::new(2, get_rpc_str(2));
     let x = client2.read(&("foo".to_string())).await?;
     assert_eq!("bar", x);
 
     println!("=== read `foo` on node 3");
-    let client3 = ConsensusClient::new(3, get_http_addr(3));
+    let client3 = ConsensusClient::new(3, get_rpc_str(3));
     let x = client3.read(&("foo".to_string())).await?;
     assert_eq!("bar", x);
 
@@ -169,12 +193,12 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!("wow", x);
 
     println!("=== read `foo` on node 2");
-    let client2 = ConsensusClient::new(2, get_http_addr(2));
+    let client2 = ConsensusClient::new(2, get_rpc_str(2));
     let x = client2.read(&("foo".to_string())).await?;
     assert_eq!("wow", x);
 
     println!("=== read `foo` on node 3");
-    let client3 = ConsensusClient::new(3, get_http_addr(3));
+    let client3 = ConsensusClient::new(3, get_rpc_str(3));
     let x = client3.read(&("foo".to_string())).await?;
     assert_eq!("wow", x);
 
@@ -193,19 +217,11 @@ async fn run_tests() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(_) => panic!("MUST return CheckIsLeaderError"),
     }
+    */
 
     Ok(())
 }
 
-fn get_http_addr(node_id: u32) -> SocketAddr {
-    let addr = match node_id {
-        1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21001),
-        2 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21002),
-        3 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21003),
-        _ => panic!("node not found"),
-    };
-    addr
-}
 fn get_rpc_addr(node_id: u32) -> SocketAddr {
     let addr = match node_id {
         1 => SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22001),
@@ -214,4 +230,8 @@ fn get_rpc_addr(node_id: u32) -> SocketAddr {
         _ => panic!("node not found"),
     };
     addr
+}
+
+fn get_rpc_str(node_id: u32) -> String {
+    format!("http://{}", get_rpc_addr(node_id))
 }
