@@ -1,17 +1,16 @@
-use std::any::Any;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use openraft::async_trait::async_trait;
-use openraft::error::{NetworkError, RemoteError};
-use openraft::{AnyError, RaftNetwork, RaftNetworkFactory};
-use toy_rpc::pubsub::AckModeNone;
+use openraft::error::NetworkError;
+use openraft::{RaftNetwork, RaftNetworkFactory};
+use tonic::transport::Endpoint;
 
 use crate::openraft_types::types::{
     AppendEntriesError, AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotError,
     InstallSnapshotRequest, InstallSnapshotResponse, VoteError, VoteRequest, VoteResponse,
 };
 
-use super::client::rpc::RaftClientStub;
 use super::error::{RpcError, RpcResult};
 use super::repr::{Node, NodeId, RaftTypeConfig};
 
@@ -28,37 +27,21 @@ impl RaftNetworkFactory<RaftTypeConfig> for Arc<ConsensusNetwork> {
         node: &Node,
     ) -> Result<Self::Network, Self::ConnectionError> {
         dbg!(&node);
-        let addr = &node.rpc_addr;
-        let client = toy_rpc::Client::dial(addr).await.ok();
-        Ok(GlareNetworkConnection {
-            addr: addr.to_string(),
-            client,
-            target,
-        })
+        let endpoint = Endpoint::from_str(&node.address).map_err(|e| NetworkError::new(&e))?;
+
+        match RpcClient::connect(endpoint).await {
+            Ok(client) => Ok(GlareNetworkConnection { client, target }),
+            Err(e) => Err(NetworkError::new(&e)),
+        }
     }
 }
 
 pub struct GlareNetworkConnection {
-    addr: String,
-    client: Option<toy_rpc::client::Client<AckModeNone>>,
+    client: RpcClient,
     target: NodeId,
 }
 
-type RpcClient = toy_rpc::client::Client<AckModeNone>;
-
-impl GlareNetworkConnection {
-    async fn client<E>(&mut self) -> RpcResult<&RpcClient, E>
-    where
-        E: std::error::Error,
-    {
-        if self.client.is_none() {
-            self.client = toy_rpc::Client::dial(&self.addr).await.ok();
-        }
-        self.client
-            .as_ref()
-            .ok_or_else(|| RpcError::Network(NetworkError::from(AnyError::default())))
-    }
-}
+type RpcClient = crate::rpc::pb::raft_network_client::RaftNetworkClient<tonic::transport::Channel>;
 
 #[async_trait]
 impl RaftNetwork<RaftTypeConfig> for GlareNetworkConnection {
@@ -66,40 +49,43 @@ impl RaftNetwork<RaftTypeConfig> for GlareNetworkConnection {
         &mut self,
         req: AppendEntriesRequest,
     ) -> RpcResult<AppendEntriesResponse, AppendEntriesError> {
-        self.client()
-            .await?
-            .raft()
-            .append(req)
+        let req: crate::rpc::pb::AppendEntriesRequest = req.try_into().expect("invalid request");
+
+        self.client
+            .append_entries(req)
             .await
-            .map_err(|e| to_error(e, self.target))
+            .map_err(|e| tonic_rpc_error(e, self.target))
+            .map(|r| r.into_inner().try_into().expect("invalid response"))
     }
 
     async fn send_install_snapshot(
         &mut self,
         req: InstallSnapshotRequest,
     ) -> RpcResult<InstallSnapshotResponse, InstallSnapshotError> {
-        self.client()
-            .await?
-            .raft()
+        let req: crate::rpc::pb::InstallSnapshotRequest = req.try_into().expect("invalid request");
+        self.client
             .snapshot(req)
             .await
-            .map_err(|e| to_error(e, self.target))
+            .map_err(|e| tonic_rpc_error(e, self.target))
+            .map(|r| r.into_inner().try_into().expect("invalid response"))
     }
 
     async fn send_vote(&mut self, req: VoteRequest) -> RpcResult<VoteResponse, VoteError> {
-        self.client()
-            .await?
-            .raft()
+        let req: crate::rpc::pb::VoteRequest = req.try_into().expect("vote request");
+
+        self.client
             .vote(req)
             .await
-            .map_err(|e| to_error(e, self.target))
+            .map_err(|e| tonic_rpc_error(e, self.target))
+            .map(|r| r.into_inner().try_into().expect("vote response"))
     }
 }
 
-fn to_error<E: std::error::Error + 'static + Clone>(
-    e: toy_rpc::Error,
-    target: NodeId,
+fn tonic_rpc_error<E: std::error::Error + 'static + Clone>(
+    e: tonic::Status,
+    _target: NodeId,
 ) -> RpcError<E> {
+    /*
     match e {
         toy_rpc::Error::IoError(e) => RpcError::Network(NetworkError::new(&e)),
         toy_rpc::Error::ParseError(e) => RpcError::Network(NetworkError::new(&ErrWrap(e))),
@@ -116,6 +102,9 @@ fn to_error<E: std::error::Error + 'static + Clone>(
         | toy_rpc::Error::Timeout(_)
         | toy_rpc::Error::MaxRetriesReached(_)) => RpcError::Network(NetworkError::new(&e)),
     }
+     */
+
+    RpcError::Network(NetworkError::new(&e))
 }
 
 #[derive(Debug)]
