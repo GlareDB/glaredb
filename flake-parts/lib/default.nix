@@ -7,8 +7,6 @@
   inherit (inputs.gitignore.lib) gitignoreSource;
 in {
   flake.lib = {
-    flake_source = gitignoreSource ../..;
-    cargo_lock = ../../Cargo.lock;
     otherNativeBuildInputs = pkgs: with pkgs; [pkgconfig openssl openssl.dev llvmPackages.bintools llvmPackages.libclang];
     otherBuildInputs = pkgs:
       with pkgs; [

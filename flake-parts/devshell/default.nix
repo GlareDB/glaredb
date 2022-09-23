@@ -39,6 +39,8 @@
         nativeBuildInputs = otherNativeBuildInputs;
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
+        PROTOC = "${pkgs.protobuf}/bin/protoc";
+        PROTOC_INCLUDE = "${pkgs.protobuf}/include";
       };
       postgres = with pkgs;
         mkShell rec {

@@ -39,9 +39,12 @@
     packages = {
       default = packages.cli;
 
+      # cli = craneLib.cargoBuild ({
       cli = craneLib.buildPackage ({
+        pname = "glaredb-cli";
         inherit cargoArtifacts;
         cargoExtraArgs = "--bin glaredb";
+        cargoBuildCommand = "touch crates/arrowstore/build.rs && cargo build --profile release";
       } // common-build-args);
 
       server_image = pkgs.dockerTools.buildLayeredImage {
