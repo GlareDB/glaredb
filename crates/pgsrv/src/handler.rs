@@ -399,6 +399,12 @@ where
                             LogicalPlan::Transaction(_) => {
                                 todo!("return portal describe response for Transaction");
                             }
+                            LogicalPlan::Runtime => {
+                                // TODO: I am not sure of "SET ..." and "SET
+                                // SESSION ..." statements can be included in
+                                // prepared statements.
+                                todo!("probably should error")
+                            }
                         }
                     }
                     None => {

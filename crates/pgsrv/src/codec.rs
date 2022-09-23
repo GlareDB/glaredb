@@ -211,10 +211,7 @@ impl PgCodec {
     fn decode_execute(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
         let portal = buf.read_cstring()?.to_string();
         let max_rows = buf.get_i32();
-        Ok(FrontendMessage::Execute {
-            portal,
-            max_rows,
-        })
+        Ok(FrontendMessage::Execute { portal, max_rows })
     }
 
     fn decode_sync(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
@@ -367,8 +364,8 @@ impl Decoder for PgCodec {
         let msg_len = i32::from_be_bytes(src[1..5].try_into().unwrap()) as usize;
 
         // Not enough bytes to read the full message yet.
-        if src.len() < msg_len {
-            src.reserve(msg_len - src.len());
+        if src.len() < msg_len + 1 {
+            src.reserve(msg_len + 1 - src.len());
             return Ok(None);
         }
 

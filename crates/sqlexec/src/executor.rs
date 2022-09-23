@@ -110,6 +110,12 @@ impl<'a> Executor<'a> {
                 let stream = self.session.execute_physical(physical)?;
                 Ok(ExecutionResult::Query { stream })
             }
+            LogicalPlan::Runtime => {
+                // TODO: We'll want to:
+                // 1. Actually do something here.
+                // 2. Probably return a different variant for global SET statements.
+                Ok(ExecutionResult::SetLocal)
+            }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }
     }
