@@ -35,7 +35,16 @@
       pname = "glaredb";
     } // common-build-args);
 
+    clippy-check = craneLib.cargoClippy ({
+      inherit cargoArtifacts;
+      cargoClippyExtraArgs = "--all-features -- --deny warnings";
+    } // common-build-args);
+
   in rec {
+    checks = {
+      inherit clippy-check;
+      build-crate = packages.default;
+    };
     packages = {
       default = packages.cli;
 
