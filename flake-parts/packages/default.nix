@@ -8,15 +8,15 @@
     config,
     pkgs,
     system,
+    inputs',
     ...
   }: let
-    rust-stable = self.lib.rust-stable system;
-    rust-nightly = self.lib.rust-nightly system;
-
     otherNativeBuildInputs = self.lib.otherNativeBuildInputs pkgs;
     otherBuildInputs = self.lib.otherBuildInputs pkgs;
 
-    craneLib = inputs.crane.lib.${system};
+    craneLib = inputs.crane.lib.${system}.overrideToolchain
+      inputs'.fenix.packages.stable.toolchain;
+
     common-build-args = rec {
       src = lib.cleanSourceWith {
         src = ../..;

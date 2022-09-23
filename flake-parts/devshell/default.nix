@@ -7,10 +7,12 @@
     config,
     pkgs,
     system,
+    inputs',
     ...
   }: let
-    rust-stable = self.lib.rust-stable system;
-    rust-nightly = self.lib.rust-nightly system;
+    rust-stable = inputs'.fenix.packages.stable.toolchain;
+    rust-nightly = inputs'.fenix.packages.latest.toolchain;
+
     devTools = with pkgs; [
       rustfmt
       bacon
