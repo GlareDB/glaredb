@@ -30,6 +30,5 @@ jobs:
       - name: run checks
         run: nix flake check
 
-      # TODO: Add this under nix flake check?
       - name: SQL Logic Tests
-        run: nix develop -c cargo run --bin slt_runner -- testdata/sqllogictests/*.slt
+        run: nix run .#slt_runner testdata/sqllogictests/*.slt
