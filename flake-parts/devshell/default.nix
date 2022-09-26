@@ -17,6 +17,7 @@
       rustfmt
       bacon
       cargo-udeps
+      cargo-nextest
       cocogitto
       protobuf
       gdb

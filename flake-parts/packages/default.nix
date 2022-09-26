@@ -18,16 +18,21 @@
       inputs'.fenix.packages.stable.toolchain;
 
     common-build-args = rec {
+      # crane arguments
       src = lib.cleanSourceWith {
         src = ../..;
         filter = self.lib.filterSrc craneLib;
       };
+      pname = "glaredb";
 
+      # application config arguments
       buildInputs = otherBuildInputs;
       nativeBuildInputs = otherNativeBuildInputs;
+      # clang
       LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
       BINDGEN_EXTRA_CLANG_ARGS = "-isystem ${pkgs.llvmPackages.libclang.lib}/lib/clang/${lib.getVersion pkgs.clang}/include";
       LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+      # protobuf compilation
       PROTOC = "${pkgs.protobuf}/bin/protoc";
       PROTOC_INCLUDE = "${pkgs.protobuf}/include";
     };
@@ -40,9 +45,14 @@
       cargoClippyExtraArgs = "--all-features -- --deny warnings";
     } // common-build-args);
 
+    tests-check = craneLib.cargoNextest ({
+      inherit cargoArtifacts;
+      partitions = 1;
+      partitionType = "count";
+    } // common-build-args);
   in rec {
     checks = {
-      inherit clippy-check;
+      inherit clippy-check tests-check;
       build-crate = packages.default;
     };
     packages = {
