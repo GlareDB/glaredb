@@ -54,6 +54,7 @@
     checks = {
       inherit clippy-check tests-check;
       build-crate = packages.default;
+      build-sltrunner = packages.slt_runner;
     };
     packages = {
       default = packages.cli;
