@@ -44,16 +44,6 @@
     checks = {
       inherit clippy-check;
       build-crate = packages.default;
-      slt-check = pkgs.stdenv.mkDerivation {
-        name = "slt-check";
-        buildCommand = ''
-          ls ${../..}/testdata/sqllogictests
-          ${packages.slt_runner}/bin/slt_runner -- ${../..}/testdata/sqllogictests/*.slt
-          echo "slt tests passed"
-          exit 1
-          touch $out
-        '';
-      };
     };
     packages = {
       default = packages.cli;
