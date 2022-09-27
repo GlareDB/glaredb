@@ -1,11 +1,12 @@
 use crate::codec::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, ErrorResponse, FieldDescription, FrontendMessage, StartupMessage,
-    TransactionStatus,
+    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
+    StartupMessage, TransactionStatus,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
+use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{
     engine::Engine,
     executor::{ExecutionResult, Executor},
@@ -13,7 +14,7 @@ use sqlexec::{
 };
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tracing::trace;
+use tracing::{trace, warn};
 
 /// Default parameters to send to the frontend on startup. Existing postgres
 /// drivers may expect these in the server response on startup.
@@ -130,6 +131,8 @@ impl Handler {
 struct ClientSession<C> {
     conn: FramedConn<C>,
     session: Session, // TODO: Make this a trait for stubbability?
+
+    error_state: bool,
 }
 
 impl<C> ClientSession<C>
@@ -137,31 +140,84 @@ where
     C: AsyncRead + AsyncWrite + Unpin,
 {
     fn new(session: Session, conn: FramedConn<C>) -> Self {
-        ClientSession { session, conn }
+        ClientSession {
+            session,
+            conn,
+            error_state: false,
+        }
     }
 
     async fn run(mut self) -> Result<()> {
         self.ready_for_query().await?;
         loop {
             let msg = self.conn.read().await?;
-
-            match msg {
-                Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
-                Some(other) => {
-                    self.conn
-                        .send(
-                            ErrorResponse::feature_not_supported(format!(
-                                "unsupported frontend message: {:?}",
-                                other
-                            ))
-                            .into(),
-                        )
-                        .await?;
-                    self.ready_for_query().await?;
+            tracing::debug!(?msg, "received message");
+            // If we're in an error state, we should only process Sync messages.
+            // Until this is received, we should discard all incoming messages
+            if self.error_state {
+                match msg {
+                    Some(FrontendMessage::Sync) => {
+                        self.clear_error();
+                        self.ready_for_query().await?;
+                        continue;
+                    }
+                    Some(other) => {
+                        tracing::warn!(?other, "discarding message");
+                    }
+                    None => {
+                        tracing::debug!("connection closed");
+                        return Ok(());
+                    }
                 }
-                None => {
-                    trace!("connection closed");
-                    return Ok(());
+            } else {
+                // Execute messages as normal if not in an error state.
+                match msg {
+                    Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
+                    Some(FrontendMessage::Parse {
+                        name,
+                        sql,
+                        param_types,
+                    }) => self.parse(name, sql, param_types).await?,
+                    Some(FrontendMessage::Bind {
+                        portal,
+                        statement,
+                        param_formats,
+                        param_values,
+                        result_formats,
+                    }) => {
+                        self.bind(
+                            portal,
+                            statement,
+                            param_formats,
+                            param_values,
+                            result_formats,
+                        )
+                        .await?
+                    }
+                    Some(FrontendMessage::Describe { object_type, name }) => {
+                        self.describe(object_type, name).await?
+                    }
+                    Some(FrontendMessage::Execute { portal, max_rows }) => {
+                        self.execute(portal, max_rows).await?
+                    }
+                    Some(FrontendMessage::Sync) => self.sync().await?,
+                    Some(other) => {
+                        warn!(?other, "unsupported frontend message");
+                        self.conn
+                            .send(
+                                ErrorResponse::feature_not_supported(format!(
+                                    "unsupported frontend message: {:?}",
+                                    other
+                                ))
+                                .into(),
+                            )
+                            .await?;
+                        self.ready_for_query().await?;
+                    }
+                    None => {
+                        trace!("connection closed");
+                        return Ok(());
+                    }
                 }
             }
         }
@@ -199,20 +255,7 @@ where
                 }
             };
 
-            match result {
-                ExecutionResult::Query { stream } => {
-                    Self::stream_batch(conn, stream).await?;
-                    Self::command_complete(conn, "SELECT").await?
-                }
-                ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
-                ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
-                ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
-                ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
-                ExecutionResult::CreateTable => {
-                    Self::command_complete(conn, "CREATE_TABLE").await?
-                }
-                ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
-            }
+            Self::send_result(conn, result).await?;
         }
 
         if num_statements == 0 {
@@ -220,6 +263,191 @@ where
         }
 
         self.ready_for_query().await
+    }
+
+    /// Parse the provided SQL statement and store it in the session.
+    async fn parse(&mut self, name: String, sql: String, param_types: Vec<i32>) -> Result<()> {
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+
+        // an empty name selectss the unnamed prepared statement
+        let name = if name.is_empty() { None } else { Some(name) };
+
+        trace!(?name, %sql, ?param_types, "received parse");
+
+        session.create_prepared_statement(name, sql, param_types)?;
+
+        conn.send(BackendMessage::ParseComplete).await?;
+
+        Ok(())
+    }
+
+    async fn bind(
+        &mut self,
+        portal: String,
+        statement: String,
+        param_formats: Vec<i16>,
+        param_values: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<i16>,
+    ) -> Result<()> {
+        let portal_name = if portal.is_empty() {
+            None
+        } else {
+            Some(portal)
+        };
+        let statement_name = if statement.is_empty() {
+            None
+        } else {
+            Some(statement)
+        };
+
+        // param_formats can be empty, in which case all parameters (if any) are assumed to be text
+        // or it may have one entry, in which case all parameters are assumed to be of that format
+        // or it may have one entry per parameter, in which case each parameter is assumed to be of that format
+        // each code must be 0 (text) or 1 (binary)
+        let param_formats = if param_formats.is_empty() {
+            if param_values.is_empty() {
+                vec![]
+            } else {
+                vec![0]
+            }
+        } else if param_formats.len() == 1 {
+            vec![param_formats[0]; param_values.len()]
+        } else {
+            param_formats
+        };
+
+        trace!(?portal_name, ?statement_name, ?param_formats, ?param_values, ?result_formats, "received bind");
+
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+
+        session.bind_prepared_statement(
+            portal_name,
+            statement_name,
+            param_formats,
+            param_values,
+            result_formats,
+        )?;
+
+        conn.send(BackendMessage::BindComplete).await?;
+
+        Ok(())
+    }
+
+    async fn describe(&mut self, object_type: DescribeObjectType, name: String) -> Result<()> {
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+
+        let name = if name.is_empty() { None } else { Some(name) };
+
+        trace!(?name, ?object_type, "received describe");
+
+        match object_type {
+            DescribeObjectType::Statement => match session.get_prepared_statement(&name) {
+                Some(statement) => {
+                    statement.describe();
+                    todo!("return statement describe response");
+                }
+                None => {
+                    self.conn
+                        .send(
+                            ErrorResponse::error_internal(format!(
+                                "unknown prepared statement: {:?}",
+                                name
+                            ))
+                            .into(),
+                        )
+                        .await?;
+                }
+            },
+            DescribeObjectType::Portal => {
+                // Describe (portal variant) returns a RowDescription message describing the rows
+                // that will be returned. If the portal contains a query that returns no rows, then
+                // a NoData message is returned instead.
+                match session.get_portal(&name) {
+                    Some(portal) => {
+                        match &portal.plan {
+                            LogicalPlan::Ddl(_) => {
+                                self.conn.send(BackendMessage::NoData).await?;
+                            }
+                            LogicalPlan::Write(_) => {
+                                todo!("return portal describe response for Write");
+                            }
+                            LogicalPlan::Query(df_plan) => {
+                                let schema = df_plan.schema();
+                                let fields: Vec<_> = schema
+                                    .fields()
+                                    .iter()
+                                    .map(|field| FieldDescription::new_named(field.name()))
+                                    .collect();
+                                conn.send(BackendMessage::RowDescription(fields)).await?;
+                            }
+                            LogicalPlan::Transaction(_) => {
+                                todo!("return portal describe response for Transaction");
+                            }
+                            LogicalPlan::Runtime => {
+                                todo!("return portal describe response for Runtime");
+                            }
+                        }
+                    }
+                    None => {
+                        self.conn
+                            .send(
+                                ErrorResponse::error_internal(format!(
+                                    "unknown portal: {:?}",
+                                    name
+                                ))
+                                .into(),
+                            )
+                            .await?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn execute(&mut self, portal: String, max_rows: i32) -> Result<()> {
+        let portal_name = if portal.is_empty() {
+            None
+        } else {
+            Some(portal)
+        };
+
+        let session = &mut self.session;
+        let conn = &mut self.conn;
+
+        trace!(?portal_name, ?max_rows, "received execute");
+
+        let result = session.execute_portal(&portal_name, max_rows).await?;
+        Self::send_result(conn, result).await?;
+
+        Ok(())
+    }
+
+    async fn sync(&mut self) -> Result<()> {
+        trace!("received sync");
+
+        self.ready_for_query().await
+    }
+
+    async fn send_result(conn: &mut FramedConn<C>, result: ExecutionResult) -> Result<()> {
+        match result {
+            ExecutionResult::Query { stream } => {
+                Self::stream_batch(conn, stream).await?;
+                Self::command_complete(conn, "SELECT").await?
+            }
+            ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
+            ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
+            ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
+            ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
+            ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
+            ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
+            ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
+        }
+        Ok(())
     }
 
     async fn stream_batch(
@@ -248,5 +476,13 @@ where
     async fn command_complete(conn: &mut FramedConn<C>, tag: impl Into<String>) -> Result<()> {
         conn.send(BackendMessage::CommandComplete { tag: tag.into() })
             .await
+    }
+
+    fn set_error(&mut self) {
+        self.error_state = true;
+    }
+
+    fn clear_error(&mut self) {
+        self.error_state = false;
     }
 }
