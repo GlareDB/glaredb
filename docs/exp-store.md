@@ -49,21 +49,89 @@ RocksDB would be a very attractive solution in the following cases:
 ## Directory Structure
 
 ``` text
-- table_0
-  - table_0_part_0.data
-  - table_0_part_0.idx
-  - table_0_part_0.delta
-  - table_0_part_1.data
-  - table_0_part_1.idx
-  - table_0_part_1.delta
-- table_1
-  ...
+- schema_0
+  - table_0
+    - table_0_part_0_0.data
+    - table_0_part_0_0.delta
+    - table_0_part_0_1.data
+    - table_0_part_0_1.delta
+    - table_0_part_1_0.data
+    - table_0_part_1_0.delta
+  - table_1
+    ...
 ```
 
+The directory structure on the local disk will mimic the structure in object
+storage.
+
 ### Data files
+
+``` text
+table_<a>_part_<b>_<c>.data
+a -> table identifier
+b -> partition identifier
+c -> partition chunk identifier
+```
 
 Data files contain user data, and follow the Arrow IPC format. Each file's
 schema will include the appropriate data types with synthetic field names. These
 synthetic field names will map to the proper field names higher up in the system.
 
-### Index files
+A data file will contain multiple blocks, each prepended with some metadata
+about that block.
+
+Each file will try to reach some target size and/or number of rows, whichever is
+hit first. Once the file size reaches this target, it will undergo a split.
+
+Rows will be sorted by their primary key.
+
+### Delta files
+
+Delta files are append-only files for storing data modifications (inserts,
+deletes). Data is this file will be stored in the Arrow IPC format. Once a file
+exceeds a certain size, it will be merged into the data file.
+
+## Operations
+
+How various SQL commands will map to operations at this layer.
+
+Note that catalog operations are assumed to eventually become transactional.
+
+### `CREATE SCHEMA ...`
+
+1. Insert info for schema into catalog. This should return a unique schema id.
+2. "Allocate" the schema in object storage with schema id by creating the
+   directory.
+
+### `CREATE TABLE ...`
+
+1. Insert info for table into catalog. This should generate a unique table id.
+2. "Allocate" the table in object storage with table id by creating the
+   directory.
+
+### `INSERT INTO ...`
+
+1. Lookup schema/table id from catalog.
+2. Partition insert values.
+3. Pull and cache data and delta files relevant to each partition for the insert.
+4. Append insert values to the relevant delta files.
+
+## Delta Merges
+
+Once a delta file exceeds a certain size, it will be merged back into the main
+data file. The process is as follows:
+
+1. Acquire exclusive lock for table/partition/partition_chunk.
+  - This **will** prevent concurrent access, so we'll want to rethink this later.
+2. Read in the entirety of the delta file, sort by primary key.
+3. Merge sort with data file.
+4. Reset delta file.
+5. If data file exceeds threshold, retain lock and split data file.
+
+## Data File Splits
+
+If a data file exceeds a size threshold, it will be split into two smaller
+files. The process is as follows:
+
+1. Acquire exclusive lock for table/partition.
+2. Split and write out files.
