@@ -32,32 +32,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - uses: abelfodil/protoc-action@v1
+      - name: Install nix
+        uses: cachix/install-nix-action@v15
         with:
-          protoc-version: '21.5'
+          extra_nix_config: |
+            access-tokens = github=${{ github.token }}
 
-      # Taken from: https://github.com/actions/cache/blob/main/examples.md#rust---cargo
-      - uses: actions/cache@v3
+      - name: configure cachix
+        uses: cachix/cachix-action@v10
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          name: glaredb
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-      - name: Configure toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Unit tests
-        run: cargo test
-
-      - name: Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D warnings
+      - name: run checks
+        run: nix flake check
 
       - name: SQL Logic Tests
-        run: cargo run --bin slt_runner -- testdata/sqllogictests/*.slt
+        run: nix run .#slt_runner testdata/sqllogictests/*.slt

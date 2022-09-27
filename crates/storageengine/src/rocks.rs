@@ -34,12 +34,17 @@ impl RocksStore {
         debug!("opening rocks store with conf: {:?}", conf);
         let path = Path::new(&conf.data_dir).join(DB_FILENAME);
         let db = DB::open_default(path)?;
-        Ok(RocksStore {
+
+        Ok(RocksStore::with_db(Arc::new(db)))
+    }
+
+    pub fn with_db(db: Arc<rocksdb::DB>) -> RocksStore {
+        RocksStore {
             inner: Arc::new(InnerDb {
                 db,
                 active_txs: RwLock::new(BTreeMap::new()),
             }),
-        })
+        }
     }
 
     /// Begin a transaction.
@@ -68,7 +73,7 @@ impl RocksStore {
 
 #[derive(Debug)]
 struct InnerDb {
-    db: DB,
+    db: Arc<DB>,
     active_txs: RwLock<BTreeMap<u64, StorageTx>>,
 }
 
