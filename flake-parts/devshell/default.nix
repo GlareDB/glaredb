@@ -7,22 +7,30 @@
     config,
     pkgs,
     system,
+    inputs',
     ...
   }: let
-    rust-stable = self.lib.rust-stable system;
-    rust-nightly = self.lib.rust-nightly system;
+    rust-stable = inputs'.fenix.packages.stable.toolchain;
+    rust-nightly = inputs'.fenix.packages.latest.toolchain;
+
     devTools = with pkgs; [
       rustfmt
       bacon
       cargo-udeps
       cocogitto
+      protobuf
+      gdb
+      miniserve
     ];
 
     otherNativeBuildInputs = with pkgs; [pkgconfig openssl openssl.dev llvmPackages.bintools];
     otherBuildInputs = with pkgs; [
       clang
     ];
+
     LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+    PROTOC = "${pkgs.protobuf}/bin/protoc";
+    PROTOC_INCLUDE = "${pkgs.protobuf}/include";
   in rec {
     devShells = {
       default = devShells.nightly;
@@ -31,12 +39,14 @@
         nativeBuildInputs = otherNativeBuildInputs;
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
+        inherit PROTOC PROTOC_INCLUDE;
       };
       nightly = pkgs.mkShell rec {
         buildInputs = [rust-nightly] ++ devTools ++ otherBuildInputs;
         nativeBuildInputs = otherNativeBuildInputs;
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
+        inherit PROTOC PROTOC_INCLUDE;
       };
       postgres = with pkgs;
         mkShell rec {

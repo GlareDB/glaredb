@@ -1,24 +1,27 @@
 use std::sync::Arc;
 
-use datafusion::{sql::sqlparser::{parser::Parser, dialect::PostgreSqlDialect, ast}, physical_plan::ExecutionPlan};
-use hashbrown::{HashMap, hash_map::Entry};
+use datafusion::{
+    physical_plan::ExecutionPlan,
+    sql::sqlparser::{ast, dialect::PostgreSqlDialect, parser::Parser},
+};
+use hashbrown::{hash_map::Entry, HashMap};
 
-use crate::{errors::{internal, Result}, session::Session, logical_plan::LogicalPlan};
+use crate::{
+    errors::{internal, Result},
+    logical_plan::LogicalPlan,
+    session::Session,
+};
 
 #[derive(Debug)]
 pub struct PreparedStatement {
     pub sql: String,
     pub param_types: Vec<i32>,
-
 }
 
 impl PreparedStatement {
     pub fn new(sql: String, param_types: Vec<i32>) -> Self {
         // TODO: parse the SQL
-        Self {
-            sql,
-            param_types,
-        }
+        Self { sql, param_types }
     }
 
     /// The Describe message statement variant returns a ParameterDescription message describing

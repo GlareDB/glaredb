@@ -318,7 +318,7 @@ impl Index {
         for row_idx in 0..batch.num_rows() {
             let key = pk_cols
                 .iter()
-                .map(|col| ScalarValue::try_from_array(*col, row_idx))
+                .map(|col| ScalarValue::try_from_array(col, row_idx))
                 .collect::<Result<Vec<_>, _>>()?;
             if pk.insert(key, row_idx).is_some() {
                 return Err(MemoryError::DuplicatePrimaryKey);

@@ -14,6 +14,9 @@ pub enum LogicalPlan {
     Query(DfLogicalPlan),
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
+    /// Plans related to altering the state or runtime of the session.
+    // TODO: Actually implement this. This would correspond to "SET ..." and "SET SESSION ..." statements.
+    Runtime,
 }
 
 impl From<DfLogicalPlan> for LogicalPlan {

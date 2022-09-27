@@ -2,7 +2,7 @@ use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
 use crate::datasource::MemTable;
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
-use crate::extended::{PreparedStatement, Portal};
+use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
@@ -48,12 +48,17 @@ pub struct Session {
 impl Session {
     /// Create a new session.
     ///
-    /// All system schemas should already be in the provided catalog.
+    /// All system schemas (including `information_schema`) should already be in
+    /// the provided catalog.
     pub fn new(catalog: Arc<DatabaseCatalog>, runtime: Arc<RuntimeEnv>) -> Session {
+        // Note that the values for creating the default catalog/schema and
+        // information schema do not matter, as we're not using the datafusion's
+        // session context. Initializing the session context is what creates
+        // thoses.
         let config = SessionConfig::default()
             .with_default_catalog_and_schema(catalog.name(), DEFAULT_SCHEMA)
             .create_default_catalog_and_schema(false)
-            .with_information_schema(true);
+            .with_information_schema(false);
 
         let mut state = SessionState::with_config_rt(config, runtime);
         state.catalog_list = catalog.clone();
@@ -192,14 +197,16 @@ impl Session {
                     .map(|name| name.to_string())
                     .collect::<Vec<_>>();
 
-                Ok(DdlPlan::DropTable(DropTable {
-                    if_exists,
-                    names,
-                })
-                .into())
+                Ok(DdlPlan::DropTable(DropTable { if_exists, names }).into())
             }
 
-            stmt => Err(internal!("unsupported sql statement: {}", stmt)),
+            // "SET ...", "SET SESSION ...", "SET LOCAL ..."
+            // TODO: Actually plan this.
+            ast::Statement::SetVariable { .. } | ast::Statement::SetRole { .. } => {
+                Ok(LogicalPlan::Runtime)
+            }
+
+            stmt => Err(internal!("unsupported sql statement: {:?}", stmt)),
         }
     }
 
@@ -355,7 +362,12 @@ impl Session {
 
     /// Store the prepared statement in the current session.
     /// It will later be readied for execution by using `bind_prepared_statement`.
-    pub fn create_prepared_statement(&mut self, name: Option<String>, sql: String, params: Vec<i32>) -> Result<()> {
+    pub fn create_prepared_statement(
+        &mut self,
+        name: Option<String>,
+        sql: String,
+        params: Vec<i32>,
+    ) -> Result<()> {
         match name {
             None => {
                 // Store the unnamed prepared statement.
@@ -365,7 +377,12 @@ impl Session {
             Some(name) => {
                 // Named prepared statements must be explicitly closed before being redefined
                 match self.named_statements.entry(name) {
-                    Entry::Occupied(ent) => return Err(internal!("prepared statement already exists: {}", ent.key())),
+                    Entry::Occupied(ent) => {
+                        return Err(internal!(
+                            "prepared statement already exists: {}",
+                            ent.key()
+                        ))
+                    }
                     Entry::Vacant(ent) => {
                         ent.insert(PreparedStatement::new(sql, params));
                     }
@@ -394,15 +411,21 @@ impl Session {
     /// If successful, the bound statement will create a portal which can be used to execute the statement.
     pub fn bind_prepared_statement(
         &mut self,
-        portal_name: Option<String>, 
+        portal_name: Option<String>,
         statement_name: Option<String>,
         param_formats: Vec<i16>,
         param_values: Vec<Option<Vec<u8>>>,
         result_formats: Vec<i16>,
     ) -> Result<()> {
         let statement = match statement_name {
-            None => self.unnamed_statement.as_mut().ok_or_else(|| internal!("no unnamed prepared statement"))?,
-            Some(name) => self.named_statements.get_mut(&name).ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+            None => self
+                .unnamed_statement
+                .as_mut()
+                .ok_or_else(|| internal!("no unnamed prepared statement"))?,
+            Some(name) => self
+                .named_statements
+                .get_mut(&name)
+                .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
         };
 
         let statements = Parser::parse_sql(&PostgreSqlDialect {}, &statement.sql)?
@@ -421,12 +444,19 @@ impl Session {
                 // Store the unnamed portal.
                 // This will persist until the session is dropped or another unnamed portal is created
                 let plan = self.plan_sql(statement)?;
-                self.unnamed_portal = Some(Portal::new(plan, param_formats, param_values, result_formats)?);
+                self.unnamed_portal = Some(Portal::new(
+                    plan,
+                    param_formats,
+                    param_values,
+                    result_formats,
+                )?);
             }
             Some(name) => {
                 // Named portals must be explicitly closed before being redefined
                 match self.named_portals.entry(name.clone()) {
-                    Entry::Occupied(ent) => return Err(internal!("portal already exists: {}", ent.key())),
+                    Entry::Occupied(ent) => {
+                        return Err(internal!("portal already exists: {}", ent.key()))
+                    }
                     Entry::Vacant(ent) => {
                         todo!("plan named portal");
                         // let plan = self.plan_sql(statement)?;
@@ -451,10 +481,20 @@ impl Session {
         Ok(())
     }
 
-    pub async fn execute_portal(&mut self, portal_name: &Option<String>, max_rows: i32) -> Result<ExecutionResult> {
+    pub async fn execute_portal(
+        &mut self,
+        portal_name: &Option<String>,
+        max_rows: i32,
+    ) -> Result<ExecutionResult> {
         let portal = match portal_name {
-            None => self.unnamed_portal.as_mut().ok_or_else(|| internal!("no unnamed portal"))?,
-            Some(name) => self.named_portals.get_mut(name).ok_or_else(|| internal!("no portal named: {}", name))?,
+            None => self
+                .unnamed_portal
+                .as_mut()
+                .ok_or_else(|| internal!("no unnamed portal"))?,
+            Some(name) => self
+                .named_portals
+                .get_mut(name)
+                .ok_or_else(|| internal!("no portal named: {}", name))?,
         };
 
         match portal.plan.clone() {
