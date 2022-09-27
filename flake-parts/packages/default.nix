@@ -50,9 +50,13 @@
       partitions = 1;
       partitionType = "count";
     } // common-build-args);
+
+    fmt-check = craneLib.cargoFmt ({
+      inherit cargoArtifacts;
+    } // common-build-args);
   in rec {
     checks = {
-      inherit clippy-check tests-check;
+      inherit clippy-check tests-check fmt-check;
       build-crate = packages.default;
       build-sltrunner = packages.slt_runner;
     };
