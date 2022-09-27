@@ -470,7 +470,7 @@ impl Session {
     }
 
     pub async fn drop_table(&self, plan: DropTable) -> Result<()> {
-        dbg!(&plan);
+        debug!(?plan, "drop table");
         for name in plan.names {
             let resolved = self.resolve_table_name(&name);
             let schema = self.get_schema_for_reference(&resolved)?;

@@ -267,17 +267,14 @@ where
 
     /// Parse the provided SQL statement and store it in the session.
     async fn parse(&mut self, name: String, sql: String, param_types: Vec<i32>) -> Result<()> {
-        trace!(%sql, %name, ?param_types, "received parse");
-
         let session = &mut self.session;
         let conn = &mut self.conn;
 
         // an empty name selectss the unnamed prepared statement
         let name = if name.is_empty() { None } else { Some(name) };
 
-        dbg!(&name);
-        dbg!(&sql);
-        dbg!(&param_types);
+        trace!(?name, %sql, ?param_types, "received parse");
+
         session.create_prepared_statement(name, sql, param_types)?;
 
         conn.send(BackendMessage::ParseComplete).await?;
@@ -293,8 +290,6 @@ where
         param_values: Vec<Option<Vec<u8>>>,
         result_formats: Vec<i16>,
     ) -> Result<()> {
-        trace!(%portal, %statement, "received bind");
-
         let portal_name = if portal.is_empty() {
             None
         } else {
@@ -322,11 +317,7 @@ where
             param_formats
         };
 
-        dbg!(&portal_name);
-        dbg!(&statement_name);
-        dbg!(&param_formats);
-        dbg!(&param_values);
-        dbg!(&result_formats);
+        trace!(?portal_name, ?statement_name, ?param_formats, ?param_values, ?result_formats, "received bind");
 
         let session = &mut self.session;
         let conn = &mut self.conn;
@@ -345,15 +336,12 @@ where
     }
 
     async fn describe(&mut self, object_type: DescribeObjectType, name: String) -> Result<()> {
-        trace!(%object_type, %name, "received describe");
-
         let session = &mut self.session;
         let conn = &mut self.conn;
 
         let name = if name.is_empty() { None } else { Some(name) };
 
-        dbg!(&name);
-        dbg!(&object_type);
+        trace!(?name, ?object_type, "received describe");
 
         match object_type {
             DescribeObjectType::Statement => match session.get_prepared_statement(&name) {
@@ -422,8 +410,6 @@ where
     }
 
     async fn execute(&mut self, portal: String, max_rows: i32) -> Result<()> {
-        trace!(%portal, %max_rows, "received execute");
-
         let portal_name = if portal.is_empty() {
             None
         } else {
@@ -433,8 +419,7 @@ where
         let session = &mut self.session;
         let conn = &mut self.conn;
 
-        dbg!(&portal_name);
-        dbg!(&max_rows);
+        trace!(?portal_name, ?max_rows, "received execute");
 
         let result = session.execute_portal(&portal_name, max_rows).await?;
         Self::send_result(conn, result).await?;
