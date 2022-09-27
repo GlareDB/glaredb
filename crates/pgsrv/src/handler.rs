@@ -152,7 +152,7 @@ where
         loop {
             let msg = self.conn.read().await?;
             tracing::debug!(?msg, "received message");
-            // TODO: If we're in an error state, we should only process Sync messages.
+            // If we're in an error state, we should only process Sync messages.
             // Until this is received, we should discard all incoming messages
             if self.error_state {
                 match msg {

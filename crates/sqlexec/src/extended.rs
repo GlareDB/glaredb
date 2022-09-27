@@ -3,6 +3,9 @@ use crate::{
     logical_plan::LogicalPlan,
 };
 
+// A prepared statement.
+// This is contains the SQL statements that will later be turned into a
+// portal when a Bind message is received.
 #[derive(Debug)]
 pub struct PreparedStatement {
     pub sql: String,
@@ -11,7 +14,7 @@ pub struct PreparedStatement {
 
 impl PreparedStatement {
     pub fn new(sql: String, param_types: Vec<i32>) -> Self {
-        // TODO: parse the SQL
+        // TODO: parse the SQL for placeholders
         Self { sql, param_types }
     }
 
@@ -26,6 +29,8 @@ impl PreparedStatement {
     }
 }
 
+/// A Portal is the result of a prepared statement that has been bound with the Bind message.
+/// The portal is a readied execution plan that can be executed using an Execute message.
 #[derive(Debug)]
 pub struct Portal {
     pub plan: LogicalPlan,
