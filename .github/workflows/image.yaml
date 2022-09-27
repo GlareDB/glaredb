@@ -28,6 +28,12 @@ jobs:
           extra_nix_config: |
             access-tokens = github=${{ github.token }}
 
+      - name: configure cachix
+        uses: cachix/cachix-action@v10
+        with:
+          name: glaredb
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
         with:
