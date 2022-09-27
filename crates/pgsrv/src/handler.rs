@@ -358,7 +358,7 @@ where
         match object_type {
             DescribeObjectType::Statement => match session.get_prepared_statement(&name) {
                 Some(statement) => {
-                    let describe = statement.describe();
+                    statement.describe();
                     todo!("return statement describe response");
                 }
                 None => {
@@ -393,17 +393,13 @@ where
                                     .iter()
                                     .map(|field| FieldDescription::new_named(field.name()))
                                     .collect();
-                                // todo!("return portal describe response");
                                 conn.send(BackendMessage::RowDescription(fields)).await?;
                             }
                             LogicalPlan::Transaction(_) => {
                                 todo!("return portal describe response for Transaction");
                             }
                             LogicalPlan::Runtime => {
-                                // TODO: I am not sure of "SET ..." and "SET
-                                // SESSION ..." statements can be included in
-                                // prepared statements.
-                                todo!("probably should error")
+                                todo!("return portal describe response for Runtime");
                             }
                         }
                     }

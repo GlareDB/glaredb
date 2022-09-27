@@ -1,15 +1,6 @@
-use std::sync::Arc;
-
-use datafusion::{
-    physical_plan::ExecutionPlan,
-    sql::sqlparser::{ast, dialect::PostgreSqlDialect, parser::Parser},
-};
-use hashbrown::{hash_map::Entry, HashMap};
-
 use crate::{
-    errors::{internal, Result},
+    errors::Result,
     logical_plan::LogicalPlan,
-    session::Session,
 };
 
 #[derive(Debug)]
@@ -56,12 +47,5 @@ impl Portal {
             param_values,
             result_formats,
         })
-    }
-
-    /// The portal Describe response is a RowDescription message describing the rows that will be
-    /// returned by executing the portal; or a NoData message if the portal contains a command that
-    /// does not return rows.
-    pub fn describe(&self) {
-        todo!("describe portal")
     }
 }

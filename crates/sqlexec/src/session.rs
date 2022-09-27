@@ -453,11 +453,11 @@ impl Session {
             }
             Some(name) => {
                 // Named portals must be explicitly closed before being redefined
-                match self.named_portals.entry(name.clone()) {
+                match self.named_portals.entry(name) {
                     Entry::Occupied(ent) => {
                         return Err(internal!("portal already exists: {}", ent.key()))
                     }
-                    Entry::Vacant(ent) => {
+                    Entry::Vacant(_ent) => {
                         todo!("plan named portal");
                         // let plan = self.plan_sql(statement)?;
                         // ent.insert(Portal::new(plan, param_formats, param_values, result_formats)?);
@@ -475,7 +475,7 @@ impl Session {
             let resolved = self.resolve_table_name(&name);
             let schema = self.get_schema_for_reference(&resolved)?;
 
-            schema.deregister_table(&resolved.table.to_string())?;
+            schema.deregister_table(resolved.table)?;
         }
 
         Ok(())
@@ -484,8 +484,9 @@ impl Session {
     pub async fn execute_portal(
         &mut self,
         portal_name: &Option<String>,
-        max_rows: i32,
+        _max_rows: i32,
     ) -> Result<ExecutionResult> {
+        // TODO: respect max_rows
         let portal = match portal_name {
             None => self
                 .unnamed_portal
