@@ -92,6 +92,7 @@ pub enum BackendMessage {
     ParseComplete,
     BindComplete,
     NoData,
+    ParameterDescription(Vec<i32>),
 }
 
 impl From<ErrorResponse> for BackendMessage {
