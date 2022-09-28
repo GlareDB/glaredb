@@ -3,7 +3,6 @@ use crate::errors::{internal, Result};
 use object_store::{gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, ObjectStore};
 use std::path::Path;
 use tokio::task::JoinHandle;
-use uuid::Uuid;
 
 pub struct DataStore {
     sync: CloudSync,

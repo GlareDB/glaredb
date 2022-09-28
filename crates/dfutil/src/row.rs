@@ -1,4 +1,4 @@
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::scalar::ScalarValue;
 
 #[derive(Debug, Clone)]

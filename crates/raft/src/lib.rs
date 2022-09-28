@@ -15,7 +15,6 @@ mod tests {
     use async_trait::async_trait;
     use futures::Future;
     use openraft::testing::StoreBuilder;
-    use tempdir::TempDir;
 
     use super::store::ConsensusStore;
     use crate::{openraft_types::types::StorageError, repr::RaftTypeConfig};

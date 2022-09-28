@@ -1,9 +1,7 @@
 use crate::errors::{internal, Result};
 use bytes::Bytes;
-use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::{path::Path, ObjectStore};
 use std::path::{Path as StdPath, PathBuf};
-use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{trace, warn};
 
@@ -87,7 +85,7 @@ impl<O: ObjectStore> Worker<O> {
             let result = match op {
                 Operation::AllocateTableFile(path) => self.allocate_table_file(path).await,
                 Operation::SyncToRemote(path) => self.sync_to_remote(path).await,
-                other => unimplemented!(),
+                _other => unimplemented!(),
             };
             if let Err(result) = result_sender.send(result) {
                 warn!(?result, "failed to send result of operation");
@@ -116,7 +114,7 @@ impl<O: ObjectStore> Worker<O> {
         Ok(())
     }
 
-    async fn sync_to_remote(&self, path: PathBuf) -> Result<()> {
+    async fn sync_to_remote(&self, _path: PathBuf) -> Result<()> {
         // let source = std::fs::OpenOptions.
         unimplemented!()
     }
