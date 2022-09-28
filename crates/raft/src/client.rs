@@ -278,7 +278,7 @@ impl ConsensusClient {
         let url = node.address.clone();
         let endpoint =
             Endpoint::from_shared(url).expect("failed to create endpoint");
-        let clients = NodeClients::from_endpoint(endpoint).await?;
+        let clients = NodeClients::from_endpoint(endpoint.into()).await?;
 
         *t = (id, clients);
 
