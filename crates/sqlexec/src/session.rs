@@ -1,6 +1,8 @@
 use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
 use crate::datasource::MemTable;
 use crate::errors::{internal, Result};
+use crate::executor::ExecutionResult;
+use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
@@ -15,9 +17,12 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
 };
 use datafusion::sql::planner::{convert_data_type, SqlToRel};
-use datafusion::sql::sqlparser::ast;
+use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
+use datafusion::sql::sqlparser::parser::Parser;
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
+use hashbrown::hash_map::Entry;
 use std::sync::Arc;
 use tracing::debug;
 
@@ -32,6 +37,12 @@ pub struct Session {
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
     // TODO: Transaction context goes here.
+
+    // prepared statements
+    unnamed_statement: Option<PreparedStatement>,
+    named_statements: hashbrown::HashMap<String, PreparedStatement>,
+    unnamed_portal: Option<Portal>,
+    named_portals: hashbrown::HashMap<String, Portal>,
 }
 
 impl Session {
@@ -52,7 +63,14 @@ impl Session {
         let mut state = SessionState::with_config_rt(config, runtime);
         state.catalog_list = catalog.clone();
 
-        Session { state, catalog }
+        Session {
+            state,
+            catalog,
+            unnamed_statement: None,
+            named_statements: hashbrown::HashMap::new(),
+            unnamed_portal: None,
+            named_portals: hashbrown::HashMap::new(),
+        }
     }
 
     pub(crate) fn plan_sql(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -167,7 +185,28 @@ impl Session {
                 .into())
             }
 
-            stmt => Err(internal!("unsupported sql statement: {}", stmt)),
+            // Drop tables
+            ast::Statement::Drop {
+                object_type: ObjectType::Table,
+                if_exists,
+                names,
+                ..
+            } => {
+                let names = names
+                    .into_iter()
+                    .map(|name| name.to_string())
+                    .collect::<Vec<_>>();
+
+                Ok(DdlPlan::DropTable(DropTable { if_exists, names }).into())
+            }
+
+            // "SET ...", "SET SESSION ...", "SET LOCAL ..."
+            // TODO: Actually plan this.
+            ast::Statement::SetVariable { .. } | ast::Statement::SetRole { .. } => {
+                Ok(LogicalPlan::Runtime)
+            }
+
+            stmt => Err(internal!("unsupported sql statement: {:?}", stmt)),
         }
     }
 
@@ -319,5 +358,173 @@ impl Session {
             .schema(resolved.schema)
             .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
         Ok(schema)
+    }
+
+    /// Store the prepared statement in the current session.
+    /// It will later be readied for execution by using `bind_prepared_statement`.
+    pub fn create_prepared_statement(
+        &mut self,
+        name: Option<String>,
+        sql: String,
+        params: Vec<i32>,
+    ) -> Result<()> {
+        match name {
+            None => {
+                // Store the unnamed prepared statement.
+                // This will persist until the session is dropped or another unnamed prepared statement is created
+                self.unnamed_statement = Some(PreparedStatement::new(sql, params));
+            }
+            Some(name) => {
+                // Named prepared statements must be explicitly closed before being redefined
+                match self.named_statements.entry(name) {
+                    Entry::Occupied(ent) => {
+                        return Err(internal!(
+                            "prepared statement already exists: {}",
+                            ent.key()
+                        ))
+                    }
+                    Entry::Vacant(ent) => {
+                        ent.insert(PreparedStatement::new(sql, params));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn get_prepared_statement(&self, name: &Option<String>) -> Option<&PreparedStatement> {
+        match name {
+            None => self.unnamed_statement.as_ref(),
+            Some(name) => self.named_statements.get(name),
+        }
+    }
+
+    pub fn get_portal(&self, portal_name: &Option<String>) -> Option<&Portal> {
+        match portal_name {
+            None => self.unnamed_portal.as_ref(),
+            Some(name) => self.named_portals.get(name),
+        }
+    }
+
+    /// Bind the parameters of a prepared statement to the given values.
+    /// If successful, the bound statement will create a portal which can be used to execute the statement.
+    pub fn bind_prepared_statement(
+        &mut self,
+        portal_name: Option<String>,
+        statement_name: Option<String>,
+        param_formats: Vec<i16>,
+        param_values: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<i16>,
+    ) -> Result<()> {
+        let statement = match statement_name {
+            None => self
+                .unnamed_statement
+                .as_mut()
+                .ok_or_else(|| internal!("no unnamed prepared statement"))?,
+            Some(name) => self
+                .named_statements
+                .get_mut(&name)
+                .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+        };
+
+        let statements = Parser::parse_sql(&PostgreSqlDialect {}, &statement.sql)?
+            .into_iter()
+            .collect::<Vec<ast::Statement>>();
+
+        // a portal can only be bound to a single statement
+        if statements.len() != 1 {
+            return Err(internal!("portal can only be bound to a single statement"));
+        }
+
+        let statement = statements.into_iter().next().unwrap();
+
+        match portal_name {
+            None => {
+                // Store the unnamed portal.
+                // This will persist until the session is dropped or another unnamed portal is created
+                let plan = self.plan_sql(statement)?;
+                self.unnamed_portal = Some(Portal::new(
+                    plan,
+                    param_formats,
+                    param_values,
+                    result_formats,
+                )?);
+            }
+            Some(name) => {
+                // Named portals must be explicitly closed before being redefined
+                match self.named_portals.entry(name) {
+                    Entry::Occupied(ent) => {
+                        return Err(internal!("portal already exists: {}", ent.key()))
+                    }
+                    Entry::Vacant(_ent) => {
+                        todo!("plan named portal");
+                        // let plan = self.plan_sql(statement)?;
+                        // ent.insert(Portal::new(plan, param_formats, param_values, result_formats)?);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn drop_table(&self, plan: DropTable) -> Result<()> {
+        debug!(?plan, "drop table");
+        for name in plan.names {
+            let resolved = self.resolve_table_name(&name);
+            let schema = self.get_schema_for_reference(&resolved)?;
+
+            schema.deregister_table(resolved.table)?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn execute_portal(
+        &mut self,
+        portal_name: &Option<String>,
+        _max_rows: i32,
+    ) -> Result<ExecutionResult> {
+        // TODO: respect max_rows
+        let portal = match portal_name {
+            None => self
+                .unnamed_portal
+                .as_mut()
+                .ok_or_else(|| internal!("no unnamed portal"))?,
+            Some(name) => self
+                .named_portals
+                .get_mut(name)
+                .ok_or_else(|| internal!("no portal named: {}", name))?,
+        };
+
+        match portal.plan.clone() {
+            LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
+                self.create_table(plan)?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
+                self.create_external_table(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
+                self.create_table_as(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::DropTable(plan)) => {
+                self.drop_table(plan).await?;
+                Ok(ExecutionResult::DropTables)
+            }
+            LogicalPlan::Write(WritePlan::Insert(plan)) => {
+                self.insert(plan).await?;
+                Ok(ExecutionResult::WriteSuccess)
+            }
+            LogicalPlan::Query(plan) => {
+                let physical = self.create_physical_plan(plan).await?;
+                let stream = self.execute_physical(physical)?;
+                Ok(ExecutionResult::Query { stream })
+            }
+            other => Err(internal!("unimplemented logical plan: {:?}", other)),
+        }
     }
 }
