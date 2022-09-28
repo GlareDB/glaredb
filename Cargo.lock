@@ -1257,7 +1257,10 @@ dependencies = [
 name = "dfutil"
 version = "0.1.0"
 dependencies = [
+ "arrow",
+ "bytes",
  "datafusion",
+ "thiserror",
 ]
 
 [[package]]
