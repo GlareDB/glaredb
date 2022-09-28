@@ -1,6 +1,5 @@
 use crate::errors::Result;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
 use std::path::Path;
 
 pub struct DataFile {
@@ -17,6 +16,4 @@ impl DataFile {
         self.file.sync_all()?;
         Ok(())
     }
-
-    // pub fn read_all(&self) -> Result<()>
 }

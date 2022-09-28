@@ -35,7 +35,7 @@ impl CloudSync {
     pub async fn allocate_table_file<P: AsRef<StdPath>>(&self, path: P) -> Result<()> {
         let (tx, rx) = oneshot::channel();
         let op = Operation::AllocateTableFile(path.as_ref().to_path_buf());
-        if let Err(_) = self.requests.send((op, tx)).await {
+        if self.requests.send((op, tx)).await.is_err() {
             return Err(internal!("failed to send"));
         }
 
@@ -85,7 +85,6 @@ impl<O: ObjectStore> Worker<O> {
             let result = match op {
                 Operation::AllocateTableFile(path) => self.allocate_table_file(path).await,
                 Operation::SyncToRemote(path) => self.sync_to_remote(path).await,
-                _other => unimplemented!(),
             };
             if let Err(result) = result_sender.send(result) {
                 warn!(?result, "failed to send result of operation");
@@ -115,7 +114,6 @@ impl<O: ObjectStore> Worker<O> {
     }
 
     async fn sync_to_remote(&self, _path: PathBuf) -> Result<()> {
-        // let source = std::fs::OpenOptions.
         unimplemented!()
     }
 }

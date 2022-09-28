@@ -19,7 +19,7 @@ impl DataStore {
         let service_account = service_account
             .as_ref()
             .to_str()
-            .ok_or(internal!("lossy path conversion for service account path"))?;
+            .ok_or_else(|| internal!("lossy path conversion for service account path"))?;
         let gcp = GoogleCloudStorageBuilder::new()
             .with_bucket_name(bucket)
             .with_service_account_path(service_account)
