@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 lemur = {path = "../lemur"}
 ioutil = {path = "../ioutil"}
 sqlexec = {path = "../sqlexec"}
+bytesutil = {path = "../bytesutil"}
 anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
