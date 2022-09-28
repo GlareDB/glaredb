@@ -17,10 +17,10 @@
       rustfmt
       bacon
       cargo-udeps
+      cargo-nextest
       cocogitto
       protobuf
       gdb
-      miniserve
     ];
 
     otherNativeBuildInputs = with pkgs; [pkgconfig openssl openssl.dev llvmPackages.bintools];

@@ -148,6 +148,80 @@ impl PgCodec {
         })
     }
 
+    fn decode_parse(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let name = buf.read_cstring()?.to_string();
+        let sql = buf.read_cstring()?.to_string();
+        let num_params = buf.get_i16() as usize;
+        let mut param_types = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            param_types.push(buf.get_i32());
+        }
+        Ok(FrontendMessage::Parse {
+            name,
+            sql,
+            param_types,
+        })
+    }
+
+    fn decode_bind(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let portal = buf.read_cstring()?.to_string();
+        let statement = buf.read_cstring()?.to_string();
+
+        let num_params = buf.get_i16() as usize;
+        let mut param_formats = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            param_formats.push(buf.get_i16());
+        }
+
+        let num_values = buf.get_i16() as usize; // must match num_params
+        let mut param_values = Vec::with_capacity(num_values);
+        for _ in 0..num_values {
+            let len = buf.get_i32();
+            if len == -1 {
+                param_values.push(None);
+            } else {
+                let mut val = vec![0; len as usize];
+                buf.copy_to_slice(&mut val);
+                param_values.push(Some(val));
+            }
+        }
+
+        let num_params = buf.get_i16() as usize;
+        let mut result_formats = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            result_formats.push(buf.get_i16());
+        }
+
+        Ok(FrontendMessage::Bind {
+            portal,
+            statement,
+            param_formats,
+            param_values,
+            result_formats,
+        })
+    }
+
+    fn decode_describe(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let object_type = buf.get_u8().try_into()?;
+        let name = buf.read_cstring()?.to_string();
+
+        Ok(FrontendMessage::Describe { object_type, name })
+    }
+
+    fn decode_execute(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let portal = buf.read_cstring()?.to_string();
+        let max_rows = buf.get_i32();
+        Ok(FrontendMessage::Execute { portal, max_rows })
+    }
+
+    fn decode_sync(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Sync)
+    }
+
+    fn decode_terminate(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Terminate)
+    }
+
     fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
         if scalar.is_null() {
             buf.put_i32(-1);
@@ -187,6 +261,9 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::DataRow(_, _) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
+            BackendMessage::ParseComplete => b'1',
+            BackendMessage::BindComplete => b'2',
+            BackendMessage::NoData => b'n',
         };
         dst.put_u8(byte);
 
@@ -198,6 +275,9 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::AuthenticationOk => dst.put_i32(0),
             BackendMessage::AuthenticationCleartextPassword => dst.put_i32(3),
             BackendMessage::EmptyQueryResponse => (),
+            BackendMessage::ParseComplete => (),
+            BackendMessage::BindComplete => (),
+            BackendMessage::NoData => (),
             BackendMessage::ParameterStatus { key, val } => {
                 dst.put_cstring(&key);
                 dst.put_cstring(&val);
@@ -284,8 +364,8 @@ impl Decoder for PgCodec {
         let msg_len = i32::from_be_bytes(src[1..5].try_into().unwrap()) as usize;
 
         // Not enough bytes to read the full message yet.
-        if src.len() < msg_len {
-            src.reserve(msg_len - src.len());
+        if src.len() < msg_len + 1 {
+            src.reserve(msg_len + 1 - src.len());
             return Ok(None);
         }
 
@@ -296,6 +376,13 @@ impl Decoder for PgCodec {
         let msg = match msg_type {
             b'Q' => Self::decode_query(&mut buf)?,
             b'p' => Self::decode_password(&mut buf)?,
+            b'P' => Self::decode_parse(&mut buf)?,
+            b'B' => Self::decode_bind(&mut buf)?,
+            b'D' => Self::decode_describe(&mut buf)?,
+            b'E' => Self::decode_execute(&mut buf)?,
+            b'S' => Self::decode_sync(&mut buf)?,
+            // X - Terminate
+            b'X' => return Ok(None),
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 

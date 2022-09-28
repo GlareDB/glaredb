@@ -24,6 +24,8 @@ pub enum ExecutionResult {
     CreateTable,
     /// A client local variable was set.
     SetLocal,
+    /// Tables dropped.
+    DropTables,
 }
 
 impl fmt::Debug for ExecutionResult {
@@ -36,6 +38,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::SetLocal => write!(f, "set local"),
+            ExecutionResult::DropTables => write!(f, "drop tables"),
         }
     }
 }
@@ -106,6 +109,12 @@ impl<'a> Executor<'a> {
                 let physical = self.session.create_physical_plan(plan).await?;
                 let stream = self.session.execute_physical(physical)?;
                 Ok(ExecutionResult::Query { stream })
+            }
+            LogicalPlan::Runtime => {
+                // TODO: We'll want to:
+                // 1. Actually do something here.
+                // 2. Probably return a different variant for global SET statements.
+                Ok(ExecutionResult::SetLocal)
             }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }
