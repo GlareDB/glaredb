@@ -102,8 +102,25 @@ files will be split once they reach a certain size to avoid massive files.
 
 The initial storage format will be lightweight encoding of the Arrow format with
 minimal compression. A custom header will be prepended for each record batch.
-This header will contain size and schema info, allowing use to use the buffer
-directly for Arrow arrays with no deserialization overhead.
+
+For user data (records), the format will be based on the Arrow format. Each
+file's schema will include the appropriate data types. Each record will be
+prepended with a header. This header will contain size and schema info, allowing
+use to use the buffer directly for Arrow arrays with the goal of no
+deserialization overhead.
+
+At a high-level, the format will look something like this:
+
+``` text
+<file header>
+<header 1>
+<record batch 1>
+<header 2>
+<record batch 2>
+...
+```
+
+Index serialization is not yet defined.
 
 #### On not using Parquet
 
@@ -135,12 +152,7 @@ a -> table identifier
 b -> partition identifier
 ```
 
-Data files contain user data, and follow the Arrow IPC format. Each file's
-schema will include the appropriate data types with synthetic field names. These
-synthetic field names will map to the proper field names higher up in the system.
-
-A data file will contain multiple blocks (record batches), each prepended with
-some metadata about that block.
+Data files contain only user records.
 
 Each file will try to reach some target size and/or number of rows, whichever is
 hit first. Once the file size reaches this target, it will undergo a split.
@@ -158,7 +170,7 @@ deletes). Insertion data will be stored in some format that can easily be
 converted to and from an Arrow record batch. Once a file exceeds a certain size,
 it will be merged into the data file.
 
-Delta files will have a one-to-one mapping to a table partition file.
+Every data file has at most one delta file.
 
 ## Operations
 
