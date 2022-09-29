@@ -759,6 +759,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 
 [[package]]
+name = "bytesutil"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "bzip2-sys"
 version = "0.1.11+1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2794,6 +2801,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
+ "bytesutil",
  "datafusion",
  "futures",
  "ioutil",
