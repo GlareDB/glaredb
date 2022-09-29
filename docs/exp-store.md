@@ -17,9 +17,43 @@ Secondary priorities:
 - Transactions.
 - Durability (logging).
 - Updates, deletes, table alterations.
-- Secondary indexes.
+- Secondary indexes and uniqueness.
 
 Secondary priorities should be focused on after we have a POC.
+
+### Rationale
+
+If we look at the priorities from a "features" perspective, the rough order of
+support looks something like this:
+
+1. POC with table creates and inserts
+2. Transactions
+3. Secondary indexes
+4. Table changes
+5. Updates, deletes
+
+If we have 1 (in combination with a fast query execution), we could actually
+ship a product early with a very targeted use case (ingestion, analytics).
+Updates and deletes happen to not fit this use case, which is the rationale
+behind not having it in the POC. I'm not saying we should focus entirely on this
+use case and disregard everything else, I'm more concerned with how the product
+is able to evolve as we add features. I also believe that the
+merging/reconciliation methods that we do for transactions will tie heavily into
+how we do updates/deletes.
+
+2 and 3 are somewhat interchangeable in terms of priority.
+
+4 follows pretty closely, and how we handle that will go through how we handle
+merges. E.g. the delta will store a "table update" which we'll be able to
+reconcile with the base data file when it's merged in.
+
+And 5 is last because we'll want to have some concept of a version store (e.g.
+an append-only version file(s) per table) which I think would be too much to do
+right now.
+
+Durability/logging fits in "somewhere" but not sure where yet. That might just
+be the raft log itself that we can ship around and flush to object storage as
+necessary.
 
 ## Cloud Native
 
@@ -64,6 +98,30 @@ The directory structure on the local disk will mimic the structure in object
 storage. Entire files will be written to and read from object storage. Data
 files will be split once they reach a certain size to avoid massive files.
 
+### Storage Format
+
+The initial storage format will be lightweight encoding of the Arrow format with
+minimal compression. A custom header will be prepended for each record batch.
+This header will contain size and schema info, allowing use to use the buffer
+directly for Arrow arrays with no deserialization overhead.
+
+#### On not using Parquet
+
+It's unlikely that we'll use parquet directly as the storage format at any level
+in the near-term. It's been less than fun trying to use the existing parquet
+crates (parquet and parquet2) to try to do "point batch reads". I don't
+necessarily think this is a limitation of the file format, more just the
+libraries themselves. I believe it'll be easier/quicker to use Arrow's array
+data directly as the basis for the file format in the near-term
+
+Longer term we'll have to look at:
+
+- Are these assumptions about using Arrow data easier/quicker correct?
+- Do customers want to be able to access database data directly through parquet
+  (or similar)?
+- If so, do they want the latest data in parquet? Would it be sufficient to
+  serialize just old data (like the version file)?
+
 ### Meta files
 
 Meta files hold info about the partitioning schema for the table. Specifically,
@@ -87,7 +145,11 @@ some metadata about that block.
 Each file will try to reach some target size and/or number of rows, whichever is
 hit first. Once the file size reaches this target, it will undergo a split.
 
-Rows will be sorted by their primary key.
+Rows will be sorted by their primary key. This allows for easy partitioning, and
+it will also allow for faster primary key uniqueness checks, e.g. we could layer
+bloom filters on top of groups of record batches to avoid needing to read them
+in, and if bloom filter check indicates a possible duplicate, then we only need
+to scan a single record batch instead of the whole file.
 
 ### Delta files
 
@@ -103,6 +165,11 @@ Delta files will have a one-to-one mapping to a table partition file.
 How various SQL commands will map to operations at this layer.
 
 Note that catalog operations are assumed to eventually become transactional.
+Ideally everything will use the same transaction framework. Every "delta"
+(inserts, deletes, updates, ddl) being inserted into the delta file will contain
+a start transaction timestamp, and a null commit timestamp. To commit, a
+"commit" delta will be added and we updated the provisional record with the
+commit timestamp.
 
 ### `CREATE SCHEMA ...`
 
@@ -142,9 +209,11 @@ If the predicate is on primary key:
 ## Delta Merges
 
 Once a delta file exceeds a certain size, it will be merged back into the main
-data file. The process is as follows:
+data file. 
 
-1. Acquire exclusive lock for table/partition/partition_chunk.
+The process is as follows:
+
+1. Acquire exclusive lock for table/partition.
    - This **will** prevent concurrent access, so we'll want to rethink this later.
 2. Read in the entirety of the delta file, sort by primary key.
 3. Merge sort with data file.
@@ -154,10 +223,18 @@ data file. The process is as follows:
 This will be where we reconcile deletes and updates. When we have a version
 file, we'll append the old data to that file.
 
+Delta files will be decently large such that merges are relatively infrequent.
+E.g. we might go with a 10MB target size for deltas, and a 250MB target size
+base data files. These are not hard limits which allows for flexibility with
+when we do the merge.
+
 ## Data File Splits
 
 If a data file exceeds a size threshold, it will be split into two smaller
-files/partitions. The process is as follows:
+files/partitions. In most cases, a split should occur immediately after a delta
+merge if necessary, preventing having to re-acquire the lock.
+
+The process is as follows:
 
 1. Acquire exclusive lock for table/partition. Acquire an exclusive lock on the
    meta file.
@@ -165,7 +242,8 @@ files/partitions. The process is as follows:
      other partitions.
 2. Get next partition id to use from the meta file.
 3. Split and write out files.
-4. Allocate an empty delta file for the new parition, and clear the delta file
+4. Allocate an empty delta file for the new partition, and clear the delta file
    for the partition that was just split.
 5. Write new primary key ranges to meta file.
 6. Release locks.
+
