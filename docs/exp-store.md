@@ -247,3 +247,15 @@ The process is as follows:
 5. Write new primary key ranges to meta file.
 6. Release locks.
 
+## System Catalogs
+
+All system catalogs will belong to a "system" schema, with the schema having
+a predefined identifier. This schema will contain multiple catalog tables, each
+with their own predefined identifiers.
+
+Using the structure as defined above for catalogs gives us two things:
+
+- No global, schema local, or table local manifests that we have to read.
+- Can use the same operations as any other table in the system. This will be
+  very useful for transactional DDL as we can reuse the transactional operations
+  defined for normal tables.
