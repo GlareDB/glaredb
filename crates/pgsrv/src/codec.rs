@@ -4,11 +4,11 @@ use crate::messages::{
     VERSION_SSL, VERSION_V3,
 };
 use bytes::{Buf, BufMut, BytesMut};
+use bytesutil::{BufStringMut, Cursor};
 use datafusion::scalar::ScalarValue;
 use futures::{SinkExt, TryStreamExt};
 use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
-use std::str;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;
@@ -48,58 +48,6 @@ where
     }
 }
 
-trait BufStringMut: BufMut {
-    /// Put a null-terminated string in the buffer.
-    fn put_cstring(&mut self, s: &str);
-}
-
-impl<B: BufMut> BufStringMut for B {
-    fn put_cstring(&mut self, s: &str) {
-        self.put(s.as_bytes());
-        self.put_u8(0);
-    }
-}
-
-#[derive(Debug)]
-struct Cursor<'a> {
-    buf: &'a [u8],
-}
-
-impl<'a> Cursor<'a> {
-    fn new(buf: &'a [u8]) -> Self {
-        Cursor { buf }
-    }
-
-    fn read_cstring(&mut self) -> Result<&'a str> {
-        match self.buf.iter().position(|b| *b == 0) {
-            Some(pos) => {
-                let s = str::from_utf8(&self.buf[0..pos]).unwrap();
-                self.advance(pos + 1);
-                Ok(s)
-            }
-            None => Err(PgSrvError::MissingNullByte),
-        }
-    }
-
-    fn next_is_null_byte(&self) -> bool {
-        !self.buf.is_empty() && self.buf[0] == 0
-    }
-}
-
-impl<'a> Buf for Cursor<'a> {
-    fn remaining(&self) -> usize {
-        self.buf.len()
-    }
-
-    fn chunk(&self) -> &[u8] {
-        self.buf
-    }
-
-    fn advance(&mut self, cnt: usize) {
-        self.buf = &self.buf[cnt..]
-    }
-}
-
 pub struct PgCodec;
 
 impl PgCodec {
@@ -127,7 +75,7 @@ impl PgCodec {
         }
 
         let mut params = HashMap::new();
-        while buf.remaining() > 0 && !buf.next_is_null_byte() {
+        while buf.remaining() > 0 && !buf.peek_next_is_null() {
             let key = buf.read_cstring()?.to_string();
             let val = buf.read_cstring()?.to_string();
             params.insert(key, val);
