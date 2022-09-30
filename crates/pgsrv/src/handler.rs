@@ -345,13 +345,13 @@ where
         match object_type {
             DescribeObjectType::Statement => match session.get_prepared_statement(&name) {
                 Some(statement) => {
-                    /// The Describe message statement variant returns a ParameterDescription message describing
-                    /// the parameters needed by the statement, followed by a RowDescription message describing the
-                    /// rows that will be returned when the statement is eventually executed.
-                    /// If the statement will not return rows, then a NoData message is returned.
+                    // The Describe message statement variant returns a ParameterDescription message describing
+                    // the parameters needed by the statement, followed by a RowDescription message describing the
+                    // rows that will be returned when the statement is eventually executed.
+                    // If the statement will not return rows, then a NoData message is returned.
                     conn.send(BackendMessage::ParameterDescription(
                         statement.param_types.clone(),
-                    ));
+                    )).await?;
 
                     // TODO: return RowDescription if query will return rows
                     conn.send(BackendMessage::NoData).await?;
