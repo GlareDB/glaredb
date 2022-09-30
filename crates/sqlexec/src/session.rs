@@ -4,6 +4,7 @@ use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
+use crate::placeholders::bind_placeholders;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::catalog::schema::SchemaProvider;
@@ -18,8 +19,6 @@ use datafusion::physical_plan::{
 };
 use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
-use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
-use datafusion::sql::sqlparser::parser::Parser;
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use hashbrown::hash_map::Entry;
@@ -372,7 +371,7 @@ impl Session {
             None => {
                 // Store the unnamed prepared statement.
                 // This will persist until the session is dropped or another unnamed prepared statement is created
-                self.unnamed_statement = Some(PreparedStatement::new(sql, params));
+                self.unnamed_statement = Some(PreparedStatement::new(sql, params)?);
             }
             Some(name) => {
                 // Named prepared statements must be explicitly closed before being redefined
@@ -384,7 +383,7 @@ impl Session {
                         ))
                     }
                     Entry::Vacant(ent) => {
-                        ent.insert(PreparedStatement::new(sql, params));
+                        ent.insert(PreparedStatement::new(sql, params)?);
                     }
                 }
             }
@@ -417,33 +416,29 @@ impl Session {
         param_values: Vec<Option<Vec<u8>>>,
         result_formats: Vec<i16>,
     ) -> Result<()> {
-        let statement = match statement_name {
-            None => self
-                .unnamed_statement
-                .as_mut()
-                .ok_or_else(|| internal!("no unnamed prepared statement"))?,
-            Some(name) => self
-                .named_statements
-                .get_mut(&name)
-                .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+        let (statement, types) = {
+            let prepared_statement = match statement_name {
+                None => self
+                    .unnamed_statement
+                    .as_mut()
+                    .ok_or_else(|| internal!("no unnamed prepared statement"))?,
+                Some(name) => self
+                    .named_statements
+                    .get_mut(&name)
+                    .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+            };
+
+            (prepared_statement.statement.clone(), prepared_statement.param_types.clone())
         };
 
-        let statements = Parser::parse_sql(&PostgreSqlDialect {}, &statement.sql)?
-            .into_iter()
-            .collect::<Vec<ast::Statement>>();
-
-        // a portal can only be bound to a single statement
-        if statements.len() != 1 {
-            return Err(internal!("portal can only be bound to a single statement"));
-        }
-
-        let statement = statements.into_iter().next().unwrap();
+        let bound_statement = bind_placeholders(statement, &param_values, &types)?;
+        debug!(?bound_statement, "bound statement");
+        let plan = self.plan_sql(bound_statement)?;
 
         match portal_name {
             None => {
                 // Store the unnamed portal.
                 // This will persist until the session is dropped or another unnamed portal is created
-                let plan = self.plan_sql(statement)?;
                 self.unnamed_portal = Some(Portal::new(
                     plan,
                     param_formats,
@@ -528,3 +523,4 @@ impl Session {
         }
     }
 }
+
