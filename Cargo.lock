@@ -3723,6 +3723,7 @@ dependencies = [
  "hashbrown",
  "logutil",
  "parking_lot",
+ "postgres-types",
  "sqlparser 0.23.0",
  "thiserror",
  "tokio",

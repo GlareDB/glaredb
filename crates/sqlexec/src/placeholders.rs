@@ -1,5 +1,6 @@
 use crate::errors::{internal, Result};
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use postgres_types::Type;
 use tracing::log::debug;
 
 /// Replace placeholders in the given SQL statement with the given values.
@@ -89,22 +90,38 @@ fn bind_select(select: ast::Select, params: &[Option<Vec<u8>>], param_types: &[i
     Ok(new_select)
 }
 
-fn bind_value(value: ast::Value, params: &[Option<Vec<u8>>], param_types: &[i32]) -> ast::Value {
+fn bind_value(value: ast::Value, params: &[Option<Vec<u8>>], param_types: &[i32]) -> Result<ast::Value> {
     match value {
         ast::Value::Placeholder(val) => {
             // val - is either $n or ?n
             let param = val[1..].parse::<usize>().unwrap();
-            dbg!(val);
-            dbg!(param_types[param]);
-            todo!("replace placeholder")
+            let ty = Type::from_oid(param_types[param] as u32).unwrap();
+            match ty {
+                Type::INT8 => {
+                    // TODO: properly intake the value. It is not encoded as utf8
+                    let val = std::str::from_utf8(params[param].as_ref().unwrap()).unwrap();
+                    // TODO: determine what the bool in ast::Value::Number is for
+                    // and set it correctly
+                    
+                    todo!("int8");
+                },
+                Type::VARCHAR => {
+                    let val = std::str::from_utf8(params[param].as_ref().unwrap()).unwrap();
+                    Ok(ast::Value::SingleQuotedString(val.to_string()))
+                },
+                Type::FLOAT8 => {
+                    todo!("float8");
+                }
+                other => unimplemented!("type {:?}", other),
+            }
         }
-        other => other,
+        other => Ok(other),
     }
 }
 
 fn bind_expr(expr: ast::Expr, params: &[Option<Vec<u8>>], param_types: &[i32]) -> Result<ast::Expr> {
     let val = match expr {
-        ast::Expr::Value(value) => ast::Expr::Value(bind_value(value, params, param_types)),
+        ast::Expr::Value(value) => ast::Expr::Value(bind_value(value, params, param_types)?),
         ast::Expr::BinaryOp { left, op, right } => ast::Expr::BinaryOp {
             left: Box::new(bind_expr(*left, params, param_types)?),
             op,
