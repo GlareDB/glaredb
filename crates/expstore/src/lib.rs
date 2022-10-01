@@ -5,4 +5,5 @@ pub mod store;
 mod cloudsync;
 mod datafile;
 mod delta;
+mod file;
 mod id;
