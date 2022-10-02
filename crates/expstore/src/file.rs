@@ -49,6 +49,7 @@ impl LocalCache {
             std::fs::create_dir_all(parent)?;
         }
 
+        // TODO: Possibly direct io and/or io uring.
         let file = OpenOptions::new()
             .create(true)
             .read(true)
