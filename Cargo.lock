@@ -1453,7 +1453,7 @@ dependencies = [
  "logutil",
  "object_store",
  "parking_lot",
- "tempdir",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
