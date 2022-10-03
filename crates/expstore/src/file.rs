@@ -4,7 +4,7 @@ use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, Write};
 use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
@@ -220,6 +220,30 @@ impl FileExt for MirroredFile {
         } else {
             todo!()
         }
+    }
+}
+
+impl Read for MirroredFile {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.local.read(buf)
+    }
+}
+
+impl Seek for MirroredFile {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.local.seek(pos)
+    }
+}
+
+// TODO: Have the mirrored file buffer. This will also allow us to track bytes
+// written to the local cache.
+impl Write for MirroredFile {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.local.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.local.flush()
     }
 }
 
