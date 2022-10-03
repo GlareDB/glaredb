@@ -107,7 +107,11 @@ impl MirroredFile {
     /// Open an existing file from the object store.
     ///
     /// Errors if no file exists in the object store.
-    pub async fn open_from_remote(path: PathBuf, sync: Arc<LocalCache>) -> Result<MirroredFile> {
+    pub async fn open_from_remote<P: AsRef<Path>>(
+        path: P,
+        sync: Arc<LocalCache>,
+    ) -> Result<MirroredFile> {
+        let path = path.as_ref().to_path_buf();
         let file = sync.open_local_file(&path)?;
         let mut writer = io::BufWriter::with_capacity(OBJECT_BUFFER_DEFAULT_SIZE, file);
 
@@ -273,33 +277,48 @@ fn to_object_path<P: AsRef<Path>>(path: P) -> Result<ObjectPath> {
     Ok(obj_path)
 }
 
-#[cfg(test)]
-mod tests {
+/// Utility module for creating mirrored files for testing.
+pub mod testutil {
     use super::*;
     use object_store::local::LocalFileSystem;
     use std::path::Path;
     use tempfile::TempDir;
 
-    #[tokio::test]
-    async fn simple_create_reopen() {
-        logutil::init_test();
-
+    pub fn new_local_cache() -> Arc<LocalCache> {
         let obj_dir = TempDir::new().unwrap();
         let cache_dir = TempDir::new().unwrap();
 
         let store = LocalFileSystem::new_with_prefix(obj_dir.path()).unwrap();
-        let sync = Arc::new(LocalCache::new(store, cache_dir.path().to_path_buf(), 0));
+        let cache = LocalCache::new(store, cache_dir.path().to_path_buf(), 0);
 
-        let path = Path::new("test/file").to_path_buf();
-        let mirrored = MirroredFile::create(path.clone(), sync.clone())
-            .await
-            .unwrap();
+        Arc::new(cache)
+    }
+
+    pub async fn new_temp_mirrored_file<P: AsRef<Path>>(
+        cache: Arc<LocalCache>,
+        path: P,
+    ) -> MirroredFile {
+        let path = path.as_ref().to_path_buf();
+        MirroredFile::create(path.clone(), cache).await.unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn simple_create_reopen() {
+        logutil::init_test();
+
+        let cache = testutil::new_local_cache();
+        let mirrored = testutil::new_temp_mirrored_file(cache.clone(), "test/file").await;
 
         let buf = [0, 1, 2, 3];
         mirrored.write_at(&buf[..], 0).unwrap();
         mirrored.sync_and_remove().await.unwrap();
 
-        let mirrored = MirroredFile::open_from_remote(path, sync.clone())
+        let mirrored = MirroredFile::open_from_remote("test/file", cache.clone())
             .await
             .unwrap();
         let mut read_buf = vec![0; 4];

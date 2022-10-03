@@ -2,13 +2,10 @@
 use crate::errors::{internal, Result};
 use crate::file::MirroredFile;
 use crate::format::FinishError;
-use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
-use std::io::{self, Read, Seek, Write};
-
-const RECORD_BATCH_MARKER: &[u8] = b"glar";
+use std::io::{self, Seek, Write};
 
 /// Write out user data to some underlying file.
 #[derive(Debug)]
@@ -30,31 +27,22 @@ impl DataWriter {
         // - Possibly make this async.
         // - More efficient format. Currently just arrow ipc.
 
-        let file = &mut self.file;
-        file.seek(io::SeekFrom::Start(0))?;
+        self.file.seek(io::SeekFrom::Start(0))?;
 
         let mut iter = iter.into_iter();
-        let schema = match iter.next() {
-            Some(batch) => {
-                let schema = batch.schema();
-                self.write_batch(batch, &schema)?;
-                schema
-            }
-            None => return Ok(()),
+        let batch = match iter.next() {
+            Some(batch) => batch,
+            None => return Ok(()), // TODO: Maybe error?
         };
 
-        for batch in iter.into_iter() {
-            self.write_batch(batch, &schema)?;
-        }
-
-        Ok(())
-    }
-
-    fn write_batch(&mut self, batch: RecordBatch, schema: &Schema) -> Result<()> {
-        self.file.write_all(RECORD_BATCH_MARKER)?;
-        let mut ipc_writer = FileWriter::try_new(&mut self.file, schema)?;
+        let mut ipc_writer = FileWriter::try_new(&mut self.file, &batch.schema())?;
         ipc_writer.write(&batch)?;
+
+        for batch in iter {
+            ipc_writer.write(&batch)?;
+        }
         ipc_writer.finish()?;
+
         Ok(())
     }
 
@@ -67,5 +55,64 @@ impl DataWriter {
                 error: e.into(),
             }),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct DataReader {
+    ipc_reader: FileReader<MirroredFile>,
+}
+
+impl DataReader {
+    pub fn with_file(mut file: MirroredFile) -> Result<DataReader> {
+        file.seek(io::SeekFrom::Start(0))?;
+        let ipc_reader = FileReader::try_new(file, None)?;
+        Ok(DataReader { ipc_reader })
+    }
+
+    pub fn read_batch_at(&mut self, idx: usize) -> Result<RecordBatch> {
+        self.ipc_reader.set_index(idx)?;
+        let batch = self
+            .ipc_reader
+            .next()
+            .ok_or_else(|| internal!("missing batch for index: {}", idx))??;
+
+        Ok(batch)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::file::testutil;
+    use datafusion::arrow::array::Int32Array;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::arrow::record_batch::RecordBatch;
+    use std::sync::Arc;
+
+    fn create_test_batch(val: i32) -> RecordBatch {
+        let id_array = Int32Array::from(vec![val; 10]);
+        let schema = Schema::new(vec![Field::new("id", DataType::Int32, false)]);
+
+        RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap()
+    }
+
+    #[tokio::test]
+    async fn simple() {
+        let cache = testutil::new_local_cache();
+        let mirrored = testutil::new_temp_mirrored_file(cache, "data").await;
+
+        let mut writer = DataWriter::with_file(mirrored);
+        let b1 = create_test_batch(1);
+        let b2 = create_test_batch(2);
+        writer.write_data([b1.clone(), b2.clone()]).unwrap();
+
+        let mirrored = writer.finish().unwrap();
+        let mut reader = DataReader::with_file(mirrored).unwrap();
+
+        let got = reader.read_batch_at(0).unwrap();
+        assert_eq!(b1, got);
+        let got = reader.read_batch_at(1).unwrap();
+        assert_eq!(b2, got);
     }
 }
