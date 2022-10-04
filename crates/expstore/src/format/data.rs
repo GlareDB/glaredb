@@ -6,6 +6,7 @@ use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use std::io::{self, Seek, Write};
+use std::path::PathBuf;
 
 /// Write out user data to some underlying file.
 #[derive(Debug)]
@@ -60,14 +61,17 @@ impl DataWriter {
 
 #[derive(Debug)]
 pub struct DataReader {
+    /// Local path for debugging.
+    path: PathBuf,
     ipc_reader: FileReader<MirroredFile>,
 }
 
 impl DataReader {
     pub fn with_file(mut file: MirroredFile) -> Result<DataReader> {
+        let path = file.local_path().to_path_buf();
         file.seek(io::SeekFrom::Start(0))?;
         let ipc_reader = FileReader::try_new(file, None)?;
-        Ok(DataReader { ipc_reader })
+        Ok(DataReader { path, ipc_reader })
     }
 
     pub fn read_batch_at(&mut self, idx: usize) -> Result<RecordBatch> {
@@ -75,7 +79,7 @@ impl DataReader {
         let batch = self
             .ipc_reader
             .next()
-            .ok_or_else(|| internal!("missing batch for index: {}", idx))??;
+            .ok_or_else(|| internal!("missing batch for index: {}, {:?}", idx, self.path))??;
 
         Ok(batch)
     }

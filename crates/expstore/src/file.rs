@@ -104,6 +104,11 @@ impl MirroredFile {
         })
     }
 
+    /// Get the local relative path for this file.
+    pub fn local_path(&self) -> &Path {
+        &self.local_relative
+    }
+
     /// Open an existing file from the object store.
     ///
     /// Errors if no file exists in the object store.
@@ -118,6 +123,8 @@ impl MirroredFile {
         let obj_relative = to_object_path(&path)?;
         let mut stream = sync.store.get(&obj_relative).await?.into_stream();
 
+        // TODO: Possible performance improvements with use tokio's async
+        // version of buf writer/file.
         while let Some(result) = stream.next().await {
             let mut reader = result?.reader();
             io::copy(&mut reader, &mut writer)?;
