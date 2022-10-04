@@ -431,7 +431,7 @@ impl Session {
             (prepared_statement.statement.clone(), prepared_statement.param_types.clone())
         };
 
-        let bound_statement = bind_placeholders(statement, &param_values, &types)?;
+        let bound_statement = bind_placeholders(statement, &param_formats, &param_values, &types)?;
         debug!(?bound_statement, "bound statement");
         let plan = self.plan_sql(bound_statement)?;
 

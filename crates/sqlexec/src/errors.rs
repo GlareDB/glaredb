@@ -11,6 +11,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    PgRepr(#[from] pgrepr::error::Error),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
