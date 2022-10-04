@@ -10,7 +10,6 @@ use raft::client::ConsensusClient;
 use raft::repr::Node;
 use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
-use sqlengine::engine::Engine;
 use tokio::time::sleep;
 
 /// Setup a cluster of 3 nodes.
@@ -46,7 +45,7 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     // Wait for server to start up.
     sleep(Duration::from_millis(2000)).await;
 
-    let leader = prepare_cluster().await?;
+    let _leader = prepare_cluster().await?;
 
     // run_tests(leader).await?;
 
@@ -131,7 +130,7 @@ async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>
     Ok(leader)
 }
 
-async fn run_tests(leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_tests(_leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
     // --- Try to write some application data through the leader.
 
     /*
