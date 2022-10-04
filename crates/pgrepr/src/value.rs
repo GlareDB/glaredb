@@ -2,18 +2,6 @@ use crate::error::{internal, Result};
 use crate::types::Type;
 use postgres_types::FromSql;
 
-/*
- * TODO:
- *
- * 1. Pass BindOpts between functions to reduce changes to function signatures
- * 2. Add support for int8 text
- * 3. Add support for int8 Binary
- * 4. Add support for varchar text
- * 5. Add support for varchar Binary
- * 6. Add support for float8 text
- * 7. Add support for float8 Binary
- */
-
 /// A Postgres value
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -40,14 +28,16 @@ impl Value {
     fn decode_text(ty: Type, buf: &[u8]) -> Result<Self> {
         Ok(match ty {
             Type::Float8 => Value::Float8(parse_float8(buf)?),
-            other => unimplemented!("decode text value for {:?}", other),
+            Type::Int8 => Value::Int8(parse_int8(buf)?),
+            Type::VarChar => Value::VarChar(parse_varchar(buf)?),
         })
     }
 
     fn decode_binary(ty: Type, buf: &[u8]) -> Result<Self> {
         let res = match ty {
             Type::Float8 => f64::from_sql(ty.as_pg_type(), buf).map(Value::Float8),
-            other => unimplemented!("decode binary value for {:?}", other),
+            Type::Int8 => i64::from_sql(ty.as_pg_type(), buf).map(Value::Int8),
+            Type::VarChar => String::from_sql(ty.as_pg_type(), buf).map(Value::VarChar),
         };
 
         match res {
@@ -60,4 +50,14 @@ impl Value {
 /// Parse a float8 from a string.
 fn parse_float8(buf: &[u8]) -> Result<f64> {
     lexical_core::parse(buf).map_err(|e| internal!("failed to parse float8: {}", e))
+}
+
+/// Parse an int8 from a string.
+fn parse_int8(buf: &[u8]) -> Result<i64> {
+    lexical_core::parse(buf).map_err(|e| internal!("failed to parse int8: {}", e))
+}
+
+/// Parse a varchar from a string.
+fn parse_varchar(buf: &[u8]) -> Result<String> {
+    String::from_utf8(buf.to_vec()).map_err(|e| internal!("failed to parse varchar: {}", e))
 }

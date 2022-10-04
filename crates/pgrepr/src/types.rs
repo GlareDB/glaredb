@@ -65,7 +65,6 @@ impl TryFrom<Value> for Type {
             Value::Int8(_) => Type::Int8,
             Value::Float8(_) => Type::Float8,
             Value::VarChar(_) => Type::VarChar,
-            other => return Err(TypeError::NonconvertibleType(other)),
         })
     }
 }
