@@ -10,6 +10,7 @@ pub enum TypeError {
     InvalidOid(i32),
 }
 
+/// A Postgres type.
 #[derive(Clone, Copy, Debug)]
 pub enum Type {
     Int8,

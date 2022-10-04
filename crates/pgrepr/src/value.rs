@@ -22,6 +22,7 @@ pub enum Value {
     VarChar(String),
 }
 
+/// The formatting type for an encoded value.
 #[derive(Debug, Clone, Copy)]
 pub enum Format {
     Text,
@@ -36,16 +37,14 @@ impl Value {
         }
     }
 
-    pub fn decode_text(ty: Type, buf: &[u8]) -> Result<Self> {
-        let s = std::str::from_utf8(buf)?;
-
+    fn decode_text(ty: Type, buf: &[u8]) -> Result<Self> {
         Ok(match ty {
-            Type::Float8 => Value::Float8(parse_float8(s)?),
+            Type::Float8 => Value::Float8(parse_float8(buf)?),
             other => unimplemented!("decode text value for {:?}", other),
         })
     }
 
-    pub fn decode_binary(ty: Type, buf: &[u8]) -> Result<Self> {
+    fn decode_binary(ty: Type, buf: &[u8]) -> Result<Self> {
         let res = match ty {
             Type::Float8 => f64::from_sql(ty.as_pg_type(), buf).map(Value::Float8),
             other => unimplemented!("decode binary value for {:?}", other),
@@ -58,10 +57,7 @@ impl Value {
     }
 }
 
-fn parse_float8(buf: &str) -> Result<f64> {
-    todo!("parse_float8")
-}
-
-fn parse_float<F>(s: &str) -> Result<F> {
-    todo!("parse float");
+/// Parse a float8 from a string.
+fn parse_float8(buf: &[u8]) -> Result<f64> {
+    lexical_core::parse(buf).map_err(|e| internal!("failed to parse float8: {}", e))
 }
