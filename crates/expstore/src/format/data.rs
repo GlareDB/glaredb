@@ -79,6 +79,10 @@ impl DataReader {
 
         Ok(batch)
     }
+
+    pub fn num_batches(&self) -> usize {
+        self.ipc_reader.num_batches()
+    }
 }
 
 #[cfg(test)]
