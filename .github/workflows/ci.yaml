@@ -24,7 +24,7 @@ jobs:
       - name: configure cachix
         uses: cachix/cachix-action@v10
         with:
-          name: glaredb
+          name: glaredb-ci
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: run checks
