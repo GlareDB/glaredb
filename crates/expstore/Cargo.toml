@@ -1,0 +1,20 @@
+[package]
+name = "expstore"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+logutil = {path = "../logutil"}
+thiserror = "1.0"
+tracing = "0.1"
+async-trait = "0.1.56"
+futures = "0.3.21"
+parking_lot = "0.12.1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.1.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+datafusion = "12.0"
+object_store = { version = "0.5.0", features = ["aws", "gcp", "azure"] }
+bytes = "1.2"
+tempfile = "3"
