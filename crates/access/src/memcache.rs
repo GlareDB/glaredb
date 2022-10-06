@@ -1,15 +1,13 @@
 use crate::errors::Result;
+use crate::keys::BatchKey;
 use datafusion::arrow::record_batch::RecordBatch;
 use persistence::file::DiskCache;
-use std::collections::HashMap;
+use scc::HashMap;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, Hash)]
-pub struct BatchKey {
-    pub part_id: u32,
-    pub batch: u32,
-}
-
+/// An in-memory cache of record batches.
+///
+/// This provides a global cache across all tables.
 #[derive(Debug)]
 pub struct MemCache {
     cache: HashMap<BatchKey, RecordBatch>,

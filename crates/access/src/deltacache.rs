@@ -1,18 +1,21 @@
 use crate::errors::{internal, Result};
+use crate::keys::PartitionKey;
 use datafusion::arrow::record_batch::RecordBatch;
-use parking_lot::RwLock;
-use std::collections::HashMap;
+use scc::HashMap;
 
+/// An in-memory cache of modifications to partitions.
+///
+/// Provides a global cache for all tables.
 pub struct DeltaCache {
-    inserts: HashMap<u32, RwLock<Vec<RecordBatch>>>,
+    inserts: HashMap<PartitionKey, Vec<RecordBatch>>,
 }
 
 impl DeltaCache {
-    fn insert(&self, part_id: u32, batch: RecordBatch) -> Result<()> {
+    pub fn insert_batch_for_part(&self, key: &PartitionKey, batch: RecordBatch) -> Result<()> {
         unimplemented!()
     }
 
-    fn scan(&self, part_id: u32) -> Result<Vec<RecordBatch>> {
+    pub fn clone_batches_for_part(&self, key: &PartitionKey) -> Result<Vec<RecordBatch>> {
         unimplemented!()
     }
 }

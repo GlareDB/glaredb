@@ -5,8 +5,18 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::logical_plan::Expr;
 use std::sync::Arc;
 
+/// A partition contains a range of records for a table.
+///
+/// A range of records will be sorted by some arbitrary sort key determined at a
+/// higher level.
 pub struct Partition {
-    /// /schema_1/table_1_part_<part_id>.data
+    /// The partition id for a table. The id is unique amongst all partitions
+    /// for a table. Partition ids do not indicate relative order of partitions.
+    /// A higher level index structure is needed to determine the order of
+    /// partitions.
+    ///
+    /// The partition id can be derived from the the file name:
+    /// e.g. `/schema_1/table_1_part_<part_id>.data`
     part_id: u32,
     cache: Arc<MemCache>,
     deltas: Arc<DeltaCache>,
@@ -42,28 +52,13 @@ impl Partition {
     }
 }
 
-pub struct PartitionStream {} // futures stream
+// TODO: futures stream
+pub struct PartitionStream {}
 
+// TODO: futures stream
 pub struct DeltaStream {
     batches: Vec<RecordBatch>,
-} // futures stream
-
-pub struct CombinedPartitionStream {} // futures stream
-
-pub struct Table {
-    // references all partitions
 }
 
-impl Table {
-    pub async fn scan(
-        &self,
-        projection: Option<Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
-    ) -> Result<TableStream> {
-        // Chain all partition stream one after another.
-        unimplemented!()
-    }
-}
-
-pub struct TableStream {} // futures stream
+// TODO: futures stream
+pub struct CombinedPartitionStream {}
