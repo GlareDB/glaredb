@@ -1,4 +1,4 @@
-use crate::errors::{internal, Result};
+use crate::errors::{Result};
 use crate::keys::PartitionKey;
 use datafusion::arrow::record_batch::RecordBatch;
 use scc::HashMap;
@@ -11,11 +11,11 @@ pub struct DeltaCache {
 }
 
 impl DeltaCache {
-    pub fn insert_batch_for_part(&self, key: &PartitionKey, batch: RecordBatch) -> Result<()> {
+    pub fn insert_batch_for_part(&self, _key: &PartitionKey, _batch: RecordBatch) -> Result<()> {
         unimplemented!()
     }
 
-    pub fn clone_batches_for_part(&self, key: &PartitionKey) -> Result<Vec<RecordBatch>> {
+    pub fn clone_batches_for_part(&self, _key: &PartitionKey) -> Result<Vec<RecordBatch>> {
         unimplemented!()
     }
 }

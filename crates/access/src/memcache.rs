@@ -15,7 +15,7 @@ pub struct MemCache {
 }
 
 impl MemCache {
-    pub async fn get_record_batch(&self, key: &BatchKey) -> Result<RecordBatch> {
+    pub async fn get_record_batch(&self, _key: &BatchKey) -> Result<RecordBatch> {
         todo!()
     }
 

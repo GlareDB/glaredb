@@ -11,6 +11,7 @@
 //! - **Table**: Multiple partitions that once combined, make up an entire "user
 //!   table".
 //! - **Delta**: A change to some partition.
+#![allow(dead_code)]
 pub mod errors;
 pub mod partition;
 pub mod table;

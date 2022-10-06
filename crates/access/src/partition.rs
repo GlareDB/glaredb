@@ -1,5 +1,5 @@
 use crate::deltacache::DeltaCache;
-use crate::errors::{internal, Result};
+use crate::errors::{Result};
 use crate::memcache::MemCache;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::logical_plan::Expr;
@@ -23,30 +23,30 @@ pub struct Partition {
 }
 
 impl Partition {
-    pub async fn get_record_batch(&self, batch_id: u32) -> Result<RecordBatch> {
+    pub async fn get_record_batch(&self, _batch_id: u32) -> Result<RecordBatch> {
         // Async due to possibly fetching from object storage.
         unimplemented!()
     }
 
     // TODO: How to refence records in recently inserted batch?
-    pub async fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
+    pub async fn insert_batch(&self, _batch: RecordBatch) -> Result<()> {
         unimplemented!()
     }
 
     pub async fn scan_partition(
         &self,
-        projection: Option<Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
+        _projection: Option<Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> Result<PartitionStream> {
         unimplemented!()
     }
 
     pub fn scan_delta(
         &self,
-        projection: Option<Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
+        _projection: Option<Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> Result<DeltaStream> {
         unimplemented!()
     }

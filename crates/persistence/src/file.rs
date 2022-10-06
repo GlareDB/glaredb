@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Local file cache for files stored in object storage.
+///
+/// When a local a request for a file does not exist locally, the file will be
+/// pulled from object storage and placed in the local cache.
 #[derive(Debug)]
 pub struct DiskCache {
     store: Box<dyn ObjectStore>,
@@ -22,26 +25,32 @@ impl DiskCache {
         }
     }
 
-    pub async fn open_file<P: AsRef<Path>>(&self, relative: P) -> Result<Arc<MirroredFile>> {
+    pub async fn open_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFileRef> {
         unimplemented!()
     }
 
-    pub async fn create_file<P: AsRef<Path>>(&self, relative: P) -> Result<Arc<MirroredFile>> {
+    pub async fn create_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFileRef> {
         unimplemented!()
     }
 
     /// Sync the local file to the remote object store.
-    pub async fn sync_local<P: AsRef<Path>>(&self, relative: P) -> Result<()> {
+    pub async fn sync_local<P: AsRef<Path>>(&self, _relative: P) -> Result<()> {
         unimplemented!()
     }
 
-    pub async fn remove_local<P: AsRef<Path>>(&self, relative: P) -> Result<()> {
+    pub async fn remove_local<P: AsRef<Path>>(&self, _relative: P) -> Result<()> {
         unimplemented!()
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct MirroredFileRef(Arc<MirroredFile>);
+
+impl From<MirroredFile> for MirroredFileRef {
+    fn from(f: MirroredFile) -> Self {
+        MirroredFileRef(Arc::new(f))
+    }
+}
 
 /// A file that is mirrored with a file within some remote object store.
 ///
