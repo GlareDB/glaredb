@@ -4,6 +4,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Read, Seek, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Local file cache for files stored in object storage.
 ///
@@ -24,11 +25,11 @@ impl DiskCache {
         }
     }
 
-    pub async fn open_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFile> {
+    pub async fn open_file<P: AsRef<Path>>(&self, _relative: P) -> Result<Arc<MirroredFile>> {
         unimplemented!()
     }
 
-    pub async fn create_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFile> {
+    pub async fn create_file<P: AsRef<Path>>(&self, _relative: P) -> Result<Arc<MirroredFile>> {
         unimplemented!()
     }
 
@@ -53,14 +54,14 @@ pub struct MirroredFile {
     local: File,
 }
 
-impl Read for MirroredFile {
+impl Read for &MirroredFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut local = &self.local;
         (&mut local).read(buf)
     }
 }
 
-impl Seek for MirroredFile {
+impl Seek for &MirroredFile {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let mut local = &self.local;
         (&mut local).seek(pos)
@@ -69,7 +70,7 @@ impl Seek for MirroredFile {
 
 // TODO: Have the mirrored file buffer. This will also allow us to track bytes
 // written to the local cache.
-impl Write for MirroredFile {
+impl Write for &MirroredFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut local = &self.local;
         (&mut local).write(buf)
@@ -81,7 +82,7 @@ impl Write for MirroredFile {
     }
 }
 
-impl fmt::Debug for MirroredFile {
+impl fmt::Debug for &MirroredFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MirroredFile")
             .field("path", &self.obj_relative)
