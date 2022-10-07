@@ -212,6 +212,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::ParseComplete => b'1',
             BackendMessage::BindComplete => b'2',
             BackendMessage::NoData => b'n',
+            BackendMessage::ParameterDescription(_) => b't',
         };
         dst.put_u8(byte);
 
@@ -286,6 +287,12 @@ impl Encoder<BackendMessage> for PgCodec {
                 dst.put_u8(b'M');
                 dst.put_cstring(&notice.message);
                 dst.put_u8(0);
+            }
+            BackendMessage::ParameterDescription(descs) => {
+                dst.put_i16(descs.len() as i16);
+                for desc in descs.into_iter() {
+                    dst.put_i32(desc);
+                }
             }
         }
 
