@@ -151,7 +151,6 @@ where
         self.ready_for_query().await?;
         loop {
             let msg = self.conn.read().await?;
-            tracing::debug!(?msg, "received message");
             // If we're in an error state, we should only process Sync messages.
             // Until this is received, we should discard all incoming messages
             if self.error_state {
@@ -317,7 +316,14 @@ where
             param_formats
         };
 
-        trace!(?portal_name, ?statement_name, ?param_formats, ?param_values, ?result_formats, "received bind");
+        trace!(
+            ?portal_name,
+            ?statement_name,
+            ?param_formats,
+            ?param_values,
+            ?result_formats,
+            "received bind"
+        );
 
         let session = &mut self.session;
         let conn = &mut self.conn;
@@ -346,8 +352,17 @@ where
         match object_type {
             DescribeObjectType::Statement => match session.get_prepared_statement(&name) {
                 Some(statement) => {
-                    statement.describe();
-                    todo!("return statement describe response");
+                    // The Describe message statement variant returns a ParameterDescription message describing
+                    // the parameters needed by the statement, followed by a RowDescription message describing the
+                    // rows that will be returned when the statement is eventually executed.
+                    // If the statement will not return rows, then a NoData message is returned.
+                    conn.send(BackendMessage::ParameterDescription(
+                        statement.param_types.clone(),
+                    ))
+                    .await?;
+
+                    // TODO: return RowDescription if query will return rows
+                    conn.send(BackendMessage::NoData).await?;
                 }
                 None => {
                     self.conn
@@ -366,31 +381,29 @@ where
                 // that will be returned. If the portal contains a query that returns no rows, then
                 // a NoData message is returned instead.
                 match session.get_portal(&name) {
-                    Some(portal) => {
-                        match &portal.plan {
-                            LogicalPlan::Ddl(_) => {
-                                self.conn.send(BackendMessage::NoData).await?;
-                            }
-                            LogicalPlan::Write(_) => {
-                                todo!("return portal describe response for Write");
-                            }
-                            LogicalPlan::Query(df_plan) => {
-                                let schema = df_plan.schema();
-                                let fields: Vec<_> = schema
-                                    .fields()
-                                    .iter()
-                                    .map(|field| FieldDescription::new_named(field.name()))
-                                    .collect();
-                                conn.send(BackendMessage::RowDescription(fields)).await?;
-                            }
-                            LogicalPlan::Transaction(_) => {
-                                todo!("return portal describe response for Transaction");
-                            }
-                            LogicalPlan::Runtime => {
-                                todo!("return portal describe response for Runtime");
-                            }
+                    Some(portal) => match &portal.plan {
+                        LogicalPlan::Ddl(_) => {
+                            self.conn.send(BackendMessage::NoData).await?;
                         }
-                    }
+                        LogicalPlan::Write(_) => {
+                            todo!("return portal describe response for Write");
+                        }
+                        LogicalPlan::Query(df_plan) => {
+                            let schema = df_plan.schema();
+                            let fields: Vec<_> = schema
+                                .fields()
+                                .iter()
+                                .map(|field| FieldDescription::new_named(field.name()))
+                                .collect();
+                            conn.send(BackendMessage::RowDescription(fields)).await?;
+                        }
+                        LogicalPlan::Transaction(_) => {
+                            todo!("return portal describe response for Transaction");
+                        }
+                        LogicalPlan::Runtime => {
+                            todo!("return portal describe response for Runtime");
+                        }
+                    },
                     None => {
                         self.conn
                             .send(

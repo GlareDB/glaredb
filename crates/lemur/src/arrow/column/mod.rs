@@ -295,7 +295,7 @@ impl From<ScalarOwned> for Column {
         match scalar {
             ScalarOwned::Null => NullArray::new(ArrowDataType::Null, 1).boxed().into(),
             ScalarOwned::Bool(None) => NullArray::new(ArrowDataType::Boolean, 1).boxed().into(),
-            ScalarOwned::Bool(Some(b)) => BooleanArray::from_slice(&[b]).boxed().into(),
+            ScalarOwned::Bool(Some(b)) => BooleanArray::from_slice([b]).boxed().into(),
             ScalarOwned::Int8(v) => PrimitiveArray::from([v]).boxed().into(),
             ScalarOwned::Int16(v) => PrimitiveArray::from([v]).boxed().into(),
             ScalarOwned::Int32(v) => PrimitiveArray::from([v]).boxed().into(),

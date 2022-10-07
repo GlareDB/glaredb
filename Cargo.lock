@@ -2207,6 +2207,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lexical"
+version = "6.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7aefb36fd43fef7003334742cbf77b243fcd36418a1d1bdd480d613a67968f6"
+dependencies = [
+ "lexical-core",
+]
+
+[[package]]
 name = "lexical-core"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2868,6 +2877,18 @@ checksum = "e6d5014253a1331579ce62aa67443b4a658c5e7dd03d4bc6d302b94474888143"
 dependencies = [
  "fixedbitset",
  "indexmap",
+]
+
+[[package]]
+name = "pgrepr"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "lexical",
+ "lexical-core",
+ "postgres-types",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -3876,6 +3897,8 @@ dependencies = [
  "hashbrown",
  "logutil",
  "parking_lot",
+ "pgrepr",
+ "postgres-types",
  "sqlparser 0.23.0",
  "thiserror",
  "tokio",
