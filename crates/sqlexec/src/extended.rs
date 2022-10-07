@@ -1,11 +1,8 @@
+use crate::errors::internal;
+use crate::{errors::Result, logical_plan::LogicalPlan};
 use datafusion::sql::sqlparser::ast::{self};
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::parser::Parser;
-use crate::errors::internal;
-use crate::{
-    errors::Result,
-    logical_plan::LogicalPlan,
-};
 
 // A prepared statement.
 // This is contains the SQL statements that will later be turned into a
@@ -33,8 +30,12 @@ impl PreparedStatement {
         }
 
         // TODO: validate/infer the param_types
-        // 
-        Ok(Self { sql, param_types, statement: statements[0].clone() })
+        //
+        Ok(Self {
+            sql,
+            param_types,
+            statement: statements[0].clone(),
+        })
     }
 
     /// The Describe message statement variant returns a ParameterDescription message describing
@@ -47,7 +48,6 @@ impl PreparedStatement {
         todo!("describe statement")
     }
 }
-
 
 /// A Portal is the result of a prepared statement that has been bound with the Bind message.
 /// The portal is a readied execution plan that can be executed using an Execute message.
