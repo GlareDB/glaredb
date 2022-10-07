@@ -48,6 +48,8 @@ impl Type {
         }
     }
 
+    /// Convert a Postgres type integer to a `Type`.
+    /// To see the types look at the Postgres catalog https://github.com/postgres/postgres/blob/27b77ecf9f4d5be211900eda54d8155ada50d696/src/include/catalog/pg_type.dat
     pub fn from_oid(oid: i32) -> Result<Self, TypeError> {
         match oid {
             20 => Ok(Type::Int8),
