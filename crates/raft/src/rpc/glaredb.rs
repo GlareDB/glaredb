@@ -31,7 +31,10 @@ impl RemoteDataSource for GlaredbRpcHandler {
         req: tonic::Request<BinaryWriteRequest>,
     ) -> TonicResult<BinaryWriteResponse> {
         let req: Request = bincode::deserialize(&req.into_inner().payload).map_err(|e| {
-            tonic::Status::new(tonic::Code::InvalidArgument, format!("invalid request: {}", e))
+            tonic::Status::new(
+                tonic::Code::InvalidArgument,
+                format!("invalid request: {}", e),
+            )
         })?;
 
         match self.app.raft.client_write(req).await {
@@ -47,7 +50,10 @@ impl RemoteDataSource for GlaredbRpcHandler {
         req: tonic::Request<BinaryReadRequest>,
     ) -> TonicResult<BinaryReadResponse> {
         let _req: ReadTxRequest = bincode::deserialize(&req.into_inner().payload).map_err(|e| {
-            tonic::Status::new(tonic::Code::InvalidArgument, format!("invalid request: {}", e))
+            tonic::Status::new(
+                tonic::Code::InvalidArgument,
+                format!("invalid request: {}", e),
+            )
         })?;
 
         let _state_machine = self.app.store.state_machine.read().await;

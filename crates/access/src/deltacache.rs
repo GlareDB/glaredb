@@ -1,4 +1,4 @@
-use crate::errors::{Result};
+use crate::errors::Result;
 use crate::keys::PartitionKey;
 use datafusion::arrow::record_batch::RecordBatch;
 use scc::HashMap;

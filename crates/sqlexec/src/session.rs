@@ -428,7 +428,10 @@ impl Session {
                     .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
             };
 
-            (prepared_statement.statement.clone(), prepared_statement.param_types.clone())
+            (
+                prepared_statement.statement.clone(),
+                prepared_statement.param_types.clone(),
+            )
         };
 
         let bound_statement = bind_placeholders(statement, &param_formats, &param_values, &types)?;
@@ -523,4 +526,3 @@ impl Session {
         }
     }
 }
-
