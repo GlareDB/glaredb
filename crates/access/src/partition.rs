@@ -1,5 +1,6 @@
 use crate::deltacache::DeltaCache;
-use crate::errors::{Result};
+use crate::errors::Result;
+use crate::keys::PartitionKey;
 use crate::memcache::MemCache;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::logical_plan::Expr;
@@ -10,14 +11,7 @@ use std::sync::Arc;
 /// A range of records will be sorted by some arbitrary sort key determined at a
 /// higher level.
 pub struct Partition {
-    /// The partition id for a table. The id is unique amongst all partitions
-    /// for a table. Partition ids do not indicate relative order of partitions.
-    /// A higher level index structure is needed to determine the order of
-    /// partitions.
-    ///
-    /// The partition id can be derived from the the file name:
-    /// e.g. `/schema_1/table_1_part_<part_id>.data`
-    part_id: u32,
+    part: PartitionKey,
     cache: Arc<MemCache>,
     deltas: Arc<DeltaCache>,
 }

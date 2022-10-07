@@ -4,7 +4,6 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Read, Seek, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 /// Local file cache for files stored in object storage.
 ///
@@ -25,11 +24,11 @@ impl DiskCache {
         }
     }
 
-    pub async fn open_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFileRef> {
+    pub async fn open_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFile> {
         unimplemented!()
     }
 
-    pub async fn create_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFileRef> {
+    pub async fn create_file<P: AsRef<Path>>(&self, _relative: P) -> Result<MirroredFile> {
         unimplemented!()
     }
 
@@ -40,15 +39,6 @@ impl DiskCache {
 
     pub async fn remove_local<P: AsRef<Path>>(&self, _relative: P) -> Result<()> {
         unimplemented!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MirroredFileRef(Arc<MirroredFile>);
-
-impl From<MirroredFile> for MirroredFileRef {
-    fn from(f: MirroredFile) -> Self {
-        MirroredFileRef(Arc::new(f))
     }
 }
 
@@ -63,30 +53,30 @@ pub struct MirroredFile {
     local: File,
 }
 
-impl Read for MirroredFileRef {
+impl Read for MirroredFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut local = &self.0.local;
+        let mut local = &self.local;
         (&mut local).read(buf)
     }
 }
 
-impl Seek for MirroredFileRef {
+impl Seek for MirroredFile {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        let mut local = &self.0.local;
+        let mut local = &self.local;
         (&mut local).seek(pos)
     }
 }
 
 // TODO: Have the mirrored file buffer. This will also allow us to track bytes
 // written to the local cache.
-impl Write for MirroredFileRef {
+impl Write for MirroredFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut local = &self.0.local;
+        let mut local = &self.local;
         (&mut local).write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let mut local = &self.0.local;
+        let mut local = &self.local;
         (&mut local).flush()
     }
 }
