@@ -80,13 +80,8 @@ pub(crate) fn bind_placeholders(
 
 fn bind_query(opts: &BindOpts, query: ast::Query) -> Result<ast::Query> {
     Ok(ast::Query {
-        with: query.with,
         body: Box::new(bind_set_expr(opts, *query.body)?),
-        order_by: query.order_by,
-        limit: query.limit,
-        offset: query.offset,
-        fetch: query.fetch,
-        lock: query.lock,
+        ..query
     })
 }
 
@@ -112,22 +107,11 @@ fn bind_set_expr(opts: &BindOpts, expr: ast::SetExpr) -> Result<ast::SetExpr> {
 
 fn bind_select(opts: &BindOpts, select: ast::Select) -> Result<ast::Select> {
     Ok(ast::Select {
-        distinct: select.distinct,
-        top: select.top,
-        projection: select.projection,
-        into: select.into,
-        from: select.from,
-        lateral_views: select.lateral_views,
         selection: match select.selection {
             Some(selection) => Some(bind_expr(opts, selection)?),
             None => None,
         },
-        group_by: select.group_by,
-        cluster_by: select.cluster_by,
-        distribute_by: select.distribute_by,
-        sort_by: select.sort_by,
-        having: select.having,
-        qualify: select.qualify,
+        ..select
     })
 }
 
