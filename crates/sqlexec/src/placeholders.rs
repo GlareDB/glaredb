@@ -1,7 +1,7 @@
 use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self};
-use pgrepr::value::{Value, Format};
 use pgrepr::types::Type;
+use pgrepr::value::{Format, Value};
 use tracing::log::debug;
 
 // TODO: we can avoid usage of Vec here
@@ -43,7 +43,6 @@ impl BindOpts {
         let value = Value::decode(format, ty, buf)?;
         Ok((value, ty))
     }
-
 }
 
 /// Replace placeholders in the given SQL statement with the given values.
@@ -56,10 +55,25 @@ pub(crate) fn bind_placeholders(
 ) -> Result<ast::Statement> {
     // TODO: Replace placeholders with actual values
     debug!("bind placeholders");
-    let opts = BindOpts::new(param_formats.to_vec(), param_data.to_vec(), param_types.to_vec())?;
+    let opts = BindOpts::new(
+        param_formats.to_vec(),
+        param_data.to_vec(),
+        param_types.to_vec(),
+    )?;
 
     match statement {
-        ast::Statement::Insert { or, into, table_name, columns, overwrite, source, partitioned, after_columns, table, on } => {
+        ast::Statement::Insert {
+            or,
+            into,
+            table_name,
+            columns,
+            overwrite,
+            source,
+            partitioned,
+            after_columns,
+            table,
+            on,
+        } => {
             let source = bind_query(&opts, *source)?;
             Ok(ast::Statement::Insert {
                 or,
@@ -86,11 +100,16 @@ fn bind_query(opts: &BindOpts, query: ast::Query) -> Result<ast::Query> {
 }
 
 fn bind_values(opts: &BindOpts, values: ast::Values) -> Result<ast::Values> {
-    values.0.iter().map(|row| {
-        row.iter().map(|expr| {
-            bind_expr(opts, expr.clone())
-        }).collect::<Result<Vec<_>>>()
-    }).collect::<Result<Vec<_>>>().map(ast::Values)
+    values
+        .0
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|expr| bind_expr(opts, expr.clone()))
+                .collect::<Result<Vec<_>>>()
+        })
+        .collect::<Result<Vec<_>>>()
+        .map(ast::Values)
 }
 
 fn bind_set_expr(opts: &BindOpts, expr: ast::SetExpr) -> Result<ast::SetExpr> {
@@ -98,9 +117,7 @@ fn bind_set_expr(opts: &BindOpts, expr: ast::SetExpr) -> Result<ast::SetExpr> {
         ast::SetExpr::Select(select) => {
             Ok(ast::SetExpr::Select(Box::new(bind_select(opts, *select)?)))
         }
-        ast::SetExpr::Values(values) => {
-            Ok(ast::SetExpr::Values(bind_values(opts, values)?))
-        }
+        ast::SetExpr::Values(values) => Ok(ast::SetExpr::Values(bind_values(opts, values)?)),
         other => Ok(other),
     }
 }

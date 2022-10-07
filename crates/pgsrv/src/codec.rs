@@ -294,7 +294,6 @@ impl Encoder<BackendMessage> for PgCodec {
                     dst.put_i32(desc);
                 }
             }
-
         }
 
         let msg_len = dst.len() - len_idx;

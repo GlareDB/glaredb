@@ -316,7 +316,14 @@ where
             param_formats
         };
 
-        trace!(?portal_name, ?statement_name, ?param_formats, ?param_values, ?result_formats, "received bind");
+        trace!(
+            ?portal_name,
+            ?statement_name,
+            ?param_formats,
+            ?param_values,
+            ?result_formats,
+            "received bind"
+        );
 
         let session = &mut self.session;
         let conn = &mut self.conn;
@@ -351,11 +358,11 @@ where
                     // If the statement will not return rows, then a NoData message is returned.
                     conn.send(BackendMessage::ParameterDescription(
                         statement.param_types.clone(),
-                    )).await?;
+                    ))
+                    .await?;
 
                     // TODO: return RowDescription if query will return rows
                     conn.send(BackendMessage::NoData).await?;
-                    
                 }
                 None => {
                     self.conn
@@ -374,31 +381,29 @@ where
                 // that will be returned. If the portal contains a query that returns no rows, then
                 // a NoData message is returned instead.
                 match session.get_portal(&name) {
-                    Some(portal) => {
-                        match &portal.plan {
-                            LogicalPlan::Ddl(_) => {
-                                self.conn.send(BackendMessage::NoData).await?;
-                            }
-                            LogicalPlan::Write(_) => {
-                                todo!("return portal describe response for Write");
-                            }
-                            LogicalPlan::Query(df_plan) => {
-                                let schema = df_plan.schema();
-                                let fields: Vec<_> = schema
-                                    .fields()
-                                    .iter()
-                                    .map(|field| FieldDescription::new_named(field.name()))
-                                    .collect();
-                                conn.send(BackendMessage::RowDescription(fields)).await?;
-                            }
-                            LogicalPlan::Transaction(_) => {
-                                todo!("return portal describe response for Transaction");
-                            }
-                            LogicalPlan::Runtime => {
-                                todo!("return portal describe response for Runtime");
-                            }
+                    Some(portal) => match &portal.plan {
+                        LogicalPlan::Ddl(_) => {
+                            self.conn.send(BackendMessage::NoData).await?;
                         }
-                    }
+                        LogicalPlan::Write(_) => {
+                            todo!("return portal describe response for Write");
+                        }
+                        LogicalPlan::Query(df_plan) => {
+                            let schema = df_plan.schema();
+                            let fields: Vec<_> = schema
+                                .fields()
+                                .iter()
+                                .map(|field| FieldDescription::new_named(field.name()))
+                                .collect();
+                            conn.send(BackendMessage::RowDescription(fields)).await?;
+                        }
+                        LogicalPlan::Transaction(_) => {
+                            todo!("return portal describe response for Transaction");
+                        }
+                        LogicalPlan::Runtime => {
+                            todo!("return portal describe response for Runtime");
+                        }
+                    },
                     None => {
                         self.conn
                             .send(
