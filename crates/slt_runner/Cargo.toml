@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 glaredb = {path = "../glaredb"}
-lemur = {path = "../lemur"}
 tokio = { version = "1", features = ["full"] }
 sqllogictest = "0.6.2"
 tokio-postgres = "0.7.7"
