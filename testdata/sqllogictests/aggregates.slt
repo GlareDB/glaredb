@@ -1,6 +1,9 @@
 # Aggregate queries.
 
 # Built ins
+#
+# Built-in aggregates should match the behavior of Postgres.
+# See: https://www.postgresql.org/docs/8.2/functions-aggregate.html
 
 statement ok
 create table t_aggs (a smallint, b real, c text);
@@ -21,22 +24,20 @@ select count(a) from t_aggs;
 ----
 4
 
-# SKIP: count(*) not planned appropriately.
-# query I
-# select count(*) from t_aggs;
-# ----
-# 3
+query I
+select count(*) from t_aggs;
+----
+4
 
 query IR
 select sum(a), sum(b) from t_aggs;
 ----
 10 10
 
-# SKIP: Avg not implemented.
-# query IR
-# select avg(a), avg(b) from t_aggs;
-# ----
-# 2 2
+query RR
+select avg(a), avg(b) from t_aggs;
+----
+2.5 2.5
 
 query IRT
 select min(a), min(b), min(c) from t_aggs;
