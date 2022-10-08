@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 logutil = {path = "../logutil"}
-lemur = {path = "../lemur"}
 ioutil = {path = "../ioutil"}
 sqlexec = {path = "../sqlexec"}
 bytesutil = {path = "../bytesutil"}

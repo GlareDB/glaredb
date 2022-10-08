@@ -9,7 +9,6 @@ build = "build_proto.rs"
 [dependencies]
 logutil = {path = "../logutil"}
 storageengine = {path = "../storageengine"}
-sqlengine = {path = "../sqlengine"}
 maplit = "1.0"
 tonic = { version = "0.8.0", features = ["transport", "codegen"] }
 prost = "0.11.0"
