@@ -1989,7 +1989,6 @@ dependencies = [
 name = "pgsrv"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "bytes",
  "bytesutil",
@@ -2231,7 +2230,6 @@ dependencies = [
 name = "raft"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "bincode",
  "clap",
