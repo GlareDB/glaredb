@@ -1,5 +1,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum PersistenceError {
+    #[error("channel disconnected")]
+    Disconnected,
+
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 
