@@ -17,6 +17,8 @@ pub mod partition;
 pub mod table;
 
 mod deltacache;
+mod deltaexec;
 mod format;
 mod keys;
 mod memcache;
+mod partitionexec;
