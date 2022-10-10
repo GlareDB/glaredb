@@ -1,4 +1,5 @@
 //! Various cache key types.
+use std::fmt;
 
 // TODO: Schema id?
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -23,8 +24,28 @@ pub struct BatchKey {
     pub batch: u32,
 }
 
+impl fmt::Display for BatchKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "BatchKey: table={}, partition={}, batch={}",
+            self.table_id, self.part_id, self.batch
+        )
+    }
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PartitionKey {
     pub table_id: u32,
     pub part_id: u32,
+}
+
+impl fmt::Display for PartitionKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "PartitionKey: table={}, partition={}",
+            self.table_id, self.part_id
+        )
+    }
 }
