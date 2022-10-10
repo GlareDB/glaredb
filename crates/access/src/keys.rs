@@ -49,3 +49,14 @@ impl fmt::Display for PartitionKey {
         )
     }
 }
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TableKey {
+    pub table_id: u32,
+}
+
+impl fmt::Display for TableKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TableKey: table={}", self.table_id,)
+    }
+}
