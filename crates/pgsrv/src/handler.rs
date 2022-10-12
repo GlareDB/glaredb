@@ -26,6 +26,36 @@ use tracing::{trace, warn};
 /// Some parameters  will eventually be provided at runtime.
 const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "0.0.0")];
 
+/// A PostgresHandler handles a single connection to a Postgres client.
+#[async_trait]
+pub trait PostgresHandler<C>
+where
+    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
+{
+    async fn handle_startup(&self, mut conn: C, params: HashMap<String, String>) -> Result<()>;
+    async fn handle_ssl_request(&self, mut conn: C) -> Result<()>;
+    async fn handle_cancel_request(&self, mut conn: C) -> Result<()>;
+
+    async fn handle_connection(&self, mut conn: C) -> Result<()> {
+        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+        trace!(?startup, "received startup message");
+
+        match startup {
+            StartupMessage::StartupRequest { params, .. } => {
+                self.handle_startup(conn, params).await?;
+            }
+            StartupMessage::SSLRequest { .. } => {
+                self.handle_ssl_request(conn).await?;
+            }
+            StartupMessage::CancelRequest { .. } => {
+                self.handle_cancel_request(conn).await?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// A wrapper around a sqlengine that implements the Postgres frontend/backend
 /// protocol.
 pub struct Handler {
@@ -470,36 +500,6 @@ impl ProxyHandler {
 }
 
 #[async_trait]
-pub trait PostgresHandler<C>
-where
-    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
-{
-    async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()>;
-    async fn handle_ssl_request(&self, conn: C) -> Result<()>;
-    async fn handle_cancel_request(&self, conn: C) -> Result<()>;
-
-    // async fn handle_connection(&self, mut conn: C) -> Result<()>;
-    async fn handle_connection(&self, mut conn: C) -> Result<()> {
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        trace!(?startup, "received startup message");
-
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.handle_startup(conn, params).await?;
-            }
-            StartupMessage::SSLRequest { .. } => {
-                self.handle_ssl_request(conn).await?;
-            }
-            StartupMessage::CancelRequest { .. } => {
-                self.handle_cancel_request(conn).await?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[async_trait]
 impl<C> PostgresHandler<C> for Handler
 where
     for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
@@ -508,8 +508,22 @@ where
         self.begin(conn, params).await
     }
 
-    async fn handle_ssl_request(&self, conn: C) -> Result<()> {
-        todo!("Handler::handle_ssl_request");
+    async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
+        // 'N' for not supported, 'S' for supported.
+        //
+        // No SSL support for now, send back not supported and try
+        // reading in a new startup message.
+        conn.write_u8(b'N').await?;
+
+        // Frontend should continue on with an unencrypted connection
+        // (or exit).
+        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+        match startup {
+            StartupMessage::StartupRequest { params, .. } => {
+                self.handle_startup(conn, params).await
+            }
+            other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
+        }
     }
 
     async fn handle_cancel_request(&self, conn: C) -> Result<()> {
@@ -542,11 +556,30 @@ where
     for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
 {
     async fn handle_startup(&self, mut conn: C, params: HashMap<String, String>) -> Result<()> {
+        dbg!(&params);
+
+        let mut framed = FramedConn::new(conn);
+        framed
+            .send(BackendMessage::AuthenticationCleartextPassword)
+            .await?;
+        let msg = framed.read().await?;
+        match msg {
+            Some(FrontendMessage::PasswordMessage { password }) => {
+                trace!(%password, "received password");
+                // TODO: Check username, password, database against glaredb cloud api
+                framed.send(BackendMessage::AuthenticationOk).await?;
+            }
+            Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.
+            None => return Ok(()),
+        }
+
+        // TODO: open a connection to database using the address given from the cloud api
+        // Go through the same authentication process as above but as the client
+        // After that, we can start proxying messages between the client and the database
         todo!("ProxyHandler::handle_startup");
     }
 
     async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
-        todo!("ProxyHandler::handle_ssl_request");
         // 'N' for not supported, 'S' for supported.
         //
         // No SSL support for now, send back not supported and try
