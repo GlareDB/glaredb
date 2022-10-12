@@ -90,7 +90,7 @@ impl TableProvider for DeltaTable {
             trace!(plan = %displayable.indent(), "table scan execution plan");
         }
 
-        // let plan = SingleOpaqueTraceExec::new(Arc::new(plan));
+        let plan = SingleOpaqueTraceExec::new(Arc::new(plan));
 
         Ok(Arc::new(plan))
     }

@@ -108,8 +108,7 @@ impl Stream for TraceStream {
     type Item = ArrowResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        trace!("poll next");
-        match ready!(self.poll_next_unpin(cx)) {
+        match ready!(self.stream.poll_next_unpin(cx)) {
             Some(result) => {
                 trace!(?result, "execution result");
                 Poll::Ready(Some(result))
