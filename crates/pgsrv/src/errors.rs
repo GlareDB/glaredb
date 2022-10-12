@@ -20,9 +20,6 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
-    #[error("unexpected describe object type: {0}")]
-    UnexpectedDescribeObjectType(u8),
-
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
     /// with the Postgres message format documentation.

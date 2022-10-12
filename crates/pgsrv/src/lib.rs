@@ -3,5 +3,4 @@
 mod codec;
 pub mod errors;
 pub mod handler;
-mod messages;
 pub mod proxy;

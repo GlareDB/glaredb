@@ -25,7 +25,6 @@ impl Proxy {
                 PostgresProxy::new(inbound, db_stream)
             })?;
 
-
             tokio::spawn(proxy.into_future());
         }
 

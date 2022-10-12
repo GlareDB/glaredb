@@ -1,13 +1,13 @@
 use crate::errors::{PgSrvError, Result};
-use crate::messages::{
-    BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
-    VERSION_SSL, VERSION_V3,
-};
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use datafusion::scalar::ScalarValue;
 use futures::{SinkExt, TryStreamExt};
 use ioutil::write::InfallibleWrite;
+use pgrepr::messages::{
+    BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
+    VERSION_SSL, VERSION_V3,
+};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};

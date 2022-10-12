@@ -2884,6 +2884,7 @@ name = "pgrepr"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "datafusion",
  "lexical",
  "lexical-core",
  "postgres-types",
