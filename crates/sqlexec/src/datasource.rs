@@ -2,11 +2,12 @@ use crate::errors::Result;
 use access::deltacache::DeltaCache;
 use access::deltaexec::DeltaMergeExec;
 use access::keys::{PartitionKey, TableId};
+use access::traceexec::SingleOpaqueTraceExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
-use datafusion::error::Result as DatafusionResult;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
@@ -75,19 +76,22 @@ impl TableProvider for DeltaTable {
             part_id: 0,
         };
         let empty = EmptyExec::new(false, self.schema.clone()); // TODO: Base partition scan.
-        let exec = DeltaMergeExec::new(
+        let plan = DeltaMergeExec::new(
             key,
             self.schema.clone(),
             self.cache.clone(),
             projection.clone(),
             Arc::new(empty),
-        );
+        )
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         {
-            let displayable = DisplayableExecutionPlan::new(&exec);
+            let displayable = DisplayableExecutionPlan::new(&plan);
             trace!(plan = %displayable.indent(), "table scan execution plan");
         }
 
-        Ok(Arc::new(exec))
+        // let plan = SingleOpaqueTraceExec::new(Arc::new(plan));
+
+        Ok(Arc::new(plan))
     }
 }

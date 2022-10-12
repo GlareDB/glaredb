@@ -25,6 +25,7 @@ use std::task::{Context, Poll};
 #[derive(Debug)]
 pub struct DeltaMergeExec {
     partition: PartitionKey,
+    /// The projected schema.
     schema: SchemaRef,
     deltas: Arc<DeltaCache>,
     projection: Option<Vec<usize>>,
@@ -38,14 +39,18 @@ impl DeltaMergeExec {
         cache: Arc<DeltaCache>,
         projection: Option<Vec<usize>>,
         child: Arc<dyn ExecutionPlan>,
-    ) -> Self {
-        DeltaMergeExec {
+    ) -> Result<Self> {
+        let schema = match &projection {
+            Some(projection) => Arc::new(schema.project(projection)?),
+            None => schema,
+        };
+        Ok(DeltaMergeExec {
             partition,
             schema,
             deltas: cache,
             projection,
             child,
-        }
+        })
     }
 }
 
@@ -106,7 +111,11 @@ impl ExecutionPlan for DeltaMergeExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "DeltaMergeExec: part={}", self.partition)
+        write!(
+            f,
+            "DeltaMergeExec: part={}, projection={:?}",
+            self.partition, self.projection
+        )
     }
 
     fn statistics(&self) -> Statistics {
@@ -202,7 +211,13 @@ impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
                 }
                 StreamState::RemainderStream { stream } => match ready!(stream.poll_next_unpin(cx))
                 {
-                    Some(Ok(batch)) => return Poll::Ready(Some(Ok(batch))),
+                    Some(Ok(batch)) => match &self.projection {
+                        Some(projection) => {
+                            let result = batch.project(projection);
+                            return Poll::Ready(Some(result));
+                        }
+                        None => return Poll::Ready(Some(Ok(batch))),
+                    },
                     Some(Err(e)) => {
                         self.state = StreamState::Error;
                         return Poll::Ready(Some(Err(e.into())));
