@@ -75,7 +75,6 @@ enum Commands {
     },
 }
 
-
 #[derive(Subcommand)]
 enum ClientCommands {
     Init,
