@@ -40,6 +40,7 @@ impl DeltaTable {
             table_id: self.table_id,
             part_id: 0, // TODO: Need another layer of indirection.
         };
+        let batch = cast_record_batch(batch, self.schema.clone())?;
         self.cache.insert_batch(&key, batch);
         Ok(())
     }
