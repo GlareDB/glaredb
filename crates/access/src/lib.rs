@@ -12,5 +12,8 @@
 //!   table".
 //! - **Delta**: A change to some partition.
 #![allow(dead_code)]
+pub mod deltacache;
+pub mod deltaexec;
 pub mod errors;
+pub mod keys;
 pub mod partitionexec;

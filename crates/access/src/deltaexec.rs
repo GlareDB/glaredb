@@ -1,0 +1,218 @@
+use crate::deltacache::DeltaCache;
+use crate::errors::Result;
+use crate::keys::PartitionKey;
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::error::Result as ArrowResult;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::TaskContext;
+use datafusion::physical_plan::{
+    display::DisplayFormatType, expressions::PhysicalSortExpr, ExecutionPlan, Partitioning,
+    RecordBatchStream, SendableRecordBatchStream, Statistics,
+};
+use futures::{
+    future::{BoxFuture, FutureExt},
+    ready,
+    stream::StreamExt,
+    Stream,
+};
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+#[derive(Debug)]
+pub struct DeltaMergeExec {
+    partition: PartitionKey,
+    schema: SchemaRef,
+    deltas: Arc<DeltaCache>,
+    child: Arc<dyn ExecutionPlan>,
+}
+
+impl DeltaMergeExec {
+    pub fn new(
+        partition: PartitionKey,
+        schema: SchemaRef,
+        cache: Arc<DeltaCache>,
+        child: Arc<dyn ExecutionPlan>,
+    ) -> Self {
+        DeltaMergeExec {
+            partition,
+            schema,
+            deltas: cache,
+            child,
+        }
+    }
+}
+
+impl ExecutionPlan for DeltaMergeExec {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn relies_on_input_order(&self) -> bool {
+        false
+    }
+
+    fn maintains_input_order(&self) -> bool {
+        false
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        // NOTE: No children are returned here to prevent datafusion's optimizer
+        // from trying to replace children.
+        Vec::new()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        Err(DataFusionError::Execution(
+            "cannot replace children for DeltaMergeExec".to_string(),
+        ))
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> DatafusionResult<SendableRecordBatchStream> {
+        let stream = self.child.execute(partition, context)?;
+        Ok(Box::pin(DeltaMergeStream {
+            schema: self.schema.clone(),
+            partition: self.partition.clone(),
+            opener: self.deltas.clone(),
+            stream,
+            state: StreamState::Idle,
+        }))
+    }
+
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "DeltaMergeExec: part={}", self.partition)
+    }
+
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+pub trait BatchModifierOpener<M: BatchModifier>: Unpin {
+    fn open_modifier(
+        &self,
+        partition: &PartitionKey,
+        schema: &SchemaRef,
+    ) -> Result<BoxFuture<'static, M>>;
+}
+
+pub trait BatchModifier: Unpin {
+    /// Given a record batch, make an necessary modifications to it.
+    fn modify(&self, batch: RecordBatch) -> Result<RecordBatch>;
+    /// Return a stream for any remaining batches we need to send.
+    fn stream_rest(&self) -> SendableRecordBatchStream;
+}
+
+enum StreamState<M> {
+    Idle,
+    /// Open the modifier that will be modifying the stream.
+    Open {
+        fut: BoxFuture<'static, M>,
+    },
+    /// Read from the stream, modifying it as we go along.
+    ReadStream {
+        modifier: M,
+    },
+    /// Return the remainder from the delta.
+    RemainderStream {
+        stream: SendableRecordBatchStream,
+    },
+    Done,
+    Error,
+}
+
+pub struct DeltaMergeStream<M, O> {
+    schema: SchemaRef,
+    partition: PartitionKey,
+    opener: O,
+    stream: SendableRecordBatchStream,
+    state: StreamState<M>,
+}
+
+impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
+    fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<ArrowResult<RecordBatch>>> {
+        loop {
+            match &mut self.state {
+                StreamState::Idle => match self.opener.open_modifier(&self.partition, &self.schema)
+                {
+                    Ok(fut) => self.state = StreamState::Open { fut },
+                    Err(e) => {
+                        self.state = StreamState::Error;
+                        return Poll::Ready(Some(Err(e.into())));
+                    }
+                },
+                StreamState::Open { fut } => {
+                    let modifier = ready!(fut.poll_unpin(cx));
+                    self.state = StreamState::ReadStream { modifier };
+                }
+                StreamState::ReadStream { modifier } => {
+                    match ready!(self.stream.poll_next_unpin(cx)) {
+                        Some(Ok(batch)) => {
+                            let result = modifier.modify(batch);
+                            return Poll::Ready(Some(result.map_err(|e| e.into())));
+                        }
+                        Some(Err(e)) => {
+                            self.state = StreamState::Error;
+                            return Poll::Ready(Some(Err(e.into())));
+                        }
+                        None => {
+                            // Child stream finished. Get whatever is left in
+                            // the delta.
+                            self.state = StreamState::RemainderStream {
+                                stream: modifier.stream_rest(),
+                            };
+                        }
+                    }
+                }
+                StreamState::RemainderStream { stream } => match ready!(stream.poll_next_unpin(cx))
+                {
+                    Some(Ok(batch)) => return Poll::Ready(Some(Ok(batch))),
+                    Some(Err(e)) => {
+                        self.state = StreamState::Error;
+                        return Poll::Ready(Some(Err(e.into())));
+                    }
+                    None => {
+                        self.state = StreamState::Done;
+                    }
+                },
+                StreamState::Done | StreamState::Error => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+impl<M: BatchModifier, O: BatchModifierOpener<M>> Stream for DeltaMergeStream<M, O> {
+    type Item = ArrowResult<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.poll_inner(cx)
+    }
+}
+
+impl<M: BatchModifier, O: BatchModifierOpener<M>> RecordBatchStream for DeltaMergeStream<M, O> {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+}
