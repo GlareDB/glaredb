@@ -1,4 +1,4 @@
-use crate::messages::{FrontendMessage, StartupMessage};
+use pgrepr::messages::{FrontendMessage, StartupMessage};
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -37,4 +37,7 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    PgRepr(#[from] pgrepr::error::Error),
 }

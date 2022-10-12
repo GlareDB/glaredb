@@ -1,29 +1,29 @@
 use crate::errors::Result;
-use std::future::IntoFuture;
 use futures::Future;
+use std::future::IntoFuture;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tracing::log::debug;
 
 use crate::errors::PgSrvError;
 
-pub struct Proxy {
+pub struct ConnectionProxy {
     client_stream: TcpStream,
     db_stream: TcpStream,
 }
 
-impl Proxy {
+impl ConnectionProxy {
     pub fn new(client_stream: TcpStream, db_stream: TcpStream) -> Self {
         debug!("new proxy");
 
-        Proxy {
+        Self {
             client_stream,
             db_stream,
         }
     }
 }
 
-impl IntoFuture for Proxy {
+impl IntoFuture for ConnectionProxy {
     type Output = Result<(), PgSrvError>;
     type IntoFuture = impl Future<Output = Self::Output>;
 
