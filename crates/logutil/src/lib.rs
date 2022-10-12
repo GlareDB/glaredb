@@ -48,6 +48,8 @@ pub fn init(verbosity: impl Into<Verbosity>) {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(level)
         .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_line_number(true)
         .finish();
     subscriber::set_global_default(subscriber).unwrap();
     info!(%level, "log level set");
