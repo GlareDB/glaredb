@@ -10,11 +10,14 @@ use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
-use datafusion::physical_plan::{empty::EmptyExec, memory::MemoryExec, ExecutionPlan};
+use datafusion::physical_plan::{
+    display::DisplayableExecutionPlan, empty::EmptyExec, memory::MemoryExec, ExecutionPlan,
+};
 use dfutil::cast::cast_record_batch;
 use parking_lot::RwLock;
 use std::any::Any;
 use std::sync::Arc;
+use tracing::trace;
 
 /// An implementation of a table provider using our delta cache.
 ///
@@ -63,7 +66,7 @@ impl TableProvider for DeltaTable {
     async fn scan(
         &self,
         _ctx: &SessionState,
-        _projection: &Option<Vec<usize>>,
+        projection: &Option<Vec<usize>>,
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
@@ -76,8 +79,15 @@ impl TableProvider for DeltaTable {
             key,
             self.schema.clone(),
             self.cache.clone(),
+            projection.clone(),
             Arc::new(empty),
         );
+
+        {
+            let displayable = DisplayableExecutionPlan::new(&exec);
+            trace!(plan = %displayable.indent(), "table scan execution plan");
+        }
+
         Ok(Arc::new(exec))
     }
 }

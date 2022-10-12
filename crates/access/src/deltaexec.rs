@@ -27,6 +27,7 @@ pub struct DeltaMergeExec {
     partition: PartitionKey,
     schema: SchemaRef,
     deltas: Arc<DeltaCache>,
+    projection: Option<Vec<usize>>,
     child: Arc<dyn ExecutionPlan>,
 }
 
@@ -35,12 +36,14 @@ impl DeltaMergeExec {
         partition: PartitionKey,
         schema: SchemaRef,
         cache: Arc<DeltaCache>,
+        projection: Option<Vec<usize>>,
         child: Arc<dyn ExecutionPlan>,
     ) -> Self {
         DeltaMergeExec {
             partition,
             schema,
             deltas: cache,
+            projection,
             child,
         }
     }
@@ -97,6 +100,7 @@ impl ExecutionPlan for DeltaMergeExec {
             partition: self.partition.clone(),
             opener: self.deltas.clone(),
             stream,
+            projection: self.projection.clone(),
             state: StreamState::Idle,
         }))
     }
@@ -120,6 +124,9 @@ pub trait BatchModifierOpener<M: BatchModifier>: Unpin {
 
 pub trait BatchModifier: Unpin {
     /// Given a record batch, make an necessary modifications to it.
+    ///
+    /// Record batches will not have projections applied. Projections will be
+    /// applied on the returned record batch.
     fn modify(&self, batch: RecordBatch) -> Result<RecordBatch>;
     /// Return a stream for any remaining batches we need to send.
     fn stream_rest(&self) -> SendableRecordBatchStream;
@@ -148,6 +155,7 @@ pub struct DeltaMergeStream<M, O> {
     partition: PartitionKey,
     opener: O,
     stream: SendableRecordBatchStream,
+    projection: Option<Vec<usize>>,
     state: StreamState<M>,
 }
 
@@ -170,8 +178,14 @@ impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
                 StreamState::ReadStream { modifier } => {
                     match ready!(self.stream.poll_next_unpin(cx)) {
                         Some(Ok(batch)) => {
-                            let result = modifier.modify(batch);
-                            return Poll::Ready(Some(result.map_err(|e| e.into())));
+                            // Get out modified batch, converting to an arrow
+                            // error as necessary.
+                            let mut result = modifier.modify(batch).map_err(|e| e.into());
+                            // Apply optional projection.
+                            if let Some(projection) = &self.projection {
+                                result = result.and_then(|batch| batch.project(projection));
+                            }
+                            return Poll::Ready(Some(result));
                         }
                         Some(Err(e)) => {
                             self.state = StreamState::Error;
