@@ -36,3 +36,9 @@ impl AccessRuntime {
         &self.inner.conf
     }
 }
+
+impl Default for AccessRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -1,12 +1,9 @@
 use crate::deltaexec::{BatchModifier, BatchModifierOpener};
-use crate::errors::{internal, Result};
+use crate::errors::Result;
 use crate::keys::PartitionKey;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::{
-    memory::MemoryStream, RecordBatchStream, SendableRecordBatchStream,
-};
+use datafusion::physical_plan::{memory::MemoryStream, SendableRecordBatchStream};
 use futures::future::BoxFuture;
 use scc::HashMap;
 use std::sync::Arc;
@@ -54,6 +51,12 @@ impl BatchModifierOpener<PartitionDeltas> for Arc<DeltaCache> {
     }
 }
 
+impl Default for DeltaCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Deltas for a particular partition.
 #[derive(Debug)]
 pub struct PartitionDeltas {
@@ -63,7 +66,7 @@ pub struct PartitionDeltas {
 
 impl BatchModifier for PartitionDeltas {
     fn modify(&self, batch: RecordBatch) -> Result<RecordBatch> {
-        Ok(batch)
+        Ok(batch) // No modifications to make yet.
     }
 
     fn stream_rest(&self) -> SendableRecordBatchStream {

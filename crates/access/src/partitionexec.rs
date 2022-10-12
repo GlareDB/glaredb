@@ -5,8 +5,8 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_plan::{
-    display::DisplayFormatType, expressions::PhysicalSortExpr, Distribution, ExecutionPlan,
-    Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+    display::DisplayFormatType, expressions::PhysicalSortExpr, ExecutionPlan, Partitioning,
+    RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use futures::{
     future::{BoxFuture, FutureExt},
@@ -15,7 +15,6 @@ use futures::{
     Stream,
 };
 use object_store::{path::Path as ObjectPath, ObjectStore};
-use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
@@ -67,8 +66,8 @@ impl ExecutionPlan for PartitionExec {
 
     fn execute(
         &self,
-        partition: usize,
-        context: Arc<TaskContext>,
+        _partition: usize,
+        _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         unimplemented!()
     }
@@ -99,8 +98,8 @@ struct ParquetPartitionOpener {
 }
 
 impl PartitionStreamOpener for ParquetPartitionOpener {
-    fn open(&self, meta: &PartitionMeta) -> Result<PartitionOpenFuture> {
-        let read_opts = ArrowReaderOptions::new().with_page_index(true);
+    fn open(&self, _meta: &PartitionMeta) -> Result<PartitionOpenFuture> {
+        // let read_opts = ArrowReaderOptions::new().with_page_index(true);
 
         Ok(Box::pin(async move {
             //

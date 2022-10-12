@@ -2,7 +2,6 @@ use crate::errors::Result;
 use access::deltacache::DeltaCache;
 use access::deltaexec::DeltaMergeExec;
 use access::keys::{PartitionKey, TableId};
-use access::traceexec::SingleOpaqueTraceExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -12,10 +11,9 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
 use datafusion::physical_plan::{
-    display::DisplayableExecutionPlan, empty::EmptyExec, memory::MemoryExec, ExecutionPlan,
+    display::DisplayableExecutionPlan, empty::EmptyExec, ExecutionPlan,
 };
 use dfutil::cast::cast_record_batch;
-use parking_lot::RwLock;
 use std::any::Any;
 use std::sync::Arc;
 use tracing::trace;
@@ -23,6 +21,8 @@ use tracing::trace;
 /// An implementation of a table provider using our delta cache.
 ///
 /// NOTE: This currently has a one-to-one mapping between table and partition.
+/// There will be an additional layer between `DeltaMergeExec` and this to
+/// combine access to multiple partitions for a table.
 #[derive(Debug, Clone)]
 pub struct DeltaTable {
     table_id: TableId,

@@ -1,21 +1,13 @@
-use crate::errors::Result;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_plan::{
-    display::DisplayFormatType, expressions::PhysicalSortExpr, Distribution, ExecutionPlan,
-    Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+    display::DisplayFormatType, expressions::PhysicalSortExpr, ExecutionPlan, Partitioning,
+    RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
-use futures::{
-    future::{BoxFuture, FutureExt},
-    ready,
-    stream::{BoxStream, StreamExt},
-    Stream,
-};
-use object_store::{path::Path as ObjectPath, ObjectStore};
-use parquet::arrow::arrow_reader::ArrowReaderOptions;
+use futures::{ready, stream::StreamExt, Stream};
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;

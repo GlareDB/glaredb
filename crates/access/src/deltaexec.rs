@@ -22,6 +22,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+/// Provides an execution stream that modifies some child stream with data
+/// provided in the delta cache.
+// TODO: Provide optional limit as well.
 #[derive(Debug)]
 pub struct DeltaMergeExec {
     partition: PartitionKey,
@@ -124,6 +127,9 @@ impl ExecutionPlan for DeltaMergeExec {
 }
 
 pub trait BatchModifierOpener<M: BatchModifier>: Unpin {
+    /// Opens a `BatchModifier`.
+    ///
+    /// This will be useful if/when we need to read deltas from disk.
     fn open_modifier(
         &self,
         partition: &PartitionKey,
@@ -131,13 +137,18 @@ pub trait BatchModifierOpener<M: BatchModifier>: Unpin {
     ) -> Result<BoxFuture<'static, M>>;
 }
 
+/// Describes how we modify a stream.
 pub trait BatchModifier: Unpin {
     /// Given a record batch, make an necessary modifications to it.
     ///
     /// Record batches will not have projections applied. Projections will be
     /// applied on the returned record batch.
     fn modify(&self, batch: RecordBatch) -> Result<RecordBatch>;
+
     /// Return a stream for any remaining batches we need to send.
+    ///
+    /// Useful for returning data that has not yet been flushed to the
+    /// underlying partition store.
     fn stream_rest(&self) -> SendableRecordBatchStream;
 }
 
@@ -155,16 +166,25 @@ enum StreamState<M> {
     RemainderStream {
         stream: SendableRecordBatchStream,
     },
+    /// Done scanning.
     Done,
+    /// We encountered an error.
     Error,
 }
 
 pub struct DeltaMergeStream<M, O> {
+    /// The projected schema.
     schema: SchemaRef,
+    /// Partition that we're working on.
     partition: PartitionKey,
+    /// The batch modifier opener.
     opener: O,
+    /// The child execution stream.
     stream: SendableRecordBatchStream,
+    /// An optional projection on batches returned from the child and delta
+    /// streams.
     projection: Option<Vec<usize>>,
+    /// The current state of the future.
     state: StreamState<M>,
 }
 
@@ -198,7 +218,7 @@ impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
                         }
                         Some(Err(e)) => {
                             self.state = StreamState::Error;
-                            return Poll::Ready(Some(Err(e.into())));
+                            return Poll::Ready(Some(Err(e)));
                         }
                         None => {
                             // Child stream finished. Get whatever is left in
@@ -220,7 +240,7 @@ impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
                     },
                     Some(Err(e)) => {
                         self.state = StreamState::Error;
-                        return Poll::Ready(Some(Err(e.into())));
+                        return Poll::Ready(Some(Err(e)));
                     }
                     None => {
                         self.state = StreamState::Done;
