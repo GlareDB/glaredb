@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use crate::parquet::ParquetOpener;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -14,7 +15,7 @@ use futures::{
     stream::{BoxStream, StreamExt},
     Stream,
 };
-use object_store::{path::Path as ObjectPath, ObjectStore};
+use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
@@ -23,7 +24,10 @@ use std::task::{Context, Poll};
 
 #[derive(Debug)]
 pub struct PartitionExec {
+    store: Arc<dyn ObjectStore>,
     schema: SchemaRef,
+    /// Metadata about the file in object storage.
+    meta: ObjectMeta,
 }
 
 impl ExecutionPlan for PartitionExec {
@@ -69,7 +73,19 @@ impl ExecutionPlan for PartitionExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        unimplemented!()
+        let opener = ParquetOpener {
+            store: self.store.clone(),
+            meta: self.meta.clone(),
+            meta_size_hint: None,
+        };
+
+        let stream = PartitionStream {
+            schema: self.schema.clone(),
+            opener,
+            state: StreamState::Idle,
+        };
+
+        Ok(Box::pin(stream))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
@@ -81,16 +97,11 @@ impl ExecutionPlan for PartitionExec {
     }
 }
 
-#[derive(Debug)]
-pub struct PartitionMeta {
-    pub location: ObjectPath,
-}
-
 pub type PartitionOpenFuture =
     BoxFuture<'static, Result<BoxStream<'static, ArrowResult<RecordBatch>>>>;
 
 pub trait PartitionStreamOpener: Unpin {
-    fn open(&self, meta: &PartitionMeta) -> Result<PartitionOpenFuture>;
+    fn open(&self) -> Result<PartitionOpenFuture>;
 }
 
 enum StreamState {
@@ -104,13 +115,12 @@ enum StreamState {
     },
     /// Done scanning.
     Done,
-    /// Encountered and error.
+    /// Encountered an error.
     Error,
 }
 
 pub struct PartitionStream<P> {
     schema: SchemaRef,
-    meta: PartitionMeta,
     opener: P,
     state: StreamState,
 }
@@ -119,7 +129,7 @@ impl<P: PartitionStreamOpener> PartitionStream<P> {
     fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<ArrowResult<RecordBatch>>> {
         loop {
             match &mut self.state {
-                StreamState::Idle => match self.opener.open(&self.meta) {
+                StreamState::Idle => match self.opener.open() {
                     Ok(fut) => {
                         self.state = StreamState::Open { fut };
                     }

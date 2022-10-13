@@ -1,6 +1,5 @@
 //! Helpers for handling parquet files.
 use crate::errors::Result;
-use crate::partitionexec::PartitionMeta;
 use crate::partitionexec::{PartitionOpenFuture, PartitionStreamOpener};
 use bytes::Bytes;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
@@ -16,7 +15,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct ParquetObjectReader {
+struct ParquetObjectReader {
     store: Arc<dyn ObjectStore>,
     meta: ObjectMeta,
     meta_size_hint: Option<usize>,
@@ -54,15 +53,15 @@ impl AsyncFileReader for ParquetObjectReader {
 }
 
 pub struct ParquetOpener {
-    store: Arc<dyn ObjectStore>,
-    meta: ObjectMeta,
-    meta_size_hint: Option<usize>,
+    pub(crate) store: Arc<dyn ObjectStore>,
+    pub(crate) meta: ObjectMeta,
+    pub(crate) meta_size_hint: Option<usize>,
 }
 
 impl ParquetOpener {}
 
 impl PartitionStreamOpener for ParquetOpener {
-    fn open(&self, meta: &PartitionMeta) -> Result<PartitionOpenFuture> {
+    fn open(&self) -> Result<PartitionOpenFuture> {
         // TODO: Reduce cloning.
         let reader = ParquetObjectReader {
             store: self.store.clone(),
