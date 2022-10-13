@@ -93,21 +93,6 @@ pub trait PartitionStreamOpener: Unpin {
     fn open(&self, meta: &PartitionMeta) -> Result<PartitionOpenFuture>;
 }
 
-struct ParquetPartitionOpener {
-    store: Arc<dyn ObjectStore>,
-}
-
-impl PartitionStreamOpener for ParquetPartitionOpener {
-    fn open(&self, _meta: &PartitionMeta) -> Result<PartitionOpenFuture> {
-        // let read_opts = ArrowReaderOptions::new().with_page_index(true);
-
-        Ok(Box::pin(async move {
-            //
-            unimplemented!()
-        }))
-    }
-}
-
 enum StreamState {
     /// File is not currently being read.
     Idle,

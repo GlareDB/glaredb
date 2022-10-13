@@ -18,3 +18,5 @@ pub mod errors;
 pub mod keys;
 pub mod partitionexec;
 pub mod traceexec;
+
+mod parquet;
