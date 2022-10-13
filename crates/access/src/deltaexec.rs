@@ -190,6 +190,11 @@ pub struct DeltaMergeStream<M, O> {
 
 impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
     fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<ArrowResult<RecordBatch>>> {
+        // TODO: Read from delta before reading from child stream.
+        //
+        // 1. Read the inserts from the delta.
+        // 2. Read from the child stream, make modifications.
+
         loop {
             match &mut self.state {
                 StreamState::Idle => match self.opener.open_modifier(&self.partition, &self.schema)
