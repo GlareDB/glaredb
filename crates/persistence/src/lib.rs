@@ -3,3 +3,4 @@
 pub mod cache;
 pub mod errors;
 pub mod file;
+mod object_cache;
