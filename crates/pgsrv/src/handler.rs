@@ -5,7 +5,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
-    StartupMessage, TransactionStatus,
+    StartupMessage, TransactionStatus, VERSION_V3,
 };
 use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{
@@ -14,7 +14,9 @@ use sqlexec::{
     session::Session,
 };
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tracing::{trace, warn};
 
 /// Default parameters to send to the frontend on startup. Existing postgres
@@ -118,6 +120,58 @@ impl Handler {
         cs.run().await
     }
 }
+
+#[async_trait]
+impl<C> PostgresHandler<C> for Handler
+where
+    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
+{
+    async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
+        self.begin(conn, params).await
+    }
+
+    async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
+        // 'N' for not supported, 'S' for supported.
+        //
+        // No SSL support for now, send back not supported and try
+        // reading in a new startup message.
+        conn.write_u8(b'N').await?;
+
+        // Frontend should continue on with an unencrypted connection
+        // (or exit).
+        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+        match startup {
+            StartupMessage::StartupRequest { params, .. } => {
+                self.handle_startup(conn, params).await
+            }
+            other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
+        }
+    }
+
+    async fn handle_cancel_request(&self, conn: C) -> Result<()> {
+        todo!("Handler::handle_cancel_request");
+    }
+
+    async fn handle_connection(&self, mut conn: C) -> Result<()> {
+        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+        trace!(?startup, "received startup message");
+
+        match startup {
+            StartupMessage::StartupRequest { params, .. } => {
+                self.handle_startup(conn, params).await?;
+            }
+            StartupMessage::SSLRequest { .. } => {
+                self.handle_ssl_request(conn).await?;
+            }
+            StartupMessage::CancelRequest { .. } => {
+                self.handle_cancel_request(conn).await?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 
 struct ClientSession<C> {
     conn: FramedConn<C>,
@@ -491,62 +545,21 @@ where
     }
 }
 
-pub struct ProxyHandler {}
-
-impl ProxyHandler {
-    pub fn new() -> Self {
-        Self {}
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DatabaseDetails {
+    pub ip: String,
+    pub port: String,
 }
 
-#[async_trait]
-impl<C> PostgresHandler<C> for Handler
-where
-    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
-{
-    async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
-        self.begin(conn, params).await
-    }
+pub struct ProxyHandler {
+    api_url: String,
+}
 
-    async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
-        // 'N' for not supported, 'S' for supported.
-        //
-        // No SSL support for now, send back not supported and try
-        // reading in a new startup message.
-        conn.write_u8(b'N').await?;
-
-        // Frontend should continue on with an unencrypted connection
-        // (or exit).
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.handle_startup(conn, params).await
-            }
-            other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
+impl ProxyHandler {
+    pub fn new(api_url: String) -> Self {
+        Self {
+            api_url,
         }
-    }
-
-    async fn handle_cancel_request(&self, conn: C) -> Result<()> {
-        todo!("Handler::handle_cancel_request");
-    }
-
-    async fn handle_connection(&self, mut conn: C) -> Result<()> {
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        trace!(?startup, "received startup message");
-
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.handle_startup(conn, params).await?;
-            }
-            StartupMessage::SSLRequest { .. } => {
-                self.handle_ssl_request(conn).await?;
-            }
-            StartupMessage::CancelRequest { .. } => {
-                self.handle_cancel_request(conn).await?;
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -566,7 +579,24 @@ where
         match msg {
             Some(FrontendMessage::PasswordMessage { password }) => {
                 trace!(%password, "received password");
-                // TODO: Check username, password, database against glaredb cloud api
+
+                // Check username, password, database against glaredb cloud api
+                // TODO: error handling
+                // TODO: pass parameters to route
+                let db_details = reqwest::get(format!("{}/api/internal/databases/authenticate", &self.api_url))
+                    .await?
+                    .json::<DatabaseDetails>()
+                    .await?;
+
+                // At this point, open a connection to the database and initiate a startup message
+                // We need to send the same parameters as the client sent us
+                let db_addr = format!("{}:{}", db_details.ip, db_details.port);
+                let mut db_conn = TcpStream::connect(db_addr).await?;
+                let mut db_framed = FramedConn::new(db_conn);
+
+                let startup = StartupMessage::StartupRequest { version: VERSION_V3, params };
+                // TODO: handle sending messages to db
+
                 framed.send(BackendMessage::AuthenticationOk).await?;
             }
             Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.

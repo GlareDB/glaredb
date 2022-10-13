@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 lemur = {path = "../lemur"}
 ioutil = {path = "../ioutil"}
 sqlexec = {path = "../sqlexec"}
+serde = { version = "1.0", features = ["derive"] }
 bytesutil = {path = "../bytesutil"}
 pgrepr = {path = "../pgrepr"}
 anyhow = "1.0"
@@ -22,3 +23,4 @@ tokio-util = { version = "0.7.3", features = ["codec"] }
 bytes = "1.2.1"
 tokio = { version = "1", features = ["full"] }
 postgres-types = "0.2.4"
+reqwest = "0.11.12"

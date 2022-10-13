@@ -9,15 +9,13 @@ use tracing::debug;
 pub struct ProxyConfig {}
 
 pub struct Proxy {
-    server_addr: String,
     handler: Arc<ProxyHandler>,
 }
 
 impl Proxy {
-    pub async fn new(server_addr: &str) -> Result<Self> {
+    pub async fn new(api_addr: String) -> Result<Self> {
         Ok(Proxy {
-            server_addr: server_addr.to_string(),
-            handler: Arc::new(ProxyHandler::new()),
+            handler: Arc::new(ProxyHandler::new(api_addr)),
         })
     }
 

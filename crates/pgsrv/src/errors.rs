@@ -40,4 +40,7 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     PgRepr(#[from] pgrepr::error::Error),
+
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
 }

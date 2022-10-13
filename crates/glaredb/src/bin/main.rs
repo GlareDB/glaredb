@@ -68,10 +68,8 @@ enum Commands {
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6544"))]
         bind: String,
 
-        /// Address of server to connect to.
-        /// If not specified, will use the default GlareDB server.
-        #[clap(long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
-        addr: String,
+        /// Address of the GlareDB cloud server.
+        api_addr: String,
     },
 }
 
@@ -146,8 +144,13 @@ fn main() -> Result<()> {
                 }
             });
         }
-        Commands::Proxy { bind, addr } => {
-            begin_proxy(&bind, &addr)?;
+        Commands::Proxy { bind, api_addr } => {
+            let runtime = build_runtime()?;
+            runtime.block_on(async move {
+                let pg_listener = TcpListener::bind(bind).await?;
+                let proxy = Proxy::new(api_addr).await?;
+                proxy.serve(pg_listener).await
+            })?;
         }
     }
 
@@ -161,15 +164,6 @@ fn begin_server(db_name: impl Into<String>, pg_bind: &str) -> Result<()> {
         let conf = ServerConfig { pg_listener };
         let server = Server::connect(db_name).await?;
         server.serve(conf).await
-    })
-}
-
-fn begin_proxy(bind: &str, server_addr: &str) -> Result<()> {
-    let runtime = build_runtime()?;
-    runtime.block_on(async move {
-        let pg_listener = TcpListener::bind(bind).await?;
-        let proxy = Proxy::new(server_addr).await?;
-        proxy.serve(pg_listener).await
     })
 }
 
