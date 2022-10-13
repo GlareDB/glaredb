@@ -178,7 +178,7 @@ pub struct DeltaMergeStream<M, O> {
     /// Partition that we're working on.
     partition: PartitionKey,
     /// The batch modifier opener.
-    opener: O,
+    opener: Arc<O>,
     /// The child execution stream.
     stream: SendableRecordBatchStream,
     /// An optional projection on batches returned from the child and delta

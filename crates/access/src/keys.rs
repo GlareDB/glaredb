@@ -40,8 +40,8 @@ impl fmt::Display for BatchKey {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PartitionKey {
-    pub table_id: u32,
-    pub part_id: u32,
+    pub table_id: TableId,
+    pub part_id: PartitionId,
 }
 
 impl fmt::Display for PartitionKey {
@@ -56,7 +56,7 @@ impl fmt::Display for PartitionKey {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TableKey {
-    pub table_id: u32,
+    pub table_id: TableId,
 }
 
 impl fmt::Display for TableKey {

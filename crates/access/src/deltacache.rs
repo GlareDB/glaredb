@@ -6,7 +6,6 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::{memory::MemoryStream, SendableRecordBatchStream};
 use futures::future::BoxFuture;
 use scc::HashMap;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct DeltaCache {
@@ -23,15 +22,16 @@ impl DeltaCache {
     /// Insert a batch for a partition.
     pub fn insert_batch(&self, part: &PartitionKey, batch: RecordBatch) {
         // TODO: Remove needing to clone the batch before insert.
+        let cloned = batch.clone();
         self.inserts.upsert(
             part.clone(),
-            || vec![batch.clone()],
-            |_, batches| batches.push(batch.clone()),
+            || vec![cloned],
+            |_, batches| batches.push(batch),
         )
     }
 }
 
-impl BatchModifierOpener<PartitionDeltas> for Arc<DeltaCache> {
+impl BatchModifierOpener<PartitionDeltas> for DeltaCache {
     fn open_modifier(
         &self,
         partition: &PartitionKey,
