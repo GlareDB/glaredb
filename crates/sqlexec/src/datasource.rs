@@ -1,65 +1,57 @@
 use crate::errors::Result;
+use access::deltacache::DeltaCache;
+use access::deltaexec::DeltaMergeExec;
+use access::keys::{PartitionKey, TableId};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
-use datafusion::error::Result as DfResult;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
-use datafusion::physical_plan::{memory::MemoryExec, ExecutionPlan};
+use datafusion::physical_plan::{
+    display::DisplayableExecutionPlan, empty::EmptyExec, ExecutionPlan,
+};
 use dfutil::cast::cast_record_batch;
-use parking_lot::RwLock;
 use std::any::Any;
 use std::sync::Arc;
+use tracing::trace;
 
-const DEFAULT_BUFFER_SIZE: usize = 128;
-
-struct MemTableInner {
-    latest_buffer: usize,
-    /// The most recent batches we've received.
-    latest: Vec<RecordBatch>,
-    /// All the previous record batches.
-    rest: Vec<RecordBatch>,
-}
-
-#[derive(Clone)]
-pub struct MemTable {
+/// An implementation of a table provider using our delta cache.
+///
+/// NOTE: This currently has a one-to-one mapping between table and partition.
+/// There will be an additional layer between `DeltaMergeExec` and this to
+/// combine access to multiple partitions for a table.
+#[derive(Debug, Clone)]
+pub struct DeltaTable {
+    table_id: TableId,
     schema: SchemaRef,
-    inner: Arc<RwLock<MemTableInner>>,
+    cache: Arc<DeltaCache>,
 }
 
-impl MemTable {
-    pub fn new(schema: SchemaRef) -> MemTable {
-        MemTable {
+impl DeltaTable {
+    pub fn new(table_id: TableId, schema: SchemaRef, cache: Arc<DeltaCache>) -> DeltaTable {
+        DeltaTable {
+            table_id,
             schema,
-            inner: Arc::new(RwLock::new(MemTableInner {
-                latest_buffer: DEFAULT_BUFFER_SIZE,
-                latest: Vec::new(),
-                rest: Vec::new(),
-            })),
+            cache,
         }
     }
 
-    /// Insert a batch into the table, attempting to cast as appropriate.
     pub fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
+        let key = PartitionKey {
+            table_id: self.table_id,
+            part_id: 0, // TODO: Need another layer of indirection.
+        };
         let batch = cast_record_batch(batch, self.schema.clone())?;
-
-        let mut inner = self.inner.write();
-        inner.latest.push(batch);
-
-        if inner.latest.len() > inner.latest_buffer {
-            let batch = RecordBatch::concat(&self.schema, &inner.latest[..])?;
-            inner.rest.push(batch);
-            inner.latest.clear();
-        }
-
+        self.cache.insert_batch(&key, batch);
         Ok(())
     }
 }
 
 #[async_trait]
-impl TableProvider for MemTable {
+impl TableProvider for DeltaTable {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -78,11 +70,26 @@ impl TableProvider for MemTable {
         projection: &Option<Vec<usize>>,
         _filters: &[Expr],
         _limit: Option<usize>,
-    ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        let inner = self.inner.read();
-        let mut partitions = inner.rest.clone();
-        partitions.append(&mut inner.latest.clone());
-        let exec = MemoryExec::try_new(&[partitions], self.schema.clone(), projection.clone())?;
-        Ok(Arc::new(exec))
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let key = PartitionKey {
+            table_id: self.table_id,
+            part_id: 0,
+        };
+        let empty = EmptyExec::new(false, self.schema.clone()); // TODO: Base partition scan.
+        let plan = DeltaMergeExec::new(
+            key,
+            self.schema.clone(),
+            self.cache.clone(),
+            projection.clone(),
+            Arc::new(empty),
+        )
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        {
+            let displayable = DisplayableExecutionPlan::new(&plan);
+            trace!(plan = %displayable.indent(), "table scan execution plan");
+        }
+
+        Ok(Arc::new(plan))
     }
 }

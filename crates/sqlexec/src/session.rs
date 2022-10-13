@@ -1,10 +1,12 @@
 use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
-use crate::datasource::MemTable;
+use crate::datasource::DeltaTable;
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use crate::placeholders::bind_placeholders;
+use crate::runtime::AccessRuntime;
+use access::keys::TableId;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::catalog::schema::SchemaProvider;
@@ -22,6 +24,7 @@ use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use hashbrown::hash_map::Entry;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -32,9 +35,9 @@ use tracing::debug;
 pub struct Session {
     /// Datafusion state for query planning and execution.
     state: SessionState,
-
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
+    access_runtime: AccessRuntime,
     // TODO: Transaction context goes here.
 
     // prepared statements
@@ -65,6 +68,7 @@ impl Session {
         Session {
             state,
             catalog,
+            access_runtime: AccessRuntime::new(), // TODO: Pass me in.
             unnamed_statement: None,
             named_statements: hashbrown::HashMap::new(),
             unnamed_portal: None,
@@ -247,9 +251,13 @@ impl Session {
         // TODO: If not exists
 
         let table_schema = Schema::new(plan.columns);
-        let mem_table = MemTable::new(Arc::new(table_schema));
+        let table = DeltaTable::new(
+            new_table_id(),
+            Arc::new(table_schema),
+            self.access_runtime.delta_cache().clone(),
+        );
 
-        schema.register_table(resolved.table.to_string(), Arc::new(mem_table))?;
+        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
 
         Ok(())
     }
@@ -289,7 +297,11 @@ impl Session {
             Some(result) => {
                 let batch = result?;
                 let schema = batch.schema();
-                let table = MemTable::new(schema);
+                let table = DeltaTable::new(
+                    new_table_id(),
+                    schema,
+                    self.access_runtime.delta_cache().clone(),
+                );
                 table.insert_batch(batch)?;
                 table
             }
@@ -322,8 +334,8 @@ impl Session {
 
         let table = table
             .as_any()
-            .downcast_ref::<MemTable>()
-            .ok_or_else(|| internal!("cannot downcast to mem table"))?;
+            .downcast_ref::<DeltaTable>()
+            .ok_or_else(|| internal!("cannot downcast to delta table"))?;
 
         let physical = self.create_physical_plan(plan.source).await?;
         let mut stream = self.execute_physical(physical)?;
@@ -525,4 +537,10 @@ impl Session {
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }
     }
+}
+
+// TODO: This will be retrieved from the catalog.
+fn new_table_id() -> TableId {
+    static TABLE_ID_GEN: AtomicU32 = AtomicU32::new(0);
+    TABLE_ID_GEN.fetch_add(1, Ordering::Relaxed)
 }
