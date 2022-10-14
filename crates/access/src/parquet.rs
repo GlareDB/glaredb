@@ -14,6 +14,7 @@ use object_store::{ObjectMeta, ObjectStore};
 use std::ops::Range;
 use std::sync::Arc;
 
+/// Implement parquet's `AsyncFileReader` interface.
 #[derive(Debug)]
 struct ParquetObjectReader {
     store: Arc<dyn ObjectStore>,
@@ -52,32 +53,43 @@ impl AsyncFileReader for ParquetObjectReader {
     }
 }
 
+/// Open and stream the parquet file from object storage.
 pub struct ParquetOpener {
-    pub(crate) store: Arc<dyn ObjectStore>,
-    pub(crate) meta: ObjectMeta,
-    pub(crate) meta_size_hint: Option<usize>,
+    pub store: Arc<dyn ObjectStore>,
+    pub meta: ObjectMeta,
+    pub meta_size_hint: Option<usize>,
+    pub projection: Option<Vec<usize>>,
 }
-
-impl ParquetOpener {}
 
 impl PartitionStreamOpener for ParquetOpener {
     fn open(&self) -> Result<PartitionOpenFuture> {
         // TODO: Reduce cloning.
+
         let reader = ParquetObjectReader {
             store: self.store.clone(),
             meta: self.meta.clone(),
             meta_size_hint: self.meta_size_hint.clone(),
         };
 
+        let projection = self.projection.clone();
+
         Ok(Box::pin(async move {
             let read_opts = ArrowReaderOptions::new().with_page_index(true);
             let mut builder =
                 ParquetRecordBatchStreamBuilder::new_with_options(reader, read_opts).await?;
 
-            // TODO: Add builder options.
+            // TODO: Add more builder options.
 
-            let reader = builder.build()?;
-            let reader = reader.map_err(|e| e.into());
+            if let Some(projection) = projection {
+                // Parquet schemas are tree like in that each field may contain
+                // nested fields (e.g. a struct).
+                //
+                // "roots" here indicates we're masking on the top-level fields.
+                let mask = ProjectionMask::roots(builder.parquet_schema(), projection);
+                builder = builder.with_projection(mask);
+            }
+
+            let reader = builder.build()?.map_err(|e| e.into());
 
             let stream = Box::pin(reader) as BoxStream<'_, _>;
             Ok(stream)

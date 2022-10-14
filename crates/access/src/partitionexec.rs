@@ -22,21 +22,45 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+/// Scan a partition that this node is responsible for.
 #[derive(Debug)]
-pub struct PartitionExec {
+pub struct LocalPartitionExec {
     store: Arc<dyn ObjectStore>,
-    schema: SchemaRef,
+    /// Schema of the stream after projection.
+    projected_schema: SchemaRef,
     /// Metadata about the file in object storage.
     meta: ObjectMeta,
+    projection: Option<Vec<usize>>,
 }
 
-impl ExecutionPlan for PartitionExec {
+impl LocalPartitionExec {
+    pub fn new(
+        store: Arc<dyn ObjectStore>,
+        meta: ObjectMeta,
+        schema: SchemaRef,
+        projection: Option<Vec<usize>>,
+    ) -> Result<LocalPartitionExec> {
+        let projected_schema = match &projection {
+            Some(projection) => Arc::new(schema.project(&projection)?),
+            None => schema,
+        };
+
+        Ok(LocalPartitionExec {
+            store,
+            projected_schema,
+            meta,
+            projection,
+        })
+    }
+}
+
+impl ExecutionPlan for LocalPartitionExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        self.projected_schema.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -64,7 +88,7 @@ impl ExecutionPlan for PartitionExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for PartitionExec".to_string(),
+            "cannot replace children for LocalPartitionExec".to_string(),
         ))
     }
 
@@ -77,10 +101,11 @@ impl ExecutionPlan for PartitionExec {
             store: self.store.clone(),
             meta: self.meta.clone(),
             meta_size_hint: None,
+            projection: self.projection.clone(),
         };
 
         let stream = PartitionStream {
-            schema: self.schema.clone(),
+            schema: self.projected_schema.clone(),
             opener,
             state: StreamState::Idle,
         };
@@ -89,7 +114,7 @@ impl ExecutionPlan for PartitionExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PartitionExec")
+        write!(f, "LocalPartitionExec: projection={:?}", self.projection)
     }
 
     fn statistics(&self) -> Statistics {
