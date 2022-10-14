@@ -1,4 +1,4 @@
-use crate::codec::{FramedConn, PgCodec};
+use crate::codec::{server::{FramedConn, PgCodec}, client::{FramedClientConn, PgClientCodec}};
 use crate::errors::{PgSrvError, Result};
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -592,7 +592,7 @@ where
                 // We need to send the same parameters as the client sent us
                 let db_addr = format!("{}:{}", db_details.ip, db_details.port);
                 let mut db_conn = TcpStream::connect(db_addr).await?;
-                let mut db_framed = FramedConn::new(db_conn);
+                let mut db_framed = FramedClientConn::new(db_conn);
 
                 let startup = StartupMessage::StartupRequest { version: VERSION_V3, params };
                 // TODO: handle sending messages to db
