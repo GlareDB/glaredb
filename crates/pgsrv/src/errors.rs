@@ -1,4 +1,4 @@
-use pgrepr::messages::{FrontendMessage, StartupMessage};
+use pgrepr::messages::{FrontendMessage, StartupMessage, BackendMessage};
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -10,6 +10,9 @@ pub enum PgSrvError {
 
     #[error("unexpected frontend message: {0:?}")]
     UnexpectedFrontendMessage(FrontendMessage),
+
+    #[error("unexpected backend message: {0:?}")]
+    UnexpectedBackendMessage(BackendMessage),
 
     #[error("unexpected startup message: {0:?}")]
     UnexpectedStartupMessage(StartupMessage),

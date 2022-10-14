@@ -568,7 +568,7 @@ impl<C> PostgresHandler<C> for ProxyHandler
 where
     for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
 {
-    async fn handle_startup(&self, mut conn: C, params: HashMap<String, String>) -> Result<()> {
+    async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
         dbg!(&params);
 
         let mut framed = FramedConn::new(conn);
@@ -591,11 +591,36 @@ where
                 // At this point, open a connection to the database and initiate a startup message
                 // We need to send the same parameters as the client sent us
                 let db_addr = format!("{}:{}", db_details.ip, db_details.port);
-                let mut db_conn = TcpStream::connect(db_addr).await?;
+                let db_conn = TcpStream::connect(db_addr).await?;
                 let mut db_framed = FramedClientConn::new(db_conn);
 
                 let startup = StartupMessage::StartupRequest { version: VERSION_V3, params };
-                // TODO: handle sending messages to db
+                db_framed.send_startup(startup).await?;
+
+                // This implementation only supports AuthenticationCleartextPassword
+                let auth_msg = db_framed.read().await?;
+                match auth_msg {
+                    Some(BackendMessage::AuthenticationCleartextPassword) => {
+                        db_framed.send(FrontendMessage::PasswordMessage { password }).await?;
+
+                        // Check for AuthenticationOk and respond to the client with the same message
+                        let auth_ok = db_framed.read().await?;
+                        match auth_ok {
+                            Some(BackendMessage::AuthenticationOk) => {
+                                framed.send(BackendMessage::AuthenticationOk).await?;
+
+                                // TODO: from here, we can just forward messages between the client to the database
+                            }
+                            Some(other) => return Err(PgSrvError::UnexpectedBackendMessage(other)),
+                            None => return Ok(()),
+                        }
+
+                    }
+                    Some(other) => {
+                        return Err(PgSrvError::UnexpectedBackendMessage(other));
+                    }
+                    None => return Ok(()),
+                }
 
                 framed.send(BackendMessage::AuthenticationOk).await?;
             }
