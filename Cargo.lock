@@ -2217,6 +2217,7 @@ dependencies = [
  "moka",
  "object_store",
  "parking_lot",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
