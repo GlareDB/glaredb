@@ -1,4 +1,4 @@
-use crate::codec::{server::{FramedConn, PgCodec}, client::{FramedClientConn, PgClientCodec}};
+use crate::codec::{server::{FramedConn, PgCodec}, client::{FramedClientConn}};
 use crate::errors::{PgSrvError, Result};
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -148,7 +148,7 @@ where
         }
     }
 
-    async fn handle_cancel_request(&self, conn: C) -> Result<()> {
+    async fn handle_cancel_request(&self, _conn: C) -> Result<()> {
         todo!("Handler::handle_cancel_request");
     }
 
@@ -648,7 +648,7 @@ where
         }
     }
 
-    async fn handle_cancel_request(&self, mut conn: C) -> Result<()> {
+    async fn handle_cancel_request(&self, mut _conn: C) -> Result<()> {
         trace!("received cancel request");
 
         Ok(())

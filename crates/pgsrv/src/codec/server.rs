@@ -10,7 +10,7 @@ use pgrepr::messages::{
 };
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
-use tokio_util::codec::{Decoder, Encoder, Framed, FramedParts};
+use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;
 
 /// A connection that can encode and decode postgres protocol messages.

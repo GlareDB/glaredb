@@ -1,9 +1,7 @@
-use std::future::IntoFuture;
 use std::sync::Arc;
 use anyhow::Result;
-use pgsrv::proxy::ConnectionProxy;
 use pgsrv::handler::{PostgresHandler, ProxyHandler};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tracing::debug;
 
 pub struct ProxyConfig {}
