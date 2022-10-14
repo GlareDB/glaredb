@@ -609,29 +609,25 @@ where
                             Some(BackendMessage::AuthenticationOk) => {
                                 framed.send(BackendMessage::AuthenticationOk).await?;
 
-                                // TODO: from here, we can just forward messages between the client to the database
+                                // from here, we can just forward messages between the client to the database
+                                let server_conn = db_framed.into_inner();
+                                let client_conn = framed.into_inner();
+                                tokio::io::copy_bidirectional(&mut client_conn.into_inner(), &mut server_conn.into_inner()).await?;
+
+                                Ok(())
                             }
-                            Some(other) => return Err(PgSrvError::UnexpectedBackendMessage(other)),
-                            None => return Ok(()),
+                            Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
+                            None => Ok(()),
                         }
 
                     }
-                    Some(other) => {
-                        return Err(PgSrvError::UnexpectedBackendMessage(other));
-                    }
-                    None => return Ok(()),
+                    Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
+                    None => Ok(()),
                 }
-
-                framed.send(BackendMessage::AuthenticationOk).await?;
             }
-            Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.
-            None => return Ok(()),
+            Some(other) => Err(PgSrvError::UnexpectedFrontendMessage(other)),
+            None => Ok(()),
         }
-
-        // TODO: open a connection to database using the address given from the cloud api
-        // Go through the same authentication process as above but as the client
-        // After that, we can start proxying messages between the client and the database
-        todo!("ProxyHandler::handle_startup");
     }
 
     async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {

@@ -10,7 +10,7 @@ use pgrepr::messages::{
 };
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::{Decoder, Encoder, Framed, FramedParts};
 use tracing::trace;
 
 /// A connection that can encode and decode postgres protocol messages.
@@ -45,6 +45,11 @@ where
     pub async fn send(&mut self, msg: BackendMessage) -> Result<()> {
         trace!(?msg, "sending message");
         self.conn.send(msg).await
+    }
+
+    /// Consumes the `FramedConn`, returning the underlying `Framed`
+    pub fn into_inner(self) -> Framed<C, PgCodec> {
+        self.conn
     }
 }
 

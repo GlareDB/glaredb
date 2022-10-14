@@ -10,7 +10,7 @@ use pgrepr::messages::{
 };
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::{Decoder, Encoder, Framed, FramedParts};
 use tracing::trace;
 
 pub struct FramedClientConn<C> {
@@ -49,6 +49,11 @@ where
     pub async fn send(&mut self, msg: FrontendMessage) -> Result<()> {
         trace!(?msg, "sending message");
         self.conn.send(msg).await
+    }
+
+    /// Consumes the `FramedClientConn`, returning the underlying `Framed`
+    pub fn into_inner(self) -> Framed<C, PgClientCodec> {
+        self.conn
     }
 }
 
