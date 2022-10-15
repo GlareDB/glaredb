@@ -13,7 +13,7 @@ parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
 arrow = { version = "22.0.0", features = ["serde"] }
 tracing = "0.1"
-async-trait = "0.1.56"
+async-trait = "0.1.57"
 tonic = { version = "0.8.2", features = ["transport", "codegen"] }
 prost = "0.11.0"
 futures = "0.3"
