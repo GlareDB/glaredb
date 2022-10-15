@@ -7,9 +7,22 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
 
+    # Dependabot is set up with a dummy concurrency group secret ("dependabot")
+    # which let's us queue up dependabot updates across multiple PRs.
+    #
+    # Why? Dependabot updates cargo.lock which results in a long compilation
+    # time with nix. To avoid us having to sit through each one before
+    # approving/squashing the next pr, we can just approve all at once and have
+    # dependabot automatically squash and merge. If we approved multiple
+    # dependabot PRs at once and didn't limit concurrency, PRs would constantly
+    # have to rebase against "main" and go through the 30+ minute build multiple
+    # times.
+    #
+    # Human PRs won't have the secret set, so each PR is its own group, and
+    # every push to that pr will cancel an in progress CI run.
     concurrency:
-      group: ci-${{ github.ref }}
-      cancel-in-progress: true
+      group: ci-${{ secrets.CONCURRENCY_GROUP || github.ref }}
+      cancel-in-progress: ${{ !secrets.CONCURRENCY_GROUP }}
 
     steps:
       - name: Checkout
