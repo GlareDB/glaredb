@@ -206,26 +206,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86d1fef01f25e1452c86fa6887f078de8e0aaeeb828370feab205944cfc30e27"
 
 [[package]]
-name = "arrowstore"
-version = "0.1.0"
-dependencies = [
- "arrow 22.0.0",
- "async-trait",
- "datafusion",
- "futures",
- "logutil",
- "parking_lot",
- "prost",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-build",
- "tracing",
-]
-
-[[package]]
 name = "async-stream"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2857,7 +2837,6 @@ name = "sqlexec"
 version = "0.1.0"
 dependencies = [
  "access",
- "arrowstore",
  "async-trait",
  "datafusion",
  "dfutil",

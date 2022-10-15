@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 logutil = {path = "../logutil"}
-arrowstore = {path = "../arrowstore"}
 dfutil = {path = "../dfutil"}
 pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
