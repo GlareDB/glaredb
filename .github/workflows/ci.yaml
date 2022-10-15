@@ -6,6 +6,8 @@ jobs:
   pr-tests:
     if: ${{ github.actor != 'dependabot[bot]' }}
     uses: ./.github/workflows/tests.yaml
+    secrets:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     concurrency:
       group: ci-${{ github.ref }}
       cancel-in-progress: true
@@ -20,6 +22,8 @@ jobs:
   dependabot-tests:
     if: ${{ github.actor == 'dependabot[bot]' }}
     uses: ./.github/workflows/tests.yaml
+    secrets:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     concurrency:
       group: ci-dependabot
       cancel-in-progress: false
