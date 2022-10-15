@@ -22,7 +22,7 @@ jobs:
     # every push to that pr will cancel an in progress CI run.
     concurrency:
       group: ci-${{ secrets.CONCURRENCY_GROUP || github.ref }}
-      cancel-in-progress: ${{ !secrets.CONCURRENCY_GROUP }}
+      cancel-in-progress: ${{ !(secrets.CONCURRENCY_GROUP) }}
 
     steps:
       - name: Checkout
