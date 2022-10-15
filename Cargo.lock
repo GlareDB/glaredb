@@ -3467,9 +3467,9 @@ checksum = "936e4b492acfd135421d8dca4b1aa80a7bfc26e702ef3af710e0752684df5372"
 
 [[package]]
 name = "uuid"
-version = "1.1.2"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
+checksum = "feb41e78f93363bb2df8b0e86a2ca30eed7806ea16ea0c790d757cf93f79be83"
 dependencies = [
  "getrandom",
  "rand 0.8.5",
@@ -3478,9 +3478,9 @@ dependencies = [
 
 [[package]]
 name = "uuid-macro-internal"
-version = "1.1.2"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "548f7181a5990efa50237abb7ebca410828b57a8955993334679f8b50b35c97d"
+checksum = "44cc305b0c375fa2f078537bbe564516cb1946c1defa4041aa0e3f9cd5e07c4a"
 dependencies = [
  "proc-macro2",
  "quote",
