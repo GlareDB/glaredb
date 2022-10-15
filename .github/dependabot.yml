@@ -8,6 +8,7 @@ updates:
       day: "friday"
       time: "09:00"
       timezone: "America/New_York"
+      rebase-strategy: disabled
 
   # Maintain deps for Rust.
   - package-ecosystem: "cargo"
@@ -17,3 +18,4 @@ updates:
       day: "friday"
       time: "09:00"
       timezone: "America/New_York"
+      rebase-strategy: disabled
