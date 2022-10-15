@@ -3,28 +3,32 @@ name: GlareDB CI
 on: [push, workflow_dispatch]
 
 jobs:
-  pr-tests:
-    if: ${{ github.actor != 'dependabot[bot]' }}
-    uses: ./.github/workflows/tests.yaml
-    secrets:
-      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  test:
+    name: CI
+    runs-on: ubuntu-latest
+
     concurrency:
       group: ci-${{ github.ref }}
       cancel-in-progress: true
 
-  # Limit concurrency when running tests for dependabot. This will queue up CI
-  # across multiple dependabot repos to reduce cache invalidation.
-  #
-  # Dependabot will make updates to cargo.lock, which results on long build
-  # times with nix. If we "squash and merge" multiple dependabot PRs at the same
-  # time, each PR will possibly end up rebasing more than once causing a
-  # complete rebuild.
-  dependabot-tests:
-    if: ${{ github.actor == 'dependabot[bot]' }}
-    uses: ./.github/workflows/tests.yaml
-    secrets:
-      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-    concurrency:
-      group: ci-dependabot
-      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
+      - name: Install nix
+        uses: cachix/install-nix-action@v18
+        with:
+          extra_nix_config: |
+            access-tokens = github=${{ github.token }}
+
+      - name: configure cachix
+        uses: cachix/cachix-action@v11
+        with:
+          name: glaredb-ci
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: run checks
+        run: nix flake check -L
+
+      - name: SQL Logic Tests
+        run: nix run .#slt_runner testdata/sqllogictests/*.slt
