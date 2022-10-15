@@ -19,3 +19,4 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     rebase-strategy: disabled
+    open-pull-requests-limit: 20
