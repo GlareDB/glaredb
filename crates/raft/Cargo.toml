@@ -23,7 +23,7 @@ parking_lot = "0.12.1"
 tokio-serde = { version = "0.8", features = ["bincode"] }
 bincode = "1.3.3"
 tempdir = "0.3.7"
-clap = { version = "3.2.14", features = ["derive"] }
+clap = { version = "3.2.22", features = ["derive"] }
 openraft = { git = "https://github.com/glaredb/openraft", rev = "e6be6640455e58944bada6c1fc4ef4270c988dbc", features = ["serde"] }
 reqwest = { version = "0.11", features = ["json"] }
 
