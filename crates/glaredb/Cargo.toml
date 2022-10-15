@@ -19,7 +19,7 @@ async-trait = "0.1.56"
 futures = "0.3.21"
 rand = "0.8"
 parking_lot = "0.12.1"
-sqlparser = { version = "0.18", features = ["serde"] }
+sqlparser = { version = "0.23", features = ["serde"] }
 clap = { version = "3.2.14", features = ["derive"] }
 tokio-util = { version = "0.7.3", features = ["codec"] }
 tokio-serde = { version = "0.8", features = ["bincode"] }
