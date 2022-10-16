@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use parking_lot::RwLock;
@@ -32,9 +33,9 @@ struct TableInserts {
 impl TableInserts {
     /// Compact all record batches into a single record, returning the result.
     fn compact_all(&self, schema: &SchemaRef) -> Result<RecordBatch> {
-        let rest = RecordBatch::concat(schema, &self.rest[..])?;
-        let latest = RecordBatch::concat(schema, &self.latest[..])?;
-        let all = RecordBatch::concat(schema, &[rest, latest])?;
+        let rest = concat_batches(schema, &self.rest[..])?;
+        let latest = concat_batches(schema, &self.latest[..])?;
+        let all = concat_batches(schema, &[rest, latest])?;
         Ok(all)
     }
 
@@ -54,7 +55,7 @@ impl TableDelta {
         inner.inserts.latest.push(batch);
 
         if inner.inserts.latest.len() > MAX_UNCOMPACTED_BATCHES {
-            let batch = RecordBatch::concat(&self.schema, &inner.inserts.latest[..])?;
+            let batch = concat_batches(&self.schema, &inner.inserts.latest[..])?;
 
             let batch_size: usize = batch
                 .columns()
