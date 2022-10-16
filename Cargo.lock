@@ -13,7 +13,6 @@ dependencies = [
  "logutil",
  "object_store",
  "parking_lot",
- "parquet",
  "persistence",
  "scc",
  "tempfile",
@@ -763,7 +762,7 @@ dependencies = [
 name = "dfutil"
 version = "0.1.0"
 dependencies = [
- "arrow",
+ "arrow 22.0.0",
  "bytes",
  "bytesutil",
  "datafusion",
@@ -1180,6 +1179,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad6a9459c9c30b177b925162351f97e7d967c7ea8bab3b8352805327daf45554"
 dependencies = [
  "crunchy",
+ "num-traits",
 ]
 
 [[package]]
@@ -1516,6 +1516,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
+name = "libm"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "292a948cd991e376cf75541fe5b97a1081d713c618b4f1b9500f8844e49eb565"
+
+[[package]]
 name = "libtest-mimic"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1790,6 +1796,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
+ "libm",
 ]
 
 [[package]]
