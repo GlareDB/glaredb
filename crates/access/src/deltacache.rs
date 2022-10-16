@@ -1,12 +1,15 @@
-use crate::deltaexec::{BatchModifier, BatchModifierOpener};
 use crate::errors::Result;
 use crate::keys::PartitionKey;
+use crate::modify::{StreamModifier, StreamModifierOpener};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::{memory::MemoryStream, SendableRecordBatchStream};
 use futures::future::BoxFuture;
 use scc::HashMap;
 
+/// In-memory cache of changes made to underlying table partitions.
+///
+/// A single delta cache handles deltas for all tables in the system.
 #[derive(Debug)]
 pub struct DeltaCache {
     inserts: HashMap<PartitionKey, Vec<RecordBatch>>,
@@ -31,19 +34,21 @@ impl DeltaCache {
     }
 }
 
-impl BatchModifierOpener<PartitionDeltas> for DeltaCache {
+impl StreamModifierOpener<PartitionDeltaModifier> for DeltaCache {
     fn open_modifier(
         &self,
         partition: &PartitionKey,
         schema: &SchemaRef,
-    ) -> Result<BoxFuture<'static, PartitionDeltas>> {
+    ) -> Result<BoxFuture<'static, PartitionDeltaModifier>> {
         let batches = self
             .inserts
             .read(partition, |_, batches| batches.clone())
             .unwrap_or_default();
+        let partition = partition.clone();
         let schema = schema.clone();
         Ok(Box::pin(async move {
-            PartitionDeltas {
+            PartitionDeltaModifier {
+                partition,
                 schema,
                 inserts: batches,
             }
@@ -57,14 +62,15 @@ impl Default for DeltaCache {
     }
 }
 
-/// Deltas for a particular partition.
+/// Modify a partition stream with a partition's deltas.
 #[derive(Debug)]
-pub struct PartitionDeltas {
-    schema: SchemaRef,
-    inserts: Vec<RecordBatch>,
+pub struct PartitionDeltaModifier {
+    pub(crate) partition: PartitionKey,
+    pub(crate) schema: SchemaRef,
+    pub(crate) inserts: Vec<RecordBatch>,
 }
 
-impl BatchModifier for PartitionDeltas {
+impl StreamModifier for PartitionDeltaModifier {
     fn modify(&self, batch: RecordBatch) -> Result<RecordBatch> {
         Ok(batch) // No modifications to make yet.
     }

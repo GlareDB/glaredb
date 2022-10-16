@@ -1,6 +1,7 @@
 use crate::deltacache::DeltaCache;
 use crate::errors::Result;
 use crate::keys::PartitionKey;
+use crate::modify::{StreamModifier, StreamModifierOpener};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -126,32 +127,6 @@ impl ExecutionPlan for DeltaMergeExec {
     }
 }
 
-pub trait BatchModifierOpener<M: BatchModifier>: Unpin {
-    /// Opens a `BatchModifier`.
-    ///
-    /// This will be useful if/when we need to read deltas from disk.
-    fn open_modifier(
-        &self,
-        partition: &PartitionKey,
-        schema: &SchemaRef,
-    ) -> Result<BoxFuture<'static, M>>;
-}
-
-/// Describes how we modify a stream.
-pub trait BatchModifier: Unpin {
-    /// Given a record batch, make an necessary modifications to it.
-    ///
-    /// Record batches will not have projections applied. Projections will be
-    /// applied on the returned record batch.
-    fn modify(&self, batch: RecordBatch) -> Result<RecordBatch>;
-
-    /// Return a stream for any remaining batches we need to send.
-    ///
-    /// Useful for returning data that has not yet been flushed to the
-    /// underlying partition store.
-    fn stream_rest(&self) -> SendableRecordBatchStream;
-}
-
 enum StreamState<M> {
     Idle,
     /// Open the modifier that will be modifying the stream.
@@ -188,7 +163,7 @@ pub struct DeltaMergeStream<M, O> {
     state: StreamState<M>,
 }
 
-impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
+impl<M: StreamModifier, O: StreamModifierOpener<M>> DeltaMergeStream<M, O> {
     fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<ArrowResult<RecordBatch>>> {
         // TODO: Read from delta before reading from child stream.
         //
@@ -257,7 +232,7 @@ impl<M: BatchModifier, O: BatchModifierOpener<M>> DeltaMergeStream<M, O> {
     }
 }
 
-impl<M: BatchModifier, O: BatchModifierOpener<M>> Stream for DeltaMergeStream<M, O> {
+impl<M: StreamModifier, O: StreamModifierOpener<M>> Stream for DeltaMergeStream<M, O> {
     type Item = ArrowResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -265,7 +240,7 @@ impl<M: BatchModifier, O: BatchModifierOpener<M>> Stream for DeltaMergeStream<M,
     }
 }
 
-impl<M: BatchModifier, O: BatchModifierOpener<M>> RecordBatchStream for DeltaMergeStream<M, O> {
+impl<M: StreamModifier, O: StreamModifierOpener<M>> RecordBatchStream for DeltaMergeStream<M, O> {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
