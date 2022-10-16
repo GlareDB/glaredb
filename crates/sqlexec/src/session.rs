@@ -23,7 +23,7 @@ use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
-use hashbrown::hash_map::Entry;
+use std::collections::{hash_map::Entry, HashMap};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::debug;
@@ -42,9 +42,9 @@ pub struct Session {
 
     // prepared statements
     unnamed_statement: Option<PreparedStatement>,
-    named_statements: hashbrown::HashMap<String, PreparedStatement>,
+    named_statements: HashMap<String, PreparedStatement>,
     unnamed_portal: Option<Portal>,
-    named_portals: hashbrown::HashMap<String, Portal>,
+    named_portals: HashMap<String, Portal>,
 }
 
 impl Session {
@@ -70,9 +70,9 @@ impl Session {
             catalog,
             access_runtime: AccessRuntime::new(), // TODO: Pass me in.
             unnamed_statement: None,
-            named_statements: hashbrown::HashMap::new(),
+            named_statements: HashMap::new(),
             unnamed_portal: None,
-            named_portals: hashbrown::HashMap::new(),
+            named_portals: HashMap::new(),
         }
     }
 
@@ -86,7 +86,7 @@ impl Session {
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
             ast::Statement::Query(query) => {
-                let plan = planner.query_to_plan(*query, &mut hashbrown::HashMap::new())?;
+                let plan = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(LogicalPlan::Query(plan))
             }
 
@@ -161,7 +161,7 @@ impl Session {
                 query: Some(query),
                 ..
             } => {
-                let source = planner.query_to_plan(*query, &mut hashbrown::HashMap::new())?;
+                let source = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(DdlPlan::CreateTableAs(CreateTableAs {
                     table_name: name.to_string(),
                     source,
@@ -178,7 +178,7 @@ impl Session {
                 let table_name = table_name.to_string();
                 let columns = columns.into_iter().map(|col| col.value).collect();
 
-                let source = planner.query_to_plan(*source, &mut hashbrown::HashMap::new())?;
+                let source = planner.query_to_plan(*source, &mut HashMap::new())?;
 
                 Ok(WritePlan::Insert(Insert {
                     table_name,
