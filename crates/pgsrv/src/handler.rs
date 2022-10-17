@@ -544,12 +544,15 @@ where
     }
 }
 
+/// The database info response from the cloud api
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DatabaseDetails {
     ip: String,
     port: String,
 }
 
+/// ProxyHandler is a handler for postgres that communicates with the cloud api to verify
+/// authentication and then proxies the connection to the database.
 pub struct ProxyHandler {
     api_url: String,
 }
