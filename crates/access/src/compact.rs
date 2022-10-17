@@ -101,6 +101,8 @@ impl Compactor {
             .upload_batches(schema.clone(), [concat], &mut buf)
             .await?;
 
+        deltas.remove_partition_deltas(partition);
+
         Ok(())
     }
 }

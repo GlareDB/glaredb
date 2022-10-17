@@ -32,6 +32,10 @@ impl DeltaCache {
             |_, batches| batches.push(batch),
         )
     }
+
+    pub fn remove_partition_deltas(&self, part: &PartitionKey) {
+        let _ = self.inserts.remove(part);
+    }
 }
 
 impl StreamModifierOpener<PartitionDeltaModifier> for DeltaCache {
