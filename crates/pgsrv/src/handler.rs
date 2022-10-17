@@ -32,7 +32,7 @@ const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "0.0.0")]
 #[async_trait]
 pub trait PostgresHandler<C>
 where
-    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     async fn handle_startup(&self, mut conn: C, params: HashMap<String, String>) -> Result<()>;
     async fn handle_ssl_request(&self, mut conn: C) -> Result<()>;
@@ -124,7 +124,7 @@ impl Handler {
 #[async_trait]
 impl<C> PostgresHandler<C> for Handler
 where
-    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
         self.begin(conn, params).await
@@ -566,7 +566,7 @@ impl ProxyHandler {
 #[async_trait]
 impl<C> PostgresHandler<C> for ProxyHandler
 where
-    for<'async_trait> C: AsyncRead + AsyncWrite + Unpin + Send + 'async_trait,
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
         dbg!(&params);
