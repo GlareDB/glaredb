@@ -577,8 +577,6 @@ where
         let msg = framed.read().await?;
         match msg {
             Some(FrontendMessage::PasswordMessage { password }) => {
-                trace!(%password, "received password");
-
                 // Check username, password, database against glaredb cloud api
                 // TODO: error handling
                 // TODO: pass parameters to route
@@ -600,6 +598,7 @@ where
                 let auth_msg = db_framed.read().await?;
                 match auth_msg {
                     Some(BackendMessage::AuthenticationCleartextPassword) => {
+                        // TODO: rewrite password according to the response from the cloud api
                         db_framed.send(FrontendMessage::PasswordMessage { password }).await?;
 
                         // Check for AuthenticationOk and respond to the client with the same message
