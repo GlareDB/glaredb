@@ -1,5 +1,7 @@
 //! Various key types.
+use object_store::path::Path as ObjectPath;
 use std::fmt;
+use std::iter::FromIterator;
 
 pub type TableId = u32;
 pub type PartitionId = u32;
@@ -42,6 +44,14 @@ impl fmt::Display for BatchKey {
 pub struct PartitionKey {
     pub table_id: TableId,
     pub part_id: PartitionId,
+}
+
+impl PartitionKey {
+    /// Get the object path for a partition.
+    pub fn object_path(&self) -> ObjectPath {
+        let path = format!("table_{}_part_{}.data", self.table_id, self.part_id);
+        ObjectPath::from(path)
+    }
 }
 
 impl fmt::Display for PartitionKey {

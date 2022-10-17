@@ -2,17 +2,22 @@
 use crate::errors::Result;
 use crate::partitionexec::{PartitionOpenFuture, PartitionStreamOpener};
 use bytes::Bytes;
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
 use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
 use datafusion::parquet::arrow::{ArrowWriter, ParquetRecordBatchStreamBuilder, ProjectionMask};
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
+use datafusion::parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use futures::stream::{BoxStream, Stream, TryStream, TryStreamExt};
 use object_store::{ObjectMeta, ObjectStore};
 use std::ops::Range;
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
+use tracing::{debug, error, trace};
 
 /// Implement parquet's `AsyncFileReader` interface.
 #[derive(Debug)]
@@ -94,5 +99,60 @@ impl PartitionStreamOpener for ParquetOpener {
             let stream = Box::pin(reader) as BoxStream<'_, _>;
             Ok(stream)
         }))
+    }
+}
+
+/// Upload record batches as a parquet file to object storage.
+///
+/// NOTE: This hopefully will be made redundant if upstream parquet gets an
+/// async writer: https://github.com/apache/arrow-rs/issues/1269
+pub struct ParquetUploader {
+    pub store: Arc<dyn ObjectStore>,
+    pub meta: ObjectMeta,
+}
+
+impl ParquetUploader {
+    /// Upload in-memory batches to object storage.
+    ///
+    /// NOTE: The provided buffer will be used to hold the entire encoded
+    /// parquet file in memory.
+    pub async fn upload_batches(
+        &self,
+        schema: SchemaRef,
+        batches: impl IntoIterator<Item = RecordBatch>,
+        buffer: &mut Vec<u8>,
+    ) -> Result<()> {
+        // TODO: More options.
+        let write_opts = WriterProperties::builder().build();
+        let mut writer = ArrowWriter::try_new(buffer, schema, Some(write_opts))?;
+
+        let batches = batches.into_iter();
+        for batch in batches {
+            writer.write(&batch)?;
+        }
+
+        // Flush and get the buffer reference back.
+        let buffer = writer.into_inner()?;
+
+        let (id, mut obj_writer) = self.store.put_multipart(&self.meta.location).await?;
+        if let Err(e) = obj_writer.write_all(buffer).await {
+            trace!(%id, %e, "parquet upload failed, aborting multipart");
+            if let Err(e) = self.store.abort_multipart(&self.meta.location, &id).await {
+                error!(%id, %e, "failed to abort multipart for parquet upload");
+                // Don't return this error, return original error.
+            }
+            return Err(e.into());
+        };
+
+        if let Err(e) = obj_writer.shutdown().await {
+            trace!(%id, %e, "object writer shutdown failed, aborting multipart");
+            if let Err(e) = self.store.abort_multipart(&self.meta.location, &id).await {
+                error!(%id, %e, "failed to abort multipart after writer shutdown failure");
+                // Same as above, return original error.
+            }
+            return Err(e.into());
+        }
+
+        Ok(())
     }
 }

@@ -2,7 +2,12 @@ use crate::deltacache::{DeltaCache, PartitionDeltaModifier};
 use crate::errors::Result;
 use crate::keys::PartitionKey;
 use crate::modify::{StreamModifier, StreamModifierOpener};
+use crate::parquet::ParquetOpener;
+use crate::partitionexec::PartitionStreamOpener;
+use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::record_batch::RecordBatch;
+use futures::StreamExt;
 use object_store::ObjectStore;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -27,12 +32,43 @@ impl Compactor {
     ) -> Result<()> {
         let _g = CompactionGuard::new(self);
 
-        // let modifier = deltas.open_modifier(partition, schema)?.await;
-
         // 1. Stream from object store
         // 2. Run through modifier
         // 3. Collect in mem and append remaining
         // 4. Write and put multi part
+
+        // TODO: Do we want to cache metas to avoid needing to this?
+        let meta = self.store.head(&partition.object_path()).await?;
+        let opener = ParquetOpener {
+            store: self.store.clone(),
+            meta,
+            meta_size_hint: None,
+            projection: None,
+        };
+        let mut stream = opener.open()?.await?;
+        let modifier = deltas.open_modifier(partition, schema)?.await;
+
+        // TODO: We'll want to have a "mutable" record batch eventually and just
+        // append directly to that.
+
+        // Modify existing batches.
+        let (lower, _) = stream.size_hint();
+        let mut batches = Vec::with_capacity(lower);
+        while let Some(result) = stream.next().await {
+            let batch = result?;
+            let modified = modifier.modify(batch)?;
+            batches.push(modified);
+        }
+
+        // Get remaining batches.
+        let mut stream = modifier.stream_rest();
+        while let Some(result) = stream.next().await {
+            batches.push(result?);
+        }
+
+        let concat = concat_batches(schema, &batches)?;
+
+        // TODO: Sort, rechunk.
 
         unimplemented!()
     }
