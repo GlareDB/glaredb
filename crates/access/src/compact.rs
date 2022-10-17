@@ -1,32 +1,49 @@
-use crate::deltacache::{DeltaCache, PartitionDeltaModifier};
+use crate::deltacache::DeltaCache;
 use crate::errors::Result;
+use crate::exec::{
+    DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec, SingleOpaqueTraceExec,
+};
 use crate::keys::PartitionKey;
-use crate::modify::{StreamModifier, StreamModifierOpener};
-use crate::parquet::{ParquetOpener, ParquetUploader};
-use crate::partitionexec::PartitionStreamOpener;
+use crate::parquet::ParquetUploader;
 use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::EmptyRecordBatchStream;
+use datafusion::execution::context::TaskContext;
+use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan};
 use futures::StreamExt;
 use object_store::{Error as ObjectStoreError, ObjectStore};
+use std::collections::HashMap;
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{debug, trace};
 
 const UPLOAD_BUF_CAPACITY: usize = 2 * 1024 * 1024;
 
-#[derive(Debug)]
 pub struct Compactor {
     store: Arc<dyn ObjectStore>,
     running_compactions: AtomicU64,
+    /// Dummy context to be able to run datafusion execution plans during
+    /// compaction.
+    dummy_context: Arc<TaskContext>,
 }
 
 impl Compactor {
     pub fn new(store: Arc<dyn ObjectStore>) -> Compactor {
+        // NOTE: None of these value currently matter.
+        let dummy_context = Arc::new(TaskContext::new(
+            "compact".to_string(),
+            "compact".to_string(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            Arc::new(RuntimeEnv::default()),
+        ));
+
         Compactor {
             store,
             running_compactions: 0.into(),
+            dummy_context,
         }
     }
 
@@ -36,58 +53,53 @@ impl Compactor {
     /// TODO: Remove needing schema here.
     pub async fn compact_deltas(
         &self,
-        deltas: &DeltaCache,
-        partition: &PartitionKey,
-        schema: &SchemaRef,
+        deltas: Arc<DeltaCache>,
+        partition: PartitionKey,
+        input_schema: SchemaRef,
     ) -> Result<()> {
         let _g = CompactionGuard::new(self);
-
-        // 1. Stream from object store
-        // 2. Run through modifier
-        // 3. Collect in mem and append remaining
-        // 4. Write and put multi part
 
         let path = partition.object_path();
         // TODO: Do we want to cache metas to avoid needing to fetch it
         // everytime?
-        let mut stream = match self.store.head(&path).await {
+        let exec: Arc<dyn ExecutionPlan> = match self.store.head(&path).await {
             Ok(meta) => {
-                let opener = ParquetOpener {
-                    store: self.store.clone(),
-                    meta: meta.clone(),
-                    meta_size_hint: None,
-                    projection: None,
-                };
-                opener.open()?.await?
+                trace!(%partition, "compacting deltas with existing partition file");
+                Arc::new(SelectUnorderedExec::new(
+                    Arc::new(DeltaInsertsExec::new(
+                        partition.clone(),
+                        input_schema.clone(),
+                        deltas.clone(),
+                        None,
+                    )?),
+                    Arc::new(LocalPartitionExec::new(
+                        self.store.clone(),
+                        meta,
+                        input_schema.clone(),
+                        None,
+                    )?),
+                )?)
             }
             Err(ObjectStoreError::NotFound { .. }) => {
-                debug!(%partition, "no file for partition, using empty stream");
-                EmptyRecordBatchStream::new(schema.clone()).boxed()
+                trace!(%partition, "compacting deltas with empty stream");
+                Arc::new(EmptyExec::new(false, input_schema.clone()))
             }
             Err(e) => return Err(e.into()),
         };
 
-        let modifier = deltas.open_modifier(partition, schema)?.await;
-
         // TODO: We'll want to have a "mutable" record batch eventually and just
         // append directly to that.
 
-        // Modify existing batches.
+        let mut stream = exec.execute(0, self.dummy_context.clone())?;
         let (lower, _) = stream.size_hint();
         let mut batches = Vec::with_capacity(lower);
         while let Some(result) = stream.next().await {
             let batch = result?;
-            let modified = modifier.modify(batch)?;
-            batches.push(modified);
+            batches.push(batch);
         }
 
-        // Get remaining batches.
-        let mut stream = modifier.stream_rest();
-        while let Some(result) = stream.next().await {
-            batches.push(result?);
-        }
-
-        let concat = concat_batches(schema, &batches)?;
+        let concat = concat_batches(&input_schema, &batches)?;
+        debug!(num_rows = %concat.num_rows(), %partition, "concatenated batch for compaction");
 
         // TODO: Sort, rechunk.
 
@@ -98,12 +110,23 @@ impl Compactor {
         // TODO: Reuse buffers.
         let mut buf = Vec::with_capacity(UPLOAD_BUF_CAPACITY);
         uploader
-            .upload_batches(schema.clone(), [concat], &mut buf)
+            .upload_batches(input_schema.clone(), [concat], &mut buf)
             .await?;
 
-        deltas.remove_partition_deltas(partition);
+        deltas.remove_partition_deltas(&partition);
 
         Ok(())
+    }
+}
+
+impl fmt::Debug for Compactor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Compactor({:?}, running={})",
+            self.store,
+            self.running_compactions.load(Ordering::Relaxed)
+        )
     }
 }
 

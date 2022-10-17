@@ -1,8 +1,8 @@
 //! Helpers for handling parquet files.
 use crate::errors::Result;
-use crate::partitionexec::{PartitionOpenFuture, PartitionStreamOpener};
 use bytes::Bytes;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
 use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
@@ -10,14 +10,17 @@ use datafusion::parquet::arrow::async_reader::AsyncFileReader;
 use datafusion::parquet::arrow::{ArrowWriter, ParquetRecordBatchStreamBuilder, ProjectionMask};
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
+use datafusion::parquet::file::properties::WriterProperties;
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
-use futures::stream::{BoxStream, Stream, TryStream, TryStreamExt};
+use futures::stream::{BoxStream, TryStreamExt};
 use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::ops::Range;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
+
+pub type ParquetStreamOpenFuture =
+    BoxFuture<'static, Result<BoxStream<'static, ArrowResult<RecordBatch>>>>;
 
 /// Implement parquet's `AsyncFileReader` interface.
 #[derive(Debug)]
@@ -66,8 +69,8 @@ pub struct ParquetOpener {
     pub projection: Option<Vec<usize>>,
 }
 
-impl PartitionStreamOpener for ParquetOpener {
-    fn open(&self) -> Result<PartitionOpenFuture> {
+impl ParquetOpener {
+    pub fn open(&self) -> Result<ParquetStreamOpenFuture> {
         // TODO: Reduce cloning.
 
         let reader = ParquetObjectReader {

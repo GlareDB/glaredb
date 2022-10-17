@@ -1,9 +1,10 @@
 use crate::errors::Result;
 use crate::runtime::AccessRuntime;
-use access::deltacache::DeltaCache;
-use access::deltaexec::DeltaMergeExec;
+use access::errors::AccessError;
+use access::exec::{
+    DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec, SingleOpaqueTraceExec,
+};
 use access::keys::{PartitionKey, TableId};
-use access::partitionexec::LocalPartitionExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -12,11 +13,9 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
-use datafusion::physical_plan::{
-    display::DisplayableExecutionPlan, empty::EmptyExec, ExecutionPlan,
-};
+use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan};
 use dfutil::cast::cast_record_batch;
-use object_store::{Error as ObjectStoreError, ObjectStore};
+use object_store::Error as ObjectStoreError;
 use std::any::Any;
 use std::sync::Arc;
 use tracing::{debug, error, trace};
@@ -59,7 +58,11 @@ impl DeltaTable {
             if let Err(e) = self
                 .runtime
                 .compactor()
-                .compact_deltas(self.runtime.delta_cache(), &key, &self.schema)
+                .compact_deltas(
+                    self.runtime.delta_cache().clone(),
+                    key.clone(),
+                    self.schema.clone(),
+                )
                 .await
             {
                 // Shouldn't prevent this insert from returning ok.
@@ -103,16 +106,32 @@ impl TableProvider for DeltaTable {
 
         // TODO: Project schema.
 
-        let base_plan: Arc<dyn ExecutionPlan> =
+        let merr = |e: AccessError| Into::<DataFusionError>::into(e);
+
+        let exec: Arc<dyn ExecutionPlan> =
             match self.runtime.object_store().head(&key.object_path()).await {
                 Ok(meta) => Arc::new(
-                    LocalPartitionExec::new(
-                        self.runtime.object_store().clone(),
-                        meta,
-                        self.schema.clone(),
-                        projection.clone(),
+                    SelectUnorderedExec::new(
+                        Arc::new(
+                            DeltaInsertsExec::new(
+                                key.clone(),
+                                self.schema.clone(),
+                                self.runtime.delta_cache().clone(),
+                                projection.clone(),
+                            )
+                            .map_err(merr)?,
+                        ),
+                        Arc::new(
+                            LocalPartitionExec::new(
+                                self.runtime.object_store().clone(),
+                                meta,
+                                self.schema.clone(),
+                                projection.clone(),
+                            )
+                            .map_err(merr)?,
+                        ),
                     )
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?,
+                    .map_err(merr)?,
                 ),
                 Err(ObjectStoreError::NotFound { .. }) => {
                     Arc::new(EmptyExec::new(false, self.schema.clone()))
@@ -120,20 +139,8 @@ impl TableProvider for DeltaTable {
                 Err(e) => return Err(e.into()),
             };
 
-        let plan = DeltaMergeExec::new(
-            key,
-            self.schema.clone(),
-            self.runtime.delta_cache().clone(),
-            projection.clone(),
-            base_plan,
-        )
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let exec = Arc::new(SingleOpaqueTraceExec::new(exec));
 
-        {
-            let displayable = DisplayableExecutionPlan::new(&plan);
-            trace!(plan = %displayable.indent(), "table scan execution plan");
-        }
-
-        Ok(Arc::new(plan))
+        Ok(exec)
     }
 }

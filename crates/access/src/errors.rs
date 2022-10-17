@@ -11,6 +11,9 @@ pub enum AccessError {
     Parquet(#[from] ParquetError),
 
     #[error(transparent)]
+    DataFusion(#[from] DataFusionError),
+
+    #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]

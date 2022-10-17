@@ -14,11 +14,8 @@
 #![allow(dead_code)]
 pub mod compact;
 pub mod deltacache;
-pub mod deltaexec;
 pub mod errors;
+pub mod exec;
 pub mod keys;
-pub mod modify;
-pub mod partitionexec;
-pub mod traceexec;
 
 mod parquet;
