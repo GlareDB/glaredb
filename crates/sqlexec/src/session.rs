@@ -298,7 +298,7 @@ impl Session {
                 let batch = result?;
                 let schema = batch.schema();
                 let table = DeltaTable::new(new_table_id(), schema, self.access_runtime.clone());
-                table.insert_batch(batch)?;
+                table.insert_batch(batch).await?;
                 table
             }
             None => {
@@ -311,7 +311,7 @@ impl Session {
         // Insert the rest of the stream.
         while let Some(result) = stream.next().await {
             let batch = result?;
-            table.insert_batch(batch)?;
+            table.insert_batch(batch).await?;
         }
 
         // Finally register the table.
@@ -341,7 +341,7 @@ impl Session {
 
         while let Some(result) = stream.next().await {
             let result = result?;
-            table.insert_batch(result)?;
+            table.insert_batch(result).await?;
         }
 
         Ok(())

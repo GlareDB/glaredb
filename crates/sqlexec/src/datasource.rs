@@ -19,7 +19,7 @@ use dfutil::cast::cast_record_batch;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::any::Any;
 use std::sync::Arc;
-use tracing::trace;
+use tracing::{debug, error, trace};
 
 /// An implementation of a table provider using our delta cache.
 ///
@@ -42,14 +42,36 @@ impl DeltaTable {
         }
     }
 
-    pub fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
+    pub async fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
+        // NOTE: All of this functionality will be moved to some other 'table'
+        // abtractions which will handle cross-partition inserts.
+
         let key = PartitionKey {
             table_id: self.table_id,
             part_id: 0, // TODO: Need another layer of indirection.
         };
         let batch = cast_record_batch(batch, self.schema.clone())?;
         self.runtime.delta_cache().insert_batch(&key, batch);
+
+        // TODO: Make this a configurable trigger.
+        if self.should_compact() {
+            debug!(%key, "compacting for partition");
+            if let Err(e) = self
+                .runtime
+                .compactor()
+                .compact_deltas(self.runtime.delta_cache(), &key, &self.schema)
+                .await
+            {
+                // Shouldn't prevent this insert from returning ok.
+                error!(%e, %key, "failed to compact deltas");
+            }
+        }
+
         Ok(())
+    }
+
+    fn should_compact(&self) -> bool {
+        true
     }
 }
 

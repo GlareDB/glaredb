@@ -23,6 +23,13 @@ pub struct Compactor {
 }
 
 impl Compactor {
+    pub fn new(store: Arc<dyn ObjectStore>) -> Compactor {
+        Compactor {
+            store,
+            running_compactions: 0.into(),
+        }
+    }
+
     /// Compact deltas into the underlying partition file.
     ///
     /// TODO: Locking, race semantics.
