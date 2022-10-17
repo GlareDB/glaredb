@@ -545,9 +545,9 @@ where
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DatabaseDetails {
-    pub ip: String,
-    pub port: String,
+struct DatabaseDetails {
+    ip: String,
+    port: String,
 }
 
 pub struct ProxyHandler {
