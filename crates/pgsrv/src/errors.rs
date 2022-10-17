@@ -1,4 +1,4 @@
-use pgrepr::messages::{FrontendMessage, StartupMessage, BackendMessage};
+use pgrepr::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;

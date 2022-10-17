@@ -1,4 +1,7 @@
-use crate::codec::{server::{FramedConn, PgCodec}, client::{FramedClientConn}};
+use crate::codec::{
+    client::FramedClientConn,
+    server::{FramedConn, PgCodec},
+};
 use crate::errors::{PgSrvError, Result};
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -7,6 +10,7 @@ use pgrepr::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
     StartupMessage, TransactionStatus, VERSION_V3,
 };
+use serde::{Deserialize, Serialize};
 use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{
     engine::Engine,
@@ -14,7 +18,6 @@ use sqlexec::{
     session::Session,
 };
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::{trace, warn};
@@ -170,7 +173,6 @@ where
         Ok(())
     }
 }
-
 
 struct ClientSession<C> {
     conn: FramedConn<C>,
@@ -559,9 +561,7 @@ pub struct ProxyHandler {
 
 impl ProxyHandler {
     pub fn new(api_url: String) -> Self {
-        Self {
-            api_url,
-        }
+        Self { api_url }
     }
 }
 
@@ -583,10 +583,13 @@ where
                 // Check username, password, database against glaredb cloud api
                 // TODO: error handling
                 // TODO: pass parameters to route
-                let db_details = reqwest::get(format!("{}/api/internal/databases/authenticate", &self.api_url))
-                    .await?
-                    .json::<DatabaseDetails>()
-                    .await?;
+                let db_details = reqwest::get(format!(
+                    "{}/api/internal/databases/authenticate",
+                    &self.api_url
+                ))
+                .await?
+                .json::<DatabaseDetails>()
+                .await?;
 
                 // At this point, open a connection to the database and initiate a startup message
                 // We need to send the same parameters as the client sent us
@@ -594,7 +597,10 @@ where
                 let db_conn = TcpStream::connect(db_addr).await?;
                 let mut db_framed = FramedClientConn::new(db_conn);
 
-                let startup = StartupMessage::StartupRequest { version: VERSION_V3, params };
+                let startup = StartupMessage::StartupRequest {
+                    version: VERSION_V3,
+                    params,
+                };
                 db_framed.send_startup(startup).await?;
 
                 // This implementation only supports AuthenticationCleartextPassword
@@ -602,7 +608,9 @@ where
                 match auth_msg {
                     Some(BackendMessage::AuthenticationCleartextPassword) => {
                         // TODO: rewrite password according to the response from the cloud api
-                        db_framed.send(FrontendMessage::PasswordMessage { password }).await?;
+                        db_framed
+                            .send(FrontendMessage::PasswordMessage { password })
+                            .await?;
 
                         // Check for AuthenticationOk and respond to the client with the same message
                         let auth_ok = db_framed.read().await?;
@@ -613,14 +621,17 @@ where
                                 // from here, we can just forward messages between the client to the database
                                 let server_conn = db_framed.into_inner();
                                 let client_conn = framed.into_inner();
-                                tokio::io::copy_bidirectional(&mut client_conn.into_inner(), &mut server_conn.into_inner()).await?;
+                                tokio::io::copy_bidirectional(
+                                    &mut client_conn.into_inner(),
+                                    &mut server_conn.into_inner(),
+                                )
+                                .await?;
 
                                 Ok(())
                             }
                             Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
                             None => Ok(()),
                         }
-
                     }
                     Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
                     None => Ok(()),

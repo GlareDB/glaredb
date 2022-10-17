@@ -2,9 +2,7 @@ use crate::errors::{PgSrvError, Result};
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use futures::{SinkExt, TryStreamExt};
-use pgrepr::messages::{
-    BackendMessage, FrontendMessage, StartupMessage,
-};
+use pgrepr::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;
@@ -53,7 +51,6 @@ where
     }
 }
 
-
 /// A client codec for the postgres protocol.
 /// This is the reverse of the `PgCodec` which is used by the server.
 pub struct PgClientCodec;
@@ -75,19 +72,17 @@ impl Encoder<StartupMessage> for PgClientCodec {
 
     fn encode(&mut self, item: StartupMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
         match item {
-            StartupMessage::SSLRequest {
-                version: _,
-            } => {
+            StartupMessage::SSLRequest { version: _ } => {
                 todo!("encode<StartupMessage::SSLRequest>")
             }
-            StartupMessage::StartupRequest {
-                version,
-                params,
-            } => {
+            StartupMessage::StartupRequest { version, params } => {
                 // determine the length of the message
                 let mut len = 4; // message length indicator
                 len += 4; // protocol version
-                len += params.iter().map(|(k, v)| k.len() + v.len() + 2).sum::<usize>();
+                len += params
+                    .iter()
+                    .map(|(k, v)| k.len() + v.len() + 2)
+                    .sum::<usize>();
                 len += 1; // trailing zero
 
                 // write the message
@@ -107,9 +102,7 @@ impl Encoder<StartupMessage> for PgClientCodec {
 
                 Ok(())
             }
-            StartupMessage::CancelRequest {
-                version: _,
-            } => {
+            StartupMessage::CancelRequest { version: _ } => {
                 todo!("encode<StartupMessage::CancelRequest>")
             }
         }

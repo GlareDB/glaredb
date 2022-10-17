@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use anyhow::Result;
 use pgsrv::handler::{PostgresHandler, ProxyHandler};
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::debug;
 
@@ -28,7 +28,6 @@ impl Proxy {
                     Err(e) => debug!(%e, "client disconnected with error."),
                 }
             });
-
         }
 
         Ok(())
