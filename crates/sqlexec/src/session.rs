@@ -37,7 +37,7 @@ pub struct Session {
     state: SessionState,
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
-    access_runtime: AccessRuntime,
+    access_runtime: Arc<AccessRuntime>,
     // TODO: Transaction context goes here.
 
     // prepared statements
@@ -68,7 +68,7 @@ impl Session {
         Session {
             state,
             catalog,
-            access_runtime: AccessRuntime::default(), // TODO: Pass me in.
+            access_runtime: Arc::new(AccessRuntime::default()), // TODO: Pass me in.
             unnamed_statement: None,
             named_statements: HashMap::new(),
             unnamed_portal: None,
@@ -254,8 +254,7 @@ impl Session {
         let table = DeltaTable::new(
             new_table_id(),
             Arc::new(table_schema),
-            self.access_runtime.object_store().clone(),
-            self.access_runtime.delta_cache().clone(),
+            self.access_runtime.clone(),
         );
 
         schema.register_table(resolved.table.to_string(), Arc::new(table))?;
@@ -298,12 +297,7 @@ impl Session {
             Some(result) => {
                 let batch = result?;
                 let schema = batch.schema();
-                let table = DeltaTable::new(
-                    new_table_id(),
-                    schema,
-                    self.access_runtime.object_store().clone(),
-                    self.access_runtime.delta_cache().clone(),
-                );
+                let table = DeltaTable::new(new_table_id(), schema, self.access_runtime.clone());
                 table.insert_batch(batch)?;
                 table
             }

@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use crate::runtime::AccessRuntime;
 use access::deltacache::DeltaCache;
 use access::deltaexec::DeltaMergeExec;
 use access::keys::{PartitionKey, TableId};
@@ -29,22 +30,15 @@ use tracing::trace;
 pub struct DeltaTable {
     table_id: TableId,
     schema: SchemaRef,
-    store: Arc<dyn ObjectStore>,
-    cache: Arc<DeltaCache>,
+    runtime: Arc<AccessRuntime>,
 }
 
 impl DeltaTable {
-    pub fn new(
-        table_id: TableId,
-        schema: SchemaRef,
-        store: Arc<dyn ObjectStore>,
-        cache: Arc<DeltaCache>,
-    ) -> DeltaTable {
+    pub fn new(table_id: TableId, schema: SchemaRef, runtime: Arc<AccessRuntime>) -> DeltaTable {
         DeltaTable {
             table_id,
             schema,
-            store,
-            cache,
+            runtime,
         }
     }
 
@@ -54,7 +48,7 @@ impl DeltaTable {
             part_id: 0, // TODO: Need another layer of indirection.
         };
         let batch = cast_record_batch(batch, self.schema.clone())?;
-        self.cache.insert_batch(&key, batch);
+        self.runtime.delta_cache().insert_batch(&key, batch);
         Ok(())
     }
 }
@@ -87,26 +81,27 @@ impl TableProvider for DeltaTable {
 
         // TODO: Project schema.
 
-        let base_plan: Arc<dyn ExecutionPlan> = match self.store.head(&key.object_path()).await {
-            Ok(meta) => Arc::new(
-                LocalPartitionExec::new(
-                    self.store.clone(),
-                    meta,
-                    self.schema.clone(),
-                    projection.clone(),
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?,
-            ),
-            Err(ObjectStoreError::NotFound { .. }) => {
-                Arc::new(EmptyExec::new(false, self.schema.clone()))
-            }
-            Err(e) => return Err(e.into()),
-        };
+        let base_plan: Arc<dyn ExecutionPlan> =
+            match self.runtime.object_store().head(&key.object_path()).await {
+                Ok(meta) => Arc::new(
+                    LocalPartitionExec::new(
+                        self.runtime.object_store().clone(),
+                        meta,
+                        self.schema.clone(),
+                        projection.clone(),
+                    )
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?,
+                ),
+                Err(ObjectStoreError::NotFound { .. }) => {
+                    Arc::new(EmptyExec::new(false, self.schema.clone()))
+                }
+                Err(e) => return Err(e.into()),
+            };
 
         let plan = DeltaMergeExec::new(
             key,
             self.schema.clone(),
-            self.cache.clone(),
+            self.runtime.delta_cache().clone(),
             projection.clone(),
             base_plan,
         )
