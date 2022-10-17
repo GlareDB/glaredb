@@ -20,3 +20,4 @@ tracing = "0.1"
 async-trait = "0.1.57"
 uuid = { version = "1.2.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 postgres-types = "0.2.4"
+object_store = "0.5"

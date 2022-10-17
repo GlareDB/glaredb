@@ -2,6 +2,7 @@ use crate::errors::Result;
 use access::deltacache::DeltaCache;
 use access::deltaexec::DeltaMergeExec;
 use access::keys::{PartitionKey, TableId};
+use access::partitionexec::LocalPartitionExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -14,6 +15,7 @@ use datafusion::physical_plan::{
     display::DisplayableExecutionPlan, empty::EmptyExec, ExecutionPlan,
 };
 use dfutil::cast::cast_record_batch;
+use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::any::Any;
 use std::sync::Arc;
 use tracing::trace;
@@ -27,14 +29,21 @@ use tracing::trace;
 pub struct DeltaTable {
     table_id: TableId,
     schema: SchemaRef,
+    store: Arc<dyn ObjectStore>,
     cache: Arc<DeltaCache>,
 }
 
 impl DeltaTable {
-    pub fn new(table_id: TableId, schema: SchemaRef, cache: Arc<DeltaCache>) -> DeltaTable {
+    pub fn new(
+        table_id: TableId,
+        schema: SchemaRef,
+        store: Arc<dyn ObjectStore>,
+        cache: Arc<DeltaCache>,
+    ) -> DeltaTable {
         DeltaTable {
             table_id,
             schema,
+            store,
             cache,
         }
     }
@@ -75,13 +84,31 @@ impl TableProvider for DeltaTable {
             table_id: self.table_id,
             part_id: 0,
         };
-        let empty = EmptyExec::new(false, self.schema.clone()); // TODO: Base partition scan.
+
+        // TODO: Project schema.
+
+        let base_plan: Arc<dyn ExecutionPlan> = match self.store.head(&key.object_path()).await {
+            Ok(meta) => Arc::new(
+                LocalPartitionExec::new(
+                    self.store.clone(),
+                    meta,
+                    self.schema.clone(),
+                    projection.clone(),
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?,
+            ),
+            Err(ObjectStoreError::NotFound { .. }) => {
+                Arc::new(EmptyExec::new(false, self.schema.clone()))
+            }
+            Err(e) => return Err(e.into()),
+        };
+
         let plan = DeltaMergeExec::new(
             key,
             self.schema.clone(),
             self.cache.clone(),
             projection.clone(),
-            Arc::new(empty),
+            base_plan,
         )
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 

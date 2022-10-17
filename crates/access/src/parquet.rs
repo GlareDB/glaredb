@@ -13,7 +13,7 @@ use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use futures::stream::{BoxStream, Stream, TryStream, TryStreamExt};
-use object_store::{ObjectMeta, ObjectStore};
+use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::ops::Range;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
@@ -108,7 +108,7 @@ impl PartitionStreamOpener for ParquetOpener {
 /// async writer: https://github.com/apache/arrow-rs/issues/1269
 pub struct ParquetUploader {
     pub store: Arc<dyn ObjectStore>,
-    pub meta: ObjectMeta,
+    pub path: ObjectPath,
 }
 
 impl ParquetUploader {
@@ -134,10 +134,10 @@ impl ParquetUploader {
         // Flush and get the buffer reference back.
         let buffer = writer.into_inner()?;
 
-        let (id, mut obj_writer) = self.store.put_multipart(&self.meta.location).await?;
+        let (id, mut obj_writer) = self.store.put_multipart(&self.path).await?;
         if let Err(e) = obj_writer.write_all(buffer).await {
             trace!(%id, %e, "parquet upload failed, aborting multipart");
-            if let Err(e) = self.store.abort_multipart(&self.meta.location, &id).await {
+            if let Err(e) = self.store.abort_multipart(&self.path, &id).await {
                 error!(%id, %e, "failed to abort multipart for parquet upload");
                 // Don't return this error, return original error.
             }
@@ -146,7 +146,7 @@ impl ParquetUploader {
 
         if let Err(e) = obj_writer.shutdown().await {
             trace!(%id, %e, "object writer shutdown failed, aborting multipart");
-            if let Err(e) = self.store.abort_multipart(&self.meta.location, &id).await {
+            if let Err(e) = self.store.abort_multipart(&self.path, &id).await {
                 error!(%id, %e, "failed to abort multipart after writer shutdown failure");
                 // Same as above, return original error.
             }

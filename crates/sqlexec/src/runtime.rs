@@ -1,4 +1,5 @@
 use access::deltacache::DeltaCache;
+use object_store::{local::LocalFileSystem, ObjectStore};
 use std::sync::Arc;
 
 #[derive(Debug, Default)]
@@ -16,20 +17,26 @@ pub struct AccessRuntime {
 struct Inner {
     conf: AccessConfig,
     deltas: Arc<DeltaCache>,
+    store: Arc<dyn ObjectStore>,
 }
 
 impl AccessRuntime {
-    pub fn new() -> AccessRuntime {
+    pub fn new(store: Arc<dyn ObjectStore>) -> AccessRuntime {
         AccessRuntime {
             inner: Arc::new(Inner {
                 conf: AccessConfig::default(),
                 deltas: Arc::new(DeltaCache::new()),
+                store,
             }),
         }
     }
 
     pub fn delta_cache(&self) -> &Arc<DeltaCache> {
         &self.inner.deltas
+    }
+
+    pub fn object_store(&self) -> &Arc<dyn ObjectStore> {
+        &self.inner.store
     }
 
     pub fn config(&self) -> &AccessConfig {
@@ -39,6 +46,7 @@ impl AccessRuntime {
 
 impl Default for AccessRuntime {
     fn default() -> Self {
-        Self::new()
+        let local = LocalFileSystem::new();
+        Self::new(Arc::new(local))
     }
 }

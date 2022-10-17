@@ -2,16 +2,19 @@ use crate::deltacache::{DeltaCache, PartitionDeltaModifier};
 use crate::errors::Result;
 use crate::keys::PartitionKey;
 use crate::modify::{StreamModifier, StreamModifierOpener};
-use crate::parquet::ParquetOpener;
+use crate::parquet::{ParquetOpener, ParquetUploader};
 use crate::partitionexec::PartitionStreamOpener;
 use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::physical_plan::EmptyRecordBatchStream;
 use futures::StreamExt;
-use object_store::ObjectStore;
+use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{debug, trace};
+
+const UPLOAD_BUF_CAPACITY: usize = 2 * 1024 * 1024;
 
 #[derive(Debug)]
 pub struct Compactor {
@@ -37,15 +40,26 @@ impl Compactor {
         // 3. Collect in mem and append remaining
         // 4. Write and put multi part
 
-        // TODO: Do we want to cache metas to avoid needing to this?
-        let meta = self.store.head(&partition.object_path()).await?;
-        let opener = ParquetOpener {
-            store: self.store.clone(),
-            meta,
-            meta_size_hint: None,
-            projection: None,
+        let path = partition.object_path();
+        // TODO: Do we want to cache metas to avoid needing to fetch it
+        // everytime?
+        let mut stream = match self.store.head(&path).await {
+            Ok(meta) => {
+                let opener = ParquetOpener {
+                    store: self.store.clone(),
+                    meta: meta.clone(),
+                    meta_size_hint: None,
+                    projection: None,
+                };
+                opener.open()?.await?
+            }
+            Err(ObjectStoreError::NotFound { .. }) => {
+                debug!(%partition, "no file for partition, using empty stream");
+                EmptyRecordBatchStream::new(schema.clone()).boxed()
+            }
+            Err(e) => return Err(e.into()),
         };
-        let mut stream = opener.open()?.await?;
+
         let modifier = deltas.open_modifier(partition, schema)?.await;
 
         // TODO: We'll want to have a "mutable" record batch eventually and just
@@ -70,7 +84,17 @@ impl Compactor {
 
         // TODO: Sort, rechunk.
 
-        unimplemented!()
+        let uploader = ParquetUploader {
+            store: self.store.clone(),
+            path,
+        };
+        // TODO: Reuse buffers.
+        let mut buf = Vec::with_capacity(UPLOAD_BUF_CAPACITY);
+        uploader
+            .upload_batches(schema.clone(), [concat], &mut buf)
+            .await?;
+
+        Ok(())
     }
 }
 

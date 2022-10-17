@@ -68,7 +68,7 @@ impl Session {
         Session {
             state,
             catalog,
-            access_runtime: AccessRuntime::new(), // TODO: Pass me in.
+            access_runtime: AccessRuntime::default(), // TODO: Pass me in.
             unnamed_statement: None,
             named_statements: HashMap::new(),
             unnamed_portal: None,
@@ -254,6 +254,7 @@ impl Session {
         let table = DeltaTable::new(
             new_table_id(),
             Arc::new(table_schema),
+            self.access_runtime.object_store().clone(),
             self.access_runtime.delta_cache().clone(),
         );
 
@@ -300,6 +301,7 @@ impl Session {
                 let table = DeltaTable::new(
                     new_table_id(),
                     schema,
+                    self.access_runtime.object_store().clone(),
                     self.access_runtime.delta_cache().clone(),
                 );
                 table.insert_batch(batch)?;

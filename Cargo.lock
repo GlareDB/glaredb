@@ -2799,6 +2799,7 @@ dependencies = [
  "dfutil",
  "futures",
  "logutil",
+ "object_store",
  "parking_lot",
  "pgrepr",
  "postgres-types",
