@@ -45,7 +45,10 @@ pub fn init_test() {
 pub fn init(verbosity: impl Into<Verbosity>) {
     let verbosity = verbosity.into();
     let level: Level = verbosity.into();
-    let subscriber = FmtSubscriber::builder().with_max_level(level).finish();
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(level)
+        .with_thread_ids(true)
+        .finish();
     subscriber::set_global_default(subscriber).unwrap();
     info!(%level, "log level set");
 }

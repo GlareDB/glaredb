@@ -9,7 +9,7 @@ edition = "2021"
 datafusion = "12.0"
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.56"
+async-trait = "0.1.57"
 postgres-types = "0.2.4"
 lexical = { version = "6.1.1", features = ["parse-floats"] }
 lexical-core = "0.8.5"

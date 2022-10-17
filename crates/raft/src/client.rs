@@ -31,9 +31,7 @@ pub struct NodeClients {
 }
 
 impl NodeClients {
-    pub async fn from_endpoint(
-        endpoint: Endpoint,
-    ) -> Result<Self, tonic::transport::Error> {
+    pub async fn from_endpoint(endpoint: Endpoint) -> Result<Self, tonic::transport::Error> {
         let app_client = RemoteDataSourceClient::connect(endpoint.clone()).await?;
         let node_client = RaftNodeClient::connect(endpoint).await?;
 
@@ -58,45 +56,45 @@ const DEFAULT_NUM_RETRIES: usize = 3;
 /// If the contact node is not the leader, the request will be forwarded to the leader.
 /// The request will be retried if the leader is not available, up to the client's `num_retries`.
 macro_rules! retry_rpc_on_leader {
-    ($client:ident, $func:ident, $req:ident, $errtype:ident) => {
-        {
-            let mut n_retry = $client.num_retries;
+    ($client:ident, $func:ident, $req:ident, $errtype:ident) => {{
+        let mut n_retry = $client.num_retries;
 
-            loop {
-                let res = $client.$func(&$req).await;
+        loop {
+            let res = $client.$func(&$req).await;
 
-                // If the request is successful, return the result.
-                let rpc_err = match res {
-                    Ok(res) => break Ok(res),
-                    Err(rpc_err) => rpc_err,
-                };
+            // If the request is successful, return the result.
+            let rpc_err = match res {
+                Ok(res) => break Ok(res),
+                Err(rpc_err) => rpc_err,
+            };
 
-                // If the request is not successful, check if the error is a `ForwardToLeader` error.
-                if let RPCError::RemoteError(remote_err) = &rpc_err {
-                    let forward_err_res = <$errtype as TryInto<OForwardToLeader>>::try_into(
-                        remote_err.source.clone(),
-                    );
+            // If the request is not successful, check if the error is a `ForwardToLeader` error.
+            if let RPCError::RemoteError(remote_err) = &rpc_err {
+                let forward_err_res =
+                    <$errtype as TryInto<OForwardToLeader>>::try_into(remote_err.source.clone());
 
-                    // If the error is a `ForwardToLeader` error, update the stored leader and retry.
-                    if let Ok(ForwardToLeader {
-                        leader_id: Some(leader_id),
-                        leader_node: Some(leader_node),
-                    }) = forward_err_res
-                    {
-                        $client.update_leader(leader_id, leader_node).await.expect("failed to update leader");
+                // If the error is a `ForwardToLeader` error, update the stored leader and retry.
+                if let Ok(ForwardToLeader {
+                    leader_id: Some(leader_id),
+                    leader_node: Some(leader_node),
+                }) = forward_err_res
+                {
+                    $client
+                        .update_leader(leader_id, leader_node)
+                        .await
+                        .expect("failed to update leader");
 
-                        n_retry -= 1;
-                        if n_retry > 0 {
-                            continue;
-                        }
+                    n_retry -= 1;
+                    if n_retry > 0 {
+                        continue;
                     }
                 }
-
-                // If we reach here, we have exhausted all retries.
-                break Err(rpc_err);
             }
+
+            // If we reach here, we have exhausted all retries.
+            break Err(rpc_err);
         }
-    }
+    }};
 }
 
 impl ConsensusClient {
@@ -104,7 +102,9 @@ impl ConsensusClient {
     pub async fn new(leader_id: NodeId, leader_url: String) -> RpcResult<Self, NetworkError> {
         let endpoint = Endpoint::from_shared(leader_url).expect("failed to create endpoint");
 
-        let clients = NodeClients::from_endpoint(endpoint).await.expect("failed to create clients to leader");
+        let clients = NodeClients::from_endpoint(endpoint)
+            .await
+            .expect("failed to create clients to leader");
 
         Ok(Self {
             leader: Arc::new(Mutex::new((leader_id, clients))),
@@ -249,7 +249,6 @@ impl ConsensusClient {
         &self,
         req: &BTreeSet<NodeId>,
     ) -> RpcResult<OClientWriteResponse, OClientWriteError> {
-
         let req = ChangeMembershipRequest {
             payload: bincode::serialize(req).expect("failed to serialize"),
         };
@@ -265,24 +264,24 @@ impl ConsensusClient {
     pub async fn metrics(&self) -> RpcResult<RaftMetrics, Infallible> {
         let (_leader_id, mut client) = self.leader.lock().await.clone();
 
-        match client
-            .node_client
-            .metrics(()).await {
+        match client.node_client.metrics(()).await {
             Ok(resp) => Ok(resp.into_inner().try_into().unwrap()),
             Err(e) => Err(RpcError::Network(NetworkError::new(&e))),
         }
     }
 
-    pub async fn update_leader(&self, id: NodeId, node: Node) -> Result<(), tonic::transport::Error> {
+    pub async fn update_leader(
+        &self,
+        id: NodeId,
+        node: Node,
+    ) -> Result<(), tonic::transport::Error> {
         let mut t = self.leader.lock().await;
         let url = node.address.clone();
-        let endpoint =
-            Endpoint::from_shared(url).expect("failed to create endpoint");
+        let endpoint = Endpoint::from_shared(url).expect("failed to create endpoint");
         let clients = NodeClients::from_endpoint(endpoint).await?;
 
         *t = (id, clients);
 
         Ok(())
     }
-
 }
