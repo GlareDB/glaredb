@@ -35,8 +35,25 @@ where
     C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     async fn handle_startup(&self, mut conn: C, params: HashMap<String, String>) -> Result<()>;
-    async fn handle_ssl_request(&self, mut conn: C) -> Result<()>;
     async fn handle_cancel_request(&self, mut conn: C) -> Result<()>;
+
+    async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
+        // 'N' for not supported, 'S' for supported.
+        //
+        // No SSL support for now, send back not supported and try
+        // reading in a new startup message.
+        conn.write_u8(b'N').await?;
+
+        // Frontend should continue on with an unencrypted connection
+        // (or exit).
+        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+        match startup {
+            StartupMessage::StartupRequest { params, .. } => {
+                self.handle_startup(conn, params).await
+            }
+            other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
+        }
+    }
 
     async fn handle_connection(&self, mut conn: C) -> Result<()> {
         let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
@@ -128,24 +145,6 @@ where
 {
     async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
         self.begin(conn, params).await
-    }
-
-    async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
-        // 'N' for not supported, 'S' for supported.
-        //
-        // No SSL support for now, send back not supported and try
-        // reading in a new startup message.
-        conn.write_u8(b'N').await?;
-
-        // Frontend should continue on with an unencrypted connection
-        // (or exit).
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.handle_startup(conn, params).await
-            }
-            other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
-        }
     }
 
     async fn handle_cancel_request(&self, _conn: C) -> Result<()> {
@@ -627,24 +626,6 @@ where
             }
             Some(other) => Err(PgSrvError::UnexpectedFrontendMessage(other)),
             None => Ok(()),
-        }
-    }
-
-    async fn handle_ssl_request(&self, mut conn: C) -> Result<()> {
-        // 'N' for not supported, 'S' for supported.
-        //
-        // No SSL support for now, send back not supported and try
-        // reading in a new startup message.
-        conn.write_u8(b'N').await?;
-
-        // Frontend should continue on with an unencrypted connection
-        // (or exit).
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.handle_startup(conn, params).await
-            }
-            other => return Err(PgSrvError::UnexpectedStartupMessage(other)),
         }
     }
 
