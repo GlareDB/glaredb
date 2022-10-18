@@ -1,9 +1,11 @@
 use anyhow::Result;
+use object_store_util::temp::TempObjectStore;
 use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::engine::Engine;
+use sqlexec::runtime::AccessRuntime;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::debug;
+use tracing::{debug, info};
 
 pub struct ServerConfig {
     pub pg_listener: TcpListener,
@@ -17,7 +19,12 @@ impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
     pub async fn connect(db_name: impl Into<String>) -> Result<Self> {
-        let engine = Engine::new(db_name)?;
+        // TODO: Provide the access runtime to the server.
+        let store = Arc::new(TempObjectStore::new()?);
+        info!(%store, "object storage");
+        let access = Arc::new(AccessRuntime::new(store));
+
+        let engine = Engine::new(db_name, access)?;
         Ok(Server {
             pg_handler: Arc::new(Handler::new(engine)),
         })

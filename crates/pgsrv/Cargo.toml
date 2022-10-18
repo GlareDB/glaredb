@@ -11,6 +11,7 @@ ioutil = {path = "../ioutil"}
 sqlexec = {path = "../sqlexec"}
 serde = { version = "1.0", features = ["derive"] }
 bytesutil = {path = "../bytesutil"}
+object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
 thiserror = "1.0"
 tracing = "0.1"

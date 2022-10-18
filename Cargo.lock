@@ -13,7 +13,6 @@ dependencies = [
  "logutil",
  "object_store",
  "parking_lot",
- "parquet",
  "persistence",
  "scc",
  "tempfile",
@@ -1133,6 +1132,7 @@ dependencies = [
  "clap",
  "futures",
  "logutil",
+ "object_store_util",
  "parking_lot",
  "pgsrv",
  "raft",
@@ -1839,6 +1839,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "object_store_util"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures",
+ "object_store",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2052,6 +2064,7 @@ dependencies = [
  "ioutil",
  "logutil",
  "pgrepr",
+ "object_store_util",
  "postgres-types",
  "reqwest",
  "serde",
@@ -2804,6 +2817,8 @@ dependencies = [
  "dfutil",
  "futures",
  "logutil",
+ "object_store",
+ "object_store_util",
  "parking_lot",
  "pgrepr",
  "postgres-types",

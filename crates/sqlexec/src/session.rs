@@ -37,7 +37,7 @@ pub struct Session {
     state: SessionState,
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
-    access_runtime: AccessRuntime,
+    access_runtime: Arc<AccessRuntime>,
     // TODO: Transaction context goes here.
 
     // prepared statements
@@ -52,7 +52,11 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(catalog: Arc<DatabaseCatalog>, runtime: Arc<RuntimeEnv>) -> Session {
+    pub fn new(
+        catalog: Arc<DatabaseCatalog>,
+        runtime: Arc<RuntimeEnv>,
+        access: Arc<AccessRuntime>,
+    ) -> Session {
         // Note that the values for creating the default catalog/schema and
         // information schema do not matter, as we're not using the datafusion's
         // session context. Initializing the session context is what creates
@@ -68,7 +72,7 @@ impl Session {
         Session {
             state,
             catalog,
-            access_runtime: AccessRuntime::new(), // TODO: Pass me in.
+            access_runtime: access,
             unnamed_statement: None,
             named_statements: HashMap::new(),
             unnamed_portal: None,
@@ -254,7 +258,7 @@ impl Session {
         let table = DeltaTable::new(
             new_table_id(),
             Arc::new(table_schema),
-            self.access_runtime.delta_cache().clone(),
+            self.access_runtime.clone(),
         );
 
         schema.register_table(resolved.table.to_string(), Arc::new(table))?;
@@ -297,12 +301,8 @@ impl Session {
             Some(result) => {
                 let batch = result?;
                 let schema = batch.schema();
-                let table = DeltaTable::new(
-                    new_table_id(),
-                    schema,
-                    self.access_runtime.delta_cache().clone(),
-                );
-                table.insert_batch(batch)?;
+                let table = DeltaTable::new(new_table_id(), schema, self.access_runtime.clone());
+                table.insert_batch(batch).await?;
                 table
             }
             None => {
@@ -315,7 +315,7 @@ impl Session {
         // Insert the rest of the stream.
         while let Some(result) = stream.next().await {
             let batch = result?;
-            table.insert_batch(batch)?;
+            table.insert_batch(batch).await?;
         }
 
         // Finally register the table.
@@ -341,11 +341,11 @@ impl Session {
         let mut stream = self.execute_physical(physical)?;
 
         let schema = stream.schema();
-        debug!(?schema, "inserting with schema");
+        debug!(?schema, %table, "inserting with schema to table");
 
         while let Some(result) = stream.next().await {
             let result = result?;
-            table.insert_batch(result)?;
+            table.insert_batch(result).await?;
         }
 
         Ok(())

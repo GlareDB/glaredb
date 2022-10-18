@@ -76,6 +76,7 @@ impl ExecutionPlan for SingleOpaqueTraceExec {
         context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let stream = self.child.execute(partition, context)?;
+        trace!("execution stream create");
         Ok(Box::pin(TraceStream {
             schema: self.schema(),
             stream,
@@ -102,10 +103,13 @@ impl Stream for TraceStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match ready!(self.stream.poll_next_unpin(cx)) {
             Some(result) => {
-                trace!(?result, "execution result");
+                trace!(?result, "execution stream result");
                 Poll::Ready(Some(result))
             }
-            None => Poll::Ready(None),
+            None => {
+                trace!("execution stream complete");
+                Poll::Ready(None)
+            }
         }
     }
 }
