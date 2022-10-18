@@ -594,17 +594,21 @@ where
                         .map(|(k, v)| (k.replace("--", ""), v.to_string()))
                         .collect::<HashMap<_, _>>(),
                 };
-                
-                // reqwest needs the query to be typed like &[(&str, &str)]
-                let query: Vec<(&str, &str)> = options.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
-                let res = client.get(format!(
-                    "{}/api/internal/databases/authenticate",
-                    &self.api_url
-                ))
-                .query(&query)
-                .send()
-                .await?;
+                // reqwest needs the query to be typed like &[(&str, &str)]
+                let query: Vec<(&str, &str)> = options
+                    .iter()
+                    .map(|(k, v)| (k.as_str(), v.as_str()))
+                    .collect();
+
+                let res = client
+                    .get(format!(
+                        "{}/api/internal/databases/authenticate",
+                        &self.api_url
+                    ))
+                    .query(&query)
+                    .send()
+                    .await?;
 
                 let db_details: DatabaseDetails = res.json().await?;
 
