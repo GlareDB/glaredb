@@ -571,7 +571,6 @@ where
     C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
-
         let mut framed = FramedConn::new(conn);
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
