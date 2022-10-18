@@ -27,6 +27,9 @@ jobs:
     if: ${{ needs.pre_test.outputs.should_skip != 'true' }}
     name: CI
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
