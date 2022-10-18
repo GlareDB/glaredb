@@ -5,10 +5,11 @@ use crate::keys::PartitionKey;
 use crate::parquet::ParquetUploader;
 use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::physical_plan::ExecutionPlan;
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::collections::HashMap;
 use std::fmt;
@@ -93,13 +94,8 @@ impl Compactor {
         // TODO: We'll want to have a "mutable" record batch eventually and just
         // append directly to that.
 
-        let mut stream = exec.execute(0, self.dummy_context.clone())?;
-        let (lower, _) = stream.size_hint();
-        let mut batches = Vec::with_capacity(lower);
-        while let Some(result) = stream.next().await {
-            let batch = result?;
-            batches.push(batch);
-        }
+        let stream = exec.execute(0, self.dummy_context.clone())?;
+        let batches: Vec<RecordBatch> = stream.try_collect().await?;
 
         let concat = concat_batches(&input_schema, &batches)?;
         debug!(num_rows = %concat.num_rows(), %partition, "concatenated batch for compaction");
