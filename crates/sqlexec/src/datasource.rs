@@ -104,8 +104,6 @@ impl TableProvider for DeltaTable {
             part_id: 0,
         };
 
-        // TODO: Project schema.
-
         let merr = |e: AccessError| Into::<DataFusionError>::into(e);
 
         let exec: Arc<dyn ExecutionPlan> =

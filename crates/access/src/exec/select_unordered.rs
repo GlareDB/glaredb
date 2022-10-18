@@ -79,7 +79,7 @@ impl ExecutionPlan for SelectUnorderedExec {
         context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let left = self.left.execute(partition, context.clone())?;
-        let right = self.left.execute(partition, context)?;
+        let right = self.right.execute(partition, context)?;
         Ok(Box::pin(SelectBatchStream {
             schema: self.schema(),
             inner: stream::select(left, right),
