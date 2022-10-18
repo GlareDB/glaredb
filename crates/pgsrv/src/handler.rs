@@ -581,15 +581,32 @@ where
         match msg {
             Some(FrontendMessage::PasswordMessage { password }) => {
                 // Check username, password, database against glaredb cloud api
-                // TODO: error handling
-                // TODO: pass parameters to route
-                let db_details = reqwest::get(format!(
+                let client = reqwest::Client::builder().build()?;
+
+                // Pass the options provided when connecting as a query string
+                // options will look like "--org=org --bucket=bucket"
+                let options = match params.get("options") {
+                    None => return Err(PgSrvError::MissingStartupParameter),
+                    Some(options) => options
+                        .split_whitespace()
+                        .map(|s| s.split('=').collect::<Vec<_>>())
+                        .map(|v| (v[0], v[1]))
+                        .map(|(k, v)| (k.replace("--", ""), v.to_string()))
+                        .collect::<HashMap<_, _>>(),
+                };
+                
+                // reqwest needs the query to be typed like &[(&str, &str)]
+                let query: Vec<(&str, &str)> = options.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+
+                let res = client.get(format!(
                     "{}/api/internal/databases/authenticate",
                     &self.api_url
                 ))
-                .await?
-                .json::<DatabaseDetails>()
+                .query(&query)
+                .send()
                 .await?;
+
+                let db_details: DatabaseDetails = res.json().await?;
 
                 // At this point, open a connection to the database and initiate a startup message
                 // We need to send the same parameters as the client sent us

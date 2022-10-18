@@ -23,6 +23,9 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
+    #[error("an expected startup parameter was missing")]
+    MissingStartupParameter,
+
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
     /// with the Postgres message format documentation.
