@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 ioutil = {path = "../ioutil"}
 sqlexec = {path = "../sqlexec"}
 bytesutil = {path = "../bytesutil"}
+object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"
 tracing = "0.1"
 async-trait = "0.1.57"

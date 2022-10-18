@@ -1,10 +1,20 @@
 use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
+use datafusion::parquet::errors::ParquetError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AccessError {
     #[error(transparent)]
-    Arrow(#[from] datafusion::arrow::error::ArrowError),
+    Arrow(#[from] ArrowError),
+
+    #[error(transparent)]
+    Parquet(#[from] ParquetError),
+
+    #[error(transparent)]
+    DataFusion(#[from] DataFusionError),
+
+    #[error(transparent)]
+    ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),

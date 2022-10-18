@@ -2,7 +2,7 @@ use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self};
 use pgrepr::types::Type;
 use pgrepr::value::{Format, Value};
-use tracing::log::debug;
+use tracing::debug;
 
 // TODO: we can avoid usage of Vec here
 #[derive(Debug, Clone)]

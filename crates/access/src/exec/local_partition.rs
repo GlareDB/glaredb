@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use crate::parquet::{ParquetOpener, ParquetStreamOpenFuture};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -9,30 +10,58 @@ use datafusion::physical_plan::{
     RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use futures::{
-    future::{BoxFuture, FutureExt},
+    future::FutureExt,
     ready,
     stream::{BoxStream, StreamExt},
     Stream,
 };
-use object_store::{path::Path as ObjectPath, ObjectStore};
+use object_store::{ObjectMeta, ObjectStore};
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+/// Scan a partition that this node is responsible for.
+// TODO: Push down limit.
 #[derive(Debug)]
-pub struct PartitionExec {
-    schema: SchemaRef,
+pub struct LocalPartitionExec {
+    store: Arc<dyn ObjectStore>,
+    /// Schema of the stream after projection.
+    projected_schema: SchemaRef,
+    /// Metadata about the file in object storage.
+    meta: ObjectMeta,
+    projection: Option<Vec<usize>>,
 }
 
-impl ExecutionPlan for PartitionExec {
+impl LocalPartitionExec {
+    pub fn new(
+        store: Arc<dyn ObjectStore>,
+        meta: ObjectMeta,
+        input_schema: SchemaRef,
+        projection: Option<Vec<usize>>,
+    ) -> Result<LocalPartitionExec> {
+        let projected_schema = match &projection {
+            Some(projection) => Arc::new(input_schema.project(projection)?),
+            None => input_schema,
+        };
+
+        Ok(LocalPartitionExec {
+            store,
+            projected_schema,
+            meta,
+            projection,
+        })
+    }
+}
+
+impl ExecutionPlan for LocalPartitionExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        self.projected_schema.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -60,7 +89,7 @@ impl ExecutionPlan for PartitionExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for PartitionExec".to_string(),
+            "cannot replace children for LocalPartitionExec".to_string(),
         ))
     }
 
@@ -69,11 +98,24 @@ impl ExecutionPlan for PartitionExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        unimplemented!()
+        let opener = ParquetOpener {
+            store: self.store.clone(),
+            meta: self.meta.clone(),
+            meta_size_hint: None,
+            projection: self.projection.clone(),
+        };
+
+        let stream = PartitionStream {
+            schema: self.projected_schema.clone(),
+            opener,
+            state: StreamState::Idle,
+        };
+
+        Ok(Box::pin(stream))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PartitionExec")
+        write!(f, "LocalPartitionExec: projection={:?}", self.projection)
     }
 
     fn statistics(&self) -> Statistics {
@@ -81,60 +123,32 @@ impl ExecutionPlan for PartitionExec {
     }
 }
 
-#[derive(Debug)]
-pub struct PartitionMeta {
-    pub location: ObjectPath,
-}
-
-pub type PartitionOpenFuture =
-    BoxFuture<'static, Result<BoxStream<'static, ArrowResult<RecordBatch>>>>;
-
-pub trait PartitionStreamOpener: Unpin {
-    fn open(&self, meta: &PartitionMeta) -> Result<PartitionOpenFuture>;
-}
-
-struct ParquetPartitionOpener {
-    store: Arc<dyn ObjectStore>,
-}
-
-impl PartitionStreamOpener for ParquetPartitionOpener {
-    fn open(&self, _meta: &PartitionMeta) -> Result<PartitionOpenFuture> {
-        // let read_opts = ArrowReaderOptions::new().with_page_index(true);
-
-        Ok(Box::pin(async move {
-            //
-            unimplemented!()
-        }))
-    }
-}
-
 enum StreamState {
     /// File is not currently being read.
     Idle,
     /// File is being opened.
-    Open { fut: PartitionOpenFuture },
+    Open { fut: ParquetStreamOpenFuture },
     /// The file completed opening with the given stream.
     Scan {
         stream: BoxStream<'static, ArrowResult<RecordBatch>>,
     },
     /// Done scanning.
     Done,
-    /// Encountered and error.
+    /// Encountered an error.
     Error,
 }
 
-pub struct PartitionStream<P> {
+pub struct PartitionStream {
     schema: SchemaRef,
-    meta: PartitionMeta,
-    opener: P,
+    opener: ParquetOpener,
     state: StreamState,
 }
 
-impl<P: PartitionStreamOpener> PartitionStream<P> {
+impl PartitionStream {
     fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<ArrowResult<RecordBatch>>> {
         loop {
             match &mut self.state {
-                StreamState::Idle => match self.opener.open(&self.meta) {
+                StreamState::Idle => match self.opener.open() {
                     Ok(fut) => {
                         self.state = StreamState::Open { fut };
                     }
@@ -166,7 +180,7 @@ impl<P: PartitionStreamOpener> PartitionStream<P> {
     }
 }
 
-impl<P: PartitionStreamOpener> Stream for PartitionStream<P> {
+impl Stream for PartitionStream {
     type Item = ArrowResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -174,7 +188,7 @@ impl<P: PartitionStreamOpener> Stream for PartitionStream<P> {
     }
 }
 
-impl<P: PartitionStreamOpener> RecordBatchStream for PartitionStream<P> {
+impl RecordBatchStream for PartitionStream {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
