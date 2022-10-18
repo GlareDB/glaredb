@@ -9,7 +9,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::physical_plan::ExecutionPlan;
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::collections::HashMap;
 use std::fmt;
