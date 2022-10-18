@@ -52,7 +52,11 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(catalog: Arc<DatabaseCatalog>, runtime: Arc<RuntimeEnv>) -> Session {
+    pub fn new(
+        catalog: Arc<DatabaseCatalog>,
+        runtime: Arc<RuntimeEnv>,
+        access: Arc<AccessRuntime>,
+    ) -> Session {
         // Note that the values for creating the default catalog/schema and
         // information schema do not matter, as we're not using the datafusion's
         // session context. Initializing the session context is what creates
@@ -68,7 +72,7 @@ impl Session {
         Session {
             state,
             catalog,
-            access_runtime: Arc::new(AccessRuntime::default()), // TODO: Pass me in.
+            access_runtime: access,
             unnamed_statement: None,
             named_statements: HashMap::new(),
             unnamed_portal: None,
@@ -337,7 +341,7 @@ impl Session {
         let mut stream = self.execute_physical(physical)?;
 
         let schema = stream.schema();
-        debug!(?schema, "inserting with schema");
+        debug!(?schema, %table, "inserting with schema to table");
 
         while let Some(result) = stream.next().await {
             let result = result?;

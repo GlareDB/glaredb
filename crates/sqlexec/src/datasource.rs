@@ -1,9 +1,6 @@
 use crate::errors::Result;
 use crate::runtime::AccessRuntime;
-use access::errors::AccessError;
-use access::exec::{
-    DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec, SingleOpaqueTraceExec,
-};
+use access::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
 use access::keys::{PartitionKey, TableId};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
@@ -13,12 +10,13 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
-use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan};
+use datafusion::physical_plan::ExecutionPlan;
 use dfutil::cast::cast_record_batch;
 use object_store::Error as ObjectStoreError;
 use std::any::Any;
+use std::fmt;
 use std::sync::Arc;
-use tracing::{debug, error, trace};
+use tracing::{debug, error};
 
 /// An implementation of a table provider using our delta cache.
 ///
@@ -52,7 +50,6 @@ impl DeltaTable {
         let batch = cast_record_batch(batch, self.schema.clone())?;
         self.runtime.delta_cache().insert_batch(&key, batch);
 
-        // TODO: Make this a configurable trigger.
         if self.should_compact() {
             debug!(%key, "compacting for partition");
             if let Err(e) = self
@@ -74,6 +71,7 @@ impl DeltaTable {
     }
 
     fn should_compact(&self) -> bool {
+        // TODO: Make this a configurable trigger.
         true
     }
 }
@@ -104,7 +102,7 @@ impl TableProvider for DeltaTable {
             part_id: 0,
         };
 
-        let merr = |e: AccessError| Into::<DataFusionError>::into(e);
+        let merr = Into::<DataFusionError>::into;
 
         let exec: Arc<dyn ExecutionPlan> =
             match self.runtime.object_store().head(&key.object_path()).await {
@@ -131,14 +129,24 @@ impl TableProvider for DeltaTable {
                     )
                     .map_err(merr)?,
                 ),
-                Err(ObjectStoreError::NotFound { .. }) => {
-                    Arc::new(EmptyExec::new(false, self.schema.clone()))
-                }
+                Err(ObjectStoreError::NotFound { .. }) => Arc::new(
+                    DeltaInsertsExec::new(
+                        key.clone(),
+                        self.schema.clone(),
+                        self.runtime.delta_cache().clone(),
+                        projection.clone(),
+                    )
+                    .map_err(merr)?,
+                ),
                 Err(e) => return Err(e.into()),
             };
 
-        let exec = Arc::new(SingleOpaqueTraceExec::new(exec));
-
         Ok(exec)
+    }
+}
+
+impl fmt::Display for DeltaTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DeltaTable(table_id={})", self.table_id)
     }
 }

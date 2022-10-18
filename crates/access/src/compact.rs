@@ -1,15 +1,13 @@
 use crate::deltacache::DeltaCache;
 use crate::errors::Result;
-use crate::exec::{
-    DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec, SingleOpaqueTraceExec,
-};
+use crate::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
 use crate::keys::PartitionKey;
 use crate::parquet::ParquetUploader;
 use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::execution::context::TaskContext;
 use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan};
+use datafusion::physical_plan::ExecutionPlan;
 use futures::StreamExt;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::collections::HashMap;
@@ -81,8 +79,13 @@ impl Compactor {
                 )?)
             }
             Err(ObjectStoreError::NotFound { .. }) => {
-                trace!(%partition, "compacting deltas with empty stream");
-                Arc::new(EmptyExec::new(false, input_schema.clone()))
+                trace!(%partition, "compacting deltas into new file");
+                Arc::new(DeltaInsertsExec::new(
+                    partition.clone(),
+                    input_schema.clone(),
+                    deltas.clone(),
+                    None,
+                )?)
             }
             Err(e) => return Err(e.into()),
         };

@@ -11,7 +11,6 @@ use datafusion::physical_plan::{
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
-use tracing::debug;
 
 /// Create a stream of record batches from insert deltas for a single partition.
 // TODO: Provide optional limit as well.
@@ -87,7 +86,8 @@ impl ExecutionPlan for DeltaInsertsExec {
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let batches = self.deltas.partition_inserts(&self.partition);
-        let stream = MemoryStream::try_new(batches, self.output_schema.clone(), None)?;
+        let stream =
+            MemoryStream::try_new(batches, self.output_schema.clone(), self.projection.clone())?;
         Ok(Box::pin(stream))
     }
 

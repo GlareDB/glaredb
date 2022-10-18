@@ -1,6 +1,7 @@
 use crate::keys::PartitionKey;
 use datafusion::arrow::record_batch::RecordBatch;
 use scc::HashMap;
+use tracing::trace;
 
 /// In-memory cache of changes made to underlying table partitions.
 ///
@@ -19,6 +20,7 @@ impl DeltaCache {
 
     /// Insert a batch for a partition.
     pub fn insert_batch(&self, part: &PartitionKey, batch: RecordBatch) {
+        trace!(%part, "inserting for partition");
         // TODO: Remove needing to clone the batch before insert.
         let cloned = batch.clone();
         self.inserts.upsert(
@@ -29,9 +31,10 @@ impl DeltaCache {
     }
 
     pub fn partition_inserts(&self, part: &PartitionKey) -> Vec<RecordBatch> {
+        trace!(%part, "reading partition inserts");
         self.inserts
             .read(part, |_, batches| batches.clone())
-            .unwrap_or(Vec::new())
+            .unwrap_or_default()
     }
 
     pub fn remove_partition_deltas(&self, part: &PartitionKey) {

@@ -76,7 +76,7 @@ impl ParquetOpener {
         let reader = ParquetObjectReader {
             store: self.store.clone(),
             meta: self.meta.clone(),
-            meta_size_hint: self.meta_size_hint.clone(),
+            meta_size_hint: self.meta_size_hint,
         };
 
         let projection = self.projection.clone();

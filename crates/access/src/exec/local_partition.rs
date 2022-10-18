@@ -23,6 +23,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 /// Scan a partition that this node is responsible for.
+// TODO: Push down limit.
 #[derive(Debug)]
 pub struct LocalPartitionExec {
     store: Arc<dyn ObjectStore>,
@@ -41,7 +42,7 @@ impl LocalPartitionExec {
         projection: Option<Vec<usize>>,
     ) -> Result<LocalPartitionExec> {
         let projected_schema = match &projection {
-            Some(projection) => Arc::new(input_schema.project(&projection)?),
+            Some(projection) => Arc::new(input_schema.project(projection)?),
             None => input_schema,
         };
 

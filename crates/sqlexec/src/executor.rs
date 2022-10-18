@@ -125,8 +125,10 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use crate::catalog::DatabaseCatalog;
+    use crate::runtime::AccessRuntime;
     use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
+    use object_store_util::temp::TempObjectStore;
     use std::sync::Arc;
 
     #[tokio::test]
@@ -134,7 +136,10 @@ mod tests {
         let catalog = DatabaseCatalog::new("test");
         catalog.insert_default_schema().unwrap();
 
-        let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()));
+        let access = Arc::new(AccessRuntime::new(Arc::new(
+            TempObjectStore::new().unwrap(),
+        )));
+        let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()), access);
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 
         let result = executor

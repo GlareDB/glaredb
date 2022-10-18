@@ -1,6 +1,6 @@
 use access::compact::Compactor;
 use access::deltacache::DeltaCache;
-use object_store::{local::LocalFileSystem, ObjectStore};
+use object_store::ObjectStore;
 use std::sync::Arc;
 
 #[derive(Debug, Default)]
@@ -21,6 +21,8 @@ struct Inner {
 }
 
 impl AccessRuntime {
+    /// Create a new access runtime with the given object store.
+    // TODO: Create the runtime from configuration.
     pub fn new(store: Arc<dyn ObjectStore>) -> AccessRuntime {
         AccessRuntime {
             inner: Arc::new(Inner {
@@ -46,15 +48,5 @@ impl AccessRuntime {
 
     pub fn config(&self) -> &AccessConfig {
         &self.inner.conf
-    }
-}
-
-// TODO: Remove this.
-impl Default for AccessRuntime {
-    fn default() -> Self {
-        let tmp = std::env::temp_dir().join("access_runtime");
-        std::fs::create_dir_all(&tmp).unwrap();
-        let local = LocalFileSystem::new_with_prefix(tmp).unwrap();
-        Self::new(Arc::new(local))
     }
 }

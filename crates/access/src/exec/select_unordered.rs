@@ -2,7 +2,7 @@ use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_plan::{
     display::DisplayFormatType, expressions::PhysicalSortExpr, ExecutionPlan, Partitioning,
@@ -61,16 +61,17 @@ impl ExecutionPlan for SelectUnorderedExec {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        Vec::new()
+        vec![self.left.clone(), self.right.clone()]
     }
 
     fn with_new_children(
         self: Arc<Self>,
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for SelectUnordered".to_string(),
-        ))
+        // Purposely ignore new children. `children` above use both by EXPLAINs
+        // and the optimizer. The optimizer doesn't know anything about this
+        // node, so just ignore it.
+        Ok(self)
     }
 
     fn execute(

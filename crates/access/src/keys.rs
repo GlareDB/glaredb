@@ -1,7 +1,6 @@
 //! Various key types.
 use object_store::path::Path as ObjectPath;
 use std::fmt;
-use std::iter::FromIterator;
 
 pub type TableId = u32;
 pub type PartitionId = u32;
