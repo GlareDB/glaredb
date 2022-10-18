@@ -1,9 +1,12 @@
 use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
-use crate::datasource::MemTable;
+use crate::datasource::DeltaTable;
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
+use crate::placeholders::bind_placeholders;
+use crate::runtime::AccessRuntime;
+use access::keys::TableId;
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::catalog::schema::SchemaProvider;
@@ -18,11 +21,10 @@ use datafusion::physical_plan::{
 };
 use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
-use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
-use datafusion::sql::sqlparser::parser::Parser;
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
-use hashbrown::hash_map::Entry;
+use std::collections::{hash_map::Entry, HashMap};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -33,16 +35,16 @@ use tracing::debug;
 pub struct Session {
     /// Datafusion state for query planning and execution.
     state: SessionState,
-
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
+    access_runtime: Arc<AccessRuntime>,
     // TODO: Transaction context goes here.
 
     // prepared statements
     unnamed_statement: Option<PreparedStatement>,
-    named_statements: hashbrown::HashMap<String, PreparedStatement>,
+    named_statements: HashMap<String, PreparedStatement>,
     unnamed_portal: Option<Portal>,
-    named_portals: hashbrown::HashMap<String, Portal>,
+    named_portals: HashMap<String, Portal>,
 }
 
 impl Session {
@@ -50,7 +52,11 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(catalog: Arc<DatabaseCatalog>, runtime: Arc<RuntimeEnv>) -> Session {
+    pub fn new(
+        catalog: Arc<DatabaseCatalog>,
+        runtime: Arc<RuntimeEnv>,
+        access: Arc<AccessRuntime>,
+    ) -> Session {
         // Note that the values for creating the default catalog/schema and
         // information schema do not matter, as we're not using the datafusion's
         // session context. Initializing the session context is what creates
@@ -66,10 +72,11 @@ impl Session {
         Session {
             state,
             catalog,
+            access_runtime: access,
             unnamed_statement: None,
-            named_statements: hashbrown::HashMap::new(),
+            named_statements: HashMap::new(),
             unnamed_portal: None,
-            named_portals: hashbrown::HashMap::new(),
+            named_portals: HashMap::new(),
         }
     }
 
@@ -83,7 +90,7 @@ impl Session {
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
             ast::Statement::Query(query) => {
-                let plan = planner.query_to_plan(*query, &mut hashbrown::HashMap::new())?;
+                let plan = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(LogicalPlan::Query(plan))
             }
 
@@ -158,7 +165,7 @@ impl Session {
                 query: Some(query),
                 ..
             } => {
-                let source = planner.query_to_plan(*query, &mut hashbrown::HashMap::new())?;
+                let source = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(DdlPlan::CreateTableAs(CreateTableAs {
                     table_name: name.to_string(),
                     source,
@@ -175,7 +182,7 @@ impl Session {
                 let table_name = table_name.to_string();
                 let columns = columns.into_iter().map(|col| col.value).collect();
 
-                let source = planner.query_to_plan(*source, &mut hashbrown::HashMap::new())?;
+                let source = planner.query_to_plan(*source, &mut HashMap::new())?;
 
                 Ok(WritePlan::Insert(Insert {
                     table_name,
@@ -248,9 +255,13 @@ impl Session {
         // TODO: If not exists
 
         let table_schema = Schema::new(plan.columns);
-        let mem_table = MemTable::new(Arc::new(table_schema));
+        let table = DeltaTable::new(
+            new_table_id(),
+            Arc::new(table_schema),
+            self.access_runtime.clone(),
+        );
 
-        schema.register_table(resolved.table.to_string(), Arc::new(mem_table))?;
+        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
 
         Ok(())
     }
@@ -290,8 +301,8 @@ impl Session {
             Some(result) => {
                 let batch = result?;
                 let schema = batch.schema();
-                let table = MemTable::new(schema);
-                table.insert_batch(batch)?;
+                let table = DeltaTable::new(new_table_id(), schema, self.access_runtime.clone());
+                table.insert_batch(batch).await?;
                 table
             }
             None => {
@@ -304,7 +315,7 @@ impl Session {
         // Insert the rest of the stream.
         while let Some(result) = stream.next().await {
             let batch = result?;
-            table.insert_batch(batch)?;
+            table.insert_batch(batch).await?;
         }
 
         // Finally register the table.
@@ -323,18 +334,18 @@ impl Session {
 
         let table = table
             .as_any()
-            .downcast_ref::<MemTable>()
-            .ok_or_else(|| internal!("cannot downcast to mem table"))?;
+            .downcast_ref::<DeltaTable>()
+            .ok_or_else(|| internal!("cannot downcast to delta table"))?;
 
         let physical = self.create_physical_plan(plan.source).await?;
         let mut stream = self.execute_physical(physical)?;
 
         let schema = stream.schema();
-        debug!(?schema, "inserting with schema");
+        debug!(?schema, %table, "inserting with schema to table");
 
         while let Some(result) = stream.next().await {
             let result = result?;
-            table.insert_batch(result)?;
+            table.insert_batch(result).await?;
         }
 
         Ok(())
@@ -372,7 +383,7 @@ impl Session {
             None => {
                 // Store the unnamed prepared statement.
                 // This will persist until the session is dropped or another unnamed prepared statement is created
-                self.unnamed_statement = Some(PreparedStatement::new(sql, params));
+                self.unnamed_statement = Some(PreparedStatement::new(sql, params)?);
             }
             Some(name) => {
                 // Named prepared statements must be explicitly closed before being redefined
@@ -384,7 +395,7 @@ impl Session {
                         ))
                     }
                     Entry::Vacant(ent) => {
-                        ent.insert(PreparedStatement::new(sql, params));
+                        ent.insert(PreparedStatement::new(sql, params)?);
                     }
                 }
             }
@@ -417,33 +428,32 @@ impl Session {
         param_values: Vec<Option<Vec<u8>>>,
         result_formats: Vec<i16>,
     ) -> Result<()> {
-        let statement = match statement_name {
-            None => self
-                .unnamed_statement
-                .as_mut()
-                .ok_or_else(|| internal!("no unnamed prepared statement"))?,
-            Some(name) => self
-                .named_statements
-                .get_mut(&name)
-                .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+        let (statement, types) = {
+            let prepared_statement = match statement_name {
+                None => self
+                    .unnamed_statement
+                    .as_mut()
+                    .ok_or_else(|| internal!("no unnamed prepared statement"))?,
+                Some(name) => self
+                    .named_statements
+                    .get_mut(&name)
+                    .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
+            };
+
+            (
+                prepared_statement.statement.clone(),
+                prepared_statement.param_types.clone(),
+            )
         };
 
-        let statements = Parser::parse_sql(&PostgreSqlDialect {}, &statement.sql)?
-            .into_iter()
-            .collect::<Vec<ast::Statement>>();
-
-        // a portal can only be bound to a single statement
-        if statements.len() != 1 {
-            return Err(internal!("portal can only be bound to a single statement"));
-        }
-
-        let statement = statements.into_iter().next().unwrap();
+        let bound_statement = bind_placeholders(statement, &param_formats, &param_values, &types)?;
+        debug!(?bound_statement, "bound statement");
+        let plan = self.plan_sql(bound_statement)?;
 
         match portal_name {
             None => {
                 // Store the unnamed portal.
                 // This will persist until the session is dropped or another unnamed portal is created
-                let plan = self.plan_sql(statement)?;
                 self.unnamed_portal = Some(Portal::new(
                     plan,
                     param_formats,
@@ -527,4 +537,10 @@ impl Session {
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }
     }
+}
+
+// TODO: This will be retrieved from the catalog.
+fn new_table_id() -> TableId {
+    static TABLE_ID_GEN: AtomicU32 = AtomicU32::new(0);
+    TABLE_ID_GEN.fetch_add(1, Ordering::Relaxed)
 }

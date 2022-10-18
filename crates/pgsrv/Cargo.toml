@@ -7,16 +7,16 @@ edition = "2021"
 
 [dependencies]
 logutil = {path = "../logutil"}
-lemur = {path = "../lemur"}
 ioutil = {path = "../ioutil"}
 sqlexec = {path = "../sqlexec"}
-anyhow = "1.0"
+bytesutil = {path = "../bytesutil"}
+object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.56"
+async-trait = "0.1.57"
 futures = "0.3.21"
-datafusion = "12.0"
-tokio-util = { version = "0.7.3", features = ["codec"] }
+datafusion = "13.0"
+tokio-util = { version = "0.7.4", features = ["codec"] }
 bytes = "1.2.1"
 tokio = { version = "1", features = ["full"] }
 postgres-types = "0.2.4"

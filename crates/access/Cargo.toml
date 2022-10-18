@@ -1,0 +1,21 @@
+[package]
+name = "access"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+logutil = {path = "../logutil"}
+persistence = {path = "../persistence"}
+thiserror = "1.0"
+tracing = "0.1"
+async-trait = "0.1.57"
+futures = "0.3.21"
+parking_lot = "0.12.1"
+tokio = { version = "1", features = ["full"] }
+datafusion = "13.0"
+bytes = "1.2"
+tempfile = "3"
+scc = "0.11.1"
+object_store = "0.5"

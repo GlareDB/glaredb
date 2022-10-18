@@ -30,9 +30,13 @@ pub enum StartupMessage {
 #[derive(Debug)]
 pub enum FrontendMessage {
     /// A query (or queries) to execute.
-    Query { sql: String },
+    Query {
+        sql: String,
+    },
     /// An encrypted or unencrypted password.
-    PasswordMessage { password: String },
+    PasswordMessage {
+        password: String,
+    },
     /// An extended query parse message.
     Parse {
         /// The name of the prepared statement. An empty string denotes the unnamed prepared statement.
@@ -92,6 +96,7 @@ pub enum BackendMessage {
     ParseComplete,
     BindComplete,
     NoData,
+    ParameterDescription(Vec<i32>),
 }
 
 impl From<ErrorResponse> for BackendMessage {

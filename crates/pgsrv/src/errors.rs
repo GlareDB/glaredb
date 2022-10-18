@@ -1,5 +1,4 @@
 use crate::messages::{FrontendMessage, StartupMessage};
-use crate::types::TypeError;
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -29,9 +28,6 @@ pub enum PgSrvError {
     /// with the Postgres message format documentation.
     #[error("invalid message type: byte={0}, char={}", *.0 as char)]
     InvalidMsgType(u8),
-
-    #[error(transparent)]
-    TypeError(#[from] TypeError),
 
     #[error(transparent)]
     Io(#[from] io::Error),
