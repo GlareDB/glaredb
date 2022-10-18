@@ -1,5 +1,4 @@
 use crate::messages::{FrontendMessage, StartupMessage};
-use crate::types::TypeError;
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -21,14 +20,14 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
+    #[error("unexpected describe object type: {0}")]
+    UnexpectedDescribeObjectType(u8),
+
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
     /// with the Postgres message format documentation.
     #[error("invalid message type: byte={0}, char={}", *.0 as char)]
     InvalidMsgType(u8),
-
-    #[error(transparent)]
-    TypeError(#[from] TypeError),
 
     #[error(transparent)]
     Io(#[from] io::Error),

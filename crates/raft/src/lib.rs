@@ -4,6 +4,7 @@ pub mod message;
 pub mod network;
 pub mod openraft_types;
 pub mod repr;
+pub mod rpc;
 pub mod server;
 pub mod store;
 
@@ -14,7 +15,6 @@ mod tests {
     use async_trait::async_trait;
     use futures::Future;
     use openraft::testing::StoreBuilder;
-    use tempdir::TempDir;
 
     use super::store::ConsensusStore;
     use crate::{openraft_types::types::StorageError, repr::RaftTypeConfig};
@@ -28,9 +28,8 @@ mod tests {
             Res: Future<Output = Result<Ret, StorageError>> + Send,
             Fun: Fn(Arc<ConsensusStore>) -> Res + Sync + Send,
         {
-            let temp = TempDir::new("consensus").unwrap();
-            let store = ConsensusStore::new(&temp).await;
-            t(store).await
+            let store = ConsensusStore::default();
+            t(Arc::new(store)).await
         }
     }
 

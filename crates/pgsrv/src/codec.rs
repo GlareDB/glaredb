@@ -4,11 +4,11 @@ use crate::messages::{
     VERSION_SSL, VERSION_V3,
 };
 use bytes::{Buf, BufMut, BytesMut};
+use bytesutil::{BufStringMut, Cursor};
 use datafusion::scalar::ScalarValue;
 use futures::{SinkExt, TryStreamExt};
 use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
-use std::str;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;
@@ -48,58 +48,6 @@ where
     }
 }
 
-trait BufStringMut: BufMut {
-    /// Put a null-terminated string in the buffer.
-    fn put_cstring(&mut self, s: &str);
-}
-
-impl<B: BufMut> BufStringMut for B {
-    fn put_cstring(&mut self, s: &str) {
-        self.put(s.as_bytes());
-        self.put_u8(0);
-    }
-}
-
-#[derive(Debug)]
-struct Cursor<'a> {
-    buf: &'a [u8],
-}
-
-impl<'a> Cursor<'a> {
-    fn new(buf: &'a [u8]) -> Self {
-        Cursor { buf }
-    }
-
-    fn read_cstring(&mut self) -> Result<&'a str> {
-        match self.buf.iter().position(|b| *b == 0) {
-            Some(pos) => {
-                let s = str::from_utf8(&self.buf[0..pos]).unwrap();
-                self.advance(pos + 1);
-                Ok(s)
-            }
-            None => Err(PgSrvError::MissingNullByte),
-        }
-    }
-
-    fn next_is_null_byte(&self) -> bool {
-        !self.buf.is_empty() && self.buf[0] == 0
-    }
-}
-
-impl<'a> Buf for Cursor<'a> {
-    fn remaining(&self) -> usize {
-        self.buf.len()
-    }
-
-    fn chunk(&self) -> &[u8] {
-        self.buf
-    }
-
-    fn advance(&mut self, cnt: usize) {
-        self.buf = &self.buf[cnt..]
-    }
-}
-
 pub struct PgCodec;
 
 impl PgCodec {
@@ -127,7 +75,7 @@ impl PgCodec {
         }
 
         let mut params = HashMap::new();
-        while buf.remaining() > 0 && !buf.next_is_null_byte() {
+        while buf.remaining() > 0 && !buf.peek_next_is_null() {
             let key = buf.read_cstring()?.to_string();
             let val = buf.read_cstring()?.to_string();
             params.insert(key, val);
@@ -146,6 +94,80 @@ impl PgCodec {
         Ok(FrontendMessage::PasswordMessage {
             password: buf.read_cstring()?.to_string(),
         })
+    }
+
+    fn decode_parse(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let name = buf.read_cstring()?.to_string();
+        let sql = buf.read_cstring()?.to_string();
+        let num_params = buf.get_i16() as usize;
+        let mut param_types = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            param_types.push(buf.get_i32());
+        }
+        Ok(FrontendMessage::Parse {
+            name,
+            sql,
+            param_types,
+        })
+    }
+
+    fn decode_bind(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let portal = buf.read_cstring()?.to_string();
+        let statement = buf.read_cstring()?.to_string();
+
+        let num_params = buf.get_i16() as usize;
+        let mut param_formats = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            param_formats.push(buf.get_i16());
+        }
+
+        let num_values = buf.get_i16() as usize; // must match num_params
+        let mut param_values = Vec::with_capacity(num_values);
+        for _ in 0..num_values {
+            let len = buf.get_i32();
+            if len == -1 {
+                param_values.push(None);
+            } else {
+                let mut val = vec![0; len as usize];
+                buf.copy_to_slice(&mut val);
+                param_values.push(Some(val));
+            }
+        }
+
+        let num_params = buf.get_i16() as usize;
+        let mut result_formats = Vec::with_capacity(num_params);
+        for _ in 0..num_params {
+            result_formats.push(buf.get_i16());
+        }
+
+        Ok(FrontendMessage::Bind {
+            portal,
+            statement,
+            param_formats,
+            param_values,
+            result_formats,
+        })
+    }
+
+    fn decode_describe(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let object_type = buf.get_u8().try_into()?;
+        let name = buf.read_cstring()?.to_string();
+
+        Ok(FrontendMessage::Describe { object_type, name })
+    }
+
+    fn decode_execute(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let portal = buf.read_cstring()?.to_string();
+        let max_rows = buf.get_i32();
+        Ok(FrontendMessage::Execute { portal, max_rows })
+    }
+
+    fn decode_sync(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Sync)
+    }
+
+    fn decode_terminate(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Terminate)
     }
 
     fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
@@ -187,6 +209,10 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::DataRow(_, _) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
+            BackendMessage::ParseComplete => b'1',
+            BackendMessage::BindComplete => b'2',
+            BackendMessage::NoData => b'n',
+            BackendMessage::ParameterDescription(_) => b't',
         };
         dst.put_u8(byte);
 
@@ -198,6 +224,9 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::AuthenticationOk => dst.put_i32(0),
             BackendMessage::AuthenticationCleartextPassword => dst.put_i32(3),
             BackendMessage::EmptyQueryResponse => (),
+            BackendMessage::ParseComplete => (),
+            BackendMessage::BindComplete => (),
+            BackendMessage::NoData => (),
             BackendMessage::ParameterStatus { key, val } => {
                 dst.put_cstring(&key);
                 dst.put_cstring(&val);
@@ -259,6 +288,12 @@ impl Encoder<BackendMessage> for PgCodec {
                 dst.put_cstring(&notice.message);
                 dst.put_u8(0);
             }
+            BackendMessage::ParameterDescription(descs) => {
+                dst.put_i16(descs.len() as i16);
+                for desc in descs.into_iter() {
+                    dst.put_i32(desc);
+                }
+            }
         }
 
         let msg_len = dst.len() - len_idx;
@@ -284,8 +319,8 @@ impl Decoder for PgCodec {
         let msg_len = i32::from_be_bytes(src[1..5].try_into().unwrap()) as usize;
 
         // Not enough bytes to read the full message yet.
-        if src.len() < msg_len {
-            src.reserve(msg_len - src.len());
+        if src.len() < msg_len + 1 {
+            src.reserve(msg_len + 1 - src.len());
             return Ok(None);
         }
 
@@ -296,6 +331,13 @@ impl Decoder for PgCodec {
         let msg = match msg_type {
             b'Q' => Self::decode_query(&mut buf)?,
             b'p' => Self::decode_password(&mut buf)?,
+            b'P' => Self::decode_parse(&mut buf)?,
+            b'B' => Self::decode_bind(&mut buf)?,
+            b'D' => Self::decode_describe(&mut buf)?,
+            b'E' => Self::decode_execute(&mut buf)?,
+            b'S' => Self::decode_sync(&mut buf)?,
+            // X - Terminate
+            b'X' => return Ok(None),
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 

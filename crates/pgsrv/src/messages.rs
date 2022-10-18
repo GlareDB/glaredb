@@ -1,6 +1,8 @@
 use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashMap;
 
+use crate::errors::PgSrvError;
+
 /// Version number (v3.0) used during normal frontend startup.
 pub const VERSION_V3: i32 = 0x30000;
 /// Version number used to request a cancellation.
@@ -28,9 +30,48 @@ pub enum StartupMessage {
 #[derive(Debug)]
 pub enum FrontendMessage {
     /// A query (or queries) to execute.
-    Query { sql: String },
+    Query {
+        sql: String,
+    },
     /// An encrypted or unencrypted password.
-    PasswordMessage { password: String },
+    PasswordMessage {
+        password: String,
+    },
+    /// An extended query parse message.
+    Parse {
+        /// The name of the prepared statement. An empty string denotes the unnamed prepared statement.
+        name: String,
+        /// The query string to be parsed.
+        sql: String,
+        /// The object IDs of the parameter data types. Placing a zero here is equivalent to leaving the type unspecified.
+        param_types: Vec<i32>,
+    },
+    Bind {
+        /// The name of the destination portal (an empty string selects the unnamed portal).
+        portal: String,
+        /// The name of the source prepared statement (an empty string selects the unnamed prepared statement).
+        statement: String,
+        /// The parameter format codes. Each must presently be zero (text) or one (binary).
+        param_formats: Vec<i16>,
+        /// The parameter values, in the format indicated by the associated format code. n is the above length.
+        param_values: Vec<Option<Vec<u8>>>,
+        /// The result-column format codes. Each must presently be zero (text) or one (binary).
+        result_formats: Vec<i16>,
+    },
+    Describe {
+        /// The kind of item to describe: 'S' to describe a prepared statement; or 'P' to describe a portal.
+        object_type: DescribeObjectType,
+        /// The name of the item to describe (an empty string selects the unnamed prepared statement or portal).
+        name: String,
+    },
+    Execute {
+        /// The name of the portal to execute (an empty string selects the unnamed portal).
+        portal: String,
+        /// The maximum number of rows to return, if portal contains a query that returns rows (ignored otherwise). Zero denotes "no limit".
+        max_rows: i32,
+    },
+    Sync,
+    Terminate,
 }
 
 #[derive(Debug)]
@@ -52,6 +93,10 @@ pub enum BackendMessage {
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
     DataRow(RecordBatch, usize),
+    ParseComplete,
+    BindComplete,
+    NoData,
+    ParameterDescription(Vec<i32>),
 }
 
 impl From<ErrorResponse> for BackendMessage {
@@ -197,6 +242,34 @@ impl FieldDescription {
             type_size: 0,
             type_mod: 0,
             format: 0, // Text
+        }
+    }
+}
+
+#[derive(Debug)]
+#[repr(u8)]
+pub enum DescribeObjectType {
+    Statement = b'S',
+    Portal = b'P',
+}
+
+impl std::fmt::Display for DescribeObjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DescribeObjectType::Statement => write!(f, "Statement"),
+            DescribeObjectType::Portal => write!(f, "Portal"),
+        }
+    }
+}
+
+impl TryFrom<u8> for DescribeObjectType {
+    type Error = PgSrvError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            b'S' => Ok(DescribeObjectType::Statement),
+            b'P' => Ok(DescribeObjectType::Portal),
+            _ => Err(PgSrvError::UnexpectedDescribeObjectType(value)),
         }
     }
 }

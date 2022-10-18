@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "glaredb.proto";
+
+package glaredb.raft.network;
+
+// raft consensus
+service RaftNetwork {
+    rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+    rpc Vote (VoteRequest) returns (VoteResponse) {}
+    rpc Snapshot (InstallSnapshotRequest) returns (InstallSnapshotResponse) {}
+}
+
+message AppendEntriesRequest {
+    bytes payload = 1;
+}
+
+message AppendEntriesResponse {
+    bytes payload = 1;
+}
+
+message VoteRequest {
+    bytes payload = 1;
+}
+
+message VoteResponse {
+    bytes payload = 1;
+}
+
+message InstallSnapshotRequest {
+    bytes payload = 1;
+}
+
+message InstallSnapshotResponse {
+    bytes payload = 1;
+}

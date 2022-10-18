@@ -19,7 +19,13 @@ docker load --input result
 image_id=$(docker images --filter=reference=glaredb --format "{{.ID}}")
 image_tag=$(echo ${GITHUB_REF_NAME} | sed -r 's#/+#-#g')
 
-docker tag ${image_id} ${image_id}
+docker tag "${image_id}" "${image_tag}"
+
+# Tag image as latest if we're on main.
+branch_name=$(git rev-parse --abbrev-ref HEAD);
+if [[ "${branch_name}" = "main" ]]; then
+    docker tag ${image_id} latest
+fi
 
 image_repo="gcr.io/${GCP_PROJECT_ID}/glaredb:${image_tag}"
 docker tag ${image_id} ${image_repo}

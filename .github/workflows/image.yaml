@@ -1,6 +1,10 @@
 name: Build and push image
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build-image:
@@ -20,13 +24,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install nix
-        uses: cachix/install-nix-action@v15
+        uses: cachix/install-nix-action@v18
         with:
           extra_nix_config: |
             access-tokens = github=${{ github.token }}
+
+      - name: configure cachix
+        uses: cachix/cachix-action@v11
+        with:
+          name: glaredb-ci
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
