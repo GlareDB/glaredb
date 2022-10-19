@@ -2044,6 +2044,7 @@ name = "pgrepr"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "datafusion",
  "lexical",
  "lexical-core",
  "postgres-types",
@@ -2062,8 +2063,11 @@ dependencies = [
  "futures",
  "ioutil",
  "logutil",
+ "pgrepr",
  "object_store_util",
  "postgres-types",
+ "reqwest",
+ "serde",
  "sqlexec",
  "thiserror",
  "tokio",
