@@ -1,5 +1,5 @@
 use object_store_util::temp::TempObjectStore;
-use pgsrv::handler::Handler;
+use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::engine::Engine;
 use sqlexec::runtime::AccessRuntime;
 use std::sync::Arc;
