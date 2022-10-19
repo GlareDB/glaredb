@@ -1,4 +1,4 @@
-//TODO remove
+//TODO remove once ObjectStore trait is implemented
 #![allow(unused_variables)]
 //! On-disk cache for byte ranges from object storage
 use crate::errors::{internal, Result};
@@ -21,12 +21,12 @@ use object_store::{
     path::Path as ObjectStorePath, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore,
     Result as ObjectStoreResult,
 };
-use tokio::{fs, io::AsyncWrite};
+use tokio::{fs, io::AsyncWrite, runtime::Handle};
 use tracing::{error, trace, warn};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct ObjectCacheKey {
-    pub object_store_path: ObjectStorePath,
+    object_store_path: ObjectStorePath,
     /// Byte offset in the object storage file
     offset: usize,
 }
@@ -57,7 +57,7 @@ impl ObjectCacheKey {
 //TODO: consider using Arc<Path> to reduce clone of PathBuf when getting the value
 struct ObjectCacheValue {
     /// Local path to file storing this given range of bytes
-    pub path: PathBuf,
+    path: PathBuf,
     /// Length of cached file
     // This is a u32 instead of usize due to moka cache weight returning u32
     length: u32,
@@ -83,7 +83,12 @@ pub struct ObjectStoreCache {
 
 impl Display for ObjectStoreCache {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "path to cached byte ranges {}", self.base_dir.display())
+        write!(
+            f,
+            "ObjectStoreCache(base_dir={}, object_store={})",
+            &self.base_dir.display(),
+            self.object_store
+        )
     }
 }
 
@@ -100,12 +105,15 @@ impl ObjectStoreCache {
     ) -> Result<Self> {
         //TODO: Build with_initial_capacity in the future
         //TODO: Investigate using a better hasher for strings/paths in the key
+
+        let async_runtime = Handle::current();
+        let listener = move |k, v, rc| Self::eviction_listener(&async_runtime, k, v, rc);
+
         let cache = CacheBuilder::new(max_cache_size)
-            .name("OBJECT_STORE_CACHE_NAME")
+            .name(OBJECT_STORE_CACHE_NAME)
             .weigher(Self::weight)
             .support_invalidation_closures() // Allows us to invalidate all ranges for a given object storage file
-            //TODO switch to async variant and remove sync
-            .eviction_listener_with_queued_delivery_mode(Self::sync_eviction_listener)
+            .eviction_listener_with_queued_delivery_mode(listener)
             .build();
 
         // TODO: Is this restriction correct?
@@ -122,15 +130,14 @@ impl ObjectStoreCache {
         })
     }
 
-    //TODO: expand and remove file on evict
-    fn async_eviction_listener(
+    fn eviction_listener(
+        async_runtime: &Handle,
         key: Arc<ObjectCacheKey>,
         value: ObjectCacheValue,
         removal_cause: RemovalCause,
     ) {
         trace!(?key, ?value, ?removal_cause, "Entry is being evicted");
 
-        let async_runtime = tokio::runtime::Handle::current();
         let _guard = async_runtime.enter();
         async_runtime.block_on(async {
             // Logging on error without propagating to prevent panicking the eviction listener
@@ -143,24 +150,6 @@ impl ObjectStoreCache {
                 );
             }
         });
-    }
-
-    //TODO: expand and remove file on evict
-    fn sync_eviction_listener(
-        key: Arc<ObjectCacheKey>,
-        value: ObjectCacheValue,
-        removal_cause: RemovalCause,
-    ) {
-        trace!(?key, ?value, ?removal_cause, "Entry is being evicted");
-
-        if let Err(e) = Self::remove_cache_file_sync(&value) {
-            error!(
-                ?key,
-                ?value,
-                ?removal_cause,
-                "Failed to remove cached object store byte range"
-            );
-        }
     }
 
     /// The weight of the cache keys in bytes. This is a heuristic and does not account for all
@@ -190,7 +179,7 @@ impl ObjectStoreCache {
         let parent = path
             .parent()
             .expect("base_dir is absolute so parent must be Some");
-        fs::create_dir_all(parent).await?;
+        fs::create_dir_all(parent).await?; // TODO: remove once cache files are unique and flat hierarchy
         fs::write(&path, contents).await?;
         trace!(?path, ?parent, ?key, "Cached new file");
 
@@ -200,6 +189,7 @@ impl ObjectStoreCache {
         })
     }
 
+    //TODO: Should this validate a checksum/length?
     async fn read_cache_file(value: &ObjectCacheValue) -> Result<Bytes> {
         let contents: Bytes = fs::read(&value.path).await?.into();
 
@@ -214,13 +204,6 @@ impl ObjectStoreCache {
     //TODO: Should this validate a checksum/length?
     async fn remove_cache_file(value: &ObjectCacheValue) -> Result<()> {
         fs::remove_file(&value.path).await?;
-        Ok(())
-    }
-
-    //TODO: currently we are leaking intermediate directories there is no more data
-    //TODO: Should this validate a checksum/length?
-    fn remove_cache_file_sync(value: &ObjectCacheValue) -> Result<()> {
-        std::fs::remove_file(&value.path)?;
         Ok(())
     }
 }
@@ -478,12 +461,6 @@ mod tests {
         ));
     }
 
-    // TODO:
-    // test explicit eviction
-    // test eviction due to size
-    // test other types of eviction
-    // test reading from cache
-
     #[tokio::test]
     async fn weight() {
         logutil::init_test();
@@ -546,11 +523,11 @@ mod tests {
         cache.cache.sync();
         assert_eq!(cache.cache.get(&key), None);
 
-        // Check if file is asynchronously cleaned up by eviction listener; Timeout after 60 s
-        let mut time = 0;
-        while val.path.try_exists().unwrap() && time < 60 {
-            sleep(Duration::from_secs(1));
-            time += 1;
+        // Check if file is asynchronously cleaned up by eviction listener; Timeout after 1 ms
+        let mut nano = 0;
+        while val.path.try_exists().unwrap() && nano < 1_000_000 {
+            nano += 1;
+            sleep(Duration::from_nanos(1));
         }
         assert_eq!(val.path.try_exists().unwrap(), false);
     }
