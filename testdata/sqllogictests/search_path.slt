@@ -1,0 +1,39 @@
+# Search paths and schemas.
+
+statement ok
+create schema search_path_schema_1;
+
+statement ok
+set search_path = search_path_schema_1;
+
+# Creates table in 'search_path_schema_1'
+statement ok
+create table t (a int);
+
+# Marker values for first schema.
+statement ok
+insert into t values (1);
+
+statement ok
+create schema search_path_schema_2;
+
+# Ensure we can create in 'search_path_schema_2' as well.
+statement ok
+create table search_path_schema_2.t (a int);
+
+# Marker values for second schema.
+statement ok
+insert into search_path_schema_2.t values (2);
+
+query I
+select * from t;
+----
+1
+
+statement ok
+set search_path = search_path_schema_2;
+
+query I
+select * from t;
+----
+2

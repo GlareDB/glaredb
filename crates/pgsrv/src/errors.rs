@@ -1,4 +1,4 @@
-use crate::messages::{FrontendMessage, StartupMessage};
+use pgrepr::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -11,6 +11,9 @@ pub enum PgSrvError {
     #[error("unexpected frontend message: {0:?}")]
     UnexpectedFrontendMessage(FrontendMessage),
 
+    #[error("unexpected backend message: {0:?}")]
+    UnexpectedBackendMessage(BackendMessage),
+
     #[error("unexpected startup message: {0:?}")]
     UnexpectedStartupMessage(StartupMessage),
 
@@ -20,8 +23,8 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
-    #[error("unexpected describe object type: {0}")]
-    UnexpectedDescribeObjectType(u8),
+    #[error("an expected startup parameter was missing")]
+    MissingStartupParameter,
 
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
@@ -40,4 +43,10 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    PgRepr(#[from] pgrepr::error::Error),
+
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
 }

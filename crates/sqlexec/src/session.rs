@@ -1,24 +1,28 @@
-use crate::catalog::{DatabaseCatalog, DEFAULT_SCHEMA};
+use crate::catalog::{DatabaseCatalog, SchemaCatalog, DEFAULT_SCHEMA};
 use crate::datasource::DeltaTable;
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
+use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
 use crate::runtime::AccessRuntime;
 use access::keys::TableId;
-use datafusion::arrow::datatypes::{Field, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::listing::{ListingTable, ListingTableConfig, ListingTableUrl};
+use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::options::ParquetReadOptions;
 use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
 };
+use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::planner::{convert_data_type, SqlToRel};
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datafusion::sql::{ResolvedTableReference, TableReference};
@@ -38,6 +42,7 @@ pub struct Session {
     /// The concretely typed "GlareDB" catalog.
     catalog: Arc<DatabaseCatalog>,
     access_runtime: Arc<AccessRuntime>,
+    parameters: SessionParameters,
     // TODO: Transaction context goes here.
 
     // prepared statements
@@ -73,6 +78,7 @@ impl Session {
             state,
             catalog,
             access_runtime: access,
+            parameters: SessionParameters::default(),
             unnamed_statement: None,
             named_statements: HashMap::new(),
             unnamed_portal: None,
@@ -82,7 +88,8 @@ impl Session {
 
     pub(crate) fn plan_sql(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         debug!(%statement, "planning sql statement");
-        let planner = SqlToRel::new(&self.state);
+        let context = SessionContextProvider { session: self };
+        let planner = SqlToRel::new(&context);
 
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
@@ -208,9 +215,24 @@ impl Session {
             }
 
             // "SET ...", "SET SESSION ...", "SET LOCAL ..."
-            // TODO: Actually plan this.
-            ast::Statement::SetVariable { .. } | ast::Statement::SetRole { .. } => {
-                Ok(LogicalPlan::Runtime)
+            //
+            // NOTE: Only session local variables are supported. Transaction
+            // local variables behave the same as session local (they're not
+            // reset on transaction abort/commit).
+            ast::Statement::SetVariable {
+                variable, value, ..
+            } => Ok(RuntimePlan::SetParameter(SetParameter {
+                variable,
+                values: value,
+            })
+            .into()),
+
+            // "SHOW ..."
+            ast::Statement::ShowVariable { variable } => {
+                Ok(RuntimePlan::ShowParameter(ShowParameter {
+                    variable: ast::ObjectName(variable),
+                })
+                .into())
             }
 
             stmt => Err(internal!("unsupported sql statement: {:?}", stmt)),
@@ -241,8 +263,7 @@ impl Session {
     }
 
     pub(crate) fn create_table(&self, plan: CreateTable) -> Result<()> {
-        let table_ref: TableReference = plan.table_name.as_str().into();
-        let resolved = table_ref.resolve(self.catalog.name(), DEFAULT_SCHEMA);
+        let resolved = self.resolve_table_reference(plan.table_name.as_str());
 
         let catalog = self
             .catalog
@@ -267,7 +288,7 @@ impl Session {
     }
 
     pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
-        let resolved = self.resolve_table_name(&plan.table_name);
+        let resolved = self.resolve_table_reference(plan.table_name.as_ref());
         let schema = self.get_schema_for_reference(&resolved)?;
 
         let target_partitions = self.state.config.target_partitions;
@@ -289,7 +310,7 @@ impl Session {
     }
 
     pub(crate) async fn create_table_as(&self, plan: CreateTableAs) -> Result<()> {
-        let resolved = self.resolve_table_name(&plan.table_name);
+        let resolved = self.resolve_table_reference(plan.table_name.as_ref());
         let schema = self.get_schema_for_reference(&resolved)?;
 
         // Plan and execute the source. We'll use the first batch from the
@@ -324,8 +345,14 @@ impl Session {
         Ok(())
     }
 
+    pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
+        let schema = Arc::new(SchemaCatalog::new());
+        self.catalog.insert_schema(plan.schema_name, schema)?;
+        Ok(())
+    }
+
     pub(crate) async fn insert(&self, plan: Insert) -> Result<()> {
-        let resolved = self.resolve_table_name(&plan.table_name);
+        let resolved = self.resolve_table_reference(plan.table_name.as_ref());
         let schema = self.get_schema_for_reference(&resolved)?;
 
         let table = schema
@@ -351,9 +378,36 @@ impl Session {
         Ok(())
     }
 
-    fn resolve_table_name<'a>(&'a self, table_name: &'a str) -> ResolvedTableReference<'a> {
-        let table_ref: TableReference = table_name.into();
-        table_ref.resolve(self.catalog.name(), DEFAULT_SCHEMA)
+    pub(crate) fn set_parameter(&mut self, plan: SetParameter) -> Result<()> {
+        self.parameters.set_parameter(plan.variable, plan.values)
+    }
+
+    /// Get the default schema to resolve table references with.
+    ///
+    /// TODO: This will only check the first schema in the search path. We'll
+    /// want a way to search for tables in all schemas defined in the search
+    /// path.
+    fn default_schema(&self) -> &str {
+        match self.parameters.get_parameter(SEARCH_PATH_PARAM) {
+            Some(ParameterValue::Strings(schemas)) => match schemas.get(0) {
+                Some(schema) => schema,
+                None => DEFAULT_SCHEMA,
+            },
+            _ => DEFAULT_SCHEMA,
+        }
+    }
+
+    /// Resolve a table reference.
+    ///
+    /// NOTE: This will resolve with only the first schema in the search path
+    /// (or the default schema).
+    fn resolve_table_reference<'a, 'b: 'a, R: Into<TableReference<'a>>>(
+        &'b self,
+        table: R,
+    ) -> ResolvedTableReference<'a> {
+        table
+            .into()
+            .resolve(self.catalog.name(), self.default_schema())
     }
 
     /// Get a schema provider given some resolved table reference.
@@ -482,7 +536,7 @@ impl Session {
     pub async fn drop_table(&self, plan: DropTable) -> Result<()> {
         debug!(?plan, "drop table");
         for name in plan.names {
-            let resolved = self.resolve_table_name(&name);
+            let resolved = self.resolve_table_reference(name.as_str());
             let schema = self.get_schema_for_reference(&resolved)?;
 
             schema.deregister_table(resolved.table)?;
@@ -536,6 +590,30 @@ impl Session {
             }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }
+    }
+}
+
+/// A wrapper around our session type to help with schema resolution.
+struct SessionContextProvider<'a> {
+    session: &'a Session,
+}
+
+impl<'a> ContextProvider for SessionContextProvider<'a> {
+    fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
+        let name = self.session.resolve_table_reference(name);
+        self.session.state.get_table_provider(name.into())
+    }
+
+    fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
+        self.session.state.get_function_meta(name)
+    }
+
+    fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {
+        self.session.state.get_aggregate_meta(name)
+    }
+
+    fn get_variable_type(&self, variable_names: &[String]) -> Option<DataType> {
+        self.session.state.get_variable_type(variable_names)
     }
 }
 
