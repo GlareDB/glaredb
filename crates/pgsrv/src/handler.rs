@@ -446,7 +446,7 @@ where
                         LogicalPlan::Transaction(_) => {
                             todo!("return portal describe response for Transaction");
                         }
-                        LogicalPlan::Runtime => {
+                        LogicalPlan::Runtime(_) => {
                             todo!("return portal describe response for Runtime");
                         }
                     },
@@ -503,6 +503,7 @@ where
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
             ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
+            ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
         }

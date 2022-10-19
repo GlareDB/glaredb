@@ -16,7 +16,7 @@ pub enum LogicalPlan {
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
     // TODO: Actually implement this. This would correspond to "SET ..." and "SET SESSION ..." statements.
-    Runtime,
+    Runtime(RuntimePlan),
 }
 
 impl From<DfLogicalPlan> for LogicalPlan {
@@ -120,4 +120,27 @@ impl From<TransactionPlan> for LogicalPlan {
     fn from(plan: TransactionPlan) -> Self {
         LogicalPlan::Transaction(plan)
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum RuntimePlan {
+    SetParameter(SetParameter),
+    ShowParameter(ShowParameter),
+}
+
+impl From<RuntimePlan> for LogicalPlan {
+    fn from(plan: RuntimePlan) -> Self {
+        LogicalPlan::Runtime(plan)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SetParameter {
+    pub variable: ast::ObjectName,
+    pub values: Vec<ast::Expr>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ShowParameter {
+    pub variable: ast::ObjectName,
 }
