@@ -96,7 +96,7 @@ impl fmt::Debug for &MirroredFile {
 ///
 /// Note that this doesn't use `ObjectPath::from_filesystem_path` since that
 /// function will attempt to resolve the path using the local filesystem.
-fn to_object_path<P: AsRef<Path>>(path: P) -> Result<ObjectPath> {
+pub fn to_object_path<P: AsRef<Path>>(path: P) -> Result<ObjectPath> {
     let path = path.as_ref();
     let s = path
         .to_str()
