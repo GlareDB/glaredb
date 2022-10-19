@@ -1,7 +1,7 @@
 use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashMap;
 
-use crate::errors::PgSrvError;
+use crate::error::Error;
 
 /// Version number (v3.0) used during normal frontend startup.
 pub const VERSION_V3: i32 = 0x30000;
@@ -263,13 +263,13 @@ impl std::fmt::Display for DescribeObjectType {
 }
 
 impl TryFrom<u8> for DescribeObjectType {
-    type Error = PgSrvError;
+    type Error = Error;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             b'S' => Ok(DescribeObjectType::Statement),
             b'P' => Ok(DescribeObjectType::Portal),
-            _ => Err(PgSrvError::UnexpectedDescribeObjectType(value)),
+            _ => Err(Error::UnexpectedDescribeObjectType(value)),
         }
     }
 }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use raft::client::ConsensusClient;
 use raft::repr::NodeId;
@@ -60,6 +61,15 @@ enum Commands {
         /// node id.
         #[clap(long, value_parser)]
         node_id: u64,
+    },
+
+    Proxy {
+        /// TCP address to bind to.
+        #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6544"))]
+        bind: String,
+
+        /// Address of the GlareDB cloud server.
+        api_addr: String,
     },
 }
 
@@ -133,6 +143,14 @@ fn main() -> Result<()> {
                     }
                 }
             });
+        }
+        Commands::Proxy { bind, api_addr } => {
+            let runtime = build_runtime()?;
+            runtime.block_on(async move {
+                let pg_listener = TcpListener::bind(bind).await?;
+                let proxy = Proxy::new(api_addr).await?;
+                proxy.serve(pg_listener).await
+            })?;
         }
     }
 
