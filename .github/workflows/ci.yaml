@@ -52,3 +52,6 @@ jobs:
 
       - name: SQL Logic Tests
         run: nix run .#slt_runner testdata/sqllogictests/*.slt
+
+      - name: Check for changes
+        run: ./scripts/check-uncommitted.sh
