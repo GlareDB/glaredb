@@ -22,6 +22,8 @@ pub enum ExecutionResult {
     WriteSuccess,
     /// Table created.
     CreateTable,
+    /// Schema created.
+    CreateSchema,
     /// A client local variable was set.
     SetLocal,
     /// Tables dropped.
@@ -37,6 +39,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Rollback => write!(f, "rollback"),
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
+            ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
         }
@@ -101,6 +104,10 @@ impl<'a> Executor<'a> {
                 self.session.create_table_as(plan).await?;
                 Ok(ExecutionResult::CreateTable)
             }
+            LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
+                self.session.create_schema(plan).await?;
+                Ok(ExecutionResult::CreateSchema)
+            }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.session.insert(plan).await?;
                 Ok(ExecutionResult::WriteSuccess)
@@ -110,10 +117,8 @@ impl<'a> Executor<'a> {
                 let stream = self.session.execute_physical(physical)?;
                 Ok(ExecutionResult::Query { stream })
             }
-            LogicalPlan::Runtime => {
-                // TODO: We'll want to:
-                // 1. Actually do something here.
-                // 2. Probably return a different variant for global SET statements.
+            LogicalPlan::Runtime(RuntimePlan::SetParameter(plan)) => {
+                self.session.set_parameter(plan)?;
                 Ok(ExecutionResult::SetLocal)
             }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),

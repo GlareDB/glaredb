@@ -9,4 +9,5 @@ pub mod runtime;
 pub mod session;
 
 mod information_schema;
+mod parameters;
 mod placeholders;
