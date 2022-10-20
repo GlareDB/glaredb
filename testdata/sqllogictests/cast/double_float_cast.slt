@@ -1,0 +1,30 @@
+# Double float cast
+
+statement ok
+create schema double_float_cast;
+
+statement ok
+set search_path = double_float_cast;
+
+# TODO: Casting, correctly parsing '::'
+halt
+
+query I
+select '1e308'::float;
+----
+inf
+
+query I
+select '1e310'::double;
+----
+inf
+
+query I
+select '-1e308'::float;
+----
+-inf
+
+query I
+select '-1e310'::double;
+----
+-inf
