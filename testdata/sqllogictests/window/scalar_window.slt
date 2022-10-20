@@ -1,0 +1,44 @@
+# Test scalar window functions
+
+statement ok
+create schema scalar_window;
+
+statement ok
+set search_path = scalar_window;
+
+# TODO: Missing function (row_number)
+halt
+
+query I
+SELECT row_number() OVER ()
+----
+1
+
+query R
+SELECT avg(42) OVER ()
+----
+42.000000
+
+# window on non-aggregate function
+statement error
+SELECT concat() OVER ()
+
+statement error
+SELECT nonexistingfunction() OVER ()
+
+# nested window functions are not allowed
+statement error
+SELECT avg(row_number() over ()) over ()
+
+statement error
+SELECT avg(42) over (partition by row_number() over ())
+
+statement error
+SELECT avg(42) over (order by row_number() over ())
+
+# distinct aggregates not supported for window functions
+statement error
+SELECT COUNT(DISTINCT 42) OVER ()
+
+statement error
+WITH t AS (SELECT col0 AS a, col1 AS b FROM (VALUES(1,2),(1,1),(1,2),(2,1),(2,1),(2,2),(2,3),(2,4)) v) SELECT *, COUNT(b) OVER(PARTITION BY a), COUNT(DISTINCT b) OVER(PARTITION BY a) FROM t;

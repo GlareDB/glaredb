@@ -1,0 +1,40 @@
+# Test NULLS FIRST/NULLS LAST with top n implementation
+
+statement ok
+create schema topn_nulls_first;
+
+statement ok
+set search_path = topn_nulls_first;
+
+# TODO: Table created with non-nullable field.
+halt
+
+statement ok
+CREATE TABLE integers(i INTEGER)
+
+statement ok
+INSERT INTO integers VALUES (1), (NULL)
+
+query I
+SELECT * FROM integers ORDER BY i NULLS FIRST LIMIT 2
+----
+NULL
+1
+
+query I
+SELECT * FROM integers ORDER BY i NULLS LAST LIMIT 2
+----
+1
+NULL
+
+query I
+SELECT * FROM integers ORDER BY i DESC NULLS FIRST LIMIT 2
+----
+NULL
+1
+
+query I
+SELECT * FROM integers ORDER BY i DESC NULLS LAST LIMIT 2
+----
+1
+NULL
