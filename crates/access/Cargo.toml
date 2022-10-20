@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 persistence = {path = "../persistence"}
+dfutil = {path = "../dfutil"}
+catalog_types = {path = "../catalog_types"}
 thiserror = "1.0"
 tracing = "0.1"
 async-trait = "0.1.57"

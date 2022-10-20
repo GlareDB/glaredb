@@ -130,7 +130,7 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use crate::catalog::DatabaseCatalog;
-    use crate::runtime::AccessRuntime;
+    use access::runtime::AccessRuntime;
     use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
     use object_store_util::temp::TempObjectStore;

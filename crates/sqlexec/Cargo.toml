@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
 pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
+catalog_types = {path = "../catalog_types"}
 object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"
 parking_lot = "0.12.1"

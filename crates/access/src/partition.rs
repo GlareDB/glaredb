@@ -1,8 +1,8 @@
 use crate::errors::Result;
+use crate::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
 use crate::runtime::AccessRuntime;
-use access::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
-use access::keys::{PartitionKey, TableId};
 use async_trait::async_trait;
+use catalog_types::keys::{PartitionKey, TableId};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -24,15 +24,15 @@ use tracing::{debug, error};
 /// There will be an additional layer between `DeltaMergeExec` and this to
 /// combine access to multiple partitions for a table.
 #[derive(Debug, Clone)]
-pub struct DeltaTable {
+pub struct Table {
     table_id: TableId,
     schema: SchemaRef,
     runtime: Arc<AccessRuntime>,
 }
 
-impl DeltaTable {
-    pub fn new(table_id: TableId, schema: SchemaRef, runtime: Arc<AccessRuntime>) -> DeltaTable {
-        DeltaTable {
+impl Table {
+    pub fn new(table_id: TableId, schema: SchemaRef, runtime: Arc<AccessRuntime>) -> Table {
+        Table {
             table_id,
             schema,
             runtime,
@@ -44,6 +44,7 @@ impl DeltaTable {
         // abtractions which will handle cross-partition inserts.
 
         let key = PartitionKey {
+            schema_id: 0, // TODO
             table_id: self.table_id,
             part_id: 0, // TODO: Need another layer of indirection.
         };
@@ -77,7 +78,7 @@ impl DeltaTable {
 }
 
 #[async_trait]
-impl TableProvider for DeltaTable {
+impl TableProvider for Table {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -98,6 +99,7 @@ impl TableProvider for DeltaTable {
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let key = PartitionKey {
+            schema_id: 0, // TODO
             table_id: self.table_id,
             part_id: 0,
         };
@@ -145,7 +147,7 @@ impl TableProvider for DeltaTable {
     }
 }
 
-impl fmt::Display for DeltaTable {
+impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DeltaTable(table_id={})", self.table_id)
     }

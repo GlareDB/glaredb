@@ -8,7 +8,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
+ "catalog_types",
  "datafusion",
+ "dfutil",
  "futures",
  "logutil",
  "object_store",
@@ -498,6 +500,7 @@ version = "0.1.0"
 dependencies = [
  "access",
  "async-trait",
+ "catalog_types",
  "datafusion",
  "futures",
  "logutil",
@@ -507,6 +510,13 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "catalog_types"
+version = "0.1.0"
+dependencies = [
+ "object_store",
 ]
 
 [[package]]
@@ -1286,6 +1296,7 @@ dependencies = [
 name = "glaredb"
 version = "0.1.0"
 dependencies = [
+ "access",
  "anyhow",
  "async-trait",
  "bincode",
@@ -2267,6 +2278,7 @@ dependencies = [
 name = "pgsrv"
 version = "0.1.0"
 dependencies = [
+ "access",
  "async-trait",
  "bytes",
  "bytesutil",
@@ -3101,6 +3113,7 @@ version = "0.1.0"
 dependencies = [
  "access",
  "async-trait",
+ "catalog_types",
  "datafusion",
  "dfutil",
  "futures",

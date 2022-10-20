@@ -1,12 +1,12 @@
-use access::compact::Compactor;
-use access::deltacache::DeltaCache;
+use crate::compact::Compactor;
+use crate::deltacache::DeltaCache;
 use object_store::ObjectStore;
 use std::sync::Arc;
 
 #[derive(Debug, Default)]
 pub struct AccessConfig {}
 
-/// Global resources for accessing data.
+/// Runtime used during data access.
 #[derive(Debug, Clone)]
 pub struct AccessRuntime {
     inner: Arc<Inner>,

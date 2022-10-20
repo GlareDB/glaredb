@@ -4,6 +4,9 @@ pub enum ExecError {
     Internal(String),
 
     #[error(transparent)]
+    Access(#[from] access::errors::AccessError),
+
+    #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
 
     #[error(transparent)]

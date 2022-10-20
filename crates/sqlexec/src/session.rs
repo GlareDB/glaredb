@@ -1,13 +1,13 @@
 use crate::catalog::{DatabaseCatalog, SchemaCatalog, DEFAULT_SCHEMA};
-use crate::datasource::DeltaTable;
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
-use crate::runtime::AccessRuntime;
-use access::keys::TableId;
+use access::partition::Table;
+use access::runtime::AccessRuntime;
+use catalog_types::keys::TableId;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::catalog::schema::SchemaProvider;
@@ -276,7 +276,7 @@ impl Session {
         // TODO: If not exists
 
         let table_schema = Schema::new(plan.columns);
-        let table = DeltaTable::new(
+        let table = Table::new(
             new_table_id(),
             Arc::new(table_schema),
             self.access_runtime.clone(),
@@ -322,7 +322,7 @@ impl Session {
             Some(result) => {
                 let batch = result?;
                 let schema = batch.schema();
-                let table = DeltaTable::new(new_table_id(), schema, self.access_runtime.clone());
+                let table = Table::new(new_table_id(), schema, self.access_runtime.clone());
                 table.insert_batch(batch).await?;
                 table
             }
@@ -361,7 +361,7 @@ impl Session {
 
         let table = table
             .as_any()
-            .downcast_ref::<DeltaTable>()
+            .downcast_ref::<Table>()
             .ok_or_else(|| internal!("cannot downcast to delta table"))?;
 
         let physical = self.create_physical_plan(plan.source).await?;

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 access = {path = "../access"}
+catalog_types = {path = "../catalog_types"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 datafusion = "13.0"

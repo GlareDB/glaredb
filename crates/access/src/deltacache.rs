@@ -1,4 +1,4 @@
-use crate::keys::PartitionKey;
+use catalog_types::keys::PartitionKey;
 use datafusion::arrow::record_batch::RecordBatch;
 use scc::HashMap;
 use tracing::trace;
