@@ -51,4 +51,4 @@ jobs:
         run: nix flake check -L
 
       - name: SQL Logic Tests
-        run: nix run .#slt_runner -vv testdata/sqllogictests/**/*.slt
+        run: nix run .#slt_runner -- -v testdata/sqllogictests/**/*.slt
