@@ -16,7 +16,7 @@ parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
 sqlparser = "0.23.0"
 datafusion = "13.0"
-futures = "0.3.21"
+futures = "0.3.25"
 tracing = "0.1"
 async-trait = "0.1.57"
 uuid = { version = "1.2.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
