@@ -1,4 +1,4 @@
-use crate::catalog::DatabaseCatalog;
+use crate::catalog::OldDatabaseCatalog;
 use crate::errors::Result;
 use crate::session::Session;
 use access::runtime::AccessRuntime;
@@ -6,7 +6,7 @@ use datafusion::execution::runtime_env::RuntimeEnv;
 use std::sync::Arc;
 
 pub struct Engine {
-    catalog: Arc<DatabaseCatalog>,
+    catalog: Arc<OldDatabaseCatalog>,
     runtime: Arc<RuntimeEnv>, // TODO: Per session runtime.
     access_runtime: Arc<AccessRuntime>,
 }
@@ -15,11 +15,11 @@ impl Engine {
     pub fn new(db_name: impl Into<String>, access: Arc<AccessRuntime>) -> Result<Engine> {
         let runtime = RuntimeEnv::default();
 
-        let catalog = DatabaseCatalog::new(db_name);
+        let catalog = OldDatabaseCatalog::new(db_name);
         catalog.insert_default_schema()?;
 
         let catalog = Arc::new(catalog);
-        DatabaseCatalog::insert_information_schema(catalog.clone())?;
+        OldDatabaseCatalog::insert_information_schema(catalog.clone())?;
 
         Ok(Engine {
             catalog,

@@ -13,15 +13,15 @@ use std::sync::Arc;
 pub const DEFAULT_SCHEMA: &str = "public";
 
 #[derive(Clone, Default)]
-pub struct DatabaseCatalog {
+pub struct OldDatabaseCatalog {
     name: String,
     schemas: Arc<RwLock<HashMap<String, Arc<dyn SchemaProvider>>>>,
 }
 
-impl DatabaseCatalog {
+impl OldDatabaseCatalog {
     /// Create a new database catalog.
-    pub fn new(name: impl Into<String>) -> DatabaseCatalog {
-        DatabaseCatalog {
+    pub fn new(name: impl Into<String>) -> OldDatabaseCatalog {
+        OldDatabaseCatalog {
             name: name.into(),
             schemas: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -75,7 +75,7 @@ impl DatabaseCatalog {
     }
 }
 
-impl CatalogList for DatabaseCatalog {
+impl CatalogList for OldDatabaseCatalog {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -105,7 +105,7 @@ impl CatalogList for DatabaseCatalog {
     }
 }
 
-impl CatalogProvider for DatabaseCatalog {
+impl CatalogProvider for OldDatabaseCatalog {
     fn as_any(&self) -> &dyn Any {
         self
     }

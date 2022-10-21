@@ -19,14 +19,28 @@ use std::sync::Arc;
 
 /// A table backed by one or more partitions.
 // TODO: Use shared references.
-pub struct Table {
+pub struct PartitionedTable {
     table: TableKey,
     strat: Box<dyn PartitionStrategy>,
     runtime: Arc<AccessRuntime>,
     schema: SchemaRef,
 }
 
-impl Table {
+impl PartitionedTable {
+    pub fn new(
+        key: TableKey,
+        strat: Box<dyn PartitionStrategy>,
+        runtime: Arc<AccessRuntime>,
+        schema: SchemaRef,
+    ) -> PartitionedTable {
+        PartitionedTable {
+            table: key,
+            strat,
+            runtime,
+            schema,
+        }
+    }
+
     /// Insert a batch, partitioning as necessary.
     pub async fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
         let batches = self.strat.partition(batch)?;
@@ -52,7 +66,7 @@ impl Table {
 // The scan on `Table` represents a base table scan. Index scans will happen on
 // some other struct.
 #[async_trait]
-impl TableProvider for Table {
+impl TableProvider for PartitionedTable {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -96,7 +110,7 @@ impl TableProvider for Table {
     }
 }
 
-impl fmt::Display for Table {
+impl fmt::Display for PartitionedTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Table(table_id={})", self.table)
     }

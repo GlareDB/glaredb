@@ -1,12 +1,13 @@
-use crate::catalog::{DatabaseCatalog, SchemaCatalog, DEFAULT_SCHEMA};
+use crate::catalog::{OldDatabaseCatalog, SchemaCatalog, DEFAULT_SCHEMA};
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
-use access::partition::Table;
 use access::runtime::AccessRuntime;
+use access::table::PartitionedTable;
+use catalog::catalog::DatabaseCatalog;
 use catalog_types::keys::TableId;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
@@ -39,8 +40,9 @@ use tracing::debug;
 pub struct Session {
     /// Datafusion state for query planning and execution.
     state: SessionState,
+    old_catalog: Arc<OldDatabaseCatalog>,
     /// The concretely typed "GlareDB" catalog.
-    catalog: Arc<DatabaseCatalog>,
+    catalog: DatabaseCatalog,
     access_runtime: Arc<AccessRuntime>,
     parameters: SessionParameters,
     // TODO: Transaction context goes here.
@@ -58,7 +60,7 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
-        catalog: Arc<DatabaseCatalog>,
+        catalog: Arc<OldDatabaseCatalog>,
         runtime: Arc<RuntimeEnv>,
         access: Arc<AccessRuntime>,
     ) -> Session {
@@ -76,7 +78,8 @@ impl Session {
 
         Session {
             state,
-            catalog,
+            old_catalog: catalog,
+            catalog: DatabaseCatalog::default(),
             access_runtime: access,
             parameters: SessionParameters::default(),
             unnamed_statement: None,
@@ -266,7 +269,7 @@ impl Session {
         let resolved = self.resolve_table_reference(plan.table_name.as_str());
 
         let catalog = self
-            .catalog
+            .old_catalog
             .catalog(resolved.catalog)
             .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
         let schema = catalog
@@ -275,14 +278,14 @@ impl Session {
 
         // TODO: If not exists
 
-        let table_schema = Schema::new(plan.columns);
-        let table = Table::new(
-            new_table_id(),
-            Arc::new(table_schema),
-            self.access_runtime.clone(),
-        );
+        // let table_schema = Schema::new(plan.columns);
+        // let table = PartitionedTable::new(
+        //     new_table_id(),
+        //     Arc::new(table_schema),
+        //     self.access_runtime.clone(),
+        // );
 
-        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
+        // schema.register_table(resolved.table.to_string(), Arc::new(table))?;
 
         Ok(())
     }
@@ -318,36 +321,37 @@ impl Session {
         let physical = self.create_physical_plan(plan.source).await?;
         let mut stream = self.execute_physical(physical)?;
 
-        let table = match stream.next().await {
-            Some(result) => {
-                let batch = result?;
-                let schema = batch.schema();
-                let table = Table::new(new_table_id(), schema, self.access_runtime.clone());
-                table.insert_batch(batch).await?;
-                table
-            }
-            None => {
-                return Err(internal!(
-                    "source stream empty, cannot infer schema from empty stream"
-                ))
-            }
-        };
+        // let table = match stream.next().await {
+        //     Some(result) => {
+        //         let batch = result?;
+        //         let schema = batch.schema();
+        //         let table =
+        //             PartitionedTable::new(new_table_id(), schema, self.access_runtime.clone());
+        //         table.insert_batch(batch).await?;
+        //         table
+        //     }
+        //     None => {
+        //         return Err(internal!(
+        //             "source stream empty, cannot infer schema from empty stream"
+        //         ))
+        //     }
+        // };
 
-        // Insert the rest of the stream.
-        while let Some(result) = stream.next().await {
-            let batch = result?;
-            table.insert_batch(batch).await?;
-        }
+        // // Insert the rest of the stream.
+        // while let Some(result) = stream.next().await {
+        //     let batch = result?;
+        //     table.insert_batch(batch).await?;
+        // }
 
-        // Finally register the table.
-        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
+        // // Finally register the table.
+        // schema.register_table(resolved.table.to_string(), Arc::new(table))?;
 
         Ok(())
     }
 
     pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
         let schema = Arc::new(SchemaCatalog::new());
-        self.catalog.insert_schema(plan.schema_name, schema)?;
+        self.old_catalog.insert_schema(plan.schema_name, schema)?;
         Ok(())
     }
 
@@ -361,7 +365,7 @@ impl Session {
 
         let table = table
             .as_any()
-            .downcast_ref::<Table>()
+            .downcast_ref::<PartitionedTable>()
             .ok_or_else(|| internal!("cannot downcast to delta table"))?;
 
         let physical = self.create_physical_plan(plan.source).await?;
@@ -407,7 +411,7 @@ impl Session {
     ) -> ResolvedTableReference<'a> {
         table
             .into()
-            .resolve(self.catalog.name(), self.default_schema())
+            .resolve(self.old_catalog.name(), self.default_schema())
     }
 
     /// Get a schema provider given some resolved table reference.
@@ -416,7 +420,7 @@ impl Session {
         resolved: &ResolvedTableReference,
     ) -> Result<Arc<dyn SchemaProvider>> {
         let catalog = self
-            .catalog
+            .old_catalog
             .catalog(resolved.catalog)
             .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
         let schema = catalog

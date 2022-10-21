@@ -129,7 +129,7 @@ impl<'a> Executor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::DatabaseCatalog;
+    use crate::catalog::OldDatabaseCatalog;
     use access::runtime::AccessRuntime;
     use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
@@ -138,7 +138,7 @@ mod tests {
 
     #[tokio::test]
     async fn simple() {
-        let catalog = DatabaseCatalog::new("test");
+        let catalog = OldDatabaseCatalog::new("test");
         catalog.insert_default_schema().unwrap();
 
         let access = Arc::new(AccessRuntime::new(Arc::new(
