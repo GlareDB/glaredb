@@ -12,6 +12,6 @@ tokio = { version = "1", features = ["full"] }
 sqllogictest = "0.6.2"
 tokio-postgres = "0.7.7"
 anyhow = "1.0"
-async-trait = "0.1.57"
+async-trait = "0.1.58"
 clap = { version = "3.2.22", features = ["derive"] }
 glob = "0.3.0"
