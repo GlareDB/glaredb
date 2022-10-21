@@ -2,6 +2,7 @@ use crate::errors::Result;
 use crate::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
 use crate::partition::LocalPartition;
 use crate::runtime::AccessRuntime;
+use crate::strategy::PartitionStrategy;
 use async_trait::async_trait;
 use catalog_types::keys::{PartitionId, PartitionKey, TableId, TableKey};
 use datafusion::arrow::datatypes::SchemaRef;
@@ -12,21 +13,12 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
 use datafusion::logical_plan::Expr;
 use datafusion::physical_plan::ExecutionPlan;
-use futures::try_join;
 use std::any::Any;
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-pub trait PartitionStrategy: Sync + Send + fmt::Debug {
-    /// List all partitions this strategy knows about.
-    fn list_partitions(&self) -> Result<Vec<PartitionId>>;
-
-    /// Partition a record batch according this strategy.
-    fn partition(&self, batch: RecordBatch) -> Result<BTreeMap<PartitionId, RecordBatch>>;
-}
-
 /// A table backed by one or more partitions.
+// TODO: Use shared references.
 pub struct Table {
     table: TableKey,
     strat: Box<dyn PartitionStrategy>,
@@ -75,12 +67,32 @@ impl TableProvider for Table {
 
     async fn scan(
         &self,
-        _ctx: &SessionState,
+        ctx: &SessionState,
         projection: &Option<Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
+        let partitions = self.strat.list_partitions().map_err(|e| {
+            DataFusionError::Plan(format!("build plan for table partitions: {}", e))
+        })?;
+        let mut plans = Vec::with_capacity(partitions.len());
+
+        for part_id in partitions {
+            // TODO: Same as above, need to determine if this is local/remote,
+            // and do all of these in parallel.
+            let partition = LocalPartition::new(
+                self.table.partition_key(part_id),
+                self.schema.clone(),
+                self.runtime.clone(),
+            );
+            let plan = partition.scan(ctx, projection, filters, limit).await?;
+            plans.push(plan);
+        }
+
+        let plan = SelectUnorderedExec::new(plans)
+            .map_err(|e| DataFusionError::Plan(format!("build select unordered plan: {}", e)))?;
+
+        Ok(Arc::new(plan))
     }
 }
 
