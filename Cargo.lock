@@ -760,7 +760,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.8.5",
  "smallvec",
- "sqlparser 0.25.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -778,7 +778,7 @@ dependencies = [
  "object_store",
  "ordered-float 3.0.0",
  "parquet",
- "sqlparser 0.25.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -790,7 +790,7 @@ dependencies = [
  "ahash 0.8.0",
  "arrow 24.0.0",
  "datafusion-common",
- "sqlparser 0.25.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -855,7 +855,7 @@ dependencies = [
  "arrow 24.0.0",
  "datafusion-common",
  "datafusion-expr",
- "sqlparser 0.25.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -1283,7 +1283,7 @@ dependencies = [
  "rustyline",
  "serde",
  "sqlexec",
- "sqlparser 0.23.0",
+ "sqlparser",
  "tokio",
  "tokio-serde",
  "tokio-util",
@@ -3093,7 +3093,7 @@ dependencies = [
  "parking_lot",
  "pgrepr",
  "postgres-types",
- "sqlparser 0.23.0",
+ "sqlparser",
  "thiserror",
  "tokio",
  "tracing",
@@ -3120,21 +3120,12 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0beb13adabbdda01b63d595f38c8bfd19a361e697fd94ce0098a634077bc5b25"
-dependencies = [
- "log",
- "serde",
-]
-
-[[package]]
-name = "sqlparser"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0781f2b6bd03e5adf065c8e772b49eaea9f640d06a1b9130330fe8bd2563f4fd"
 dependencies = [
  "log",
+ "serde",
 ]
 
 [[package]]
