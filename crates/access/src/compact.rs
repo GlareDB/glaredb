@@ -64,7 +64,7 @@ impl Compactor {
         let exec: Arc<dyn ExecutionPlan> = match self.store.head(&path).await {
             Ok(meta) => {
                 trace!(%partition, "compacting deltas with existing partition file");
-                Arc::new(SelectUnorderedExec::new(
+                let children: Vec<Arc<dyn ExecutionPlan>> = vec![
                     Arc::new(DeltaInsertsExec::new(
                         partition.clone(),
                         input_schema.clone(),
@@ -77,7 +77,8 @@ impl Compactor {
                         input_schema.clone(),
                         None,
                     )?),
-                )?)
+                ];
+                Arc::new(SelectUnorderedExec::new(children)?)
             }
             Err(ObjectStoreError::NotFound { .. }) => {
                 trace!(%partition, "compacting deltas into new file");

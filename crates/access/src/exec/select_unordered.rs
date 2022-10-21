@@ -8,7 +8,7 @@ use datafusion::physical_plan::{
     display::DisplayFormatType, expressions::PhysicalSortExpr, ExecutionPlan, Partitioning,
     RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
-use futures::stream::{self, Select, Stream, StreamExt};
+use futures::stream::{self, SelectAll, Stream, StreamExt};
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
@@ -18,20 +18,30 @@ use std::task::{Context, Poll};
 // TODO: Provide optional limit as well.
 #[derive(Debug)]
 pub struct SelectUnorderedExec {
-    left: Arc<dyn ExecutionPlan>,
-    right: Arc<dyn ExecutionPlan>,
+    children: Vec<Arc<dyn ExecutionPlan>>,
 }
 
 impl SelectUnorderedExec {
-    pub fn new(left: Arc<dyn ExecutionPlan>, right: Arc<dyn ExecutionPlan>) -> Result<Self> {
-        if left.schema() != right.schema() {
-            return Err(internal!(
-                "schemas do not match; left: {}, right: {}",
-                left.schema(),
-                right.schema()
-            ));
+    /// Create a new executor selecting fr
+    pub fn new(children: impl IntoIterator<Item = Arc<dyn ExecutionPlan>>) -> Result<Self> {
+        let mut iter = children.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut children = Vec::with_capacity(lower);
+
+        let first = iter
+            .next()
+            .ok_or_else(|| internal!("select unordered must have at least one child"))?;
+        let schema = first.schema();
+        children.push(first);
+
+        for child in iter {
+            if child.schema() != schema {
+                return Err(internal!("schema mismatch between children"));
+            }
+            children.push(child);
         }
-        Ok(SelectUnorderedExec { left, right })
+
+        Ok(SelectUnorderedExec { children })
     }
 }
 
@@ -41,7 +51,8 @@ impl ExecutionPlan for SelectUnorderedExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.left.schema()
+        // Must be constructed with at least one child.
+        self.children.first().unwrap().schema()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -61,7 +72,7 @@ impl ExecutionPlan for SelectUnorderedExec {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        vec![self.left.clone(), self.right.clone()]
+        self.children.clone()
     }
 
     fn with_new_children(
@@ -79,11 +90,15 @@ impl ExecutionPlan for SelectUnorderedExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let left = self.left.execute(partition, context.clone())?;
-        let right = self.right.execute(partition, context)?;
+        let streams = self
+            .children
+            .iter()
+            .map(|child| child.as_ref().execute(partition, context.clone()))
+            .collect::<DatafusionResult<Vec<_>>>()?;
+        let stream = stream::select_all(streams);
         Ok(Box::pin(SelectBatchStream {
             schema: self.schema(),
-            inner: stream::select(left, right),
+            inner: stream,
         }))
     }
 
@@ -98,7 +113,7 @@ impl ExecutionPlan for SelectUnorderedExec {
 
 struct SelectBatchStream {
     schema: SchemaRef,
-    inner: Select<SendableRecordBatchStream, SendableRecordBatchStream>,
+    inner: SelectAll<SendableRecordBatchStream>,
 }
 
 impl Stream for SelectBatchStream {
