@@ -10,7 +10,7 @@ logutil = {path = "../logutil"}
 persistence = {path = "../persistence"}
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.57"
+async-trait = "0.1.58"
 futures = "0.3.21"
 parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
