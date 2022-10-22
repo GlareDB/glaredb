@@ -125,7 +125,7 @@ More details on the [sqllogictest wiki page](https://www.sqlite.org/sqllogictest
 
 #### Interpreting Test Output
 
-`slt_runner` stops at the first errors encountered.
+`slt_runner` stops at the first error encountered.
 
 GlareDB logging and `slt_runner` output is currently intermingled. `slt_runner`
 prints everything unadorned, so output will not be prefixed with any logging
