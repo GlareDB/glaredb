@@ -87,8 +87,9 @@ psql "host=localhost dbname=glaredb port=<port> user=glaredb"
 #### Writing Tests
 
 Each test file should start with a short comment describing what the file is
-testing, as well as set up a unique schema to work within. E.g. `join_on_aggregates`
-should have something like the following at the top of the file:
+testing, as well as set up a unique schema to work within. E.g.
+`join_on_aggregates.slt` should have something like the following at the top of
+the file:
 
 ``` text
 # Test join on aggregates
