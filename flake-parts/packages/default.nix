@@ -89,7 +89,7 @@
         created = "now";
         config = {
           Cmd = ["${packages.cli}/bin/glaredb"];
-        }
+        };
       };
 
       slt_runner = craneLib.buildPackage ({
