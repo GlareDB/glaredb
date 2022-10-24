@@ -280,7 +280,18 @@ where
 
         let session = &mut self.session;
         let conn = &mut self.conn;
-        let mut executor = Executor::new(&sql, session)?;
+
+        let mut executor = match Executor::new(&sql, session) {
+            Ok(executor) => executor,
+            Err(e) => {
+                conn.send(
+                    ErrorResponse::error_internal(format!("failed to begin execution: {:?}", e))
+                        .into(),
+                )
+                .await?;
+                return self.ready_for_query().await;
+            }
+        };
         // Determines if we send back an empty query response.
         let num_statements = executor.statements_remaining();
 

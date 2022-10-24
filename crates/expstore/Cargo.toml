@@ -9,8 +9,8 @@ edition = "2021"
 logutil = {path = "../logutil"}
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.57"
-futures = "0.3.21"
+async-trait = "0.1.58"
+futures = "0.3.25"
 parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.2.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
