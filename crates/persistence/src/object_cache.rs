@@ -229,7 +229,7 @@ impl ObjectStoreCache {
             offset,
         };
         if let Some(value) = self.cache.get(&key) {
-            return Ok(Self::read_cache_file(&value).await?);
+            return Self::read_cache_file(&value).await;
         } else {
             let range = Range {
                 start: offset,
