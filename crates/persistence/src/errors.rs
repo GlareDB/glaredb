@@ -9,6 +9,9 @@ pub enum PersistenceError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
+    #[error(transparent)]
+    IntError(#[from] std::num::TryFromIntError),
+
     #[error("internal: {0}")]
     Internal(String),
 }
@@ -22,3 +25,17 @@ macro_rules! internal {
     };
 }
 pub(crate) use internal;
+
+//TODO: Dynamically get cache name in the future
+impl From<PersistenceError> for object_store::Error {
+    fn from(e: PersistenceError) -> Self {
+        use PersistenceError::*;
+        match e {
+            ObjectStore(e) => e,
+            e => Self::Generic {
+                store: crate::object_cache::OBJECT_STORE_CACHE_NAME,
+                source: Box::new(e),
+            },
+        }
+    }
+}
