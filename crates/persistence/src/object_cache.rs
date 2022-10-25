@@ -735,20 +735,9 @@ mod tests {
 
         println!("Contents of the file: {:?}", &data);
 
-        // let test_data_serialized: Vec<_> = ranges
-        // .iter()
-        // .map(|r| test_data_serialized.slice(r))
-        // .collect();
-        // let test_data = ranges.map(|r| test_data.get(r).unwrap()).collect();
         let expected_result = vec!["ello ", " wo"];
 
         assert_eq!(expected_result, data);
-        assert_eq!(
-            expected_result,
-            data.iter()
-                .map(|d| std::str::from_utf8(d).unwrap())
-                .collect::<Vec<_>>()
-        );
 
         cache.cache.sync();
         assert_eq!(cache.cache.entry_count(), 4);
