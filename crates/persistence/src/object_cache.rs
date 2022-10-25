@@ -238,10 +238,12 @@ impl ObjectStoreCache {
         if let Some(value) = self.cache.get(&key) {
             Self::read_cache_file(&value).await
         } else {
-            let range = Range {
-                start: offset,
-                end: offset + self.byte_range_size,
-            };
+            //TODO: Save and retrieve meta data within the cache to prevent calling head for every
+            //range request
+            let metadata = self.object_store.head(location).await?;
+            let end = metadata.size.min(offset + self.byte_range_size);
+            let range = Range { start: offset, end };
+
             let contents = self.object_store.get_range(location, range).await?;
             let value = self.write_cache_file(&key, &contents).await?;
             self.cache.insert(key, value).await;
@@ -684,6 +686,45 @@ mod tests {
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let range = 1..7;
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let data = cache
+            .get_range(&test_obj_store_file, range.clone())
+            .await
+            .unwrap();
+
+        println!("Contents of the file: {:?}", &data);
+
+        assert_eq!(test_data_serialized.slice(range.clone()), data);
+        assert_eq!(
+            test_data.get(range.clone()).unwrap(),
+            std::str::from_utf8(&data).unwrap()
+        );
+
+        cache.cache.sync();
+        let range = align_range(&range, byte_range_size);
+        let count = (range.end - range.start) / byte_range_size;
+        assert_eq!(cache.cache.entry_count(), count as u64);
+    }
+
+    #[tokio::test]
+    /// Get last range when left over is less than the byte range size
+    async fn get_last_range() {
+        logutil::init_test();
+        let byte_range_size = 5;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let range = 6..12;
 
         cache
             .put(&test_obj_store_file, test_data_serialized.clone())
