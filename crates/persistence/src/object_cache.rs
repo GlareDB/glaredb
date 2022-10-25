@@ -73,7 +73,7 @@ pub struct ObjectStoreCache {
     byte_range_size: usize,
     /// Total Cache Size, number of cached ranges in bytes
     max_cache_size: u64,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 impl Display for ObjectStoreCache {
@@ -88,7 +88,7 @@ impl Display for ObjectStoreCache {
 }
 
 /// Default size of cached ranges from the object file
-const DEFAULT_BYTE_RANGE_SIZE: usize = 4096;
+pub const DEFAULT_BYTE_RANGE_SIZE: usize = 4096;
 pub const OBJECT_STORE_CACHE_NAME: &str = "Object Storage Cache";
 
 impl ObjectStoreCache {
@@ -96,7 +96,7 @@ impl ObjectStoreCache {
         cache_path: &Path,
         byte_range_size: usize,
         max_cache_size: u64,
-        object_store: Box<dyn ObjectStore>,
+        object_store: Arc<dyn ObjectStore>,
     ) -> Result<Self> {
         let async_runtime = Handle::current();
         let listener = move |k, v, rc| Self::eviction_listener(&async_runtime, k, v, rc);
@@ -398,7 +398,7 @@ pub mod test_util {
             cache_dir.path(),
             byte_range_size,
             max_cache_size,
-            Box::new(store),
+            Arc::new(store),
         )
         .unwrap();
         (cache, obj_dir, cache_dir)
@@ -486,7 +486,7 @@ mod tests {
         let cache_dir = Path::new("test/dir");
 
         let store = LocalFileSystem::new_with_prefix(obj_dir.path()).unwrap();
-        let cache = ObjectStoreCache::new(cache_dir, DEFAULT_BYTE_RANGE_SIZE, 2, Box::new(store));
+        let cache = ObjectStoreCache::new(cache_dir, DEFAULT_BYTE_RANGE_SIZE, 2, Arc::new(store));
 
         assert!(
             matches!(cache.unwrap_err(), PersistenceError::Internal(e) if e == format!("path must be absolute: {:?}", cache_dir))

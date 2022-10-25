@@ -1,9 +1,9 @@
 use anyhow::Result;
-use object_store_util::temp::TempObjectStore;
 use pgsrv::handler::{Handler, PostgresHandler};
-use sqlexec::engine::Engine;
-use sqlexec::runtime::AccessRuntime;
-use std::sync::Arc;
+use sqlexec::runtime::{AccessRuntime, ObjectStoreKind};
+use sqlexec::{engine::Engine, runtime::AccessConfig};
+use std::{path::PathBuf, sync::Arc};
+use tempfile::TempDir;
 use tokio::net::TcpListener;
 use tracing::{debug, info};
 
@@ -20,9 +20,18 @@ impl Server {
     /// necessary.
     pub async fn connect(db_name: impl Into<String>) -> Result<Self> {
         // TODO: Provide the access runtime to the server.
-        let store = Arc::new(TempObjectStore::new()?);
-        info!(%store, "object storage");
-        let access = Arc::new(AccessRuntime::new(store));
+        // TODO: Have cache_dir path come from a config file
+        let cache_dir = PathBuf::from(TempDir::new()?.path());
+
+        let config = AccessConfig {
+            object_store: ObjectStoreKind::LocalTemp,
+            cached: true,
+            max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
+            cache_path: Some(cache_dir),
+        };
+
+        info!(?config, "Access Config");
+        let access = Arc::new(AccessRuntime::new(config)?);
 
         let engine = Engine::new(db_name, access)?;
         Ok(Server {

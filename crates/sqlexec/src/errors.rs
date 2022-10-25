@@ -14,6 +14,12 @@ pub enum ExecError {
 
     #[error(transparent)]
     PgRepr(#[from] pgrepr::error::Error),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Persistence(#[from] persistence::errors::PersistenceError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
