@@ -58,23 +58,13 @@ impl FromStr for ObjectStoreKind {
     }
 }
 
-#[derive(Debug)]
+//TODO: use new default, better yet ensure everything is set in config file
+#[derive(Debug, Default)]
 pub struct AccessConfig {
     pub object_store: ObjectStoreKind,
     pub cached: bool,
     pub max_object_store_cache_size: Option<u64>,
     pub cache_path: Option<PathBuf>,
-}
-
-impl Default for AccessConfig {
-    fn default() -> Self {
-        Self {
-            object_store: Default::default(),
-            cached: false,
-            max_object_store_cache_size: None,
-            cache_path: None,
-        }
-    }
 }
 
 /// Global resources for accessing data.

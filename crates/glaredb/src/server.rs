@@ -17,7 +17,7 @@ pub struct Server {
 
 //TODO: Make this configured in a config file
 //TODO: Update default size 1 GiB for disk cache
-const DEFAULT_MAX_CACHE_SIZE: u64 = 1 * 1024 * 1024 * 1024;
+const DEFAULT_MAX_CACHE_SIZE: u64 = 1024 * 1024 * 1024;
 
 impl Server {
     /// Connect to the given source, performing any bootstrap steps as
