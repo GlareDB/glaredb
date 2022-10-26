@@ -19,6 +19,12 @@ pub enum ExecError {
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error(transparent)]
+    VarError(#[from] std::env::VarError),
+
+    #[error(transparent)]
     Persistence(#[from] persistence::errors::PersistenceError),
 }
 

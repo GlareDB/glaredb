@@ -1,17 +1,61 @@
-use crate::errors::Result;
+use crate::errors::{internal, Result};
 use access::compact::Compactor;
 use access::deltacache::DeltaCache;
+use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::ObjectStore;
 use object_store_util::temp::TempObjectStore;
 use persistence::object_cache::{ObjectStoreCache, DEFAULT_BYTE_RANGE_SIZE};
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
+
+//TODO: Update these so they are from a config file rather than env variables
+const GCS_SERVICE_ACCOUNT_PATH: &str = "GCS_SERVICE_ACCOUNT_PATH";
+const BUCKET_NAME: &str = "GCS_BUCKET_NAME";
 
 #[derive(Debug, Default)]
 pub enum ObjectStoreKind {
     #[default]
     LocalTemp,
-    //TODO: add data needed to create gcp ObjectStore
-    Gcp,
+    Memory,
+    Gcs {
+        service_account_path: String,
+        bucket_name: String,
+    },
+    S3,
+}
+
+impl FromStr for ObjectStoreKind {
+    type Err = crate::errors::ExecError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use ObjectStoreKind::*;
+        match s {
+            "local" => Ok(LocalTemp),
+            "memory" => Ok(Memory),
+            "gcs" => {
+                let service_account_path =
+                    std::env::var(GCS_SERVICE_ACCOUNT_PATH).map_err(|e| {
+                        internal!(
+                            "GCS: {} environment variable error: {:?}",
+                            GCS_SERVICE_ACCOUNT_PATH,
+                            e
+                        )
+                    })?;
+                let bucket_name = std::env::var(BUCKET_NAME).map_err(|e| {
+                    internal!("GCS: {} environment variable error: {:?}", BUCKET_NAME, e)
+                })?;
+                Ok(Gcs {
+                    service_account_path,
+                    bucket_name,
+                })
+            }
+            _ => Err(internal!(
+                "This type of object storage is not supported: {}",
+                s
+            )),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -53,7 +97,17 @@ impl AccessRuntime {
         use ObjectStoreKind::*;
         let mut store = match config.object_store {
             LocalTemp => Arc::new(TempObjectStore::new()?) as Arc<dyn ObjectStore>,
-            Gcp => todo!(),
+            Memory => Arc::new(object_store::memory::InMemory::new()) as Arc<dyn ObjectStore>,
+            Gcs {
+                ref service_account_path,
+                ref bucket_name,
+            } => Arc::new(
+                GoogleCloudStorageBuilder::new()
+                    .with_service_account_path(service_account_path)
+                    .with_bucket_name(bucket_name)
+                    .build()?,
+            ) as Arc<dyn ObjectStore>,
+            S3 => unimplemented!(),
         };
 
         if config.cached {
