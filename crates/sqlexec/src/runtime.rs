@@ -105,12 +105,12 @@ impl AccessRuntime {
                 config
                     .cache_path
                     .as_ref()
-                    .expect("No cache path provided")
+                    .ok_or_else(|| internal!("No cache path provided"))?
                     .as_path(),
                 DEFAULT_BYTE_RANGE_SIZE,
                 config
                     .max_object_store_cache_size
-                    .expect("no max cache size provided"),
+                    .ok_or_else(|| internal!("No max cache size provided"))?,
                 store,
             )?);
         }
