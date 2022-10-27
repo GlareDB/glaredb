@@ -69,11 +69,27 @@
         cargoExtraArgs = "--bin glaredb";
       } // common-build-args);
 
-      server_image = pkgs.dockerTools.buildLayeredImage {
+      glaredb_image = pkgs.dockerTools.buildLayeredImage {
         name = "glaredb";
         contents = [packages.cli];
         created = "now";
         config.Cmd = ["${packages.cli}/bin/glaredb"];
+      };
+
+      # Note that this currently uses the same command as the glaredb image. The
+      # pgsrv proxy uses the same root command. Eventually this may be moved to
+      # its own binary.
+      #
+      # Arguments will be provided in the k8s/terraform config. The api addr for
+      # Cloud will be set to some internal uri.
+      # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+      pgsrv_image = pkgs.dockerTools.buildLayeredImage {
+        name = "pgsrv";
+        contents = [packages.cli];
+        created = "now";
+        config = {
+          Cmd = ["${packages.cli}/bin/glaredb"];
+        };
       };
 
       slt_runner = craneLib.buildPackage ({
