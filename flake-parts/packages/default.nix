@@ -88,7 +88,7 @@
         contents = [packages.cli pkgs.cacert];
         created = "now";
         config = {
-          Entrypoint = ["${packages.cli}/bin/glaredb"];
+          Cmd = ["${packages.cli}/bin/glaredb"];
         };
       };
 

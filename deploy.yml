@@ -27,11 +27,11 @@ spec:
               "-v",
               "proxy",
               "--bind",
-              "0.0.0.0:6544",
+              "0.0.0.0:6543",
               "https://qa.glaredb.com",
             ]
-          ports: 
-            - containerPort: 6544
+          ports:3
+            - containerPort: 6543
           # The 'main' tag is continuously deployed from the main branch of the
           # GlareDB/glaredb repository. We have to explicitly set imagePullPolicy
           # to 'Always' because K8s only does this if we use a ':latest' tag.
@@ -39,16 +39,11 @@ spec:
           imagePullPolicy: Always
           livenessProbe:
             tcpSocket:
-              port: 6544
+              port: 6543
             initialDelaySeconds: 15
             periodSeconds: 20
           ports:
-            - containerPort: 6544
-              # naming the port is not necesssary (nor is explicitly setting it to
-              # TCP). However, we plan on having more than one port for internal
-              # use (such as by pgsrv), so we can name that one 'internal' and
-              # this one 'app' for clarity. TCP is for clarity that this is not
-              # a database, but an application for managing databases.
+            - containerPort: 6543
               name: postgres-proxy
               protocol: TCP
 ---
@@ -74,7 +69,7 @@ spec:
   ports:
     - protocol: TCP
       port: 6543
-      targetPort: 6544
+      targetPort: 6543
   # This is a reserved IP in the us-central1 region. It has a name
   # 'qa-glaredb-proxy-ip'
   loadBalancerIP: 34.132.144.12
