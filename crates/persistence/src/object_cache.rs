@@ -1,6 +1,4 @@
 //! On-disk cache for byte ranges from object storage
-use crate::errors::{internal, Result};
-
 use std::{
     fmt::{Display, Formatter},
     ops::Range,
@@ -21,6 +19,8 @@ use object_store::{
 };
 use tokio::{fs, io::AsyncWrite, runtime::Handle};
 use tracing::{error, trace, warn};
+
+use crate::errors::{internal, PersistenceError, Result};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct ObjectCacheKey {
@@ -73,7 +73,7 @@ pub struct ObjectStoreCache {
     byte_range_size: usize,
     /// Total Cache Size, number of cached ranges in bytes
     max_cache_size: u64,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 impl Display for ObjectStoreCache {
@@ -88,7 +88,7 @@ impl Display for ObjectStoreCache {
 }
 
 /// Default size of cached ranges from the object file
-const DEFAULT_BYTE_RANGE_SIZE: usize = 4096;
+pub const DEFAULT_BYTE_RANGE_SIZE: usize = 4096;
 pub const OBJECT_STORE_CACHE_NAME: &str = "Object Storage Cache";
 
 impl ObjectStoreCache {
@@ -96,7 +96,7 @@ impl ObjectStoreCache {
         cache_path: &Path,
         byte_range_size: usize,
         max_cache_size: u64,
-        object_store: Box<dyn ObjectStore>,
+        object_store: Arc<dyn ObjectStore>,
     ) -> Result<Self> {
         let async_runtime = Handle::current();
         let listener = move |k, v, rc| Self::eviction_listener(&async_runtime, k, v, rc);
@@ -165,6 +165,7 @@ impl ObjectStoreCache {
         let path = self.base_dir.join(key.to_filename());
 
         if path.try_exists()? {
+            //TODO investigate if duplicate file generation is possible when using try_get_with
             warn!(?path, "Duplicate file being cached");
             return Err(internal!("Cached file path already exists"));
         }
@@ -235,20 +236,36 @@ impl ObjectStoreCache {
             location: location.clone(),
             offset,
         };
-        if let Some(value) = self.cache.get(&key) {
-            Self::read_cache_file(&value).await
-        } else {
-            //TODO: Save and retrieve meta data within the cache to prevent calling head for every
-            //range request
-            let metadata = self.object_store.head(location).await?;
-            let end = metadata.size.min(offset + self.byte_range_size);
-            let range = Range { start: offset, end };
 
-            let contents = self.object_store.get_range(location, range).await?;
-            let value = self.write_cache_file(&key, &contents).await?;
-            self.cache.insert(key, value).await;
-            Ok(contents)
-        }
+        let value = self
+            .cache
+            .try_get_with::<_, PersistenceError>(key.clone(), self.init_value(&key))
+            .await
+            .map_err(|e| {
+                internal!(
+                    "Unable to init new cache value key: {:?}, error: {:?}",
+                    &key,
+                    e
+                )
+            })?;
+
+        //TODO: Consider passing a buffer into `init_value` to save save contents from write call
+        //and re use that here without re-reading from newly written file
+        Self::read_cache_file(&value).await
+    }
+
+    async fn init_value(&self, key: &ObjectCacheKey) -> Result<ObjectCacheValue, PersistenceError> {
+        let location = &key.location;
+        let offset = key.offset;
+        //TODO: Save and retrieve meta data within the cache to prevent calling head for every
+        //range request
+        let metadata = self.object_store.head(location).await?;
+        let end = metadata.size.min(offset + self.byte_range_size);
+        let range = Range { start: offset, end };
+
+        let contents = self.object_store.get_range(location, range).await?;
+        let value = self.write_cache_file(key, &contents).await?;
+        Ok(value)
     }
 }
 
@@ -382,9 +399,10 @@ fn align_range(range: &Range<usize>, alignment: usize) -> Range<usize> {
 /// Utility module for creating object store cache for testing
 #[cfg(test)]
 pub mod test_util {
-    use super::*;
     use object_store::local::LocalFileSystem;
     use tempfile::TempDir;
+
+    use super::*;
 
     pub fn new_object_cache(
         byte_range_size: usize,
@@ -398,7 +416,7 @@ pub mod test_util {
             cache_dir.path(),
             byte_range_size,
             max_cache_size,
-            Box::new(store),
+            Arc::new(store),
         )
         .unwrap();
         (cache, obj_dir, cache_dir)
@@ -409,12 +427,13 @@ pub mod test_util {
 mod tests {
     use std::{thread::sleep, time::Duration};
 
-    use super::*;
-    use crate::errors::PersistenceError;
-
+    use futures::future;
     use moka::future::ConcurrentCacheExt;
     use object_store::local::LocalFileSystem;
     use tempfile::TempDir;
+
+    use super::*;
+    use crate::errors::PersistenceError;
 
     #[tokio::test]
     async fn write_cache_file() {
@@ -455,7 +474,7 @@ mod tests {
         let (cache, _, cache_dir) = test_util::new_object_cache(DEFAULT_BYTE_RANGE_SIZE, 50);
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = String::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition2.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -486,7 +505,7 @@ mod tests {
         let cache_dir = Path::new("test/dir");
 
         let store = LocalFileSystem::new_with_prefix(obj_dir.path()).unwrap();
-        let cache = ObjectStoreCache::new(cache_dir, DEFAULT_BYTE_RANGE_SIZE, 2, Box::new(store));
+        let cache = ObjectStoreCache::new(cache_dir, DEFAULT_BYTE_RANGE_SIZE, 2, Arc::new(store));
 
         assert!(
             matches!(cache.unwrap_err(), PersistenceError::Internal(e) if e == format!("path must be absolute: {:?}", cache_dir))
@@ -501,7 +520,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = String::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition3.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -549,7 +568,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = String::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition4.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -561,7 +580,7 @@ mod tests {
             .unwrap();
         cache.cache.insert(key, val.clone()).await;
 
-        let test_obj_store_file = String::from("test/table1/partition2.parquet");
+        let test_obj_store_file = String::from("test/table1/partition5.parquet");
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
         let val = cache
@@ -587,7 +606,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = String::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition6.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -640,7 +659,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_data_object_file() {
+    async fn get_single_byte_range() {
         logutil::init_test();
         let byte_range_size = 2;
 
@@ -648,7 +667,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition7.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = 6; //offset to "wo" byte range in world
@@ -673,6 +692,59 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn get_single_byte_range_concurrent() {
+        logutil::init_test();
+        let byte_range_size = 2;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("partition8.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let test_offset = 6; //offset to "wo" byte range in world
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let (data1, data2) = future::join(
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+        )
+        .await;
+
+        let data1 = data1.unwrap();
+        let data2 = data2.unwrap();
+
+        println!("Contents of the file: {:?}", &data1);
+        println!("Contents of the file: {:?}", &data2);
+
+        assert_eq!(data1, data2);
+
+        let key = ObjectCacheKey {
+            location: test_obj_store_file,
+            offset: test_offset,
+        };
+        let expected_path = cache.base_dir.join(key.to_filename());
+        let expected_value = ObjectCacheValue {
+            path: expected_path.clone(),
+            length: byte_range_size as u32,
+        };
+        let value = cache.cache.get(&key).unwrap();
+        assert_eq!(value, expected_value);
+
+        let paths: Vec<PathBuf> = std::fs::read_dir(cache.base_dir)
+            .unwrap()
+            .map(|f| f.unwrap().path())
+            .collect();
+
+        assert_eq!(paths, vec![expected_path])
+    }
+
     #[tokio::test]
     async fn get_range_object_file() {
         logutil::init_test();
@@ -682,7 +754,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition9.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let range = 1..7;
@@ -721,7 +793,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition10.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let range = 6..12;
@@ -759,7 +831,7 @@ mod tests {
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition111.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let ranges = [1..6, 5..8];
