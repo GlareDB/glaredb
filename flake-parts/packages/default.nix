@@ -85,7 +85,7 @@
       # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
       pgsrv_image = pkgs.dockerTools.buildLayeredImage {
         name = "pgsrv";
-        contents = [packages.cli];
+        contents = [packages.cli pkgs.cacert];
         created = "now";
         config = {
           Cmd = ["${packages.cli}/bin/glaredb"];
