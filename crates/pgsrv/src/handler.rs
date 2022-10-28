@@ -616,6 +616,7 @@ where
                         "{}/api/internal/databases/authenticate",
                         &self.api_url
                     ))
+                    .header("Authorization", "Basic 6tCvEVBkD91q4KhjGVtT")
                     .query(&query)
                     .send()
                     .await?;
