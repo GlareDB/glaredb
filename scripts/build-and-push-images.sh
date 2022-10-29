@@ -10,7 +10,6 @@
 
 set -ex
 
-: ${GITHUB_REF_NAME?"GITHUB_REF_NAME needs to be set"}
 : ${GCP_PROJECT_ID?"GCP_PROJECT_ID needs to be set"}
 
 build_and_push() {
@@ -22,15 +21,17 @@ build_and_push() {
     nix build "${nix_target}"
     docker load --input result
 
-    local image_id
-    local image_tag
-    image_id=$(docker images --filter=reference=$image_ref --format "{{.ID}}")
-    image_tag=$(echo ${GITHUB_REF_NAME} | sed -r 's#/+#-#g')
+    local git_rev
+    git_rev=$(git rev-parse HEAD)
 
-    docker tag "${image_id}" "${image_tag}"
+    local image_id
+    # the image is already tagged with the git revision
+    image_id=$(docker images --filter=reference="${image_ref}" --format "{{.ID}}")
+
+    docker tag "${image_id}" latest
 
     local image_repo
-    image_repo="gcr.io/${GCP_PROJECT_ID}/${image_ref}:${image_tag}"
+    image_repo="gcr.io/${GCP_PROJECT_ID}/${image_ref}:${git_rev}"
     docker tag ${image_id} ${image_repo}
 
     docker push ${image_repo}
