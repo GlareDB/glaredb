@@ -28,11 +28,9 @@ build_and_push() {
     # the image is already tagged with the git revision
     image_id=$(docker images --filter=reference="${image_ref}" --format "{{.ID}}")
 
-    docker tag "${image_id}" latest
-
     local image_repo
     image_repo="gcr.io/${GCP_PROJECT_ID}/${image_ref}:${git_rev}"
-    docker tag ${image_id} ${image_repo}
+    docker tag ${image_id} ${image_repo} latest
 
     docker push ${image_repo}
 }
