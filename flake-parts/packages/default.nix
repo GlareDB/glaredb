@@ -71,6 +71,7 @@
 
       glaredb_image = pkgs.dockerTools.buildLayeredImage {
         name = "glaredb";
+        tag = self.rev or "dirty";
         contents = [packages.cli];
         created = "now";
         config.Cmd = ["${packages.cli}/bin/glaredb"];
@@ -85,6 +86,7 @@
       # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
       pgsrv_image = pkgs.dockerTools.buildLayeredImage {
         name = "pgsrv";
+        tag = self.rev or "dirty";
         contents = [packages.cli pkgs.cacert];
         created = "now";
         config = {
