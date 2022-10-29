@@ -2081,6 +2081,7 @@ dependencies = [
  "object_store",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
