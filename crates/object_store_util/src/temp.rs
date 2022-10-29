@@ -5,10 +5,13 @@ use object_store::{
     local::LocalFileSystem, path::Path, GetResult, ListResult, MultipartId, ObjectMeta,
     ObjectStore, Result,
 };
+use std::env;
 use std::fmt;
+use std::fs;
 use std::ops::Range;
 use tempfile::TempDir;
 use tokio::io::AsyncWrite;
+use tracing::trace;
 
 /// An object store backed by a temporary directory.
 #[derive(Debug)]
@@ -19,6 +22,15 @@ pub struct TempObjectStore {
 
 impl TempObjectStore {
     pub fn new() -> std::io::Result<TempObjectStore> {
+        // Our bare container image doesn't have a '/tmp' dir on startup (nor
+        // does it specify an alternate dir to use via `TMPDIR`).
+        //
+        // The `TempDir` call below will not attempt to create that directory
+        // for us.
+        let env_tmp = env::temp_dir();
+        trace!(?env_tmp, "ensuring temp dir for TempObjectStore");
+        fs::create_dir_all(&env_tmp)?;
+
         let tmp = TempDir::new()?;
         let inner = LocalFileSystem::new_with_prefix(tmp.path())?;
         Ok(TempObjectStore { tmp, inner })
