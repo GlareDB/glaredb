@@ -17,6 +17,16 @@
     craneLib = inputs.crane.lib.${system}.overrideToolchain
       inputs'.fenix.packages.stable.toolchain;
 
+    # Utilities that are helpful to have in the container for debugging
+    # purposes.
+    #
+    # For example, `coreutils` gives us `sleep` which can be useful to for
+    # spinning up a debugging container on k8s:
+    #
+    # $ kubectl run my-test-container --restart=Never --image gcr.io/glaredb-dev-playground/glaredb@<image_sha> -- sleep inf
+    # $ kubectl exec -it my-test-container -- bash
+    debugPackages = [pkgs.coreutils pkgs.bash];
+
     common-build-args = rec {
       # crane arguments
       src = lib.cleanSourceWith {
@@ -71,7 +81,7 @@
 
       glaredb_image = pkgs.dockerTools.buildLayeredImage {
         name = "glaredb";
-        contents = [packages.cli];
+        contents = [packages.cli] ++ debugPackages;
         created = "now";
         config.Cmd = ["${packages.cli}/bin/glaredb"];
       };
@@ -85,7 +95,7 @@
       # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
       pgsrv_image = pkgs.dockerTools.buildLayeredImage {
         name = "pgsrv";
-        contents = [packages.cli pkgs.cacert];
+        contents = [packages.cli pkgs.cacert] ++ debugPackages;
         created = "now";
         config = {
           Cmd = ["${packages.cli}/bin/glaredb"];
