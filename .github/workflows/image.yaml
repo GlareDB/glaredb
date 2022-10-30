@@ -33,7 +33,7 @@ jobs:
             access-tokens = github=${{ github.token }}
 
       - name: configure cachix
-        uses: cachix/cachix-action@v11
+        uses: cachix/cachix-action@v12
         with:
           name: glaredb-ci
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -49,5 +49,5 @@ jobs:
       - name: Configure docker
         run: gcloud auth configure-docker -q
 
-      - name: Build and push image
-        run: ./scripts/build-and-push-glaredb.sh
+      - name: Build and push images
+        run: ./scripts/build-and-push-images.sh

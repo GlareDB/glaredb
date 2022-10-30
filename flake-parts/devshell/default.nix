@@ -12,6 +12,7 @@
   }: let
     rust-stable = inputs'.fenix.packages.stable.toolchain;
     rust-nightly = inputs'.fenix.packages.latest.toolchain;
+    rust-ci = inputs'.fenix.packages.minimal.toolchain;
 
     devTools = with pkgs; [
       rustfmt
@@ -21,6 +22,11 @@
       cocogitto
       protobuf
       gdb
+    ];
+
+    ciPackages = [
+      (pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin])) 
+      pkgs.kubectl
     ];
 
     otherNativeBuildInputs = with pkgs; [pkgconfig openssl openssl.dev llvmPackages.bintools];
@@ -47,6 +53,9 @@
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         inherit LIBCLANG_PATH;
         inherit PROTOC PROTOC_INCLUDE;
+      };
+      ci = pkgs.mkShell rec {
+        buildInputs = ciPackages;
       };
       postgres = with pkgs;
         mkShell rec {

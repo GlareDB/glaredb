@@ -1,5 +1,3 @@
-//TODO remove once ObjectStore trait is implemented
-#![allow(unused_variables)]
 //! On-disk cache for byte ranges from object storage
 use crate::errors::{internal, Result};
 
@@ -11,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::stream::BoxStream;
 use moka::{
     future::{Cache, CacheBuilder},
@@ -26,7 +24,7 @@ use tracing::{error, trace, warn};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct ObjectCacheKey {
-    object_store_path: ObjectStorePath,
+    location: ObjectStorePath,
     /// Byte offset in the object storage file
     offset: usize,
 }
@@ -39,16 +37,13 @@ impl ObjectCacheKey {
     fn to_filename(&self) -> String {
         format!(
             "{}-{}.{}",
-            self.object_store_path, self.offset, OBJECT_STORE_CACHE_FILE_EXTENTION
+            self.location, self.offset, OBJECT_STORE_CACHE_FILE_EXTENTION
         )
     }
 
-    fn new(path: &Path, offset: usize) -> Result<Self> {
-        let object_store_path = crate::file::to_object_path(path)?;
-        Ok(Self {
-            object_store_path,
-            offset,
-        })
+    fn new(location: &str, offset: usize) -> Result<Self> {
+        let location = crate::file::to_object_path(location)?;
+        Ok(Self { location, offset })
     }
 }
 
@@ -94,21 +89,20 @@ impl Display for ObjectStoreCache {
 
 /// Default size of cached ranges from the object file
 const DEFAULT_BYTE_RANGE_SIZE: usize = 4096;
-const OBJECT_STORE_CACHE_NAME: &str = "Object Storage Cache";
+pub const OBJECT_STORE_CACHE_NAME: &str = "Object Storage Cache";
 
 impl ObjectStoreCache {
     pub fn new(
         cache_path: &Path,
-        max_byte_range_size: usize,
+        byte_range_size: usize,
         max_cache_size: u64,
         object_store: Box<dyn ObjectStore>,
     ) -> Result<Self> {
-        //TODO: Build with_initial_capacity in the future
-        //TODO: Investigate using a better hasher for strings/paths in the key
-
         let async_runtime = Handle::current();
         let listener = move |k, v, rc| Self::eviction_listener(&async_runtime, k, v, rc);
 
+        //TODO: Build with_initial_capacity in the future
+        //TODO: Investigate using a better hasher for strings/paths in the key
         let cache = CacheBuilder::new(max_cache_size)
             .name(OBJECT_STORE_CACHE_NAME)
             .weigher(Self::weight)
@@ -124,7 +118,7 @@ impl ObjectStoreCache {
         Ok(Self {
             cache,
             base_dir: cache_path.to_path_buf(),
-            byte_range_size: max_byte_range_size,
+            byte_range_size,
             max_cache_size,
             object_store,
         })
@@ -143,6 +137,7 @@ impl ObjectStoreCache {
             // Logging on error without propagating to prevent panicking the eviction listener
             if let Err(e) = Self::remove_cache_file(&value).await {
                 error!(
+                    ?e,
                     ?key,
                     ?value,
                     ?removal_cause,
@@ -155,12 +150,12 @@ impl ObjectStoreCache {
     /// The weight of the cache keys in bytes. This is a heuristic and does not account for all
     /// disk space used such as those used by directories or other meta data about each cache file
     /// beyond the cached data
-    fn weight(key: &ObjectCacheKey, value: &ObjectCacheValue) -> u32 {
+    fn weight(_key: &ObjectCacheKey, value: &ObjectCacheValue) -> u32 {
         value.length
     }
 
     // TODO: Use async write api vs sync write api from tokio
-    // TODO: What permissions should the cache files have
+    // TODO: What permissions should the cache files have at rest
     async fn write_cache_file(
         &self,
         key: &ObjectCacheKey,
@@ -170,7 +165,7 @@ impl ObjectStoreCache {
         let path = self.base_dir.join(key.to_filename());
 
         if path.try_exists()? {
-            warn!(?path, "duplicate file being cached");
+            warn!(?path, "Duplicate file being cached");
             return Err(internal!("Cached file path already exists"));
         }
 
@@ -181,19 +176,19 @@ impl ObjectStoreCache {
             .expect("base_dir is absolute so parent must be Some");
         fs::create_dir_all(parent).await?; // TODO: remove once cache files are unique and flat hierarchy
         fs::write(&path, contents).await?;
-        trace!(?path, ?parent, ?key, "Cached new file");
+        let length = contents.len().try_into()?;
+        trace!(?path, ?parent, ?key, ?length, "Cached new file");
 
-        Ok(ObjectCacheValue {
-            path,
-            length: contents.len() as u32,
-        })
+        Ok(ObjectCacheValue { path, length })
     }
 
     //TODO: Should this validate a checksum/length?
     async fn read_cache_file(value: &ObjectCacheValue) -> Result<Bytes> {
         let contents: Bytes = fs::read(&value.path).await?.into();
+        let length = contents.len();
+        trace!(?value, ?length, "Read cached file");
 
-        if value.length as usize == contents.len() {
+        if value.length as usize == length {
             Ok(contents)
         } else {
             Err(internal!("cache file not same length as written"))
@@ -204,22 +199,78 @@ impl ObjectStoreCache {
     //TODO: Should this validate a checksum/length?
     async fn remove_cache_file(value: &ObjectCacheValue) -> Result<()> {
         fs::remove_file(&value.path).await?;
+        trace!(?value, "Removed cached file");
         Ok(())
+    }
+
+    fn invalidate_location(&self, location: &ObjectStorePath) -> Result<()> {
+        let invalidation_path = location.clone();
+        if let Err(e) = self
+            .cache
+            .invalidate_entries_if(move |k, _v| k.location == invalidation_path)
+        {
+            return Err(internal!(
+                "Failed to invalidate cache entries for location {:?}, {:?}",
+                location,
+                e
+            ));
+        }
+        Ok(())
+    }
+
+    async fn get_single_byte_range(
+        &self,
+        location: &ObjectStorePath,
+        offset: usize,
+    ) -> Result<Bytes> {
+        if offset % self.byte_range_size != 0 {
+            return Err(internal!(
+                "Offset, {}, is not aligned with byte range {}",
+                offset,
+                self.byte_range_size
+            ));
+        }
+
+        let key = ObjectCacheKey {
+            location: location.clone(),
+            offset,
+        };
+        if let Some(value) = self.cache.get(&key) {
+            Self::read_cache_file(&value).await
+        } else {
+            //TODO: Save and retrieve meta data within the cache to prevent calling head for every
+            //range request
+            let metadata = self.object_store.head(location).await?;
+            let end = metadata.size.min(offset + self.byte_range_size);
+            let range = Range { start: offset, end };
+
+            let contents = self.object_store.get_range(location, range).await?;
+            let value = self.write_cache_file(&key, &contents).await?;
+            self.cache.insert(key, value).await;
+            Ok(contents)
+        }
     }
 }
 
-//TODO: Implement ObjectStore trait on ObjectStoreCache
 #[async_trait]
 impl ObjectStore for ObjectStoreCache {
     async fn put(&self, location: &ObjectStorePath, bytes: Bytes) -> ObjectStoreResult<()> {
-        todo!()
+        self.object_store.put(location, bytes).await?;
+        self.invalidate_location(location)?;
+        Ok(())
     }
 
+    //TODO: Investigate if this is invalidating the cache even if we abort later, is that something
+    //we want to consider avoiding
     async fn put_multipart(
         &self,
         location: &ObjectStorePath,
     ) -> ObjectStoreResult<(MultipartId, Box<dyn AsyncWrite + Unpin + Send>)> {
-        todo!()
+        let write_result = self.object_store.put_multipart(location).await;
+        if write_result.is_ok() {
+            self.invalidate_location(location)?;
+        }
+        write_result
     }
 
     async fn abort_multipart(
@@ -227,11 +278,14 @@ impl ObjectStore for ObjectStoreCache {
         location: &ObjectStorePath,
         multipart_id: &MultipartId,
     ) -> ObjectStoreResult<()> {
-        todo!()
+        self.object_store
+            .abort_multipart(location, multipart_id)
+            .await
     }
 
+    //TODO: consider caching the whole file on get
     async fn get(&self, location: &ObjectStorePath) -> ObjectStoreResult<GetResult> {
-        todo!()
+        self.object_store.get(location).await
     }
 
     async fn get_range(
@@ -239,46 +293,54 @@ impl ObjectStore for ObjectStoreCache {
         location: &ObjectStorePath,
         range: Range<usize>,
     ) -> ObjectStoreResult<Bytes> {
-        todo!()
+        trace!(
+            ?location,
+            ?range,
+            "Get range of bytes from object store cache"
+        );
+        let aligned_range = align_range(&range, self.byte_range_size);
+        let first_offset = aligned_range.start;
+
+        let mut aligned_data = BytesMut::with_capacity(aligned_range.end - aligned_range.start);
+        //TODO: Run these requests in parallel
+        for offset in aligned_range.step_by(self.byte_range_size) {
+            let data = self.get_single_byte_range(location, offset).await?;
+            //TODO use chain or non copying api on Bytes
+            aligned_data.put(data);
+        }
+
+        let start = range.start - first_offset;
+        let end = range.end - first_offset;
+        Ok(aligned_data.freeze().slice(start..end))
     }
 
-    async fn get_ranges(
-        &self,
-        location: &ObjectStorePath,
-        ranges: &[Range<usize>],
-    ) -> ObjectStoreResult<Vec<Bytes>> {
-        todo!()
-    }
-
+    //TODO Decide if we want to cache ObjectMeta in the cache itself
     async fn head(&self, location: &ObjectStorePath) -> ObjectStoreResult<ObjectMeta> {
-        todo!()
+        self.object_store.head(location).await
     }
 
     async fn delete(&self, location: &ObjectStorePath) -> ObjectStoreResult<()> {
-        todo!()
+        self.object_store.delete(location).await?;
+        self.invalidate_location(location)?;
+        Ok(())
     }
 
     async fn list(
         &self,
         prefix: Option<&ObjectStorePath>,
     ) -> ObjectStoreResult<BoxStream<'_, ObjectStoreResult<ObjectMeta>>> {
-        todo!()
+        self.object_store.list(prefix).await
     }
 
     async fn list_with_delimiter(
         &self,
         prefix: Option<&ObjectStorePath>,
     ) -> ObjectStoreResult<ListResult> {
-        todo!()
+        self.object_store.list_with_delimiter(prefix).await
     }
 
     async fn copy(&self, from: &ObjectStorePath, to: &ObjectStorePath) -> ObjectStoreResult<()> {
-        todo!()
-    }
-
-    async fn rename(&self, from: &ObjectStorePath, to: &ObjectStorePath) -> ObjectStoreResult<()> {
-        self.copy(from, to).await?;
-        self.delete(from).await
+        self.object_store.copy(from, to).await
     }
 
     async fn copy_if_not_exists(
@@ -286,17 +348,35 @@ impl ObjectStore for ObjectStoreCache {
         from: &ObjectStorePath,
         to: &ObjectStorePath,
     ) -> ObjectStoreResult<()> {
-        todo!()
+        self.object_store.copy_if_not_exists(from, to).await
     }
 
+    //TODO: Consider optimization to re-insert from location keys with to location
+    async fn rename(&self, from: &ObjectStorePath, to: &ObjectStorePath) -> ObjectStoreResult<()> {
+        self.object_store.rename(from, to).await?;
+        self.invalidate_location(from)?;
+        Ok(())
+    }
+
+    //TODO: Consider optimization to re-insert from location keys with to location
     async fn rename_if_not_exists(
         &self,
         from: &ObjectStorePath,
         to: &ObjectStorePath,
     ) -> ObjectStoreResult<()> {
-        self.copy_if_not_exists(from, to).await?;
-        self.delete(from).await
+        self.object_store.rename_if_not_exists(from, to).await?;
+        self.invalidate_location(from)?;
+        Ok(())
     }
+}
+
+fn align_range(range: &Range<usize>, alignment: usize) -> Range<usize> {
+    let start = range.start - range.start % alignment;
+    let end = match range.end % alignment {
+        0 => range.end,
+        rem => range.end - rem + alignment,
+    };
+    Range { start, end }
 }
 
 /// Utility module for creating object store cache for testing
@@ -306,14 +386,17 @@ pub mod test_util {
     use object_store::local::LocalFileSystem;
     use tempfile::TempDir;
 
-    pub fn new_object_cache(max_cache_size: u64) -> (ObjectStoreCache, TempDir, TempDir) {
+    pub fn new_object_cache(
+        byte_range_size: usize,
+        max_cache_size: u64,
+    ) -> (ObjectStoreCache, TempDir, TempDir) {
         let obj_dir = TempDir::new().unwrap();
         let cache_dir = TempDir::new().unwrap();
 
         let store = LocalFileSystem::new_with_prefix(obj_dir.path()).unwrap();
         let cache = ObjectStoreCache::new(
             cache_dir.path(),
-            DEFAULT_BYTE_RANGE_SIZE,
+            byte_range_size,
             max_cache_size,
             Box::new(store),
         )
@@ -337,11 +420,11 @@ mod tests {
     async fn write_cache_file() {
         logutil::init_test();
 
-        let (cache, _, cache_dir) = test_util::new_object_cache(50);
+        let (cache, _, cache_dir) = test_util::new_object_cache(DEFAULT_BYTE_RANGE_SIZE, 50);
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = PathBuf::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition1.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -353,8 +436,6 @@ mod tests {
             .unwrap();
 
         cache.cache.insert(key, val.clone()).await;
-        let test_obj_store_file = PathBuf::from("test/table1/partition1.parquet");
-        let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
 
         let read_data_serialized = std::fs::read(&val.path).unwrap();
         let read_string = String::from_utf8(read_data_serialized.clone()).unwrap();
@@ -371,10 +452,10 @@ mod tests {
     async fn duplicate_cache_file() {
         logutil::init_test();
 
-        let (cache, _, cache_dir) = test_util::new_object_cache(50);
+        let (cache, _, cache_dir) = test_util::new_object_cache(DEFAULT_BYTE_RANGE_SIZE, 50);
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = PathBuf::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition1.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -416,11 +497,11 @@ mod tests {
     async fn read_cache_file() {
         logutil::init_test();
 
-        let (cache, _, cache_dir) = test_util::new_object_cache(50);
+        let (cache, _, cache_dir) = test_util::new_object_cache(DEFAULT_BYTE_RANGE_SIZE, 50);
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = PathBuf::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition1.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -448,7 +529,6 @@ mod tests {
 
     #[tokio::test]
     async fn invalid_cache_file() {
-        let (cache, _, _) = test_util::new_object_cache(50);
         let invalid_val = ObjectCacheValue {
             path: PathBuf::from("invalid_path"),
             length: 0,
@@ -465,11 +545,11 @@ mod tests {
     async fn weight() {
         logutil::init_test();
 
-        let (cache, _, cache_dir) = test_util::new_object_cache(50);
+        let (cache, _, cache_dir) = test_util::new_object_cache(DEFAULT_BYTE_RANGE_SIZE, 50);
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = PathBuf::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition1.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -481,7 +561,7 @@ mod tests {
             .unwrap();
         cache.cache.insert(key, val.clone()).await;
 
-        let test_obj_store_file = PathBuf::from("test/table1/partition2.parquet");
+        let test_obj_store_file = String::from("test/table1/partition2.parquet");
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
         let val = cache
@@ -503,11 +583,11 @@ mod tests {
     async fn invalidate() {
         logutil::init_test();
 
-        let (cache, _, cache_dir) = test_util::new_object_cache(50);
+        let (cache, _, cache_dir) = test_util::new_object_cache(DEFAULT_BYTE_RANGE_SIZE, 50);
 
         trace!(?cache_dir, "test cache directory");
 
-        let test_obj_store_file = PathBuf::from("test/table1/partition1.parquet");
+        let test_obj_store_file = String::from("test/table1/partition1.parquet");
         let test_data = "Hello world!";
         let test_data_serialized: Bytes = test_data.into();
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
@@ -530,5 +610,177 @@ mod tests {
             sleep(Duration::from_nanos(1));
         }
         assert_eq!(val.path.try_exists().unwrap(), false);
+    }
+
+    #[tokio::test]
+    async fn align() {
+        let alignment = 7;
+        let range = Range { start: 5, end: 20 };
+        let r = align_range(&range, alignment);
+        assert_eq!(r.start, 0);
+        assert_eq!(r.end, 21);
+
+        let alignment = 7;
+        let range = Range { start: 8, end: 22 };
+        let r = align_range(&range, alignment);
+        assert_eq!(r.start, 7);
+        assert_eq!(r.end, 28);
+
+        let alignment = 7;
+        let range = Range { start: 7, end: 22 };
+        let r = align_range(&range, alignment);
+        assert_eq!(r.start, 7);
+        assert_eq!(r.end, 28);
+
+        let alignment = 7;
+        let range = Range { start: 8, end: 21 };
+        let r = align_range(&range, alignment);
+        assert_eq!(r.start, 7);
+        assert_eq!(r.end, 21);
+    }
+
+    #[tokio::test]
+    async fn get_data_object_file() {
+        logutil::init_test();
+        let byte_range_size = 2;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let test_offset = 6; //offset to "wo" byte range in world
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let data = cache
+            .get_single_byte_range(&test_obj_store_file, test_offset)
+            .await
+            .unwrap();
+
+        println!("Contents of the file: {:?}", &data);
+
+        let range = test_offset..(test_offset + byte_range_size);
+        assert_eq!(test_data_serialized.slice(range.clone()), data);
+        assert_eq!(
+            test_data.get(range.clone()).unwrap(),
+            std::str::from_utf8(&data).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn get_range_object_file() {
+        logutil::init_test();
+        let byte_range_size = 2;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let range = 1..7;
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let data = cache
+            .get_range(&test_obj_store_file, range.clone())
+            .await
+            .unwrap();
+
+        println!("Contents of the file: {:?}", &data);
+
+        assert_eq!(test_data_serialized.slice(range.clone()), data);
+        assert_eq!(
+            test_data.get(range.clone()).unwrap(),
+            std::str::from_utf8(&data).unwrap()
+        );
+
+        cache.cache.sync();
+        let range = align_range(&range, byte_range_size);
+        let count = (range.end - range.start) / byte_range_size;
+        assert_eq!(cache.cache.entry_count(), count as u64);
+    }
+
+    #[tokio::test]
+    /// Get last range when left over is less than the byte range size
+    async fn get_last_range() {
+        logutil::init_test();
+        let byte_range_size = 5;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let range = 6..12;
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let data = cache
+            .get_range(&test_obj_store_file, range.clone())
+            .await
+            .unwrap();
+
+        println!("Contents of the file: {:?}", &data);
+
+        assert_eq!(test_data_serialized.slice(range.clone()), data);
+        assert_eq!(
+            test_data.get(range.clone()).unwrap(),
+            std::str::from_utf8(&data).unwrap()
+        );
+
+        cache.cache.sync();
+        let range = align_range(&range, byte_range_size);
+        let count = (range.end - range.start) / byte_range_size;
+        assert_eq!(cache.cache.entry_count(), count as u64);
+    }
+
+    #[tokio::test]
+    async fn get_ranges_object_file() {
+        logutil::init_test();
+        let byte_range_size = 2;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("test/table1/partition1.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let ranges = [1..6, 5..8];
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let data = cache
+            .get_ranges(&test_obj_store_file, &ranges)
+            .await
+            .unwrap();
+
+        println!("Contents of the file: {:?}", &data);
+
+        let expected_result = vec!["ello ", " wo"];
+
+        assert_eq!(expected_result, data);
+
+        cache.cache.sync();
+        assert_eq!(cache.cache.entry_count(), 4);
     }
 }

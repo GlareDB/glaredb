@@ -27,7 +27,7 @@ Packages may create container images in tarball format.
 
 Nix expression to create an image derivation: 
 ```nix
-server_image = pkgs.dockerTools.buildLayeredImage {
+glaredb_image = pkgs.dockerTools.buildLayeredImage {
     name = "glaredb";
     contents = [packages.cli];
     created = "now";
@@ -39,7 +39,7 @@ The binary is included in the container and ran using `config.Cmd`.
 
 Commands to build and import the image into docker: 
 ```
-nix build .#server_image
+nix build .#glaredb_image
 docker load --input result
 ```
 For options, see [dockerTools in the nix manual](https://nixos.org/manual/nixpkgs/stable/#sec-pkgs-dockerTools)

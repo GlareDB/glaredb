@@ -42,7 +42,7 @@ jobs:
             access-tokens = github=${{ github.token }}
 
       - name: configure cachix
-        uses: cachix/cachix-action@v11
+        uses: cachix/cachix-action@v12
         with:
           name: glaredb-ci
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -51,4 +51,7 @@ jobs:
         run: nix flake check -L
 
       - name: SQL Logic Tests
-        run: nix run .#slt_runner -- -v testdata/sqllogictests/**/*.slt
+        # Use globstar to ensure that all subdirectories are expanded.
+        run: |
+          shopt -s globstar
+          nix run .#slt_runner -- -v testdata/sqllogictests/**/*.slt
