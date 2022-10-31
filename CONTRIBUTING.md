@@ -84,6 +84,15 @@ is running on. You can then connect to it via `psql`, for example:
 psql "host=localhost dbname=glaredb port=<port> user=glaredb"
 ```
 
+To run using Google Cloud Storage:
+- Ensure bucket has been created on GCS
+- Give service account `Storage Object Creator` and `Storage Object Viewer`  roles in bucket permissions
+``` shell
+export GCS_BUCKET_NAME="<bucket name>"
+export GCS_SERVICE_ACCOUNT_PATH="<path to service account info>"
+cargo run --bin slt_runner -- --object-store gcs --keep-running testdata/sqllogictests/**/*.slt
+```
+
 #### Writing Tests
 
 Each test file should start with a short comment describing what the file is

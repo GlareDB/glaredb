@@ -130,20 +130,27 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use crate::catalog::DatabaseCatalog;
-    use crate::runtime::AccessRuntime;
+    use crate::runtime::{AccessConfig, AccessRuntime, ObjectStoreKind};
     use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
-    use object_store_util::temp::TempObjectStore;
+    use std::path::PathBuf;
     use std::sync::Arc;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn simple() {
         let catalog = DatabaseCatalog::new("test");
         catalog.insert_default_schema().unwrap();
+        let cache_dir = TempDir::new().unwrap();
 
-        let access = Arc::new(AccessRuntime::new(Arc::new(
-            TempObjectStore::new().unwrap(),
-        )));
+        let config = AccessConfig {
+            object_store: ObjectStoreKind::LocalTemp,
+            cached: true,
+            max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
+            cache_path: Some(PathBuf::from(cache_dir.path())),
+        };
+
+        let access = Arc::new(AccessRuntime::new(config).unwrap());
         let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()), access);
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 
