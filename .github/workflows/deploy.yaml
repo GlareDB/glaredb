@@ -8,8 +8,8 @@ on:
       - sean/pgsrv-return-error
 
 jobs:
-  build-image:
-    name: Build and push image
+  build-deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
 
     concurrency:
