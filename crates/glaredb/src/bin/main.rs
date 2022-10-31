@@ -18,8 +18,13 @@ use tokio::runtime::{Builder, Runtime};
 #[clap(version = "pre-release")]
 #[clap(about = "CLI for GlareDB", long_about = None)]
 struct Cli {
+    /// Log verbosity.
     #[clap(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
+
+    /// Output logs in json format.
+    #[clap(long)]
+    json_logging: bool,
 
     #[clap(subcommand)]
     command: Commands,
@@ -96,7 +101,7 @@ enum ClientCommands {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    logutil::init(cli.verbose);
+    logutil::init(cli.verbose, cli.json_logging);
 
     match cli.command {
         Commands::RaftNode {

@@ -43,7 +43,7 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    logutil::init(cli.verbose);
+    logutil::init(cli.verbose, false);
 
     let files = cli
         .files

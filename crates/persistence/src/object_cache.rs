@@ -711,14 +711,19 @@ mod tests {
             .await
             .unwrap();
 
-        let (data1, data2) = future::join(
+        let mut futs = future::join_all(vec![
             cache.get_single_byte_range(&test_obj_store_file, test_offset),
             cache.get_single_byte_range(&test_obj_store_file, test_offset),
-        )
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+            cache.get_single_byte_range(&test_obj_store_file, test_offset),
+        ])
         .await;
 
-        let data1 = data1.unwrap();
-        let data2 = data2.unwrap();
+        let data1 = futs.pop().unwrap().unwrap();
+        let data2 = futs.pop().unwrap().unwrap();
 
         println!("Contents of the file: {:?}", &data1);
         println!("Contents of the file: {:?}", &data2);

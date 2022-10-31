@@ -7,7 +7,7 @@ use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    logutil::init(1);
+    logutil::init(1, false);
 
     let args: Vec<_> = std::env::args().collect();
     let bind_addr = args.get(1).cloned().unwrap_or("localhost:0".to_string());
