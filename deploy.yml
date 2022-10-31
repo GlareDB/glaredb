@@ -25,7 +25,7 @@ spec:
           command: ["glaredb"]
           args: [
               "-v",
-              "--json-logging"
+              "--json-logging",
               "proxy",
               "--bind",
               "0.0.0.0:6543",
