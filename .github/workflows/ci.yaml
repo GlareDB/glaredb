@@ -55,3 +55,6 @@ jobs:
         run: |
           shopt -s globstar
           nix run .#slt_runner -- -v testdata/sqllogictests/**/*.slt
+
+      - name: Validate Deploy YAML
+        run: kubectl apply -f ./deploy.yml --dry-run=client
