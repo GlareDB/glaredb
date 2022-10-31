@@ -1,9 +1,9 @@
 use anyhow::Result;
-use object_store_util::temp::TempObjectStore;
 use pgsrv::handler::{Handler, PostgresHandler};
-use sqlexec::engine::Engine;
 use sqlexec::runtime::AccessRuntime;
-use std::sync::Arc;
+use sqlexec::{engine::Engine, runtime::AccessConfig};
+use std::{path::PathBuf, sync::Arc};
+use tempfile::TempDir;
 use tokio::net::TcpListener;
 use tracing::{debug, info};
 
@@ -15,14 +15,28 @@ pub struct Server {
     pg_handler: Arc<Handler>,
 }
 
+//TODO: Make this configured in a config file
+//TODO: Update default size 1 GiB for disk cache
+const DEFAULT_MAX_CACHE_SIZE: u64 = 1024 * 1024 * 1024;
+
 impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
-    pub async fn connect(db_name: impl Into<String>) -> Result<Self> {
+    pub async fn connect(db_name: impl Into<String>, object_store: &str) -> Result<Self> {
         // TODO: Provide the access runtime to the server.
-        let store = Arc::new(TempObjectStore::new()?);
-        info!(%store, "object storage");
-        let access = Arc::new(AccessRuntime::new(store));
+        // TODO: Have cache_dir path come from a config file
+        let cache_dir = PathBuf::from(TempDir::new()?.path());
+        let object_store = object_store.parse()?;
+
+        let config = AccessConfig {
+            object_store,
+            cached: true,
+            max_object_store_cache_size: Some(DEFAULT_MAX_CACHE_SIZE),
+            cache_path: Some(cache_dir),
+        };
+
+        info!(?config, "Access Config");
+        let access = Arc::new(AccessRuntime::new(config)?);
 
         let engine = Engine::new(db_name, access)?;
         Ok(Server {
