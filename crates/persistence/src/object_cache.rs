@@ -17,6 +17,7 @@ use object_store::{
     path::Path as ObjectStorePath, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore,
     Result as ObjectStoreResult,
 };
+use tokio::sync::RwLock;
 use tokio::{fs, io::AsyncWrite, runtime::Handle};
 use tracing::{error, trace, warn};
 
@@ -47,15 +48,22 @@ impl ObjectCacheKey {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 //TODO: consider adding checksum for file
 //TODO: consider using Arc<Path> to reduce clone of PathBuf when getting the value
 struct ObjectCacheValue {
     /// Local path to file storing this given range of bytes
-    path: PathBuf,
+    path: Arc<RwLock<Option<PathBuf>>>,
     /// Length of cached file
     // This is a u32 instead of usize due to moka cache weight returning u32
     length: u32,
+}
+
+impl ObjectCacheValue {
+    fn new(path: PathBuf, length: u32) -> Self {
+        let path = Arc::new(RwLock::new(Some(path)));
+        Self { path, length }
+    }
 }
 
 //TODO: Support encrypting cached data at rest
@@ -180,27 +188,43 @@ impl ObjectStoreCache {
         let length = contents.len().try_into()?;
         trace!(?path, ?parent, ?key, ?length, "Cached new file");
 
-        Ok(ObjectCacheValue { path, length })
+        Ok(ObjectCacheValue::new(path, length))
     }
 
     //TODO: Should this validate a checksum/length?
     async fn read_cache_file(value: &ObjectCacheValue) -> Result<Bytes> {
-        let contents: Bytes = fs::read(&value.path).await?.into();
-        let length = contents.len();
-        trace!(?value, ?length, "Read cached file");
+        // If the path is currently write locked we immediately request a retry since the only
+        // writer is the eviction_listener
+        let path = value
+            .path
+            .try_read()
+            .map_err(|_| PersistenceError::RetryCacheRead)?;
 
-        if value.length as usize == length {
-            Ok(contents)
+        if let Some(path) = path.as_ref() {
+            let contents: Bytes = fs::read(path).await?.into();
+            let length = contents.len();
+            trace!(?length, ?path, "Read cached file");
+
+            if value.length as usize == length {
+                return Ok(contents);
+            } else {
+                return Err(internal!("cache file not same length as written"));
+            }
         } else {
-            Err(internal!("cache file not same length as written"))
+            // Inidcate a retry is required as eviction has set path to None
+            Err(PersistenceError::RetryCacheRead)
         }
     }
 
     //TODO: currently we are leaking intermediate directories there is no more data
     //TODO: Should this validate a checksum/length?
     async fn remove_cache_file(value: &ObjectCacheValue) -> Result<()> {
-        fs::remove_file(&value.path).await?;
-        trace!(?value, "Removed cached file");
+        let mut path = value.path.write().await;
+        if let Some(p) = path.as_ref() {
+            fs::remove_file(p).await?;
+            trace!(?p, ?value.length, "Removed cached file");
+            *path = None;
+        }
         Ok(())
     }
 
@@ -237,21 +261,30 @@ impl ObjectStoreCache {
             offset,
         };
 
-        let value = self
-            .cache
-            .try_get_with::<_, PersistenceError>(key.clone(), self.init_value(&key))
-            .await
-            .map_err(|e| {
-                internal!(
-                    "Unable to init new cache value key: {:?}, error: {:?}",
-                    &key,
-                    e
-                )
-            })?;
+        // Retry loop if cached entry was invalidated between reading from cache and reading from
+        // the file on disk
+        // TODO: Consider limiting number of retries to avoid degenerate cases
+        loop {
+            let value = self
+                .cache
+                .try_get_with_by_ref(&key, self.init_value(&key))
+                .await
+                .map_err(|e| {
+                    internal!(
+                        "Unable to init new cache value key: {:?}, error: {:?}",
+                        &key,
+                        e
+                    )
+                })?;
 
-        //TODO: Consider passing a buffer into `init_value` to save save contents from write call
-        //and re use that here without re-reading from newly written file
-        Self::read_cache_file(&value).await
+            //TODO: Consider passing a buffer into `init_value` to save save contents from write call
+            //and re use that here without re-reading from newly written file
+            match Self::read_cache_file(&value).await {
+                Ok(contents) => break Ok(contents),
+                Err(PersistenceError::RetryCacheRead) => continue,
+                Err(e) => break Err(e),
+            }
+        }
     }
 
     async fn init_value(&self, key: &ObjectCacheKey) -> Result<ObjectCacheValue, PersistenceError> {
@@ -449,14 +482,16 @@ mod tests {
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
-        let val = cache
+        let value = cache
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
 
-        cache.cache.insert(key, val.clone()).await;
+        cache.cache.insert(key, value.clone()).await;
 
-        let read_data_serialized = std::fs::read(&val.path).unwrap();
+        let path = &*value.path.read().await;
+        let path = path.as_ref().unwrap();
+        let read_data_serialized = std::fs::read(path).unwrap();
         let read_string = String::from_utf8(read_data_serialized.clone()).unwrap();
 
         println!("Contents of the file: {}", &read_string);
@@ -481,17 +516,17 @@ mod tests {
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
 
-        let val = cache
+        let value = cache
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
 
-        cache.cache.insert(key.clone(), val.clone()).await;
+        cache.cache.insert(key.clone(), value.clone()).await;
 
-        let val = cache.write_cache_file(&key, &test_data_serialized).await;
+        let value = cache.write_cache_file(&key, &test_data_serialized).await;
 
         assert!(
-            matches!(val.unwrap_err(), PersistenceError::Internal(e) if e == "Cached file path already exists")
+            matches!(value.unwrap_err(), PersistenceError::Internal(e) if e == "Cached file path already exists")
         );
     }
 
@@ -528,14 +563,14 @@ mod tests {
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
 
         // Insert and check valid key
-        let val = cache
+        let value = cache
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
 
-        cache.cache.insert(key, val.clone()).await;
+        cache.cache.insert(key, value.clone()).await;
 
-        let read_data_serialized = ObjectStoreCache::read_cache_file(&val).await.unwrap();
+        let read_data_serialized = ObjectStoreCache::read_cache_file(&value).await.unwrap();
         let read_string = String::from_utf8(read_data_serialized.to_vec()).unwrap();
 
         println!("Contents of the file: {}", &read_string);
@@ -548,10 +583,7 @@ mod tests {
 
     #[tokio::test]
     async fn invalid_cache_file() {
-        let invalid_val = ObjectCacheValue {
-            path: PathBuf::from("invalid_path"),
-            length: 0,
-        };
+        let invalid_val = ObjectCacheValue::new(PathBuf::from("invalid_path"), 0);
         let read_data_serialized = ObjectStoreCache::read_cache_file(&invalid_val).await;
 
         assert!(matches!(
@@ -574,20 +606,20 @@ mod tests {
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
-        let val = cache
+        let value = cache
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
-        cache.cache.insert(key, val.clone()).await;
+        cache.cache.insert(key, value.clone()).await;
 
         let test_obj_store_file = String::from("test/table1/partition5.parquet");
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
-        let val = cache
+        let value = cache
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
-        cache.cache.insert(key, val.clone()).await;
+        cache.cache.insert(key, value.clone()).await;
 
         cache.cache.sync();
 
@@ -598,7 +630,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn invalidate() {
         logutil::init_test();
 
@@ -612,23 +644,24 @@ mod tests {
         let test_offset = DEFAULT_BYTE_RANGE_SIZE;
 
         let key = ObjectCacheKey::new(&test_obj_store_file, test_offset).unwrap();
-        let val = cache
+        let value = cache
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
-        cache.cache.insert(key.clone(), val.clone()).await;
+        cache.cache.insert(key.clone(), value.clone()).await;
         cache.cache.invalidate(&key).await;
 
         cache.cache.sync();
-        assert_eq!(cache.cache.get(&key), None);
+        assert!(cache.cache.get(&key).is_none());
 
         // Check if file is asynchronously cleaned up by eviction listener; Timeout after 1 ms
         let mut nano = 0;
-        while val.path.try_exists().unwrap() && nano < 1_000_000 {
+        let path = cache.base_dir.join(key.to_filename());
+        while path.try_exists().unwrap() && nano < 1_000_000 {
             nano += 1;
             sleep(Duration::from_nanos(1));
         }
-        assert_eq!(val.path.try_exists().unwrap(), false);
+        assert_eq!(path.try_exists().unwrap(), false);
     }
 
     #[tokio::test]
@@ -735,12 +768,13 @@ mod tests {
             offset: test_offset,
         };
         let expected_path = cache.base_dir.join(key.to_filename());
-        let expected_value = ObjectCacheValue {
-            path: expected_path.clone(),
-            length: byte_range_size as u32,
-        };
+        let expected_value = ObjectCacheValue::new(expected_path.clone(), byte_range_size as u32);
         let value = cache.cache.get(&key).unwrap();
-        assert_eq!(value, expected_value);
+        assert_eq!(value.length, expected_value.length);
+        assert_eq!(
+            &*value.path.read().await,
+            &*expected_value.path.read().await
+        );
 
         let paths: Vec<PathBuf> = std::fs::read_dir(cache.base_dir)
             .unwrap()
@@ -748,6 +782,105 @@ mod tests {
             .collect();
 
         assert_eq!(paths, vec![expected_path])
+    }
+
+    /// Confirms data race between a thread getting and reading a cached file and invalidation:
+    #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+    async fn read_cache_file_invalidate_concurrent() {
+        logutil::init_test();
+        let byte_range_size = 2;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("partition8.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let test_offset = 4;
+
+        // Put data into object store and populate the cache with one range, key A
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+        let _ = cache
+            .get_single_byte_range(&test_obj_store_file, test_offset)
+            .await
+            .unwrap();
+
+        // 1. Thread 1: Reads key A from Object Store Cache
+        let key = ObjectCacheKey {
+            location: test_obj_store_file.clone(),
+            offset: test_offset,
+        };
+        let value = cache.cache.get(&key).unwrap();
+
+        // 2. Thread 2: Put's a new version of an object at the location in A and adds key A to async
+        // invalidation queue
+        let test_data_2 = "Testing Testing Testing";
+        let test_data_serialized_2: Bytes = test_data_2.into();
+        cache
+            .put(&test_obj_store_file, test_data_serialized_2.clone())
+            .await
+            .unwrap();
+
+        // 3. Thread 3: Invalidation handler removes cached files associated with object location in key A
+        // Wait for path to not exist to confirm invalidation handler completed
+        let mut nano = 0;
+        let path = cache.base_dir.join(key.to_filename());
+        while path.try_exists().unwrap() && nano < 1_000_000 {
+            nano += 1;
+            sleep(Duration::from_nanos(1));
+        }
+
+        // 4. Thread 1: Reads file in location from key A and gets no file exists error
+        let error = ObjectStoreCache::read_cache_file(&value).await.unwrap_err();
+
+        trace!(?error);
+        assert!(matches!(error, PersistenceError::RetryCacheRead));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+    async fn get_single_byte_range_invalidate_concurrent() {
+        logutil::init_test();
+        let byte_range_size = 2;
+
+        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
+
+        trace!(?cache_dir, "test cache directory");
+
+        let test_obj_store_file = ObjectStorePath::from("partition8.parquet");
+        let test_data = "Hello world!";
+        let test_data_serialized: Bytes = test_data.into();
+        let test_offset = 4;
+        let test_range = Range {
+            start: test_offset,
+            end: test_offset + byte_range_size,
+        };
+
+        cache
+            .put(&test_obj_store_file, test_data_serialized.clone())
+            .await
+            .unwrap();
+
+        let _ = cache
+            .get_single_byte_range(&test_obj_store_file, test_offset)
+            .await
+            .unwrap();
+
+        let test_data_2 = "Testing Testing Testing";
+        let test_data_serialized_2: Bytes = test_data_2.into();
+        let (res, data2) = future::join(
+            cache.put(&test_obj_store_file, test_data_serialized_2.clone()),
+            cache.get_range(&test_obj_store_file, test_range.clone()),
+        )
+        .await;
+
+        let _ = res.unwrap();
+        let data2 = data2.unwrap();
+
+        assert_eq!(test_data_serialized.slice(test_range), data2);
     }
 
     #[tokio::test]

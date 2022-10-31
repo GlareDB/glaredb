@@ -12,6 +12,9 @@ pub enum PersistenceError {
     #[error(transparent)]
     IntError(#[from] std::num::TryFromIntError),
 
+    #[error("Cannot read from cached file")]
+    RetryCacheRead,
+
     #[error("internal: {0}")]
     Internal(String),
 }
