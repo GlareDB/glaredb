@@ -26,6 +26,10 @@ pub enum PgSrvError {
     #[error("an expected startup parameter was missing")]
     MissingStartupParameter,
 
+    /// A stringified error from cloud.
+    #[error("cloud: {0}")]
+    CloudResponse(String),
+
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
     /// with the Postgres message format documentation.
