@@ -31,8 +31,6 @@ spec:
               "0.0.0.0:6543",
               "https://qa.glaredb.com",
             ]
-          ports:3
-            - containerPort: 6543
           # The 'main' tag is continuously deployed from the main branch of the
           # GlareDB/glaredb repository. We have to explicitly set imagePullPolicy
           # to 'Always' because K8s only does this if we use a ':latest' tag.
