@@ -1,7 +1,6 @@
-use object_store_util::temp::TempObjectStore;
 use pgsrv::handler::{Handler, PostgresHandler};
-use sqlexec::engine::Engine;
-use sqlexec::runtime::AccessRuntime;
+use sqlexec::runtime::{AccessRuntime, ObjectStoreKind};
+use sqlexec::{engine::Engine, runtime::AccessConfig};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -17,10 +16,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listen_addr = listener.local_addr()?;
     info!(%listen_addr, "listening");
 
-    let engine = Engine::new(
-        "test",
-        Arc::new(AccessRuntime::new(Arc::new(TempObjectStore::new()?))),
-    )?;
+    let config = AccessConfig {
+        object_store: ObjectStoreKind::LocalTemp,
+        ..AccessConfig::default()
+    };
+
+    let engine = Engine::new("test", Arc::new(AccessRuntime::new(config)?))?;
 
     let handler = Arc::new(Handler::new(engine));
 

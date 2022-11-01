@@ -33,6 +33,10 @@ struct Cli {
     #[clap(long, value_parser)]
     keep_running: bool,
 
+    /// Type of object storage database will access
+    #[clap(short, long, value_parser, default_value_t = String::from("local"))]
+    object_store: String,
+
     /// Path to test files.
     files: Vec<String>,
 }
@@ -61,7 +65,7 @@ fn main() -> Result<()> {
         let pg_addr = pg_listener.local_addr()?;
         let conf = ServerConfig { pg_listener };
 
-        let server = Server::connect("slt_test").await?;
+        let server = Server::connect("slt", &cli.object_store).await?;
         let _ = tokio::spawn(server.serve(conf));
 
         let runner = TestRunner::connect(pg_addr).await?;
