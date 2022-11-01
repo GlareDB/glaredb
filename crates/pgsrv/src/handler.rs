@@ -621,9 +621,9 @@ impl ProxyHandler {
                     .await?;
 
                 // Currently only expect '200' from the cloud service. For
-                // anything, return an erorr.
+                // anything else, return an erorr.
                 //
-                // Does not try to deserialize error responses to allow for
+                // Does not try to deserialize the error responses to allow for
                 // flexibility and changes on the cloud side during initial
                 // development.
                 if res.status().as_u16() != 200 {
