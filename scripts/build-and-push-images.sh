@@ -30,7 +30,7 @@ build_and_push() {
 
     local image_repo
     image_repo="gcr.io/${GCP_PROJECT_ID}/${image_ref}:${git_rev}"
-    docker tag ${image_id} ${image_repo} latest
+    docker tag ${image_id} ${image_repo}
 
     docker push ${image_repo}
 }
