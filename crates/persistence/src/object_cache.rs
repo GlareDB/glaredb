@@ -19,7 +19,7 @@ use object_store::{
 };
 use tokio::sync::RwLock;
 use tokio::{fs, io::AsyncWrite, runtime::Handle};
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use crate::errors::{internal, PersistenceError, Result};
 
@@ -175,7 +175,7 @@ impl ObjectStoreCache {
         if path.try_exists()? {
             //TODO investigate if duplicate file generation is possible when using try_get_with
             warn!(?path, "Duplicate file being cached");
-            return Err(internal!("Cached file path already exists"));
+            return Err(PersistenceError::DuplicateCacheFile(path));
         }
 
         // We have got a unique file path, so create the file at
@@ -281,7 +281,10 @@ impl ObjectStoreCache {
             //and re use that here without re-reading from newly written file
             match Self::read_cache_file(&value).await {
                 Ok(contents) => break Ok(contents),
-                Err(PersistenceError::RetryCacheRead) => continue,
+                Err(PersistenceError::RetryCacheRead) => {
+                    debug!(?key, ?value, "Retrying read from cache");
+                    continue;
+                }
                 Err(e) => break Err(e),
             }
         }
@@ -525,9 +528,10 @@ mod tests {
 
         let value = cache.write_cache_file(&key, &test_data_serialized).await;
 
-        assert!(
-            matches!(value.unwrap_err(), PersistenceError::Internal(e) if e == "Cached file path already exists")
-        );
+        assert!(matches!(
+            value.unwrap_err(),
+            PersistenceError::DuplicateCacheFile(_),
+        ));
     }
 
     /// Tests if the given cache directory is a relative path instead of absolute as there is no
