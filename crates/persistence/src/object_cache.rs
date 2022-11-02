@@ -206,9 +206,9 @@ impl ObjectStoreCache {
             trace!(?length, ?path, "Read cached file");
 
             if value.length as usize == length {
-                return Ok(contents);
+                Ok(contents)
             } else {
-                return Err(internal!("cache file not same length as written"));
+                Err(internal!("cache file not same length as written"))
             }
         } else {
             // Inidcate a retry is required as eviction has set path to None
