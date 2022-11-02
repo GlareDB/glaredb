@@ -575,21 +575,20 @@ impl ProxyHandler {
     pub fn new(api_url: String) -> Self {
         Self { api_url }
     }
-}
 
-#[async_trait]
-impl<C> PostgresHandler<C> for ProxyHandler
-where
-    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
-    async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
-        let mut framed = FramedConn::new(conn);
-        framed
-            .send(BackendMessage::AuthenticationCleartextPassword)
-            .await?;
-        let msg = framed.read().await?;
+    /// Try to authenticate with the cloud service.
+    ///
+    /// Errors on unexpected frontend messages or if cloud authentication fails.
+    async fn try_cloud_auth(
+        &self,
+        msg: FrontendMessage,
+        params: &HashMap<String, String>,
+    ) -> Result<DatabaseDetails> {
         match msg {
-            Some(FrontendMessage::PasswordMessage { password }) => {
+            FrontendMessage::PasswordMessage {
+                password: _password,
+            } => {
+                // TODO: Use password.
                 // Check username, password, database against glaredb cloud api
                 let client = reqwest::Client::builder().build()?;
 
@@ -621,55 +620,97 @@ where
                     .send()
                     .await?;
 
+                // Currently only expect '200' from the cloud service. For
+                // anything else, return an erorr.
+                //
+                // Does not try to deserialize the error responses to allow for
+                // flexibility and changes on the cloud side during initial
+                // development.
+                if res.status().as_u16() != 200 {
+                    let text = res.text().await?;
+                    return Err(PgSrvError::CloudResponse(text));
+                }
+
                 let db_details: DatabaseDetails = res.json().await?;
+                Ok(db_details)
+            }
+            other => Err(PgSrvError::UnexpectedFrontendMessage(other)),
+        }
+    }
+}
 
-                // At this point, open a connection to the database and initiate a startup message
-                // We need to send the same parameters as the client sent us
-                let db_addr = format!("{}:{}", db_details.ip, db_details.port);
-                let db_conn = TcpStream::connect(db_addr).await?;
-                let mut db_framed = FramedClientConn::new(db_conn);
+#[async_trait]
+impl<C> PostgresHandler<C> for ProxyHandler
+where
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
+        let mut framed = FramedConn::new(conn);
+        framed
+            .send(BackendMessage::AuthenticationCleartextPassword)
+            .await?;
+        let msg = match framed.read().await? {
+            Some(msg) => msg,
+            None => return Ok(()), // Not an error, client disconnected.
+        };
 
-                let startup = StartupMessage::StartupRequest {
-                    version: VERSION_V3,
-                    params,
-                };
-                db_framed.send_startup(startup).await?;
+        // If we fail to auth, ensure an error response is sent to the
+        // connection.
+        let db_details = match self.try_cloud_auth(msg, &params).await {
+            Ok(details) => details,
+            Err(e) => {
+                framed
+                    .send(ErrorResponse::fatal_internal(format!("cloud auth: {}", e)).into())
+                    .await?;
+                return Err(e);
+            }
+        };
 
-                // This implementation only supports AuthenticationCleartextPassword
-                let auth_msg = db_framed.read().await?;
-                match auth_msg {
-                    Some(BackendMessage::AuthenticationCleartextPassword) => {
-                        // TODO: rewrite password according to the response from the cloud api
-                        db_framed
-                            .send(FrontendMessage::PasswordMessage { password })
-                            .await?;
+        // At this point, open a connection to the database and initiate a startup message
+        // We need to send the same parameters as the client sent us
+        let db_addr = format!("{}:{}", db_details.ip, db_details.port);
+        let db_conn = TcpStream::connect(db_addr).await?;
+        let mut db_framed = FramedClientConn::new(db_conn);
 
-                        // Check for AuthenticationOk and respond to the client with the same message
-                        let auth_ok = db_framed.read().await?;
-                        match auth_ok {
-                            Some(BackendMessage::AuthenticationOk) => {
-                                framed.send(BackendMessage::AuthenticationOk).await?;
+        let startup = StartupMessage::StartupRequest {
+            version: VERSION_V3,
+            params,
+        };
+        db_framed.send_startup(startup).await?;
 
-                                // from here, we can just forward messages between the client to the database
-                                let server_conn = db_framed.into_inner();
-                                let client_conn = framed.into_inner();
-                                tokio::io::copy_bidirectional(
-                                    &mut client_conn.into_inner(),
-                                    &mut server_conn.into_inner(),
-                                )
-                                .await?;
+        // This implementation only supports AuthenticationCleartextPassword
+        let auth_msg = db_framed.read().await?;
+        match auth_msg {
+            Some(BackendMessage::AuthenticationCleartextPassword) => {
+                // TODO: rewrite password according to the response from the cloud api
+                db_framed
+                    .send(FrontendMessage::PasswordMessage {
+                        password: "TODO: USE CLOUD PASSWORD".to_string(), // GlareDB doesn't currently check password.
+                    })
+                    .await?;
 
-                                Ok(())
-                            }
-                            Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
-                            None => Ok(()),
-                        }
+                // Check for AuthenticationOk and respond to the client with the same message
+                let auth_ok = db_framed.read().await?;
+                match auth_ok {
+                    Some(BackendMessage::AuthenticationOk) => {
+                        framed.send(BackendMessage::AuthenticationOk).await?;
+
+                        // from here, we can just forward messages between the client to the database
+                        let server_conn = db_framed.into_inner();
+                        let client_conn = framed.into_inner();
+                        tokio::io::copy_bidirectional(
+                            &mut client_conn.into_inner(),
+                            &mut server_conn.into_inner(),
+                        )
+                        .await?;
+
+                        Ok(())
                     }
                     Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
                     None => Ok(()),
                 }
             }
-            Some(other) => Err(PgSrvError::UnexpectedFrontendMessage(other)),
+            Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
             None => Ok(()),
         }
     }

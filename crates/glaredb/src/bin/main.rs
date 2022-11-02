@@ -18,8 +18,13 @@ use tokio::runtime::{Builder, Runtime};
 #[clap(version = "pre-release")]
 #[clap(about = "CLI for GlareDB", long_about = None)]
 struct Cli {
+    /// Log verbosity.
     #[clap(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
+
+    /// Output logs in json format.
+    #[clap(long)]
+    json_logging: bool,
 
     #[clap(subcommand)]
     command: Commands,
@@ -36,6 +41,10 @@ enum Commands {
         /// Name of the database to connect to.
         #[clap(short, long, value_parser, default_value_t = String::from("glaredb"))]
         db_name: String,
+
+        /// Type of object storage database will access
+        #[clap(short, long, value_parser, default_value_t = String::from("local"))]
+        object_store: String,
     },
 
     /// Starts a client to some server.
@@ -92,7 +101,7 @@ enum ClientCommands {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    logutil::init(cli.verbose);
+    logutil::init(cli.verbose, cli.json_logging);
 
     match cli.command {
         Commands::RaftNode {
@@ -111,8 +120,12 @@ fn main() -> Result<()> {
                     .expect("raft node");
             });
         }
-        Commands::Server { bind, db_name } => {
-            begin_server(db_name, &bind)?;
+        Commands::Server {
+            bind,
+            db_name,
+            object_store,
+        } => {
+            begin_server(db_name, &bind, &object_store)?;
         }
         Commands::Client { addr, command } => {
             let rt = tokio::runtime::Runtime::new()?;
@@ -157,12 +170,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server(db_name: impl Into<String>, pg_bind: &str) -> Result<()> {
+fn begin_server(db_name: impl Into<String>, pg_bind: &str, object_store: &str) -> Result<()> {
     let runtime = build_runtime()?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(db_name).await?;
+        let server = Server::connect(db_name, object_store).await?;
         server.serve(conf).await
     })
 }
