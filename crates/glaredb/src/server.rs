@@ -2,9 +2,12 @@ use anyhow::Result;
 use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::runtime::AccessRuntime;
 use sqlexec::{engine::Engine, runtime::AccessConfig};
+use std::env;
+use std::fs;
 use std::{path::PathBuf, sync::Arc};
 use tempfile::TempDir;
 use tokio::net::TcpListener;
+use tracing::trace;
 use tracing::{debug, info};
 
 pub struct ServerConfig {
