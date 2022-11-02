@@ -106,8 +106,8 @@ impl TableProvider for DeltaTable {
 
         let exec: Arc<dyn ExecutionPlan> =
             match self.runtime.object_store().head(&key.object_path()).await {
-                Ok(meta) => Arc::new(
-                    SelectUnorderedExec::new(
+                Ok(meta) => {
+                    let children: Vec<Arc<dyn ExecutionPlan>> = vec![
                         Arc::new(
                             DeltaInsertsExec::new(
                                 key.clone(),
@@ -126,9 +126,9 @@ impl TableProvider for DeltaTable {
                             )
                             .map_err(merr)?,
                         ),
-                    )
-                    .map_err(merr)?,
-                ),
+                    ];
+                    Arc::new(SelectUnorderedExec::new(children).map_err(merr)?)
+                }
                 Err(ObjectStoreError::NotFound { .. }) => Arc::new(
                     DeltaInsertsExec::new(
                         key.clone(),
