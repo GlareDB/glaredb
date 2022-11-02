@@ -25,6 +25,18 @@ impl Server {
     pub async fn connect(db_name: impl Into<String>, object_store: &str) -> Result<Self> {
         // TODO: Provide the access runtime to the server.
         // TODO: Have cache_dir path come from a config file
+
+        // Our bare container image doesn't have a '/tmp' dir on startup (nor
+        // does it specify an alternate dir to use via `TMPDIR`).
+        //
+        // The `TempDir` call below will not attempt to create that directory
+        // for us.
+        //
+        // This also happens in the `TempObjectStore`.
+        let env_tmp = env::temp_dir();
+        trace!(?env_tmp, "ensuring temp dir for cache directory");
+        fs::create_dir_all(&env_tmp)?;
+
         let cache_dir = PathBuf::from(TempDir::new()?.path());
         let object_store = object_store.parse()?;
 
