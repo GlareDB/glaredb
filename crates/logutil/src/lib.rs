@@ -34,6 +34,10 @@ pub fn init_test() {
     let subscriber = FmtSubscriber::builder()
         .with_test_writer()
         .with_max_level(Level::TRACE)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_file(true)
+        .with_line_number(true)
         .finish();
     // Failing to set the default is fine, errors if there's already a
     // subscriber set.
