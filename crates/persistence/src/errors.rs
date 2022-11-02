@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 #[derive(Debug, thiserror::Error)]
 pub enum PersistenceError {
     #[error(transparent)]
@@ -12,6 +14,12 @@ pub enum PersistenceError {
     #[error(transparent)]
     IntError(#[from] std::num::TryFromIntError),
 
+    #[error("Cannot read from cached file")]
+    RetryCacheRead,
+
+    #[error("Cached file path already exists")]
+    DuplicateCacheFile(PathBuf),
+
     #[error("internal: {0}")]
     Internal(String),
 }
@@ -24,6 +32,7 @@ macro_rules! internal {
         crate::errors::PersistenceError::Internal(std::format!($($arg)*))
     };
 }
+
 pub(crate) use internal;
 
 //TODO: Dynamically get cache name in the future
