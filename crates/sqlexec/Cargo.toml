@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
 pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
+catalog_types = {path = "../catalog_types"}
 persistence = {path = "../persistence"}
 object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"

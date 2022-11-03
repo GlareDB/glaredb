@@ -1,6 +1,6 @@
 use crate::deltacache::DeltaCache;
 use crate::errors::Result;
-use crate::keys::PartitionKey;
+use catalog_types::keys::PartitionKey;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;

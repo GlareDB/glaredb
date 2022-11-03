@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
+ "catalog_types",
  "datafusion",
  "futures",
  "logutil",
@@ -538,6 +539,13 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "catalog_types"
+version = "0.1.0"
+dependencies = [
+ "object_store",
 ]
 
 [[package]]
@@ -3137,6 +3145,7 @@ version = "0.1.0"
 dependencies = [
  "access",
  "async-trait",
+ "catalog_types",
  "datafusion",
  "dfutil",
  "futures",

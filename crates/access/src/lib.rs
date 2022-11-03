@@ -16,7 +16,6 @@ pub mod compact;
 pub mod deltacache;
 pub mod errors;
 pub mod exec;
-pub mod keys;
 pub mod runtime;
 
 mod parquet;

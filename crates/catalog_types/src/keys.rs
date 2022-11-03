@@ -2,13 +2,18 @@
 use object_store::path::Path as ObjectPath;
 use std::fmt;
 
+pub type SchemaId = u32;
 pub type TableId = u32;
 pub type PartitionId = u32;
 pub type BatchId = u32;
 
-// TODO: Schema id?
+// TODO: Determine what needs to be globally unique.
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BatchKey {
+    /// The id of the schema.
+    pub schema_id: SchemaId,
+
     /// The id for a table. Must be globally unique across all tables in the
     /// database.
     ///
@@ -33,14 +38,15 @@ impl fmt::Display for BatchKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "BatchKey: table={}, partition={}, batch={}",
-            self.table_id, self.part_id, self.batch
+            "BatchKey: schema={}, table={}, partition={}, batch={}",
+            self.schema_id, self.table_id, self.part_id, self.batch
         )
     }
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PartitionKey {
+    pub schema_id: SchemaId,
     pub table_id: TableId,
     pub part_id: PartitionId,
 }
@@ -57,19 +63,24 @@ impl fmt::Display for PartitionKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "PartitionKey: table={}, partition={}",
-            self.table_id, self.part_id
+            "PartitionKey: schema={}, table={}, partition={}",
+            self.schema_id, self.table_id, self.part_id
         )
     }
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TableKey {
+    pub schema_id: SchemaId,
     pub table_id: TableId,
 }
 
 impl fmt::Display for TableKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TableKey: table={}", self.table_id,)
+        write!(
+            f,
+            "TableKey: schema={}, table={}",
+            self.schema_id, self.table_id,
+        )
     }
 }

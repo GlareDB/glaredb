@@ -1,8 +1,8 @@
 use crate::errors::Result;
 use access::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
-use access::keys::{PartitionKey, TableId};
 use access::runtime::AccessRuntime;
 use async_trait::async_trait;
+use catalog_types::keys::{PartitionKey, TableId};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -44,6 +44,7 @@ impl DeltaTable {
         // abtractions which will handle cross-partition inserts.
 
         let key = PartitionKey {
+            schema_id: 0, // TODO
             table_id: self.table_id,
             part_id: 0, // TODO: Need another layer of indirection.
         };
@@ -98,6 +99,7 @@ impl TableProvider for DeltaTable {
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let key = PartitionKey {
+            schema_id: 0, // TODO
             table_id: self.table_id,
             part_id: 0,
         };
