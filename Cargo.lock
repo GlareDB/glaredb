@@ -12,6 +12,7 @@ dependencies = [
  "futures",
  "logutil",
  "object_store",
+ "object_store_util",
  "parking_lot",
  "persistence",
  "scc",
@@ -1316,6 +1317,7 @@ dependencies = [
 name = "glaredb"
 version = "0.1.0"
 dependencies = [
+ "access",
  "anyhow",
  "async-trait",
  "bincode",
@@ -2300,6 +2302,7 @@ dependencies = [
 name = "pgsrv"
 version = "0.1.0"
 dependencies = [
+ "access",
  "async-trait",
  "bytes",
  "bytesutil",

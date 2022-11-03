@@ -1,7 +1,7 @@
 use crate::catalog::DatabaseCatalog;
 use crate::errors::Result;
-use crate::runtime::AccessRuntime;
 use crate::session::Session;
+use access::runtime::AccessRuntime;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use std::sync::Arc;
 

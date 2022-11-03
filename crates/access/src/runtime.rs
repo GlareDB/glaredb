@@ -1,6 +1,6 @@
+use crate::compact::Compactor;
+use crate::deltacache::DeltaCache;
 use crate::errors::{internal, Result};
-use access::compact::Compactor;
-use access::deltacache::DeltaCache;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::ObjectStore;
 use object_store_util::temp::TempObjectStore;
@@ -26,7 +26,7 @@ pub enum ObjectStoreKind {
 }
 
 impl FromStr for ObjectStoreKind {
-    type Err = crate::errors::ExecError;
+    type Err = crate::errors::AccessError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use ObjectStoreKind::*;

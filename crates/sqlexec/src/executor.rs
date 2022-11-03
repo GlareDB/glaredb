@@ -130,7 +130,7 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use crate::catalog::DatabaseCatalog;
-    use crate::runtime::{AccessConfig, AccessRuntime, ObjectStoreKind};
+    use access::runtime::{AccessConfig, AccessRuntime, ObjectStoreKind};
     use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
     use std::path::PathBuf;

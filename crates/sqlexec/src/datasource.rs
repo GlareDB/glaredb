@@ -1,7 +1,7 @@
 use crate::errors::Result;
-use crate::runtime::AccessRuntime;
 use access::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
 use access::keys::{PartitionKey, TableId};
+use access::runtime::AccessRuntime;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;

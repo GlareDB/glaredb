@@ -12,6 +12,7 @@ logutil = {path = "../logutil"}
 raft = {path = "../raft"}
 sqlexec = {path = "../sqlexec"}
 pgsrv = {path = "../pgsrv"}
+access = {path = "../access"}
 object_store_util = {path = "../object_store_util"}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
