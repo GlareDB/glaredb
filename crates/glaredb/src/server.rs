@@ -1,7 +1,7 @@
 use anyhow::Result;
+use access::runtime::{AccessConfig, AccessRuntime};
 use pgsrv::handler::{Handler, PostgresHandler};
-use sqlexec::runtime::AccessRuntime;
-use sqlexec::{engine::Engine, runtime::AccessConfig};
+use sqlexec::engine::Engine;
 use std::env;
 use std::fs;
 use std::{path::PathBuf, sync::Arc};

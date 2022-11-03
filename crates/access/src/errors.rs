@@ -19,6 +19,9 @@ pub enum AccessError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
+    #[error(transparent)]
+    Persistence(#[from] persistence::errors::PersistenceError),
+
     #[error("internal: {0}")]
     Internal(String),
 }
