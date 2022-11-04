@@ -52,13 +52,14 @@ impl Compactor {
     /// TODO: Remove needing schema here.
     pub async fn compact_deltas(
         &self,
+        db_name: &str,
         deltas: Arc<DeltaCache>,
         partition: PartitionKey,
         input_schema: SchemaRef,
     ) -> Result<()> {
         let _g = CompactionGuard::new(self);
 
-        let path = partition.object_path();
+        let path = partition.object_path(db_name);
         // TODO: Do we want to cache metas to avoid needing to fetch it
         // everytime?
         let exec: Arc<dyn ExecutionPlan> = match self.store.head(&path).await {
