@@ -42,8 +42,10 @@ impl Server {
 
         let cache_dir = PathBuf::from(TempDir::new()?.path());
         let object_store = object_store.parse()?;
+        let db_name = db_name.into();
 
         let config = AccessConfig {
+            db_name,
             object_store,
             cached: true,
             max_object_store_cache_size: Some(DEFAULT_MAX_CACHE_SIZE),
@@ -53,7 +55,7 @@ impl Server {
         info!(?config, "Access Config");
         let access = Arc::new(AccessRuntime::new(config)?);
 
-        let engine = Engine::new(db_name, access)?;
+        let engine = Engine::new(access)?;
         Ok(Server {
             pg_handler: Arc::new(Handler::new(engine)),
         })

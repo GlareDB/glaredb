@@ -12,7 +12,8 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(db_name: impl Into<String>, access: Arc<AccessRuntime>) -> Result<Engine> {
+    pub fn new(access: Arc<AccessRuntime>) -> Result<Engine> {
+        let db_name = &access.config().db_name;
         let runtime = RuntimeEnv::default();
 
         let catalog = DatabaseCatalog::new(db_name);

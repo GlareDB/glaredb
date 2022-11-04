@@ -47,8 +47,11 @@ pub struct PartitionKey {
 
 impl PartitionKey {
     /// Get the object path for a partition.
-    pub fn object_path(&self) -> ObjectPath {
-        let path = format!("table_{}_part_{}.data", self.table_id, self.part_id);
+    pub fn object_path(&self, db_name: &str) -> ObjectPath {
+        let path = format!(
+            "{}/table_{}_part_{}.data",
+            db_name, self.table_id, self.part_id
+        );
         ObjectPath::from(path)
     }
 }
