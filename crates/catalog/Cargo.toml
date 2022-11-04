@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 persistence = {path = "../persistence"}
+access = {path = "../access"}
 catalog_types = {path = "../catalog_types"}
 thiserror = "1.0"
 tracing = "0.1"

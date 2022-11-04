@@ -75,6 +75,16 @@ pub struct TableKey {
     pub table_id: TableId,
 }
 
+impl TableKey {
+    pub fn partition_key(&self, part_id: PartitionId) -> PartitionKey {
+        PartitionKey {
+            schema_id: self.schema_id,
+            table_id: self.table_id,
+            part_id,
+        }
+    }
+}
+
 impl fmt::Display for TableKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
