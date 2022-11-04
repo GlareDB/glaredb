@@ -18,5 +18,6 @@ pub mod errors;
 pub mod exec;
 pub mod partition;
 pub mod runtime;
+pub mod strategy;
 
 mod parquet;
