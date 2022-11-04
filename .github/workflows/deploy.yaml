@@ -20,7 +20,7 @@ jobs:
       contents: write # required to checkout code
 
     env:
-      GCP_PROJECT_ID: glaredb-dev-playground
+      GCP_PROJECT_ID: glaredb-environment-dev
 
     steps:
       - name: Checkout code
