@@ -54,4 +54,4 @@ jobs:
         # Use globstar to ensure that all subdirectories are expanded.
         run: |
           shopt -s globstar
-          nix run .#slt_runner -- -v testdata/sqllogictests/**/*.slt
+          nix run .#slt_runner -- -v embedded testdata/sqllogictests/**/*.slt
