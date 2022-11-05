@@ -81,7 +81,7 @@
 
       glaredb_image = pkgs.dockerTools.buildLayeredImage {
         name = "glaredb";
-        contents = [packages.cli] ++ debugPackages;
+        contents = [packages.cli pkgs.cacert] ++ debugPackages;
         created = "now";
         config.Cmd = ["${packages.cli}/bin/glaredb"];
       };
