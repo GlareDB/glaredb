@@ -48,6 +48,7 @@ impl LocalPartition {
                 .runtime
                 .compactor()
                 .compact_deltas(
+                    &self.runtime.config().db_name,
                     self.runtime.delta_cache().clone(),
                     self.key.clone(),
                     self.schema.clone(),
@@ -77,12 +78,8 @@ impl LocalPartition {
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let merr = Into::<DataFusionError>::into; // More readable error mapping.
 
-        let exec: Arc<dyn ExecutionPlan> = match self
-            .runtime
-            .object_store()
-            .head(&self.key.object_path())
-            .await
-        {
+        let location = &self.key.object_path(&self.runtime.config().db_name);
+        let exec: Arc<dyn ExecutionPlan> = match self.runtime.object_store().head(location).await {
             Ok(meta) => {
                 let children: Vec<Arc<dyn ExecutionPlan>> = vec![
                     Arc::new(
