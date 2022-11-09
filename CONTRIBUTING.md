@@ -69,11 +69,15 @@ setup required.
 ### SQL Logic Tests
 
 SQL logic tests run end-to-end tests that execute actual SQL queries against a
-running database. These tests can be found in `testdata/sqllogictest`. Running
-these tests can be done with:
+running database. These tests can be found in `testdata/sqllogictest`.
+
+`slt_runner` can run either against an external database using the `external`
+subcommand, or spin up an embedded database with the `embedded` subcommand.
+
+An example invocation using an embedded database:
 
 ``` shell
-cargo run --bin slt_runner -- --keep-running testdata/sqllogictests/**/*.slt
+cargo run --bin slt_runner -- embedded --keep-running testdata/sqllogictests/**/*.slt
 ```
 
 The `--keep-running` flag will keep the GlareDB server up to allow for

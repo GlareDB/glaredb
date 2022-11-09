@@ -61,6 +61,7 @@ impl FromStr for ObjectStoreKind {
 //TODO: use new default, better yet ensure everything is set in config file
 #[derive(Debug, Default)]
 pub struct AccessConfig {
+    pub db_name: String,
     pub object_store: ObjectStoreKind,
     pub cached: bool,
     pub max_object_store_cache_size: Option<u64>,

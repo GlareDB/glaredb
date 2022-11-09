@@ -17,11 +17,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(%listen_addr, "listening");
 
     let config = AccessConfig {
+        db_name: "test".into(),
         object_store: ObjectStoreKind::LocalTemp,
         ..AccessConfig::default()
     };
 
-    let engine = Engine::new("test", Arc::new(AccessRuntime::new(config)?))?;
+    let engine = Engine::new(Arc::new(AccessRuntime::new(config)?))?;
 
     let handler = Arc::new(Handler::new(engine));
 

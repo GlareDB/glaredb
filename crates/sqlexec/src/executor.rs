@@ -139,11 +139,13 @@ mod tests {
 
     #[tokio::test]
     async fn simple() {
-        let catalog = DatabaseCatalog::new("test");
+        let db_name = String::from("test");
+        let catalog = DatabaseCatalog::new(db_name.clone());
         catalog.insert_default_schema().unwrap();
         let cache_dir = TempDir::new().unwrap();
 
         let config = AccessConfig {
+            db_name,
             object_store: ObjectStoreKind::LocalTemp,
             cached: true,
             max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),

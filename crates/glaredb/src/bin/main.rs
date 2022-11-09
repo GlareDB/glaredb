@@ -8,7 +8,6 @@ use raft::rpc::pb::AddLearnerRequest;
 use raft::server::start_raft_node;
 use std::collections::BTreeSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};

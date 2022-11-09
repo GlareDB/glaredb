@@ -129,7 +129,7 @@ dependencies = [
  "chrono",
  "comfy-table",
  "csv",
- "flatbuffers",
+ "flatbuffers 2.1.2",
  "half",
  "hashbrown",
  "indexmap",
@@ -144,19 +144,20 @@ dependencies = [
 
 [[package]]
 name = "arrow"
-version = "25.0.0"
+version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76312eb67808c67341f4234861c4fcd2f9868f55e88fa2186ab3b357a6c5830b"
+checksum = "e24e2bcd431a4aa0ff003fdd2dc21c78cfb42f31459c89d2312c2746fe17a5ac"
 dependencies = [
  "ahash 0.8.0",
- "arrow-array 25.0.0",
- "arrow-buffer 25.0.0",
- "arrow-data 25.0.0",
- "arrow-schema 25.0.0",
+ "arrow-array 26.0.0",
+ "arrow-buffer 26.0.0",
+ "arrow-data 26.0.0",
+ "arrow-schema 26.0.0",
+ "arrow-select",
  "bitflags",
  "chrono",
  "csv",
- "flatbuffers",
+ "flatbuffers 22.9.29",
  "half",
  "hashbrown",
  "indexmap",
@@ -187,14 +188,14 @@ dependencies = [
 
 [[package]]
 name = "arrow-array"
-version = "25.0.0"
+version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69dd2c257fa76de0bcc63cabe8c81d34c46ef6fa7651e3e497922c3c9878bd67"
+checksum = "c9044300874385f19e77cbf90911e239bd23630d8f23bb0f948f9067998a13b7"
 dependencies = [
  "ahash 0.8.0",
- "arrow-buffer 25.0.0",
- "arrow-data 25.0.0",
- "arrow-schema 25.0.0",
+ "arrow-buffer 26.0.0",
+ "arrow-data 26.0.0",
+ "arrow-schema 26.0.0",
  "chrono",
  "half",
  "hashbrown",
@@ -212,9 +213,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-buffer"
-version = "25.0.0"
+version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af963e71bdbbf928231d521083ddc8e8068cf5c8d45d4edcfeaf7eb5cdd779a9"
+checksum = "78476cbe9e3f808dcecab86afe42d573863c63e149c62e6e379ed2522743e626"
 dependencies = [
  "half",
  "num",
@@ -234,12 +235,12 @@ dependencies = [
 
 [[package]]
 name = "arrow-data"
-version = "25.0.0"
+version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52554ffff560c366d7210c2621a3cf1dc408f9969a0c7688a3ba0a62248a945d"
+checksum = "4d916feee158c485dad4f701cba31bc9a90a8db87d9df8e2aa8adc0c20a2bbb9"
 dependencies = [
- "arrow-buffer 25.0.0",
- "arrow-schema 25.0.0",
+ "arrow-buffer 26.0.0",
+ "arrow-schema 26.0.0",
  "half",
  "num",
 ]
@@ -252,9 +253,22 @@ checksum = "86d1fef01f25e1452c86fa6887f078de8e0aaeeb828370feab205944cfc30e27"
 
 [[package]]
 name = "arrow-schema"
-version = "25.0.0"
+version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a5518f2bd7775057391f88257627cbb760ba3e1c2f2444a005ba79158624654"
+checksum = "0f9406eb7834ca6bd8350d1baa515d18b9fcec487eddacfb62f5e19511f7bd37"
+
+[[package]]
+name = "arrow-select"
+version = "26.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6593a01586751c74498495d2f5a01fcd438102b52965c11dd98abf4ebcacef37"
+dependencies = [
+ "arrow-array 26.0.0",
+ "arrow-buffer 26.0.0",
+ "arrow-data 26.0.0",
+ "arrow-schema 26.0.0",
+ "num",
+]
 
 [[package]]
 name = "async-io"
@@ -953,7 +967,7 @@ dependencies = [
 name = "dfutil"
 version = "0.1.0"
 dependencies = [
- "arrow 25.0.0",
+ "arrow 26.0.0",
  "bytes",
  "bytesutil",
  "datafusion",
@@ -1150,6 +1164,16 @@ checksum = "86b428b715fdbdd1c364b84573b5fdc0f84f8e423661b9f398735278bc7f2b6a"
 dependencies = [
  "bitflags",
  "smallvec",
+ "thiserror",
+]
+
+[[package]]
+name = "flatbuffers"
+version = "22.9.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ce016b9901aef3579617931fbb2df8fc9a9f7cb95a16eb8acc8148209bb9e70"
+dependencies = [
+ "bitflags",
  "thiserror",
 ]
 

@@ -57,6 +57,7 @@ impl DeltaTable {
                 .runtime
                 .compactor()
                 .compact_deltas(
+                    &self.runtime.config().db_name,
                     self.runtime.delta_cache().clone(),
                     key.clone(),
                     self.schema.clone(),
@@ -106,42 +107,42 @@ impl TableProvider for DeltaTable {
 
         let merr = Into::<DataFusionError>::into;
 
-        let exec: Arc<dyn ExecutionPlan> =
-            match self.runtime.object_store().head(&key.object_path()).await {
-                Ok(meta) => {
-                    let children: Vec<Arc<dyn ExecutionPlan>> = vec![
-                        Arc::new(
-                            DeltaInsertsExec::new(
-                                key.clone(),
-                                self.schema.clone(),
-                                self.runtime.delta_cache().clone(),
-                                projection.clone(),
-                            )
-                            .map_err(merr)?,
-                        ),
-                        Arc::new(
-                            LocalPartitionExec::new(
-                                self.runtime.object_store().clone(),
-                                meta,
-                                self.schema.clone(),
-                                projection.clone(),
-                            )
-                            .map_err(merr)?,
-                        ),
-                    ];
-                    Arc::new(SelectUnorderedExec::new(children).map_err(merr)?)
-                }
-                Err(ObjectStoreError::NotFound { .. }) => Arc::new(
-                    DeltaInsertsExec::new(
-                        key.clone(),
-                        self.schema.clone(),
-                        self.runtime.delta_cache().clone(),
-                        projection.clone(),
-                    )
-                    .map_err(merr)?,
-                ),
-                Err(e) => return Err(e.into()),
-            };
+        let location = &key.object_path(&self.runtime.config().db_name);
+        let exec: Arc<dyn ExecutionPlan> = match self.runtime.object_store().head(location).await {
+            Ok(meta) => {
+                let children: Vec<Arc<dyn ExecutionPlan>> = vec![
+                    Arc::new(
+                        DeltaInsertsExec::new(
+                            key.clone(),
+                            self.schema.clone(),
+                            self.runtime.delta_cache().clone(),
+                            projection.clone(),
+                        )
+                        .map_err(merr)?,
+                    ),
+                    Arc::new(
+                        LocalPartitionExec::new(
+                            self.runtime.object_store().clone(),
+                            meta,
+                            self.schema.clone(),
+                            projection.clone(),
+                        )
+                        .map_err(merr)?,
+                    ),
+                ];
+                Arc::new(SelectUnorderedExec::new(children).map_err(merr)?)
+            }
+            Err(ObjectStoreError::NotFound { .. }) => Arc::new(
+                DeltaInsertsExec::new(
+                    key.clone(),
+                    self.schema.clone(),
+                    self.runtime.delta_cache().clone(),
+                    projection.clone(),
+                )
+                .map_err(merr)?,
+            ),
+            Err(e) => return Err(e.into()),
+        };
 
         Ok(exec)
     }
