@@ -63,6 +63,7 @@ impl Server {
 
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
+        info!("GlareDB listening...");
         loop {
             let (conn, client_addr) = conf.pg_listener.accept().await?;
             let pg_handler = self.pg_handler.clone();
