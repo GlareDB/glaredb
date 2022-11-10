@@ -4,7 +4,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   pre_test:
-    # continue-on-error: true # Uncomment when integration is finished
+    continue-on-error: true
     runs-on: ubuntu-latest
     concurrency:
       group: ci-${{ github.ref }}
@@ -26,7 +26,7 @@ jobs:
     needs: pre_test
     if: ${{ needs.pre_test.outputs.should_skip != 'true' }}
     name: CI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-8-cores
     concurrency:
       group: ci-${{ github.ref }}
       cancel-in-progress: true
