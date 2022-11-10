@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use crate::system::{SystemSchema, SYSTEM_SCHEMA_ID, SYSTEM_SCHEMA_NAME};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
@@ -8,6 +9,7 @@ use std::sync::Arc;
 
 /// The top-level catalog.
 pub struct DatabaseCatalog {
+    system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
 
@@ -15,23 +17,35 @@ impl DatabaseCatalog {
     /// Open up a catalog to some persistent storage.
     pub async fn open(runtime: Arc<AccessRuntime>) -> Result<DatabaseCatalog> {
         // TODO: Check system tables exist, bootstrap.
-        Ok(DatabaseCatalog { runtime })
+        let system = Arc::new(SystemSchema::bootstrap()?);
+        Ok(DatabaseCatalog { system, runtime })
     }
 
     pub async fn begin(&self) -> Result<TransactionalCatalog> {
         Ok(TransactionalCatalog {
+            system: self.system.clone(),
             runtime: self.runtime.clone(),
         })
     }
 }
 
 pub struct TransactionalCatalog {
+    system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
 
 impl TransactionalCatalog {
-    pub async fn get_schema_catalog(&self, _name: &str) -> Result<Option<SchemaCatalog<'_>>> {
-        unimplemented!()
+    pub async fn get_schema_catalog(&self, name: &str) -> Result<Option<SchemaCatalog<'_>>> {
+        let schema = match name {
+            SYSTEM_SCHEMA_NAME => SchemaCatalog {
+                id: SYSTEM_SCHEMA_ID,
+                catalog: self,
+                runtime: &self.runtime,
+            },
+            _ => unimplemented!(),
+        };
+
+        Ok(Some(schema))
     }
 }
 
