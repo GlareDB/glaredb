@@ -26,6 +26,9 @@ pub enum PgSrvError {
     #[error("an expected startup parameter was missing")]
     MissingStartupParameter,
 
+    #[error("missing user from startup message")]
+    MissingUser,
+
     /// A stringified error from cloud.
     #[error("cloud: {0}")]
     CloudResponse(String),
