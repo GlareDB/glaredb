@@ -1,13 +1,15 @@
 use crate::compact::Compactor;
 use crate::deltacache::DeltaCache;
 use crate::errors::{internal, Result};
+use bytes::Bytes;
 use object_store::gcp::GoogleCloudStorageBuilder;
-use object_store::ObjectStore;
+use object_store::{path::Path as ObjectPath, ObjectStore};
 use object_store_util::temp::TempObjectStore;
 use persistence::object_cache::{ObjectStoreCache, DEFAULT_BYTE_RANGE_SIZE};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
+use tracing::trace;
 
 //TODO: Update these so they are from a config file rather than env variables
 const GCS_SERVICE_ACCOUNT_PATH: &str = "GCS_SERVICE_ACCOUNT_PATH";
@@ -84,7 +86,7 @@ struct Inner {
 
 impl AccessRuntime {
     /// Create a new access runtime with the given object store.
-    pub fn new(config: AccessConfig) -> Result<AccessRuntime> {
+    pub async fn new(config: AccessConfig) -> Result<AccessRuntime> {
         use ObjectStoreKind::*;
         let mut store = match config.object_store {
             LocalTemp => Arc::new(TempObjectStore::new()?) as Arc<dyn ObjectStore>,
@@ -116,6 +118,8 @@ impl AccessRuntime {
             )?);
         }
 
+        validate_object_store_permissions(&config.db_name, &store).await?;
+
         Ok(AccessRuntime {
             inner: Arc::new(Inner {
                 conf: config,
@@ -141,4 +145,33 @@ impl AccessRuntime {
     pub fn config(&self) -> &AccessConfig {
         &self.inner.conf
     }
+}
+
+async fn validate_object_store_permissions(
+    db_name: &str,
+    store: &Arc<dyn ObjectStore>,
+) -> Result<()> {
+    let location = format!("{}/test.bin", db_name);
+    let location = ObjectPath::parse(location)?;
+    let bytes = Bytes::from("Hello world!");
+    let range = 0..bytes.len();
+
+    trace!(?store, ?location, ?bytes, "test object store put");
+    store.put(&location, bytes.clone()).await?;
+
+    trace!(?store, ?location, ?range, "test object store get_range");
+    let result = store.get_range(&location, range).await?;
+
+    if result != bytes {
+        return Err(internal!("Object store test failed: data mismatch"));
+    }
+
+    trace!(?store, ?location, "test object store delete");
+    store.delete(&location).await?;
+
+    trace!(
+        ?store,
+        "Able to put, get_range and delete from object store"
+    );
+    Ok(())
 }

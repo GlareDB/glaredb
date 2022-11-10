@@ -152,7 +152,7 @@ mod tests {
             cache_path: Some(PathBuf::from(cache_dir.path())),
         };
 
-        let access = Arc::new(AccessRuntime::new(config).unwrap());
+        let access = Arc::new(AccessRuntime::new(config).await.unwrap());
         let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()), access);
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 
