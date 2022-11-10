@@ -53,7 +53,7 @@ impl Server {
         };
 
         info!(?config, "Access Config");
-        let access = Arc::new(AccessRuntime::new(config)?);
+        let access = Arc::new(AccessRuntime::new(config).await?);
 
         let engine = Engine::new(access)?;
         Ok(Server {
