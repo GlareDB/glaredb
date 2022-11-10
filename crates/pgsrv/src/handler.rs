@@ -98,8 +98,6 @@ impl Handler {
 
         let mut framed = FramedConn::new(conn);
 
-        // TODO: Check username, password, database.
-
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
             .await?;
