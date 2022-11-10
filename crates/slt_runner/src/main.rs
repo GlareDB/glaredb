@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
+use common::config::{DbConfig, CONFIG};
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use sqllogictest::{AsyncDB, Runner};
@@ -41,12 +42,12 @@ enum Commands {
         keep_running: bool,
 
         /// Name of the database to connect to.
-        #[clap(short, long, value_parser, default_value_t = String::from("slt"))]
-        db_name: String,
+        #[clap(short, long, value_parser)]
+        db_name: Option<String>,
 
-        /// Type of object storage database will access
-        #[clap(short, long, value_parser, default_value_t = String::from("local"))]
-        object_store: String,
+        /// Path to config file
+        #[clap(short, long, value_parser)]
+        config: Option<String>,
 
         /// Path to test files.
         files: Vec<String>,
@@ -95,7 +96,7 @@ fn main() -> Result<()> {
             bind,
             keep_running,
             db_name,
-            object_store,
+            config,
             ..
         } => runtime.block_on(async move {
             let pg_listener =
@@ -103,7 +104,15 @@ fn main() -> Result<()> {
             let pg_addr = pg_listener.local_addr()?;
             let conf = ServerConfig { pg_listener };
 
-            let server = Server::connect(db_name, &object_store).await?;
+            // Use clap values as default
+            let config: DbConfig = DbConfig::base(config)
+                .set_override_option("access.db_name", db_name)?
+                .build()?
+                .try_deserialize()?;
+
+            let config = CONFIG.get_or_init(|| config);
+
+            let server = Server::connect(config).await?;
             let _ = tokio::spawn(server.serve(conf));
 
             let runner = TestRunner::connect_embedded(pg_addr).await?;

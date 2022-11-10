@@ -130,7 +130,9 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use crate::catalog::DatabaseCatalog;
-    use access::runtime::{AccessConfig, AccessRuntime, ObjectStoreKind};
+    use access::runtime::AccessRuntime;
+    use common::access::{AccessConfig, ObjectStoreKind};
+    use common::config::DbConfig;
     use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
     use std::path::PathBuf;
@@ -144,15 +146,17 @@ mod tests {
         catalog.insert_default_schema().unwrap();
         let cache_dir = TempDir::new().unwrap();
 
-        let config = AccessConfig {
-            db_name,
-            object_store: ObjectStoreKind::LocalTemp,
-            cached: true,
-            max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
-            cache_path: Some(PathBuf::from(cache_dir.path())),
+        let config = DbConfig {
+            access: AccessConfig {
+                db_name,
+                object_store: ObjectStoreKind::LocalTemp,
+                cached: true,
+                max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
+                cache_path: Some(PathBuf::from(cache_dir.path())),
+            },
         };
 
-        let access = Arc::new(AccessRuntime::new(config).unwrap());
+        let access = Arc::new(AccessRuntime::new(&config.access).unwrap());
         let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()), access);
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 

@@ -1,4 +1,8 @@
-use access::runtime::{AccessConfig, AccessRuntime, ObjectStoreKind};
+use access::runtime::AccessRuntime;
+use common::{
+    access::{AccessConfig, ObjectStoreKind},
+    config::DbConfig,
+};
 use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::engine::Engine;
 use std::sync::Arc;
@@ -16,13 +20,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listen_addr = listener.local_addr()?;
     info!(%listen_addr, "listening");
 
-    let config = AccessConfig {
-        db_name: "test".into(),
-        object_store: ObjectStoreKind::LocalTemp,
-        ..AccessConfig::default()
+    let config = DbConfig {
+        access: AccessConfig {
+            db_name: "test".into(),
+            object_store: ObjectStoreKind::LocalTemp,
+            ..AccessConfig::default()
+        },
     };
 
-    let engine = Engine::new(Arc::new(AccessRuntime::new(config)?))?;
+    let engine = Engine::new(Arc::new(AccessRuntime::new(&config.access)?))?;
 
     let handler = Arc::new(Handler::new(engine));
 

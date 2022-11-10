@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use common::config::{DbConfig, CONFIG};
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use raft::client::ConsensusClient;
@@ -38,12 +39,12 @@ enum Commands {
         bind: String,
 
         /// Name of the database to connect to.
-        #[clap(short, long, value_parser, default_value_t = String::from("glaredb"))]
-        db_name: String,
+        #[clap(short, long, value_parser)]
+        db_name: Option<String>,
 
-        /// Type of object storage database will access
-        #[clap(short, long, value_parser, default_value_t = String::from("local"))]
-        object_store: String,
+        /// Path to config file
+        #[clap(short, long, value_parser)]
+        config: Option<String>,
     },
 
     /// Starts a client to some server.
@@ -122,9 +123,17 @@ fn main() -> Result<()> {
         Commands::Server {
             bind,
             db_name,
-            object_store,
+            config,
         } => {
-            begin_server(db_name, &bind, &object_store)?;
+            // Use clap values as default
+            let config: DbConfig = DbConfig::base(config)
+                // .set_override_option(db_name, db_name)?
+                .set_default("db_name", db_name)?
+                .build()?
+                .try_deserialize()?;
+
+            let config = CONFIG.get_or_init(|| config);
+            begin_server(config, &bind)?;
         }
         Commands::Client { addr, command } => {
             let rt = tokio::runtime::Runtime::new()?;
@@ -169,12 +178,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server(db_name: impl Into<String>, pg_bind: &str, object_store: &str) -> Result<()> {
+fn begin_server(config: &DbConfig, pg_bind: &str) -> Result<()> {
     let runtime = build_runtime()?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(db_name, object_store).await?;
+        let server = Server::connect(config).await?;
         server.serve(conf).await
     })
 }
