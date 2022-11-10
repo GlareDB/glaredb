@@ -585,16 +585,20 @@ impl ProxyHandler {
         params: &HashMap<String, String>,
     ) -> Result<DatabaseDetails> {
         match msg {
-            FrontendMessage::PasswordMessage {
-                password: _password,
-            } => {
-                // TODO: Use password.
-                // Check username, password, database against glaredb cloud api
+            FrontendMessage::PasswordMessage { password } => {
                 let client = reqwest::Client::builder().build()?;
 
+                // Extract user (required) from startup params
                 let user = match params.get("user") {
                     Some(user) => user,
                     None => return Err(PgSrvError::MissingUser),
+                };
+
+                // Extract the database name (optional) from startup params
+                // Defaults to the user
+                let db_name = match params.get("database") {
+                    Some(database) => database,
+                    None => user,
                 };
 
                 // Pass the options provided when connecting as a query string
@@ -615,7 +619,8 @@ impl ProxyHandler {
                     .map(|(k, v)| (k.as_str(), v.as_str()))
                     .collect();
                 query.push(("user", user));
-                query.push(("password", &_password));
+                query.push(("password", &password));
+                query.push(("name", db_name));
 
                 let res = client
                     .get(format!(
