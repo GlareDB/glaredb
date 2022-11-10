@@ -592,6 +592,11 @@ impl ProxyHandler {
                 // Check username, password, database against glaredb cloud api
                 let client = reqwest::Client::builder().build()?;
 
+                let user = match params.get("user") {
+                    Some(user) => user,
+                    None => return Err(PgSrvError::MissingUser),
+                };
+
                 // Pass the options provided when connecting as a query string
                 // options will look like "--org=org --bucket=bucket"
                 let options = match params.get("options") {
@@ -605,10 +610,12 @@ impl ProxyHandler {
                 };
 
                 // reqwest needs the query to be typed like &[(&str, &str)]
-                let query: Vec<(&str, &str)> = options
+                let mut query: Vec<(&str, &str)> = options
                     .iter()
                     .map(|(k, v)| (k.as_str(), v.as_str()))
                     .collect();
+                query.push(("user", user));
+                query.push(("password", &_password));
 
                 let res = client
                     .get(format!(
