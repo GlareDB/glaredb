@@ -17,6 +17,9 @@ pub enum AccessError {
     ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]
+    ObjectStorePath(#[from] object_store::path::Error),
+
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
