@@ -1,7 +1,7 @@
 use crate::errors::{internal, ExecError};
 use datafusion::arrow::datatypes::Field;
-use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
-use datafusion::sql::sqlparser::ast::{self};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::sql::sqlparser::ast;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
