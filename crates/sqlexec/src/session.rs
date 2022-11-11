@@ -16,8 +16,8 @@ use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::options::ParquetReadOptions;
 use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
-use datafusion::logical_plan::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
