@@ -127,8 +127,7 @@ fn main() -> Result<()> {
         } => {
             // Use clap values as default
             let config: DbConfig = DbConfig::base(config)
-                // .set_override_option(db_name, db_name)?
-                .set_default("db_name", db_name)?
+                .set_override_option("access.db_name", db_name)?
                 .build()?
                 .try_deserialize()?;
 
