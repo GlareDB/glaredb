@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..AccessConfig::default()
     };
 
-    let engine = Engine::new(Arc::new(AccessRuntime::new(config)?))?;
+    let engine = Engine::new(Arc::new(AccessRuntime::new(config).await?))?;
 
     let handler = Arc::new(Handler::new(engine));
 

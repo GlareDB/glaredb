@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 bytesutil = {path = "../bytesutil"}
-datafusion = "13.0"
+datafusion = "14.0"
 bytes = "1.2.1"
 thiserror = "1.0"
 arrow = {version = "26.0", features = ["ipc", "ffi"]}
