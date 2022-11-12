@@ -6,7 +6,7 @@ use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
-use datafusion::logical_plan::Expr;
+use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
 use dfutil::cast::cast_record_batch;
 use object_store::Error as ObjectStoreError;

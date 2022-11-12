@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 object_store = "0.5"
-datafusion = "13.0"
+datafusion = "14.0"
