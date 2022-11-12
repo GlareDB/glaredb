@@ -55,14 +55,42 @@ pub fn init(verbosity: impl Into<Verbosity>, json: bool) {
     let level: Level = verbosity.into();
 
     if json {
-        let builder = default_fmt_builder(level).json();
+        let mut builder = default_fmt_builder(level).json();
+        // Flatten fields into the top-level json. This is primarily done such
+        // that GCP can pull out the 'message' field and display those nicely.
+        //
+        // See https://cloud.google.com/logging/docs/structured-logging#special-payload-fields
+        // for special fields that GCP can pick up.
+        //
+        // NOTE: Since this is flattening the json, there can be conflicts
+        // between fields we provide in the trace, and metadata fields provided
+        // by the tracing subsriber. No errors occur, they are just silently
+        // overwritten.
+        //
+        // A list of fields that may be clobbered if used in trace macro calls:
+        // - timestamp
+        // - level
+        // - target
+        // - filename
+        // - line_number
+        // - span
+        // - threadName
+        // - threadId
+        //
+        // `tracing` doesn't have an easy way of customizer where/how indivdual
+        // fields get printed. If we only wanted to put the 'message' field in
+        // the top-level json, that woudl require writing our own `FormatEvent`
+        // with a custom format. We _may_ end up doing that in the future when
+        // we need more control over log formatting, but flattening everything
+        // is sufficient for now.
+        builder = builder.flatten_event(true);
         subscriber::set_global_default(builder.finish()).unwrap();
     } else {
         let builder = default_fmt_builder(level);
         subscriber::set_global_default(builder.finish()).unwrap();
     }
 
-    info!(%level, "log level set");
+    info!(set_level = %level, "log level set");
 }
 
 fn default_fmt_builder(level: Level) -> SubscriberBuilder {
@@ -71,4 +99,5 @@ fn default_fmt_builder(level: Level) -> SubscriberBuilder {
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_line_number(true)
+        .with_file(true)
 }
