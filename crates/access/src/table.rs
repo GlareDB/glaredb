@@ -16,6 +16,13 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
+/// A mutable source table.
+#[async_trait]
+pub trait MutableTableProvider: TableProvider {
+    /// Insert a batch, partitioning as necessary.
+    async fn insert(&self, batch: RecordBatch) -> Result<()>;
+}
+
 /// A table backed by one or more partitions.
 // TODO: Use shared references.
 pub struct PartitionedTable {
@@ -38,27 +45,6 @@ impl PartitionedTable {
             runtime,
             schema,
         }
-    }
-
-    /// Insert a batch, partitioning as necessary.
-    pub async fn insert_batch(&self, batch: RecordBatch) -> Result<()> {
-        let batches = self.strategy.partition(batch)?;
-
-        for (part_id, batch) in batches {
-            let key = self.table.partition_key(part_id);
-
-            // TODO: We'll need some metadata to determine if the partition is
-            // local or remote.
-            let partition = LocalPartition::new(key, self.schema.clone(), self.runtime.clone());
-
-            // TODO: Run all inserts in parallel.
-            //
-            // TODO: If we compact and split, we should be updating the
-            // strategy.
-            partition.insert_batch(batch).await?;
-        }
-
-        Ok(())
     }
 
     pub async fn scan_inner(
@@ -86,6 +72,29 @@ impl PartitionedTable {
         let plan = SelectUnorderedExec::new(plans)?;
 
         Ok(Arc::new(plan))
+    }
+}
+
+#[async_trait]
+impl MutableTableProvider for PartitionedTable {
+    async fn insert(&self, batch: RecordBatch) -> Result<()> {
+        let batches = self.strategy.partition(batch)?;
+
+        for (part_id, batch) in batches {
+            let key = self.table.partition_key(part_id);
+
+            // TODO: We'll need some metadata to determine if the partition is
+            // local or remote.
+            let partition = LocalPartition::new(key, self.schema.clone(), self.runtime.clone());
+
+            // TODO: Run all inserts in parallel.
+            //
+            // TODO: If we compact and split, we should be updating the
+            // strategy.
+            partition.insert_batch(batch).await?;
+        }
+
+        Ok(())
     }
 }
 

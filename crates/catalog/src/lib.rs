@@ -3,3 +3,5 @@ pub mod catalog;
 pub mod errors;
 pub mod sequence;
 pub mod system;
+
+mod context;

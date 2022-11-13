@@ -9,7 +9,8 @@ use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
 use catalog_types::keys::SchemaId;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::datasource::MemTable;
+use datafusion::catalog::schema::SchemaProvider;
+use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -44,6 +45,13 @@ impl SystemTable {
             SystemTable::Base(table) => Ok(table),
         }
     }
+
+    fn as_table_provider(self) -> Arc<dyn TableProvider> {
+        match self {
+            SystemTable::View(table) => Arc::new(table),
+            SystemTable::Base(table) => Arc::new(table),
+        }
+    }
 }
 
 impl From<MemTable> for SystemTable {
@@ -58,7 +66,7 @@ impl From<PartitionedTable> for SystemTable {
     }
 }
 
-pub trait SystemTableAccessor {
+pub trait SystemTableAccessor: Sync + Send {
     /// Return the schema of the table.
     fn schema(&self) -> &Schema;
 
@@ -93,7 +101,45 @@ impl SystemSchema {
         Ok(SystemSchema { tables })
     }
 
-    pub fn get_system_table(&self, name: &str) -> Option<&Arc<dyn SystemTableAccessor>> {
-        self.tables.get(name)
+    pub fn get_system_table_accessor(&self, name: &str) -> Option<Arc<dyn SystemTableAccessor>> {
+        self.tables.get(name).cloned()
+    }
+
+    /// Provider returns the system schema provider.
+    pub fn provider(&self, runtime: Arc<AccessRuntime>) -> SystemSchemaProvider {
+        SystemSchemaProvider {
+            runtime,
+            tables: self.tables.clone(), // Cheap, accessors are behind an arc and all table names are static.
+        }
+    }
+}
+
+/// Provides the system schema. Contains a reference to the access runtime to
+/// allow reading from persistent storage.
+pub struct SystemSchemaProvider {
+    runtime: Arc<AccessRuntime>,
+    tables: HashMap<&'static str, Arc<dyn SystemTableAccessor>>,
+}
+
+impl SchemaProvider for SystemSchemaProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        self.tables.keys().map(|s| s.to_string()).collect()
+    }
+
+    fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
+        Some(
+            self.tables
+                .get(name)?
+                .get_table(self.runtime.clone())
+                .as_table_provider(),
+        )
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.tables.contains_key(name)
     }
 }
