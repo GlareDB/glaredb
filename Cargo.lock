@@ -547,6 +547,7 @@ dependencies = [
 name = "catalog_types"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "datafusion",
  "object_store",
 ]

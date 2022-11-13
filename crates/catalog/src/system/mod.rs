@@ -39,6 +39,7 @@ pub enum SystemTable {
 }
 
 impl SystemTable {
+    // TODO: Change this to return a "MutableTableProvider".
     pub fn get_partitioned_table(&self) -> Result<&PartitionedTable> {
         match self {
             SystemTable::View(_) => Err(CatalogError::TableReadonly),

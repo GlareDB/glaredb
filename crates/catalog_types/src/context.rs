@@ -2,7 +2,7 @@ use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use std::sync::Arc;
 
-/// Context for a session.
+/// Context for a session used during execution.
 pub struct SessionContext {
     /// Datafusion session state used for planning and execution.
     ///
@@ -24,7 +24,7 @@ impl SessionContext {
         let runtime = Arc::new(RuntimeEnv::default());
         let state = SessionState::with_config_rt(config, runtime);
 
-        // TODO: Put catalog list on state.
+        // TODO: Put catalog list on state?
 
         SessionContext { df_state: state }
     }

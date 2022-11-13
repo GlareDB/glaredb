@@ -1,4 +1,3 @@
-use crate::context::SessionContext;
 use crate::errors::{CatalogError, Result};
 use crate::system::{
     builtin_types::BUILTIN_TYPES_TABLE_NAME,
@@ -8,6 +7,9 @@ use crate::system::{
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
+use async_trait::async_trait;
+use catalog_types::context::SessionContext;
+use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
 use catalog_types::keys::{PartitionId, SchemaId, TableId, TableKey};
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -126,6 +128,19 @@ impl CatalogProvider for QueryCatalog {
                 todo!()
             }
         }
+    }
+}
+
+#[async_trait]
+impl MutableCatalogProvider for QueryCatalog {
+    type Error = CatalogError;
+
+    async fn create_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
+        todo!()
+    }
+
+    async fn drop_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
+        todo!()
     }
 }
 

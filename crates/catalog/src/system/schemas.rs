@@ -1,9 +1,9 @@
-use crate::context::SessionContext;
 use crate::errors::{internal, CatalogError, Result};
 use crate::system::{SystemSchema, SystemTable, SystemTableAccessor, SYSTEM_SCHEMA_ID};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
+use catalog_types::context::SessionContext;
 use catalog_types::keys::{PartitionId, SchemaId, TableId, TableKey};
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -97,4 +97,13 @@ pub async fn scan_schema_names(
     }
 
     Ok(names)
+}
+
+/// Insert a a new schema into the database.
+pub async fn insert_schema(
+    ctx: &SessionContext,
+    runtime: &Arc<AccessRuntime>,
+    system: &SystemSchema,
+) -> Result<()> {
+    unimplemented!()
 }
