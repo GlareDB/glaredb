@@ -60,6 +60,33 @@ impl PartitionedTable {
 
         Ok(())
     }
+
+    pub async fn scan_inner(
+        &self,
+        ctx: &SessionState,
+        projection: &Option<Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let partitions = self.strategy.list_partitions()?;
+        let mut plans = Vec::with_capacity(partitions.len());
+
+        for part_id in partitions {
+            // TODO: Same as above, need to determine if this is local/remote,
+            // and do all of these in parallel.
+            let partition = LocalPartition::new(
+                self.table.partition_key(part_id),
+                self.schema.clone(),
+                self.runtime.clone(),
+            );
+            let plan = partition.scan(ctx, projection, filters, limit).await?;
+            plans.push(plan);
+        }
+
+        let plan = SelectUnorderedExec::new(plans)?;
+
+        Ok(Arc::new(plan))
+    }
 }
 
 // The scan on `Table` represents a base table scan. Index scans will happen on
@@ -85,27 +112,11 @@ impl TableProvider for PartitionedTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        let partitions = self.strategy.list_partitions().map_err(|e| {
-            DataFusionError::Plan(format!("build plan for table partitions: {}", e))
-        })?;
-        let mut plans = Vec::with_capacity(partitions.len());
-
-        for part_id in partitions {
-            // TODO: Same as above, need to determine if this is local/remote,
-            // and do all of these in parallel.
-            let partition = LocalPartition::new(
-                self.table.partition_key(part_id),
-                self.schema.clone(),
-                self.runtime.clone(),
-            );
-            let plan = partition.scan(ctx, projection, filters, limit).await?;
-            plans.push(plan);
-        }
-
-        let plan = SelectUnorderedExec::new(plans)
-            .map_err(|e| DataFusionError::Plan(format!("build select unordered plan: {}", e)))?;
-
-        Ok(Arc::new(plan))
+        let plan = self
+            .scan_inner(ctx, projection, filters, limit)
+            .await
+            .map_err(|e| DataFusionError::Plan(format!("build plan for table scan: {}", e)))?;
+        Ok(plan)
     }
 }
 

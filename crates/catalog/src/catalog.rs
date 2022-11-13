@@ -1,10 +1,14 @@
-use crate::errors::Result;
-use crate::system::{SystemSchema, SYSTEM_SCHEMA_ID, SYSTEM_SCHEMA_NAME};
+use crate::errors::{CatalogError, Result};
+use crate::system::{
+    builtin_types::BUILTIN_TYPES_TABLE_NAME, schemas::SCHEMAS_TABLE_NAME, SystemSchema,
+    SYSTEM_SCHEMA_ID, SYSTEM_SCHEMA_NAME,
+};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use catalog_types::keys::{PartitionId, SchemaId, TableId, TableKey};
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use std::future::Future;
 use std::sync::Arc;
 
 /// The top-level catalog.
@@ -46,6 +50,22 @@ impl TransactionalCatalog {
         };
 
         Ok(Some(schema))
+    }
+
+    pub async fn new_schema(&self, name: &str) -> Result<()> {
+        let schemas = self
+            .system
+            .get_system_table(SCHEMAS_TABLE_NAME)
+            .ok_or(CatalogError::MissingSystemTable(
+                SCHEMAS_TABLE_NAME.to_string(),
+            ))?
+            .get_table(self.runtime.clone())
+            .get_partitioned_table()?;
+
+        // Get sequence for schema values.
+        // Insert into "schemas" table.
+
+        unimplemented!()
     }
 }
 

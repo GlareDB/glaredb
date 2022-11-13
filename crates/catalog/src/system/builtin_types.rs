@@ -1,40 +1,47 @@
-use crate::system::{SystemTable, Table};
+use crate::system::{SystemTable, SystemTableAccessor};
+use access::runtime::AccessRuntime;
 use catalog_types::datatypes::type_id_for_arrow_type;
+use catalog_types::keys::SchemaId;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use std::sync::Arc;
 
+pub const BUILTIN_TYPES_TABLE_ID: SchemaId = 1;
+pub const BUILTIN_TYPES_TABLE_NAME: &str = "builtin_types";
+
 /// Table decribing the builtin types for the database.
-pub struct BuiltinTypesTable {}
+pub struct BuiltinTypesTable {
+    schema: SchemaRef,
+}
 
 impl BuiltinTypesTable {
     pub fn new() -> BuiltinTypesTable {
-        BuiltinTypesTable {}
+        BuiltinTypesTable {
+            schema: Arc::new(Schema::new(vec![
+                Field::new("type_id", DataType::UInt32, false),
+                Field::new("type_name", DataType::Utf8, false),
+            ])),
+        }
     }
 }
 
-impl SystemTable for BuiltinTypesTable {
-    fn schema(&self) -> Schema {
-        Schema::new(vec![
-            Field::new("type_id", DataType::UInt32, false),
-            Field::new("type_name", DataType::Utf8, false),
-        ])
+impl SystemTableAccessor for BuiltinTypesTable {
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn name(&self) -> &'static str {
-        "builtin_types"
+        BUILTIN_TYPES_TABLE_NAME
     }
 
     fn is_readonly(&self) -> bool {
         true
     }
 
-    fn get_table(&self) -> Table {
+    fn get_table(&self, _runtime: Arc<AccessRuntime>) -> SystemTable {
         // TODO: This could all be generated once.
-
-        let schema = Arc::new(self.schema());
         let types = [
             DataType::Boolean,
             DataType::Int8,
@@ -61,11 +68,13 @@ impl SystemTable for BuiltinTypesTable {
         }
 
         let batch = RecordBatch::try_new(
-            schema.clone(),
+            self.schema.clone(),
             vec![Arc::new(type_ids.finish()), Arc::new(type_names.finish())],
         )
         .unwrap();
 
-        MemTable::try_new(schema, vec![vec![batch]]).unwrap().into()
+        MemTable::try_new(self.schema.clone(), vec![vec![batch]])
+            .unwrap()
+            .into()
     }
 }

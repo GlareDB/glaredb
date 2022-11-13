@@ -1,5 +1,11 @@
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
+    #[error("missing system table: {0}")]
+    MissingSystemTable(String),
+
+    #[error("table read-only")]
+    TableReadonly,
+
     #[error("internal: {0}")]
     Internal(String),
 }
