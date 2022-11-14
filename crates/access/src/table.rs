@@ -74,7 +74,7 @@ impl PartitionedTable {
 impl MutableTableProvider for PartitionedTable {
     type Error = AccessError;
 
-    async fn insert(&self, ctx: &SessionContext, batch: RecordBatch) -> Result<()> {
+    async fn insert(&self, _ctx: &SessionContext, batch: RecordBatch) -> Result<()> {
         let batches = self.strategy.partition(batch)?;
 
         for (part_id, batch) in batches {

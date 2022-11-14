@@ -1,18 +1,11 @@
-use crate::errors::{CatalogError, Result};
+use crate::errors::Result;
 use crate::system::{SystemSchema, SystemTable, SystemTableAccessor, SYSTEM_SCHEMA_ID};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
-use catalog_types::datatypes::type_id_for_arrow_type;
 use catalog_types::keys::{SchemaId, TableId, TableKey};
-use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::{Column, ScalarValue};
-use datafusion::datasource::MemTable;
-use datafusion::logical_expr::Expr;
-use futures::TryStreamExt;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 

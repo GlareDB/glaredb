@@ -8,7 +8,7 @@ use crate::errors::{CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
 use catalog_types::keys::SchemaId;
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
@@ -47,7 +47,7 @@ impl SystemTable {
         }
     }
 
-    fn as_table_provider(self) -> Arc<dyn TableProvider> {
+    fn into_table_provider_ref(self) -> Arc<dyn TableProvider> {
         match self {
             SystemTable::View(table) => Arc::new(table),
             SystemTable::Base(table) => Arc::new(table),
@@ -95,7 +95,7 @@ impl SystemSchema {
         ];
 
         let tables: HashMap<_, _> = tables
-            .into_iter()
+            .iter()
             .map(|table| (table.name(), table.clone()))
             .collect();
 
@@ -136,7 +136,7 @@ impl SchemaProvider for SystemSchemaProvider {
             self.tables
                 .get(name)?
                 .get_table(self.runtime.clone())
-                .as_table_provider(),
+                .into_table_provider_ref(),
         )
     }
 

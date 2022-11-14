@@ -5,7 +5,7 @@ use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::MutableTableProvider;
-use catalog_types::keys::{PartitionId, SchemaId, TableId, TableKey};
+use catalog_types::keys::{TableId, TableKey};
 use datafusion::arrow::array::{StringArray, UInt32Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -66,9 +66,7 @@ pub async fn scan_schema_names(
 ) -> Result<Vec<String>> {
     let schemas_table = system
         .get_system_table_accessor(SCHEMAS_TABLE_NAME)
-        .ok_or(CatalogError::MissingSystemTable(
-            SCHEMAS_TABLE_NAME.to_string(),
-        ))?
+        .ok_or_else(|| CatalogError::MissingSystemTable(SCHEMAS_TABLE_NAME.to_string()))?
         .get_table(runtime.clone());
     let partitioned_table = schemas_table.get_partitioned_table()?;
 
@@ -109,9 +107,9 @@ pub async fn insert_schema(
     system: &SystemSchema,
     name: &str,
 ) -> Result<()> {
-    let accessor = system.get_system_table_accessor(SCHEMAS_TABLE_NAME).ok_or(
-        CatalogError::MissingSystemTable(SCHEMAS_TABLE_NAME.to_string()),
-    )?;
+    let accessor = system
+        .get_system_table_accessor(SCHEMAS_TABLE_NAME)
+        .ok_or_else(|| CatalogError::MissingSystemTable(SCHEMAS_TABLE_NAME.to_string()))?;
     let schemas_table = accessor.get_table(runtime.clone());
     let partitioned_table = schemas_table.get_partitioned_table()?;
 

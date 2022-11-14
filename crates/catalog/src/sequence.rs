@@ -1,5 +1,5 @@
-use crate::errors::{internal, CatalogError, Result};
-use crate::system::{SystemSchema, SystemTableAccessor};
+use crate::errors::Result;
+use crate::system::SystemTableAccessor;
 use access::runtime::AccessRuntime;
 use catalog_types::keys::{SchemaId, TableId};
 use std::sync::Arc;
@@ -30,11 +30,6 @@ impl<'a, T: SystemTableAccessor> SequenceObject<'a, T> {
     // NOTE: Will likely lack the ability rollback with transaction aborts,
     // resulting in gaps.
     pub async fn next_val(&self, runtime: Arc<AccessRuntime>) -> Result<u64> {
-        let table = self
-            .sequences_table
-            .get_table(runtime)
-            .get_partitioned_table()?;
-
         // Execute scan+insert.
         // Need execution context.
         // Eventually want in place updates for tables.
