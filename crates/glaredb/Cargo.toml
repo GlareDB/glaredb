@@ -9,6 +9,7 @@ path = "src/bin/main.rs"
 
 [dependencies]
 logutil = {path = "../logutil"}
+common = {path = "../common"}
 raft = {path = "../raft"}
 sqlexec = {path = "../sqlexec"}
 pgsrv = {path = "../pgsrv"}
