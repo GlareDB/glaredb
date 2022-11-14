@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    let engine = Engine::new(Arc::new(AccessRuntime::new(&config.access)?))?;
+    let engine = Engine::new(Arc::new(AccessRuntime::new(&config.access).await?))?;
 
     let handler = Arc::new(Handler::new(engine));
 

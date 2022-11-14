@@ -15,7 +15,7 @@ pub enum ObjectStoreKind {
     S3,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize)]
 pub struct AccessConfig {
     pub db_name: String,
     pub object_store: ObjectStoreKind,
