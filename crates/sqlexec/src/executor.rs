@@ -149,7 +149,7 @@ mod tests {
         let config = DbConfig {
             access: AccessConfig {
                 db_name,
-                object_store: ObjectStoreKind::LocalTemp,
+                object_store: ObjectStoreKind::Local,
                 cached: true,
                 max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
                 cache_path: Some(PathBuf::from(cache_dir.path())),

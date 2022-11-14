@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use serde::Deserialize;
 
 #[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ObjectStoreKind {
     #[default]
-    #[serde(alias = "local")]
-    LocalTemp,
+    Local,
     Memory,
     Gcs {
         service_account_path: String,

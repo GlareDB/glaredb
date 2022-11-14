@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = DbConfig {
         access: AccessConfig {
             db_name: "test".into(),
-            object_store: ObjectStoreKind::LocalTemp,
+            object_store: ObjectStoreKind::Local,
             ..AccessConfig::default()
         },
     };
