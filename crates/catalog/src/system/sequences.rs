@@ -40,8 +40,8 @@ impl SequencesTable {
 }
 
 impl SystemTableAccessor for SequencesTable {
-    fn schema(&self) -> &Schema {
-        &self.schema
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
     }
 
     fn name(&self) -> &'static str {

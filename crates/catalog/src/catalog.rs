@@ -105,6 +105,7 @@ impl CatalogProvider for QueryCatalog {
     }
 
     fn schema_names(&self) -> Vec<String> {
+        // TODO: Execute this on a dedicated per-session thread.
         let result = executor::block_on(schemas::scan_schema_names(
             &self.sess_ctx,
             &self.runtime,
@@ -136,7 +137,8 @@ impl MutableCatalogProvider for QueryCatalog {
     type Error = CatalogError;
 
     async fn create_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
-        todo!()
+        schemas::insert_schema(ctx, &self.runtime, &self.system, name).await?;
+        Ok(())
     }
 
     async fn drop_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
@@ -222,5 +224,26 @@ mod tests {
 
         let tables = system.table_names();
         assert!(!tables.is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_schema() {
+        logutil::init_test();
+
+        let db = TestDatabase::new().await;
+        db.query
+            .create_schema(&db.sess_ctx, "test_schema_1")
+            .await
+            .unwrap();
+        db.query
+            .create_schema(&db.sess_ctx, "test_schema_2")
+            .await
+            .unwrap();
+
+        let catalog = db.query.catalog(TEST_DB_NAME).unwrap();
+        let schemas = catalog.schema_names();
+
+        assert!(schemas.contains(&"test_schema_1".to_string()));
+        assert!(schemas.contains(&"test_schema_2".to_string()));
     }
 }

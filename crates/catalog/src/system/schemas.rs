@@ -4,8 +4,9 @@ use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
+use catalog_types::interfaces::MutableTableProvider;
 use catalog_types::keys::{PartitionId, SchemaId, TableId, TableKey};
-use datafusion::arrow::array::StringArray;
+use datafusion::arrow::array::{StringArray, UInt32Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
@@ -30,8 +31,8 @@ impl SchemasTable {
 }
 
 impl SystemTableAccessor for SchemasTable {
-    fn schema(&self) -> &Schema {
-        &self.schema
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
     }
 
     fn name(&self) -> &'static str {
@@ -100,10 +101,29 @@ pub async fn scan_schema_names(
 }
 
 /// Insert a a new schema into the database.
+// TODO: Check for duplicates.
+// TODO: Pass in schema id.
 pub async fn insert_schema(
     ctx: &SessionContext,
     runtime: &Arc<AccessRuntime>,
     system: &SystemSchema,
+    name: &str,
 ) -> Result<()> {
-    unimplemented!()
+    let accessor = system.get_system_table_accessor(SCHEMAS_TABLE_NAME).ok_or(
+        CatalogError::MissingSystemTable(SCHEMAS_TABLE_NAME.to_string()),
+    )?;
+    let schemas_table = accessor.get_table(runtime.clone());
+    let partitioned_table = schemas_table.get_partitioned_table()?;
+
+    let batch = RecordBatch::try_new(
+        accessor.schema(),
+        vec![
+            Arc::new(UInt32Array::from(vec![0])), // TODO: Use schema id.
+            Arc::new(StringArray::from(vec![name])),
+        ],
+    )?;
+
+    partitioned_table.insert(ctx, batch).await?;
+
+    Ok(())
 }

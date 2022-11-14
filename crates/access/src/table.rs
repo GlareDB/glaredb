@@ -1,9 +1,11 @@
-use crate::errors::Result;
+use crate::errors::{AccessError, Result};
 use crate::exec::SelectUnorderedExec;
 use crate::partition::LocalPartition;
 use crate::runtime::AccessRuntime;
 use crate::strategy::TablePartitionStrategy;
 use async_trait::async_trait;
+use catalog_types::context::SessionContext;
+use catalog_types::interfaces::MutableTableProvider;
 use catalog_types::keys::TableKey;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -15,13 +17,6 @@ use datafusion::physical_plan::ExecutionPlan;
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
-
-/// A mutable source table.
-#[async_trait]
-pub trait MutableTableProvider: TableProvider {
-    /// Insert a batch, partitioning as necessary.
-    async fn insert(&self, batch: RecordBatch) -> Result<()>;
-}
 
 /// A table backed by one or more partitions.
 // TODO: Use shared references.
@@ -77,7 +72,9 @@ impl PartitionedTable {
 
 #[async_trait]
 impl MutableTableProvider for PartitionedTable {
-    async fn insert(&self, batch: RecordBatch) -> Result<()> {
+    type Error = AccessError;
+
+    async fn insert(&self, ctx: &SessionContext, batch: RecordBatch) -> Result<()> {
         let batches = self.strategy.partition(batch)?;
 
         for (part_id, batch) in batches {

@@ -8,7 +8,7 @@ use crate::errors::{CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
 use catalog_types::keys::SchemaId;
-use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
@@ -69,7 +69,7 @@ impl From<PartitionedTable> for SystemTable {
 
 pub trait SystemTableAccessor: Sync + Send {
     /// Return the schema of the table.
-    fn schema(&self) -> &Schema;
+    fn schema(&self) -> SchemaRef;
 
     /// Return the constant name for the table.
     fn name(&self) -> &'static str;
