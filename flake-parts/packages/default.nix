@@ -64,6 +64,17 @@
     fmt-check = craneLib.cargoFmt ({
       inherit cargoArtifacts;
     } // common-build-args);
+
+    config-files = pkgs.stdenv.mkDerivation {
+      name = "glaredb-config";
+
+      src = ../../config;
+
+      installPhase = ''
+        mkdir $out
+        cp -r * $out
+      '';
+    };
   in rec {
     checks = {
       inherit clippy-check tests-check fmt-check;
@@ -73,6 +84,8 @@
     packages = {
       default = packages.cli;
 
+      config = config-files;
+
       cli = craneLib.buildPackage ({
         pname = "glaredb-cli";
         inherit cargoArtifacts;
@@ -81,9 +94,14 @@
 
       glaredb_image = pkgs.dockerTools.buildLayeredImage {
         name = "glaredb";
-        contents = [packages.cli pkgs.cacert] ++ debugPackages;
+        contents = [packages.cli pkgs.cacert config-files] ++ debugPackages;
         created = "now";
         config.Cmd = ["${packages.cli}/bin/glaredb"];
+
+        fakeRootCommands = ''
+          mkdir -p /config
+          cp ${config-files}/* /config
+        '';
       };
 
       # Note that this currently uses the same command as the glaredb image. The
