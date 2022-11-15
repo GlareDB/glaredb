@@ -51,13 +51,3 @@ jobs:
 
       - name: Build and push images
         run: ./scripts/build-and-push-images.sh
-
-      - name: Setup GKE
-        run: gcloud container clusters get-credentials glaredb-test-cluster --zone us-central1
-
-      - name: Deploy pgsrv proxy to QA
-        run: |-
-          kubectl apply -f ./deploy.yml
-          kubectl rollout restart deployment/glaredb-proxy
-          kubectl rollout status deployment/glaredb-proxy
-          kubectl get services glaredb-proxy-service -o wide
