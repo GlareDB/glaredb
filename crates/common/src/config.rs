@@ -28,19 +28,16 @@ impl DbConfig {
     /// variables prefixed with `GLAREDB__`. The rest of the environment are based on the
     /// deserialized version of `DbConfig`
     pub fn base(config: Option<String>) -> ConfigBuilder<DefaultState> {
-        let default_config = File::new(DEFAULT_CONFIG_FILE, FileFormat::Toml).required(true);
+        let config = match config {
+            Some(config) => File::new(&config, FileFormat::Toml),
+            None => File::new(DEFAULT_CONFIG_FILE, FileFormat::Toml),
+        };
+
         let env_config = Environment::with_prefix(PREFIX)
             .separator(SEPARATOR)
             .ignore_empty(true)
             .keep_prefix(false);
 
-        let mut config_builder = Config::builder().add_source(default_config);
-
-        if let Some(config) = config {
-            let config = File::new(&config, FileFormat::Toml).required(true);
-            config_builder = config_builder.add_source(config);
-        }
-
-        config_builder.add_source(env_config)
+        Config::builder().add_source(config).add_source(env_config)
     }
 }
