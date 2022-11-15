@@ -71,8 +71,8 @@
       src = ../../config;
 
       installPhase = ''
-        mkdir $out
-        cp -r * $out
+        mkdir -p $out/config
+        cp -r * $out/config
       '';
     };
   in rec {
@@ -97,11 +97,6 @@
         contents = [packages.cli pkgs.cacert config-files] ++ debugPackages;
         created = "now";
         config.Cmd = ["${packages.cli}/bin/glaredb"];
-
-        fakeRootCommands = ''
-          mkdir -p /config
-          cp ${config-files}/* /config
-        '';
       };
 
       # Note that this currently uses the same command as the glaredb image. The
