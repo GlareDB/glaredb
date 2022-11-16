@@ -1,5 +1,7 @@
 use crate::errors::{internal, CatalogError, Result};
-use crate::system::{relations, schemas::SchemaRow, sequences, SystemSchema, SYSTEM_SCHEMA_NAME};
+use crate::system::{
+    relations::RelationRow, schemas::SchemaRow, sequences, SystemSchema, SYSTEM_SCHEMA_NAME,
+};
 use access::runtime::AccessRuntime;
 use async_trait::async_trait;
 use catalog_types::context::SessionContext;
@@ -179,13 +181,18 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
 
     fn table_names(&self) -> Vec<String> {
         // TODO: Execute this on a dedicated per-session thread.
-        let result = task::block_in_place(move || {
-            Handle::current().block_on(relations::scan_relation_names(
-                &self.sess_ctx,
-                &self.runtime,
-                &self.system,
-                self.schema,
-            ))
+        let result: Result<_> = task::block_in_place(move || {
+            Handle::current().block_on(async move {
+                let relations = RelationRow::scan_many_in_schema(
+                    &self.sess_ctx,
+                    &self.runtime,
+                    &self.system,
+                    self.schema,
+                )
+                .await?;
+                let names: Vec<_> = relations.into_iter().map(|row| row.table_name).collect();
+                Ok(names)
+            })
         });
         match result {
             Ok(names) => names,
@@ -212,15 +219,14 @@ impl MutableSchemaProvider for QueryCatalogSchemaProvider {
 
     async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
         // TODO: arrow schema.
-        relations::insert_relation(
-            ctx,
-            &self.runtime,
-            &self.system,
-            self.schema,
-            sequences::dummy_next() as u32, // TODO
-            name,
-        )
-        .await?;
+        let relation = RelationRow {
+            schema_id: self.schema,
+            table_id: sequences::dummy_next() as u32, // TODO
+            table_name: name.to_string(),
+        };
+        relation
+            .insert(&self.sess_ctx, &self.runtime, &self.system)
+            .await?;
         Ok(())
     }
 
@@ -234,7 +240,7 @@ mod tests {
     use super::*;
     use common::access::AccessConfig;
 
-    // Note that all tests need to use a multi-threaded runtime. This is because
+    // NOTE: All tests need to use a multi-threaded runtime. This is because
     // we're using `block_on` to make certain things async. A per-session
     // runtime may or may not remove this requirement.
 

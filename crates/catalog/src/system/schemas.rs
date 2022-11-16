@@ -63,7 +63,7 @@ impl SystemTableAccessor for SchemasTable {
     }
 }
 
-/// Represents a single row in the system schemas table.
+/// Represents a single row in the schemas system table.
 #[derive(Debug)]
 pub struct SchemaRow {
     pub id: SchemaId,
@@ -132,13 +132,11 @@ impl SchemaRow {
             .get_system_table_accessor(SCHEMAS_TABLE_NAME)
             .ok_or_else(|| CatalogError::MissingSystemTable(SCHEMAS_TABLE_NAME.to_string()))?
             .get_table(runtime.clone());
-        let partitioned_table = schemas_table.get_partitioned_table()?;
+        let table = schemas_table.into_table_provider_ref();
 
         let filter = Expr::Column(Column::from_name("schema_name"))
             .eq(Expr::Literal(ScalarValue::Utf8(Some(name.to_string()))));
-        let plan = partitioned_table
-            .scan_inner(ctx.get_df_state(), &None, &[filter], None)
-            .await?;
+        let plan = filter_scan(&table, ctx.get_df_state(), &[filter], None).await?;
         let stream = plan.execute(0, ctx.task_context())?;
         let batches: Vec<RecordBatch> = stream.try_collect().await?;
 
