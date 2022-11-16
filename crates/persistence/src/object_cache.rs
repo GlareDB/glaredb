@@ -175,7 +175,7 @@ impl ObjectStoreCache {
         if path.try_exists()? {
             //TODO investigate if duplicate file generation is possible when using try_get_with
             warn!(?path, "Duplicate file being cached");
-            return Err(PersistenceError::DuplicateCacheFile(path));
+            return Err(PersistenceError::DuplicateCacheFile { path });
         }
 
         // We have got a unique file path, so create the file at
@@ -185,7 +185,10 @@ impl ObjectStoreCache {
             .expect("base_dir is absolute so parent must be Some");
         fs::create_dir_all(parent).await?; // TODO: remove once cache files are unique and flat hierarchy
         fs::write(&path, contents).await?;
-        let length = contents.len().try_into()?;
+        let length = contents.len();
+        let length = length
+            .try_into()
+            .map_err(|source| PersistenceError::ContentsTooLarge { source, length })?;
         trace!(?path, ?parent, ?key, ?length, "Cached new file");
 
         Ok(ObjectCacheValue::new(path, length))
@@ -268,14 +271,22 @@ impl ObjectStoreCache {
             let value = self
                 .cache
                 .try_get_with_by_ref(&key, self.init_value(&key))
-                .await
-                .map_err(|e| {
-                    internal!(
-                        "Unable to init new cache value key: {:?}, error: {:?}",
-                        &key,
-                        e
-                    )
-                })?;
+                .await;
+
+            if let Err(e) = &value {
+                let e = &**e;
+                if let Some(bt) = snafu::ErrorCompat::backtrace(e) {
+                    error!("{bt:?}");
+                }
+            }
+
+            let value = value.map_err(|e| {
+                internal!(
+                    "Unable to init new cache value key: {:?}, error: {:?}",
+                    &key,
+                    e
+                )
+            })?;
 
             //TODO: Consider passing a buffer into `init_value` to save save contents from write call
             //and re use that here without re-reading from newly written file
@@ -357,7 +368,9 @@ impl ObjectStore for ObjectStoreCache {
         let mut aligned_data = BytesMut::with_capacity(aligned_range.end - aligned_range.start);
         //TODO: Run these requests in parallel
         for offset in aligned_range.step_by(self.byte_range_size) {
-            let data = self.get_single_byte_range(location, offset).await?;
+            let data = self.get_single_byte_range(location, offset).await;
+
+            let data = data?;
             //TODO use chain or non copying api on Bytes
             aligned_data.put(data);
         }
@@ -530,7 +543,7 @@ mod tests {
 
         assert!(matches!(
             value.unwrap_err(),
-            PersistenceError::DuplicateCacheFile(_),
+            PersistenceError::DuplicateCacheFile { .. },
         ));
     }
 
@@ -547,7 +560,7 @@ mod tests {
         let cache = ObjectStoreCache::new(cache_dir, DEFAULT_BYTE_RANGE_SIZE, 2, Arc::new(store));
 
         assert!(
-            matches!(cache.unwrap_err(), PersistenceError::Internal(e) if e == format!("path must be absolute: {:?}", cache_dir))
+            matches!(cache.unwrap_err(), PersistenceError::Internal{msg} if msg == format!("path must be absolute: {:?}", cache_dir))
         );
     }
 
@@ -592,7 +605,7 @@ mod tests {
 
         assert!(matches!(
             read_data_serialized.unwrap_err(),
-            PersistenceError::Io(_)
+            PersistenceError::Io { .. }
         ));
     }
 

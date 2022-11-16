@@ -18,3 +18,4 @@ datafusion = "14.0"
 object_store = { version = "0.5.1", features = ["aws", "gcp", "azure"] }
 bytes = "1.2.1"
 tempfile = "3"
+snafu = { version = "0.7.3", features = ["backtrace"] }

@@ -16,3 +16,4 @@ anyhow = "1.0"
 async-trait = "0.1.58"
 clap = { version = "3.2.23", features = ["derive"] }
 glob = "0.3.0"
+snafu = { version = "0.7.3", features = ["backtrace"] }
