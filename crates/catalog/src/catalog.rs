@@ -7,7 +7,6 @@ use catalog_types::interfaces::MutableCatalogProvider;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
-use futures::executor;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
