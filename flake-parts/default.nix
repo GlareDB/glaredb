@@ -116,6 +116,10 @@
       cargoArtifacts = deps-only;
     } // common-build-args);
 
+    crate-docs = craneLib.cargoDoc ({
+      cargoArtifacts = deps-only;
+    } // common-build-args);
+
     # The included default configuration
     config-directory = pkgs.stdenv.mkDerivation {
       name = "glaredb-config";
@@ -151,6 +155,8 @@
       default = packages.cli;
 
       config = config-directory;
+
+      crate_docs = crate-docs;
 
       cli = craneLib.buildPackage ({
         pname = "glaredb-cli";
