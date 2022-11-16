@@ -206,7 +206,7 @@
       # Provide a shell with the pinned toolchain and all dependencies
       # a developer might need.
       default = pkgs.mkShell rec {
-        buildInputs = [fenixToolchain] ++ devTools ++ otherBuildInputs;
+        buildInputs = [fenixToolchain] ++ devTools ++ ciPackages ++ otherBuildInputs;
         nativeBuildInputs = otherNativeBuildInputs;
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
