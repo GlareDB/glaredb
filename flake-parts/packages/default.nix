@@ -23,7 +23,7 @@
     # For example, `coreutils` gives us `sleep` which can be useful to for
     # spinning up a debugging container on k8s:
     #
-    # $ kubectl run my-test-container --restart=Never --image gcr.io/glaredb-dev-playground/glaredb@<image_sha> -- sleep inf
+    # $ kubectl run my-test-container --restart=Never --image gcr.io/glaredb-artifacts/glaredb@<image_sha> -- sleep inf
     # $ kubectl exec -it my-test-container -- bash
     debugPackages = [pkgs.coreutils pkgs.bash];
 
