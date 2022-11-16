@@ -182,7 +182,7 @@ mod tests {
     impl TestDatabase {
         async fn new() -> TestDatabase {
             let conf = AccessConfig::default();
-            let runtime = Arc::new(AccessRuntime::new(&conf).await.unwrap());
+            let runtime = Arc::new(AccessRuntime::new(Arc::new(conf)).await.unwrap());
             let database = DatabaseCatalog::open(TEST_DB_NAME, runtime).await.unwrap();
             let sess_ctx = Arc::new(SessionContext::new());
             let query = database.begin(sess_ctx.clone()).await.unwrap();

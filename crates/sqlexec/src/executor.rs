@@ -147,16 +147,16 @@ mod tests {
         let cache_dir = TempDir::new().unwrap();
 
         let config = DbConfig {
-            access: AccessConfig {
+            access: Arc::new(AccessConfig {
                 db_name,
                 object_store: ObjectStoreKind::Local,
                 cached: true,
                 max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
                 cache_path: Some(PathBuf::from(cache_dir.path())),
-            },
+            }),
         };
 
-        let access = Arc::new(AccessRuntime::new(&config.access).await.unwrap());
+        let access = Arc::new(AccessRuntime::new(config.access.clone()).await.unwrap());
         let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()), access);
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 

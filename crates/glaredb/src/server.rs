@@ -36,7 +36,7 @@ impl Server {
         trace!(?env_tmp, "ensuring temp dir for cache directory");
         fs::create_dir_all(&env_tmp)?;
 
-        let access_config = &config.access;
+        let access_config = config.access.clone();
 
         info!(?access_config, "Access Config");
         let access = Arc::new(AccessRuntime::new(access_config).await?);

@@ -6,6 +6,7 @@ use common::{
 use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::engine::Engine;
 use std::sync::Arc;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{error, info};
 
@@ -28,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    let engine = Engine::new(Arc::new(AccessRuntime::new(&config.access).await?))?;
+    let engine = Engine::new(Arc::new(AccessRuntime::new(Arc::new(config.access)).await?))?;
 
     let handler = Arc::new(Handler::new(engine));
 
