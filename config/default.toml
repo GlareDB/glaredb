@@ -1,0 +1,6 @@
+[access]
+db_name = "glaredb"
+object_store = "local"
+cached = true
+max_object_store_cache_size = 1073741824 # 1 GiB
+cache_path = "/tmp"
