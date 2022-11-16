@@ -209,8 +209,8 @@
         buildInputs = [fenixToolchain] ++ devTools ++ ciPackages ++ otherBuildInputs;
         nativeBuildInputs = otherNativeBuildInputs;
 
+        # Set up environment variables for tools that need them
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
-
         inherit (common-build-args) BINDGEN_EXTRA_CLANG_ARGS LIBCLANG_PATH;
         inherit (common-build-args) PROTOC PROTOC_INCLUDE;
       };
