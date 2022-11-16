@@ -4,9 +4,10 @@ pub mod relations;
 pub mod schemas;
 pub mod sequences;
 
-use crate::errors::{CatalogError, Result};
+use crate::errors::{internal, CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
+use catalog_types::interfaces::MutableTableProvider;
 use catalog_types::keys::SchemaId;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::schema::SchemaProvider;
@@ -47,7 +48,7 @@ impl SystemTable {
         }
     }
 
-    fn into_table_provider_ref(self) -> Arc<dyn TableProvider> {
+    pub fn into_table_provider_ref(self) -> Arc<dyn TableProvider> {
         match self {
             SystemTable::View(table) => Arc::new(table),
             SystemTable::Base(table) => Arc::new(table),

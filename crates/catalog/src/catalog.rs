@@ -1,9 +1,11 @@
-use crate::errors::{CatalogError, Result};
-use crate::system::{schemas, SystemSchema, SYSTEM_SCHEMA_NAME};
+use crate::errors::{internal, CatalogError, Result};
+use crate::system::{relations, schemas::SchemaRow, sequences, SystemSchema, SYSTEM_SCHEMA_NAME};
 use access::runtime::AccessRuntime;
 use async_trait::async_trait;
 use catalog_types::context::SessionContext;
-use catalog_types::interfaces::MutableCatalogProvider;
+use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
+use catalog_types::keys::SchemaId;
+use datafusion::arrow::datatypes::Schema;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
@@ -60,6 +62,24 @@ pub struct QueryCatalog {
     runtime: Arc<AccessRuntime>,
 }
 
+impl QueryCatalog {
+    pub async fn user_schema(&self, name: &str) -> Result<QueryCatalogSchemaProvider> {
+        let schema =
+            match SchemaRow::scan_by_name(&self.sess_ctx, &self.runtime, &self.system, name).await?
+            {
+                Some(schema) => schema,
+                None => return Err(internal!("missing schema for name: {}", name)),
+            };
+        Ok(QueryCatalogSchemaProvider {
+            dbname: self.dbname.clone(),
+            schema: schema.id,
+            sess_ctx: self.sess_ctx.clone(),
+            system: self.system.clone(),
+            runtime: self.runtime.clone(),
+        })
+    }
+}
+
 impl CatalogList for QueryCatalog {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -94,12 +114,13 @@ impl CatalogProvider for QueryCatalog {
 
     fn schema_names(&self) -> Vec<String> {
         // TODO: Execute this on a dedicated per-session thread.
-        let result = task::block_in_place(move || {
-            Handle::current().block_on(schemas::scan_schema_names(
-                &self.sess_ctx,
-                &self.runtime,
-                &self.system,
-            ))
+        let result: Result<_> = task::block_in_place(move || {
+            Handle::current().block_on(async move {
+                let schemas =
+                    SchemaRow::scan_many(&self.sess_ctx, &self.runtime, &self.system).await?;
+                let names: Vec<_> = schemas.into_iter().map(|row| row.name).collect();
+                Ok(names)
+            })
         });
         match result {
             Ok(mut schemas) => {
@@ -127,7 +148,13 @@ impl MutableCatalogProvider for QueryCatalog {
     type Error = CatalogError;
 
     async fn create_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
-        schemas::insert_schema(ctx, &self.runtime, &self.system, name).await?;
+        let schema = SchemaRow {
+            id: sequences::dummy_next() as u32, // TODO
+            name: name.to_string(),
+        };
+        schema
+            .insert(&self.sess_ctx, &self.runtime, &self.system)
+            .await?;
         Ok(())
     }
 
@@ -139,6 +166,8 @@ impl MutableCatalogProvider for QueryCatalog {
 /// A wrapper around the query catalog for providing a schema.
 pub struct QueryCatalogSchemaProvider {
     dbname: String,
+    schema: SchemaId,
+    sess_ctx: Arc<SessionContext>,
     system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
@@ -149,7 +178,22 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
     }
 
     fn table_names(&self) -> Vec<String> {
-        todo!()
+        // TODO: Execute this on a dedicated per-session thread.
+        let result = task::block_in_place(move || {
+            Handle::current().block_on(relations::scan_relation_names(
+                &self.sess_ctx,
+                &self.runtime,
+                &self.system,
+                self.schema,
+            ))
+        });
+        match result {
+            Ok(names) => names,
+            err => {
+                // Where to store error?
+                panic!("{:?}", err);
+            }
+        }
     }
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
@@ -157,6 +201,30 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
     }
 
     fn table_exist(&self, name: &str) -> bool {
+        // TODO: Be more efficient, query the system table directly.
+        self.table_names().contains(&String::from(name))
+    }
+}
+
+#[async_trait]
+impl MutableSchemaProvider for QueryCatalogSchemaProvider {
+    type Error = CatalogError;
+
+    async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
+        // TODO: arrow schema.
+        relations::insert_relation(
+            ctx,
+            &self.runtime,
+            &self.system,
+            self.schema,
+            sequences::dummy_next() as u32, // TODO
+            name,
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn drop_table(&self, ctx: &SessionContext, name: &str) -> Result<()> {
         todo!()
     }
 }
@@ -239,5 +307,36 @@ mod tests {
 
         assert!(schemas.contains(&"test_schema_1".to_string()));
         assert!(schemas.contains(&"test_schema_2".to_string()));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn create_table() {
+        logutil::init_test();
+        let db = TestDatabase::new().await;
+
+        db.query
+            .create_schema(&db.sess_ctx, "my_schema_1")
+            .await
+            .unwrap();
+        db.query
+            .create_schema(&db.sess_ctx, "my_schema_2")
+            .await
+            .unwrap();
+
+        let schema1 = db.query.user_schema("my_schema_1").await.unwrap();
+        schema1
+            .create_table(&db.sess_ctx, "table_1", &Schema::empty())
+            .await
+            .unwrap();
+
+        let schema2 = db.query.user_schema("my_schema_2").await.unwrap();
+        schema2
+            .create_table(&db.sess_ctx, "table_2", &Schema::empty())
+            .await
+            .unwrap();
+
+        let tables = schema1.table_names();
+        assert!(tables.contains(&String::from("table_1")));
+        assert!(!tables.contains(&String::from("table_2")));
     }
 }

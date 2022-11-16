@@ -60,6 +60,11 @@ impl SystemTableAccessor for SequencesTable {
     }
 }
 
+// TODO: Remove
+pub fn dummy_next() -> i64 {
+    next()
+}
+
 /// Get the next value for a sequence.
 pub async fn next_seq_value(
     ctx: &SessionContext,
