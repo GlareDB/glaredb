@@ -7,23 +7,6 @@
   inherit (inputs.gitignore.lib) gitignoreSource;
 in {
   flake.lib = {
-    otherNativeBuildInputs = pkgs: with pkgs; [
-      pkgconfig
-      openssl
-      openssl.dev
-      clang
-      llvmPackages.bintools
-      llvmPackages.libclang
-    ] ++ lib.optional stdenv.isDarwin [
-      libiconv
-      darwin.apple_sdk.frameworks.Security
-    ];
-    otherBuildInputs = pkgs:
-      with pkgs; [
-        openssl
-        protobuf
-      ];
-
     # Filters for files to include in nix store
     filterProto = orig_path: type:
       let
@@ -39,6 +22,5 @@ in {
 
     filterSrc = craneLib: orig_path: type:
       (self.lib.filterProto orig_path type) || (craneLib.filterCargoSources orig_path type);
-
   };
 }
