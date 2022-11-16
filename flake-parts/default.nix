@@ -165,7 +165,7 @@
 
       glaredb_image = mkContainer {
         name = "glaredb";
-        contents = [pkgs.cacert packages.config];
+        contents = [pkgs.cacert packages.config packages.cli];
         config.Cmd = ["${packages.cli}/bin/glaredb"];
       };
 
@@ -178,7 +178,7 @@
       # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
       pgsrv_image = mkContainer {
         name = "pgsrv";
-        contents = [pkgs.cacert];
+        contents = [pkgs.cacert packages.cli];
         config.Cmd = ["${packages.cli}/bin/glaredb"];
       };
 
