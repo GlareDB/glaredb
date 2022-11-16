@@ -5,7 +5,6 @@
   ...
 }: {
   perSystem = {
-    config,
     pkgs,
     system,
     inputs',
