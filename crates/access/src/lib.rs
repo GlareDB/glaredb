@@ -16,7 +16,9 @@ pub mod compact;
 pub mod deltacache;
 pub mod errors;
 pub mod exec;
-pub mod keys;
+pub mod partition;
 pub mod runtime;
+pub mod strategy;
+pub mod table;
 
 mod parquet;

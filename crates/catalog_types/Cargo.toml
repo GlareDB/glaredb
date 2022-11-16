@@ -1,0 +1,11 @@
+[package]
+name = "catalog_types"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+object_store = "0.5"
+datafusion = "14.0"
+async-trait = "0.1.58"

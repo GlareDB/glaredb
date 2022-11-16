@@ -1,6 +1,7 @@
 use config::{builder::DefaultState, Config, ConfigBuilder, Environment, File, FileFormat};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::access::AccessConfig;
 use crate::errors::Result;
@@ -15,7 +16,7 @@ pub static CONFIG: OnceCell<DbConfig> = OnceCell::new();
 /// variables with the following prefix, `GLAREDB__`.
 #[derive(Debug, Deserialize)]
 pub struct DbConfig {
-    pub access: AccessConfig,
+    pub access: Arc<AccessConfig>,
 }
 
 impl DbConfig {

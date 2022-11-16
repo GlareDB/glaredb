@@ -10,6 +10,8 @@ logutil = {path = "../logutil"}
 common = {path = "../common" }
 persistence = {path = "../persistence"}
 object_store_util = {path = "../object_store_util"}
+catalog_types = {path = "../catalog_types"}
+dfutil = {path = "../dfutil"}
 thiserror = "1.0"
 tracing = "0.1"
 async-trait = "0.1.58"

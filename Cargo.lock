@@ -8,8 +8,10 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
+ "catalog_types",
  "common",
  "datafusion",
+ "dfutil",
  "futures",
  "logutil",
  "object_store",
@@ -520,6 +522,37 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "catalog"
+version = "0.1.0"
+dependencies = [
+ "access",
+ "async-trait",
+ "bytes",
+ "catalog_types",
+ "common",
+ "datafusion",
+ "futures",
+ "logutil",
+ "object_store",
+ "parking_lot",
+ "persistence",
+ "scc",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "catalog_types"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "datafusion",
+ "object_store",
 ]
 
 [[package]]
@@ -3275,6 +3308,7 @@ version = "0.1.0"
 dependencies = [
  "access",
  "async-trait",
+ "catalog_types",
  "common",
  "datafusion",
  "dfutil",

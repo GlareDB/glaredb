@@ -3,7 +3,6 @@ use crate::deltacache::DeltaCache;
 use crate::errors::{internal, Result};
 use bytes::Bytes;
 use common::access::{AccessConfig, ObjectStoreKind};
-use common::config::CONFIG;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use object_store_util::temp::TempObjectStore;
@@ -19,6 +18,7 @@ pub struct AccessRuntime {
 
 #[derive(Debug)]
 struct Inner {
+    config: Arc<AccessConfig>,
     deltas: Arc<DeltaCache>,
     compactor: Arc<Compactor>,
     store: Arc<dyn ObjectStore>,
@@ -26,7 +26,8 @@ struct Inner {
 
 impl AccessRuntime {
     /// Create a new access runtime with the given object store.
-    pub async fn new(config: &AccessConfig) -> Result<AccessRuntime> {
+    #[tracing::instrument]
+    pub async fn new(config: Arc<AccessConfig>) -> Result<AccessRuntime> {
         use ObjectStoreKind::*;
         let mut store = match config.object_store {
             Local => Arc::new(TempObjectStore::new()?) as Arc<dyn ObjectStore>,
@@ -62,6 +63,7 @@ impl AccessRuntime {
 
         Ok(AccessRuntime {
             inner: Arc::new(Inner {
+                config,
                 deltas: Arc::new(DeltaCache::new()),
                 compactor: Arc::new(Compactor::new(store.clone())),
                 store,
@@ -81,8 +83,8 @@ impl AccessRuntime {
         &self.inner.compactor
     }
 
-    pub fn config(&self) -> &AccessConfig {
-        &CONFIG.wait().access
+    pub fn config(&self) -> &Arc<AccessConfig> {
+        &self.inner.config
     }
 }
 

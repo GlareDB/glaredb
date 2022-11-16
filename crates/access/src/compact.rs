@@ -1,8 +1,8 @@
 use crate::deltacache::DeltaCache;
 use crate::errors::Result;
 use crate::exec::{DeltaInsertsExec, LocalPartitionExec, SelectUnorderedExec};
-use crate::keys::PartitionKey;
 use crate::parquet::ParquetUploader;
+use catalog_types::keys::PartitionKey;
 use datafusion::arrow::compute::kernels::concat::concat_batches;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
