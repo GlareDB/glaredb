@@ -9,6 +9,8 @@ use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
 use futures::executor;
 use std::sync::Arc;
+use tokio::runtime::Handle;
+use tokio::task;
 
 /// The top-level catalog.
 pub struct DatabaseCatalog {
@@ -93,11 +95,13 @@ impl CatalogProvider for QueryCatalog {
 
     fn schema_names(&self) -> Vec<String> {
         // TODO: Execute this on a dedicated per-session thread.
-        let result = executor::block_on(schemas::scan_schema_names(
-            &self.sess_ctx,
-            &self.runtime,
-            &self.system,
-        ));
+        let result = task::block_in_place(move || {
+            Handle::current().block_on(schemas::scan_schema_names(
+                &self.sess_ctx,
+                &self.runtime,
+                &self.system,
+            ))
+        });
         match result {
             Ok(mut schemas) => {
                 // Include built-in schemas.
@@ -161,7 +165,11 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use access::runtime::AccessConfig;
+    use common::access::AccessConfig;
+
+    // Note that all tests need to use a multi-threaded runtime. This is because
+    // we're using `block_on` to make certain things async. A per-session
+    // runtime may or may not remove this requirement.
 
     const TEST_DB_NAME: &str = "test_db";
 
@@ -174,7 +182,7 @@ mod tests {
     impl TestDatabase {
         async fn new() -> TestDatabase {
             let conf = AccessConfig::default();
-            let runtime = Arc::new(AccessRuntime::new(conf).await.unwrap());
+            let runtime = Arc::new(AccessRuntime::new(&conf).await.unwrap());
             let database = DatabaseCatalog::open(TEST_DB_NAME, runtime).await.unwrap();
             let sess_ctx = Arc::new(SessionContext::new());
             let query = database.begin(sess_ctx.clone()).await.unwrap();
@@ -186,7 +194,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn list_builtin_schemas() {
         logutil::init_test();
 
@@ -201,7 +209,7 @@ mod tests {
         assert_eq!(expected, schemas);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn list_tables_in_system_schema() {
         logutil::init_test();
 
@@ -213,7 +221,7 @@ mod tests {
         assert!(!tables.is_empty());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn create_schema() {
         logutil::init_test();
 

@@ -17,6 +17,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
+use tracing::trace;
 
 /// A table backed by one or more partitions.
 // TODO: Use shared references.
@@ -50,6 +51,7 @@ impl PartitionedTable {
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let partitions = self.strategy.list_partitions()?;
+        trace!(?partitions, "scanning partitioned table");
         let mut plans = Vec::with_capacity(partitions.len());
 
         for part_id in partitions {
@@ -60,6 +62,7 @@ impl PartitionedTable {
                 self.schema.clone(),
                 self.runtime.clone(),
             );
+            trace!(?partition, "including partition in scan");
             let plan = partition.scan(ctx, projection, filters, limit).await?;
             plans.push(plan);
         }

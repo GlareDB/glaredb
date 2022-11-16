@@ -26,6 +26,7 @@ struct Inner {
 
 impl AccessRuntime {
     /// Create a new access runtime with the given object store.
+    #[tracing::instrument]
     pub async fn new(config: &AccessConfig) -> Result<AccessRuntime> {
         use ObjectStoreKind::*;
         let mut store = match config.object_store {

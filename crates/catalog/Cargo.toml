@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 persistence = {path = "../persistence"}
 access = {path = "../access"}
 catalog_types = {path = "../catalog_types"}
+common = {path = "../common"}
 thiserror = "1.0"
 tracing = "0.1"
 async-trait = "0.1.58"

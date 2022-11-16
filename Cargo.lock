@@ -532,6 +532,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "catalog_types",
+ "common",
  "datafusion",
  "futures",
  "logutil",
