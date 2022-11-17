@@ -17,6 +17,7 @@ use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use attributes::AttributesTable;
 use builtin_types::BuiltinTypesTable;
 use relations::RelationsTable;
 use schemas::SchemasTable;
@@ -95,6 +96,7 @@ impl SystemSchema {
             Arc::new(RelationsTable::new()),
             Arc::new(SchemasTable::new()),
             Arc::new(SequencesTable::new()),
+            Arc::new(AttributesTable::new()),
         ];
 
         let tables: HashMap<_, _> = tables

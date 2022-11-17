@@ -9,7 +9,10 @@ use catalog_types::context::SessionContext;
 use catalog_types::datatypes::{arrow_type_for_type_id, type_id_for_arrow_type, TypeId};
 use catalog_types::interfaces::MutableTableProvider;
 use catalog_types::keys::{SchemaId, TableId, TableKey};
-use datafusion::arrow::array::{BooleanArray, Int8Array, StringArray, UInt32Array};
+use datafusion::arrow::array::{
+    BooleanArray, BooleanBuilder, Int8Array, Int8Builder, StringArray, StringBuilder, UInt32Array,
+    UInt32Builder,
+};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column, ScalarValue};
@@ -74,8 +77,6 @@ pub struct AttributeRow {
     pub datatype: TypeId,
     pub nullable: bool,
 }
-
-impl AttributeRow {}
 
 /// Wrapper around a vector of attributes.
 #[derive(Debug)]
@@ -182,6 +183,58 @@ impl AttributeRows {
         }
 
         Ok(AttributeRows(attrs))
+    }
+
+    /// Insert all attributes into the system attributes table.
+    pub async fn insert_all(
+        &self,
+        ctx: &SessionContext,
+        runtime: &Arc<AccessRuntime>,
+        system: &SystemSchema,
+    ) -> Result<()> {
+        let accessor = system
+            .get_system_table_accessor(ATTRIBUTES_TABLE_NAME)
+            .ok_or_else(|| CatalogError::MissingSystemTable(ATTRIBUTES_TABLE_NAME.to_string()))?;
+        let schemas_table = accessor.get_table(runtime.clone());
+        let partitioned_table = schemas_table.get_partitioned_table()?;
+
+        let cap = self.0.len();
+        let name_cap = self
+            .0
+            .iter()
+            .fold(0, |acc, attr| acc + attr.attr_name.len());
+
+        let mut schema_ids = UInt32Builder::with_capacity(cap);
+        let mut table_ids = UInt32Builder::with_capacity(cap);
+        let mut attr_names = StringBuilder::with_capacity(cap, name_cap);
+        let mut attr_nums = Int8Builder::with_capacity(cap);
+        let mut datatypes = UInt32Builder::with_capacity(cap);
+        let mut nullables = BooleanBuilder::with_capacity(cap);
+
+        for attr in self.0.iter() {
+            schema_ids.append_value(attr.schema_id);
+            table_ids.append_value(attr.table_id);
+            attr_names.append_value(&attr.attr_name);
+            attr_nums.append_value(attr.attr_num);
+            datatypes.append_value(attr.datatype);
+            nullables.append_value(attr.nullable);
+        }
+
+        let batch = RecordBatch::try_new(
+            accessor.schema(),
+            vec![
+                Arc::new(schema_ids.finish()),
+                Arc::new(table_ids.finish()),
+                Arc::new(attr_names.finish()),
+                Arc::new(attr_nums.finish()),
+                Arc::new(datatypes.finish()),
+                Arc::new(nullables.finish()),
+            ],
+        )?;
+
+        partitioned_table.insert(ctx, batch).await?;
+
+        Ok(())
     }
 
     /// Try to convert an arrow schema into attribute rows for a given table.

@@ -1,6 +1,7 @@
 use crate::errors::{internal, CatalogError, Result};
 use crate::system::{
-    relations::RelationRow, schemas::SchemaRow, sequences, SystemSchema, SYSTEM_SCHEMA_NAME,
+    attributes::AttributeRows, relations::RelationRow, schemas::SchemaRow, sequences, SystemSchema,
+    SYSTEM_SCHEMA_NAME,
 };
 use access::runtime::AccessRuntime;
 use async_trait::async_trait;
@@ -218,14 +219,18 @@ impl MutableSchemaProvider for QueryCatalogSchemaProvider {
     type Error = CatalogError;
 
     async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
-        // TODO: arrow schema.
+        let table_id = sequences::dummy_next() as u32; // TODO
         let relation = RelationRow {
             schema_id: self.schema,
-            table_id: sequences::dummy_next() as u32, // TODO
+            table_id,
             table_name: name.to_string(),
         };
         relation
             .insert(&self.sess_ctx, &self.runtime, &self.system)
+            .await?;
+        let attrs = AttributeRows::try_from_arrow_schema(self.schema, table_id, schema)?;
+        attrs
+            .insert_all(&self.sess_ctx, &self.runtime, &self.system)
             .await?;
         Ok(())
     }
