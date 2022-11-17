@@ -26,20 +26,21 @@ pub struct DatabaseCatalog {
 }
 
 impl DatabaseCatalog {
-    /// Open up a catalog to some persistent storage.
-    pub async fn open(
-        dbname: impl Into<String>,
-        runtime: Arc<AccessRuntime>,
-    ) -> Result<DatabaseCatalog> {
+    /// Open up a catalog to some persistent storage using the provided runtime.
+    pub async fn open(runtime: Arc<AccessRuntime>) -> Result<DatabaseCatalog> {
         let system = SystemSchema::new()?;
         system.bootstrap(&runtime).await?;
         Ok(DatabaseCatalog {
-            dbname: dbname.into(),
+            dbname: runtime.config().db_name.clone(),
             system: Arc::new(system),
             runtime,
         })
     }
 
+    /// Open up a per-session catalog.
+    ///
+    /// NOTE: This will eventually be modified to open up a per-transaction
+    /// catalog.
     pub async fn begin(&self, sess_ctx: Arc<SessionContext>) -> Result<QueryCatalog> {
         Ok(QueryCatalog {
             dbname: self.dbname.clone(),
@@ -55,6 +56,9 @@ impl DatabaseCatalog {
 ///
 /// Note that these should be created per session.
 ///
+/// This provides the primary interface between sql execution and manipulating
+/// persistent storage.
+///
 /// FUTURE: This catalog will hold information to allow for transactional
 /// queries.
 ///
@@ -68,6 +72,10 @@ pub struct QueryCatalog {
 }
 
 impl QueryCatalog {
+    /// Get a user-defined schema.
+    ///
+    /// A user-defined schema is any schema that's not been defined by the
+    /// system.
     pub async fn user_schema(&self, name: &str) -> Result<QueryCatalogSchemaProvider> {
         let schema =
             match SchemaRow::scan_by_name(&self.sess_ctx, &self.runtime, &self.system, name).await?
@@ -76,7 +84,6 @@ impl QueryCatalog {
                 None => return Err(internal!("missing schema for name: {}", name)),
             };
         Ok(QueryCatalogSchemaProvider {
-            dbname: self.dbname.clone(),
             schema: schema.id,
             sess_ctx: self.sess_ctx.clone(),
             system: self.system.clone(),
@@ -170,7 +177,6 @@ impl MutableCatalogProvider for QueryCatalog {
 
 /// A wrapper around the query catalog for providing a schema.
 pub struct QueryCatalogSchemaProvider {
-    dbname: String,
     schema: SchemaId,
     sess_ctx: Arc<SessionContext>,
     system: Arc<SystemSchema>,
@@ -294,8 +300,8 @@ mod tests {
     use datafusion::arrow::datatypes::{DataType, Field};
 
     // NOTE: All tests need to use a multi-threaded runtime. This is because
-    // we're using `block_on` to make certain things async. A per-session
-    // runtime may or may not remove this requirement.
+    // we're using `block_on` to make certain things sync. A per-session runtime
+    // may or may not remove this requirement.
 
     const TEST_DB_NAME: &str = "test_db";
 
@@ -307,9 +313,12 @@ mod tests {
 
     impl TestDatabase {
         async fn new() -> TestDatabase {
-            let conf = AccessConfig::default();
+            let conf = AccessConfig {
+                db_name: TEST_DB_NAME.to_string(),
+                ..Default::default()
+            };
             let runtime = Arc::new(AccessRuntime::new(Arc::new(conf)).await.unwrap());
-            let database = DatabaseCatalog::open(TEST_DB_NAME, runtime).await.unwrap();
+            let database = DatabaseCatalog::open(runtime).await.unwrap();
             let sess_ctx = Arc::new(SessionContext::new());
             let query = database.begin(sess_ctx.clone()).await.unwrap();
             TestDatabase {

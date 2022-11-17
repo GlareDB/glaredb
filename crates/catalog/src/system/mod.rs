@@ -6,7 +6,7 @@ pub mod relations;
 pub mod schemas;
 pub mod sequences;
 
-use crate::errors::{CatalogError, Result};
+use crate::errors::{internal, CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
@@ -89,11 +89,13 @@ pub trait SystemTableAccessor: Sync + Send {
     fn get_table(&self, runtime: Arc<AccessRuntime>) -> SystemTable;
 }
 
+/// An in-memory system schema backed by both persistent and transient tables.
 pub struct SystemSchema {
     tables: HashMap<&'static str, Arc<dyn SystemTableAccessor>>,
 }
 
 impl SystemSchema {
+    /// Create a new system schema.
     pub fn new() -> Result<SystemSchema> {
         let tables: &[Arc<dyn SystemTableAccessor>] = &[
             Arc::new(BuiltinTypesTable::new()),
@@ -111,7 +113,10 @@ impl SystemSchema {
         Ok(SystemSchema { tables })
     }
 
+    /// Bootstrap the system schema.
     pub async fn bootstrap(&self, runtime: &Arc<AccessRuntime>) -> Result<()> {
+        // TODO: This will eventually hold a global (cross-node) lock.
+
         let sess_ctx = SessionContext::new(); // TODO: Have a "system" session context?
 
         // Ensure we have the id sequence table.
@@ -181,7 +186,12 @@ impl SystemSchema {
         )
         .await?
         .ok_or_else(|| {
-            CatalogError::MissingSystemTable(constants::SEQUENCES_TABLE_NAME.to_string())
+            internal!(
+                "missing sequence; schema id: {}, table id: {}, table name: {}",
+                SYSTEM_SCHEMA_ID,
+                constants::SEQUENCES_TABLE_ID,
+                constants::SEQUENCES_TABLE_NAME
+            )
         })
     }
 }

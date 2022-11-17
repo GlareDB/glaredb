@@ -22,6 +22,9 @@ use tokio::sync::Mutex;
 const NEXT_COL_IDX: usize = 2;
 const INC_COL_IDX: usize = 3;
 
+/// Holds information about sequences within the db.
+///
+/// All sequences **must** have an associated record in the "relations" table.
 pub struct SequencesTable {
     schema: SchemaRef,
 }
