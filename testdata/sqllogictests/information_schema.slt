@@ -1,7 +1,5 @@
 # Queries related to the information_schema.
 
-halt
-
 statement ok
 create table schema_table (a int, b text);
 

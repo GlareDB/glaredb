@@ -1,4 +1,5 @@
 use crate::errors::{internal, CatalogError, Result};
+use crate::information_schema::{InformationSchemaProvider, INFORMATION_SCHEMA_NAME};
 use crate::system::{
     attributes::AttributeRows, relations::RelationRow, schemas::SchemaRow, SystemSchema,
     SYSTEM_SCHEMA_NAME,
@@ -151,6 +152,7 @@ impl CatalogProvider for SessionCatalog {
             Ok(mut schemas) => {
                 // Include built-in schemas.
                 schemas.push(SYSTEM_SCHEMA_NAME.to_string());
+                schemas.push(INFORMATION_SCHEMA_NAME.to_string());
                 schemas
             }
             _other => todo!(),
@@ -160,6 +162,10 @@ impl CatalogProvider for SessionCatalog {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         match name {
             SYSTEM_SCHEMA_NAME => Some(Arc::new(self.system.provider(self.runtime.clone()))),
+            INFORMATION_SCHEMA_NAME => Some(Arc::new(InformationSchemaProvider::new(
+                self.dbname.clone(),
+                Arc::new(self.clone()),
+            ))),
             name => {
                 let result: Result<_> = task::block_in_place(move || {
                     Handle::current().block_on(async move {

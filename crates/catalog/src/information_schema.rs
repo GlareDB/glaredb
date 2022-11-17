@@ -15,18 +15,22 @@
 //!
 //! Also note that these views are built at query time, which may end up causing
 //! performance issues.
+//!
+//! TODO: This should be turned into a view on top of the system schema.
+use catalog_types::keys::SchemaId;
 use datafusion::arrow::{
     array::{StringBuilder, UInt64Builder},
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
-use datafusion::catalog::{catalog::CatalogList, schema::SchemaProvider};
+use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::TableType;
 use std::any::Any;
 use std::sync::Arc;
 
-pub const INFORMATION_SCHEMA: &str = "information_schema";
+pub const INFORMATION_SCHEMA_NAME: &str = "information_schema";
+pub const INFORMATION_SCHEMA_ID: SchemaId = 1; // Currenly unused.
 
 const TABLES: &str = "tables";
 const VIEWS: &str = "views";
@@ -39,12 +43,13 @@ const COLUMNS: &str = "columns";
 /// providers, they will appear the next time the `information_schema`
 /// table is queried.
 pub struct InformationSchemaProvider {
-    catalog_list: Arc<dyn CatalogList>,
+    dbname: Arc<str>,
+    catalog: Arc<dyn CatalogProvider>,
 }
 
 impl InformationSchemaProvider {
-    pub fn new(catalog_list: Arc<dyn CatalogList>) -> Self {
-        InformationSchemaProvider { catalog_list }
+    pub fn new(dbname: Arc<str>, catalog: Arc<dyn CatalogProvider>) -> Self {
+        InformationSchemaProvider { dbname, catalog }
     }
 
     /// Construct the `information_schema.tables` virtual table
@@ -52,29 +57,35 @@ impl InformationSchemaProvider {
         // create a mem table with the names of tables
         let mut builder = InformationSchemaTablesBuilder::new();
 
-        for catalog_name in self.catalog_list.catalog_names() {
-            let catalog = self.catalog_list.catalog(&catalog_name).unwrap();
-
-            for schema_name in catalog.schema_names() {
-                if schema_name != INFORMATION_SCHEMA {
-                    let schema = catalog.schema(&schema_name).unwrap();
-                    for table_name in schema.table_names() {
-                        let table = schema.table(&table_name).unwrap();
-                        builder.add_table(
-                            &catalog_name,
-                            &schema_name,
-                            &table_name,
-                            table.table_type(),
-                        );
-                    }
+        for schema_name in self.catalog.schema_names() {
+            if schema_name != INFORMATION_SCHEMA_NAME {
+                let schema = self.catalog.schema(&schema_name).unwrap();
+                for table_name in schema.table_names() {
+                    let table = schema.table(&table_name).unwrap();
+                    builder.add_table(&self.dbname, &schema_name, &table_name, table.table_type());
                 }
             }
-
-            // Add a final list for the information schema tables themselves
-            builder.add_table(&catalog_name, INFORMATION_SCHEMA, TABLES, TableType::View);
-            builder.add_table(&catalog_name, INFORMATION_SCHEMA, VIEWS, TableType::View);
-            builder.add_table(&catalog_name, INFORMATION_SCHEMA, COLUMNS, TableType::View);
         }
+
+        // Add a final list for the information schema tables themselves
+        builder.add_table(
+            &self.dbname,
+            INFORMATION_SCHEMA_NAME,
+            TABLES,
+            TableType::View,
+        );
+        builder.add_table(
+            &self.dbname,
+            INFORMATION_SCHEMA_NAME,
+            VIEWS,
+            TableType::View,
+        );
+        builder.add_table(
+            &self.dbname,
+            INFORMATION_SCHEMA_NAME,
+            COLUMNS,
+            TableType::View,
+        );
 
         let mem_table: MemTable = builder.into();
 
@@ -84,21 +95,17 @@ impl InformationSchemaProvider {
     fn make_views(&self) -> Arc<dyn TableProvider> {
         let mut builder = InformationSchemaViewBuilder::new();
 
-        for catalog_name in self.catalog_list.catalog_names() {
-            let catalog = self.catalog_list.catalog(&catalog_name).unwrap();
-
-            for schema_name in catalog.schema_names() {
-                if schema_name != INFORMATION_SCHEMA {
-                    let schema = catalog.schema(&schema_name).unwrap();
-                    for table_name in schema.table_names() {
-                        let table = schema.table(&table_name).unwrap();
-                        builder.add_view(
-                            &catalog_name,
-                            &schema_name,
-                            &table_name,
-                            table.get_table_definition(),
-                        )
-                    }
+        for schema_name in self.catalog.schema_names() {
+            if schema_name != INFORMATION_SCHEMA_NAME {
+                let schema = self.catalog.schema(&schema_name).unwrap();
+                for table_name in schema.table_names() {
+                    let table = schema.table(&table_name).unwrap();
+                    builder.add_view(
+                        &self.dbname,
+                        &schema_name,
+                        &table_name,
+                        table.get_table_definition(),
+                    )
                 }
             }
         }
@@ -111,25 +118,21 @@ impl InformationSchemaProvider {
     fn make_columns(&self) -> Arc<dyn TableProvider> {
         let mut builder = InformationSchemaColumnsBuilder::new();
 
-        for catalog_name in self.catalog_list.catalog_names() {
-            let catalog = self.catalog_list.catalog(&catalog_name).unwrap();
-
-            for schema_name in catalog.schema_names() {
-                if schema_name != INFORMATION_SCHEMA {
-                    let schema = catalog.schema(&schema_name).unwrap();
-                    for table_name in schema.table_names() {
-                        let table = schema.table(&table_name).unwrap();
-                        for (i, field) in table.schema().fields().iter().enumerate() {
-                            builder.add_column(
-                                &catalog_name,
-                                &schema_name,
-                                &table_name,
-                                field.name(),
-                                i,
-                                field.is_nullable(),
-                                field.data_type(),
-                            )
-                        }
+        for schema_name in self.catalog.schema_names() {
+            if schema_name != INFORMATION_SCHEMA_NAME {
+                let schema = self.catalog.schema(&schema_name).unwrap();
+                for table_name in schema.table_names() {
+                    let table = schema.table(&table_name).unwrap();
+                    for (i, field) in table.schema().fields().iter().enumerate() {
+                        builder.add_column(
+                            &self.dbname,
+                            &schema_name,
+                            &table_name,
+                            field.name(),
+                            i,
+                            field.is_nullable(),
+                            field.data_type(),
+                        )
                     }
                 }
             }
