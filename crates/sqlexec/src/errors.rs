@@ -26,6 +26,12 @@ pub enum ExecError {
 
     #[error(transparent)]
     Persistence(#[from] persistence::errors::PersistenceError),
+
+    #[error(transparent)]
+    Catalog(#[from] catalog::errors::CatalogError),
+
+    #[error(transparent)]
+    Access(#[from] access::errors::AccessError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

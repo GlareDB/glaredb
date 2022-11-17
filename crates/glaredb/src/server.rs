@@ -41,7 +41,7 @@ impl Server {
         info!(?access_config, "Access Config");
         let access = Arc::new(AccessRuntime::new(access_config).await?);
 
-        let engine = Engine::new(access)?;
+        let engine = Engine::new(access).await?;
         Ok(Server {
             pg_handler: Arc::new(Handler::new(engine)),
         })

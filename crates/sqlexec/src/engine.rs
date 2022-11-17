@@ -1,39 +1,27 @@
-use crate::catalog::DatabaseCatalog;
 use crate::errors::Result;
 use crate::session::Session;
 use access::runtime::AccessRuntime;
-use datafusion::execution::runtime_env::RuntimeEnv;
+use catalog::catalog::DatabaseCatalog;
 use std::sync::Arc;
 
+/// Wrapper around the database catalog.
 pub struct Engine {
-    catalog: Arc<DatabaseCatalog>,
-    runtime: Arc<RuntimeEnv>, // TODO: Per session runtime.
-    access_runtime: Arc<AccessRuntime>,
+    catalog: DatabaseCatalog,
 }
 
 impl Engine {
-    pub fn new(access: Arc<AccessRuntime>) -> Result<Engine> {
-        let db_name = &access.config().db_name;
-        let runtime = RuntimeEnv::default();
+    pub async fn new(runtime: Arc<AccessRuntime>) -> Result<Engine> {
+        let catalog = DatabaseCatalog::open(runtime).await?;
 
-        let catalog = DatabaseCatalog::new(db_name);
-        catalog.insert_default_schema()?;
+        // catalog.insert_default_schema()?;
 
-        let catalog = Arc::new(catalog);
-        DatabaseCatalog::insert_information_schema(catalog.clone())?;
+        // let catalog = Arc::new(catalog);
+        // DatabaseCatalog::insert_information_schema(catalog.clone())?;
 
-        Ok(Engine {
-            catalog,
-            runtime: Arc::new(runtime),
-            access_runtime: access,
-        })
+        Ok(Engine { catalog })
     }
 
     pub fn new_session(&self) -> Result<Session> {
-        Ok(Session::new(
-            self.catalog.clone(),
-            self.runtime.clone(),
-            self.access_runtime.clone(),
-        ))
+        Ok(Session::new(self.catalog.clone())?)
     }
 }

@@ -34,6 +34,7 @@ impl SessionContext {
         Arc::new(TaskContext::from(&self.df_state))
     }
 
+    /// Get a datafusion session state.
     pub fn get_df_state(&self) -> &SessionState {
         &self.df_state
     }

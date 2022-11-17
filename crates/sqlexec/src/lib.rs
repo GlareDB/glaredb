@@ -1,5 +1,3 @@
-pub mod catalog;
-pub mod datasource;
 pub mod engine;
 pub mod errors;
 pub mod executor;
