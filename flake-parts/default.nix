@@ -135,6 +135,7 @@
     mkContainer = { name, contents, config, ... }:
       pkgs.dockerTools.buildLayeredImage {
         inherit name;
+        tag = self.rev or "dirty";
         contents = contents ++ debugPackages;
         created = "now";
 
