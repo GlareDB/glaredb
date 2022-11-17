@@ -1,5 +1,7 @@
 //! Built-in system catalog tables.
+pub mod attributes;
 pub mod builtin_types;
+pub mod constants;
 pub mod relations;
 pub mod schemas;
 pub mod sequences;

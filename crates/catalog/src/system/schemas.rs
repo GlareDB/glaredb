@@ -1,6 +1,7 @@
 use crate::dbg::dbg_table;
 use crate::errors::{internal, CatalogError, Result};
 use crate::filter::filter_scan;
+use crate::system::constants::{SCHEMAS_TABLE_ID, SCHEMAS_TABLE_NAME};
 use crate::system::{SystemSchema, SystemTable, SystemTableAccessor, SYSTEM_SCHEMA_ID};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
@@ -16,9 +17,6 @@ use datafusion::logical_expr::Expr;
 use futures::{StreamExt, TryStreamExt};
 use std::sync::Arc;
 use tracing::error;
-
-pub const SCHEMAS_TABLE_ID: TableId = 0;
-pub const SCHEMAS_TABLE_NAME: &str = "schemas";
 
 pub struct SchemasTable {
     schema: SchemaRef,

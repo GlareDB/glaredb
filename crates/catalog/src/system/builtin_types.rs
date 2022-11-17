@@ -1,3 +1,4 @@
+use crate::system::constants::{BUILTIN_TYPES_TABLE_ID, BUILTIN_TYPES_TABLE_NAME};
 use crate::system::{SystemTable, SystemTableAccessor};
 use access::runtime::AccessRuntime;
 use catalog_types::datatypes::type_id_for_arrow_type;
@@ -7,9 +8,6 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use std::sync::Arc;
-
-pub const BUILTIN_TYPES_TABLE_ID: SchemaId = 1;
-pub const BUILTIN_TYPES_TABLE_NAME: &str = "builtin_types";
 
 /// Table decribing the builtin types for the database.
 pub struct BuiltinTypesTable {

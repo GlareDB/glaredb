@@ -1,5 +1,6 @@
 use crate::errors::{internal, CatalogError, Result};
 use crate::filter::filter_scan;
+use crate::system::constants::{RELATIONS_TABLE_ID, RELATIONS_TABLE_NAME};
 use crate::system::{SystemSchema, SystemTable, SystemTableAccessor, SYSTEM_SCHEMA_ID};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
@@ -15,9 +16,6 @@ use datafusion::logical_expr::Expr;
 use futures::TryStreamExt;
 use itertools::izip;
 use std::sync::Arc;
-
-pub const RELATIONS_TABLE_ID: SchemaId = 3;
-pub const RELATIONS_TABLE_NAME: &str = "relations";
 
 pub struct RelationsTable {
     schema: SchemaRef,

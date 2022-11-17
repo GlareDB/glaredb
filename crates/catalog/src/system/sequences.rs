@@ -1,4 +1,5 @@
 use crate::errors::Result;
+use crate::system::constants::{SEQUENCES_TABLE_ID, SEQUENCES_TABLE_NAME};
 use crate::system::{SystemSchema, SystemTable, SystemTableAccessor, SYSTEM_SCHEMA_ID};
 use access::runtime::AccessRuntime;
 use access::strategy::SinglePartitionStrategy;
@@ -8,9 +9,6 @@ use catalog_types::keys::{SchemaId, TableId, TableKey};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-
-pub const SEQUENCES_TABLE_ID: SchemaId = 2;
-pub const SEQUENCES_TABLE_NAME: &str = "builtin_types";
 
 pub struct SequencesTable {
     schema: SchemaRef,
