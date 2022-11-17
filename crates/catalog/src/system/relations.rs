@@ -142,7 +142,7 @@ impl RelationRow {
     }
 
     /// Insert a table into the relations system table.
-    // TODO: Check for dups.
+    // TODO: Check for dupes.
     pub async fn insert(
         &self,
         ctx: &SessionContext,
