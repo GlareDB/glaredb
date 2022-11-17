@@ -50,4 +50,4 @@ jobs:
         run: gcloud auth configure-docker -q
 
       - name: Build and push images
-        run: ./scripts/build-and-push-images.sh
+        run: nix develop .#ci -c ./scripts/build-and-push-images.sh

@@ -1,3 +1,6 @@
+.pre-commit-config.yaml
+# nix build results
 /target
 /result
-.pre-commit-config.yaml
+glaredb_image
+pgsrv_image

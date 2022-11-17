@@ -6,35 +6,67 @@
 #
 # Required env vars:
 # GITHUB_REF_NAME - Branch name or tag.
-# GCP_PROJECT_ID - Project id for google cloud.
+# Optional env vars:
+# GCP_PROJECT_ID - Project id for google cloud. defaults to `glaredb-artifacts`.
 
 set -ex
 
 : ${GITHUB_REF_NAME?"GITHUB_REF_NAME needs to be set"}
-: ${GCP_PROJECT_ID?"GCP_PROJECT_ID needs to be set"}
+GCP_PROJECT_ID=${GCP_PROJECT_ID:-glaredb-artifacts}
 
-build_and_push() {
-    local nix_target
-    local image_ref
-    nix_target=$1
-    image_ref=$2
+GCP_AUTH_TOKEN=$(gcloud auth print-access-token)
 
-    nix build "${nix_target}"
-    docker load --input result
+push_image() {
+    local container_archive
+    local registry_name
+    container_archive=$1
+    registry_name=$2
 
-    local image_id
+    local git_rev
+    git_rev=$(git rev-parse HEAD)
+
+    image_repo="gcr.io/${GCP_PROJECT_ID}/${registry_name}"
+    skopeo copy \
+        --insecure-policy \
+        --dest-registry-token "${GCP_AUTH_TOKEN}" \
+        "docker-archive:${container_archive}" \
+        "docker://${image_repo}:${git_rev}"
+
     local image_tag
-    image_id=$(docker images --filter=reference=$image_ref --format "{{.ID}}")
-    image_tag=$(echo ${GITHUB_REF_NAME} | sed -r 's#/+#-#g')
+    image_tag=$(echo "${GITHUB_REF_NAME}" | sed -r 's#/+#-#g')
 
-    docker tag "${image_id}" "${image_tag}"
-
-    local image_repo
-    image_repo="gcr.io/${GCP_PROJECT_ID}/${image_ref}:${image_tag}"
-    docker tag ${image_id} ${image_repo}
-
-    docker push ${image_repo}
+    # Copy the image to add other tags
+    skopeo copy \
+        --insecure-policy \
+        --dest-registry-token "${GCP_AUTH_TOKEN}" \
+        --src-registry-token "${GCP_AUTH_TOKEN}" \
+        "docker://${image_repo}:${git_rev}" \
+        "docker://${image_repo}:${image_tag}"
 }
 
-build_and_push .#glaredb_image "glaredb"
-build_and_push .#pgsrv_image "pgsrv"
+check_command() {
+    local image_archive
+    local command
+    local image_name
+    image_archive=$1
+    command=$2
+    image_name=$3
+
+    skopeo copy \
+        --insecure-policy \
+        "docker-archive:${image_archive}" \
+        "docker-daemon:${image_name}:latest"
+
+    docker run -it "${image_name}:latest" ${command}
+}
+
+# build the container archives
+nix build .#glaredb_image --out-link glaredb_image
+nix build .#pgsrv_image --out-link pgsrv_image
+
+# ensure that the command can be executed inside the containers before pushing
+check_command "glaredb_image" "glaredb --help" "glaredb"
+check_command "pgsrv_image" "glaredb --help" "pgsrv"
+
+push_image "glaredb_image" "glaredb"
+push_image "pgsrv_image" "pgsrv"
