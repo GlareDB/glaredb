@@ -111,7 +111,7 @@ impl SequenceRow {
         // row to the table. To get the "next" value to use, we scan all rows
         // for a given sequence and find the max value.
 
-        let _g = SEQUENCE_MUTEX.lock();
+        let _g = SEQUENCE_MUTEX.lock().await;
 
         let plan = filter_scan(partitioned_table, ctx.get_df_state(), &[filter], None).await?;
         let stream = plan.execute(0, ctx.task_context())?;
