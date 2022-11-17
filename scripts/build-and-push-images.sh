@@ -42,13 +42,29 @@ push_image() {
         "docker://${image_repo}:${GITHUB_REF_NAME}"
 }
 
+check_command() {
+    local image_archive
+    local command
+    local image_name
+    image_archive=$1
+    command=$2
+    image_name=$3
+
+    skopeo copy \
+        --insecure-policy \
+        "docker-archive:${image_archive}" \
+        "docker-daemon:${image_name}:latest"
+
+    docker run -it "${image_name}:latest" ${command}
+}
+
 # build the container archives
 nix build .#glaredb_image --out-link glaredb_image
 nix build .#pgsrv_image --out-link pgsrv_image
 
-# TODO: ensure that the command can be executed inside the containers before pushing
-# docker load --input glaredb_image
-# docker run -it 
+# ensure that the command can be executed inside the containers before pushing
+check_command "glaredb_image" "glaredb --help" "glaredb"
+check_command "pgsrv_image" "glaredb --help" "pgsrv"
 
 push_image "glaredb_image" "glaredb"
 push_image "pgsrv_image" "pgsrv"
