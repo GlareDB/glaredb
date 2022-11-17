@@ -172,11 +172,14 @@ impl SystemSchema {
         // Ensure that we have the "public" schema available. Note that without
         // discrete bootstrap steps, this would recreate the public schema even
         // if it's deleted by the user.
-        let schema = SchemaRow {
-            id: PUBLIC_SCHEMA_ID,
-            name: PUBLIC_SCHEMA_NAME.to_string(),
-        };
-        schema.insert(&sess_ctx, runtime, self).await?;
+        let schema = SchemaRow::scan_by_name(&sess_ctx, runtime, self, PUBLIC_SCHEMA_NAME).await?;
+        if schema.is_none() {
+            let schema = SchemaRow {
+                id: PUBLIC_SCHEMA_ID,
+                name: PUBLIC_SCHEMA_NAME.to_string(),
+            };
+            schema.insert(&sess_ctx, runtime, self).await?;
+        }
 
         Ok(())
     }

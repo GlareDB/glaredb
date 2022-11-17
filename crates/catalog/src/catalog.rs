@@ -341,6 +341,18 @@ impl MutableSchemaProvider for QueryCatalogSchemaProvider {
     type Error = CatalogError;
 
     async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
+        // TODO: I'm not sure where we actually want to put this check.
+        let relation =
+            RelationRow::scan_one_by_name(ctx, &self.runtime, &self.system, self.schema, name)
+                .await?;
+        if relation.is_some() {
+            return Err(internal!(
+                "duplicate relation name; schema id: {}, name: {}",
+                self.schema,
+                name
+            ));
+        }
+
         let table_id = self.system.next_id(ctx, &self.runtime).await? as u32;
         let relation = RelationRow {
             schema_id: self.schema,

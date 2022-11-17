@@ -265,7 +265,7 @@ impl Session {
             .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
 
         schema
-            .create_table(&self.sess_ctx, &plan.table_name, &Schema::new(plan.columns))
+            .create_table(&self.sess_ctx, &resolved.table, &Schema::new(plan.columns))
             .await?;
 
         Ok(())
