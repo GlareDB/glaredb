@@ -21,6 +21,7 @@ use tracing::trace;
 
 /// A table backed by one or more partitions.
 // TODO: Use shared references.
+#[derive(Debug)]
 pub struct PartitionedTable {
     table: TableKey,
     strategy: Box<dyn TablePartitionStrategy>,

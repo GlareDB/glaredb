@@ -4,11 +4,13 @@ use crate::system::{
     SYSTEM_SCHEMA_NAME,
 };
 use access::runtime::AccessRuntime;
+use access::strategy::SinglePartitionStrategy;
+use access::table::PartitionedTable;
 use async_trait::async_trait;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
-use catalog_types::keys::SchemaId;
-use datafusion::arrow::datatypes::Schema;
+use catalog_types::keys::{SchemaId, TableKey};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
@@ -205,7 +207,52 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
     }
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        todo!()
+        // TODO: Execute this on a dedicated per-session thread.
+        let result: Result<_> = task::block_in_place(move || {
+            Handle::current().block_on(async move {
+                let relation = RelationRow::scan_one_by_name(
+                    &self.sess_ctx,
+                    &self.runtime,
+                    &self.system,
+                    self.schema,
+                    name,
+                )
+                .await?;
+                match relation {
+                    Some(relation) => {
+                        let attrs = AttributeRows::scan_for_table(
+                            &self.sess_ctx,
+                            &self.runtime,
+                            &self.system,
+                            self.schema,
+                            relation.table_id,
+                        )
+                        .await?;
+                        let arrow_schema: Schema = attrs.try_into()?;
+                        let key = TableKey {
+                            schema_id: self.schema,
+                            table_id: relation.table_id,
+                        };
+                        let table = PartitionedTable::new(
+                            key,
+                            Box::new(SinglePartitionStrategy),
+                            self.runtime.clone(),
+                            Arc::new(arrow_schema),
+                        );
+                        Ok(Some(table))
+                    }
+                    None => Ok(None),
+                }
+            })
+        });
+        match result {
+            Ok(Some(table)) => Some(Arc::new(table)),
+            Ok(None) => None,
+            err => {
+                // TODO: Handle
+                panic!("{:?}", err);
+            }
+        }
     }
 
     fn table_exist(&self, name: &str) -> bool {
@@ -349,5 +396,36 @@ mod tests {
         let tables = schema1.table_names();
         assert!(tables.contains(&String::from("table_1")));
         assert!(!tables.contains(&String::from("table_2")));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn get_table() {
+        logutil::init_test();
+        let db = TestDatabase::new().await;
+
+        db.query
+            .create_schema(&db.sess_ctx, "my_schema")
+            .await
+            .unwrap();
+
+        let arrow_schema = Arc::new(Schema::new(vec![
+            Field::new("f1", DataType::UInt32, false),
+            Field::new("f2", DataType::UInt32, false),
+            Field::new("f3", DataType::Utf8, false),
+        ]));
+        let schema = db.query.user_schema("my_schema").await.unwrap();
+        schema
+            .create_table(&db.sess_ctx, "my_table", &arrow_schema)
+            .await
+            .unwrap();
+
+        // Shouldn't be able to get table that doesn't exist.
+        let got = schema.table("nope");
+        assert!(got.is_none());
+
+        // Should get the table we just created.
+        let table = schema.table("my_table").unwrap();
+        let got_schema = table.schema();
+        assert_eq!(arrow_schema, got_schema);
     }
 }

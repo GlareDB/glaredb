@@ -16,6 +16,7 @@ use datafusion::logical_expr::Expr;
 use futures::TryStreamExt;
 use itertools::izip;
 use std::sync::Arc;
+use tracing::error;
 
 pub struct RelationsTable {
     schema: SchemaRef,
@@ -91,6 +92,84 @@ impl RelationRow {
         let stream = plan.execute(0, ctx.task_context())?;
         let batches: Vec<RecordBatch> = stream.try_collect().await?;
 
+        let relations = Self::read_from_batches(batches)?;
+
+        Ok(relations)
+    }
+
+    /// Scan a single relation in a schema by its name.
+    pub async fn scan_one_by_name(
+        ctx: &SessionContext,
+        runtime: &Arc<AccessRuntime>,
+        system: &SystemSchema,
+        schema: SchemaId,
+        name: &str,
+    ) -> Result<Option<RelationRow>> {
+        let schemas_table = system
+            .get_system_table_accessor(RELATIONS_TABLE_NAME)
+            .ok_or_else(|| CatalogError::MissingSystemTable(RELATIONS_TABLE_NAME.to_string()))?
+            .get_table(runtime.clone());
+        let partitioned_table = schemas_table.into_table_provider_ref();
+
+        // Filter for only this schema.
+        let filter = Expr::Column(Column::from_name("schema_id"))
+            .eq(Expr::Literal(ScalarValue::UInt32(Some(schema))))
+            .and(
+                Expr::Column(Column::from_name("table_name"))
+                    .eq(Expr::Literal(ScalarValue::new_utf8(name))),
+            );
+
+        let plan = filter_scan(partitioned_table, ctx.get_df_state(), &[filter], None).await?;
+        let stream = plan.execute(0, ctx.task_context())?;
+        let batches: Vec<RecordBatch> = stream.try_collect().await?;
+
+        let mut relations = Self::read_from_batches(batches)?;
+
+        match relations.pop() {
+            Some(relation) => {
+                if relations.len() != 0 {
+                    error!(
+                        ?name,
+                        ?schema,
+                        "multiple relations returned when scanning by name"
+                    );
+                    // Return error in the future.
+                }
+                Ok(Some(relation))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Insert a table into the relations system table.
+    // TODO: Check for dups.
+    pub async fn insert(
+        &self,
+        ctx: &SessionContext,
+        runtime: &Arc<AccessRuntime>,
+        system: &SystemSchema,
+    ) -> Result<()> {
+        let accessor = system
+            .get_system_table_accessor(RELATIONS_TABLE_NAME)
+            .ok_or_else(|| CatalogError::MissingSystemTable(RELATIONS_TABLE_NAME.to_string()))?;
+        let schemas_table = accessor.get_table(runtime.clone());
+        let partitioned_table = schemas_table.get_partitioned_table()?;
+
+        let batch = RecordBatch::try_new(
+            accessor.schema(),
+            vec![
+                Arc::new(UInt32Array::from_value(self.schema_id, 1)),
+                Arc::new(UInt32Array::from_value(self.table_id, 1)),
+                Arc::new(StringArray::from_iter_values(&[&self.table_name])),
+            ],
+        )?;
+
+        partitioned_table.insert(ctx, batch).await?;
+
+        Ok(())
+    }
+
+    fn read_from_batches(batches: Vec<RecordBatch>) -> Result<Vec<Self>> {
         let mut relations: Vec<RelationRow> =
             Vec::with_capacity(batches.iter().fold(0, |acc, batch| acc + batch.num_rows()));
         for batch in batches {
@@ -133,33 +212,5 @@ impl RelationRow {
         }
 
         Ok(relations)
-    }
-
-    /// Insert a table into the relations system table.
-    // TODO: Check for dups.
-    pub async fn insert(
-        &self,
-        ctx: &SessionContext,
-        runtime: &Arc<AccessRuntime>,
-        system: &SystemSchema,
-    ) -> Result<()> {
-        let accessor = system
-            .get_system_table_accessor(RELATIONS_TABLE_NAME)
-            .ok_or_else(|| CatalogError::MissingSystemTable(RELATIONS_TABLE_NAME.to_string()))?;
-        let schemas_table = accessor.get_table(runtime.clone());
-        let partitioned_table = schemas_table.get_partitioned_table()?;
-
-        let batch = RecordBatch::try_new(
-            accessor.schema(),
-            vec![
-                Arc::new(UInt32Array::from_value(self.schema_id, 1)),
-                Arc::new(UInt32Array::from_value(self.table_id, 1)),
-                Arc::new(StringArray::from_iter_values(&[&self.table_name])),
-            ],
-        )?;
-
-        partitioned_table.insert(ctx, batch).await?;
-
-        Ok(())
     }
 }
