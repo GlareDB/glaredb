@@ -8,10 +8,7 @@ use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::MutableTableProvider;
 use catalog_types::keys::{SchemaId, TableId, TableKey};
-use datafusion::arrow::array::{
-    BooleanArray, BooleanBuilder, Int64Array, Int8Builder, StringArray, StringBuilder, UInt32Array,
-    UInt32Builder,
-};
+use datafusion::arrow::array::{Int64Array, UInt32Array};
 use datafusion::arrow::compute::kernels::aggregate;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -19,7 +16,6 @@ use datafusion::common::{Column, ScalarValue};
 use datafusion::logical_expr::Expr;
 use futures::TryStreamExt;
 use once_cell::sync::Lazy;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

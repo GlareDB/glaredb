@@ -127,7 +127,7 @@ impl RelationRow {
 
         match relations.pop() {
             Some(relation) => {
-                if relations.len() != 0 {
+                if relations.is_empty() {
                     error!(
                         ?name,
                         ?schema,
@@ -160,7 +160,7 @@ impl RelationRow {
             vec![
                 Arc::new(UInt32Array::from_value(self.schema_id, 1)),
                 Arc::new(UInt32Array::from_value(self.table_id, 1)),
-                Arc::new(StringArray::from_iter_values(&[&self.table_name])),
+                Arc::new(StringArray::from_iter_values([&self.table_name])),
             ],
         )?;
 

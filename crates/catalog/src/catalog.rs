@@ -1,6 +1,6 @@
 use crate::errors::{internal, CatalogError, Result};
 use crate::system::{
-    attributes::AttributeRows, relations::RelationRow, schemas::SchemaRow, sequences, SystemSchema,
+    attributes::AttributeRows, relations::RelationRow, schemas::SchemaRow, SystemSchema,
     SYSTEM_SCHEMA_NAME,
 };
 use access::runtime::AccessRuntime;
@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
 use catalog_types::keys::{SchemaId, TableKey};
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;
@@ -291,6 +291,7 @@ impl MutableSchemaProvider for QueryCatalogSchemaProvider {
 mod tests {
     use super::*;
     use common::access::AccessConfig;
+    use datafusion::arrow::datatypes::{DataType, Field};
 
     // NOTE: All tests need to use a multi-threaded runtime. This is because
     // we're using `block_on` to make certain things async. A per-session

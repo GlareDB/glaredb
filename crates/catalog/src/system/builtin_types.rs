@@ -1,8 +1,7 @@
-use crate::system::constants::{BUILTIN_TYPES_TABLE_ID, BUILTIN_TYPES_TABLE_NAME};
+use crate::system::constants::BUILTIN_TYPES_TABLE_NAME;
 use crate::system::{SystemTable, SystemTableAccessor};
 use access::runtime::AccessRuntime;
 use catalog_types::datatypes::type_id_for_arrow_type;
-use catalog_types::keys::SchemaId;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;

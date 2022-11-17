@@ -6,11 +6,10 @@ pub mod relations;
 pub mod schemas;
 pub mod sequences;
 
-use crate::errors::{internal, CatalogError, Result};
+use crate::errors::{CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
-use catalog_types::interfaces::MutableTableProvider;
 use catalog_types::keys::SchemaId;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::schema::SchemaProvider;
@@ -181,9 +180,9 @@ impl SystemSchema {
             constants::SEQUENCES_TABLE_ID,
         )
         .await?
-        .ok_or(CatalogError::MissingSystemTable(
-            constants::SEQUENCES_TABLE_NAME.to_string(),
-        ))
+        .ok_or_else(|| {
+            CatalogError::MissingSystemTable(constants::SEQUENCES_TABLE_NAME.to_string())
+        })
     }
 }
 

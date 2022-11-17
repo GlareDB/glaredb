@@ -1,4 +1,3 @@
-use crate::dbg::dbg_table;
 use crate::errors::{internal, CatalogError, Result};
 use crate::filter::filter_scan;
 use crate::system::constants::{SCHEMAS_TABLE_ID, SCHEMAS_TABLE_NAME};
@@ -8,13 +7,13 @@ use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::MutableTableProvider;
-use catalog_types::keys::{SchemaId, TableId, TableKey};
+use catalog_types::keys::{SchemaId, TableKey};
 use datafusion::arrow::array::{StringArray, UInt32Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column, ScalarValue};
 use datafusion::logical_expr::Expr;
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use std::sync::Arc;
 use tracing::error;
 
@@ -157,7 +156,8 @@ impl SchemaRow {
                 .downcast_ref::<StringArray>()
                 .ok_or_else(|| internal!("failed to downcast schema names to string array"))?;
 
-            for (id, name) in ids.into_iter().zip(names.into_iter()) {
+            let mut iter = ids.into_iter().zip(names.into_iter());
+            if let Some((id, name)) = iter.next() {
                 let id = match id {
                     Some(id) => id,
                     None => return Err(internal!("schema id unexpectedly null")),
@@ -196,7 +196,7 @@ impl SchemaRow {
             accessor.schema(),
             vec![
                 Arc::new(UInt32Array::from_value(self.id, 1)),
-                Arc::new(StringArray::from_iter_values(&[&self.name])),
+                Arc::new(StringArray::from_iter_values([&self.name])),
             ],
         )?;
 

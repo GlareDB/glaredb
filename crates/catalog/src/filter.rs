@@ -27,8 +27,7 @@ where
 {
     let table = table.as_ref();
     if filters.is_empty() {
-        let result = table.scan(state, &None, &[], limit).await;
-        result
+        table.scan(state, &None, &[], limit).await
     } else {
         // TODO: Check if table has full support for filter pushdown, removing
         // the need to wrap the plan in a filter exec.
