@@ -538,6 +538,7 @@ dependencies = [
  "itertools",
  "logutil",
  "object_store",
+ "once_cell",
  "parking_lot",
  "persistence",
  "scc",

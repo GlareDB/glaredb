@@ -31,11 +31,11 @@ impl DatabaseCatalog {
         dbname: impl Into<String>,
         runtime: Arc<AccessRuntime>,
     ) -> Result<DatabaseCatalog> {
-        // TODO: Check system tables exist, bootstrap.
-        let system = Arc::new(SystemSchema::bootstrap()?);
+        let system = SystemSchema::new()?;
+        system.bootstrap(&runtime).await?;
         Ok(DatabaseCatalog {
             dbname: dbname.into(),
-            system,
+            system: Arc::new(system),
             runtime,
         })
     }
@@ -154,7 +154,7 @@ impl MutableCatalogProvider for QueryCatalog {
 
     async fn create_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
         let schema = SchemaRow {
-            id: sequences::dummy_next() as u32, // TODO
+            id: self.system.next_id(ctx, &self.runtime).await? as u32,
             name: name.to_string(),
         };
         schema
@@ -266,7 +266,7 @@ impl MutableSchemaProvider for QueryCatalogSchemaProvider {
     type Error = CatalogError;
 
     async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
-        let table_id = sequences::dummy_next() as u32; // TODO
+        let table_id = self.system.next_id(ctx, &self.runtime).await? as u32;
         let relation = RelationRow {
             schema_id: self.schema,
             table_id,
@@ -410,7 +410,7 @@ mod tests {
 
         let arrow_schema = Arc::new(Schema::new(vec![
             Field::new("f1", DataType::UInt32, false),
-            Field::new("f2", DataType::UInt32, false),
+            Field::new("f2", DataType::UInt32, true),
             Field::new("f3", DataType::Utf8, false),
         ]));
         let schema = db.query.user_schema("my_schema").await.unwrap();
