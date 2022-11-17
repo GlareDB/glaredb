@@ -6,6 +6,7 @@ use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
 use access::runtime::AccessRuntime;
 use catalog::catalog::{DatabaseCatalog, SessionCatalog};
+use catalog::system::PUBLIC_SCHEMA_NAME;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::{
     MutableCatalogProvider, MutableSchemaProvider, MutableTableProvider,
@@ -15,7 +16,8 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::listing::{ListingTable, ListingTableConfig, ListingTableUrl};
-use datafusion::error::Result as DataFusionResult;
+use datafusion::datasource::DefaultTableSource;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::options::ParquetReadOptions;
 use datafusion::execution::runtime_env::RuntimeEnv;
@@ -364,9 +366,9 @@ impl Session {
         match self.parameters.get_parameter(SEARCH_PATH_PARAM) {
             Some(ParameterValue::Strings(schemas)) => match schemas.get(0) {
                 Some(schema) => schema,
-                None => "todo",
+                None => PUBLIC_SCHEMA_NAME,
             },
-            _ => "todo",
+            _ => PUBLIC_SCHEMA_NAME,
         }
     }
 
@@ -551,10 +553,23 @@ struct SessionContextProvider<'a> {
 impl<'a> ContextProvider for SessionContextProvider<'a> {
     fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
         let name = self.session.resolve_table_reference(name);
-        self.session
-            .sess_ctx
-            .get_df_state()
-            .get_table_provider(name.into())
+        // Note that the default context provider uses the catalog that's on
+        // datafusion's session state.
+        let catalog = self
+            .session
+            .sess_catalog
+            .catalog(name.catalog)
+            .ok_or_else(|| {
+                DataFusionError::Plan(format!("failed to resolve catalog: {}", name.catalog))
+            })?;
+        let schema = catalog.schema(name.schema).ok_or_else(|| {
+            DataFusionError::Plan(format!("failed to resolve schema: {}", name.schema))
+        })?;
+        let table = schema.table(name.table).ok_or_else(|| {
+            DataFusionError::Plan(format!("failed to resolve table: {}", name.table))
+        })?;
+
+        Ok(Arc::new(DefaultTableSource::new(table)))
     }
 
     fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {

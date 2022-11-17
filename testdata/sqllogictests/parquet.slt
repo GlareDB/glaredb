@@ -1,5 +1,9 @@
 # Creating external tables with parquet files.
 
+# Support for external tables backed by local parquet files have been removed
+# for the time being.
+halt
+
 statement ok
 create external table userdata1 stored as parquet location 'testdata/parquet/userdata1.parquet';
 

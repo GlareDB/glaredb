@@ -10,14 +10,9 @@ pub struct Engine {
 }
 
 impl Engine {
+    /// Create a new engine using the provided access runtime.
     pub async fn new(runtime: Arc<AccessRuntime>) -> Result<Engine> {
         let catalog = DatabaseCatalog::open(runtime).await?;
-
-        // catalog.insert_default_schema()?;
-
-        // let catalog = Arc::new(catalog);
-        // DatabaseCatalog::insert_information_schema(catalog.clone())?;
-
         Ok(Engine { catalog })
     }
 

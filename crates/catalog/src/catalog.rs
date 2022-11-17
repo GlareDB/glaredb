@@ -160,9 +160,21 @@ impl CatalogProvider for SessionCatalog {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         match name {
             SYSTEM_SCHEMA_NAME => Some(Arc::new(self.system.provider(self.runtime.clone()))),
-            _name => {
-                // User-defined schema.
-                todo!()
+            name => {
+                let result: Result<_> = task::block_in_place(move || {
+                    Handle::current().block_on(async move {
+                        let schema = self.user_schema(name).await?;
+                        Ok(schema)
+                    })
+                });
+                match result {
+                    Ok(Some(schema)) => Some(Arc::new(schema)),
+                    Ok(None) => None,
+                    err => {
+                        // TODO: Handle error
+                        panic!("{:?}", err);
+                    }
+                }
             }
         }
     }
@@ -189,6 +201,7 @@ impl MutableCatalogProvider for SessionCatalog {
 }
 
 /// A wrapper around the query catalog for providing a schema.
+#[derive(Debug)]
 pub struct QueryCatalogSchemaProvider {
     schema: SchemaId,
     sess_ctx: Arc<SessionContext>,

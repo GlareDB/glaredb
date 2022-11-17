@@ -15,12 +15,13 @@ use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use attributes::AttributesTable;
 use builtin_types::BuiltinTypesTable;
 use relations::{RelationRow, RelationsTable};
-use schemas::SchemasTable;
+use schemas::{SchemaRow, SchemasTable};
 use sequences::{SequenceRow, SequencesTable};
 
 /// Maximum reserved schema id. All user schemas are required to be greater than
@@ -33,6 +34,10 @@ pub const SYSTEM_SCHEMA_ID: SchemaId = 0;
 // TODO: This ties every "id" in the system to the same sequence. Probably not
 // fantastic. Kinda like oid?
 pub const ID_SEQUENCE_NAME: &str = "id_seq";
+
+/// Name of the public schema.
+pub const PUBLIC_SCHEMA_NAME: &str = "public";
+pub const PUBLIC_SCHEMA_ID: SchemaId = MAX_RESERVED_SCHEMA_ID + 1;
 
 /// The types of table that a "system" table can be.
 ///
@@ -116,6 +121,9 @@ impl SystemSchema {
     /// Bootstrap the system schema.
     pub async fn bootstrap(&self, runtime: &Arc<AccessRuntime>) -> Result<()> {
         // TODO: This will eventually hold a global (cross-node) lock.
+        // TODO: Everything should be broken up into "bootstrap steps". We'll
+        // persist which steps have been ran, and only run newer bootstrap
+        // steps. This will allow us to evolve the system schema.
 
         let sess_ctx = SessionContext::new(); // TODO: Have a "system" session context?
 
@@ -153,11 +161,22 @@ impl SystemSchema {
             let seq = SequenceRow {
                 schema: SYSTEM_SCHEMA_ID,
                 table: constants::SEQUENCES_TABLE_ID,
-                next: 0,
+                // TODO: This is jank. Currently doing this avoid specifying an
+                // id that would actually belong to a reserved schema.
+                next: (PUBLIC_SCHEMA_ID + 1) as i64,
                 inc: 1,
             };
             seq.insert(&sess_ctx, runtime, self).await?;
         }
+
+        // Ensure that we have the "public" schema available. Note that without
+        // discrete bootstrap steps, this would recreate the public schema even
+        // if it's deleted by the user.
+        let schema = SchemaRow {
+            id: PUBLIC_SCHEMA_ID,
+            name: PUBLIC_SCHEMA_NAME.to_string(),
+        };
+        schema.insert(&sess_ctx, runtime, self).await?;
 
         Ok(())
     }
@@ -193,6 +212,16 @@ impl SystemSchema {
                 constants::SEQUENCES_TABLE_NAME
             )
         })
+    }
+}
+
+impl fmt::Debug for SystemSchema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "SystemSchema({:?})",
+            self.tables.keys().collect::<Vec<_>>()
+        )
     }
 }
 
