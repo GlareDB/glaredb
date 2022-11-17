@@ -46,6 +46,7 @@
     ciPackages = [
       (pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin])) 
       pkgs.kubectl
+      pkgs.skopeo
     ];
 
     # Utilities that are helpful to have in the container for debugging
@@ -135,6 +136,7 @@
     mkContainer = { name, contents, config, ... }:
       pkgs.dockerTools.buildLayeredImage {
         inherit name;
+        tag = self.rev or "dirty";
         contents = contents ++ debugPackages;
         created = "now";
 
