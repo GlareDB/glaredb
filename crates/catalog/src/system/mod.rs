@@ -1,12 +1,15 @@
 //! Built-in system catalog tables.
+pub mod attributes;
 pub mod builtin_types;
+pub mod constants;
 pub mod relations;
 pub mod schemas;
 pub mod sequences;
 
-use crate::errors::{CatalogError, Result};
+use crate::errors::{internal, CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
+use catalog_types::context::SessionContext;
 use catalog_types::keys::SchemaId;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::schema::SchemaProvider;
@@ -14,10 +17,11 @@ use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use attributes::AttributesTable;
 use builtin_types::BuiltinTypesTable;
-use relations::RelationsTable;
+use relations::{RelationRow, RelationsTable};
 use schemas::SchemasTable;
-use sequences::SequencesTable;
+use sequences::{SequenceRow, SequencesTable};
 
 /// Maximum reserved schema id. All user schemas are required to be greater than
 /// this.
@@ -25,6 +29,10 @@ pub const MAX_RESERVED_SCHEMA_ID: SchemaId = 100;
 
 pub const SYSTEM_SCHEMA_NAME: &str = "system_catalog";
 pub const SYSTEM_SCHEMA_ID: SchemaId = 0;
+
+// TODO: This ties every "id" in the system to the same sequence. Probably not
+// fantastic. Kinda like oid?
+pub const ID_SEQUENCE_NAME: &str = "id_seq";
 
 /// The types of table that a "system" table can be.
 ///
@@ -47,7 +55,7 @@ impl SystemTable {
         }
     }
 
-    fn into_table_provider_ref(self) -> Arc<dyn TableProvider> {
+    pub fn into_table_provider_ref(self) -> Arc<dyn TableProvider> {
         match self {
             SystemTable::View(table) => Arc::new(table),
             SystemTable::Base(table) => Arc::new(table),
@@ -81,17 +89,20 @@ pub trait SystemTableAccessor: Sync + Send {
     fn get_table(&self, runtime: Arc<AccessRuntime>) -> SystemTable;
 }
 
+/// An in-memory system schema backed by both persistent and transient tables.
 pub struct SystemSchema {
     tables: HashMap<&'static str, Arc<dyn SystemTableAccessor>>,
 }
 
 impl SystemSchema {
-    pub fn bootstrap() -> Result<SystemSchema> {
+    /// Create a new system schema.
+    pub fn new() -> Result<SystemSchema> {
         let tables: &[Arc<dyn SystemTableAccessor>] = &[
             Arc::new(BuiltinTypesTable::new()),
             Arc::new(RelationsTable::new()),
             Arc::new(SchemasTable::new()),
             Arc::new(SequencesTable::new()),
+            Arc::new(AttributesTable::new()),
         ];
 
         let tables: HashMap<_, _> = tables
@@ -100,6 +111,55 @@ impl SystemSchema {
             .collect();
 
         Ok(SystemSchema { tables })
+    }
+
+    /// Bootstrap the system schema.
+    pub async fn bootstrap(&self, runtime: &Arc<AccessRuntime>) -> Result<()> {
+        // TODO: This will eventually hold a global (cross-node) lock.
+
+        let sess_ctx = SessionContext::new(); // TODO: Have a "system" session context?
+
+        // Ensure we have the id sequence table.
+        let rel = RelationRow::scan_one_by_name(
+            &sess_ctx,
+            runtime,
+            self,
+            SYSTEM_SCHEMA_ID,
+            ID_SEQUENCE_NAME,
+        )
+        .await?;
+        if rel.is_none() {
+            // Create it.
+            let rel = RelationRow {
+                schema_id: SYSTEM_SCHEMA_ID,
+                table_id: constants::SEQUENCES_TABLE_ID,
+                table_name: constants::SEQUENCES_TABLE_NAME.to_string(),
+            };
+            rel.insert(&sess_ctx, runtime, self).await?;
+        }
+
+        // Ensure we have the sequence entry.
+        // TODO: Don't trigger a sequence increment.
+        let next = SequenceRow::next(
+            &sess_ctx,
+            runtime,
+            self,
+            SYSTEM_SCHEMA_ID,
+            constants::SEQUENCES_TABLE_ID,
+        )
+        .await?;
+        if next.is_none() {
+            // Insert the sequence row.
+            let seq = SequenceRow {
+                schema: SYSTEM_SCHEMA_ID,
+                table: constants::SEQUENCES_TABLE_ID,
+                next: 0,
+                inc: 1,
+            };
+            seq.insert(&sess_ctx, runtime, self).await?;
+        }
+
+        Ok(())
     }
 
     pub fn get_system_table_accessor(&self, name: &str) -> Option<Arc<dyn SystemTableAccessor>> {
@@ -112,6 +172,27 @@ impl SystemSchema {
             runtime,
             tables: self.tables.clone(), // Cheap, accessors are behind an arc and all table names are static.
         }
+    }
+
+    /// Get the next id to use.
+    // TODO: Likely will remove.
+    pub async fn next_id(&self, ctx: &SessionContext, runtime: &Arc<AccessRuntime>) -> Result<i64> {
+        SequenceRow::next(
+            ctx,
+            runtime,
+            self,
+            SYSTEM_SCHEMA_ID,
+            constants::SEQUENCES_TABLE_ID,
+        )
+        .await?
+        .ok_or_else(|| {
+            internal!(
+                "missing sequence; schema id: {}, table id: {}, table name: {}",
+                SYSTEM_SCHEMA_ID,
+                constants::SEQUENCES_TABLE_ID,
+                constants::SEQUENCES_TABLE_NAME
+            )
+        })
     }
 }
 
