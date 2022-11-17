@@ -17,6 +17,6 @@ impl Engine {
     }
 
     pub fn new_session(&self) -> Result<Session> {
-        Ok(Session::new(self.catalog.clone())?)
+        Session::new(self.catalog.clone())
     }
 }

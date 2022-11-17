@@ -4,23 +4,14 @@ use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
-use access::runtime::AccessRuntime;
 use catalog::catalog::{DatabaseCatalog, SessionCatalog};
 use catalog::system::PUBLIC_SCHEMA_NAME;
 use catalog_types::context::SessionContext;
-use catalog_types::interfaces::{
-    MutableCatalogProvider, MutableSchemaProvider, MutableTableProvider,
-};
-use catalog_types::keys::TableId;
+use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
-use datafusion::catalog::schema::SchemaProvider;
-use datafusion::datasource::listing::{ListingTable, ListingTableConfig, ListingTableUrl};
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
-use datafusion::execution::options::ParquetReadOptions;
-use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::physical_plan::{
@@ -33,7 +24,6 @@ use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use std::collections::{hash_map::Entry, HashMap};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -265,13 +255,13 @@ impl Session {
             .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
 
         schema
-            .create_table(&self.sess_ctx, &resolved.table, &Schema::new(plan.columns))
+            .create_table(&self.sess_ctx, resolved.table, &Schema::new(plan.columns))
             .await?;
 
         Ok(())
     }
 
-    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
+    pub(crate) async fn create_external_table(&self, _plan: CreateExternalTable) -> Result<()> {
         // This will need an additional system table to track external tables.
         todo!()
     }
@@ -333,12 +323,12 @@ impl Session {
         let resolved = self.resolve_table_reference(plan.table_name.as_ref());
         let schema = self
             .sess_catalog
-            .user_schema(&resolved.schema)
+            .user_schema(resolved.schema)
             .await?
             .ok_or_else(|| internal!("missing schema: {:?}", resolved.schema))?;
 
         let table = schema
-            .get_mutable_table(&resolved.table)
+            .get_mutable_table(resolved.table)
             .await?
             .ok_or_else(|| internal!("missing table: {:?}", resolved.table))?;
 
@@ -493,7 +483,7 @@ impl Session {
         Ok(())
     }
 
-    pub async fn drop_table(&self, plan: DropTable) -> Result<()> {
+    pub async fn drop_table(&self, _plan: DropTable) -> Result<()> {
         todo!()
     }
 

@@ -416,13 +416,9 @@ mod tests {
 
         let db = TestDatabase::new().await;
         let catalog = db.query.catalog(TEST_DB_NAME).unwrap();
-        let mut schemas = catalog.schema_names();
-        let mut expected = vec![SYSTEM_SCHEMA_NAME.to_string()];
+        let schemas = catalog.schema_names();
 
-        schemas.sort();
-        expected.sort();
-
-        assert_eq!(expected, schemas);
+        assert!(schemas.contains(&String::from(SYSTEM_SCHEMA_NAME)));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
