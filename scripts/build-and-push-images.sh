@@ -32,13 +32,16 @@ push_image() {
         "docker-archive:${container_archive}" \
         "docker://${image_repo}:${git_rev}"
 
+    local image_tag
+    image_tag=$(echo "${GITHUB_REF_NAME}" | sed -r 's#/+#-#g')
+
     # Copy the image to add other tags
     skopeo copy \
         --insecure-policy \
         --dest-registry-token "${GCP_AUTH_TOKEN}" \
         --src-registry-token "${GCP_AUTH_TOKEN}" \
         "docker://${image_repo}:${git_rev}" \
-        "docker://${image_repo}:${GITHUB_REF_NAME}"
+        "docker://${image_repo}:${image_tag}"
 }
 
 check_command() {
