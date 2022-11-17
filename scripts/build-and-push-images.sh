@@ -14,7 +14,6 @@ set -ex
 : ${GITHUB_REF_NAME?"GITHUB_REF_NAME needs to be set"}
 GCP_PROJECT_ID=${GCP_PROJECT_ID:-glaredb-artifacts}
 
-# Copy the containers to GCR
 GCP_AUTH_TOKEN=$(gcloud auth print-access-token)
 
 push_image() {
