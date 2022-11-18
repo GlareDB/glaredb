@@ -3,6 +3,7 @@ use datafusion::execution::runtime_env::RuntimeEnv;
 use std::sync::Arc;
 
 /// Context for a session used during execution.
+#[derive(Debug)]
 pub struct SessionContext {
     /// Datafusion session state used for planning and execution.
     ///
@@ -24,7 +25,11 @@ impl SessionContext {
         let runtime = Arc::new(RuntimeEnv::default());
         let state = SessionState::with_config_rt(config, runtime);
 
-        // TODO: Put catalog list on state?
+        // Note that we do not replace the default catalog list on the state. We
+        // should never be referencing it during planning or execution.
+        //
+        // Ideally we can reduce the need to rely on datafusion's session state
+        // as much as possible. It makes way too many assumptions.
 
         SessionContext { df_state: state }
     }
@@ -34,6 +39,7 @@ impl SessionContext {
         Arc::new(TaskContext::from(&self.df_state))
     }
 
+    /// Get a datafusion session state.
     pub fn get_df_state(&self) -> &SessionState {
         &self.df_state
     }

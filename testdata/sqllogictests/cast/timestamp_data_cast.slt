@@ -1,5 +1,8 @@
 # Timestamp date cast.
 
+# Unsupported in new catalog (for now).
+halt
+
 statement ok
 create schema timestamp_date_cast;
 

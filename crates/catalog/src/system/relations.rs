@@ -127,7 +127,7 @@ impl RelationRow {
 
         match relations.pop() {
             Some(relation) => {
-                if relations.is_empty() {
+                if !relations.is_empty() {
                     error!(
                         ?name,
                         ?schema,
@@ -142,7 +142,6 @@ impl RelationRow {
     }
 
     /// Insert a table into the relations system table.
-    // TODO: Check for dupes.
     pub async fn insert(
         &self,
         ctx: &SessionContext,

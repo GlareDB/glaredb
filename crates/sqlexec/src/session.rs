@@ -1,21 +1,17 @@
-use crate::catalog::{DatabaseCatalog, SchemaCatalog, DEFAULT_SCHEMA};
-use crate::datasource::DeltaTable;
 use crate::errors::{internal, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
 use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
-use access::runtime::AccessRuntime;
-use catalog_types::keys::TableId;
+use catalog::catalog::{DatabaseCatalog, SessionCatalog};
+use catalog::system::PUBLIC_SCHEMA_NAME;
+use catalog_types::context::SessionContext;
+use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
-use datafusion::catalog::schema::SchemaProvider;
-use datafusion::datasource::listing::{ListingTable, ListingTableConfig, ListingTableUrl};
-use datafusion::error::Result as DataFusionResult;
-use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
-use datafusion::execution::options::ParquetReadOptions;
-use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::datasource::DefaultTableSource;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::physical_plan::{
@@ -28,7 +24,6 @@ use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use std::collections::{hash_map::Entry, HashMap};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -37,11 +32,8 @@ use tracing::debug;
 /// This type acts as the bridge between datafusion planning/execution and the
 /// rest of the system.
 pub struct Session {
-    /// Datafusion state for query planning and execution.
-    state: SessionState,
-    /// The concretely typed "GlareDB" catalog.
-    catalog: Arc<DatabaseCatalog>,
-    access_runtime: Arc<AccessRuntime>,
+    sess_ctx: Arc<SessionContext>,
+    sess_catalog: SessionCatalog,
     parameters: SessionParameters,
     // TODO: Transaction context goes here.
 
@@ -57,33 +49,20 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(
-        catalog: Arc<DatabaseCatalog>,
-        runtime: Arc<RuntimeEnv>,
-        access: Arc<AccessRuntime>,
-    ) -> Session {
-        // Note that the values for creating the default catalog/schema and
-        // information schema do not matter, as we're not using the datafusion's
-        // session context. Initializing the session context is what creates
-        // thoses.
-        let config = SessionConfig::default()
-            .with_default_catalog_and_schema(catalog.name(), DEFAULT_SCHEMA)
-            .create_default_catalog_and_schema(false)
-            .with_information_schema(false);
-
-        let mut state = SessionState::with_config_rt(config, runtime);
-        state.catalog_list = catalog.clone();
-
-        Session {
-            state,
-            catalog,
-            access_runtime: access,
+    pub fn new(catalog: DatabaseCatalog) -> Result<Session> {
+        let sess_ctx = Arc::new(SessionContext::new());
+        // TODO: We might want to store the catalog itself when we figure out
+        // how the transaction/session catalog will work.
+        let sess_catalog = catalog.begin(sess_ctx.clone())?;
+        Ok(Session {
+            sess_ctx,
+            sess_catalog,
             parameters: SessionParameters::default(),
             unnamed_statement: None,
             named_statements: HashMap::new(),
             unnamed_portal: None,
             named_portals: HashMap::new(),
-        }
+        })
     }
 
     pub(crate) fn plan_sql(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -243,7 +222,11 @@ impl Session {
         &self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let plan = self.state.create_physical_plan(&plan).await?;
+        let plan = self
+            .sess_ctx
+            .get_df_state()
+            .create_physical_plan(&plan)
+            .await?;
         Ok(plan)
     }
 
@@ -251,7 +234,7 @@ impl Session {
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
-        let context = Arc::new(TaskContext::from(&self.state));
+        let context = self.sess_ctx.task_context();
         match plan.output_partitioning().partition_count() {
             0 => Ok(Box::pin(EmptyRecordBatchStream::new(plan.schema()))),
             1 => Ok(plan.execute(0, context)?),
@@ -262,68 +245,55 @@ impl Session {
         }
     }
 
-    pub(crate) fn create_table(&self, plan: CreateTable) -> Result<()> {
+    pub(crate) async fn create_table(&self, plan: CreateTable) -> Result<()> {
         let resolved = self.resolve_table_reference(plan.table_name.as_str());
 
-        let catalog = self
-            .catalog
-            .catalog(resolved.catalog)
-            .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
-        let schema = catalog
-            .schema(resolved.schema)
+        let schema = self
+            .sess_catalog
+            .user_schema(resolved.schema)
+            .await?
             .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
 
-        // TODO: If not exists
-
-        let table_schema = Schema::new(plan.columns);
-        let table = DeltaTable::new(
-            new_table_id(),
-            Arc::new(table_schema),
-            self.access_runtime.clone(),
-        );
-
-        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
+        schema
+            .create_table(&self.sess_ctx, resolved.table, &Schema::new(plan.columns))
+            .await?;
 
         Ok(())
     }
 
-    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
-        let resolved = self.resolve_table_reference(plan.table_name.as_ref());
-        let schema = self.get_schema_for_reference(&resolved)?;
-
-        let target_partitions = self.state.config.target_partitions;
-        let opts = match plan.file_type {
-            FileType::Parquet => {
-                ParquetReadOptions::default().to_listing_options(target_partitions)
-            }
-        };
-        let path = ListingTableUrl::parse(&plan.location)?;
-        let file_schema = opts.infer_schema(&self.state, &path).await?;
-        let config = ListingTableConfig::new(path)
-            .with_listing_options(opts)
-            .with_schema(file_schema);
-
-        let table = ListingTable::try_new(config)?;
-        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
-
-        Ok(())
+    pub(crate) async fn create_external_table(&self, _plan: CreateExternalTable) -> Result<()> {
+        // This will need an additional system table to track external tables.
+        todo!()
     }
 
     pub(crate) async fn create_table_as(&self, plan: CreateTableAs) -> Result<()> {
         let resolved = self.resolve_table_reference(plan.table_name.as_ref());
-        let schema = self.get_schema_for_reference(&resolved)?;
+        let schema = self
+            .sess_catalog
+            .user_schema(resolved.schema)
+            .await?
+            .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
 
         // Plan and execute the source. We'll use the first batch from the
-        // stream to create the table with the correct schema.
+        // stream to create the table with the correct arrow schema.
         let physical = self.create_physical_plan(plan.source).await?;
         let mut stream = self.execute_physical(physical)?;
 
+        // Create the table and insert the first batch.
         let table = match stream.next().await {
             Some(result) => {
                 let batch = result?;
-                let schema = batch.schema();
-                let table = DeltaTable::new(new_table_id(), schema, self.access_runtime.clone());
-                table.insert_batch(batch).await?;
+                let arrow_schema = batch.schema();
+                schema
+                    .create_table(&self.sess_ctx, &plan.table_name, &arrow_schema)
+                    .await?;
+                let table = schema
+                    .get_mutable_table(&plan.table_name)
+                    .await?
+                    .ok_or_else(|| {
+                        internal!("failed to get table after create: {}", plan.table_name)
+                    })?;
+                table.insert(&self.sess_ctx, batch).await?;
                 table
             }
             None => {
@@ -336,43 +306,38 @@ impl Session {
         // Insert the rest of the stream.
         while let Some(result) = stream.next().await {
             let batch = result?;
-            table.insert_batch(batch).await?;
+            table.insert(&self.sess_ctx, batch).await?;
         }
-
-        // Finally register the table.
-        schema.register_table(resolved.table.to_string(), Arc::new(table))?;
 
         Ok(())
     }
 
     pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
-        let schema = Arc::new(SchemaCatalog::new());
-        self.catalog.insert_schema(plan.schema_name, schema)?;
+        self.sess_catalog
+            .create_schema(&self.sess_ctx, &plan.schema_name)
+            .await?;
         Ok(())
     }
 
     pub(crate) async fn insert(&self, plan: Insert) -> Result<()> {
         let resolved = self.resolve_table_reference(plan.table_name.as_ref());
-        let schema = self.get_schema_for_reference(&resolved)?;
+        let schema = self
+            .sess_catalog
+            .user_schema(resolved.schema)
+            .await?
+            .ok_or_else(|| internal!("missing schema: {:?}", resolved.schema))?;
 
         let table = schema
-            .table(resolved.table)
-            .ok_or_else(|| internal!("missing table: {}", resolved.table))?;
-
-        let table = table
-            .as_any()
-            .downcast_ref::<DeltaTable>()
-            .ok_or_else(|| internal!("cannot downcast to delta table"))?;
+            .get_mutable_table(resolved.table)
+            .await?
+            .ok_or_else(|| internal!("missing table: {:?}", resolved.table))?;
 
         let physical = self.create_physical_plan(plan.source).await?;
         let mut stream = self.execute_physical(physical)?;
 
-        let schema = stream.schema();
-        debug!(?schema, %table, "inserting with schema to table");
-
         while let Some(result) = stream.next().await {
-            let result = result?;
-            table.insert_batch(result).await?;
+            let batch = result?;
+            table.insert(&self.sess_ctx, batch).await?;
         }
 
         Ok(())
@@ -391,9 +356,9 @@ impl Session {
         match self.parameters.get_parameter(SEARCH_PATH_PARAM) {
             Some(ParameterValue::Strings(schemas)) => match schemas.get(0) {
                 Some(schema) => schema,
-                None => DEFAULT_SCHEMA,
+                None => PUBLIC_SCHEMA_NAME,
             },
-            _ => DEFAULT_SCHEMA,
+            _ => PUBLIC_SCHEMA_NAME,
         }
     }
 
@@ -407,22 +372,7 @@ impl Session {
     ) -> ResolvedTableReference<'a> {
         table
             .into()
-            .resolve(self.catalog.name(), self.default_schema())
-    }
-
-    /// Get a schema provider given some resolved table reference.
-    fn get_schema_for_reference(
-        &self,
-        resolved: &ResolvedTableReference,
-    ) -> Result<Arc<dyn SchemaProvider>> {
-        let catalog = self
-            .catalog
-            .catalog(resolved.catalog)
-            .ok_or_else(|| internal!("missing catalog: {}", resolved.catalog))?;
-        let schema = catalog
-            .schema(resolved.schema)
-            .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
-        Ok(schema)
+            .resolve(self.sess_catalog.dbname(), self.default_schema())
     }
 
     /// Store the prepared statement in the current session.
@@ -533,16 +483,8 @@ impl Session {
         Ok(())
     }
 
-    pub async fn drop_table(&self, plan: DropTable) -> Result<()> {
-        debug!(?plan, "drop table");
-        for name in plan.names {
-            let resolved = self.resolve_table_reference(name.as_str());
-            let schema = self.get_schema_for_reference(&resolved)?;
-
-            schema.deregister_table(resolved.table)?;
-        }
-
-        Ok(())
+    pub async fn drop_table(&self, _plan: DropTable) -> Result<()> {
+        todo!()
     }
 
     pub async fn execute_portal(
@@ -564,7 +506,7 @@ impl Session {
 
         match portal.plan.clone() {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
-                self.create_table(plan)?;
+                self.create_table(plan).await?;
                 Ok(ExecutionResult::CreateTable)
             }
             LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
@@ -601,24 +543,40 @@ struct SessionContextProvider<'a> {
 impl<'a> ContextProvider for SessionContextProvider<'a> {
     fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
         let name = self.session.resolve_table_reference(name);
-        self.session.state.get_table_provider(name.into())
+        // Note that the default context provider uses the catalog that's on
+        // datafusion's session state.
+        let catalog = self
+            .session
+            .sess_catalog
+            .catalog(name.catalog)
+            .ok_or_else(|| {
+                DataFusionError::Plan(format!("failed to resolve catalog: {}", name.catalog))
+            })?;
+        let schema = catalog.schema(name.schema).ok_or_else(|| {
+            DataFusionError::Plan(format!("failed to resolve schema: {}", name.schema))
+        })?;
+        let table = schema.table(name.table).ok_or_else(|| {
+            DataFusionError::Plan(format!("failed to resolve table: {}", name.table))
+        })?;
+
+        Ok(Arc::new(DefaultTableSource::new(table)))
     }
 
     fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
-        self.session.state.get_function_meta(name)
+        self.session.sess_ctx.get_df_state().get_function_meta(name)
     }
 
     fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {
-        self.session.state.get_aggregate_meta(name)
+        self.session
+            .sess_ctx
+            .get_df_state()
+            .get_aggregate_meta(name)
     }
 
     fn get_variable_type(&self, variable_names: &[String]) -> Option<DataType> {
-        self.session.state.get_variable_type(variable_names)
+        self.session
+            .sess_ctx
+            .get_df_state()
+            .get_variable_type(variable_names)
     }
-}
-
-// TODO: This will be retrieved from the catalog.
-fn new_table_id() -> TableId {
-    static TABLE_ID_GEN: AtomicU32 = AtomicU32::new(0);
-    TABLE_ID_GEN.fetch_add(1, Ordering::Relaxed)
 }

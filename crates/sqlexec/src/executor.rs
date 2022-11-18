@@ -93,7 +93,7 @@ impl<'a> Executor<'a> {
         let logical_plan = self.session.plan_sql(stmt)?;
         match logical_plan {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
-                self.session.create_table(plan)?;
+                self.session.create_table(plan).await?;
                 Ok(ExecutionResult::CreateTable)
             }
             LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
@@ -129,11 +129,10 @@ impl<'a> Executor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::DatabaseCatalog;
     use access::runtime::AccessRuntime;
+    use catalog::catalog::DatabaseCatalog;
     use common::access::{AccessConfig, ObjectStoreKind};
     use common::config::DbConfig;
-    use datafusion::execution::runtime_env::RuntimeEnv;
     use futures::StreamExt;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -141,23 +140,21 @@ mod tests {
 
     #[tokio::test]
     async fn simple() {
-        let db_name = String::from("test");
-        let catalog = DatabaseCatalog::new(db_name.clone());
-        catalog.insert_default_schema().unwrap();
         let cache_dir = TempDir::new().unwrap();
-
         let config = DbConfig {
             access: Arc::new(AccessConfig {
-                db_name,
+                db_name: String::from("test"),
                 object_store: ObjectStoreKind::Local,
                 cached: true,
                 max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
                 cache_path: Some(PathBuf::from(cache_dir.path())),
             }),
         };
-
         let access = Arc::new(AccessRuntime::new(config.access.clone()).await.unwrap());
-        let mut session = Session::new(Arc::new(catalog), Arc::new(RuntimeEnv::default()), access);
+
+        let catalog = DatabaseCatalog::open(access).await.unwrap();
+
+        let mut session = Session::new(catalog).unwrap();
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 
         let result = executor

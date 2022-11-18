@@ -1,4 +1,5 @@
 use crate::errors::{internal, CatalogError, Result};
+use crate::information_schema::{InformationSchemaProvider, INFORMATION_SCHEMA_NAME};
 use crate::system::{
     attributes::AttributeRows, relations::RelationRow, schemas::SchemaRow, SystemSchema,
     SYSTEM_SCHEMA_NAME,
@@ -8,7 +9,9 @@ use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use async_trait::async_trait;
 use catalog_types::context::SessionContext;
-use catalog_types::interfaces::{MutableCatalogProvider, MutableSchemaProvider};
+use catalog_types::interfaces::{
+    MutableCatalogProvider, MutableSchemaProvider, MutableTableProvider,
+};
 use catalog_types::keys::{SchemaId, TableKey};
 use datafusion::arrow::datatypes::Schema;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
@@ -19,8 +22,9 @@ use tokio::runtime::Handle;
 use tokio::task;
 
 /// The top-level catalog.
+#[derive(Clone)]
 pub struct DatabaseCatalog {
-    dbname: String,
+    dbname: Arc<str>,
     system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
@@ -31,7 +35,7 @@ impl DatabaseCatalog {
         let system = SystemSchema::new()?;
         system.bootstrap(&runtime).await?;
         Ok(DatabaseCatalog {
-            dbname: runtime.config().db_name.clone(),
+            dbname: runtime.config().db_name.as_str().into(),
             system: Arc::new(system),
             runtime,
         })
@@ -41,17 +45,22 @@ impl DatabaseCatalog {
     ///
     /// NOTE: This will eventually be modified to open up a per-transaction
     /// catalog.
-    pub async fn begin(&self, sess_ctx: Arc<SessionContext>) -> Result<QueryCatalog> {
-        Ok(QueryCatalog {
+    pub fn begin(&self, sess_ctx: Arc<SessionContext>) -> Result<SessionCatalog> {
+        Ok(SessionCatalog {
             dbname: self.dbname.clone(),
             sess_ctx,
             system: self.system.clone(),
             runtime: self.runtime.clone(),
         })
     }
+
+    /// Return the database name.
+    pub fn dbname(&self) -> &str {
+        &self.dbname
+    }
 }
 
-/// Query catalog provides an adapter for GlareDB's core catalog with the
+/// Session catalog provides an adapter for GlareDB's core catalog with the
 /// interfaces exposed by datafusion.
 ///
 /// Note that these should be created per session.
@@ -64,35 +73,40 @@ impl DatabaseCatalog {
 ///
 /// FUTURE: There will eventually be session local catalog caching.
 #[derive(Clone)]
-pub struct QueryCatalog {
-    dbname: String,
+pub struct SessionCatalog {
+    dbname: Arc<str>,
     sess_ctx: Arc<SessionContext>,
     system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
 
-impl QueryCatalog {
+impl SessionCatalog {
     /// Get a user-defined schema.
     ///
     /// A user-defined schema is any schema that's not been defined by the
     /// system.
-    pub async fn user_schema(&self, name: &str) -> Result<QueryCatalogSchemaProvider> {
+    pub async fn user_schema(&self, name: &str) -> Result<Option<SessionCatalogSchemaProvider>> {
         let schema =
             match SchemaRow::scan_by_name(&self.sess_ctx, &self.runtime, &self.system, name).await?
             {
                 Some(schema) => schema,
-                None => return Err(internal!("missing schema for name: {}", name)),
+                None => return Ok(None),
             };
-        Ok(QueryCatalogSchemaProvider {
+        Ok(Some(SessionCatalogSchemaProvider {
             schema: schema.id,
             sess_ctx: self.sess_ctx.clone(),
             system: self.system.clone(),
             runtime: self.runtime.clone(),
-        })
+        }))
+    }
+
+    /// Return the database name.
+    pub fn dbname(&self) -> &str {
+        &self.dbname
     }
 }
 
-impl CatalogList for QueryCatalog {
+impl CatalogList for SessionCatalog {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -107,11 +121,11 @@ impl CatalogList for QueryCatalog {
     }
 
     fn catalog_names(&self) -> Vec<String> {
-        vec![self.dbname.clone()]
+        vec![self.dbname.to_string()]
     }
 
     fn catalog(&self, name: &str) -> Option<Arc<dyn CatalogProvider>> {
-        if name == self.dbname {
+        if name == self.dbname.as_ref() {
             Some(Arc::new(self.clone()))
         } else {
             None
@@ -119,7 +133,7 @@ impl CatalogList for QueryCatalog {
     }
 }
 
-impl CatalogProvider for QueryCatalog {
+impl CatalogProvider for SessionCatalog {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -138,6 +152,7 @@ impl CatalogProvider for QueryCatalog {
             Ok(mut schemas) => {
                 // Include built-in schemas.
                 schemas.push(SYSTEM_SCHEMA_NAME.to_string());
+                schemas.push(INFORMATION_SCHEMA_NAME.to_string());
                 schemas
             }
             _other => todo!(),
@@ -147,16 +162,32 @@ impl CatalogProvider for QueryCatalog {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         match name {
             SYSTEM_SCHEMA_NAME => Some(Arc::new(self.system.provider(self.runtime.clone()))),
-            _name => {
-                // User-defined schema.
-                todo!()
+            INFORMATION_SCHEMA_NAME => Some(Arc::new(InformationSchemaProvider::new(
+                self.dbname.clone(),
+                Arc::new(self.clone()),
+            ))),
+            name => {
+                let result: Result<_> = task::block_in_place(move || {
+                    Handle::current().block_on(async move {
+                        let schema = self.user_schema(name).await?;
+                        Ok(schema)
+                    })
+                });
+                match result {
+                    Ok(Some(schema)) => Some(Arc::new(schema)),
+                    Ok(None) => None,
+                    err => {
+                        // TODO: Handle error
+                        panic!("{:?}", err);
+                    }
+                }
             }
         }
     }
 }
 
 #[async_trait]
-impl MutableCatalogProvider for QueryCatalog {
+impl MutableCatalogProvider for SessionCatalog {
     type Error = CatalogError;
 
     async fn create_schema(&self, ctx: &SessionContext, name: &str) -> Result<()> {
@@ -175,15 +206,59 @@ impl MutableCatalogProvider for QueryCatalog {
     }
 }
 
-/// A wrapper around the query catalog for providing a schema.
-pub struct QueryCatalogSchemaProvider {
+/// A wrapper around the session catalog for providing a schema.
+#[derive(Debug)]
+pub struct SessionCatalogSchemaProvider {
     schema: SchemaId,
     sess_ctx: Arc<SessionContext>,
     system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
 
-impl SchemaProvider for QueryCatalogSchemaProvider {
+impl SessionCatalogSchemaProvider {
+    pub async fn get_mutable_table(
+        &self,
+        name: &str,
+    ) -> Result<Option<Arc<dyn MutableTableProvider<Error = access::errors::AccessError>>>> {
+        // Currently assuming all tables are mutable and backed by a partitioned
+        // table.
+        let relation = RelationRow::scan_one_by_name(
+            &self.sess_ctx,
+            &self.runtime,
+            &self.system,
+            self.schema,
+            name,
+        )
+        .await?;
+        match relation {
+            Some(relation) => {
+                let attrs = AttributeRows::scan_for_table(
+                    &self.sess_ctx,
+                    &self.runtime,
+                    &self.system,
+                    self.schema,
+                    relation.table_id,
+                )
+                .await?;
+                let arrow_schema: Schema = attrs.try_into()?;
+                let key = TableKey {
+                    schema_id: self.schema,
+                    table_id: relation.table_id,
+                };
+                let table = PartitionedTable::new(
+                    key,
+                    Box::new(SinglePartitionStrategy),
+                    self.runtime.clone(),
+                    Arc::new(arrow_schema),
+                );
+                Ok(Some(Arc::new(table)))
+            }
+            None => Ok(None),
+        }
+    }
+}
+
+impl SchemaProvider for SessionCatalogSchemaProvider {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -268,10 +343,22 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
 }
 
 #[async_trait]
-impl MutableSchemaProvider for QueryCatalogSchemaProvider {
+impl MutableSchemaProvider for SessionCatalogSchemaProvider {
     type Error = CatalogError;
 
     async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
+        // TODO: I'm not sure where we actually want to put this check.
+        let relation =
+            RelationRow::scan_one_by_name(ctx, &self.runtime, &self.system, self.schema, name)
+                .await?;
+        if relation.is_some() {
+            return Err(internal!(
+                "duplicate relation name; schema id: {}, name: {}",
+                self.schema,
+                name
+            ));
+        }
+
         let table_id = self.system.next_id(ctx, &self.runtime).await? as u32;
         let relation = RelationRow {
             schema_id: self.schema,
@@ -308,7 +395,7 @@ mod tests {
     struct TestDatabase {
         database: DatabaseCatalog,
         sess_ctx: Arc<SessionContext>,
-        query: QueryCatalog,
+        query: SessionCatalog,
     }
 
     impl TestDatabase {
@@ -320,7 +407,7 @@ mod tests {
             let runtime = Arc::new(AccessRuntime::new(Arc::new(conf)).await.unwrap());
             let database = DatabaseCatalog::open(runtime).await.unwrap();
             let sess_ctx = Arc::new(SessionContext::new());
-            let query = database.begin(sess_ctx.clone()).await.unwrap();
+            let query = database.begin(sess_ctx.clone()).unwrap();
             TestDatabase {
                 database,
                 sess_ctx,
@@ -335,13 +422,9 @@ mod tests {
 
         let db = TestDatabase::new().await;
         let catalog = db.query.catalog(TEST_DB_NAME).unwrap();
-        let mut schemas = catalog.schema_names();
-        let mut expected = vec![SYSTEM_SCHEMA_NAME.to_string()];
+        let schemas = catalog.schema_names();
 
-        schemas.sort();
-        expected.sort();
-
-        assert_eq!(expected, schemas);
+        assert!(schemas.contains(&String::from(SYSTEM_SCHEMA_NAME)));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -391,13 +474,13 @@ mod tests {
             .await
             .unwrap();
 
-        let schema1 = db.query.user_schema("my_schema_1").await.unwrap();
+        let schema1 = db.query.user_schema("my_schema_1").await.unwrap().unwrap();
         schema1
             .create_table(&db.sess_ctx, "table_1", &Schema::empty())
             .await
             .unwrap();
 
-        let schema2 = db.query.user_schema("my_schema_2").await.unwrap();
+        let schema2 = db.query.user_schema("my_schema_2").await.unwrap().unwrap();
         schema2
             .create_table(&db.sess_ctx, "table_2", &Schema::empty())
             .await
@@ -423,7 +506,7 @@ mod tests {
             Field::new("f2", DataType::UInt32, true),
             Field::new("f3", DataType::Utf8, false),
         ]));
-        let schema = db.query.user_schema("my_schema").await.unwrap();
+        let schema = db.query.user_schema("my_schema").await.unwrap().unwrap();
         schema
             .create_table(&db.sess_ctx, "my_table", &arrow_schema)
             .await

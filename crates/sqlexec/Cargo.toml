@@ -10,6 +10,7 @@ logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
 pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
+catalog = {path = "../catalog"}
 catalog_types = {path = "../catalog_types"}
 common = {path = "../common"}
 persistence = {path = "../persistence"}
