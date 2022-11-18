@@ -57,7 +57,7 @@ check_command() {
         "docker-archive:${image_archive}" \
         "docker-daemon:${image_name}:latest"
 
-    docker run -it "${image_name}:latest" ${command}
+    docker run "${image_name}:latest" ${command}
 }
 
 # build the container archives
