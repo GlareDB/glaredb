@@ -85,14 +85,14 @@ impl SessionCatalog {
     ///
     /// A user-defined schema is any schema that's not been defined by the
     /// system.
-    pub async fn user_schema(&self, name: &str) -> Result<Option<QueryCatalogSchemaProvider>> {
+    pub async fn user_schema(&self, name: &str) -> Result<Option<SessionCatalogSchemaProvider>> {
         let schema =
             match SchemaRow::scan_by_name(&self.sess_ctx, &self.runtime, &self.system, name).await?
             {
                 Some(schema) => schema,
                 None => return Ok(None),
             };
-        Ok(Some(QueryCatalogSchemaProvider {
+        Ok(Some(SessionCatalogSchemaProvider {
             schema: schema.id,
             sess_ctx: self.sess_ctx.clone(),
             system: self.system.clone(),
@@ -206,16 +206,16 @@ impl MutableCatalogProvider for SessionCatalog {
     }
 }
 
-/// A wrapper around the query catalog for providing a schema.
+/// A wrapper around the session catalog for providing a schema.
 #[derive(Debug)]
-pub struct QueryCatalogSchemaProvider {
+pub struct SessionCatalogSchemaProvider {
     schema: SchemaId,
     sess_ctx: Arc<SessionContext>,
     system: Arc<SystemSchema>,
     runtime: Arc<AccessRuntime>,
 }
 
-impl QueryCatalogSchemaProvider {
+impl SessionCatalogSchemaProvider {
     pub async fn get_mutable_table(
         &self,
         name: &str,
@@ -258,7 +258,7 @@ impl QueryCatalogSchemaProvider {
     }
 }
 
-impl SchemaProvider for QueryCatalogSchemaProvider {
+impl SchemaProvider for SessionCatalogSchemaProvider {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -343,7 +343,7 @@ impl SchemaProvider for QueryCatalogSchemaProvider {
 }
 
 #[async_trait]
-impl MutableSchemaProvider for QueryCatalogSchemaProvider {
+impl MutableSchemaProvider for SessionCatalogSchemaProvider {
     type Error = CatalogError;
 
     async fn create_table(&self, ctx: &SessionContext, name: &str, schema: &Schema) -> Result<()> {
