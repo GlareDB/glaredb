@@ -11,11 +11,3 @@ pub enum BackgroundError {
 }
 
 pub type Result<T, E = BackgroundError> = std::result::Result<T, E>;
-
-#[allow(unused_macros)]
-macro_rules! internal {
-    ($($arg:tt)*) => {
-        crate::errors::BackgroundError::Internal(std::format!($($arg)*))
-    };
-}
-pub(crate) use internal;

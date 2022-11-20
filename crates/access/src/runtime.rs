@@ -22,6 +22,7 @@ struct Inner {
     deltas: Arc<DeltaCache>,
     compactor: Arc<Compactor>,
     store: Arc<dyn ObjectStore>,
+    object_path_prefix: ObjectPath,
 }
 
 impl AccessRuntime {
@@ -61,20 +62,23 @@ impl AccessRuntime {
 
         validate_object_store_permissions(&config.db_name, &store).await?;
 
+        let object_path_prefix = ObjectPath::from(config.db_name.as_str());
+
         Ok(AccessRuntime {
             inner: Arc::new(Inner {
                 config,
                 deltas: Arc::new(DeltaCache::new()),
                 compactor: Arc::new(Compactor::new(store.clone())),
                 store,
+                object_path_prefix,
             }),
         })
     }
 
     /// Returns the object storage prefix of all objects that this database
     /// contains.
-    pub fn object_store_path_prefix(&self) -> ObjectPath {
-        ObjectPath::from(self.inner.config.db_name.as_str())
+    pub fn object_path_prefix(&self) -> &ObjectPath {
+        &self.inner.object_path_prefix
     }
 
     pub fn delta_cache(&self) -> &Arc<DeltaCache> {

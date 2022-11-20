@@ -2,6 +2,8 @@
 use serde::Deserialize;
 use std::time::Duration;
 
+// TODO: Add `system_api_key` field so the cloud client can authenticate with
+// Cloud.
 #[derive(Debug, Default, Deserialize)]
 pub struct CloudConfig {
     /// Whether or not Cloud communication is enabled.

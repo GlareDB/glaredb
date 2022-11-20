@@ -20,6 +20,10 @@ pub struct ServerConfig {
 pub struct Server {
     pg_handler: Arc<Handler>,
     /// Join handle for the background worker.
+    ///
+    /// Exists on the struct to avoid dropping the future after the call to
+    /// `connect`.
+    #[allow(dead_code)]
     bg_handle: JoinHandle<()>,
 }
 
