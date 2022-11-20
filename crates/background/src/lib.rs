@@ -8,7 +8,7 @@ use common::background::BackgroundConfig;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{Interval, MissedTickBehavior};
-use tracing::{debug, error};
+use tracing::{debug, debug_span, error, info, Instrument};
 
 use storage::{DatabaseStorageUsageJob, DatabaseStorageUsageSink};
 
@@ -40,30 +40,38 @@ impl BackgroundWorker {
     /// Note that this handles all errors internally. Errors should not stop the
     /// worker from continuing to process jobs.
     pub async fn begin(self) {
+        debug!("starting background worker");
         let usage_job = DatabaseStorageUsageJob::new(self.runtime.clone());
         let usage_sink = DatabaseStorageUsageSink::new(self.cloud_client.clone());
         let mut usage_interval = interval_with_skipped_ticks(self.conf.storage_reporting.interval);
 
         let mut debug_interval = interval_with_skipped_ticks(DEBUG_DURATION);
 
-        tokio::select! {
-            _ = usage_interval.tick() => Self::handle_usage_job(&usage_job, &usage_sink).await,
-            _ = debug_interval.tick() => debug!("debug interval hit"),
+        loop {
+            tokio::select! {
+                _ = usage_interval.tick() => Self::handle_usage_job(&usage_job, &usage_sink).await,
+                _ = debug_interval.tick() => debug!("debug interval hit"),
+            }
         }
     }
 
     async fn handle_usage_job(job: &DatabaseStorageUsageJob, sink: &DatabaseStorageUsageSink) {
-        debug!("running storage usage job");
-        match job.compute_storage_total_bytes().await {
-            Ok(usage) => {
-                if let Err(e) = sink.send_usage(usage).await {
-                    error!(%e, "failed to send usage bytes to sink");
+        let span = debug_span!("database_storage_usage_job");
+        async move {
+            match job.compute_storage_total_bytes().await {
+                Ok(usage_bytes) => {
+                    info!(%usage_bytes, "total storage used");
+                    if let Err(e) = sink.send_usage(usage_bytes).await {
+                        error!(%e, "failed to send usage bytes to sink");
+                    }
+                }
+                Err(e) => {
+                    error!(%e, "failed to compute total storage usage");
                 }
             }
-            Err(e) => {
-                error!(%e, "failed to compute total storage usage");
-            }
         }
+        .instrument(span)
+        .await;
     }
 }
 

@@ -1,5 +1,7 @@
 use access::runtime::AccessRuntime;
 use anyhow::Result;
+use background::BackgroundWorker;
+use cloud::client::CloudClient;
 use common::config::DbConfig;
 use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::engine::Engine;
@@ -7,6 +9,7 @@ use std::env;
 use std::fs;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
 use tracing::trace;
 use tracing::{debug, info};
 
@@ -16,15 +19,14 @@ pub struct ServerConfig {
 
 pub struct Server {
     pg_handler: Arc<Handler>,
+    /// Join handle for the background worker.
+    bg_handle: JoinHandle<()>,
 }
 
 impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
     pub async fn connect(config: DbConfig) -> Result<Self> {
-        // TODO: Provide the access runtime to the server.
-        // TODO: Have cache_dir path come from a config file
-
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
         //
@@ -36,11 +38,25 @@ impl Server {
         trace!(?env_tmp, "ensuring temp dir for cache directory");
         fs::create_dir_all(&env_tmp)?;
 
+        // Get access runtime.
         let access = Arc::new(AccessRuntime::new(config.access).await?);
+
+        // Create cloud client if configured.
+        let cloud_client = if config.cloud.enabled {
+            let client = CloudClient::try_from_config(config.cloud).await?;
+            Some(Arc::new(client))
+        } else {
+            None
+        };
+
+        // Spin up background worker.
+        let worker = BackgroundWorker::new(config.background, cloud_client.clone(), access.clone());
+        let bg_handle = tokio::spawn(worker.begin());
 
         let engine = Engine::new(access).await?;
         Ok(Server {
             pg_handler: Arc::new(Handler::new(engine)),
+            bg_handle,
         })
     }
 
@@ -54,7 +70,7 @@ impl Server {
                 debug!(%client_addr, "client connected (pg)");
                 match pg_handler.handle_connection(conn).await {
                     Ok(_) => debug!(%client_addr, "client disconnected"),
-                    Err(e) => debug!(%e, %client_addr, "client disconnected with error."),
+                    Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
                 }
             });
         }

@@ -1,10 +1,10 @@
-use crate::errors::{BackgroundError, Result};
+use crate::errors::Result;
 use access::runtime::AccessRuntime;
 use cloud::client::CloudClient;
 use futures::TryStreamExt;
-use object_store::{path::Path as ObjectPath, ObjectStore};
+use object_store::path::Path as ObjectPath;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Background job for computing total storage usage of this database.
 #[derive(Debug)]
@@ -24,6 +24,7 @@ impl DatabaseStorageUsageJob {
     /// Compute the total storage in bytes that this database is taking up in
     /// object store.
     pub async fn compute_storage_total_bytes(&self) -> Result<u64> {
+        debug!(prefix = %self.prefix, "computing storage usage with prefix");
         let stream = self.runtime.object_store().list(Some(&self.prefix)).await?;
         let total = stream
             .try_fold(0, |acc, meta| async move { Ok(acc + meta.size) })
@@ -47,7 +48,6 @@ impl DatabaseStorageUsageSink {
 
     /// Send storage usage to cloud if available.
     pub async fn send_usage(&self, usage_bytes: u64) -> Result<()> {
-        info!(%usage_bytes, "total storage used");
         match &self.client {
             Some(client) => {
                 client.report_usage(usage_bytes).await?;

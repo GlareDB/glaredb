@@ -73,10 +73,8 @@ impl AccessRuntime {
 
     /// Returns the object storage prefix of all objects that this database
     /// contains.
-    ///
-    /// Note that the path returned always ends with "/".
     pub fn object_store_path_prefix(&self) -> ObjectPath {
-        ObjectPath::from_iter([self.inner.config.db_name.as_str(), "/"])
+        ObjectPath::from(self.inner.config.db_name.as_str())
     }
 
     pub fn delta_cache(&self) -> &Arc<DeltaCache> {
