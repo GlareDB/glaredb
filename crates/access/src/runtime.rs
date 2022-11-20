@@ -18,7 +18,7 @@ pub struct AccessRuntime {
 
 #[derive(Debug)]
 struct Inner {
-    config: Arc<AccessConfig>,
+    config: AccessConfig,
     deltas: Arc<DeltaCache>,
     compactor: Arc<Compactor>,
     store: Arc<dyn ObjectStore>,
@@ -27,7 +27,7 @@ struct Inner {
 impl AccessRuntime {
     /// Create a new access runtime with the given object store.
     #[tracing::instrument]
-    pub async fn new(config: Arc<AccessConfig>) -> Result<AccessRuntime> {
+    pub async fn new(config: AccessConfig) -> Result<AccessRuntime> {
         use ObjectStoreKind::*;
         let mut store = match config.object_store {
             Local => Arc::new(TempObjectStore::new()?) as Arc<dyn ObjectStore>,
@@ -71,6 +71,14 @@ impl AccessRuntime {
         })
     }
 
+    /// Returns the object storage prefix of all objects that this database
+    /// contains.
+    ///
+    /// Note that the path returned always ends with "/".
+    pub fn object_store_path_prefix(&self) -> ObjectPath {
+        ObjectPath::from_iter([self.inner.config.db_name.as_str(), "/"])
+    }
+
     pub fn delta_cache(&self) -> &Arc<DeltaCache> {
         &self.inner.deltas
     }
@@ -83,7 +91,7 @@ impl AccessRuntime {
         &self.inner.compactor
     }
 
-    pub fn config(&self) -> &Arc<AccessConfig> {
+    pub fn config(&self) -> &AccessConfig {
         &self.inner.config
     }
 }

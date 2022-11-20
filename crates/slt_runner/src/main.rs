@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use common::config::{DbConfig, CONFIG};
+use common::config::DbConfig;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use sqllogictest::{AsyncDB, Runner};
@@ -109,8 +109,6 @@ fn main() -> Result<()> {
                 .set_override_option("access.db_name", db_name)?
                 .build()?
                 .try_deserialize()?;
-
-            let config = CONFIG.get_or_init(|| config);
 
             let server = Server::connect(config).await?;
             let _ = tokio::spawn(server.serve(conf));

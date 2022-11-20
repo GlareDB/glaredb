@@ -1,0 +1,17 @@
+[package]
+name = "background"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1.58"
+logutil = {path = "../logutil"}
+common = {path = "../common" }
+access = {path = "../access" }
+thiserror = "1.0"
+tracing = "0.1"
+futures = "0.3.25"
+tokio = { version = "1", features = ["full"] }
+object_store = "0.5"

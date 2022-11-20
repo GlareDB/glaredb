@@ -21,7 +21,7 @@ pub struct Server {
 impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
-    pub async fn connect(config: &DbConfig) -> Result<Self> {
+    pub async fn connect(config: DbConfig) -> Result<Self> {
         // TODO: Provide the access runtime to the server.
         // TODO: Have cache_dir path come from a config file
 
@@ -36,10 +36,7 @@ impl Server {
         trace!(?env_tmp, "ensuring temp dir for cache directory");
         fs::create_dir_all(&env_tmp)?;
 
-        let access_config = config.access.clone();
-
-        info!(?access_config, "Access Config");
-        let access = Arc::new(AccessRuntime::new(access_config).await?);
+        let access = Arc::new(AccessRuntime::new(config.access).await?);
 
         let engine = Engine::new(access).await?;
         Ok(Server {

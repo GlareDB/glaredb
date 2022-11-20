@@ -1,7 +1,6 @@
 use config::{builder::DefaultState, Config, ConfigBuilder, Environment, File, FileFormat};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::access::AccessConfig;
 use crate::errors::Result;
@@ -10,13 +9,11 @@ const DEFAULT_CONFIG_FILE: &str = "config/default.toml";
 const PREFIX: &str = "GLAREDB";
 const SEPARATOR: &str = "__";
 
-pub static CONFIG: OnceCell<DbConfig> = OnceCell::new();
-
 /// Configuration for GlareDB. Default config file items can be overriden by using environment
 /// variables with the following prefix, `GLAREDB__`.
 #[derive(Debug, Deserialize)]
 pub struct DbConfig {
-    pub access: Arc<AccessConfig>,
+    pub access: AccessConfig,
 }
 
 impl DbConfig {

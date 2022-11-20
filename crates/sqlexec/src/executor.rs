@@ -142,15 +142,15 @@ mod tests {
     async fn simple() {
         let cache_dir = TempDir::new().unwrap();
         let config = DbConfig {
-            access: Arc::new(AccessConfig {
+            access: AccessConfig {
                 db_name: String::from("test"),
                 object_store: ObjectStoreKind::Local,
                 cached: true,
                 max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
                 cache_path: Some(PathBuf::from(cache_dir.path())),
-            }),
+            },
         };
-        let access = Arc::new(AccessRuntime::new(config.access.clone()).await.unwrap());
+        let access = Arc::new(AccessRuntime::new(config.access).await.unwrap());
 
         let catalog = DatabaseCatalog::open(access).await.unwrap();
 
