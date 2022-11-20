@@ -10,6 +10,7 @@ async-trait = "0.1.58"
 logutil = {path = "../logutil"}
 common = {path = "../common" }
 access = {path = "../access" }
+cloud = {path = "../cloud" }
 thiserror = "1.0"
 tracing = "0.1"
 futures = "0.3.25"

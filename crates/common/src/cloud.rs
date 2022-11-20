@@ -2,7 +2,7 @@
 use serde::Deserialize;
 use std::time::Duration;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct CloudConfig {
     /// Whether or not Cloud communication is enabled.
     pub enabled: bool,

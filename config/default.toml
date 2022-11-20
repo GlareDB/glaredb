@@ -4,3 +4,12 @@ object_store = "local"
 cached = false
 max_object_store_cache_size = 1073741824 # 1 GiB
 cache_path = "/tmp"
+
+[background.storage_reporting]
+interval = 30000000000
+
+[cloud]
+enabled = false
+api_url = "https://qa.glaredb.com"
+ping_path = "/healthz"
+timeout = 30000000000

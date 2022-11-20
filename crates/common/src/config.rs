@@ -1,8 +1,9 @@
 use config::{builder::DefaultState, Config, ConfigBuilder, Environment, File, FileFormat};
-use once_cell::sync::OnceCell;
 use serde::Deserialize;
 
 use crate::access::AccessConfig;
+use crate::background::BackgroundConfig;
+use crate::cloud::CloudConfig;
 use crate::errors::Result;
 
 const DEFAULT_CONFIG_FILE: &str = "config/default.toml";
@@ -14,6 +15,8 @@ const SEPARATOR: &str = "__";
 #[derive(Debug, Deserialize)]
 pub struct DbConfig {
     pub access: AccessConfig,
+    pub background: BackgroundConfig,
+    pub cloud: CloudConfig,
 }
 
 impl DbConfig {
