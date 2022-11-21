@@ -2,6 +2,7 @@ use access::runtime::AccessRuntime;
 use anyhow::Result;
 use background::BackgroundWorker;
 use cloud::client::CloudClient;
+use cloud::errors::CloudError;
 use common::config::DbConfig;
 use pgsrv::handler::{Handler, PostgresHandler};
 use sqlexec::engine::Engine;
@@ -46,11 +47,10 @@ impl Server {
         let access = Arc::new(AccessRuntime::new(config.access).await?);
 
         // Create cloud client if configured.
-        let cloud_client = if config.cloud.enabled {
-            let client = CloudClient::try_from_config(config.cloud).await?;
-            Some(Arc::new(client))
-        } else {
-            None
+        let cloud_client = match CloudClient::try_from_config(config.cloud).await {
+            Ok(client) => Some(Arc::new(client)),
+            Err(CloudError::CloudCommsDisabled) => None,
+            Err(e) => return Err(e.into()),
         };
 
         // Spin up background worker.
