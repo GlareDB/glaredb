@@ -132,6 +132,8 @@ mod tests {
     use access::runtime::AccessRuntime;
     use catalog::catalog::DatabaseCatalog;
     use common::access::{AccessConfig, ObjectStoreKind};
+    use common::background::BackgroundConfig;
+    use common::cloud::CloudConfig;
     use common::config::DbConfig;
     use futures::StreamExt;
     use std::path::PathBuf;
@@ -141,16 +143,14 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let cache_dir = TempDir::new().unwrap();
-        let config = DbConfig {
-            access: Arc::new(AccessConfig {
-                db_name: String::from("test"),
-                object_store: ObjectStoreKind::Local,
-                cached: true,
-                max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
-                cache_path: Some(PathBuf::from(cache_dir.path())),
-            }),
+        let access_config = AccessConfig {
+            db_name: String::from("test"),
+            object_store: ObjectStoreKind::Local,
+            cached: true,
+            max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
+            cache_path: Some(PathBuf::from(cache_dir.path())),
         };
-        let access = Arc::new(AccessRuntime::new(config.access.clone()).await.unwrap());
+        let access = Arc::new(AccessRuntime::new(access_config).await.unwrap());
 
         let catalog = DatabaseCatalog::open(access).await.unwrap();
 

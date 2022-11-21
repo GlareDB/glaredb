@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use common::config::{DbConfig, CONFIG};
+use common::config::DbConfig;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use raft::client::ConsensusClient;
@@ -131,7 +131,6 @@ fn main() -> Result<()> {
                 .build()?
                 .try_deserialize()?;
 
-            let config = CONFIG.get_or_init(|| config);
             begin_server(config, &bind)?;
         }
         Commands::Client { addr, command } => {
@@ -177,7 +176,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server(config: &DbConfig, pg_bind: &str) -> Result<()> {
+fn begin_server(config: DbConfig, pg_bind: &str) -> Result<()> {
     let runtime = build_runtime()?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;

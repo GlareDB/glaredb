@@ -490,6 +490,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "background"
+version = "0.1.0"
+dependencies = [
+ "access",
+ "async-trait",
+ "cloud",
+ "common",
+ "futures",
+ "logutil",
+ "object_store",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -782,6 +798,18 @@ dependencies = [
  "error-code",
  "str-buf",
  "winapi",
+]
+
+[[package]]
+name = "cloud"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "logutil",
+ "reqwest",
+ "serde",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -1515,8 +1543,10 @@ dependencies = [
  "access",
  "anyhow",
  "async-trait",
+ "background",
  "bincode",
  "clap",
+ "cloud",
  "common",
  "futures",
  "logutil",

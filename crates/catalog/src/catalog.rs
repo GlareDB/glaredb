@@ -404,7 +404,7 @@ mod tests {
                 db_name: TEST_DB_NAME.to_string(),
                 ..Default::default()
             };
-            let runtime = Arc::new(AccessRuntime::new(Arc::new(conf)).await.unwrap());
+            let runtime = Arc::new(AccessRuntime::new(conf).await.unwrap());
             let database = DatabaseCatalog::open(runtime).await.unwrap();
             let sess_ctx = Arc::new(SessionContext::new());
             let query = database.begin(sess_ctx.clone()).unwrap();
