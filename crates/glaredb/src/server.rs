@@ -1,6 +1,6 @@
 use access::runtime::AccessRuntime;
 use anyhow::Result;
-use background::BackgroundWorker;
+use background::{storage::DatabaseStorageUsageJob, BackgroundJob, BackgroundWorker, DebugJob};
 use cloud::client::CloudClient;
 use cloud::errors::CloudError;
 use common::config::DbConfig;
@@ -10,6 +10,7 @@ use std::env;
 use std::fs;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tracing::trace;
 use tracing::{debug, info};
@@ -26,6 +27,10 @@ pub struct Server {
     /// `connect`.
     #[allow(dead_code)]
     bg_handle: JoinHandle<()>,
+
+    /// Oneshot for shutting down the background worker. This isn't currently
+    /// used.
+    bg_shutdown_sender: oneshot::Sender<()>,
 }
 
 impl Server {
@@ -53,14 +58,24 @@ impl Server {
             Err(e) => return Err(e.into()),
         };
 
-        // Spin up background worker.
-        let worker = BackgroundWorker::new(config.background, cloud_client.clone(), access.clone());
+        // Spin up background worker jobs.
+        let jobs: Vec<Box<dyn BackgroundJob>> = vec![
+            Box::new(DebugJob),
+            Box::new(DatabaseStorageUsageJob::new(
+                access.clone(),
+                cloud_client.clone(),
+                config.background.storage_reporting.interval,
+            )),
+        ];
+        let (tx, rx) = oneshot::channel(); // Note we don't use the shutdown sender yet.
+        let worker = BackgroundWorker::new(jobs, rx);
         let bg_handle = tokio::spawn(worker.begin());
 
         let engine = Engine::new(access).await?;
         Ok(Server {
             pg_handler: Arc::new(Handler::new(engine)),
             bg_handle,
+            bg_shutdown_sender: tx,
         })
     }
 
