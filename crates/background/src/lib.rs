@@ -132,7 +132,7 @@ mod tests {
         // Check that each dummy job was called at least twice.
         let hits1 = dummy1.hits.load(Ordering::Relaxed);
         assert!(hits1 >= 2);
-        let hits2 = dummy1.hits.load(Ordering::Relaxed);
+        let hits2 = dummy2.hits.load(Ordering::Relaxed);
         assert!(hits2 >= 2);
     }
 }
