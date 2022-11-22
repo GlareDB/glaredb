@@ -28,8 +28,11 @@ pub struct Server {
     #[allow(dead_code)]
     bg_handle: JoinHandle<()>,
 
-    /// Oneshot for shutting down the background worker. This isn't currently
-    /// used.
+    /// Oneshot for shutting down the background worker.
+    ///
+    /// Not currently used. Exists on the struct so that the worker will
+    /// continue to run for the lifetime of this struct.
+    #[allow(dead_code)]
     bg_shutdown_sender: oneshot::Sender<()>,
 }
 
