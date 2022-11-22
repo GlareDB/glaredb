@@ -112,7 +112,7 @@ mod tests {
         let dummy2 = DummyJob::default();
 
         let (tx, rx) = oneshot::channel();
-        // Note we close to retain a reference to atomic counters.
+        // Note we clone to retain a reference to atomic counters.
         let worker = BackgroundWorker::new(
             [
                 Box::new(dummy1.clone()) as Box<dyn BackgroundJob>,
