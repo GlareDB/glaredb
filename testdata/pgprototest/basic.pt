@@ -1,0 +1,7 @@
+send
+Query {"query": "select 1"}
+----
+
+until
+ReadyForQuery
+----
