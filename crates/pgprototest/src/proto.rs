@@ -19,13 +19,22 @@ pub fn walk(
     options: HashMap<String, String>,
     password: Option<String>,
     timeout: Duration,
+    verbose: bool,
 ) {
     datadriven::walk(&dir, |file| {
         let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
-        file.run(|testcase| match testcase.directive.as_str() {
-            "send" => run_send(&mut conn, &testcase.args, &testcase.input),
-            "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout),
-            unknown => panic!("unknown directive: {}", unknown),
+        file.run(|testcase| {
+            if verbose {
+                println!();
+                println!("--- TESTCASE ({}) ---", testcase.directive);
+                println!("{}", testcase.input);
+            }
+
+            match testcase.directive.as_str() {
+                "send" => run_send(&mut conn, &testcase.args, &testcase.input, verbose),
+                "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout, verbose),
+                unknown => panic!("unknown directive: {}", unknown),
+            }
         });
     });
 }
@@ -33,11 +42,20 @@ pub fn walk(
 /// Run a "send" directive.
 ///
 /// No output is expected for this directive.
-fn run_send(conn: &mut PgConn, _args: &HashMap<String, Vec<String>>, input: &str) -> String {
+fn run_send(
+    conn: &mut PgConn,
+    _args: &HashMap<String, Vec<String>>,
+    input: &str,
+    verbose: bool,
+) -> String {
     for line in input.lines() {
         let mut ss = line.splitn(2, ' ');
         let typ = ss.next().unwrap();
         let json = ss.next().unwrap_or("{}");
+
+        if verbose {
+            println!("WRITE: {} {}", typ, json);
+        }
 
         conn.write(|buf| match typ {
             "Query" => {
@@ -99,12 +117,16 @@ fn run_until(
     _args: &HashMap<String, Vec<String>>,
     input: &str,
     timeout: Duration,
+    verbose: bool,
 ) -> String {
     let mut human_strings = Vec::new();
     for expected_typ in input.lines() {
         loop {
             let (id, msg) = conn.read_message(timeout).unwrap();
             let human = SerializedMessage::try_from((id, msg)).unwrap();
+            if verbose {
+                println!("READ: {}", human);
+            }
             human_strings.push(human.to_string());
             if human.typ == expected_typ {
                 break;
