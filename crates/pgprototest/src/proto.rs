@@ -47,19 +47,14 @@ fn run_send(conn: &mut PgConn, _args: &HashMap<String, Vec<String>>, input: &str
             }
             "Parse" => {
                 let val: Parse = serde_json::from_str(json)?;
-                frontend::parse(
-                    &val.name.unwrap_or(String::new()),
-                    &val.query,
-                    Vec::new(),
-                    buf,
-                )?;
+                frontend::parse(&val.name.unwrap_or_default(), &val.query, Vec::new(), buf)?;
                 Ok(())
             }
             "Bind" => {
                 let val: Bind = serde_json::from_str(json)?;
                 frontend::bind(
-                    &val.portal.unwrap_or(String::new()),
-                    &val.statement.unwrap_or(String::new()),
+                    &val.portal.unwrap_or_default(),
+                    &val.statement.unwrap_or_default(),
                     Vec::new(),
                     val.values.unwrap_or_default(),
                     |v, buf| {
@@ -78,7 +73,7 @@ fn run_send(conn: &mut PgConn, _args: &HashMap<String, Vec<String>>, input: &str
             "Execute" => {
                 let val: Execute = serde_json::from_str(json)?;
                 frontend::execute(
-                    &val.portal.unwrap_or(String::new()),
+                    &val.portal.unwrap_or_default(),
                     val.max_rows.unwrap_or(0),
                     buf,
                 )?;

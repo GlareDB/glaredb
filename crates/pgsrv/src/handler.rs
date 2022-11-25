@@ -309,7 +309,7 @@ where
                 }
             };
 
-            Self::send_result(conn, result).await?;
+            Self::send_result(conn, result, true).await?;
         }
 
         if num_statements == 0 {
@@ -490,7 +490,7 @@ where
         trace!(?portal_name, ?max_rows, "received execute");
 
         let result = session.execute_portal(&portal_name, max_rows).await?;
-        Self::send_result(conn, result).await?;
+        Self::send_result(conn, result, false).await?;
 
         Ok(())
     }
@@ -501,10 +501,14 @@ where
         self.ready_for_query().await
     }
 
-    async fn send_result(conn: &mut FramedConn<C>, result: ExecutionResult) -> Result<()> {
+    async fn send_result(
+        conn: &mut FramedConn<C>,
+        result: ExecutionResult,
+        with_row_descriptor: bool,
+    ) -> Result<()> {
         match result {
             ExecutionResult::Query { stream } => {
-                let num_rows = Self::stream_batch(conn, stream).await?;
+                let num_rows = Self::stream_batch(conn, stream, with_row_descriptor).await?;
                 Self::command_complete(conn, format!("SELECT {}", num_rows)).await?
             }
             ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
@@ -523,14 +527,18 @@ where
     async fn stream_batch(
         conn: &mut FramedConn<C>,
         mut stream: SendableRecordBatchStream,
+        with_row_descriptor: bool,
     ) -> Result<usize> {
-        let schema = stream.schema();
-        let fields: Vec<_> = schema
-            .fields
-            .iter()
-            .map(|field| FieldDescription::new_named(field.name()))
-            .collect();
-        conn.send(BackendMessage::RowDescription(fields)).await?;
+        // TODO: Passing around this boolean flag feels a bit hacky.
+        if with_row_descriptor {
+            let schema = stream.schema();
+            let fields: Vec<_> = schema
+                .fields
+                .iter()
+                .map(|field| FieldDescription::new_named(field.name()))
+                .collect();
+            conn.send(BackendMessage::RowDescription(fields)).await?;
+        }
 
         let mut num_rows = 0;
         while let Some(result) = stream.next().await {

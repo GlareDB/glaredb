@@ -1,5 +1,9 @@
 # Extended query protocol.
 
+# Basic unnamed portal.
+#
+# Note that there's no row description before sending the data rows.
+
 send
 Parse {"query": "select 1"}
 Bind
