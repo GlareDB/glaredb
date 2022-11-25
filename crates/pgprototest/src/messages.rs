@@ -2,16 +2,19 @@
 //!
 //! These messages exist seperately from the messages defined in pgsrv to avoid
 //! having to deal possible incompatibilities between types and being able to
-//! easily serialize/deserialize in a human readonable format.
+//! easily serialize/deserialize in a human readonable format. It also allows
+//! to omit fields that we don't currently care about.
 use anyhow::{anyhow, Error};
 use fallible_iterator::FallibleIterator;
-use postgres_protocol::message::{backend::Message, frontend};
+use postgres_protocol::message::backend::Message;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// A human-readable serialized backend message.
 pub struct SerializedMessage {
+    /// The message type, e.g. "ReadyForQuery".
     pub typ: String,
+    /// The serialized message.
     pub json: String,
 }
 
@@ -70,7 +73,7 @@ impl TryFrom<(char, Message)> for SerializedMessage {
         };
         Ok(SerializedMessage {
             typ: typ.to_string(),
-            json: json.to_string(),
+            json,
         })
     }
 }

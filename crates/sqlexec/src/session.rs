@@ -86,9 +86,8 @@ impl Session {
                 match &mut plan {
                     DfLogicalPlan::Projection(proj) => {
                         for expr in proj.expr.iter_mut() {
-                            match expr {
-                                Expr::Literal(_) => *expr = expr.clone().alias("?column?"),
-                                _ => (),
+                            if let Expr::Literal(_) = expr {
+                                *expr = expr.clone().alias("?column?");
                             }
                         }
                     }

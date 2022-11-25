@@ -55,3 +55,6 @@ jobs:
         run: |
           shopt -s globstar
           nix run .#slt_runner -- -v embedded testdata/sqllogictests/**/*.slt
+
+      - name: Protocol Tests
+        run: ./scripts/protocol-test.sh

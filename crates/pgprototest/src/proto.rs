@@ -145,9 +145,8 @@ impl PgConn {
         // "ReadyForQuery" before we know we can move forward.
         loop {
             let (_, msg) = pg.read_message(timeout)?;
-            match msg {
-                Message::ReadyForQuery(_) => break,
-                _ => (),
+            if let Message::ReadyForQuery(_) = msg {
+                break;
             }
         }
 
@@ -162,7 +161,7 @@ impl PgConn {
     {
         self.write_buf.clear();
         f(&mut self.write_buf)?;
-        self.conn.write(&self.write_buf)?;
+        self.conn.write_all(&self.write_buf)?;
         Ok(())
     }
 
@@ -177,7 +176,7 @@ impl PgConn {
                 return Err(anyhow!("timeout exceeded: {:?}", timeout));
             }
 
-            let id = self.read_buf.get(0).unwrap_or(&0).clone();
+            let id = *self.read_buf.first().unwrap_or(&0);
             if let Some(msg) = Message::parse(&mut self.read_buf)? {
                 return Ok((id as char, msg));
             }

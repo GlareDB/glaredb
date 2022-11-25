@@ -189,6 +189,12 @@
         cargoArtifacts = deps-only;
         cargoExtraArgs = "--bin slt_runner";
       } // common-build-args);
+
+      pgprototest = craneLib.buildPackage ({
+        pname = "glaredb-pgprototest";
+        cargoArtifacts = deps-only;
+        cargoExtraArgs = "--bin pgprototest";
+      } // common-build-args);
     };
 
     # provide runnable programs
@@ -200,6 +206,10 @@
       slt_runner = {
         type = "app";
         program = "${packages.slt_runner}/bin/slt_runner";
+      };
+      pgprototest = {
+        type = "app";
+        program = "${packages.pgprototest}/bin/pgprototest";
       };
       default = apps.cli;
     };
