@@ -2631,7 +2631,6 @@ dependencies = [
  "postgres-protocol",
  "serde",
  "serde_json",
- "tokio",
 ]
 
 [[package]]

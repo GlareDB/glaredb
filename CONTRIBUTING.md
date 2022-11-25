@@ -66,10 +66,22 @@ cargo test
 When writing unit tests, aims to keep the scope small with a minimal amount of
 setup required.
 
-### SQL Logic Tests
+### Functional Tests
+
+Functional tests are tests executed against running GlareDB instances, and can
+provide insight as to whether the system as a whole is working as intended.
+
+There are two types of functional tests in this repo: **SQL Logic Tests** and
+**Postgres Protocol Tests**.
+
+#### SQL Logic Tests
 
 SQL logic tests run end-to-end tests that execute actual SQL queries against a
-running database. These tests can be found in `testdata/sqllogictest`.
+running database. These should be used when testing the logical output of SQL
+commands (e.g. asserting that a builtin function returns the correct results, or
+ensuring that transactions are appropriately isolated).
+
+Test cases can be found in `testdata/sqllogictest`.
 
 `slt_runner` can run either against an external database using the `external`
 subcommand, or spin up an embedded database with the `embedded` subcommand.
@@ -97,7 +109,7 @@ export GCS_SERVICE_ACCOUNT_PATH="<path to service account info>"
 cargo run --bin slt_runner -- --object-store gcs --keep-running testdata/sqllogictests/**/*.slt
 ```
 
-#### Writing Tests
+##### Writing Tests
 
 Each test file should start with a short comment describing what the file is
 testing, as well as set up a unique schema to work within. E.g.
@@ -136,7 +148,7 @@ the `----` is the expected results for the query.
 
 More details on the [sqllogictest wiki page](https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
 
-#### Interpreting Test Output
+##### Interpreting Test Output
 
 `slt_runner` stops at the first error encountered.
 
@@ -173,4 +185,133 @@ GlareDB should almost never close a connection due to encountering an error
 running input from a sql logic test. If it does, **it is very likely a bug**
 and an issue should be opened. See [Issue #217](https://github.com/GlareDB/glaredb/issues/217).
 
+#### Postgres Protocol Tests
+
+Postgres protocol tests are tests that send raw protocol messages to the server
+and asserts that we receive the appropriate backend messages. These tests ensure
+postgres protocol compatability as well as allowing us to assert the contents of
+error and notice messages.
+
+Test cases can be found in `./testdata/pgprototest`.
+
+Tests can be ran with the `pgprototest` command:
+
+``` shell
+cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:6543 --user glaredb --password dummy --database glaredb
+```
+
+This expects that there's a running GlareDB instance on port 6543.
+
+##### Writing Tests
+
+Writing a test case is a 4 step process:
+
+1. Write the frontend messages you want to send.
+2. Write the type(s) of backend messages that we should wait for indicating that
+   the query is complete. In many cases, this will be one or more
+   `ReadyForQuery` messages.
+3. Execute `pgprototest` against a running Postgres instance with rewriting
+   enabled. This will rewrite the file to include the backend messages that we
+   receive from Postgres.
+4. Execute `pgprototest` against a running GlareDB instance with rewriting
+   disabled. A successful run indicates we are returning the same messages as
+   Postgres for that test case.
+   
+Breaking each step down further...
+
+Step 1: Write the frontend messages you want to send. For example, a simple
+query:
+
+``` text
+send
+Query {"query": "select 1, 2"}
+----
+
+```
+
+We prepend the message(s) we want to send with the `send` directive. 
+
+The next line contains the frontend message type (`Query`) and the actual
+contents of the message as JSON `{"query": "select 1, 2"}`.
+
+Lines immediately following `----` indicate the expected output of each "block".
+**Blocks with the `send` will always have empty results.**
+
+Step 2: Write the type(s) of messages you expect to receive from the backend.
+For our simple query, once we receive a `ReadyForQuery`, we know that the "flow"
+for this query is over:
+
+``` text
+until
+ReadyForQuery
+----
+
+```
+
+The `until` directive tell the test runner to read all backend message up to and
+including `ReadyForQuery`.
+
+The expected output is empty. This will be filled in during test rewriting
+(next).
+
+Step 3: Execute against a running postgres instance.
+
+For this, ensure you have a Postgres instance running. For example, with docker:
+
+``` shell
+docker run --rm --name "my_postgres" -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d postgres:14
+```
+
+Now run `pgprototest` with rewriting:
+
+``` shell
+cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:5432 --user postgres --database postgres --rewrite
+```
+
+If everything runs correctly, you should see the `until` that we wrote above
+gets rewritten to the following:
+
+``` text
+until
+ReadyForQuery
+----
+RowDescription {"fields":[{"name":"?column?"},{"name":"?column?"}]}
+DataRow {"fields":["1","2"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+```
+
+What's being show here are all the messages that Postgres send back to us for
+our simple query.
+
+Step 4: Execute against a running GlareDB instance. This will ensure that the
+messages we receive from GlareDB match the messages we received from Postgres in
+Step 3.
+
+``` shell
+cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:6543 --user glaredb --password dummy --database glaredb
+```
+
+If all goes well, we exit with a 0 status code, indicating that we return the
+same messages as Postgres.
+
+If there's a mismatch, `pgpprototest` will print out the expected and actual
+results for the failing test, e.g.:
+
+``` text
+./testdata/pgprototest/simple.pt:7:
+ReadyForQuery
+
+expected:
+RowDescription {"fields":[{"name":"?column?"},{"name":"?column?"}]}
+DataRow {"fields":["1","2"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+actual:
+RowDescription {"fields":[{"name":"?column?"},{"name":"?column?"}]}
+DataRow {"fields":["1","2"]}
+CommandComplete {"tag":"SELECT 2"}
+ReadyForQuery {"status":"I"}
+```
 
