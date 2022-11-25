@@ -504,8 +504,8 @@ where
     async fn send_result(conn: &mut FramedConn<C>, result: ExecutionResult) -> Result<()> {
         match result {
             ExecutionResult::Query { stream } => {
-                Self::stream_batch(conn, stream).await?;
-                Self::command_complete(conn, "SELECT").await?
+                let num_rows = Self::stream_batch(conn, stream).await?;
+                Self::command_complete(conn, format!("SELECT {}", num_rows)).await?
             }
             ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
             ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
@@ -519,10 +519,11 @@ where
         Ok(())
     }
 
+    /// Streams the batch to the client, returned the total number of rows sent.
     async fn stream_batch(
         conn: &mut FramedConn<C>,
         mut stream: SendableRecordBatchStream,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         let schema = stream.schema();
         let fields: Vec<_> = schema
             .fields
@@ -531,15 +532,17 @@ where
             .collect();
         conn.send(BackendMessage::RowDescription(fields)).await?;
 
+        let mut num_rows = 0;
         while let Some(result) = stream.next().await {
             let batch = result?;
+            num_rows += batch.num_rows();
             for row_idx in 0..batch.num_rows() {
                 // Clone is cheapish here, all columns behind an arc.
                 conn.send(BackendMessage::DataRow(batch.clone(), row_idx))
                     .await?;
             }
         }
-        Ok(())
+        Ok(num_rows)
     }
 
     async fn command_complete(conn: &mut FramedConn<C>, tag: impl Into<String>) -> Result<()> {

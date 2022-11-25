@@ -73,7 +73,7 @@ fn run_until(
         }
     }
 
-    human_strings.join("\n")
+    human_strings.join("\n") + "\n"
 }
 
 struct PgConn {
