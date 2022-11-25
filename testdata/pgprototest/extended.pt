@@ -1,0 +1,17 @@
+# Extended query protocol.
+
+send
+Parse {"query": "select 1"}
+Bind
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}

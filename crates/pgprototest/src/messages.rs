@@ -69,6 +69,10 @@ impl TryFrom<(char, Message)> for SerializedMessage {
                     tag: msg.tag()?.to_string(),
                 })?,
             ),
+            Message::ParseComplete => ("ParseComplete", String::new()),
+            Message::BindComplete => ("BindComplete", String::new()),
+            Message::NoData => ("NoData", String::new()),
+            Message::EmptyQueryResponse => ("EmptyQueryResponse", String::new()),
             _ => return Err(anyhow!("unhandle message, type identifier: {}", id)),
         };
         Ok(SerializedMessage {
