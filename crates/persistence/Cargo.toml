@@ -16,5 +16,5 @@ tracing = "0.1"
 async-trait = "0.1.58"
 datafusion = "14.0"
 object_store = { version = "0.5.1", features = ["aws", "gcp", "azure"] }
-bytes = "1.2.1"
+bytes = "1.3.0"
 tempfile = "3"
