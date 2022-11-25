@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use std::time::Duration;
 
 mod messages;
@@ -15,9 +15,13 @@ struct Cli {
     #[clap(long)]
     user: String,
     #[clap(long)]
+    password: Option<String>,
+    #[clap(long)]
     database: String,
     #[clap(long, default_value_t = 20)]
     timeout: u64,
+    #[clap(long)]
+    rewrite: bool,
 }
 
 fn main() {
@@ -29,5 +33,8 @@ fn main() {
     .into_iter()
     .collect();
     let timeout = Duration::from_secs(cli.timeout);
-    proto::walk(&cli.dir, &cli.addr, &options, timeout);
+    if cli.rewrite {
+        std::env::set_var("REWRITE", "1");
+    }
+    proto::walk(cli.dir, cli.addr, options, cli.password, timeout);
 }

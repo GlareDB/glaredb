@@ -4,6 +4,7 @@
 //! having to deal possible incompatibilities between types and being able to
 //! easily serialize/deserialize in a human readonable format.
 use anyhow::{anyhow, Error};
+use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::{backend::Message, frontend};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -29,6 +30,40 @@ impl TryFrom<(char, Message)> for SerializedMessage {
                 "ReadyForQuery",
                 serde_json::to_string(&ReadyForQuery {
                     status: String::from(msg.status() as char),
+                })?,
+            ),
+            Message::RowDescription(msg) => (
+                "RowDescription",
+                serde_json::to_string(&RowDescription {
+                    fields: msg
+                        .fields()
+                        .map(|field| {
+                            Ok(Field {
+                                name: field.name().to_string(),
+                            })
+                        })
+                        .collect()?,
+                })?,
+            ),
+            Message::DataRow(msg) => (
+                "DataRow",
+                serde_json::to_string(&DataRow {
+                    fields: msg
+                        .ranges()
+                        .map(|range| match range {
+                            Some(range) => Ok(String::from_utf8(
+                                msg.buffer()[range.start..range.end].to_vec(),
+                            )
+                            .unwrap()), // TODO: Print raw bytes instead.
+                            None => Ok(String::from("NULL")),
+                        })
+                        .collect()?,
+                })?,
+            ),
+            Message::CommandComplete(msg) => (
+                "CommandComplete",
+                serde_json::to_string(&CommandComplete {
+                    tag: msg.tag()?.to_string(),
                 })?,
             ),
             _ => return Err(anyhow!("unhandle message, type identifier: {}", id)),

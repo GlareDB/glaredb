@@ -12,9 +12,15 @@ use std::time::{Duration, Instant};
 ///
 /// Each file will open a unique connection, with each test case in that file
 /// being ran sequentially using that connection.
-pub fn walk(dir: &str, addr: &str, options: &HashMap<String, String>, timeout: Duration) {
-    datadriven::walk(dir, |file| {
-        let mut conn = PgConn::connect(addr, options, timeout).unwrap();
+pub fn walk(
+    dir: String,
+    addr: String,
+    options: HashMap<String, String>,
+    password: Option<String>,
+    timeout: Duration,
+) {
+    datadriven::walk(&dir, |file| {
+        let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
         file.run(|testcase| match testcase.directive.as_str() {
             "send" => run_send(&mut conn, &testcase.args, &testcase.input),
             "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout),
@@ -79,7 +85,16 @@ struct PgConn {
 impl PgConn {
     /// Connect to a given postgres compatible server, going through the initial
     /// startup flow.
-    fn connect(addr: &str, options: &HashMap<String, String>, timeout: Duration) -> Result<Self> {
+    ///
+    /// Providing a password will initiate the cleartext password flow.
+    /// Providing a password when the server isn't expecting one will result in
+    /// an error.
+    fn connect(
+        addr: &str,
+        options: &HashMap<String, String>,
+        password: &Option<String>,
+        timeout: Duration,
+    ) -> Result<Self> {
         let conn = TcpStream::connect(addr)?;
         let mut pg = PgConn {
             conn,
@@ -97,6 +112,24 @@ impl PgConn {
             Ok(())
         })?;
 
+        if let Some(password) = password {
+            let (id, msg) = pg.read_message(timeout)?;
+            match msg {
+                Message::AuthenticationCleartextPassword => {
+                    pg.write(|buf| {
+                        frontend::password_message(password.as_bytes(), buf)?;
+                        Ok(())
+                    })?;
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "received unexpected message during authentication: {}",
+                        id
+                    ))
+                }
+            }
+        }
+
         let (id, msg) = pg.read_message(timeout)?;
         match msg {
             Message::AuthenticationOk => (),
@@ -111,7 +144,7 @@ impl PgConn {
         // We may get additional messages back, just need to wait for the first
         // "ReadyForQuery" before we know we can move forward.
         loop {
-            let (id, msg) = pg.read_message(timeout)?;
+            let (_, msg) = pg.read_message(timeout)?;
             match msg {
                 Message::ReadyForQuery(_) => break,
                 _ => (),

@@ -2627,6 +2627,7 @@ dependencies = [
  "bytes",
  "clap",
  "datadriven",
+ "fallible-iterator",
  "postgres-protocol",
  "serde",
  "serde_json",
