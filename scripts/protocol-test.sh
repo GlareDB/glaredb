@@ -14,6 +14,9 @@ nix build .#cli
 log_file="/tmp/glaredb.log-${RANDOM}"
 nohup nix run .#cli -- -v server > "${log_file}" 2>&1 &
 
+# Get pid so we can shut it down at the end of this script.
+glaredb_pid=$!
+
 # Give it some time. Eventually we could wait on a signal or poll system status
 # through an endpoint.
 sleep 5
@@ -27,6 +30,9 @@ nix run .#pgprototest -- \
     --password dummy \
     --database glaredb \
     -v || ret=$?
+
+# Kill GlareDB
+kill "${glaredb_pid}"
 
 # Print out log if failed.
 if [[ "${ret}" -ne 0 ]]; then
