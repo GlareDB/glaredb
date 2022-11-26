@@ -25,7 +25,8 @@ nix run .#pgprototest -- \
     --addr localhost:6543 \
     --user glaredb \
     --password dummy \
-    --database glaredb || ret=$?
+    --database glaredb \
+    -v || ret=$?
 
 # Print out log if failed.
 if [[ "${ret}" -ne 0 ]]; then
