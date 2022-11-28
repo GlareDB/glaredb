@@ -256,7 +256,7 @@ The expected output is empty. This will be filled in during test rewriting
 
 Step 3: Execute against a running postgres instance.
 
-For this, ensure you have a Postgres instance running. For example, with docker:
+For this, ensure you have a Postgres instance running. For example, with docker[^1]:
 
 ``` shell
 docker run --rm --name "my_postgres" -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d postgres:14
@@ -315,3 +315,8 @@ CommandComplete {"tag":"SELECT 2"}
 ReadyForQuery {"status":"I"}
 ```
 
+[^1]: `pgprototest` onlys support clear text authentication. Postgres will
+    typically use SASL when doing password based authentication, so it's
+    recommended to configure Postgres with no password to avoid this shortcoming
+    (e.g. via the `POSTGRES_HOST_AUTH_METHOD=true` environment variable for the
+    docker container).
