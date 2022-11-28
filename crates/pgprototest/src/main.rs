@@ -31,6 +31,9 @@ struct Cli {
     /// May optionally set the 'REWRITE` environment variable instead.
     #[clap(long)]
     rewrite: bool,
+    /// Print out received and sent messages for every test.
+    #[clap(long, short)]
+    verbose: bool,
 }
 
 fn main() {
@@ -48,5 +51,12 @@ fn main() {
         std::env::set_var("REWRITE", "1");
     }
 
-    proto::walk(cli.dir, cli.addr, options, cli.password, timeout);
+    proto::walk(
+        cli.dir,
+        cli.addr,
+        options,
+        cli.password,
+        timeout,
+        cli.verbose,
+    );
 }

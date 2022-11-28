@@ -1,7 +1,8 @@
 use crate::messages::*;
 use anyhow::{anyhow, Result};
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use postgres_protocol::message::{backend::Message, frontend};
+use postgres_protocol::IsNull;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -18,13 +19,22 @@ pub fn walk(
     options: HashMap<String, String>,
     password: Option<String>,
     timeout: Duration,
+    verbose: bool,
 ) {
     datadriven::walk(&dir, |file| {
         let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
-        file.run(|testcase| match testcase.directive.as_str() {
-            "send" => run_send(&mut conn, &testcase.args, &testcase.input),
-            "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout),
-            unknown => panic!("unknown directive: {}", unknown),
+        file.run(|testcase| {
+            if verbose {
+                println!();
+                println!("--- TESTCASE ({}) ---", testcase.directive);
+                println!("{}", testcase.input);
+            }
+
+            match testcase.directive.as_str() {
+                "send" => run_send(&mut conn, &testcase.args, &testcase.input, verbose),
+                "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout, verbose),
+                unknown => panic!("unknown directive: {}", unknown),
+            }
         });
     });
 }
@@ -32,16 +42,63 @@ pub fn walk(
 /// Run a "send" directive.
 ///
 /// No output is expected for this directive.
-fn run_send(conn: &mut PgConn, _args: &HashMap<String, Vec<String>>, input: &str) -> String {
+fn run_send(
+    conn: &mut PgConn,
+    _args: &HashMap<String, Vec<String>>,
+    input: &str,
+    verbose: bool,
+) -> String {
     for line in input.lines() {
         let mut ss = line.splitn(2, ' ');
         let typ = ss.next().unwrap();
         let json = ss.next().unwrap_or("{}");
 
+        if verbose {
+            println!("WRITE: {} {}", typ, json);
+        }
+
         conn.write(|buf| match typ {
             "Query" => {
                 let val: Query = serde_json::from_str(json)?;
                 frontend::query(&val.query, buf)?;
+                Ok(())
+            }
+            "Parse" => {
+                let val: Parse = serde_json::from_str(json)?;
+                frontend::parse(&val.name.unwrap_or_default(), &val.query, Vec::new(), buf)?;
+                Ok(())
+            }
+            "Bind" => {
+                let val: Bind = serde_json::from_str(json)?;
+                frontend::bind(
+                    &val.portal.unwrap_or_default(),
+                    &val.statement.unwrap_or_default(),
+                    Vec::new(),
+                    val.values.unwrap_or_default(),
+                    |v, buf| {
+                        buf.put_slice(v.as_bytes());
+                        Ok(IsNull::No)
+                    },
+                    val.result_formats.unwrap_or_default(),
+                    buf,
+                )
+                .map_err(|e| match e {
+                    frontend::BindError::Conversion(e) => anyhow!("conversion: {:?}", e),
+                    frontend::BindError::Serialization(e) => anyhow!("serialization: {:?}", e),
+                })?;
+                Ok(())
+            }
+            "Execute" => {
+                let val: Execute = serde_json::from_str(json)?;
+                frontend::execute(
+                    &val.portal.unwrap_or_default(),
+                    val.max_rows.unwrap_or(0),
+                    buf,
+                )?;
+                Ok(())
+            }
+            "Sync" => {
+                frontend::sync(buf);
                 Ok(())
             }
             unknown => panic!("unknown type: {}", unknown),
@@ -60,12 +117,16 @@ fn run_until(
     _args: &HashMap<String, Vec<String>>,
     input: &str,
     timeout: Duration,
+    verbose: bool,
 ) -> String {
     let mut human_strings = Vec::new();
     for expected_typ in input.lines() {
         loop {
             let (id, msg) = conn.read_message(timeout).unwrap();
             let human = SerializedMessage::try_from((id, msg)).unwrap();
+            if verbose {
+                println!("READ: {}", human);
+            }
             human_strings.push(human.to_string());
             if human.typ == expected_typ {
                 break;
@@ -96,6 +157,8 @@ impl PgConn {
         timeout: Duration,
     ) -> Result<Self> {
         let conn = TcpStream::connect(addr)?;
+        conn.set_write_timeout(Some(timeout))?;
+        conn.set_read_timeout(Some(timeout))?;
         let mut pg = PgConn {
             conn,
             read_buf: BytesMut::new(),

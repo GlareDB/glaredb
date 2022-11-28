@@ -1,0 +1,21 @@
+# Extended query protocol.
+
+# Basic unnamed portal.
+#
+# Note that there's no row description before sending the data rows.
+
+send
+Parse {"query": "select 1"}
+Bind
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
