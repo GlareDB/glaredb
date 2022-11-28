@@ -1000,6 +1000,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "datadriven"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c496e3277b660041bd6a2c0618593e99c3ba450b30d5f8d89035f78c87b4106"
+dependencies = [
+ "anyhow",
+ "futures",
+]
+
+[[package]]
 name = "datafusion"
 version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2644,6 +2654,20 @@ checksum = "e6d5014253a1331579ce62aa67443b4a658c5e7dd03d4bc6d302b94474888143"
 dependencies = [
  "fixedbitset",
  "indexmap",
+]
+
+[[package]]
+name = "pgprototest"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "clap",
+ "datadriven",
+ "fallible-iterator",
+ "postgres-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

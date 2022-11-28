@@ -1,0 +1,42 @@
+# Simple query protocol testing.
+
+send
+Query {"query": "select 1, 2"}
+----
+
+until
+ReadyForQuery
+----
+RowDescription {"fields":[{"name":"?column?"},{"name":"?column?"}]}
+DataRow {"fields":["1","2"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+
+send
+Query {"query": "select 1; select 2;"}
+----
+
+until
+ReadyForQuery
+----
+RowDescription {"fields":[{"name":"?column?"}]}
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+RowDescription {"fields":[{"name":"?column?"}]}
+DataRow {"fields":["2"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+
+send
+Query {"query": "select 1 as my_alias, 2"}
+----
+
+until
+ReadyForQuery
+----
+RowDescription {"fields":[{"name":"my_alias"},{"name":"?column?"}]}
+DataRow {"fields":["1","2"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
