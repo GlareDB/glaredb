@@ -137,6 +137,8 @@ impl SystemBootstrapStep for InsertIdSequence {
             table: constants::SEQUENCES_TABLE_ID,
             // TODO: This is jank. Currently doing this avoid specifying an
             // id that would actually belong to a reserved schema.
+            //
+            // See <https://github.com/GlareDB/glaredb/issues/352>
             next: (PUBLIC_SCHEMA_ID + 1) as i64,
             inc: 1,
         }
