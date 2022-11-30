@@ -1,6 +1,9 @@
 //! Constants related to system tables.
 use catalog_types::keys::TableId;
 
+pub const BOOTSTRAP_TABLE_ID: TableId = 0;
+pub const BOOTSTRAP_TABLE_NAME: &str = "bootstrap";
+
 pub const BUILTIN_TYPES_TABLE_ID: TableId = 1;
 pub const BUILTIN_TYPES_TABLE_NAME: &str = "builtin_types";
 
