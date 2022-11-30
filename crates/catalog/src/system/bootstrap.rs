@@ -72,7 +72,6 @@ impl BoostrapRow {
         ctx: &SessionContext,
         runtime: &Arc<AccessRuntime>,
         system: &SystemSchema,
-        schema: SchemaId,
     ) -> Result<Option<BoostrapRow>> {
         let bootstrap_table = system
             .get_system_table_accessor(BOOTSTRAP_TABLE_NAME)

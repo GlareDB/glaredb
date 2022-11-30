@@ -25,7 +25,7 @@ use std::sync::Arc;
 use tracing::{info, instrument};
 
 use attributes::AttributesTable;
-use bootstrap::BoostrapRow;
+use bootstrap::{BoostrapRow, BootstrapTable};
 use builtin_types::BuiltinTypesTable;
 use relations::{RelationRow, RelationsTable};
 use schemas::{SchemaRow, SchemasTable};
@@ -127,6 +127,7 @@ impl SystemSchema {
     /// Create a new system schema.
     pub fn new() -> Result<SystemSchema> {
         let tables: &[Arc<dyn SystemTableAccessor>] = &[
+            Arc::new(BootstrapTable::new()),
             Arc::new(BuiltinTypesTable::new()),
             Arc::new(RelationsTable::new()),
             Arc::new(SchemasTable::new()),
@@ -143,23 +144,37 @@ impl SystemSchema {
     }
 
     /// Bootstrap the system schema.
-    #[instrument]
     pub async fn bootstrap(&self, runtime: &Arc<AccessRuntime>) -> Result<()> {
         // TODO: This will eventually hold a global (cross-node) lock.
-        info!(num_steps = %BOOTSTRAP_STEPS.len(), "running bootstrap steps");
 
         let sess_ctx = SessionContext::new(); // TODO: Have a "system" session context?
 
+        // Determine which steps we need run based on what's in the "bootstrap"
+        // table.
+        let start_idx = match BoostrapRow::scan_latest(&sess_ctx, runtime, self).await? {
+            Some(step) => (step.bootstrap_step + 1) as usize,
+            None => 0,
+        };
+
+        if start_idx >= BOOTSTRAP_STEPS.len() {
+            info!("system bootstrap up to date");
+            return Ok(());
+        }
+
+        let steps = &BOOTSTRAP_STEPS[start_idx..];
+
+        info!(%start_idx, num_steps = %steps.len(), "running bootstrap steps");
+
         // Run each bootstrap, inserting into the "bootstrap" table as steps are
         // successfully ran.
-        for (i, step) in BOOTSTRAP_STEPS.iter().enumerate() {
+        for (step, idx) in steps.iter().zip(start_idx..) {
             let name = step.name();
             info!(%name, "running step");
 
             step.run(&sess_ctx, runtime, self).await?;
 
             BoostrapRow {
-                bootstrap_step: i as u32,
+                bootstrap_step: idx as u32,
                 bootstrap_name: name.to_string(),
             }
             .insert(&sess_ctx, runtime, self)
