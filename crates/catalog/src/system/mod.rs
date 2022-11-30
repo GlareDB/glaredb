@@ -1,11 +1,16 @@
 //! Built-in system catalog tables.
 pub mod attributes;
+pub mod bootstrap;
 pub mod builtin_types;
 pub mod constants;
 pub mod relations;
 pub mod schemas;
 pub mod sequences;
 
+use crate::bootstrap::{
+    CreatePublicSchema, CreateV0SystemTables, InsertIdSequence, InsertSystemSchema,
+    SystemBootstrapStep,
+};
 use crate::errors::{internal, CatalogError, Result};
 use access::runtime::AccessRuntime;
 use access::table::PartitionedTable;
@@ -17,12 +22,31 @@ use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
+use tracing::info;
 
 use attributes::AttributesTable;
+use bootstrap::{BoostrapRow, BootstrapTable};
 use builtin_types::BuiltinTypesTable;
-use relations::{RelationRow, RelationsTable};
-use schemas::{SchemaRow, SchemasTable};
+use relations::RelationsTable;
+use schemas::SchemasTable;
 use sequences::{SequenceRow, SequencesTable};
+
+/// Steps ran during the bootstrap process.
+///
+/// Internally the system tracks which steps have been ran by using the index at
+/// which the step appears in this array. Steps that have already been ran will
+/// be skipped.
+///
+/// Since we're currently in alpha, these steps may be changed and reordered
+/// since we don't make any guarantees right now. Note that reordering or
+/// changing steps may lead to a broken database. Once we officially ship, this
+/// array should be treated as append only.
+const BOOTSTRAP_STEPS: &[&dyn SystemBootstrapStep] = &[
+    &CreateV0SystemTables,
+    &InsertIdSequence,
+    &InsertSystemSchema,
+    &CreatePublicSchema,
+];
 
 /// Maximum reserved schema id. All user schemas are required to be greater than
 /// this.
@@ -103,6 +127,7 @@ impl SystemSchema {
     /// Create a new system schema.
     pub fn new() -> Result<SystemSchema> {
         let tables: &[Arc<dyn SystemTableAccessor>] = &[
+            Arc::new(BootstrapTable::new()),
             Arc::new(BuiltinTypesTable::new()),
             Arc::new(RelationsTable::new()),
             Arc::new(SchemasTable::new()),
@@ -121,64 +146,39 @@ impl SystemSchema {
     /// Bootstrap the system schema.
     pub async fn bootstrap(&self, runtime: &Arc<AccessRuntime>) -> Result<()> {
         // TODO: This will eventually hold a global (cross-node) lock.
-        // TODO: Everything should be broken up into "bootstrap steps". We'll
-        // persist which steps have been ran, and only run newer bootstrap
-        // steps. This will allow us to evolve the system schema.
 
         let sess_ctx = SessionContext::new(); // TODO: Have a "system" session context?
 
-        // Ensure we have the id sequence table.
-        let rel = RelationRow::scan_one_by_name(
-            &sess_ctx,
-            runtime,
-            self,
-            SYSTEM_SCHEMA_ID,
-            ID_SEQUENCE_NAME,
-        )
-        .await?;
-        if rel.is_none() {
-            // Create it.
-            let rel = RelationRow {
-                schema_id: SYSTEM_SCHEMA_ID,
-                table_id: constants::SEQUENCES_TABLE_ID,
-                table_name: constants::SEQUENCES_TABLE_NAME.to_string(),
-            };
-            rel.insert(&sess_ctx, runtime, self).await?;
+        // Determine which steps we need run based on what's in the "bootstrap"
+        // table.
+        let start_idx = match BoostrapRow::scan_latest(&sess_ctx, runtime, self).await? {
+            Some(step) => (step.bootstrap_step + 1) as usize,
+            None => 0,
+        };
+
+        if start_idx >= BOOTSTRAP_STEPS.len() {
+            info!("system bootstrap up to date");
+            return Ok(());
         }
 
-        // Ensure we have the sequence entry.
-        // TODO: Don't trigger a sequence increment.
-        let next = SequenceRow::next(
-            &sess_ctx,
-            runtime,
-            self,
-            SYSTEM_SCHEMA_ID,
-            constants::SEQUENCES_TABLE_ID,
-        )
-        .await?;
-        if next.is_none() {
-            // Insert the sequence row.
-            let seq = SequenceRow {
-                schema: SYSTEM_SCHEMA_ID,
-                table: constants::SEQUENCES_TABLE_ID,
-                // TODO: This is jank. Currently doing this avoid specifying an
-                // id that would actually belong to a reserved schema.
-                next: (PUBLIC_SCHEMA_ID + 1) as i64,
-                inc: 1,
-            };
-            seq.insert(&sess_ctx, runtime, self).await?;
-        }
+        let steps = &BOOTSTRAP_STEPS[start_idx..];
 
-        // Ensure that we have the "public" schema available. Note that without
-        // discrete bootstrap steps, this would recreate the public schema even
-        // if it's deleted by the user.
-        let schema = SchemaRow::scan_by_name(&sess_ctx, runtime, self, PUBLIC_SCHEMA_NAME).await?;
-        if schema.is_none() {
-            let schema = SchemaRow {
-                id: PUBLIC_SCHEMA_ID,
-                name: PUBLIC_SCHEMA_NAME.to_string(),
-            };
-            schema.insert(&sess_ctx, runtime, self).await?;
+        info!(%start_idx, num_steps = %steps.len(), "running bootstrap steps");
+
+        // Run each bootstrap, inserting into the "bootstrap" table as steps are
+        // successfully ran.
+        for (step, idx) in steps.iter().zip(start_idx..) {
+            let name = step.name();
+            info!(%name, "running step");
+
+            step.run(&sess_ctx, runtime, self).await?;
+
+            BoostrapRow {
+                bootstrap_step: idx as u32,
+                bootstrap_name: name.to_string(),
+            }
+            .insert(&sess_ctx, runtime, self)
+            .await?;
         }
 
         Ok(())

@@ -6,6 +6,7 @@ pub mod catalog;
 pub mod errors;
 pub mod system;
 
+mod bootstrap;
 mod dbg;
 mod filter;
 mod information_schema;
