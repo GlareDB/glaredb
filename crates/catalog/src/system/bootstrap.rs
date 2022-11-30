@@ -7,7 +7,7 @@ use access::strategy::SinglePartitionStrategy;
 use access::table::PartitionedTable;
 use catalog_types::context::SessionContext;
 use catalog_types::interfaces::MutableTableProvider;
-use catalog_types::keys::{SchemaId, TableKey};
+use catalog_types::keys::TableKey;
 use datafusion::arrow::array::{StringArray, UInt32Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;

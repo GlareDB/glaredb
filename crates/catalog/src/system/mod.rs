@@ -22,13 +22,13 @@ use datafusion::datasource::{MemTable, TableProvider};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use tracing::{info, instrument};
+use tracing::info;
 
 use attributes::AttributesTable;
 use bootstrap::{BoostrapRow, BootstrapTable};
 use builtin_types::BuiltinTypesTable;
-use relations::{RelationRow, RelationsTable};
-use schemas::{SchemaRow, SchemasTable};
+use relations::RelationsTable;
+use schemas::SchemasTable;
 use sequences::{SequenceRow, SequencesTable};
 
 /// Steps ran during the bootstrap process.
@@ -41,7 +41,7 @@ use sequences::{SequenceRow, SequencesTable};
 /// since we don't make any guarantees right now. Note that reordering or
 /// changing steps may lead to a broken database. Once we officially ship, this
 /// array should be treated as append only.
-const BOOTSTRAP_STEPS: &'static [&dyn SystemBootstrapStep] = &[
+const BOOTSTRAP_STEPS: &[&dyn SystemBootstrapStep] = &[
     &CreateV0SystemTables,
     &InsertIdSequence,
     &InsertSystemSchema,
