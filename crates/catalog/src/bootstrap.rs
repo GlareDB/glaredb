@@ -1,7 +1,7 @@
 //! System bootstrap steps.
 //!
-//! While eventually these steps should eventually be stable, they are subject
-//! to change during the duration of Alpha.
+//! While these steps should eventually be stable, they are subject to change
+//! during the duration of Alpha.
 use crate::errors::Result;
 use crate::system::relations::RelationRow;
 use crate::system::schemas::SchemaRow;
