@@ -1,8 +1,8 @@
 use crate::errors::{PgSrvError, Result};
+use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use futures::{SinkExt, TryStreamExt};
-use pgrepr::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;

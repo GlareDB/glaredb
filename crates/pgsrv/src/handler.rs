@@ -3,13 +3,13 @@ use crate::codec::{
     server::{FramedConn, PgCodec},
 };
 use crate::errors::{PgSrvError, Result};
-use async_trait::async_trait;
-use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::StreamExt;
-use pgrepr::messages::{
+use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
     StartupMessage, TransactionStatus, VERSION_V3,
 };
+use async_trait::async_trait;
+use datafusion::physical_plan::SendableRecordBatchStream;
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{

@@ -13,9 +13,6 @@ pub enum Error {
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
-
-    #[error("unexpected describe object type: {0}")]
-    UnexpectedDescribeObjectType(u8),
 }
 
 #[derive(Debug, Clone)]

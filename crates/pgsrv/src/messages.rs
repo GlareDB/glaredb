@@ -1,7 +1,7 @@
 use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashMap;
 
-use crate::error::Error;
+use crate::errors::PgSrvError;
 
 /// Version number (v3.0) used during normal frontend startup.
 pub const VERSION_V3: i32 = 0x30000;
@@ -39,35 +39,46 @@ pub enum FrontendMessage {
     },
     /// An extended query parse message.
     Parse {
-        /// The name of the prepared statement. An empty string denotes the unnamed prepared statement.
+        /// The name of the prepared statement. An empty string denotes the
+        /// unnamed prepared statement.
         name: String,
         /// The query string to be parsed.
         sql: String,
-        /// The object IDs of the parameter data types. Placing a zero here is equivalent to leaving the type unspecified.
+        /// The object IDs of the parameter data types. Placing a zero here is
+        /// equivalent to leaving the type unspecified.
         param_types: Vec<i32>,
     },
     Bind {
-        /// The name of the destination portal (an empty string selects the unnamed portal).
+        /// The name of the destination portal (an empty string selects the
+        /// unnamed portal).
         portal: String,
-        /// The name of the source prepared statement (an empty string selects the unnamed prepared statement).
+        /// The name of the source prepared statement (an empty string selects
+        /// the unnamed prepared statement).
         statement: String,
-        /// The parameter format codes. Each must presently be zero (text) or one (binary).
+        /// The parameter format codes. Each must presently be zero (text) or
+        /// one (binary).
         param_formats: Vec<i16>,
-        /// The parameter values, in the format indicated by the associated format code. n is the above length.
+        /// The parameter values, in the format indicated by the associated
+        /// format code. n is the above length.
         param_values: Vec<Option<Vec<u8>>>,
-        /// The result-column format codes. Each must presently be zero (text) or one (binary).
+        /// The result-column format codes. Each must presently be zero (text)
+        /// or one (binary).
         result_formats: Vec<i16>,
     },
     Describe {
-        /// The kind of item to describe: 'S' to describe a prepared statement; or 'P' to describe a portal.
+        /// The kind of item to describe: 'S' to describe a prepared statement;
+        /// or 'P' to describe a portal.
         object_type: DescribeObjectType,
-        /// The name of the item to describe (an empty string selects the unnamed prepared statement or portal).
+        /// The name of the item to describe (an empty string selects the
+        /// unnamed prepared statement or portal).
         name: String,
     },
     Execute {
-        /// The name of the portal to execute (an empty string selects the unnamed portal).
+        /// The name of the portal to execute (an empty string selects the
+        /// unnamed portal).
         portal: String,
-        /// The maximum number of rows to return, if portal contains a query that returns rows (ignored otherwise). Zero denotes "no limit".
+        /// The maximum number of rows to return, if portal contains a query
+        /// that returns rows (ignored otherwise). Zero denotes "no limit".
         max_rows: i32,
     },
     Sync,
@@ -263,13 +274,13 @@ impl std::fmt::Display for DescribeObjectType {
 }
 
 impl TryFrom<u8> for DescribeObjectType {
-    type Error = Error;
+    type Error = PgSrvError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             b'S' => Ok(DescribeObjectType::Statement),
             b'P' => Ok(DescribeObjectType::Portal),
-            _ => Err(Error::UnexpectedDescribeObjectType(value)),
+            _ => Err(PgSrvError::UnexpectedDescribeObjectType(value)),
         }
     }
 }
