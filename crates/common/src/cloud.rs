@@ -12,6 +12,10 @@ pub struct CloudConfig {
     pub api_url: String,
     /// Path to ping to ensure GlareDB can communicate with the cloud service.
     pub ping_path: String,
+    /// System API Key authorizes the GlareDB system/background jobs with a
+    /// database identifier on Cloud. This key is used for reporting meta
+    /// about a database, such as storage usage and eventually limits.
+    pub system_api_key: String,
     /// Request timeout.
     pub timeout: Duration,
 }

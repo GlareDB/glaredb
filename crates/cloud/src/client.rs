@@ -35,11 +35,13 @@ impl CloudClient {
         }
         let res = self
             .http
-            .put(format!("{}/{}", self.conf.api_url, REPORT_STORAGE_ENDPOINT))
+            .put(self.conf.api_url.clone() + REPORT_STORAGE_ENDPOINT)
+            .header("Authorization", "Basic 6tCvEVBkD91q4KhjGVtT")
+            .header("X-System-Token", &self.conf.system_api_key)
             .json(&Body { usage_bytes })
             .send()
             .await?;
-        if res.status().as_u16() != 200 {
+        if res.status().as_u16() != 204 {
             let text = res.text().await?;
             return Err(CloudError::UnexpectedResponse(text));
         }
