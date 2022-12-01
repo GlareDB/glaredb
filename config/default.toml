@@ -12,4 +12,5 @@ interval = {secs = 30, nanos = 0}
 enabled = false
 api_url = "https://qa.glaredb.com"
 ping_path = "/healthz"
+system_api_key = ""
 timeout = {secs = 15, nanos = 0}
