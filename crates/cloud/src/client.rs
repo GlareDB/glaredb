@@ -35,7 +35,7 @@ impl CloudClient {
         }
         let res = self
             .http
-            .put(format!("{}{}", self.conf.api_url, REPORT_STORAGE_ENDPOINT))
+            .put(self.conf.api_url.clone() + REPORT_STORAGE_ENDPOINT)
             .header("Authorization", "Basic 6tCvEVBkD91q4KhjGVtT")
             .header("X-System-Token", &self.conf.system_api_key)
             .json(&Body { usage_bytes })
