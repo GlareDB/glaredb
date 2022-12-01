@@ -1,4 +1,4 @@
-use pgrepr::messages::{BackendMessage, FrontendMessage, StartupMessage};
+use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
@@ -38,6 +38,9 @@ pub enum PgSrvError {
     /// with the Postgres message format documentation.
     #[error("invalid message type: byte={0}, char={}", *.0 as char)]
     InvalidMsgType(u8),
+
+    #[error("unexpected describe object type: {0}")]
+    UnexpectedDescribeObjectType(u8),
 
     #[error(transparent)]
     Io(#[from] io::Error),
