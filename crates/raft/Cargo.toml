@@ -9,15 +9,15 @@ build = "build_proto.rs"
 [dependencies]
 logutil = {path = "../logutil"}
 maplit = "1.0"
-tonic = { version = "0.8.2", features = ["transport", "codegen"] }
-prost = "0.11.2"
+tonic = { version = "0.8.3", features = ["transport", "codegen"] }
+prost = "0.11.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = { version = "1.0" }
 tokio = { version = "1", features = ["full"] }
-async-trait = "0.1.58"
+async-trait = "0.1.59"
 futures = "0.3.25"
 parking_lot = "0.12.1"
 tokio-serde = { version = "0.8", features = ["bincode"] }
@@ -28,4 +28,4 @@ openraft = { git = "https://github.com/glaredb/openraft", rev = "e6be6640455e589
 reqwest = { version = "0.11", features = ["json"] }
 
 [build-dependencies]
-tonic-build = "0.8.2"
+tonic-build = "0.8.4"

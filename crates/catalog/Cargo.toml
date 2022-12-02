@@ -13,7 +13,7 @@ catalog_types = {path = "../catalog_types"}
 common = {path = "../common"}
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.58"
+async-trait = "0.1.59"
 futures = "0.3.25"
 parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
