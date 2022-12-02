@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 object_store = "0.5"
 datafusion = "14.0"
-async-trait = "0.1.58"
+async-trait = "0.1.59"
