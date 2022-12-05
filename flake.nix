@@ -6,6 +6,8 @@
     flake-utils.url = "github:numtide/flake-utils";
 
     # Allows us to pick a rust toolchain independent of nixpkgs.
+    #
+    # Udpating can be done via `nix flake lock --update-input fenix`
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
