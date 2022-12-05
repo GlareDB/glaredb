@@ -8,7 +8,7 @@
 set -e
 
 # Build first so that `nix run ...` can start right away.
-nix build .#cli
+nix build .#glaredb
 
 # Start up GlareDB.
 log_file="/tmp/glaredb.log-${RANDOM}"
