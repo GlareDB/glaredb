@@ -61,8 +61,8 @@ check_command() {
 }
 
 # build the container archives
-nix build .#glaredb_image --out-link glaredb_image
-nix build .#pgsrv_image --out-link pgsrv_image
+nix build .#glaredb-image --out-link glaredb_image
+nix build .#pgsrv-image --out-link pgsrv_image
 
 # ensure that the command can be executed inside the containers before pushing
 check_command "glaredb_image" "glaredb --help" "glaredb"
