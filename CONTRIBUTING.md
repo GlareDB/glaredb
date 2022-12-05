@@ -8,12 +8,20 @@ Development dependencies may (optionally) be installed using nix. By using nix
 all programs needed (cargo, protoc, &c) will be installed and you will be placed
 into a shell configured with them in your PATH.
 
-## Nix
+## Development environemnt
 
-### Obtaining a development environment
+A development environment can either be setup manually or with nix.
 
-First, if you are not using NixOS you must install nix and configure the
-experimental flakes feature.
+### Manual setup
+
+A manual setup requires that you have Rust and Cargo installed, along with some
+additional system dependencies:
+
+- OpenSSL dev bindings
+- Protobuf (protoc)
+- Possibly more
+
+### Nix setup
 
 The [nix download page](https://nixos.org/download.html) has instructions on installation. To enable flakes,
 add the following to your `nix.conf` in either `~/.config/nix/nix.conf` or
@@ -29,28 +37,6 @@ most up to date information.
 When all of these steps are complete, you should be able to obtain the projects
 development shell: `nix develop` From this shell you may work on the project and
 use any cli tools needed.
-
-### other information
-
-This project uses [flake-parts](https://github.com/hercules-ci/flake-parts) to organize the nix flake output into
-multiple files. `flake.nix` is kept minimal and the [flake outputs](https://nixos.wiki/wiki/Flakes#Output_schema) are
-gathered from subdirectories that share their names inside the `flake-parts`
-directory. Insight into each of these may be gained by looking at the nix source
-and/or their READMEs.
-
-### nix commands
-
-| command          | description                                                                                        | relevant flake part path                     |
-|------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------|
-| `nix develop`    | obtain development shell                                                                           | [flake-parts/devshell](flake-parts/devshell) |
-| `nix build`      | build packages (binaries, container images, &c)                                                    | [flake-parts/packages](flake-parts/packages) |
-| `nix flake show` | print all outputs provided by the flake. useful since the project is organized into multiple files | N/A                                          |
-
-### direnv
-
-[nix-direnv](https://github.com/nix-community/nix-direnv) works especially well with nix devshells. If you install it you
-may place a `.envrc` in your local workspace with the contents: `use flake` and
-the project's devshell will automatically be entered when inside its directory.
 
 ## Testing
 

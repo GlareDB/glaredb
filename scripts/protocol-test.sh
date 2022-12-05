@@ -8,11 +8,11 @@
 set -e
 
 # Build first so that `nix run ...` can start right away.
-nix build .#cli
+nix build .#glaredb-bin
 
 # Start up GlareDB.
 log_file="/tmp/glaredb.log-${RANDOM}"
-nohup nix run .#cli -- -v server > "${log_file}" 2>&1 &
+nohup nix run .#glaredb -- -v server > "${log_file}" 2>&1 &
 
 # Get pid so we can shut it down at the end of this script.
 glaredb_pid=$!
