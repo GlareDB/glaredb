@@ -4,7 +4,7 @@ use background::{storage::DatabaseStorageUsageJob, BackgroundJob, BackgroundWork
 use cloud::client::CloudClient;
 use cloud::errors::CloudError;
 use common::config::DbConfig;
-use pgsrv::handler::{Handler, PostgresHandler};
+use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use std::env;
 use std::fs;
@@ -20,7 +20,7 @@ pub struct ServerConfig {
 }
 
 pub struct Server {
-    pg_handler: Arc<Handler>,
+    pg_handler: Arc<ProtocolHandler>,
     /// Join handle for the background worker.
     ///
     /// Exists on the struct to avoid dropping the future after the call to
@@ -76,7 +76,7 @@ impl Server {
 
         let engine = Engine::new(access).await?;
         Ok(Server {
-            pg_handler: Arc::new(Handler::new(engine)),
+            pg_handler: Arc::new(ProtocolHandler::new(engine)),
             bg_handle,
             bg_shutdown_sender: tx,
         })

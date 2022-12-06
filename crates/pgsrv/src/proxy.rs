@@ -27,12 +27,34 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         Self { authenticator }
     }
 
-    /// Proxy connection startup to some database.
+    pub async fn proxy_connection<C>(&self, mut conn: C) -> Result<()>
+    where
+        C: AsyncRead + AsyncWrite + Unpin,
+    {
+        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+        trace!(?startup, "received startup message");
+
+        match startup {
+            StartupMessage::StartupRequest { params, .. } => {
+                self.proxy_startup(conn, params).await?;
+            }
+            StartupMessage::SSLRequest { .. } => {
+                // self.handle_ssl_request(conn).await?;
+            }
+            StartupMessage::CancelRequest { .. } => {
+                self.proxy_cancel(conn).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Proxy connection startup to some database. This is long lived.
     ///
     /// This will run through the startup phase of the protocol. The connection
     /// will be authenticated, and the database to proxy to will be determined
     /// by what the authenticator returns.
-    pub async fn proxy_startup<C>(&self, conn: C, params: HashMap<String, String>) -> Result<()>
+    async fn proxy_startup<C>(&self, conn: C, params: HashMap<String, String>) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
@@ -108,13 +130,13 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
 
     /// Proxy a cancel request.
     ///
-    /// Currently unimplemented. This will require that we broadcast cacel
+    /// Currently unimplemented. This will require that we broadcast cancel
     /// requests to the appropriate database instances.
-    pub async fn proxy_cancel<C>(&self, mut _conn: C) -> Result<()>
+    async fn proxy_cancel<C>(&self, mut _conn: C) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        trace!("received cancel request");
+        trace!("cancel received (proxy)");
         Ok(())
     }
 

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use pgsrv::auth::CloudAuthenticator;
-use pgsrv::handler::{PostgresHandler, ProxyHandler};
+use pgsrv::proxy::ProxyHandler;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::debug;
@@ -25,7 +25,7 @@ impl Proxy {
             let handler = self.handler.clone();
             tokio::spawn(async move {
                 debug!("client connected (proxy)");
-                match handler.handle_connection(inbound).await {
+                match handler.proxy_connection(inbound).await {
                     Ok(_) => debug!("client disconnected"),
                     Err(e) => debug!(%e, "client disconnected with error."),
                 }
