@@ -717,19 +717,3 @@ fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, Str
             .collect::<HashMap<_, _>>(),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_options_from_params() {
-        let options_str = "--test-key=1 --another-key=2";
-        let mut params = HashMap::new();
-        params.insert("options".to_string(), options_str.to_string());
-
-        let options = parse_options(&params).unwrap();
-        assert_eq!(Some(&String::from("1")), options.get("test-key"));
-        assert_eq!(Some(&String::from("2")), options.get("another-key"));
-    }
-}
