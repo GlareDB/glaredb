@@ -145,6 +145,7 @@ impl SystemSchema {
 
     /// Bootstrap the system schema.
     pub async fn bootstrap(&self, runtime: &Arc<AccessRuntime>) -> Result<()> {
+        info!("running bootstrap");
         // TODO: This will eventually hold a global (cross-node) lock.
 
         let sess_ctx = SessionContext::new(); // TODO: Have a "system" session context?
