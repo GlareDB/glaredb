@@ -1,15 +1,10 @@
-use crate::auth::{ConnectionAuthenticator, DatabaseDetails};
-use crate::codec::{
-    client::FramedClientConn,
-    server::{FramedConn, PgCodec},
-};
+use crate::codec::server::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
-    StartupMessage, TransactionStatus, VERSION_V3,
+    StartupMessage, TransactionStatus,
 };
-use crate::ssl::Connection;
-use async_trait::async_trait;
+use crate::ssl::{Connection, SslConfig};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use sqlexec::logical_plan::LogicalPlan;
@@ -35,37 +30,60 @@ const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "0.0.0")]
 /// protocol.
 pub struct ProtocolHandler {
     engine: Engine,
+    ssl_conf: Option<SslConfig>,
 }
 
 impl ProtocolHandler {
     pub fn new(engine: Engine) -> ProtocolHandler {
-        ProtocolHandler { engine }
+        let ssl_conf = SslConfig::new("./server.crt", "./server.key").unwrap();
+        ProtocolHandler {
+            engine,
+            ssl_conf: Some(ssl_conf),
+        }
     }
 
-    pub async fn handle_connection<C>(&self, mut conn: C) -> Result<()>
+    pub async fn handle_connection<C>(&self, conn: C) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        trace!(?startup, "received startup message");
+        let mut conn = Connection::new_unencrypted(conn);
+        loop {
+            let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+            trace!(?startup, "received startup message");
 
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.begin(conn, params).await?;
-            }
-            StartupMessage::SSLRequest { .. } => {
-                // self.handle_ssl_request(conn).await?;
-            }
-            StartupMessage::CancelRequest { .. } => {
-                self.cancel(conn).await?;
+            match startup {
+                StartupMessage::StartupRequest { params, .. } => {
+                    self.begin(conn, params).await?;
+                    return Ok(());
+                }
+                StartupMessage::SSLRequest { .. } => {
+                    conn = match (conn, &self.ssl_conf) {
+                        (Connection::Unencrypted(mut conn), Some(conf)) => {
+                            trace!("accepting ssl request");
+                            // SSL supported, send back that we support it and
+                            // start encrypting.
+                            conn.write_all(&[b'S']).await?;
+                            Connection::new_encrypted(conn, conf).await?
+                        }
+                        (mut conn, _) => {
+                            trace!("rejecting ssl request");
+                            // SSL not supported (or the connection is already
+                            // wrapped). Reject and continue.
+                            conn.write_all(&[b'N']).await?;
+                            conn
+                        }
+                    }
+                }
+                StartupMessage::CancelRequest { .. } => {
+                    self.cancel(conn).await?;
+                    return Ok(());
+                }
             }
         }
-
-        Ok(())
     }
 
     /// Runs the postgres protocol for a connection to completion.
-    async fn begin<C>(&self, conn: C, params: HashMap<String, String>) -> Result<()>
+    async fn begin<C>(&self, conn: Connection<C>, params: HashMap<String, String>) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
@@ -117,7 +135,7 @@ impl ProtocolHandler {
     ///
     /// Unimplemented. The protocol states that there's no guarantee that
     /// anything is actually canceled, so no-op is fine for now.
-    async fn cancel<C>(&self, conn: C) -> Result<()>
+    async fn cancel<C>(&self, _conn: Connection<C>) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {

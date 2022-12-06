@@ -1,13 +1,48 @@
-use crate::errors::{PgSrvError, Result};
-use openssl::ssl::{SslContext, SslStream};
+use crate::errors::Result;
+use openssl::ssl::{Ssl, SslAcceptor, SslContext, SslFiletype, SslMethod};
+use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
+use tokio_openssl::SslStream;
+
+pub struct SslConfig {
+    pub context: SslContext,
+}
+
+impl SslConfig {
+    /// Create a new ssl config using the provided cert and key files.
+    pub fn new<P: AsRef<Path>>(cert: P, key: P) -> Result<SslConfig> {
+        // See <https://wiki.mozilla.org/Security/Server_Side_TLS>
+        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
+        builder.set_certificate_chain_file(cert)?;
+        builder.set_private_key_file(key, SslFiletype::PEM)?;
+        builder.check_private_key()?;
+
+        let context = builder.build().into_context();
+        Ok(SslConfig { context })
+    }
+}
 
 /// A wrapper around a connection, optionally providing SSL encryption.
 pub enum Connection<C> {
     Unencrypted(C),
-    Encrypted(C),
+    Encrypted(SslStream<C>),
+}
+
+impl<C> Connection<C>
+where
+    C: AsyncRead + AsyncWrite + Unpin,
+{
+    pub async fn new_encrypted(conn: C, conf: &SslConfig) -> Result<Self> {
+        let mut stream = SslStream::new(Ssl::new(&conf.context)?, conn)?;
+        Pin::new(&mut stream).accept().await?;
+        Ok(Connection::Encrypted(stream))
+    }
+
+    pub fn new_unencrypted(conn: C) -> Self {
+        Connection::Unencrypted(conn)
+    }
 }
 
 impl<C> AsyncRead for Connection<C>

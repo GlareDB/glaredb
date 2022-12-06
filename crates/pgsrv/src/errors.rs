@@ -43,6 +43,12 @@ pub enum PgSrvError {
     UnexpectedDescribeObjectType(u8),
 
     #[error(transparent)]
+    OpenSsl(#[from] openssl::ssl::Error),
+
+    #[error(transparent)]
+    OpenSslStack(#[from] openssl::error::ErrorStack),
+
+    #[error(transparent)]
     Io(#[from] io::Error),
 
     #[error(transparent)]
