@@ -130,7 +130,7 @@ async fn prepare_cluster() -> Result<ConsensusClient, Box<dyn std::error::Error>
     Ok(leader)
 }
 
-async fn run_tests(_leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn _run_tests(_leader: ConsensusClient) -> Result<(), Box<dyn std::error::Error>> {
     // --- Try to write some application data through the leader.
 
     /*

@@ -132,9 +132,6 @@ mod tests {
     use access::runtime::AccessRuntime;
     use catalog::catalog::DatabaseCatalog;
     use common::access::{AccessConfig, ObjectStoreKind};
-    use common::background::BackgroundConfig;
-    use common::cloud::CloudConfig;
-    use common::config::DbConfig;
     use futures::StreamExt;
     use std::path::PathBuf;
     use std::sync::Arc;
