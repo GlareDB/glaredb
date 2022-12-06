@@ -1,4 +1,5 @@
 use anyhow::Result;
+use pgsrv::auth::CloudAuthenticator;
 use pgsrv::handler::{PostgresHandler, ProxyHandler};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -7,13 +8,14 @@ use tracing::debug;
 pub struct ProxyConfig {}
 
 pub struct Proxy {
-    handler: Arc<ProxyHandler>,
+    handler: Arc<ProxyHandler<CloudAuthenticator>>,
 }
 
 impl Proxy {
     pub async fn new(api_addr: String) -> Result<Self> {
+        let auth = CloudAuthenticator::new(api_addr);
         Ok(Proxy {
-            handler: Arc::new(ProxyHandler::new(api_addr)),
+            handler: Arc::new(ProxyHandler::new(auth)),
         })
     }
 

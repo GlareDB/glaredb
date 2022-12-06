@@ -1,3 +1,4 @@
+use crate::auth::{ConnectionAuthenticator, DatabaseDetails};
 use crate::codec::{
     client::FramedClientConn,
     server::{FramedConn, PgCodec},
@@ -10,7 +11,6 @@ use crate::messages::{
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
 use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{
     engine::Engine,
@@ -567,40 +567,34 @@ where
     }
 }
 
-/// The database info response from the cloud api
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct DatabaseDetails {
-    ip: String,
-    port: String,
+/// ProxyHandler is a handler for postgres that authenticates connections using
+/// some authenticator.
+///
+/// In a production scenario, the provided authenticator will communicate with
+/// Cloud to authenticate.
+pub struct ProxyHandler<A> {
+    authenticator: A,
 }
 
-/// ProxyHandler is a handler for postgres that communicates with the cloud api to verify
-/// authentication and then proxies the connection to the database.
-pub struct ProxyHandler {
-    api_url: String,
-}
-
-impl ProxyHandler {
-    pub fn new(api_url: String) -> Self {
-        Self { api_url }
+impl<A: ConnectionAuthenticator> ProxyHandler<A> {
+    pub fn new(authenticator: A) -> Self {
+        Self { authenticator }
     }
 
-    /// Try to authenticate with the cloud service.
+    /// Try to authenticate using the contents of a frontend message.
     ///
-    /// Errors on unexpected frontend messages or if cloud authentication fails.
-    async fn try_cloud_auth(
+    /// Currently only supports the password message.
+    async fn authenticate_with_msg(
         &self,
         msg: FrontendMessage,
         params: &HashMap<String, String>,
     ) -> Result<DatabaseDetails> {
         match msg {
             FrontendMessage::PasswordMessage { password } => {
-                let client = reqwest::Client::builder().build()?;
-
                 // Extract user (required) from startup params
                 let user = match params.get("user") {
                     Some(user) => user,
-                    None => return Err(PgSrvError::MissingUser),
+                    None => return Err(PgSrvError::MissingStartupParameter("user")),
                 };
 
                 // Extract the database name (optional) from startup params
@@ -610,50 +604,18 @@ impl ProxyHandler {
                     None => user,
                 };
 
-                // Pass the options provided when connecting as a query string
-                // options will look like "--org=org --bucket=bucket"
-                let options = match params.get("options") {
-                    None => return Err(PgSrvError::MissingStartupParameter),
-                    Some(options) => options
-                        .split_whitespace()
-                        .map(|s| s.split('=').collect::<Vec<_>>())
-                        .map(|v| (v[0], v[1]))
-                        .map(|(k, v)| (k.replace("--", ""), v.to_string()))
-                        .collect::<HashMap<_, _>>(),
-                };
+                // Get org id from the options startup parameter.
+                let options =
+                    parse_options(params).ok_or(PgSrvError::MissingStartupParameter("options"))?;
+                let org_id = options
+                    .get("org")
+                    .ok_or(PgSrvError::MissingOptionsParameter("org"))?;
 
-                // reqwest needs the query to be typed like &[(&str, &str)]
-                let mut query: Vec<(&str, &str)> = options
-                    .iter()
-                    .map(|(k, v)| (k.as_str(), v.as_str()))
-                    .collect();
-                query.push(("user", user));
-                query.push(("password", &password));
-                query.push(("name", db_name));
-
-                let res = client
-                    .get(format!(
-                        "{}/api/internal/databases/authenticate",
-                        &self.api_url
-                    ))
-                    .header("Authorization", "Basic 6tCvEVBkD91q4KhjGVtT")
-                    .query(&query)
-                    .send()
+                let details = self
+                    .authenticator
+                    .authenticate(user, &password, db_name, org_id)
                     .await?;
-
-                // Currently only expect '200' from the cloud service. For
-                // anything else, return an erorr.
-                //
-                // Does not try to deserialize the error responses to allow for
-                // flexibility and changes on the cloud side during initial
-                // development.
-                if res.status().as_u16() != 200 {
-                    let text = res.text().await?;
-                    return Err(PgSrvError::CloudResponse(text));
-                }
-
-                let db_details: DatabaseDetails = res.json().await?;
-                Ok(db_details)
+                Ok(details)
             }
             other => Err(PgSrvError::UnexpectedFrontendMessage(other)),
         }
@@ -661,9 +623,10 @@ impl ProxyHandler {
 }
 
 #[async_trait]
-impl<C> PostgresHandler<C> for ProxyHandler
+impl<C, A> PostgresHandler<C> for ProxyHandler<A>
 where
     C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    A: ConnectionAuthenticator,
 {
     async fn handle_startup(&self, conn: C, params: HashMap<String, String>) -> Result<()> {
         let mut framed = FramedConn::new(conn);
@@ -677,7 +640,7 @@ where
 
         // If we fail to auth, ensure an error response is sent to the
         // connection.
-        let db_details = match self.try_cloud_auth(msg, &params).await {
+        let db_details = match self.authenticate_with_msg(msg, &params).await {
             Ok(details) => details,
             Err(e) => {
                 framed
@@ -738,7 +701,35 @@ where
 
     async fn handle_cancel_request(&self, mut _conn: C) -> Result<()> {
         trace!("received cancel request");
-
         Ok(())
+    }
+}
+
+/// Parse the options provided in the startup parameters.
+fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, String>> {
+    let options = params.get("options")?;
+    Some(
+        options
+            .split_whitespace()
+            .map(|s| s.split('=').collect::<Vec<_>>())
+            .map(|v| (v[0], v[1]))
+            .map(|(k, v)| (k.replace("--", ""), v.to_string()))
+            .collect::<HashMap<_, _>>(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_options_from_params() {
+        let options_str = "--test-key=1 --another-key=2";
+        let mut params = HashMap::new();
+        params.insert("options".to_string(), options_str.to_string());
+
+        let options = parse_options(&params).unwrap();
+        assert_eq!(Some(&String::from("1")), options.get("test-key"));
+        assert_eq!(Some(&String::from("2")), options.get("another-key"));
     }
 }
