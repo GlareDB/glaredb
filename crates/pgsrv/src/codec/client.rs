@@ -1,5 +1,6 @@
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
+use crate::ssl::Connection;
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use futures::{SinkExt, TryStreamExt};
@@ -8,14 +9,14 @@ use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;
 
 pub struct FramedClientConn<C> {
-    conn: Framed<C, PgClientCodec>,
+    conn: Framed<Connection<C>, PgClientCodec>,
 }
 
 impl<C> FramedClientConn<C>
 where
     C: AsyncRead + AsyncWrite + Unpin,
 {
-    pub fn new(conn: C) -> Self {
+    pub fn new(conn: Connection<C>) -> Self {
         Self {
             conn: Framed::new(conn, PgClientCodec),
         }
@@ -46,7 +47,7 @@ where
     }
 
     /// Consumes the `FramedClientConn`, returning the underlying `Framed`
-    pub fn into_inner(self) -> Framed<C, PgClientCodec> {
+    pub fn into_inner(self) -> Framed<Connection<C>, PgClientCodec> {
         self.conn
     }
 }

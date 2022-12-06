@@ -8,6 +8,7 @@ use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
     StartupMessage, TransactionStatus, VERSION_V3,
 };
+use crate::ssl::Connection;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -58,7 +59,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        let mut framed = FramedConn::new(conn);
+        let mut framed = FramedConn::new(Connection::Unencrypted(conn));
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
             .await?;
@@ -79,11 +80,14 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
             }
         };
 
-        // At this point, open a connection to the database and initiate a startup message
-        // We need to send the same parameters as the client sent us
+        // At this point, open a connection to the database and initiate a
+        // startup message We need to send the same parameters as the client
+        // sent us
         let db_addr = format!("{}:{}", db_details.ip, db_details.port);
         let db_conn = TcpStream::connect(db_addr).await?;
-        let mut db_framed = FramedClientConn::new(db_conn);
+        // Note that the connection from the proxy to the db is unencrypted,
+        // with no option (currently) of encrypting it.
+        let mut db_framed = FramedClientConn::new(Connection::Unencrypted(db_conn));
 
         let startup = StartupMessage::StartupRequest {
             version: VERSION_V3,

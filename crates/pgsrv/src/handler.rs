@@ -8,6 +8,7 @@ use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
     StartupMessage, TransactionStatus, VERSION_V3,
 };
+use crate::ssl::Connection;
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
@@ -70,7 +71,7 @@ impl ProtocolHandler {
     {
         trace!("starting protocol with params: {:?}", params);
 
-        let mut framed = FramedConn::new(conn);
+        let mut framed = FramedConn::new(Connection::Unencrypted(conn));
 
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
