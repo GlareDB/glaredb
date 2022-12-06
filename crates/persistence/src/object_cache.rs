@@ -17,9 +17,11 @@ use object_store::{
     path::Path as ObjectStorePath, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore,
     Result as ObjectStoreResult,
 };
+use tempfile::TempDir;
 use tokio::sync::RwLock;
 use tokio::{fs, io::AsyncWrite, runtime::Handle};
 use tracing::{debug, error, trace, warn};
+use uuid::Uuid;
 
 use crate::errors::{internal, PersistenceError, Result};
 
@@ -36,9 +38,10 @@ impl ObjectCacheKey {
     //TODO: Consider changing so generated files are all in base_dir instead of object store path
     //relative to base_dir.
     fn to_filename(&self) -> String {
+        let id = Uuid::new_v4();
         format!(
-            "{}-{}.{}",
-            self.location, self.offset, OBJECT_STORE_CACHE_FILE_EXTENTION
+            "{}-{}-{}.{}",
+            self.location, self.offset, id, OBJECT_STORE_CACHE_FILE_EXTENTION
         )
     }
 
@@ -76,7 +79,7 @@ pub struct ObjectStoreCache {
     /// A thread safe concurrent cache (see `moka` crate)
     cache: Cache<ObjectCacheKey, ObjectCacheValue>,
     /// Path to store the cached byte ranges as files
-    base_dir: PathBuf,
+    base_dir: TempDir,
     /// Number of bytes cached per range
     byte_range_size: usize,
     /// Total Cache Size, number of cached ranges in bytes
@@ -89,7 +92,7 @@ impl Display for ObjectStoreCache {
         write!(
             f,
             "ObjectStoreCache(base_dir={}, object_store={})",
-            &self.base_dir.display(),
+            &self.base_dir.path().display(),
             self.object_store
         )
     }
@@ -123,9 +126,11 @@ impl ObjectStoreCache {
             return Err(internal!("path must be absolute: {:?}", cache_path));
         }
 
+        let cache_path = TempDir::new_in(cache_path)?;
+
         Ok(Self {
             cache,
-            base_dir: cache_path.to_path_buf(),
+            base_dir: cache_path,
             byte_range_size,
             max_cache_size,
             object_store,
@@ -170,12 +175,12 @@ impl ObjectStoreCache {
         contents: &Bytes,
     ) -> Result<ObjectCacheValue> {
         // Generate a unique file path.
-        let path = self.base_dir.join(key.to_filename());
+        let path = self.base_dir.path().join(key.to_filename());
 
+        // Generate warning if a duplicate cached file is generated (uuid collision), currently we
+        // overwrite the file in this scenario.
         if path.try_exists()? {
-            //TODO investigate if duplicate file generation is possible when using try_get_with
             warn!(?path, "Duplicate file being cached");
-            return Err(PersistenceError::DuplicateCacheFile(path));
         }
 
         // We have got a unique file path, so create the file at
@@ -229,6 +234,7 @@ impl ObjectStoreCache {
     }
 
     fn invalidate_location(&self, location: &ObjectStorePath) -> Result<()> {
+        trace!(?location, "Invalidate location");
         let invalidation_path = location.clone();
         if let Err(e) = self
             .cache
@@ -526,12 +532,10 @@ mod tests {
 
         cache.cache.insert(key.clone(), value.clone()).await;
 
-        let value = cache.write_cache_file(&key, &test_data_serialized).await;
-
-        assert!(matches!(
-            value.unwrap_err(),
-            PersistenceError::DuplicateCacheFile(_),
-        ));
+        let _duplicate_value = cache
+            .write_cache_file(&key, &test_data_serialized)
+            .await
+            .unwrap();
     }
 
     /// Tests if the given cache directory is a relative path instead of absolute as there is no
@@ -660,7 +664,7 @@ mod tests {
 
         // Check if file is asynchronously cleaned up by eviction listener; Timeout after 1 ms
         let mut nano = 0;
-        let path = cache.base_dir.join(key.to_filename());
+        let path = &*value.path.read().await.clone().unwrap();
         while path.try_exists().unwrap() && nano < 1_000_000 {
             nano += 1;
             sleep(Duration::from_nanos(1));
@@ -771,21 +775,33 @@ mod tests {
             location: test_obj_store_file,
             offset: test_offset,
         };
-        let expected_path = cache.base_dir.join(key.to_filename());
-        let expected_value = ObjectCacheValue::new(expected_path.clone(), byte_range_size as u32);
-        let value = cache.cache.get(&key).unwrap();
-        assert_eq!(value.length, expected_value.length);
-        assert_eq!(
-            &*value.path.read().await,
-            &*expected_value.path.read().await
-        );
+        let unique_portion_length =
+            format!("{}.{}", Uuid::new_v4(), OBJECT_STORE_CACHE_FILE_EXTENTION).len();
+        let expected_filename = key.to_filename();
+        let expected_filename_without_uuid = expected_filename
+            .get(..(expected_filename.len() - unique_portion_length))
+            .unwrap();
+        let expected_path_prefix = cache.base_dir.path().join(expected_filename_without_uuid);
+        let expected_path_prefix = expected_path_prefix.to_str().unwrap();
+        let expected_length = byte_range_size as u32;
 
-        let paths: Vec<PathBuf> = std::fs::read_dir(cache.base_dir)
+        let value = cache.cache.get(&key).unwrap();
+
+        let value_path = &*value.path.read().await.clone().unwrap();
+        let value_path_str = value_path.to_str().unwrap();
+        let value_path_prefix = value_path_str
+            .get(..(value_path_str.len() - unique_portion_length))
+            .unwrap();
+
+        assert_eq!(value.length, expected_length);
+        assert_eq!(value_path_prefix, expected_path_prefix);
+
+        let paths: Vec<PathBuf> = std::fs::read_dir(cache.base_dir.path())
             .unwrap()
             .map(|f| f.unwrap().path())
             .collect();
 
-        assert_eq!(paths, vec![expected_path])
+        assert_eq!(paths, vec![value_path])
     }
 
     /// Confirms data race between a thread getting and reading a cached file and invalidation:
@@ -832,7 +848,7 @@ mod tests {
         // 3. Thread 3: Invalidation handler removes cached files associated with object location in key A
         // Wait for path to not exist to confirm invalidation handler completed
         let mut nano = 0;
-        let path = cache.base_dir.join(key.to_filename());
+        let path = &*value.path.read().await.clone().unwrap();
         while path.try_exists().unwrap() && nano < 1_000_000 {
             nano += 1;
             sleep(Duration::from_nanos(1));
