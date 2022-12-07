@@ -3,6 +3,7 @@ use crate::messages::{
     BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
     VERSION_SSL, VERSION_V3,
 };
+use crate::ssl::Connection;
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use datafusion::scalar::ScalarValue;
@@ -15,7 +16,7 @@ use tracing::trace;
 
 /// A connection that can encode and decode postgres protocol messages.
 pub struct FramedConn<C> {
-    conn: Framed<C, PgCodec>, // TODO: Buffer.
+    conn: Framed<Connection<C>, PgCodec>, // TODO: Buffer.
 }
 
 impl<C> FramedConn<C>
@@ -23,7 +24,7 @@ where
     C: AsyncRead + AsyncWrite + Unpin,
 {
     /// Create a new framed connection.
-    pub fn new(conn: C) -> Self {
+    pub fn new(conn: Connection<C>) -> Self {
         FramedConn {
             conn: Framed::new(conn, PgCodec),
         }
@@ -48,7 +49,7 @@ where
     }
 
     /// Consumes the `FramedConn`, returning the underlying `Framed`
-    pub fn into_inner(self) -> Framed<C, PgCodec> {
+    pub fn into_inner(self) -> Framed<Connection<C>, PgCodec> {
         self.conn
     }
 }

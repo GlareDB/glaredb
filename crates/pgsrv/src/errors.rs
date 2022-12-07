@@ -23,11 +23,11 @@ pub enum PgSrvError {
     #[error("missing null byte")]
     MissingNullByte,
 
-    #[error("an expected startup parameter was missing")]
-    MissingStartupParameter,
+    #[error("missing startup parameter: {0}")]
+    MissingStartupParameter(&'static str),
 
-    #[error("missing user from startup message")]
-    MissingUser,
+    #[error("missing opitons paramter: {0}")]
+    MissingOptionsParameter(&'static str),
 
     /// A stringified error from cloud.
     #[error("cloud: {0}")]
@@ -41,6 +41,12 @@ pub enum PgSrvError {
 
     #[error("unexpected describe object type: {0}")]
     UnexpectedDescribeObjectType(u8),
+
+    #[error(transparent)]
+    OpenSsl(#[from] openssl::ssl::Error),
+
+    #[error(transparent)]
+    OpenSslStack(#[from] openssl::error::ErrorStack),
 
     #[error(transparent)]
     Io(#[from] io::Error),

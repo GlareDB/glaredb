@@ -102,6 +102,14 @@
           '';
         };
 
+        # Derivation for generating and including SSL certs.
+        generated-certs = pkgs.stdenv.mkDerivation {
+          name = "generated-certs";
+          buildInputs = [pkgs.openssl pkgs.coreutils];
+          src = ./.;
+          installPhase = "./scripts/gen-certs.sh && mkdir -p $out/certs && cp server.{crt,key} $out/certs/.";
+        };
+
         # Utilities that are helpful to have in the container for debugging
         # purposes.
         #
@@ -179,6 +187,8 @@
 
         # Buildable packages.
         packages = {
+          generated-certs = generated-certs;
+
           # GlareDB binary.
           glaredb-bin = craneLib.buildPackage ({
             inherit cargoArtifacts;
@@ -204,7 +214,7 @@
           # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
           pgsrv-image = mkContainer {
             name = "pgsrv";
-            contents = [pkgs.cacert packages.glaredb-bin];
+            contents = [pkgs.cacert packages.glaredb-bin generated-certs];
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 

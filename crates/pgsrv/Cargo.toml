@@ -25,3 +25,5 @@ bytes = "1.3.0"
 tokio = { version = "1", features = ["full"] }
 postgres-types = "0.2.4"
 reqwest = { version = "0.11.13", features = ["json"] }
+openssl = "0.10.44"
+tokio-openssl = "0.6.3"
