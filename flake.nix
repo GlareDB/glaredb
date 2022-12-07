@@ -105,9 +105,9 @@
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
           name = "generated-certs";
+          buildInputs = [pkgs.openssl];
           src = ./.;
-          checkPhase = "./scripts/gen-certs.sh"; # Runs first.
-          installPhase = "mkdir $out && cp server.{crt,key} $out/.";
+          installPhase = "./scripts/gen-certs.sh && mkdir $out && cp server.{crt,key} $out/.";
         };
 
         # Utilities that are helpful to have in the container for debugging
