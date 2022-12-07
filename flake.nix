@@ -102,6 +102,14 @@
           '';
         };
 
+        # Derivation for generating and including SSL certs.
+        generated-certs = pkgs.stdenv.mkDerivation {
+          name = "generated-certs";
+          src = ./.;
+          checkPhase = "./scripts/gen-certs.sh"; # Runs first.
+          installPhase = "mkdir $out && cp server.{crt,key} $out/.";
+        };
+
         # Utilities that are helpful to have in the container for debugging
         # purposes.
         #
@@ -204,7 +212,7 @@
           # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
           pgsrv-image = mkContainer {
             name = "pgsrv";
-            contents = [pkgs.cacert packages.glaredb-bin];
+            contents = [pkgs.cacert packages.glaredb-bin generated-certs];
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 
