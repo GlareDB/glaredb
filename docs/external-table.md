@@ -11,10 +11,10 @@ create external table hits stored as parquet location 's3://glaredb-testdata/hit
 ## External Tables
 
 External tables are read-only tables managed by GlareDB and no different to regular tables for the purposes of querying however they are backed by data living elsewhere.
-Currently they will be data via available via a public object store.
+Currently they will be data available via a public object store.
 In the future releases support for private object storage and other network stores will be considered.
 
-There will be a system table that includes the metadata we require for any given external table and an object store registry table to store what object store and account and access information required by GlareDB to access the external tables
+There will be a system table that includes the metadata we require for any given external table and an object store registry table to store what object store credentials required by GlareDB to access the external tables
 Additionally other data needed for tables in general will exist for external tables such as attributes and the relations table
 
 ### `object_store_registry` Table
@@ -28,9 +28,9 @@ This will build on the existing support for external tables in datafusion and it
 | `object_store_id` | UInt32      | Object id for this object store |
 | `scheme`    | Utf8      | URL prefix to registry for this object store |
 | `bucket`    | Utf8      | The bucket/host the data is on |
-| `access`    | Binary      | Information needed to access data and provide to the storage vendor being used (service account, secrets, etc.) |
+| `credentials` | Binary      | Information needed to access data and provide to the storage vendor being used (service account, secrets, etc.) |
 
-Note: the access column will need different data for different types of object store, S3/GCS
+Note: the credentials column will need different data for different types of object store, S3/GCS
 
 Alternatively we could exclusively use the S3 protocol for all object stores as that is the de facto standard at this time. Work on expansion, if pessary, later
 
@@ -51,6 +51,11 @@ Describes all external relations in the database.
 | `location`  | Utf8        | Location of data |
 
 ## Future Considerations
+
+### Private Object Stores
+
+Be able to register and store credentials for private object store buckets provided by the user.
+Both impromptu and registered and persisted in the `object_store_registry` catalog table
 
 ### Caching
 
