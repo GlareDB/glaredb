@@ -6,6 +6,7 @@ use std::task::{Context, Poll};
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio_openssl::SslStream;
 
+/// Configuration for creating encrypted connections using SSL/TLS.
 pub struct SslConfig {
     pub context: SslContext,
 }

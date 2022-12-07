@@ -35,10 +35,12 @@ pub struct ProtocolHandler {
 
 impl ProtocolHandler {
     pub fn new(engine: Engine) -> ProtocolHandler {
-        let ssl_conf = SslConfig::new("./server.crt", "./server.key").unwrap();
         ProtocolHandler {
             engine,
-            ssl_conf: Some(ssl_conf),
+            // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
+            // want to hold off on doing that until we have a shared config
+            // between the proxy and GlareDB.
+            ssl_conf: None,
         }
     }
 
@@ -49,7 +51,7 @@ impl ProtocolHandler {
         let mut conn = Connection::new_unencrypted(conn);
         loop {
             let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-            trace!(?startup, "received startup message");
+            trace!(?startup, "received startup message (local)");
 
             match startup {
                 StartupMessage::StartupRequest { params, .. } => {
@@ -89,7 +91,7 @@ impl ProtocolHandler {
     {
         trace!("starting protocol with params: {:?}", params);
 
-        let mut framed = FramedConn::new(Connection::Unencrypted(conn));
+        let mut framed = FramedConn::new(conn);
 
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)

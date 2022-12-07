@@ -4,13 +4,11 @@ use crate::codec::{
     server::{FramedConn, PgCodec},
 };
 use crate::errors::{PgSrvError, Result};
-use crate::messages::{
-    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
-    StartupMessage, TransactionStatus, VERSION_V3,
-};
+use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMessage, VERSION_V3};
 use crate::ssl::Connection;
+use crate::ssl::SslConfig;
 use std::collections::HashMap;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::trace;
 
@@ -21,33 +19,59 @@ use tracing::trace;
 /// Cloud to authenticate.
 pub struct ProxyHandler<A> {
     authenticator: A,
+    ssl_conf: Option<SslConfig>,
 }
 
 impl<A: ConnectionAuthenticator> ProxyHandler<A> {
-    pub fn new(authenticator: A) -> Self {
-        Self { authenticator }
+    pub fn new(authenticator: A, ssl_conf: Option<SslConfig>) -> Self {
+        Self {
+            authenticator,
+            ssl_conf,
+        }
     }
 
-    pub async fn proxy_connection<C>(&self, mut conn: C) -> Result<()>
+    /// Proxy a connection to some database as determined by the authenticator.
+    ///
+    /// Goes through the startup flow, then just acts as a dumb proxy shuffling
+    /// bytes between the client and the database.
+    pub async fn proxy_connection<C>(&self, conn: C) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-        trace!(?startup, "received startup message");
+        let mut conn = Connection::new_unencrypted(conn);
+        loop {
+            let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
+            trace!(?startup, "received startup message (proxy)");
 
-        match startup {
-            StartupMessage::StartupRequest { params, .. } => {
-                self.proxy_startup(conn, params).await?;
-            }
-            StartupMessage::SSLRequest { .. } => {
-                // self.handle_ssl_request(conn).await?;
-            }
-            StartupMessage::CancelRequest { .. } => {
-                self.proxy_cancel(conn).await?;
+            match startup {
+                StartupMessage::StartupRequest { params, .. } => {
+                    self.proxy_startup(conn, params).await?;
+                    return Ok(());
+                }
+                StartupMessage::SSLRequest { .. } => {
+                    conn = match (conn, &self.ssl_conf) {
+                        (Connection::Unencrypted(mut conn), Some(conf)) => {
+                            trace!("accepting ssl request");
+                            // SSL supported, send back that we support it and
+                            // start encrypting.
+                            conn.write_all(&[b'S']).await?;
+                            Connection::new_encrypted(conn, conf).await?
+                        }
+                        (mut conn, _) => {
+                            trace!("rejecting ssl request");
+                            // SSL not supported (or the connection is already
+                            // wrapped). Reject and continue.
+                            conn.write_all(&[b'N']).await?;
+                            conn
+                        }
+                    }
+                }
+                StartupMessage::CancelRequest { .. } => {
+                    self.proxy_cancel(conn).await?;
+                    return Ok(());
+                }
             }
         }
-
-        Ok(())
     }
 
     /// Proxy connection startup to some database. This is long lived.
@@ -55,11 +79,15 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     /// This will run through the startup phase of the protocol. The connection
     /// will be authenticated, and the database to proxy to will be determined
     /// by what the authenticator returns.
-    async fn proxy_startup<C>(&self, conn: C, params: HashMap<String, String>) -> Result<()>
+    async fn proxy_startup<C>(
+        &self,
+        conn: Connection<C>,
+        params: HashMap<String, String>,
+    ) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        let mut framed = FramedConn::new(Connection::Unencrypted(conn));
+        let mut framed = FramedConn::new(conn);
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
             .await?;
@@ -136,7 +164,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     ///
     /// Currently unimplemented. This will require that we broadcast cancel
     /// requests to the appropriate database instances.
-    async fn proxy_cancel<C>(&self, mut _conn: C) -> Result<()>
+    async fn proxy_cancel<C>(&self, mut _conn: Connection<C>) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
