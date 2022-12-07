@@ -107,7 +107,7 @@
           name = "generated-certs";
           buildInputs = [pkgs.openssl pkgs.coreutils];
           src = ./.;
-          installPhase = "./scripts/gen-certs.sh && mkdir $out && cp server.{crt,key} $out/.";
+          installPhase = "./scripts/gen-certs.sh && mkdir $out/certs && cp server.{crt,key} $out/certs/.";
         };
 
         # Utilities that are helpful to have in the container for debugging
