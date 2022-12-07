@@ -107,7 +107,7 @@
           name = "generated-certs";
           buildInputs = [pkgs.openssl pkgs.coreutils];
           src = ./.;
-          installPhase = "./scripts/gen-certs.sh && mkdir $out/certs && cp server.{crt,key} $out/certs/.";
+          installPhase = "./scripts/gen-certs.sh && mkdir -p $out/certs && cp server.{crt,key} $out/certs/.";
         };
 
         # Utilities that are helpful to have in the container for debugging
@@ -187,6 +187,8 @@
 
         # Buildable packages.
         packages = {
+          generated-certs = generated-certs;
+
           # GlareDB binary.
           glaredb-bin = craneLib.buildPackage ({
             inherit cargoArtifacts;
