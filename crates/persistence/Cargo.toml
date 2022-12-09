@@ -15,7 +15,7 @@ futures = "0.3.25"
 tracing = "0.1"
 async-trait = "0.1.59"
 datafusion = "14.0"
-object_store = { version = "0.5.1", features = ["aws", "gcp", "azure"] }
+object_store = { version = "0.5.2", features = ["aws", "gcp", "azure"] }
 bytes = "1.3.0"
 tempfile = "3"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
