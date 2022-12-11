@@ -2,7 +2,7 @@ use std::process::Command;
 
 fn main() {
     let git_tag = match Command::new("git")
-        .args(&["describe", "--tags", "--always"])
+        .args(["describe", "--tags", "--always"])
         .output()
     {
         Ok(output) => String::from_utf8(output.stdout).unwrap(),
