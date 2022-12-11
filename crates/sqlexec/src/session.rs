@@ -25,7 +25,7 @@ use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// A per-client user session.
 ///
