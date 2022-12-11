@@ -14,5 +14,5 @@ sqllogictest = "0.7.1"
 tokio-postgres = "0.7.7"
 anyhow = "1.0"
 async-trait = "0.1.59"
-clap = { version = "3.2.23", features = ["derive"] }
+clap = { version = "4.0.27", features = ["derive"] }
 glob = "0.3.0"
