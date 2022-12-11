@@ -76,28 +76,7 @@ impl Session {
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
             ast::Statement::Query(query) => {
-                let mut plan = planner.query_to_plan(*query, &mut HashMap::new())?;
-                // If we have unaliased constants, make sure they're aliased to
-                // '?column?' to match Postgres.
-                //
-                // It's likely we'll need to do additional rewriting to match
-                // Postgres. As those come up during protocol testing, this
-                // piece of code should be moved out and tested separately.
-                match &mut plan {
-                    DfLogicalPlan::Projection(proj) => {
-                        for expr in proj.expr.iter_mut() {
-                            if let Expr::Literal(_) = expr {
-                                *expr = expr.clone().alias("?column?");
-                            }
-                        }
-                    }
-                    other => {
-                        // I'm unsure when we wouldn't have a project as the
-                        // root node. Log it out just to make sure.
-                        warn!(?other, "query root node for logical plan not a projection");
-                    }
-                }
-
+                let plan = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(LogicalPlan::Query(plan))
             }
 
