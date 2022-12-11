@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use common::config::DbConfig;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
-use sqllogictest::{AsyncDB, Runner};
+use sqllogictest::{AsyncDB, ColumnType, DBOutput, Runner};
 use std::fmt::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -208,34 +208,37 @@ struct TestClient {
 impl AsyncDB for TestClient {
     type Error = tokio_postgres::Error;
 
-    async fn run(&mut self, sql: &str) -> Result<String, Self::Error> {
-        let mut output = String::new();
+    async fn run(&mut self, sql: &str) -> Result<DBOutput, Self::Error> {
+        let mut output = Vec::new();
+        let mut num_columns = 0;
         let rows = self.client.simple_query(sql).await?;
         for row in rows {
             match row {
                 SimpleQueryMessage::Row(row) => {
+                    num_columns = row.len();
+                    let mut row_output = Vec::with_capacity(row.len());
                     for i in 0..row.len() {
-                        if i != 0 {
-                            write!(output, " ").unwrap();
-                        }
                         match row.get(i) {
                             Some(v) => {
                                 if v.is_empty() {
-                                    write!(output, "(empty)").unwrap()
+                                    row_output.push("(empty)".to_string());
                                 } else {
-                                    write!(output, "{}", v).unwrap()
+                                    row_output.push(v.to_string());
                                 }
                             }
-                            None => write!(output, "NULL").unwrap(),
+                            None => row_output.push("NULL".to_string()),
                         }
                     }
+                    output.push(row_output);
                 }
                 SimpleQueryMessage::CommandComplete(_) => {}
                 _ => unreachable!(),
             }
-            writeln!(output).unwrap();
         }
-        Ok(output)
+        Ok(DBOutput::Rows {
+            types: vec![ColumnType::Text; num_columns],
+            rows: output,
+        })
     }
 
     fn engine_name(&self) -> &str {
