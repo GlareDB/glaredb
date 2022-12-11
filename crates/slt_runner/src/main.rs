@@ -5,7 +5,6 @@ use common::config::DbConfig;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use sqllogictest::{AsyncDB, ColumnType, DBOutput, Runner};
-use std::fmt::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
