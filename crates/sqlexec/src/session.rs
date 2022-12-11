@@ -12,8 +12,8 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
-use datafusion::logical_expr::{Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
