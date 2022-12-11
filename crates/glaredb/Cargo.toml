@@ -9,6 +9,7 @@ path = "src/bin/main.rs"
 
 [dependencies]
 logutil = {path = "../logutil"}
+buildenv = {path = "../buildenv"}
 common = {path = "../common"}
 cloud = {path = "../cloud"}
 background = {path = "../background"}
