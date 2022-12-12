@@ -12,8 +12,8 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
-use datafusion::logical_expr::{Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
@@ -25,7 +25,7 @@ use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
 use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// A per-client user session.
 ///
@@ -76,28 +76,7 @@ impl Session {
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
             ast::Statement::Query(query) => {
-                let mut plan = planner.query_to_plan(*query, &mut HashMap::new())?;
-                // If we have unaliased constants, make sure they're aliased to
-                // '?column?' to match Postgres.
-                //
-                // It's likely we'll need to do additional rewriting to match
-                // Postgres. As those come up during protocol testing, this
-                // piece of code should be moved out and tested separately.
-                match &mut plan {
-                    DfLogicalPlan::Projection(proj) => {
-                        for expr in proj.expr.iter_mut() {
-                            if let Expr::Literal(_) = expr {
-                                *expr = expr.clone().alias("?column?");
-                            }
-                        }
-                    }
-                    other => {
-                        // I'm unsure when we wouldn't have a project as the
-                        // root node. Log it out just to make sure.
-                        warn!(?other, "query root node for logical plan not a projection");
-                    }
-                }
-
+                let plan = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(LogicalPlan::Query(plan))
             }
 
