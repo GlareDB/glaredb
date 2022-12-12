@@ -2,6 +2,7 @@ use crate::errors::{CloudError, Result};
 use common::cloud::CloudConfig;
 use reqwest::Client;
 use serde::Serialize;
+use std::time::Duration;
 
 const REPORT_STORAGE_ENDPOINT: &str = "/api/internal/databases/usage";
 
@@ -21,7 +22,12 @@ impl CloudClient {
         if !conf.enabled {
             return Err(CloudError::CloudCommsDisabled);
         }
-        let http = Client::builder().timeout(conf.timeout).build()?;
+        let http = Client::builder()
+            .http2_keep_alive_interval(Some(Duration::from_secs(300))) // 5 mins
+            .http2_keep_alive_timeout(conf.timeout)
+            .http2_keep_alive_while_idle(true)
+            .timeout(conf.timeout)
+            .build()?;
         let client = CloudClient { conf, http };
         client.ping().await?;
         Ok(client)
