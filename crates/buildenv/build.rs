@@ -6,7 +6,7 @@ fn main() {
         .output()
     {
         Ok(output) => String::from_utf8(output.stdout).unwrap(),
-        Err(_) => String::from("unknown me"),
+        Err(_) => String::from("unknown"),
     };
     println!("cargo:rustc-env=GIT_TAG={}", git_tag);
 }
