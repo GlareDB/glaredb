@@ -593,6 +593,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "buildenv"
+version = "0.1.0"
+
+[[package]]
 name = "bumpalo"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -719,6 +723,7 @@ name = "catalog_types"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "buildenv",
  "datafusion",
  "object_store",
 ]
@@ -1595,6 +1600,7 @@ dependencies = [
  "async-trait",
  "background",
  "bincode",
+ "buildenv",
  "clap 4.0.27",
  "cloud",
  "common",
