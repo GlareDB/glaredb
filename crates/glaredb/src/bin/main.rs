@@ -12,6 +12,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
+use tracing::info;
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
@@ -111,6 +112,9 @@ enum ClientCommands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     logutil::init(cli.verbose, cli.json_logging);
+
+    let version = buildenv::git_tag();
+    info!(%version, "starting...");
 
     match cli.command {
         Commands::RaftNode {
