@@ -50,6 +50,7 @@
 
         # Build-time dependencies.
         nativeBuildInputs = [
+          pkgs.git # For getting tag/hash at build time.
           pkgs.pkgconfig
           pkgs.protobuf
           pkgs.openssl
