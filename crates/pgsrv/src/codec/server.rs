@@ -12,7 +12,7 @@ use ioutil::write::InfallibleWrite;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// A connection that can encode and decode postgres protocol messages.
 pub struct FramedConn<C> {
@@ -67,6 +67,7 @@ impl PgCodec {
     {
         let msg_len = conn.read_i32().await? as usize;
         let mut buf = BytesMut::new();
+        debug!(?buf, "startup connection message");
         buf.resize(msg_len - 4, 0);
         conn.read_exact(&mut buf).await?;
 
@@ -86,6 +87,8 @@ impl PgCodec {
             let val = buf.read_cstring()?.to_string();
             params.insert(key, val);
         }
+
+        debug!(?params, "startup connection params");
 
         Ok(StartupMessage::StartupRequest { version, params })
     }

@@ -10,7 +10,7 @@ use crate::ssl::SslConfig;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.
@@ -216,6 +216,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
 /// Parse the options provided in the startup parameters.
 fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, String>> {
     let options = params.get("options")?;
+    debug!(?options, "psql options via pgsrv");
     Some(
         options
             .split_whitespace()
