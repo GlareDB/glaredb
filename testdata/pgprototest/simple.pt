@@ -1,42 +1,29 @@
 # Simple query protocol testing.
 
 send
-Query {"query": "select 1, 2"}
+Query {"query": "select 1 as first, 2 as second"}
 ----
 
 until
 ReadyForQuery
 ----
-RowDescription {"fields":[{"name":"?column?"},{"name":"?column?"}]}
+RowDescription {"fields":[{"name":"first"},{"name":"second"}]}
 DataRow {"fields":["1","2"]}
 CommandComplete {"tag":"SELECT 1"}
 ReadyForQuery {"status":"I"}
 
 
 send
-Query {"query": "select 1; select 2;"}
+Query {"query": "select 1 as first; select 2 as second;"}
 ----
 
 until
 ReadyForQuery
 ----
-RowDescription {"fields":[{"name":"?column?"}]}
+RowDescription {"fields":[{"name":"first"}]}
 DataRow {"fields":["1"]}
 CommandComplete {"tag":"SELECT 1"}
-RowDescription {"fields":[{"name":"?column?"}]}
+RowDescription {"fields":[{"name":"second"}]}
 DataRow {"fields":["2"]}
-CommandComplete {"tag":"SELECT 1"}
-ReadyForQuery {"status":"I"}
-
-
-send
-Query {"query": "select 1 as my_alias, 2"}
-----
-
-until
-ReadyForQuery
-----
-RowDescription {"fields":[{"name":"my_alias"},{"name":"?column?"}]}
-DataRow {"fields":["1","2"]}
 CommandComplete {"tag":"SELECT 1"}
 ReadyForQuery {"status":"I"}

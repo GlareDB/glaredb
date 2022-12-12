@@ -1,3 +1,4 @@
+use crate::builtin_fns::version_func;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use std::sync::Arc;
@@ -23,7 +24,13 @@ impl SessionContext {
             .with_information_schema(false);
 
         let runtime = Arc::new(RuntimeEnv::default());
-        let state = SessionState::with_config_rt(config, runtime);
+        let mut state = SessionState::with_config_rt(config, runtime);
+
+        // TODO: We don't need to create the builtin functions everytime.
+        let funcs = vec![version_func()];
+        for func in funcs {
+            state.scalar_functions.insert(func.name.clone(), func);
+        }
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
