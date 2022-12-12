@@ -6,7 +6,10 @@ use serde::Deserialize;
 #[serde(rename_all = "snake_case")]
 pub enum ObjectStoreKind {
     #[default]
-    Local,
+    LocalTemporary,
+    Local {
+        object_store_path: String,
+    },
     Memory,
     Gcs {
         service_account_path: String,
