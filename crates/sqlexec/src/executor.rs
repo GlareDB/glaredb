@@ -142,7 +142,7 @@ mod tests {
         let cache_dir = TempDir::new().unwrap();
         let access_config = AccessConfig {
             db_name: String::from("test"),
-            object_store: ObjectStoreKind::Local,
+            object_store: ObjectStoreKind::LocalTemporary,
             cached: true,
             max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
             cache_path: Some(PathBuf::from(cache_dir.path())),

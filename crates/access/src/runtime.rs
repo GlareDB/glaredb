@@ -4,9 +4,11 @@ use crate::errors::{internal, Result};
 use bytes::Bytes;
 use common::access::{AccessConfig, ObjectStoreKind};
 use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::local::LocalFileSystem;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use object_store_util::temp::TempObjectStore;
 use persistence::object_cache::{ObjectStoreCache, DEFAULT_BYTE_RANGE_SIZE};
+use std::fs;
 use std::sync::Arc;
 use tracing::trace;
 
@@ -31,7 +33,18 @@ impl AccessRuntime {
     pub async fn new(config: AccessConfig) -> Result<AccessRuntime> {
         use ObjectStoreKind::*;
         let mut store = match config.object_store {
-            Local => Arc::new(TempObjectStore::new()?) as Arc<dyn ObjectStore>,
+            LocalTemporary => Arc::new(TempObjectStore::new()?) as Arc<dyn ObjectStore>,
+            Local {
+                ref object_store_path,
+            } => {
+                trace!(
+                    ?object_store_path,
+                    "Create local object store path if nessary"
+                );
+                fs::create_dir_all(object_store_path)?;
+                Arc::new(LocalFileSystem::new_with_prefix(object_store_path)?)
+                    as Arc<dyn ObjectStore>
+            }
             Memory => Arc::new(object_store::memory::InMemory::new()) as Arc<dyn ObjectStore>,
             Gcs {
                 ref service_account_path,
