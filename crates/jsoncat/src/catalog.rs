@@ -1,16 +1,20 @@
 use crate::entryset::EntrySet;
-use crate::errors::{CatalogError, Result};
+use crate::errors::{internal, CatalogError, Result};
 use async_trait::async_trait;
 use futures::Stream;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub trait Context: Sync + Send {}
 
-#[derive(Debug)]
-pub struct TableEntry {}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TableEntry {
+    pub schema: String,
+    pub name: String,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ViewEntry {
     pub schema: String,
     pub name: String,
@@ -39,6 +43,13 @@ pub enum EntryType {
     Sequence,
 }
 
+#[derive(Debug)]
+pub struct DropEntry {
+    pub typ: EntryType,
+    pub schema: String,
+    pub name: String,
+}
+
 pub struct Catalog {
     /// Catalog version, incremented on change.
     version: AtomicU64,
@@ -52,6 +63,21 @@ impl Catalog {
         schema.create_view(ctx, view)
     }
 
+    pub fn create_table<C: Context>(&self, ctx: &C, table: TableEntry) -> Result<()> {
+        let schema = self.get_schema(ctx, &table.schema)?;
+        schema.create_table(ctx, table)
+    }
+
+    pub fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
+        if matches!(drop.typ, EntryType::Schema) {
+            self.schemas.drop_entry(ctx, &drop.schema)?;
+        } else {
+            let schema = self.get_schema(ctx, &drop.schema)?;
+            schema.drop_entry(ctx, drop)?;
+        }
+        Ok(())
+    }
+
     fn get_schema<C: Context>(&self, ctx: &C, name: &str) -> Result<Arc<Schema>> {
         self.schemas
             .get_entry(ctx, name)
@@ -63,8 +89,8 @@ impl Catalog {
 }
 
 struct Schema {
-    tables: EntrySet<TableEntry>,
     views: EntrySet<ViewEntry>,
+    tables: EntrySet<TableEntry>,
 }
 
 impl Schema {
@@ -72,5 +98,20 @@ impl Schema {
         self.views
             .create_entry(ctx, view.name.clone(), view)?
             .expect_inserted()
+    }
+
+    fn create_table<C: Context>(&self, ctx: &C, table: TableEntry) -> Result<()> {
+        self.tables
+            .create_entry(ctx, table.name.clone(), table)?
+            .expect_inserted()
+    }
+
+    fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
+        match drop.typ {
+            EntryType::View => self.views.drop_entry(ctx, &drop.name)?,
+            EntryType::Table => self.tables.drop_entry(ctx, &drop.name)?,
+            other => return Err(internal!("invalid drop type: {:?}", other)),
+        };
+        Ok(())
     }
 }

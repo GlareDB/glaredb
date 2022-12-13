@@ -6,6 +6,12 @@ pub enum CatalogError {
     #[error("duplicate entry for name: {0}")]
     DuplicateEntryForName(String),
 
+    #[error(transparent)]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+
     #[error("internal: {0}")]
     Internal(String),
 }

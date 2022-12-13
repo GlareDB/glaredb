@@ -1,5 +1,6 @@
 //! The JSON catalog.
 pub mod catalog;
+pub mod checkpoint;
 pub mod errors;
 pub mod transaction;
 
