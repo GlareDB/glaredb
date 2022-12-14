@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-pub trait Context: Sync + Send {}
+pub trait Context: Sync + Send + Clone {}
 
 #[derive(Debug)]
 pub enum EntryType {
@@ -31,6 +31,13 @@ pub struct Catalog {
 }
 
 impl Catalog {
+    pub fn empty() -> Catalog {
+        Catalog {
+            version: AtomicU64::new(0),
+            schemas: EntrySet::new(),
+        }
+    }
+
     pub fn create_view<C: Context>(&self, ctx: &C, view: ViewEntry) -> Result<()> {
         let schema = self.get_schema(ctx, &view.schema)?;
         schema.create_view(ctx, view)
@@ -46,6 +53,7 @@ impl Catalog {
             name: schema_ent.schema.clone(),
             views: EntrySet::new(),
             tables: EntrySet::new(),
+            internal: schema_ent.internal,
         };
         self.schemas
             .create_entry(ctx, schema_ent.schema, schema)?
@@ -74,6 +82,7 @@ impl Catalog {
 
 pub(crate) struct Schema {
     pub(crate) name: String, // TODO: Don't store name here.
+    pub(crate) internal: bool,
     pub(crate) views: EntrySet<ViewEntry>,
     pub(crate) tables: EntrySet<TableEntry>,
 }
@@ -105,6 +114,7 @@ impl From<&Schema> for SchemaEntry {
     fn from(s: &Schema) -> Self {
         SchemaEntry {
             schema: s.name.clone(),
+            internal: s.internal,
         }
     }
 }

@@ -142,6 +142,11 @@ impl<'a> CheckpointWriter<'a> {
         let mut schema_ents: Vec<SchemaEntry> = Vec::new();
         // Write out catalog entries for each schema.
         for schema in self.catalog.schemas.iter(ctx) {
+            // Don't persist internal schemas. These are recreated on startup.
+            if schema.internal {
+                continue;
+            }
+
             schema_ents.push(schema.as_ref().into());
 
             let writer = SchemaCheckpointWriter {

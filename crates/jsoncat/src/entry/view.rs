@@ -4,4 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct ViewEntry {
     pub schema: String,
     pub name: String,
+    pub column_count: u32,
+    pub sql: String,
 }

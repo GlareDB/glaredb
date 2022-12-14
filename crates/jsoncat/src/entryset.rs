@@ -112,6 +112,18 @@ impl<T> EntrySet<T> {
         Some(ent.clone())
     }
 
+    pub fn entry_exists<C: Context>(&self, ctx: &C, name: &str) -> bool {
+        let inner = self.inner.read();
+
+        // TODO: Transactional lookup.
+
+        match inner.mapping.get(name) {
+            Some(mapping) if !mapping.deleted => true,
+            Some(_) => false,
+            None => false,
+        }
+    }
+
     pub fn drop_entry<C: Context>(&self, ctx: &C, name: &str) -> Result<EntryDrop> {
         let mut inner = self.inner.write();
 
