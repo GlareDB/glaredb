@@ -1,38 +1,11 @@
+use crate::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
 use crate::entryset::EntrySet;
 use crate::errors::{internal, CatalogError, Result};
-use async_trait::async_trait;
-use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub trait Context: Sync + Send {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TableEntry {
-    pub schema: String,
-    pub name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ViewEntry {
-    pub schema: String,
-    pub name: String,
-}
-
-// #[async_trait]
-// pub trait Catalog: Sync + Send {
-//     type Context: Context;
-
-//     async fn create_schema(&self, ctx: &Self::Context, info: &CreateSchemaInfo) -> Result<()>;
-//     async fn create_table(&self, ctx: &Self::Context, info: &CreateSchemaInfo) -> Result<()>;
-//     async fn create_view(&self, ctx: &Self::Context, info: &CreateViewInfo) -> Result<()>;
-//     async fn create_sequence(&self, ctx: &Self::Context, info: &CreateSequenceInfo) -> Result<()>;
-
-//     async fn iter_schemas<'a, S: Stream<Item = &'a SchemaEntry>>(&self) -> Result<S>;
-
-//     async fn drop(&self, ctx: &Self::Context, info: &DropInfo) -> Result<()>;
-// }
 
 #[derive(Debug)]
 pub enum EntryType {
@@ -52,9 +25,9 @@ pub struct DropEntry {
 
 pub struct Catalog {
     /// Catalog version, incremented on change.
-    version: AtomicU64,
+    pub(crate) version: AtomicU64,
     /// Catalog schemas.
-    schemas: EntrySet<Schema>,
+    pub(crate) schemas: EntrySet<Schema>,
 }
 
 impl Catalog {
@@ -66,6 +39,17 @@ impl Catalog {
     pub fn create_table<C: Context>(&self, ctx: &C, table: TableEntry) -> Result<()> {
         let schema = self.get_schema(ctx, &table.schema)?;
         schema.create_table(ctx, table)
+    }
+
+    pub fn create_schema<C: Context>(&self, ctx: &C, schema_ent: SchemaEntry) -> Result<()> {
+        let schema = Schema {
+            name: schema_ent.schema.clone(),
+            views: EntrySet::new(),
+            tables: EntrySet::new(),
+        };
+        self.schemas
+            .create_entry(ctx, schema_ent.schema, schema)?
+            .expect_inserted()
     }
 
     pub fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
@@ -88,9 +72,10 @@ impl Catalog {
     }
 }
 
-struct Schema {
-    views: EntrySet<ViewEntry>,
-    tables: EntrySet<TableEntry>,
+pub(crate) struct Schema {
+    pub(crate) name: String, // TODO: Don't store name here.
+    pub(crate) views: EntrySet<ViewEntry>,
+    pub(crate) tables: EntrySet<TableEntry>,
 }
 
 impl Schema {
@@ -113,5 +98,13 @@ impl Schema {
             other => return Err(internal!("invalid drop type: {:?}", other)),
         };
         Ok(())
+    }
+}
+
+impl From<&Schema> for SchemaEntry {
+    fn from(s: &Schema) -> Self {
+        SchemaEntry {
+            schema: s.name.clone(),
+        }
     }
 }

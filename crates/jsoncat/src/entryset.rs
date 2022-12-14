@@ -16,7 +16,7 @@ pub enum EntryInsert<T> {
 impl<T> EntryInsert<T> {
     pub fn expect_inserted(&self) -> Result<()> {
         match &self {
-            EntryInsert => Ok(()),
+            Self::Inserted => Ok(()),
             Self::NotInserted(_) => Err(internal!("expected entry to be inserted")),
         }
     }
@@ -44,6 +44,16 @@ struct Inner<T> {
 }
 
 impl<T> EntrySet<T> {
+    pub fn new() -> Self {
+        EntrySet {
+            inner: RwLock::new(Inner {
+                mapping: BTreeMap::new(),
+                entries: BTreeMap::new(),
+                curr_entry_idx: 0,
+            }),
+        }
+    }
+
     pub fn create_entry<C: Context>(
         &self,
         ctx: &C,
@@ -123,6 +133,20 @@ impl<T> EntrySet<T> {
             None => Ok(EntryDrop::NotFound),
         }
     }
+
+    pub fn iter<'a, C: Context>(&'a self, ctx: &'a C) -> EntrySetIter<'a, T, C> {
+        EntrySetIter {
+            idx: 0,
+            ctx,
+            entryset: self,
+        }
+    }
+
+    fn get_entry_by_idx<C: Context>(&self, ctx: &C, idx: usize) -> Option<Arc<T>> {
+        // TODO: Transactional.
+        let inner = self.inner.read();
+        inner.entries.get(&idx).cloned()
+    }
 }
 
 /// A string to index mapping for an entry.
@@ -132,4 +156,20 @@ struct EntryMapping {
     ts: Timestamp,
     deleted: bool,
     child: Option<Box<EntryMapping>>,
+}
+
+pub struct EntrySetIter<'a, T, C> {
+    idx: usize,
+    ctx: &'a C,
+    entryset: &'a EntrySet<T>,
+}
+
+impl<'a, T, C: Context> Iterator for EntrySetIter<'a, T, C> {
+    type Item = Arc<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let ent = self.entryset.get_entry_by_idx(self.ctx, self.idx);
+        self.idx += 1;
+        ent
+    }
 }
