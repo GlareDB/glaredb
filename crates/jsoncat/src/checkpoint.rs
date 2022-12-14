@@ -186,7 +186,7 @@ impl<'a> SchemaCheckpointWriter<'a> {
             serde_json::to_writer(&mut buf, table.as_ref())?;
         }
         self.store
-            .put(&TABLES_FILE.object_path(&self.db_name), buf.into())
+            .put(&TABLES_FILE.object_path(self.db_name), buf.into())
             .await?;
         Ok(())
     }
@@ -197,7 +197,7 @@ impl<'a> SchemaCheckpointWriter<'a> {
             serde_json::to_writer(&mut buf, view.as_ref())?;
         }
         self.store
-            .put(&VIEWS_FILE.object_path(&self.db_name), buf.into())
+            .put(&VIEWS_FILE.object_path(self.db_name), buf.into())
             .await?;
         Ok(())
     }

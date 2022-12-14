@@ -6,13 +6,7 @@ use datafusion::arrow::datatypes::{
 };
 
 pub fn from_df_schema(schema: DfSchema) -> Schema {
-    Schema::new(
-        schema
-            .fields
-            .into_iter()
-            .map(|f| from_df_field(f))
-            .collect(),
-    )
+    Schema::new(schema.fields.into_iter().map(from_df_field).collect())
 }
 
 /// Convert the datatype that's reexported from datafusion to the local arrow
@@ -50,11 +44,9 @@ pub fn from_df_datatype(df: DfDataType) -> DataType {
         DfDataType::List(a) => DataType::List(Box::new(from_df_field(*a))),
         DfDataType::FixedSizeList(a, b) => DataType::FixedSizeList(Box::new(from_df_field(*a)), b),
         DfDataType::LargeList(a) => DataType::LargeList(Box::new(from_df_field(*a))),
-        DfDataType::Struct(a) => {
-            DataType::Struct(a.into_iter().map(|f| from_df_field(f)).collect())
-        }
+        DfDataType::Struct(a) => DataType::Struct(a.into_iter().map(from_df_field).collect()),
         DfDataType::Union(a, b, c) => DataType::Union(
-            a.into_iter().map(|f| from_df_field(f)).collect(),
+            a.into_iter().map(from_df_field).collect(),
             b,
             from_df_union_mode(c),
         ),

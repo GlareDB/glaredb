@@ -125,13 +125,9 @@ fn dispatch_access<C: Context>(
         AccessMethod::InternalMemory => {
             // Just match on the built-in tables.
             match (ent.schema.as_str(), ent.name.as_str()) {
-                (INTERNAL_SCHEMA, "views") => {
-                    return Some(Arc::new(views_memory_table(ctx, catalog)))
-                }
-                (INTERNAL_SCHEMA, "schemas") => {
-                    return Some(Arc::new(schemas_memory_table(ctx, catalog)))
-                }
-                _ => return None,
+                (INTERNAL_SCHEMA, "views") => Some(Arc::new(views_memory_table(ctx, catalog))),
+                (INTERNAL_SCHEMA, "schemas") => Some(Arc::new(schemas_memory_table(ctx, catalog))),
+                _ => None,
             }
         }
     }
