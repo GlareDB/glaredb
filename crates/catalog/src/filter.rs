@@ -27,7 +27,7 @@ where
 {
     let table = table.as_ref();
     if filters.is_empty() {
-        table.scan(state, &None, &[], limit).await
+        table.scan(state, None, &[], limit).await
     } else {
         // TODO: Check if table has full support for filter pushdown, removing
         // the need to wrap the plan in a filter exec.
@@ -46,7 +46,7 @@ where
         )?;
         // Note that we don't pass a projection down since the filter might make
         // use of one of the fields not being projected.
-        let table_scan = table.scan(state, &None, filters, limit).await?;
+        let table_scan = table.scan(state, None, filters, limit).await?;
         let physical =
             create_physical_expr(&expr, &df_schema, &schema, &ExecutionProps::default())?;
         let plan = Arc::new(FilterExec::try_new(physical, table_scan)?);

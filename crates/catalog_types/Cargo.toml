@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 buildenv = {path = "../buildenv"}
 object_store = "0.5"
-datafusion = "14.0"
+datafusion = "15.0"
 async-trait = "0.1.59"

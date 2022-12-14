@@ -10,7 +10,7 @@ pub fn dbg_table<T: TableProvider + ?Sized, R: AsRef<T>>(ctx: &SessionContext, t
     executor::block_on(async {
         let plan = table
             .as_ref()
-            .scan(ctx.get_df_state(), &None, &[], None)
+            .scan(ctx.get_df_state(), None, &[], None)
             .await
             .unwrap();
         let stream = plan.execute(0, ctx.task_context()).unwrap();

@@ -18,8 +18,9 @@ use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
 };
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
-use datafusion::sql::planner::{convert_data_type, SqlToRel};
+use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use futures::StreamExt;
@@ -110,9 +111,9 @@ impl Session {
             } => {
                 let mut arrow_cols = Vec::with_capacity(columns.len());
                 for column in columns.into_iter() {
-                    let dt = convert_data_type(&column.data_type)?;
-                    let field = Field::new(&column.name.value, dt, false);
-                    arrow_cols.push(field);
+                    // let dt = convert_data_type(&column.data_type)?;
+                    // let field = Field::new(&column.name.value, dt, false);
+                    // arrow_cols.push(field);
                 }
 
                 Ok(DdlPlan::CreateTable(CreateTable {
@@ -578,5 +579,9 @@ impl<'a> ContextProvider for SessionContextProvider<'a> {
             .sess_ctx
             .get_df_state()
             .get_variable_type(variable_names)
+    }
+
+    fn get_config_option(&self, variable: &str) -> Option<ScalarValue> {
+        None
     }
 }

@@ -73,6 +73,7 @@ pub(crate) fn bind_placeholders(
             after_columns,
             table,
             on,
+            returning,
         } => {
             let source = bind_query(&opts, *source)?;
             Ok(ast::Statement::Insert {
@@ -86,6 +87,7 @@ pub(crate) fn bind_placeholders(
                 after_columns,
                 table,
                 on,
+                returning,
             })
         }
         other => Ok(other),

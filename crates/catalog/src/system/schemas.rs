@@ -81,7 +81,7 @@ impl SchemaRow {
         let partitioned_table = schemas_table.get_partitioned_table()?;
 
         let plan = partitioned_table
-            .scan_inner(ctx.get_df_state(), &None, &[], None)
+            .scan_inner(ctx.get_df_state(), None, &[], None)
             .await?;
         let stream = plan.execute(0, ctx.task_context())?;
         let batches: Vec<RecordBatch> = stream.try_collect().await?;

@@ -72,7 +72,7 @@ impl LocalPartition {
     pub async fn scan(
         &self,
         _ctx: &SessionState,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
@@ -87,7 +87,7 @@ impl LocalPartition {
                             self.key.clone(),
                             self.schema.clone(),
                             self.runtime.delta_cache().clone(),
-                            projection.clone(),
+                            projection.cloned(),
                         )
                         .map_err(merr)?,
                     ),
@@ -96,7 +96,7 @@ impl LocalPartition {
                             self.runtime.object_store().clone(),
                             meta,
                             self.schema.clone(),
-                            projection.clone(),
+                            projection.cloned(),
                         )
                         .map_err(merr)?,
                     ),
@@ -110,7 +110,7 @@ impl LocalPartition {
                     self.key.clone(),
                     self.schema.clone(),
                     self.runtime.delta_cache().clone(),
-                    projection.clone(),
+                    projection.cloned(),
                 )
                 .map_err(merr)?,
             ),
