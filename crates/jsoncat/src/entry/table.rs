@@ -1,6 +1,5 @@
 use crate::access::AccessMethod;
 use crate::convert::from_df_schema;
-use crate::errors::Result;
 use crate::system::{schemas, views};
 use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use serde::{Deserialize, Serialize};

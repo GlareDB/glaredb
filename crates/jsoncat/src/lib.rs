@@ -1,4 +1,7 @@
 //! The JSON catalog.
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(clippy::new_without_default)]
 pub mod access;
 pub mod adapter;
 pub mod catalog;
@@ -11,12 +14,13 @@ mod convert;
 mod entryset;
 mod system;
 
-use catalog::{Catalog, Context};
+use catalog::Catalog;
 use checkpoint::{CheckpointReader, CheckpointWriter};
 use entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
 use errors::Result;
 use object_store::ObjectStore;
 use std::sync::Arc;
+use transaction::Context;
 
 pub async fn load_catalog<C: Context>(
     ctx: &C,
@@ -33,6 +37,10 @@ pub async fn load_catalog<C: Context>(
     let tables = TableEntry::generate_defaults();
     for table in tables {
         catalog.create_table(ctx, table)?;
+    }
+    let views = ViewEntry::generate_defaults();
+    for view in views {
+        catalog.create_view(ctx, view)?;
     }
 
     let reader = CheckpointReader::new(db_name, store, catalog);

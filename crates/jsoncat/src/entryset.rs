@@ -1,6 +1,5 @@
-use crate::catalog::Context;
-use crate::errors::{internal, CatalogError, Result};
-use crate::transaction::Timestamp;
+use crate::errors::{internal, Result};
+use crate::transaction::{Context, Timestamp};
 use parking_lot::RwLock;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -30,6 +29,9 @@ pub enum EntryDrop {
 }
 
 /// Holds entries of one type for the catalog.
+///
+/// This is the primary type ensure that operations within the catalog are
+/// transactional.
 pub struct EntrySet<T> {
     inner: RwLock<Inner<T>>,
 }

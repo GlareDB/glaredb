@@ -7,3 +7,9 @@ pub struct ViewEntry {
     pub column_count: u32,
     pub sql: String,
 }
+
+impl ViewEntry {
+    pub fn generate_defaults() -> impl Iterator<Item = ViewEntry> {
+        [].into_iter()
+    }
+}

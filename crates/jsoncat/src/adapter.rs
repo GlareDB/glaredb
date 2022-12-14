@@ -1,8 +1,9 @@
 //! Adapter types for use with datafusion.
 use crate::access::AccessMethod;
-use crate::catalog::{Catalog, Context, Schema};
+use crate::catalog::{Catalog, Schema};
 use crate::entry::table::{TableEntry, INTERNAL_SCHEMA};
 use crate::system::{schemas_memory_table, views_memory_table};
+use crate::transaction::Context;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::TableProvider;

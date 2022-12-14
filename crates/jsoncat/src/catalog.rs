@@ -1,11 +1,9 @@
 use crate::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
 use crate::entryset::EntrySet;
 use crate::errors::{internal, CatalogError, Result};
-use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
+use crate::transaction::Context;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-
-pub trait Context: Sync + Send + Clone {}
 
 #[derive(Debug)]
 pub enum EntryType {
@@ -25,7 +23,7 @@ pub struct DropEntry {
 
 pub struct Catalog {
     /// Catalog version, incremented on change.
-    pub(crate) version: AtomicU64,
+    pub(crate) version: AtomicU64, // TODO: Currently unused.
     /// Catalog schemas.
     pub(crate) schemas: EntrySet<Schema>,
 }

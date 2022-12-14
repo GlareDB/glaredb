@@ -1,6 +1,7 @@
-use crate::catalog::{Catalog, Context, Schema};
+use crate::catalog::{Catalog, Schema};
 use crate::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
-use crate::errors::{CatalogError, Result};
+use crate::errors::Result;
+use crate::transaction::Context;
 use bytes::Bytes;
 use object_store::{path::Path as ObjectPath, Error as ObjectError, ObjectStore};
 use serde_json::{de::SliceRead, StreamDeserializer};
