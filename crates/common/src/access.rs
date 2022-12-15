@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Default, Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjectStoreKind {
     #[default]
@@ -18,11 +18,23 @@ pub enum ObjectStoreKind {
     S3,
 }
 
-#[derive(Default, Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AccessConfig {
     pub db_name: String,
     pub object_store: ObjectStoreKind,
     pub cached: bool,
     pub max_object_store_cache_size: Option<u64>,
     pub cache_path: Option<PathBuf>,
+}
+
+impl Default for AccessConfig {
+    fn default() -> Self {
+        Self {
+            db_name: String::from("glaredb"),
+            object_store: Default::default(),
+            cached: true,
+            max_object_store_cache_size: Some(1073741824), // 1 GiB
+            cache_path: Some(PathBuf::from("/tmp")),
+        }
+    }
 }
