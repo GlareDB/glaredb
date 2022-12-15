@@ -221,7 +221,7 @@ fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, Str
         options
             .split_whitespace()
             .map(|s| s.split('=').collect::<Vec<_>>())
-            // If a key and value don't exist skip this key using filter_map
+            // If a key and value don't exist, then skip this key using filter_map
             .filter_map(|v| (v.len() == 2).then(|| (v[0], v[1])))
             .map(|(k, v)| (k.replace("--", ""), v.to_string()))
             .collect::<HashMap<_, _>>(),
@@ -234,12 +234,25 @@ mod tests {
 
     #[test]
     fn parse_options_from_params() {
-        let options_str = "--test-key=1 --another-key=2";
+        let options_str = "--test-key=1 --another-key=2 --third-key =3";
         let mut params = HashMap::new();
         params.insert("options".to_string(), options_str.to_string());
 
         let options = parse_options(&params).unwrap();
         assert_eq!(Some(&String::from("1")), options.get("test-key"));
         assert_eq!(Some(&String::from("2")), options.get("another-key"));
+
+        // This is None as it can't parse the key value correctly due to the extra whitespace
+        assert_eq!(None, options.get("third-key"));
+    }
+
+    #[test]
+    fn parse_options_with_whitespace() {
+        let options_str = "--test-key 1";
+        let mut params = HashMap::new();
+        params.insert("options".to_string(), options_str.to_string());
+
+        let options = parse_options(&params).unwrap();
+        assert_eq!(None, options.get("test-key"));
     }
 }
