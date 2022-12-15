@@ -2,15 +2,18 @@
 db_name = "glaredb"
 object_store = "local_temporary"
 cached = true
-max_object_store_cache_size = 1073741824 # 1 GiB
+max_object_store_cache_size = 1073741824
 cache_path = "/tmp"
-
-[background.storage_reporting]
-interval = {secs = 30, nanos = 0}
+[background.storage_reporting.interval]
+secs = 30
+nanos = 0
 
 [cloud]
 enabled = false
 api_url = "https://qa.glaredb.com"
 ping_path = "/healthz"
 system_api_key = ""
-timeout = {secs = 15, nanos = 0}
+
+[cloud.timeout]
+secs = 15
+nanos = 0
