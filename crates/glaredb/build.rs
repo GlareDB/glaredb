@@ -3,7 +3,7 @@ use std::fs;
 use common::config::DbConfig;
 
 /// Relative path to default.toml
-const DEFAULT_CONFIG_TOML: &'static str = "../../config/default.toml";
+const DEFAULT_CONFIG_TOML: &str = "../../config/default.toml";
 
 fn main() {
     let default_config = DbConfig::default();
