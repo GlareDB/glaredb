@@ -221,7 +221,7 @@ fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, Str
         options
             .split_whitespace()
             .map(|s| s.split('=').collect::<Vec<_>>())
-            // If a key and value don't exit skip this key using filter_map
+            // If a key and value don't exist skip this key using filter_map
             .filter_map(|v| (v.len() == 2).then(|| (v[0], v[1])))
             .map(|(k, v)| (k.replace("--", ""), v.to_string()))
             .collect::<HashMap<_, _>>(),
