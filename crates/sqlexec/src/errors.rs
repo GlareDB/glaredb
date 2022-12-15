@@ -1,7 +1,10 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ExecError {
-    #[error("internal error: {0}")]
-    Internal(String),
+    #[error("invalid search path; '{schema}' doesn't exist (input: '{input}')")]
+    InvalidSearchPath { input: String, schema: String },
+
+    #[error("SQL statement current unsupported: {0}")]
+    UnsupportedSQLStatement(String),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
@@ -28,10 +31,16 @@ pub enum ExecError {
     Persistence(#[from] persistence::errors::PersistenceError),
 
     #[error(transparent)]
+    JsonCat(#[from] jsoncat::errors::CatalogError),
+
+    #[error(transparent)]
     Catalog(#[from] catalog::errors::CatalogError),
 
     #[error(transparent)]
     Access(#[from] access::errors::AccessError),
+
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

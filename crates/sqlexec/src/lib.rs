@@ -9,3 +9,5 @@ pub mod session;
 
 mod parameters;
 mod placeholders;
+mod planner;
+mod searchpath;

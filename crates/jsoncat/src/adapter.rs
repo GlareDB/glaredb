@@ -1,7 +1,8 @@
 //! Adapter types for use with datafusion.
 use crate::access::AccessMethod;
 use crate::catalog::{Catalog, Schema};
-use crate::entry::table::{TableEntry, INTERNAL_SCHEMA};
+use crate::constants::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
+use crate::entry::table::TableEntry;
 use crate::system::{schemas_memory_table, views_memory_table};
 use crate::transaction::Context;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
@@ -36,11 +37,11 @@ impl<C: Context + 'static> CatalogList for CatalogListAdapter<C> {
     }
 
     fn catalog_names(&self) -> Vec<String> {
-        vec!["default".to_string()]
+        vec![DEFAULT_CATALOG.to_string()]
     }
 
     fn catalog(&self, name: &str) -> Option<Arc<dyn CatalogProvider>> {
-        if name == "default" {
+        if name == DEFAULT_CATALOG {
             Some(self.provider.clone())
         } else {
             None
@@ -51,6 +52,13 @@ impl<C: Context + 'static> CatalogList for CatalogListAdapter<C> {
 pub struct CatalogProviderAdapter<C> {
     catalog: Arc<Catalog>,
     ctx: C,
+}
+
+impl<C: Context> CatalogProviderAdapter<C> {
+    /// Create a new adapter.
+    pub fn new(ctx: C, catalog: Arc<Catalog>) -> Self {
+        CatalogProviderAdapter { ctx, catalog }
+    }
 }
 
 impl<C: Context + 'static> CatalogProvider for CatalogProviderAdapter<C> {

@@ -58,6 +58,11 @@ impl Catalog {
             .expect_inserted()
     }
 
+    /// Check if a schema exists.
+    pub fn schema_exists<C: Context>(&self, ctx: &C, schema: &str) -> bool {
+        self.schemas.get_entry(ctx, schema).is_some()
+    }
+
     pub fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
         if matches!(drop.typ, EntryType::Schema) {
             self.schemas.drop_entry(ctx, &drop.schema)?;

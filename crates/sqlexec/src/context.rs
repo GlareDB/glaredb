@@ -1,14 +1,31 @@
+use crate::searchpath::SearchPath;
+use datafusion::arrow::datatypes::DataType;
+use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
+use datafusion::catalog::schema::SchemaProvider;
+use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
+use jsoncat::adapter::CatalogProviderAdapter;
 use jsoncat::catalog::Catalog;
+use jsoncat::transaction::Context;
 use std::sync::Arc;
+
+#[derive(Debug, Clone)]
+pub struct StubCatalogContext;
+
+impl Context for StubCatalogContext {}
 
 /// Context for a session used during execution.
 pub struct SessionContext {
+    /// Database catalog.
     catalog: Arc<Catalog>,
+    /// This session's search path. Used to resolve database objects.
+    search_path: SearchPath,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -43,6 +60,7 @@ impl SessionContext {
 
         SessionContext {
             catalog,
+            search_path: SearchPath::new(),
             df_state: state,
         }
     }
@@ -58,26 +76,54 @@ impl SessionContext {
     }
 }
 
-// impl ContextProvider for SessionContext {
-//     fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
-//         todo!()
-//     }
+/// Adapter for datafusion planning.
+pub struct ContextProviderAdapter<'a> {
+    pub context: &'a SessionContext,
+}
 
-//     fn get_function_meta(&self, name: &str) -> Option<Arc<datafusion::logical_expr::ScalarUDF>> {
-//         todo!()
-//     }
+impl<'a> ContextProvider for ContextProviderAdapter<'a> {
+    fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
+        let adapter = CatalogProviderAdapter::new(StubCatalogContext, self.context.catalog.clone());
+        match name {
+            TableReference::Bare { table } => {
+                for schema in self.context.search_path.iter() {
+                    if let Some(schema) = adapter.schema(schema) {
+                        if let Some(table) = schema.table(table) {
+                            return Ok(Arc::new(DefaultTableSource::new(table)));
+                        }
+                    }
+                }
+                Err(DataFusionError::Plan(format!(
+                    "failed to resolve bare table: {}",
+                    table
+                )))
+            }
+            TableReference::Full { schema, table, .. }
+            | TableReference::Partial { schema, table } => {
+                let schema = adapter.schema(schema).ok_or_else(|| {
+                    DataFusionError::Plan(format!("failed to resolve schema: {}", schema))
+                })?;
+                let table = schema.table(table).ok_or_else(|| {
+                    DataFusionError::Plan(format!("failed to resolve table: {}", table))
+                })?;
+                Ok(Arc::new(DefaultTableSource::new(table)))
+            }
+        }
+    }
 
-//     fn get_aggregate_meta(
-//         &self,
-//         name: &str,
-//     ) -> Option<Arc<datafusion::logical_expr::AggregateUDF>> {
-//         todo!()
-//     }
+    fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
+        None
+    }
 
-//     fn get_variable_type(
-//         &self,
-//         variable_names: &[String],
-//     ) -> Option<datafusion::arrow::datatypes::DataType> {
-//         todo!()
-//     }
-// }
+    fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {
+        None
+    }
+
+    fn get_variable_type(&self, variable_names: &[String]) -> Option<DataType> {
+        None
+    }
+
+    fn get_config_option(&self, variable: &str) -> Option<ScalarValue> {
+        None
+    }
+}

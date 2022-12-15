@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::constants::{INTERNAL_SCHEMA, INFORMATION_SCHEMA, POSTGRES_SCHEMA};
 
 struct DefaultSchema {
     name: &'static str,
@@ -6,12 +7,14 @@ struct DefaultSchema {
 
 const DEFAULT_SCHEMAS: &[DefaultSchema] = &[
     DefaultSchema {
-        name: "information_schema",
+        name: INFORMATION_SCHEMA,
     },
     DefaultSchema {
-        name: "glare_catalog",
+        name: INTERNAL_SCHEMA,
     },
-    DefaultSchema { name: "pg_catalog" },
+    DefaultSchema {
+        name: POSTGRES_SCHEMA,
+    },
 ];
 
 #[derive(Debug, Serialize, Deserialize)]

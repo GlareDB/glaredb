@@ -1,10 +1,9 @@
 use crate::access::AccessMethod;
+use crate::constants::INTERNAL_SCHEMA;
 use crate::convert::from_df_schema;
 use crate::system::{schemas, views};
 use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use serde::{Deserialize, Serialize};
-
-pub const INTERNAL_SCHEMA: &str = "glare_catalog";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TableEntry {

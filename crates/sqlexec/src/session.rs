@@ -1,4 +1,4 @@
-use crate::errors::{internal, Result};
+use crate::errors::{internal, ExecError, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
@@ -160,23 +160,8 @@ impl Session {
                 .into())
             }
 
-            ast::Statement::Insert {
-                table_name,
-                columns,
-                source,
-                ..
-            } => {
-                let table_name = table_name.to_string();
-                let columns = columns.into_iter().map(|col| col.value).collect();
-
-                let source = planner.query_to_plan(*source, &mut HashMap::new())?;
-
-                Ok(WritePlan::Insert(Insert {
-                    table_name,
-                    columns,
-                    source,
-                })
-                .into())
+            stmt @ ast::Statement::Insert { .. } => {
+                Err(ExecError::UnsupportedSQLStatement(stmt.to_string()))
             }
 
             // Drop tables
@@ -215,7 +200,7 @@ impl Session {
                 .into())
             }
 
-            stmt => Err(internal!("unsupported sql statement: {:?}", stmt)),
+            stmt => Err(ExecError::UnsupportedSQLStatement(stmt.to_string())),
         }
     }
 

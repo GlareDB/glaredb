@@ -27,6 +27,8 @@ async-trait = "0.1.59"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
 postgres-types = "0.2.4"
 object_store = "0.5"
+regex = "1.7"
+lazy_static = "1.4"
 
 [dev-dependencies]
 tempfile = "3"

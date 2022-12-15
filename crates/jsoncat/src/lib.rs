@@ -6,6 +6,7 @@ pub mod access;
 pub mod adapter;
 pub mod catalog;
 pub mod checkpoint;
+pub mod constants;
 pub mod entry;
 pub mod errors;
 pub mod transaction;
