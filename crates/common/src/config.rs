@@ -1,5 +1,5 @@
 use config::{builder::DefaultState, Config, ConfigBuilder, Environment, File, FileFormat};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::access::AccessConfig;
 use crate::background::BackgroundConfig;
@@ -12,7 +12,7 @@ const SEPARATOR: &str = "__";
 
 /// Configuration for GlareDB. Default config file items can be overriden by using environment
 /// variables with the following prefix, `GLAREDB__`.
-#[derive(Debug, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct DbConfig {
     pub access: AccessConfig,
     pub background: BackgroundConfig,

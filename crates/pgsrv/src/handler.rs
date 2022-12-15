@@ -24,7 +24,8 @@ use tracing::{trace, warn};
 /// other parameters we may want to provide.
 ///
 /// Some parameters  will eventually be provided at runtime.
-const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "0.0.0")];
+// TODO: Decide proper postgres version to spoof/support
+const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "15.1")];
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
 /// protocol.

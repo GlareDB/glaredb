@@ -1,10 +1,10 @@
 //! Configuration for communicating with Cloud.
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 // TODO: Add `system_api_key` field so the cloud client can authenticate with
 // Cloud.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CloudConfig {
     /// Whether or not Cloud communication is enabled.
     pub enabled: bool,
@@ -18,4 +18,16 @@ pub struct CloudConfig {
     pub system_api_key: String,
     /// Request timeout.
     pub timeout: Duration,
+}
+
+impl Default for CloudConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            api_url: String::from("https://qa.glaredb.com"),
+            ping_path: String::from("/healthz"),
+            system_api_key: Default::default(),
+            timeout: Duration::from_secs(15),
+        }
+    }
 }
