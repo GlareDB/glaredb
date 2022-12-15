@@ -1,5 +1,6 @@
 use crate::errors::{internal, Result};
 use crate::logical_plan::*;
+use crate::planner::SessionPlanner;
 use crate::session::Session;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::sql::sqlparser::ast;
@@ -90,8 +91,11 @@ impl<'a> Executor<'a> {
     }
 
     async fn execute_statement(&mut self, stmt: ast::Statement) -> Result<ExecutionResult> {
-        let logical_plan = self.session.plan_sql(stmt)?;
-        match logical_plan {
+        let plan = {
+            let planner = SessionPlanner::new(&self.session.ctx);
+            planner.plan_sql(stmt)?
+        };
+        match plan {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
                 self.session.create_table(plan).await?;
                 Ok(ExecutionResult::CreateTable)

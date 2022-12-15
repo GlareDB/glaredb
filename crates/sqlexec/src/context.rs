@@ -65,13 +65,18 @@ impl SessionContext {
         }
     }
 
+    /// Get a reference to the catalog.
+    pub fn get_catalog(&self) -> &Arc<Catalog> {
+        &self.catalog
+    }
+
     /// Get a datafusion task context to use for physical plan execution.
-    pub fn task_context(&self) -> Arc<TaskContext> {
+    pub(crate) fn task_context(&self) -> Arc<TaskContext> {
         Arc::new(TaskContext::from(&self.df_state))
     }
 
     /// Get a datafusion session state.
-    pub fn get_df_state(&self) -> &SessionState {
+    pub(crate) fn get_df_state(&self) -> &SessionState {
         &self.df_state
     }
 }
@@ -83,6 +88,10 @@ pub struct ContextProviderAdapter<'a> {
 
 impl<'a> ContextProvider for ContextProviderAdapter<'a> {
     fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
+        // NOTE: While `ContextProvider` is for _logical_ planning, DataFusion
+        // will actually try to downcast the `TableSource` to a `TableProvider`
+        // during physical planning. This only works with `DefaultTableSource`.
+
         let adapter = CatalogProviderAdapter::new(StubCatalogContext, self.context.catalog.clone());
         match name {
             TableReference::Bare { table } => {
