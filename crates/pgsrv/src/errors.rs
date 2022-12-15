@@ -26,7 +26,7 @@ pub enum PgSrvError {
     #[error("missing startup parameter: {0}")]
     MissingStartupParameter(&'static str),
 
-    #[error("missing opitons paramter: {0}")]
+    #[error("missing options parameter: {0}")]
     MissingOptionsParameter(&'static str),
 
     /// A stringified error from cloud.
