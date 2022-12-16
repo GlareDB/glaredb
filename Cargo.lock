@@ -1386,6 +1386,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derivative"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1647,6 +1658,12 @@ dependencies = [
  "matches",
  "percent-encoding",
 ]
+
+[[package]]
+name = "fs-err"
+version = "2.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0845fa252299212f0389d64ba26f34fa32cfe41588355f21ed507c59a0f64541"
 
 [[package]]
 name = "fuchsia-cprng"
@@ -3839,7 +3856,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
- "sqllogictest 0.9.0",
+ "sqllogictest 0.10.0",
  "tokio",
  "tokio-postgres",
 ]
@@ -3942,12 +3959,14 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a89f3be6c90ef2b67d55f999663b367ede63747a2311e480e7710f70c52fef65"
+checksum = "77967725c7578ba9fd12ea8076a64cc71a8cc1e4bd075ba8cde13deedd0c6515"
 dependencies = [
  "async-trait",
+ "derivative",
  "difference",
+ "fs-err",
  "futures",
  "glob",
  "humantime",
