@@ -13,7 +13,6 @@ buildenv = {path = "../buildenv"}
 common = {path = "../common"}
 cloud = {path = "../cloud"}
 background = {path = "../background"}
-raft = {path = "../raft"}
 sqlexec = {path = "../sqlexec"}
 pgsrv = {path = "../pgsrv"}
 access = {path = "../access"}
