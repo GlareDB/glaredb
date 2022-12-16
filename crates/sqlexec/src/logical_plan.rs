@@ -1,4 +1,4 @@
-use crate::errors::{internal, ExecError};
+use crate::errors::{internal, ExecError, Result};
 use datafusion::arrow::datatypes::Field;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
@@ -15,8 +15,7 @@ pub enum LogicalPlan {
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
-    // TODO: Actually implement this. This would correspond to "SET ..." and "SET SESSION ..." statements.
-    Runtime(RuntimePlan),
+    Configuration(ConfigurationPlan),
 }
 
 impl From<DfLogicalPlan> for LogicalPlan {
@@ -123,24 +122,38 @@ impl From<TransactionPlan> for LogicalPlan {
 }
 
 #[derive(Clone, Debug)]
-pub enum RuntimePlan {
-    SetParameter(SetParameter),
-    ShowParameter(ShowParameter),
+pub enum ConfigurationPlan {
+    SetConfiguration(SetConfiguration),
 }
 
-impl From<RuntimePlan> for LogicalPlan {
-    fn from(plan: RuntimePlan) -> Self {
-        LogicalPlan::Runtime(plan)
+impl From<ConfigurationPlan> for LogicalPlan {
+    fn from(plan: ConfigurationPlan) -> Self {
+        LogicalPlan::Configuration(plan)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct SetParameter {
+pub struct SetConfiguration {
     pub variable: ast::ObjectName,
     pub values: Vec<ast::Expr>,
 }
 
-#[derive(Clone, Debug)]
-pub struct ShowParameter {
-    pub variable: ast::ObjectName,
+impl SetConfiguration {
+    /// Try to get a single string value.
+    ///
+    /// Errors if more than one value, or if the value is not a string.
+    pub fn try_as_single_string(&self) -> Result<String> {
+        if self.values.len() > 1 {
+            return Err(internal!(
+                "invalid number of values given: {:?}",
+                self.values
+            ));
+        }
+
+        let first = self.values.first().unwrap();
+        match first {
+            ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
+            expr => Err(internal!("invalid expression for SET: {}", expr)),
+        }
+    }
 }

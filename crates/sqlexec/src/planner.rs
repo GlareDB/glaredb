@@ -129,26 +129,18 @@ impl<'a> SessionPlanner<'a> {
                 Ok(DdlPlan::DropTable(DropTable { if_exists, names }).into())
             }
 
-            // "SET ...", "SET SESSION ...", "SET LOCAL ..."
+            // "SET ...".
             //
             // NOTE: Only session local variables are supported. Transaction
             // local variables behave the same as session local (they're not
             // reset on transaction abort/commit).
             ast::Statement::SetVariable {
                 variable, value, ..
-            } => Ok(RuntimePlan::SetParameter(SetParameter {
+            } => Ok(ConfigurationPlan::SetConfiguration(SetConfiguration {
                 variable,
                 values: value,
             })
             .into()),
-
-            // "SHOW ..."
-            ast::Statement::ShowVariable { variable } => {
-                Ok(RuntimePlan::ShowParameter(ShowParameter {
-                    variable: ast::ObjectName(variable),
-                })
-                .into())
-            }
 
             stmt => Err(ExecError::UnsupportedSQLStatement(stmt.to_string())),
         }

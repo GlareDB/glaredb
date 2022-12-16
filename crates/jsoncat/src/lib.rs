@@ -11,7 +11,6 @@ pub mod entry;
 pub mod errors;
 pub mod transaction;
 
-mod convert;
 mod entryset;
 mod system;
 

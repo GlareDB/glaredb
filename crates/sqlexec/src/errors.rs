@@ -6,6 +6,12 @@ pub enum ExecError {
     #[error("SQL statement current unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
+    #[error("invalid key for SET: {0}")]
+    InvalidSetKey(String),
+
+    #[error("empty search path, unable to resolve schema")]
+    EmptySearchPath,
+
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
 

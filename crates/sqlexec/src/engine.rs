@@ -1,9 +1,9 @@
-use crate::context::StubCatalogContext;
 use crate::errors::Result;
 use crate::session::Session;
 use access::runtime::AccessRuntime;
 use jsoncat::catalog::Catalog;
 use jsoncat::load_catalog;
+use jsoncat::transaction::StubCatalogContext;
 use std::sync::Arc;
 
 /// Wrapper around the database catalog.

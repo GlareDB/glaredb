@@ -430,7 +430,7 @@ where
                         LogicalPlan::Transaction(_) => {
                             todo!("return portal describe response for Transaction");
                         }
-                        LogicalPlan::Runtime(_) => {
+                        LogicalPlan::Configuration(_) => {
                             todo!("return portal describe response for Runtime");
                         }
                     },

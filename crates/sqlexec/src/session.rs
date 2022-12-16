@@ -3,7 +3,6 @@ use crate::errors::{internal, ExecError, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
-use crate::parameters::{ParameterValue, SessionParameters, SEARCH_PATH_PARAM};
 use crate::placeholders::bind_placeholders;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::catalog::CatalogList;
@@ -70,20 +69,8 @@ impl Session {
     }
 
     pub(crate) async fn create_table(&self, plan: CreateTable) -> Result<()> {
-        unimplemented!()
-        // let resolved = self.resolve_table_reference(plan.table_name.as_str());
-
-        // let schema = self
-        //     .sess_catalog
-        //     .user_schema(resolved.schema)
-        //     .await?
-        //     .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
-
-        // schema
-        //     .create_table(&self.sess_ctx, resolved.table, &Schema::new(plan.columns))
-        //     .await?;
-
-        // Ok(())
+        self.ctx.create_table(plan)?;
+        Ok(())
     }
 
     pub(crate) async fn create_external_table(&self, _plan: CreateExternalTable) -> Result<()> {
@@ -171,9 +158,15 @@ impl Session {
         // Ok(())
     }
 
-    pub(crate) fn set_parameter(&mut self, plan: SetParameter) -> Result<()> {
-        unimplemented!()
-        // self.parameters.set_parameter(plan.variable, plan.values)
+    pub(crate) fn set_configuration(&mut self, plan: SetConfiguration) -> Result<()> {
+        let key = plan.variable.to_string().to_lowercase();
+        match key.as_str() {
+            "search_path" => self
+                .ctx
+                .try_set_search_path(&plan.try_as_single_string()?)?,
+            _ => return Err(ExecError::InvalidSetKey(key)),
+        }
+        Ok(())
     }
 
     /// Store the prepared statement in the current session.

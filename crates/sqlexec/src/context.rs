@@ -1,3 +1,5 @@
+use crate::errors::{ExecError, Result};
+use crate::logical_plan::*;
 use crate::searchpath::SearchPath;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
@@ -10,15 +12,13 @@ use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
+use dfutil::convert::from_df_field;
+use jsoncat::access::AccessMethod;
 use jsoncat::adapter::CatalogProviderAdapter;
 use jsoncat::catalog::Catalog;
-use jsoncat::transaction::Context;
+use jsoncat::entry::table::{ColumnDefinition, TableEntry};
+use jsoncat::transaction::{Context, StubCatalogContext};
 use std::sync::Arc;
-
-#[derive(Debug, Clone)]
-pub struct StubCatalogContext;
-
-impl Context for StubCatalogContext {}
 
 /// Context for a session used during execution.
 pub struct SessionContext {
@@ -65,6 +65,29 @@ impl SessionContext {
         }
     }
 
+    pub fn create_table(&self, plan: CreateTable) -> Result<()> {
+        let (schema, name) = self.resolve_table_reference(plan.table_name)?;
+        let ent = TableEntry {
+            schema,
+            name,
+            access: AccessMethod::Unknown,
+            columns: plan
+                .columns
+                .into_iter()
+                .map(|f| ColumnDefinition::from(&from_df_field(f)))
+                .collect(),
+        };
+
+        self.catalog.create_table(&StubCatalogContext, ent)?;
+        Ok(())
+    }
+
+    /// Set the search path.
+    pub fn try_set_search_path(&mut self, text: &str) -> Result<()> {
+        self.search_path
+            .try_set(&StubCatalogContext, &self.catalog, text)
+    }
+
     /// Get a reference to the catalog.
     pub fn get_catalog(&self) -> &Arc<Catalog> {
         &self.catalog
@@ -78,6 +101,26 @@ impl SessionContext {
     /// Get a datafusion session state.
     pub(crate) fn get_df_state(&self) -> &SessionState {
         &self.df_state
+    }
+
+    /// Resolves a table reference for creating tables and views.
+    fn resolve_table_reference(&self, name: String) -> Result<(String, String)> {
+        let reference = TableReference::from(name.as_str());
+        match reference {
+            TableReference::Bare { table } => {
+                let schema = self.first_schema()?.to_string();
+                Ok((schema, name))
+            }
+            TableReference::Partial { schema, table }
+            | TableReference::Full { schema, table, .. } => Ok((schema.to_string(), name)),
+        }
+    }
+
+    fn first_schema(&self) -> Result<&str> {
+        self.search_path
+            .iter()
+            .next()
+            .ok_or(ExecError::EmptySearchPath)
     }
 }
 

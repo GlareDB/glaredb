@@ -1,8 +1,8 @@
 use crate::access::AccessMethod;
 use crate::constants::INTERNAL_SCHEMA;
-use crate::convert::from_df_schema;
 use crate::system::{schemas, views};
 use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use dfutil::convert::from_df_schema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]

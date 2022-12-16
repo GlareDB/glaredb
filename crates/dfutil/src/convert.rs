@@ -1,19 +1,28 @@
 //! Type conversions between reexported Arrow types and local Arrow types.
+//!
+//! This is done because we need the 'serde' feature enabled for the arrow
+//! types, and you can't enable features for transitive dependencies.
 use arrow::datatypes::{DataType, Field, IntervalUnit, Schema, TimeUnit, UnionMode};
 use datafusion::arrow::datatypes::{
     DataType as DfDataType, Field as DfField, IntervalUnit as DfIntervalUnit, Schema as DfSchema,
     TimeUnit as DfTimeUnit, UnionMode as DfUnionMode,
 };
 
+/// Convert schemas.
 pub fn from_df_schema(schema: DfSchema) -> Schema {
     Schema::new(schema.fields.into_iter().map(from_df_field).collect())
 }
 
-/// Convert the datatype that's reexported from datafusion to the local arrow
-/// crate's datatype.
-///
-/// This is done because we need the 'serde' feature enabled for the arrow
-/// types, and you can't enable features for transitive dependencies.
+/// Convert fields.
+pub fn from_df_field(field: DfField) -> Field {
+    Field::new(
+        field.name(),
+        from_df_datatype(field.data_type().clone()),
+        field.is_nullable(),
+    )
+}
+
+/// Convert datatypes.
 pub fn from_df_datatype(df: DfDataType) -> DataType {
     match df {
         DfDataType::Null => DataType::Null,
@@ -75,14 +84,6 @@ fn from_df_intervalunit(unit: DfIntervalUnit) -> IntervalUnit {
         DfIntervalUnit::YearMonth => IntervalUnit::YearMonth,
         DfIntervalUnit::MonthDayNano => IntervalUnit::MonthDayNano,
     }
-}
-
-fn from_df_field(field: DfField) -> Field {
-    Field::new(
-        field.name(),
-        from_df_datatype(field.data_type().clone()),
-        field.is_nullable(),
-    )
 }
 
 fn from_df_union_mode(mode: DfUnionMode) -> UnionMode {

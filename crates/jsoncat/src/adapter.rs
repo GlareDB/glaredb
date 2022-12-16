@@ -138,5 +138,6 @@ fn dispatch_access<C: Context>(
                 _ => None,
             }
         }
+        _ => None,
     }
 }
