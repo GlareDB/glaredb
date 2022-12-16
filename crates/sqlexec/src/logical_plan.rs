@@ -52,7 +52,8 @@ pub enum DdlPlan {
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
-    DropTable(DropTable),
+    DropTables(DropTables),
+    DropSchemas(DropSchemas),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -103,7 +104,13 @@ pub struct CreateTableAs {
 }
 
 #[derive(Clone, Debug)]
-pub struct DropTable {
+pub struct DropTables {
+    pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DropSchemas {
     pub names: Vec<String>,
     pub if_exists: bool,
 }

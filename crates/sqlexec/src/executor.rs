@@ -29,6 +29,8 @@ pub enum ExecutionResult {
     SetLocal,
     /// Tables dropped.
     DropTables,
+    /// Schemas dropped.
+    DropSchemas,
 }
 
 impl fmt::Debug for ExecutionResult {
@@ -43,6 +45,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
+            ExecutionResult::DropSchemas => write!(f, "drop schemas"),
         }
     }
 }
@@ -112,6 +115,14 @@ impl<'a> Executor<'a> {
                 self.session.create_schema(plan).await?;
                 Ok(ExecutionResult::CreateSchema)
             }
+            LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
+                self.session.drop_tables(plan).await?;
+                Ok(ExecutionResult::DropTables)
+            }
+            LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
+                self.session.drop_schemas(plan).await?;
+                Ok(ExecutionResult::DropSchemas)
+            }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.session.insert(plan).await?;
                 Ok(ExecutionResult::WriteSuccess)
@@ -134,47 +145,56 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use access::runtime::AccessRuntime;
-    use catalog::catalog::DatabaseCatalog;
     use common::access::{AccessConfig, ObjectStoreKind};
     use futures::StreamExt;
+    use jsoncat::load_catalog;
+    use jsoncat::transaction::StubCatalogContext;
     use std::path::PathBuf;
     use std::sync::Arc;
     use tempfile::TempDir;
 
     #[tokio::test]
     async fn simple() {
-        // let cache_dir = TempDir::new().unwrap();
-        // let access_config = AccessConfig {
-        //     db_name: String::from("test"),
-        //     object_store: ObjectStoreKind::LocalTemporary,
-        //     cached: true,
-        //     max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
-        //     cache_path: Some(PathBuf::from(cache_dir.path())),
-        // };
-        // let access = Arc::new(AccessRuntime::new(access_config).await.unwrap());
+        let cache_dir = TempDir::new().unwrap();
+        let access_config = AccessConfig {
+            db_name: String::from("test"),
+            object_store: ObjectStoreKind::LocalTemporary,
+            cached: true,
+            max_object_store_cache_size: Some(4 * 1024 * 1024 * 1024),
+            cache_path: Some(PathBuf::from(cache_dir.path())),
+        };
+        let access = Arc::new(AccessRuntime::new(access_config).await.unwrap());
 
-        // let catalog = DatabaseCatalog::open(access).await.unwrap();
+        let catalog = Arc::new(
+            load_catalog(
+                &StubCatalogContext,
+                access.config().db_name.clone(),
+                access.object_store().clone(),
+            )
+            .await
+            .unwrap(),
+        );
 
-        // let mut session = Session::new(catalog).unwrap();
-        // let mut executor = Executor::new("select 1+1", &mut session).unwrap();
+        let mut session = Session::new(catalog).unwrap();
+        let mut executor = Executor::new("select 1+1", &mut session).unwrap();
 
-        // let result = executor
-        //     .execute_next()
-        //     .await
-        //     .expect("statement result")
-        //     .expect("didn't error");
+        let result = executor
+            .execute_next()
+            .await
+            .expect("statement result")
+            .expect("didn't error");
 
-        // match result {
-        //     ExecutionResult::Query { stream } => {
-        //         let mut results = stream.collect::<Vec<_>>().await;
-        //         assert_eq!(1, results.len());
-        //         let batch = results
-        //             .pop()
-        //             .expect("one result")
-        //             .expect("executed correctly");
-        //         assert_eq!(1, batch.num_rows());
-        //     }
-        //     other => panic!("unexpected result: {:?}", other),
-        // }
+        match result {
+            ExecutionResult::Query { stream } => {
+                let mut results = stream.collect::<Vec<_>>().await;
+                assert_eq!(1, results.len());
+                let batch = results
+                    .pop()
+                    .expect("one result")
+                    .expect("executed correctly");
+                assert_eq!(1, batch.num_rows());
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
     }
 }

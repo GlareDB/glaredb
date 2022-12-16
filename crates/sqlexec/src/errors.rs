@@ -6,6 +6,9 @@ pub enum ExecError {
     #[error("SQL statement current unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
+    #[error("Unsupported feature: '{0}'. Check back soon!")]
+    UnsupportedFeature(&'static str),
+
     #[error("invalid key for SET: {0}")]
     InvalidSetKey(String),
 

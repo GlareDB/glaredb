@@ -15,7 +15,8 @@ use datafusion::sql::TableReference;
 use dfutil::convert::from_df_field;
 use jsoncat::access::AccessMethod;
 use jsoncat::adapter::CatalogProviderAdapter;
-use jsoncat::catalog::Catalog;
+use jsoncat::catalog::{Catalog, DropEntry, EntryType};
+use jsoncat::entry::schema::SchemaEntry;
 use jsoncat::entry::table::{ColumnDefinition, TableEntry};
 use jsoncat::transaction::{Context, StubCatalogContext};
 use std::sync::Arc;
@@ -65,6 +66,7 @@ impl SessionContext {
         }
     }
 
+    /// Create a table.
     pub fn create_table(&self, plan: CreateTable) -> Result<()> {
         let (schema, name) = self.resolve_table_reference(plan.table_name)?;
         let ent = TableEntry {
@@ -79,6 +81,44 @@ impl SessionContext {
         };
 
         self.catalog.create_table(&StubCatalogContext, ent)?;
+        Ok(())
+    }
+
+    /// Create a schema.
+    pub fn create_schema(&self, plan: CreateSchema) -> Result<()> {
+        let ent = SchemaEntry {
+            schema: plan.schema_name,
+            internal: false,
+        };
+
+        self.catalog.create_schema(&StubCatalogContext, ent)?;
+        Ok(())
+    }
+
+    /// Drop one or more tables.
+    pub fn drop_tables(&self, plan: DropTables) -> Result<()> {
+        for name in plan.names {
+            let (schema, name) = self.resolve_table_reference(name)?;
+            let ent = DropEntry {
+                typ: EntryType::Table,
+                schema,
+                name,
+            };
+            self.catalog.drop_entry(&StubCatalogContext, ent)?;
+        }
+        Ok(())
+    }
+
+    /// Drop one or more schemas.
+    pub fn drop_schemas(&self, plan: DropSchemas) -> Result<()> {
+        for name in plan.names {
+            let ent = DropEntry {
+                typ: EntryType::Schema,
+                schema: name.clone(),
+                name,
+            };
+            self.catalog.drop_entry(&StubCatalogContext, ent)?;
+        }
         Ok(())
     }
 

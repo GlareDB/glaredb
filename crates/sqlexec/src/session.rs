@@ -74,88 +74,30 @@ impl Session {
     }
 
     pub(crate) async fn create_external_table(&self, _plan: CreateExternalTable) -> Result<()> {
-        // This will need an additional system table to track external tables.
-        todo!()
+        Err(ExecError::UnsupportedFeature("create external table"))
     }
 
     pub(crate) async fn create_table_as(&self, plan: CreateTableAs) -> Result<()> {
-        unimplemented!()
-        // let resolved = self.resolve_table_reference(plan.table_name.as_ref());
-        // let schema = self
-        //     .sess_catalog
-        //     .user_schema(resolved.schema)
-        //     .await?
-        //     .ok_or_else(|| internal!("missing schema: {}", resolved.schema))?;
-
-        // // Plan and execute the source. We'll use the first batch from the
-        // // stream to create the table with the correct arrow schema.
-        // let physical = self.create_physical_plan(plan.source).await?;
-        // let mut stream = self.execute_physical(physical)?;
-
-        // // Create the table and insert the first batch.
-        // let table = match stream.next().await {
-        //     Some(result) => {
-        //         let batch = result?;
-        //         let arrow_schema = batch.schema();
-        //         schema
-        //             .create_table(&self.sess_ctx, &plan.table_name, &arrow_schema)
-        //             .await?;
-        //         let table = schema
-        //             .get_mutable_table(&plan.table_name)
-        //             .await?
-        //             .ok_or_else(|| {
-        //                 internal!("failed to get table after create: {}", plan.table_name)
-        //             })?;
-        //         table.insert(&self.sess_ctx, batch).await?;
-        //         table
-        //     }
-        //     None => {
-        //         return Err(internal!(
-        //             "source stream empty, cannot infer schema from empty stream"
-        //         ))
-        //     }
-        // };
-
-        // // Insert the rest of the stream.
-        // while let Some(result) = stream.next().await {
-        //     let batch = result?;
-        //     table.insert(&self.sess_ctx, batch).await?;
-        // }
-
-        // Ok(())
+        Err(ExecError::UnsupportedFeature("create table as"))
     }
 
     pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
-        unimplemented!()
-        // self.sess_catalog
-        //     .create_schema(&self.sess_ctx, &plan.schema_name)
-        //     .await?;
-        // Ok(())
+        self.ctx.create_schema(plan)?;
+        Ok(())
+    }
+
+    pub async fn drop_tables(&self, plan: DropTables) -> Result<()> {
+        self.ctx.drop_tables(plan)?;
+        Ok(())
+    }
+
+    pub async fn drop_schemas(&self, plan: DropSchemas) -> Result<()> {
+        self.ctx.drop_schemas(plan)?;
+        Ok(())
     }
 
     pub(crate) async fn insert(&self, plan: Insert) -> Result<()> {
-        unimplemented!()
-        // let resolved = self.resolve_table_reference(plan.table_name.as_ref());
-        // let schema = self
-        //     .sess_catalog
-        //     .user_schema(resolved.schema)
-        //     .await?
-        //     .ok_or_else(|| internal!("missing schema: {:?}", resolved.schema))?;
-
-        // let table = schema
-        //     .get_mutable_table(resolved.table)
-        //     .await?
-        //     .ok_or_else(|| internal!("missing table: {:?}", resolved.table))?;
-
-        // let physical = self.create_physical_plan(plan.source).await?;
-        // let mut stream = self.execute_physical(physical)?;
-
-        // while let Some(result) = stream.next().await {
-        //     let batch = result?;
-        //     table.insert(&self.sess_ctx, batch).await?;
-        // }
-
-        // Ok(())
+        Err(ExecError::UnsupportedFeature("insert"))
     }
 
     pub(crate) fn set_configuration(&mut self, plan: SetConfiguration) -> Result<()> {
@@ -177,46 +119,17 @@ impl Session {
         sql: String,
         params: Vec<i32>,
     ) -> Result<()> {
-        unimplemented!()
-        // match name {
-        //     None => {
-        //         // Store the unnamed prepared statement.
-        //         // This will persist until the session is dropped or another unnamed prepared statement is created
-        //         self.unnamed_statement = Some(PreparedStatement::new(sql, params)?);
-        //     }
-        //     Some(name) => {
-        //         // Named prepared statements must be explicitly closed before being redefined
-        //         match self.named_statements.entry(name) {
-        //             Entry::Occupied(ent) => {
-        //                 return Err(internal!(
-        //                     "prepared statement already exists: {}",
-        //                     ent.key()
-        //                 ))
-        //             }
-        //             Entry::Vacant(ent) => {
-        //                 ent.insert(PreparedStatement::new(sql, params)?);
-        //             }
-        //         }
-        //     }
-        // }
-
-        // Ok(())
+        Err(ExecError::UnsupportedFeature("prepare"))
     }
 
     pub fn get_prepared_statement(&self, name: &Option<String>) -> Option<&PreparedStatement> {
-        unimplemented!()
-        // match name {
-        //     None => self.unnamed_statement.as_ref(),
-        //     Some(name) => self.named_statements.get(name),
-        // }
+        // Currently called by pgsrv...
+        None
     }
 
     pub fn get_portal(&self, portal_name: &Option<String>) -> Option<&Portal> {
-        unimplemented!()
-        // match portal_name {
-        //     None => self.unnamed_portal.as_ref(),
-        //     Some(name) => self.named_portals.get(name),
-        // }
+        // Currently called by pgsrv...
+        None
     }
 
     /// Bind the parameters of a prepared statement to the given values.
@@ -229,60 +142,7 @@ impl Session {
         param_values: Vec<Option<Vec<u8>>>,
         result_formats: Vec<i16>,
     ) -> Result<()> {
-        unimplemented!()
-        // let (statement, types) = {
-        //     let prepared_statement = match statement_name {
-        //         None => self
-        //             .unnamed_statement
-        //             .as_mut()
-        //             .ok_or_else(|| internal!("no unnamed prepared statement"))?,
-        //         Some(name) => self
-        //             .named_statements
-        //             .get_mut(&name)
-        //             .ok_or_else(|| internal!("no prepared statement named: {}", name))?,
-        //     };
-
-        //     (
-        //         prepared_statement.statement.clone(),
-        //         prepared_statement.param_types.clone(),
-        //     )
-        // };
-
-        // let bound_statement = bind_placeholders(statement, &param_formats, &param_values, &types)?;
-        // debug!(?bound_statement, "bound statement");
-        // let plan = self.plan_sql(bound_statement)?;
-
-        // match portal_name {
-        //     None => {
-        //         // Store the unnamed portal.
-        //         // This will persist until the session is dropped or another unnamed portal is created
-        //         self.unnamed_portal = Some(Portal::new(
-        //             plan,
-        //             param_formats,
-        //             param_values,
-        //             result_formats,
-        //         )?);
-        //     }
-        //     Some(name) => {
-        //         // Named portals must be explicitly closed before being redefined
-        //         match self.named_portals.entry(name) {
-        //             Entry::Occupied(ent) => {
-        //                 return Err(internal!("portal already exists: {}", ent.key()))
-        //             }
-        //             Entry::Vacant(_ent) => {
-        //                 todo!("plan named portal");
-        //                 // let plan = self.plan_sql(statement)?;
-        //                 // ent.insert(Portal::new(plan, param_formats, param_values, result_formats)?);
-        //             }
-        //         }
-        //     }
-        // }
-
-        // Ok(())
-    }
-
-    pub async fn drop_table(&self, _plan: DropTable) -> Result<()> {
-        todo!()
+        Err(ExecError::UnsupportedFeature("bind"))
     }
 
     pub async fn execute_portal(
@@ -290,46 +150,6 @@ impl Session {
         portal_name: &Option<String>,
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
-        unimplemented!()
-        // // TODO: respect max_rows
-        // let portal = match portal_name {
-        //     None => self
-        //         .unnamed_portal
-        //         .as_mut()
-        //         .ok_or_else(|| internal!("no unnamed portal"))?,
-        //     Some(name) => self
-        //         .named_portals
-        //         .get_mut(name)
-        //         .ok_or_else(|| internal!("no portal named: {}", name))?,
-        // };
-
-        // match portal.plan.clone() {
-        //     LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
-        //         self.create_table(plan).await?;
-        //         Ok(ExecutionResult::CreateTable)
-        //     }
-        //     LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
-        //         self.create_external_table(plan).await?;
-        //         Ok(ExecutionResult::CreateTable)
-        //     }
-        //     LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
-        //         self.create_table_as(plan).await?;
-        //         Ok(ExecutionResult::CreateTable)
-        //     }
-        //     LogicalPlan::Ddl(DdlPlan::DropTable(plan)) => {
-        //         self.drop_table(plan).await?;
-        //         Ok(ExecutionResult::DropTables)
-        //     }
-        //     LogicalPlan::Write(WritePlan::Insert(plan)) => {
-        //         self.insert(plan).await?;
-        //         Ok(ExecutionResult::WriteSuccess)
-        //     }
-        //     LogicalPlan::Query(plan) => {
-        //         let physical = self.create_physical_plan(plan).await?;
-        //         let stream = self.execute_physical(physical)?;
-        //         Ok(ExecutionResult::Query { stream })
-        //     }
-        //     other => Err(internal!("unimplemented logical plan: {:?}", other)),
-        // }
+        Err(ExecError::UnsupportedFeature("execute"))
     }
 }

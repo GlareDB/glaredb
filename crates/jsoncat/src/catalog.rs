@@ -16,8 +16,12 @@ pub enum EntryType {
 
 #[derive(Debug)]
 pub struct DropEntry {
+    /// Entry type to drop.
     pub typ: EntryType,
+    /// Schema the entry is in.
     pub schema: String,
+    /// Name of the entry to drop. If dropping a schema, must be the same name
+    /// as the schema.
     pub name: String,
 }
 
@@ -65,6 +69,11 @@ impl Catalog {
 
     pub fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
         if matches!(drop.typ, EntryType::Schema) {
+            if drop.name != drop.name {
+                return Err(internal!(
+                    "dropping a schema requires 'schema' and 'name' to match"
+                ));
+            }
             self.schemas.drop_entry(ctx, &drop.schema)?;
         } else {
             let schema = self.get_schema(ctx, &drop.schema)?;

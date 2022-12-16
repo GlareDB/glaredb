@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::constants::{INTERNAL_SCHEMA, INFORMATION_SCHEMA, POSTGRES_SCHEMA};
+use crate::constants::{INTERNAL_SCHEMA, INFORMATION_SCHEMA, POSTGRES_SCHEMA, DEFAULT_SCHEMA};
 
 struct DefaultSchema {
     name: &'static str,
@@ -14,6 +14,9 @@ const DEFAULT_SCHEMAS: &[DefaultSchema] = &[
     },
     DefaultSchema {
         name: POSTGRES_SCHEMA,
+    },
+    DefaultSchema {
+        name: DEFAULT_SCHEMA,
     },
 ];
 
