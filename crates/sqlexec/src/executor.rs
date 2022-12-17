@@ -50,6 +50,16 @@ impl fmt::Debug for ExecutionResult {
     }
 }
 
+#[derive(Debug)]
+pub struct SqlParser;
+
+impl SqlParser {
+    pub fn parse(sql: &str) -> Result<Vec<ast::Statement>> {
+        let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?;
+        Ok(statements)
+    }
+}
+
 /// A thin wrapper around a session responsible for pull-based execution for a
 /// sql statement.
 ///
@@ -71,9 +81,7 @@ pub struct Executor<'a> {
 impl<'a> Executor<'a> {
     /// Create a new executor with the provided sql string and session.
     pub fn new(sql: &'a str, session: &'a mut Session) -> Result<Self> {
-        let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?
-            .into_iter()
-            .collect();
+        let statements = SqlParser::parse(sql)?.into_iter().collect();
         // TODO: Implicit transaction.
         Ok(Executor {
             statements,
@@ -96,7 +104,7 @@ impl<'a> Executor<'a> {
     async fn execute_statement(&mut self, stmt: ast::Statement) -> Result<ExecutionResult> {
         let plan = {
             let planner = SessionPlanner::new(&self.session.ctx);
-            planner.plan_sql(stmt)?
+            planner.plan_ast(stmt)?
         };
         match plan {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {

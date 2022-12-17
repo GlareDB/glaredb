@@ -6,6 +6,22 @@ pub enum CatalogError {
     #[error("duplicate entry for name: {0}")]
     DuplicateEntryForName(String),
 
+    #[error("missing table or view for access method: {method}, schema: {schema}, name: {name}")]
+    MissingTableForAccessMethod {
+        method: crate::access::AccessMethod,
+        schema: String,
+        name: String,
+    },
+
+    #[error("failed to do late planning: {0}")]
+    LatePlanning(String),
+
+    #[error("unable to handle access method: {0}")]
+    UnhandleableAccess(crate::access::AccessMethod),
+
+    #[error(transparent)]
+    Datafusion(#[from] datafusion::error::DataFusionError),
+
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 

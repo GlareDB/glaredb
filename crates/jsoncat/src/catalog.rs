@@ -29,7 +29,7 @@ pub struct Catalog {
     /// Catalog version, incremented on change.
     pub(crate) version: AtomicU64, // TODO: Currently unused.
     /// Catalog schemas.
-    pub(crate) schemas: EntrySet<Schema>,
+    pub(crate) schemas: EntrySet<PhysicalSchema>,
 }
 
 impl Catalog {
@@ -51,7 +51,7 @@ impl Catalog {
     }
 
     pub fn create_schema<C: Context>(&self, ctx: &C, schema_ent: SchemaEntry) -> Result<()> {
-        let schema = Schema {
+        let schema = PhysicalSchema {
             name: schema_ent.schema.clone(),
             views: EntrySet::new(),
             tables: EntrySet::new(),
@@ -82,7 +82,7 @@ impl Catalog {
         Ok(())
     }
 
-    fn get_schema<C: Context>(&self, ctx: &C, name: &str) -> Result<Arc<Schema>> {
+    fn get_schema<C: Context>(&self, ctx: &C, name: &str) -> Result<Arc<PhysicalSchema>> {
         self.schemas
             .get_entry(ctx, name)
             .ok_or(CatalogError::MissingEntry {
@@ -92,14 +92,14 @@ impl Catalog {
     }
 }
 
-pub(crate) struct Schema {
+pub(crate) struct PhysicalSchema {
     pub(crate) name: String, // TODO: Don't store name here.
     pub(crate) internal: bool,
     pub(crate) views: EntrySet<ViewEntry>,
     pub(crate) tables: EntrySet<TableEntry>,
 }
 
-impl Schema {
+impl PhysicalSchema {
     fn create_view<C: Context>(&self, ctx: &C, view: ViewEntry) -> Result<()> {
         self.views
             .create_entry(ctx, view.name.clone(), view)?
@@ -122,8 +122,8 @@ impl Schema {
     }
 }
 
-impl From<&Schema> for SchemaEntry {
-    fn from(s: &Schema) -> Self {
+impl From<&PhysicalSchema> for SchemaEntry {
+    fn from(s: &PhysicalSchema) -> Self {
         SchemaEntry {
             schema: s.name.clone(),
             internal: s.internal,

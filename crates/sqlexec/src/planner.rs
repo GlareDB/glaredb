@@ -19,7 +19,7 @@ impl<'a> SessionPlanner<'a> {
         SessionPlanner { ctx }
     }
 
-    pub fn plan_sql(&self, statement: ast::Statement) -> Result<LogicalPlan> {
+    pub fn plan_ast(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         debug!(%statement, "planning sql statement");
         let context = ContextProviderAdapter { context: self.ctx };
         let planner = SqlToRel::new(&context);

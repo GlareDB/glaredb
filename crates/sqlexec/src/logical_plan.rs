@@ -18,6 +18,16 @@ pub enum LogicalPlan {
     Configuration(ConfigurationPlan),
 }
 
+impl LogicalPlan {
+    /// Try to get the data fusion logical plan from this logical plan.
+    pub fn try_into_datafusion_plan(self) -> Result<DfLogicalPlan> {
+        match self {
+            LogicalPlan::Query(plan) => Ok(plan),
+            other => Err(internal!("expected datafusion plan, got: {:?}", other)),
+        }
+    }
+}
+
 impl From<DfLogicalPlan> for LogicalPlan {
     fn from(plan: DfLogicalPlan) -> Self {
         LogicalPlan::Query(plan)

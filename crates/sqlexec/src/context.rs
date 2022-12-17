@@ -1,5 +1,7 @@
 use crate::errors::{ExecError, Result};
+use crate::executor::SqlParser;
 use crate::logical_plan::*;
+use crate::planner::SessionPlanner;
 use crate::searchpath::SearchPath;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
@@ -14,13 +16,12 @@ use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use dfutil::convert::from_df_field;
 use jsoncat::access::AccessMethod;
-use jsoncat::adapter::CatalogProviderAdapter;
 use jsoncat::catalog::{Catalog, DropEntry, EntryType};
+use jsoncat::dispatch::{CatalogDispatcher, LatePlanner};
 use jsoncat::entry::schema::SchemaEntry;
 use jsoncat::entry::table::{ColumnDefinition, TableEntry};
 use jsoncat::transaction::{Context, StubCatalogContext};
 use std::sync::Arc;
-use tracing::debug;
 
 /// Context for a session used during execution.
 pub struct SessionContext {
@@ -167,6 +168,23 @@ impl SessionContext {
     }
 }
 
+impl LatePlanner for SessionContext {
+    type Error = ExecError;
+
+    fn plan_sql(&self, sql: &str) -> Result<datafusion::logical_expr::LogicalPlan, ExecError> {
+        let mut statements = SqlParser::parse(sql)?;
+        if statements.len() != 1 {
+            return Err(ExecError::ExpectedExactlyOneStatement(statements));
+        }
+
+        let planner = SessionPlanner::new(self);
+        let plan = planner.plan_ast(statements.pop().unwrap())?;
+        let df_plan = plan.try_into_datafusion_plan()?;
+
+        Ok(df_plan)
+    }
+}
+
 /// Adapter for datafusion planning.
 pub struct ContextProviderAdapter<'a> {
     pub context: &'a SessionContext,
@@ -178,14 +196,15 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         // will actually try to downcast the `TableSource` to a `TableProvider`
         // during physical planning. This only works with `DefaultTableSource`.
 
-        let adapter = CatalogProviderAdapter::new(StubCatalogContext, self.context.catalog.clone());
+        let dispatcher = CatalogDispatcher::new(&StubCatalogContext, &self.context.catalog);
         match name {
             TableReference::Bare { table } => {
                 for schema in self.context.search_path.iter() {
-                    if let Some(schema) = adapter.schema(schema) {
-                        if let Some(table) = schema.table(table) {
-                            return Ok(Arc::new(DefaultTableSource::new(table)));
-                        }
+                    let opt = dispatcher
+                        .dispatch_access(self.context, schema, table)
+                        .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
+                    if let Some(provider) = opt {
+                        return Ok(Arc::new(DefaultTableSource::new(provider)));
                     }
                 }
                 Err(DataFusionError::Plan(format!(
@@ -195,13 +214,17 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
             }
             TableReference::Full { schema, table, .. }
             | TableReference::Partial { schema, table } => {
-                let schema = adapter.schema(schema).ok_or_else(|| {
-                    DataFusionError::Plan(format!("failed to resolve schema: {}", schema))
-                })?;
-                let table = schema.table(table).ok_or_else(|| {
-                    DataFusionError::Plan(format!("failed to resolve table: {}", table))
-                })?;
-                Ok(Arc::new(DefaultTableSource::new(table)))
+                let opt = dispatcher
+                    .dispatch_access(self.context, schema, table)
+                    .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
+                if let Some(provider) = opt {
+                    return Ok(Arc::new(DefaultTableSource::new(provider)));
+                }
+
+                Err(DataFusionError::Plan(format!(
+                    "failed to resolve qualified table; schema: {}, table: {}, {}",
+                    schema, table, self.context.search_path
+                )))
             }
         }
     }

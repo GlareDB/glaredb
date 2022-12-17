@@ -3,10 +3,10 @@
 #![allow(unused_variables)]
 #![allow(clippy::new_without_default)]
 pub mod access;
-pub mod adapter;
 pub mod catalog;
 pub mod checkpoint;
 pub mod constants;
+pub mod dispatch;
 pub mod entry;
 pub mod errors;
 pub mod transaction;

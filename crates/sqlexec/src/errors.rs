@@ -15,6 +15,9 @@ pub enum ExecError {
     #[error("empty search path, unable to resolve schema")]
     EmptySearchPath,
 
+    #[error("expected exactly on SQL statement, got: {0:?}")]
+    ExpectedExactlyOneStatement(Vec<datafusion::sql::sqlparser::ast::Statement>),
+
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
 
