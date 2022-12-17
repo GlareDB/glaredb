@@ -170,6 +170,7 @@ impl SetConfiguration {
         let first = self.values.first().unwrap();
         match first {
             ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) => Ok(s.clone()),
             expr => Err(internal!("invalid expression for SET: {}", expr)),
         }
     }

@@ -3704,6 +3704,7 @@ version = "0.1.0"
 dependencies = [
  "access",
  "async-trait",
+ "buildenv",
  "catalog",
  "catalog_types",
  "common",

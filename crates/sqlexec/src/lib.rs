@@ -7,6 +7,7 @@ pub mod extended;
 pub mod logical_plan;
 pub mod session;
 
+mod functions;
 mod placeholders;
 mod planner;
 mod searchpath;

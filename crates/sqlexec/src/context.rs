@@ -1,5 +1,6 @@
 use crate::errors::{ExecError, Result};
 use crate::executor::SqlParser;
+use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
 use crate::planner::SessionPlanner;
 use crate::searchpath::SearchPath;
@@ -135,6 +136,10 @@ impl SessionContext {
         &self.catalog
     }
 
+    pub(crate) fn get_search_path(&self) -> &SearchPath {
+        &self.search_path
+    }
+
     /// Get a datafusion task context to use for physical plan execution.
     pub(crate) fn task_context(&self) -> Arc<TaskContext> {
         Arc::new(TaskContext::from(&self.df_state))
@@ -230,7 +235,8 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
     }
 
     fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
-        None
+        BuiltinScalarFunction::try_from_name(name)
+            .map(|f| Arc::new(f.build_scalar_udf(self.context)))
     }
 
     fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
+buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
 jsoncat = {path = "../jsoncat"}

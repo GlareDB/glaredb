@@ -41,7 +41,7 @@ FROM glare_catalog.views",
             schema: ent.schema.to_string(),
             name: ent.name.to_string(),
             column_count: ent.column_count,
-            sql: ent.sql.to_string(),
+            sql: ent.sql.trim().to_string(),
         })
         .into_iter()
     }
