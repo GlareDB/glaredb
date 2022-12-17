@@ -12,8 +12,6 @@ buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
 jsoncat = {path = "../jsoncat"}
-catalog = {path = "../catalog"}
-catalog_types = {path = "../catalog_types"}
 common = {path = "../common"}
 persistence = {path = "../persistence"}
 object_store_util = {path = "../object_store_util"}

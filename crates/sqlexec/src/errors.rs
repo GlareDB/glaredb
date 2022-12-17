@@ -46,9 +46,6 @@ pub enum ExecError {
     JsonCat(#[from] jsoncat::errors::CatalogError),
 
     #[error(transparent)]
-    Catalog(#[from] catalog::errors::CatalogError),
-
-    #[error(transparent)]
     Access(#[from] access::errors::AccessError),
 
     #[error("internal error: {0}")]

@@ -641,30 +641,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "catalog"
-version = "0.1.0"
-dependencies = [
- "access",
- "async-trait",
- "bytes",
- "catalog_types",
- "common",
- "datafusion",
- "futures",
- "itertools",
- "logutil",
- "object_store",
- "once_cell",
- "parking_lot",
- "persistence",
- "scc",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "catalog_types"
 version = "0.1.0"
 dependencies = [
@@ -3705,8 +3681,6 @@ dependencies = [
  "access",
  "async-trait",
  "buildenv",
- "catalog",
- "catalog_types",
  "common",
  "datafusion",
  "dfutil",
