@@ -1,6 +1,6 @@
 use crate::access::AccessMethod;
 use crate::constants::INTERNAL_SCHEMA;
-use crate::system::{schemas, views};
+use crate::system::{columns, schemas, tables, views};
 use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use dfutil::convert::from_df_schema;
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,22 @@ impl TableEntry {
                 access: AccessMethod::InternalMemory,
                 columns: ColumnDefinition::from_arrow_schema(&from_df_schema(
                     schemas::schema_arrow_schema(),
+                )),
+            },
+            TableEntry {
+                schema: INTERNAL_SCHEMA.to_string(),
+                name: "tables".to_string(),
+                access: AccessMethod::InternalMemory,
+                columns: ColumnDefinition::from_arrow_schema(&from_df_schema(
+                    tables::tables_arrow_schema(),
+                )),
+            },
+            TableEntry {
+                schema: INTERNAL_SCHEMA.to_string(),
+                name: "columns".to_string(),
+                access: AccessMethod::InternalMemory,
+                columns: ColumnDefinition::from_arrow_schema(&from_df_schema(
+                    columns::columns_arrow_schema(),
                 )),
             },
         ]

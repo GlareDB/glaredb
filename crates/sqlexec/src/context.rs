@@ -20,6 +20,7 @@ use jsoncat::entry::schema::SchemaEntry;
 use jsoncat::entry::table::{ColumnDefinition, TableEntry};
 use jsoncat::transaction::{Context, StubCatalogContext};
 use std::sync::Arc;
+use tracing::debug;
 
 /// Context for a session used during execution.
 pub struct SessionContext {
@@ -147,12 +148,14 @@ impl SessionContext {
     fn resolve_table_reference(&self, name: String) -> Result<(String, String)> {
         let reference = TableReference::from(name.as_str());
         match reference {
-            TableReference::Bare { table } => {
+            TableReference::Bare { .. } => {
                 let schema = self.first_schema()?.to_string();
                 Ok((schema, name))
             }
             TableReference::Partial { schema, table }
-            | TableReference::Full { schema, table, .. } => Ok((schema.to_string(), name)),
+            | TableReference::Full { schema, table, .. } => {
+                Ok((schema.to_string(), table.to_string()))
+            }
         }
     }
 
@@ -186,8 +189,8 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
                     }
                 }
                 Err(DataFusionError::Plan(format!(
-                    "failed to resolve bare table: {}",
-                    table
+                    "failed to resolve bare table: {}, {}",
+                    table, self.context.search_path
                 )))
             }
             TableReference::Full { schema, table, .. }

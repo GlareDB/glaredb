@@ -4,6 +4,7 @@ use jsoncat::constants::DEFAULT_SCHEMA;
 use jsoncat::transaction::Context;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::fmt;
 
 /// Regex for matching strings delineated by commas. Will match full quoted
 /// strings as well.
@@ -17,6 +18,7 @@ pub struct SearchPath {
 }
 
 impl SearchPath {
+    /// Initialize a new search containing the default schema.
     pub fn new() -> SearchPath {
         SearchPath {
             schemas: vec![DEFAULT_SCHEMA.to_string()],
@@ -57,6 +59,12 @@ fn split_search_paths(text: &str) -> Vec<String> {
         .into_iter()
         .map(|m| m.as_str().to_string())
         .collect()
+}
+
+impl fmt::Display for SearchPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "search_path={}", self.schemas.join(","))
+    }
 }
 
 #[cfg(test)]

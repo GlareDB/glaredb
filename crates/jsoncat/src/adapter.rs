@@ -3,7 +3,9 @@ use crate::access::AccessMethod;
 use crate::catalog::{Catalog, Schema};
 use crate::constants::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
 use crate::entry::table::TableEntry;
-use crate::system::{schemas_memory_table, views_memory_table};
+use crate::system::{
+    columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
+};
 use crate::transaction::Context;
 use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
 use datafusion::catalog::schema::SchemaProvider;
@@ -135,6 +137,8 @@ fn dispatch_access<C: Context>(
             match (ent.schema.as_str(), ent.name.as_str()) {
                 (INTERNAL_SCHEMA, "views") => Some(Arc::new(views_memory_table(ctx, catalog))),
                 (INTERNAL_SCHEMA, "schemas") => Some(Arc::new(schemas_memory_table(ctx, catalog))),
+                (INTERNAL_SCHEMA, "tables") => Some(Arc::new(tables_memory_table(ctx, catalog))),
+                (INTERNAL_SCHEMA, "columns") => Some(Arc::new(columns_memory_table(ctx, catalog))),
                 _ => None,
             }
         }

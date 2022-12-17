@@ -59,9 +59,10 @@ impl<T> EntrySet<T> {
     pub fn create_entry<C: Context>(
         &self,
         ctx: &C,
-        name: String,
+        name: impl Into<String>,
         entry: T,
     ) -> Result<EntryInsert<T>> {
+        let name = name.into();
         let mut inner = self.inner.write();
 
         // TODO: Make this transactional by storing the old as child on the new
@@ -185,5 +186,37 @@ impl<'a, T, C: Context> Iterator for EntrySetIter<'a, T, C> {
         let ent = self.entryset.get_entry_by_idx(self.ctx, self.idx);
         self.idx += 1;
         ent
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transaction::StubCatalogContext;
+
+    #[test]
+    fn simple() {
+        let set = EntrySet::new();
+
+        set.create_entry(&StubCatalogContext, "first", 1)
+            .unwrap()
+            .expect_inserted()
+            .unwrap();
+        set.create_entry(&StubCatalogContext, "second", 2)
+            .unwrap()
+            .expect_inserted()
+            .unwrap();
+
+        let ent = set.get_entry(&StubCatalogContext, "first").unwrap();
+        assert_eq!(&1, ent.as_ref());
+        assert!(set.entry_exists(&StubCatalogContext, "first"));
+
+        let ent = set.get_entry(&StubCatalogContext, "second").unwrap();
+        assert_eq!(&2, ent.as_ref());
+        assert!(set.entry_exists(&StubCatalogContext, "second"));
+
+        let opt = set.get_entry(&StubCatalogContext, "third");
+        assert_eq!(None, opt);
+        assert!(!set.entry_exists(&StubCatalogContext, "third"));
     }
 }
