@@ -10,6 +10,8 @@ set search_path = search_path_schema_1;
 statement ok
 create table t (a int);
 
+halt
+
 # Marker values for first schema.
 statement ok
 insert into t values (1);

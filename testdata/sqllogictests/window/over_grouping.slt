@@ -13,6 +13,8 @@ create table image  (
     height      integer not null
 );
 
+halt
+
 statement ok
 insert into image (id, width, height) values (1, 500, 297);
 
