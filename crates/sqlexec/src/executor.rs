@@ -1,5 +1,6 @@
 use crate::errors::{internal, Result};
 use crate::logical_plan::*;
+use crate::planner::SessionPlanner;
 use crate::session::Session;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::sql::sqlparser::ast;
@@ -28,6 +29,8 @@ pub enum ExecutionResult {
     SetLocal,
     /// Tables dropped.
     DropTables,
+    /// Schemas dropped.
+    DropSchemas,
 }
 
 impl fmt::Debug for ExecutionResult {
@@ -42,7 +45,18 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
+            ExecutionResult::DropSchemas => write!(f, "drop schemas"),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct SqlParser;
+
+impl SqlParser {
+    pub fn parse(sql: &str) -> Result<Vec<ast::Statement>> {
+        let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?;
+        Ok(statements)
     }
 }
 
@@ -67,9 +81,7 @@ pub struct Executor<'a> {
 impl<'a> Executor<'a> {
     /// Create a new executor with the provided sql string and session.
     pub fn new(sql: &'a str, session: &'a mut Session) -> Result<Self> {
-        let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?
-            .into_iter()
-            .collect();
+        let statements = SqlParser::parse(sql)?.into_iter().collect();
         // TODO: Implicit transaction.
         Ok(Executor {
             statements,
@@ -90,8 +102,11 @@ impl<'a> Executor<'a> {
     }
 
     async fn execute_statement(&mut self, stmt: ast::Statement) -> Result<ExecutionResult> {
-        let logical_plan = self.session.plan_sql(stmt)?;
-        match logical_plan {
+        let plan = {
+            let planner = SessionPlanner::new(&self.session.ctx);
+            planner.plan_ast(stmt)?
+        };
+        match plan {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
                 self.session.create_table(plan).await?;
                 Ok(ExecutionResult::CreateTable)
@@ -108,6 +123,14 @@ impl<'a> Executor<'a> {
                 self.session.create_schema(plan).await?;
                 Ok(ExecutionResult::CreateSchema)
             }
+            LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
+                self.session.drop_tables(plan).await?;
+                Ok(ExecutionResult::DropTables)
+            }
+            LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
+                self.session.drop_schemas(plan).await?;
+                Ok(ExecutionResult::DropSchemas)
+            }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.session.insert(plan).await?;
                 Ok(ExecutionResult::WriteSuccess)
@@ -117,8 +140,8 @@ impl<'a> Executor<'a> {
                 let stream = self.session.execute_physical(physical)?;
                 Ok(ExecutionResult::Query { stream })
             }
-            LogicalPlan::Runtime(RuntimePlan::SetParameter(plan)) => {
-                self.session.set_parameter(plan)?;
+            LogicalPlan::Configuration(ConfigurationPlan::SetConfiguration(plan)) => {
+                self.session.set_configuration(plan)?;
                 Ok(ExecutionResult::SetLocal)
             }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
@@ -130,9 +153,10 @@ impl<'a> Executor<'a> {
 mod tests {
     use super::*;
     use access::runtime::AccessRuntime;
-    use catalog::catalog::DatabaseCatalog;
     use common::access::{AccessConfig, ObjectStoreKind};
     use futures::StreamExt;
+    use jsoncat::load_catalog;
+    use jsoncat::transaction::StubCatalogContext;
     use std::path::PathBuf;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -149,7 +173,15 @@ mod tests {
         };
         let access = Arc::new(AccessRuntime::new(access_config).await.unwrap());
 
-        let catalog = DatabaseCatalog::open(access).await.unwrap();
+        let catalog = Arc::new(
+            load_catalog(
+                &StubCatalogContext,
+                access.config().db_name.clone(),
+                access.object_store().clone(),
+            )
+            .await
+            .unwrap(),
+        );
 
         let mut session = Session::new(catalog).unwrap();
         let mut executor = Executor::new("select 1+1", &mut session).unwrap();

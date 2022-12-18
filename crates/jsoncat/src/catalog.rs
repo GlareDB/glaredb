@@ -5,6 +5,7 @@ use crate::transaction::Context;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
+/// Types of entries the catalog holds.
 #[derive(Debug)]
 pub enum EntryType {
     Schema,
@@ -16,19 +17,25 @@ pub enum EntryType {
 
 #[derive(Debug)]
 pub struct DropEntry {
+    /// Entry type to drop.
     pub typ: EntryType,
+    /// Schema the entry is in.
     pub schema: String,
+    /// Name of the entry to drop. If dropping a schema, must be the same name
+    /// as the schema.
     pub name: String,
 }
 
+/// The in-memory catalog.
 pub struct Catalog {
     /// Catalog version, incremented on change.
-    pub(crate) version: AtomicU64, // TODO: Currently unused.
+    pub(crate) version: AtomicU64, // TODO: Currently unused. This will be used to assign object ids.
     /// Catalog schemas.
-    pub(crate) schemas: EntrySet<Schema>,
+    pub(crate) schemas: EntrySet<PhysicalSchema>,
 }
 
 impl Catalog {
+    /// Create an empty catalog.
     pub fn empty() -> Catalog {
         Catalog {
             version: AtomicU64::new(0),
@@ -47,7 +54,7 @@ impl Catalog {
     }
 
     pub fn create_schema<C: Context>(&self, ctx: &C, schema_ent: SchemaEntry) -> Result<()> {
-        let schema = Schema {
+        let schema = PhysicalSchema {
             name: schema_ent.schema.clone(),
             views: EntrySet::new(),
             tables: EntrySet::new(),
@@ -58,8 +65,18 @@ impl Catalog {
             .expect_inserted()
     }
 
+    /// Check if a schema exists.
+    pub fn schema_exists<C: Context>(&self, ctx: &C, schema: &str) -> bool {
+        self.schemas.get_entry(ctx, schema).is_some()
+    }
+
     pub fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
         if matches!(drop.typ, EntryType::Schema) {
+            if drop.schema != drop.name {
+                return Err(internal!(
+                    "dropping a schema requires 'schema' and 'name' to match"
+                ));
+            }
             self.schemas.drop_entry(ctx, &drop.schema)?;
         } else {
             let schema = self.get_schema(ctx, &drop.schema)?;
@@ -68,7 +85,7 @@ impl Catalog {
         Ok(())
     }
 
-    fn get_schema<C: Context>(&self, ctx: &C, name: &str) -> Result<Arc<Schema>> {
+    fn get_schema<C: Context>(&self, ctx: &C, name: &str) -> Result<Arc<PhysicalSchema>> {
         self.schemas
             .get_entry(ctx, name)
             .ok_or(CatalogError::MissingEntry {
@@ -78,14 +95,14 @@ impl Catalog {
     }
 }
 
-pub(crate) struct Schema {
+pub(crate) struct PhysicalSchema {
     pub(crate) name: String, // TODO: Don't store name here.
     pub(crate) internal: bool,
     pub(crate) views: EntrySet<ViewEntry>,
     pub(crate) tables: EntrySet<TableEntry>,
 }
 
-impl Schema {
+impl PhysicalSchema {
     fn create_view<C: Context>(&self, ctx: &C, view: ViewEntry) -> Result<()> {
         self.views
             .create_entry(ctx, view.name.clone(), view)?
@@ -108,8 +125,8 @@ impl Schema {
     }
 }
 
-impl From<&Schema> for SchemaEntry {
-    fn from(s: &Schema) -> Self {
+impl From<&PhysicalSchema> for SchemaEntry {
+    fn from(s: &PhysicalSchema) -> Self {
         SchemaEntry {
             schema: s.name.clone(),
             internal: s.internal,

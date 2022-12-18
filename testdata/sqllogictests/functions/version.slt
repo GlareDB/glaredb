@@ -1,0 +1,6 @@
+# 'version' function
+
+query T
+select character_length(version()) > 1;
+----
+t

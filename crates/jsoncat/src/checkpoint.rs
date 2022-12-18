@@ -1,4 +1,4 @@
-use crate::catalog::{Catalog, Schema};
+use crate::catalog::{Catalog, PhysicalSchema};
 use crate::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
 use crate::errors::Result;
 use crate::transaction::Context;
@@ -176,7 +176,7 @@ impl<'a> CheckpointWriter<'a> {
 struct SchemaCheckpointWriter<'a> {
     db_name: &'a str,
     store: &'a Arc<dyn ObjectStore>,
-    schema: Arc<Schema>,
+    schema: Arc<PhysicalSchema>,
 }
 
 impl<'a> SchemaCheckpointWriter<'a> {

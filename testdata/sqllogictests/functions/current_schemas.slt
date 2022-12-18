@@ -1,0 +1,22 @@
+# 'current_schemas' function
+
+statement ok
+set search_path = 'public';
+
+query T
+select current_schemas()::text;
+----
+[public]
+
+# Create a new schema, add it to search path.
+
+statement ok
+create schema current_schemas_test;
+
+statement ok
+set search_path = 'public,current_schemas_test';
+
+query T
+select current_schemas()::text;
+----
+[public, current_schemas_test]

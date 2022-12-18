@@ -9,6 +9,8 @@ set search_path = basic_cte;
 statement ok
 create table a(i integer);
 
+halt
+
 statement ok
 insert into a values (42);
 

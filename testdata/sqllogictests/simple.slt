@@ -23,6 +23,8 @@ create table t1 (a smallint, b smallint)
 statement error
 create table t1 (a smallint, b smallint)
 
+halt
+
 statement ok
 insert into t1 values (1, 2), (3, 4), (5, 6)
 

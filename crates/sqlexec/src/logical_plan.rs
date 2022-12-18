@@ -1,4 +1,4 @@
-use crate::errors::{internal, ExecError};
+use crate::errors::{internal, ExecError, Result};
 use datafusion::arrow::datatypes::Field;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
@@ -15,8 +15,17 @@ pub enum LogicalPlan {
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
-    // TODO: Actually implement this. This would correspond to "SET ..." and "SET SESSION ..." statements.
-    Runtime(RuntimePlan),
+    Configuration(ConfigurationPlan),
+}
+
+impl LogicalPlan {
+    /// Try to get the data fusion logical plan from this logical plan.
+    pub fn try_into_datafusion_plan(self) -> Result<DfLogicalPlan> {
+        match self {
+            LogicalPlan::Query(plan) => Ok(plan),
+            other => Err(internal!("expected datafusion plan, got: {:?}", other)),
+        }
+    }
 }
 
 impl From<DfLogicalPlan> for LogicalPlan {
@@ -53,7 +62,8 @@ pub enum DdlPlan {
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
-    DropTable(DropTable),
+    DropTables(DropTables),
+    DropSchemas(DropSchemas),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -104,7 +114,13 @@ pub struct CreateTableAs {
 }
 
 #[derive(Clone, Debug)]
-pub struct DropTable {
+pub struct DropTables {
+    pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DropSchemas {
     pub names: Vec<String>,
     pub if_exists: bool,
 }
@@ -123,24 +139,39 @@ impl From<TransactionPlan> for LogicalPlan {
 }
 
 #[derive(Clone, Debug)]
-pub enum RuntimePlan {
-    SetParameter(SetParameter),
-    ShowParameter(ShowParameter),
+pub enum ConfigurationPlan {
+    SetConfiguration(SetConfiguration),
 }
 
-impl From<RuntimePlan> for LogicalPlan {
-    fn from(plan: RuntimePlan) -> Self {
-        LogicalPlan::Runtime(plan)
+impl From<ConfigurationPlan> for LogicalPlan {
+    fn from(plan: ConfigurationPlan) -> Self {
+        LogicalPlan::Configuration(plan)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct SetParameter {
+pub struct SetConfiguration {
     pub variable: ast::ObjectName,
     pub values: Vec<ast::Expr>,
 }
 
-#[derive(Clone, Debug)]
-pub struct ShowParameter {
-    pub variable: ast::ObjectName,
+impl SetConfiguration {
+    /// Try to get a single string value.
+    ///
+    /// Errors if more than one value, or if the value is not a string.
+    pub fn try_as_single_string(&self) -> Result<String> {
+        if self.values.len() > 1 {
+            return Err(internal!(
+                "invalid number of values given: {:?}",
+                self.values
+            ));
+        }
+
+        let first = self.values.first().unwrap();
+        match first {
+            ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) => Ok(s.clone()),
+            expr => Err(internal!("invalid expression for SET: {}", expr)),
+        }
+    }
 }

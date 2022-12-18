@@ -8,6 +8,8 @@
 statement ok
 create table t_aggs (a smallint, b real, c text);
 
+halt
+
 statement ok
 insert into t_aggs values (1, 1.0, '1'), (2, 2.0, '2'), (3, 3.0, '3'), (4, 4.0, '4');
 

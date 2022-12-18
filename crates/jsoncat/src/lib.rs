@@ -3,14 +3,14 @@
 #![allow(unused_variables)]
 #![allow(clippy::new_without_default)]
 pub mod access;
-pub mod adapter;
 pub mod catalog;
 pub mod checkpoint;
+pub mod constants;
+pub mod dispatch;
 pub mod entry;
 pub mod errors;
 pub mod transaction;
 
-mod convert;
 mod entryset;
 mod system;
 
@@ -22,6 +22,7 @@ use object_store::ObjectStore;
 use std::sync::Arc;
 use transaction::Context;
 
+/// Load the catalog from some object store.
 pub async fn load_catalog<C: Context>(
     ctx: &C,
     db_name: String,
@@ -48,6 +49,10 @@ pub async fn load_catalog<C: Context>(
     Ok(reader.into_catalog())
 }
 
+/// Checkpoint the catalog to some object store.
+///
+/// Checkpointing is allowed to happen concurrently with other operations in the
+/// system (user queries).
 pub async fn checkpoint_catalog<C: Context>(
     ctx: &C,
     db_name: String,

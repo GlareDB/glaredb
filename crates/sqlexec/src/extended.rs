@@ -1,6 +1,7 @@
+#![allow(dead_code)]
 use crate::errors::internal;
 use crate::{errors::Result, logical_plan::LogicalPlan};
-use datafusion::sql::sqlparser::ast::{self};
+use datafusion::sql::sqlparser::ast;
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::parser::Parser;
 

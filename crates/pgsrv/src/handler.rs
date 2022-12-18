@@ -430,7 +430,7 @@ where
                         LogicalPlan::Transaction(_) => {
                             todo!("return portal describe response for Transaction");
                         }
-                        LogicalPlan::Runtime(_) => {
+                        LogicalPlan::Configuration(_) => {
                             todo!("return portal describe response for Runtime");
                         }
                     },
@@ -494,6 +494,7 @@ where
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
+            ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
         }
         Ok(())
     }

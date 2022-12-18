@@ -3,6 +3,13 @@
 statement ok
 create table schema_table (a int, b text);
 
+query TT
+select table_name, table_type from information_schema.tables where table_name = 'schema_table';
+----
+schema_table    BASE TABLE
+
+halt
+
 query TTT
 select table_name, column_name, data_type from information_schema.columns where table_name = 'schema_table' order by column_name;
 ----

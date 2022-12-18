@@ -10,6 +10,8 @@ set search_path = using_join;
 statement ok
 CREATE TABLE t1 (a INTEGER, b INTEGER, c INTEGER)
 
+halt
+
 statement ok
 INSERT INTO t1 VALUES (1,2,3)
 
