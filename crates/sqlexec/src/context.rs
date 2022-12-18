@@ -23,6 +23,9 @@ use jsoncat::transaction::StubCatalogContext;
 use std::sync::Arc;
 
 /// Context for a session used during execution.
+///
+/// The context generally does not have to worry about anything external to the
+/// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
     /// Database catalog.
     catalog: Arc<Catalog>,
@@ -36,6 +39,7 @@ pub struct SessionContext {
 }
 
 impl SessionContext {
+    /// Create a new session context with the given catalog.
     pub fn new(catalog: Arc<Catalog>) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 

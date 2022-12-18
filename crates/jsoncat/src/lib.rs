@@ -22,6 +22,7 @@ use object_store::ObjectStore;
 use std::sync::Arc;
 use transaction::Context;
 
+/// Load the catalog from some object store.
 pub async fn load_catalog<C: Context>(
     ctx: &C,
     db_name: String,
@@ -48,6 +49,10 @@ pub async fn load_catalog<C: Context>(
     Ok(reader.into_catalog())
 }
 
+/// Checkpoint the catalog to some object store.
+///
+/// Checkpointing is allowed to happen concurrently with other operations in the
+/// system (user queries).
 pub async fn checkpoint_catalog<C: Context>(
     ctx: &C,
     db_name: String,

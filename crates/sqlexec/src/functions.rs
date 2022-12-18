@@ -8,6 +8,8 @@ use datafusion::logical_expr::{
 };
 use std::sync::Arc;
 
+/// Additional built-in scalar functions.
+#[derive(Debug, Copy, Clone)]
 pub enum BuiltinScalarFunction {
     /// 'version' -> String
     /// Get the version of this db instance.
@@ -18,6 +20,7 @@ pub enum BuiltinScalarFunction {
 }
 
 impl BuiltinScalarFunction {
+    /// Try to get the built-in scalar function from the name.
     pub fn try_from_name(name: &str) -> Option<BuiltinScalarFunction> {
         Some(match name {
             "version" => BuiltinScalarFunction::Version,
@@ -26,6 +29,8 @@ impl BuiltinScalarFunction {
         })
     }
 
+    /// Build the scalar function. The session context is used for functions
+    /// that rely on session state.
     pub fn build_scalar_udf(self, sess: &SessionContext) -> ScalarUDF {
         ScalarUDF {
             name: self.name().to_string(),
@@ -36,14 +41,15 @@ impl BuiltinScalarFunction {
     }
 
     /// Get the name of the built-in function.
-    pub fn name(&self) -> &'static str {
+    fn name(&self) -> &'static str {
         match self {
             BuiltinScalarFunction::Version => "version",
             BuiltinScalarFunction::CurrentSchemas => "current_schemas",
         }
     }
 
-    pub fn signature(&self) -> Signature {
+    /// Get the signature for a function.
+    fn signature(&self) -> Signature {
         match self {
             BuiltinScalarFunction::Version => {
                 Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
@@ -54,7 +60,8 @@ impl BuiltinScalarFunction {
         }
     }
 
-    pub fn return_type(&self) -> ReturnTypeFunction {
+    /// Get the return type for a function.
+    fn return_type(&self) -> ReturnTypeFunction {
         match self {
             BuiltinScalarFunction::Version => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
             BuiltinScalarFunction::CurrentSchemas => Arc::new(|_| {
@@ -71,7 +78,7 @@ impl BuiltinScalarFunction {
     ///
     /// Accepts a session context for functions that rely on values set inside
     /// the session (e.g. retrieving configuration values).
-    pub fn impl_function(&self, sess: &SessionContext) -> ScalarFunctionImplementation {
+    fn impl_function(&self, sess: &SessionContext) -> ScalarFunctionImplementation {
         match self {
             BuiltinScalarFunction::Version => Arc::new(|_| {
                 Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(

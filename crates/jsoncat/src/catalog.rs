@@ -5,6 +5,7 @@ use crate::transaction::Context;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
+/// Types of entries the catalog holds.
 #[derive(Debug)]
 pub enum EntryType {
     Schema,
@@ -25,14 +26,16 @@ pub struct DropEntry {
     pub name: String,
 }
 
+/// The in-memory catalog.
 pub struct Catalog {
     /// Catalog version, incremented on change.
-    pub(crate) version: AtomicU64, // TODO: Currently unused.
+    pub(crate) version: AtomicU64, // TODO: Currently unused. This will be used to assing object ids.
     /// Catalog schemas.
     pub(crate) schemas: EntrySet<PhysicalSchema>,
 }
 
 impl Catalog {
+    /// Create an empty catalog.
     pub fn empty() -> Catalog {
         Catalog {
             version: AtomicU64::new(0),

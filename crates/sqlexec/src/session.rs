@@ -13,8 +13,9 @@ use std::sync::Arc;
 
 /// A per-client user session.
 ///
-/// This type acts as the bridge between datafusion planning/execution and the
-/// rest of the system.
+/// This is a thin wrapper around a session context. Having a layer between
+/// pgsrv and actual execution against the catalog allows for easy extensibility
+/// in the future (e.g. consensus).
 pub struct Session {
     pub(crate) ctx: SessionContext,
 }
