@@ -69,7 +69,7 @@ impl Catalog {
 
     pub fn drop_entry<C: Context>(&self, ctx: &C, drop: DropEntry) -> Result<()> {
         if matches!(drop.typ, EntryType::Schema) {
-            if drop.name != drop.name {
+            if drop.schema != drop.name {
                 return Err(internal!(
                     "dropping a schema requires 'schema' and 'name' to match"
                 ));

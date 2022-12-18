@@ -5,8 +5,6 @@ use crate::logical_plan::*;
 use crate::planner::SessionPlanner;
 use crate::searchpath::SearchPath;
 use datafusion::arrow::datatypes::DataType;
-use datafusion::catalog::catalog::{CatalogList, CatalogProvider};
-use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
@@ -21,7 +19,7 @@ use jsoncat::catalog::{Catalog, DropEntry, EntryType};
 use jsoncat::dispatch::{CatalogDispatcher, LatePlanner};
 use jsoncat::entry::schema::SchemaEntry;
 use jsoncat::entry::table::{ColumnDefinition, TableEntry};
-use jsoncat::transaction::{Context, StubCatalogContext};
+use jsoncat::transaction::StubCatalogContext;
 use std::sync::Arc;
 
 /// Context for a session used during execution.
@@ -49,12 +47,6 @@ impl SessionContext {
 
         let runtime = Arc::new(RuntimeEnv::default());
         let state = SessionState::with_config_rt(config, runtime);
-
-        // // TODO: We don't need to create the builtin functions everytime.
-        // let funcs = vec![version_func()];
-        // for func in funcs {
-        //     state.scalar_functions.insert(func.name.clone(), func);
-        // }
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
@@ -239,15 +231,15 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
             .map(|f| Arc::new(f.build_scalar_udf(self.context)))
     }
 
-    fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {
+    fn get_aggregate_meta(&self, _name: &str) -> Option<Arc<AggregateUDF>> {
         None
     }
 
-    fn get_variable_type(&self, variable_names: &[String]) -> Option<DataType> {
+    fn get_variable_type(&self, _variable_names: &[String]) -> Option<DataType> {
         None
     }
 
-    fn get_config_option(&self, variable: &str) -> Option<ScalarValue> {
+    fn get_config_option(&self, _variable: &str) -> Option<ScalarValue> {
         None
     }
 }

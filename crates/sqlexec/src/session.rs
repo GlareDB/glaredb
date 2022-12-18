@@ -1,29 +1,15 @@
 use crate::context::SessionContext;
-use crate::errors::{internal, ExecError, Result};
+use crate::errors::{ExecError, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
-use crate::placeholders::bind_placeholders;
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
-use datafusion::catalog::catalog::CatalogList;
-use datafusion::datasource::DefaultTableSource;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
-use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
     SendableRecordBatchStream,
 };
-use datafusion::scalar::ScalarValue;
-use datafusion::sql::planner::ContextProvider;
-use datafusion::sql::planner::SqlToRel;
-use datafusion::sql::sqlparser::ast::{self, ObjectType};
-use datafusion::sql::{ResolvedTableReference, TableReference};
-use futures::StreamExt;
 use jsoncat::catalog::Catalog;
-use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
-use tracing::debug;
 
 /// A per-client user session.
 ///
@@ -77,7 +63,7 @@ impl Session {
         Err(ExecError::UnsupportedFeature("create external table"))
     }
 
-    pub(crate) async fn create_table_as(&self, plan: CreateTableAs) -> Result<()> {
+    pub(crate) async fn create_table_as(&self, _plan: CreateTableAs) -> Result<()> {
         Err(ExecError::UnsupportedFeature("create table as"))
     }
 
@@ -96,7 +82,7 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn insert(&self, plan: Insert) -> Result<()> {
+    pub(crate) async fn insert(&self, _plan: Insert) -> Result<()> {
         Err(ExecError::UnsupportedFeature("insert"))
     }
 
@@ -115,19 +101,19 @@ impl Session {
     /// It will later be readied for execution by using `bind_prepared_statement`.
     pub fn create_prepared_statement(
         &mut self,
-        name: Option<String>,
-        sql: String,
-        params: Vec<i32>,
+        _name: Option<String>,
+        _sql: String,
+        _params: Vec<i32>,
     ) -> Result<()> {
         Err(ExecError::UnsupportedFeature("prepare"))
     }
 
-    pub fn get_prepared_statement(&self, name: &Option<String>) -> Option<&PreparedStatement> {
+    pub fn get_prepared_statement(&self, _name: &Option<String>) -> Option<&PreparedStatement> {
         // Currently called by pgsrv...
         None
     }
 
-    pub fn get_portal(&self, portal_name: &Option<String>) -> Option<&Portal> {
+    pub fn get_portal(&self, _portal_name: &Option<String>) -> Option<&Portal> {
         // Currently called by pgsrv...
         None
     }
@@ -136,18 +122,18 @@ impl Session {
     /// If successful, the bound statement will create a portal which can be used to execute the statement.
     pub fn bind_prepared_statement(
         &mut self,
-        portal_name: Option<String>,
-        statement_name: Option<String>,
-        param_formats: Vec<i16>,
-        param_values: Vec<Option<Vec<u8>>>,
-        result_formats: Vec<i16>,
+        _portal_name: Option<String>,
+        _statement_name: Option<String>,
+        _param_formats: Vec<i16>,
+        _param_values: Vec<Option<Vec<u8>>>,
+        _result_formats: Vec<i16>,
     ) -> Result<()> {
         Err(ExecError::UnsupportedFeature("bind"))
     }
 
     pub async fn execute_portal(
         &mut self,
-        portal_name: &Option<String>,
+        _portal_name: &Option<String>,
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
         Err(ExecError::UnsupportedFeature("execute"))

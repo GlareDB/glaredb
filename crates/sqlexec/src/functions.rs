@@ -1,6 +1,5 @@
 //! Built-in functions.
 use crate::context::SessionContext;
-use datafusion::arrow::array::StringBuilder;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::ScalarValue;
 use datafusion::logical_expr::{
@@ -11,8 +10,10 @@ use std::sync::Arc;
 
 pub enum BuiltinScalarFunction {
     /// 'version' -> String
+    /// Get the version of this db instance.
     Version,
     /// 'current_schemas' -> [String]
+    /// Get a list of schemas in the current search path.
     CurrentSchemas,
 }
 

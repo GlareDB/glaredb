@@ -1,5 +1,6 @@
+#![allow(dead_code)]
 use crate::errors::Result;
-use datafusion::sql::sqlparser::ast::{self};
+use datafusion::sql::sqlparser::ast;
 use pgrepr::types::Type;
 use pgrepr::value::{Format, Value};
 use tracing::debug;
