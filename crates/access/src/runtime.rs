@@ -1,5 +1,3 @@
-use crate::compact::Compactor;
-use crate::deltacache::DeltaCache;
 use crate::errors::{internal, Result};
 use bytes::Bytes;
 use common::access::{AccessConfig, ObjectStoreKind};
@@ -21,8 +19,6 @@ pub struct AccessRuntime {
 #[derive(Debug)]
 struct Inner {
     config: AccessConfig,
-    deltas: Arc<DeltaCache>,
-    compactor: Arc<Compactor>,
     store: Arc<dyn ObjectStore>,
     object_path_prefix: ObjectPath,
 }
@@ -80,8 +76,6 @@ impl AccessRuntime {
         Ok(AccessRuntime {
             inner: Arc::new(Inner {
                 config,
-                deltas: Arc::new(DeltaCache::new()),
-                compactor: Arc::new(Compactor::new(store.clone())),
                 store,
                 object_path_prefix,
             }),
@@ -94,16 +88,8 @@ impl AccessRuntime {
         &self.inner.object_path_prefix
     }
 
-    pub fn delta_cache(&self) -> &Arc<DeltaCache> {
-        &self.inner.deltas
-    }
-
     pub fn object_store(&self) -> &Arc<dyn ObjectStore> {
         &self.inner.store
-    }
-
-    pub fn compactor(&self) -> &Arc<Compactor> {
-        &self.inner.compactor
     }
 
     pub fn config(&self) -> &AccessConfig {
