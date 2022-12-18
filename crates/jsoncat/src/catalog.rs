@@ -29,7 +29,7 @@ pub struct DropEntry {
 /// The in-memory catalog.
 pub struct Catalog {
     /// Catalog version, incremented on change.
-    pub(crate) version: AtomicU64, // TODO: Currently unused. This will be used to assing object ids.
+    pub(crate) version: AtomicU64, // TODO: Currently unused. This will be used to assign object ids.
     /// Catalog schemas.
     pub(crate) schemas: EntrySet<PhysicalSchema>,
 }
