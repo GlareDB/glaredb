@@ -69,7 +69,10 @@ impl PostgresAccessor {
         })
     }
 
-    pub async fn into_table_provider(self) -> Result<PostgresTableProvider> {
+    pub async fn into_table_provider(
+        self,
+        predicate_pushdown: bool,
+    ) -> Result<PostgresTableProvider> {
         // Every operation in this accessor will happen in a single transaction.
         // The transaction will remain open until the end of the table scan.
         self.client
@@ -130,6 +133,7 @@ ORDER BY attnum;
             .ok_or_else(|| internal!("unknown postgres oids: {:?}", type_oids))?;
 
         Ok(PostgresTableProvider {
+            predicate_pushdown,
             accessor: Arc::new(self),
             arrow_schema: Arc::new(arrow_schema),
             pg_types: Arc::new(pg_types),
@@ -138,6 +142,7 @@ ORDER BY attnum;
 }
 
 pub struct PostgresTableProvider {
+    predicate_pushdown: bool,
     accessor: Arc<PostgresAccessor>,
     arrow_schema: ArrowSchemaRef,
     pg_types: Arc<Vec<PostgresType>>,
@@ -161,7 +166,7 @@ impl TableProvider for PostgresTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
+        filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Project the schema.
@@ -170,7 +175,7 @@ impl TableProvider for PostgresTableProvider {
             None => self.arrow_schema.clone(),
         };
 
-        // Project the postgres type so that it matches the ouput schema.
+        // Project the postgres types so that it matches the ouput schema.
         let projected_types = match projection {
             Some(projection) => Arc::new(
                 projection
@@ -195,12 +200,35 @@ impl TableProvider for PostgresTableProvider {
             None => String::new(),
         };
 
-        // TODO: Build an appropriate WHERE clause.
+        // Build WHERE clause if predicate pushdown enabled.
+        //
+        // TODO: This may produce an invalid clause. We'll likely only want to
+        // convert some predicates.
+        let predicate_string = {
+            if self.predicate_pushdown {
+                let s = filters
+                    .iter()
+                    .map(|expr| expr.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" AND ");
+                if s.is_empty() {
+                    String::new()
+                } else {
+                    format!("WHERE {}", s)
+                }
+            } else {
+                String::new()
+            }
+        };
 
         // Build copy query.
         let query = format!(
-            "COPY (SELECT {} FROM {}.{} {}) TO STDOUT (FORMAT binary)",
-            projection_string, self.accessor.access.schema, self.accessor.access.name, limit_string,
+            "COPY (SELECT {} FROM {}.{} {} {}) TO STDOUT (FORMAT binary)",
+            projection_string,
+            self.accessor.access.schema,
+            self.accessor.access.name,
+            predicate_string,
+            limit_string,
         );
 
         let opener = StreamOpener {
