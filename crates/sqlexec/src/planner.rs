@@ -1,11 +1,13 @@
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
+use access::external::postgres::PostgresTableAccess;
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use jsoncat::access::AccessMethod;
 use std::collections::HashMap;
 use tracing::debug;
 
@@ -57,6 +59,7 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::CreateTable {
                 external: false,
                 if_not_exists,
+                engine: None,
                 name,
                 columns,
                 query: None,
@@ -79,22 +82,21 @@ impl<'a> SessionPlanner<'a> {
 
             // External tables.
             ast::Statement::CreateTable {
-                external: true,
                 if_not_exists: false,
+                engine: Some(engine),
                 name,
-                file_format: Some(file_format),
-                location: Some(location),
                 query: None,
                 ..
-            } => {
-                let file_type: FileType = file_format.try_into()?;
-                Ok(DdlPlan::CreateExternalTable(CreateExternalTable {
-                    table_name: name.to_string(),
-                    location,
-                    file_type,
-                })
-                .into())
-            }
+            } => Ok(DdlPlan::CreateExternalTable(CreateExternalTable {
+                table_name: name.to_string(),
+                access: AccessMethod::Postgres(PostgresTableAccess {
+                    schema: "public".to_string(),
+                    name: "hello".to_string(),
+                    connection_string: "host=localhost dbname=postgres user=postgres port=5432"
+                        .to_string(),
+                }),
+            })
+            .into()),
 
             // Tables generated from a source query.
             //

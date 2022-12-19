@@ -1,7 +1,7 @@
 use crate::errors::{ExecError, Result};
-use crate::executor::SqlParser;
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
+use crate::parser::SqlParser;
 use crate::planner::SessionPlanner;
 use crate::searchpath::SearchPath;
 use datafusion::arrow::datatypes::DataType;
@@ -77,6 +77,19 @@ impl SessionContext {
                 .into_iter()
                 .map(|f| ColumnDefinition::from(&from_df_field(f)))
                 .collect(),
+        };
+
+        self.catalog.create_table(&StubCatalogContext, ent)?;
+        Ok(())
+    }
+
+    pub fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
+        let (schema, name) = self.resolve_table_reference(plan.table_name)?;
+        let ent = TableEntry {
+            schema,
+            name,
+            access: plan.access,
+            columns: Vec::new(),
         };
 
         self.catalog.create_table(&StubCatalogContext, ent)?;

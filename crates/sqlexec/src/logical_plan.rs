@@ -2,6 +2,7 @@ use crate::errors::{internal, ExecError, Result};
 use datafusion::arrow::datatypes::Field;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
+use jsoncat::access::AccessMethod;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -103,8 +104,7 @@ impl TryFrom<ast::FileFormat> for FileType {
 #[derive(Clone, Debug)]
 pub struct CreateExternalTable {
     pub table_name: String,
-    pub location: String,
-    pub file_type: FileType,
+    pub access: AccessMethod,
 }
 
 #[derive(Clone, Debug)]

@@ -1,5 +1,6 @@
 use crate::errors::{internal, Result};
 use crate::logical_plan::*;
+use crate::parser::SqlParser;
 use crate::planner::SessionPlanner;
 use crate::session::Session;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -47,16 +48,6 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct SqlParser;
-
-impl SqlParser {
-    pub fn parse(sql: &str) -> Result<Vec<ast::Statement>> {
-        let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?;
-        Ok(statements)
     }
 }
 
