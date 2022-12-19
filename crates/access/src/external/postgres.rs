@@ -164,38 +164,38 @@ impl TableProvider for PostgresTableProvider {
         _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        // Project the schema.
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.arrow_schema.project(&projection)?),
+            None => self.arrow_schema.clone(),
+        };
+
+        // Project the postgres type so that it matches the ouput schema.
+        let projected_types = match projection {
+            Some(projection) => Arc::new(
+                projection
+                    .iter()
+                    .map(|i| self.pg_types[*i].clone())
+                    .collect::<Vec<_>>(),
+            ),
+            None => self.pg_types.clone(),
+        };
+
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = match projection {
-            Some(projection) => projection
-                .iter()
-                .map(|i| {
-                    self.arrow_schema
-                        .fields
-                        .get(*i)
-                        .ok_or_else(|| {
-                            DataFusionError::Execution(format!(
-                                "postgres projection failed, missing column at {}",
-                                i
-                            ))
-                        })
-                        .map(|f| f.name().clone())
-                })
-                .collect::<DatafusionResult<Vec<String>>>()?
-                .join(","),
-            None => self
-                .arrow_schema
-                .fields
-                .iter()
-                .map(|f| f.name().clone())
-                .collect::<Vec<_>>()
-                .join(","),
-        };
+        let projection_string = projected_schema
+            .fields
+            .iter()
+            .map(|f| f.name().clone())
+            .collect::<Vec<_>>()
+            .join(",");
 
         let limit_string = match limit {
             Some(limit) => format!("LIMIT {}", limit),
             None => String::new(),
         };
+
+        // TODO: Build an appropriate WHERE clause.
 
         // Build copy query.
         let query = format!(
@@ -210,8 +210,8 @@ impl TableProvider for PostgresTableProvider {
 
         Ok(Arc::new(BinaryCopyExec {
             accessor: self.accessor.clone(),
-            pg_types: self.pg_types.clone(),
-            arrow_schema: self.arrow_schema.clone(),
+            pg_types: projected_types,
+            arrow_schema: projected_schema,
             opener,
         }))
     }
