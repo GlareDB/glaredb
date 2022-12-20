@@ -279,7 +279,7 @@ impl ExecutionPlan for BinaryCopyExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for DeltaInsertsExec".to_string(),
+            "cannot replace children for BinaryCopyExec".to_string(),
         ))
     }
 
@@ -313,6 +313,7 @@ impl ExecutionPlan for BinaryCopyExec {
 impl fmt::Debug for BinaryCopyExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BinaryCopyExec")
+            .field("pg_types", &self.pg_types)
             .field("arrow_schema", &self.arrow_schema)
             .finish()
     }
