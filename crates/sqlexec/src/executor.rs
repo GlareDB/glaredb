@@ -1,6 +1,6 @@
 use crate::errors::{internal, Result};
 use crate::logical_plan::*;
-use crate::parser::SqlParser;
+use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::session::Session;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -65,14 +65,14 @@ impl fmt::Debug for ExecutionResult {
 /// executions.
 pub struct Executor<'a> {
     /// All parsed statements.
-    statements: VecDeque<ast::Statement>,
+    statements: VecDeque<StatementWithExtensions>,
     session: &'a mut Session,
 }
 
 impl<'a> Executor<'a> {
     /// Create a new executor with the provided sql string and session.
     pub fn new(sql: &'a str, session: &'a mut Session) -> Result<Self> {
-        let statements = SqlParser::parse(sql)?.into_iter().collect();
+        let statements = CustomParser::parse_sql(sql)?;
         // TODO: Implicit transaction.
         Ok(Executor {
             statements,
@@ -92,7 +92,10 @@ impl<'a> Executor<'a> {
         Some(self.execute_statement(statement).await)
     }
 
-    async fn execute_statement(&mut self, stmt: ast::Statement) -> Result<ExecutionResult> {
+    async fn execute_statement(
+        &mut self,
+        stmt: StatementWithExtensions,
+    ) -> Result<ExecutionResult> {
         let plan = {
             let planner = SessionPlanner::new(&self.session.ctx);
             planner.plan_ast(stmt)?

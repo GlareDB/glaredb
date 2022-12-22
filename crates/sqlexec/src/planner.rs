@@ -1,6 +1,7 @@
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
+use crate::parser::{CreateExternalTableStmt, StatementWithExtensions};
 use access::external::postgres::PostgresTableAccess;
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
@@ -21,11 +22,46 @@ impl<'a> SessionPlanner<'a> {
         SessionPlanner { ctx }
     }
 
-    pub fn plan_ast(&self, statement: ast::Statement) -> Result<LogicalPlan> {
+    pub fn plan_ast(&self, statement: StatementWithExtensions) -> Result<LogicalPlan> {
         debug!(%statement, "planning sql statement");
+        match statement {
+            StatementWithExtensions::Statement(stmt) => self.plan_statement(stmt),
+            StatementWithExtensions::CreateExternalTable(stmt) => {
+                self.plan_create_external_table(stmt)
+            }
+        }
+    }
+
+    fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
+        let pop_required_opt = |m: &mut HashMap<String, String>, k: &str| {
+            m.remove(k)
+                .ok_or_else(|| internal!("missing required option: {}", k))
+        };
+
+        let m = &mut stmt.options;
+        let plan = match stmt.datasource.to_lowercase().as_str() {
+            "postgres" => {
+                let conn_str = pop_required_opt(m, "postgres_conn")?;
+                let source_schema = pop_required_opt(m, "schema")?;
+                let source_table = pop_required_opt(m, "table")?;
+                CreateExternalTable {
+                    table_name: stmt.name,
+                    access: AccessMethod::Postgres(PostgresTableAccess {
+                        connection_string: conn_str,
+                        schema: source_schema,
+                        name: source_table,
+                    }),
+                }
+            }
+            other => return Err(internal!("unsupported datasource: {}", other)),
+        };
+
+        Ok(DdlPlan::CreateExternalTable(plan).into())
+    }
+
+    fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let context = ContextProviderAdapter { context: self.ctx };
         let planner = SqlToRel::new(&context);
-
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
@@ -79,24 +115,6 @@ impl<'a> SessionPlanner<'a> {
                 })
                 .into())
             }
-
-            // External tables.
-            ast::Statement::CreateTable {
-                if_not_exists: false,
-                engine: Some(engine),
-                name,
-                query: None,
-                ..
-            } => Ok(DdlPlan::CreateExternalTable(CreateExternalTable {
-                table_name: name.to_string(),
-                access: AccessMethod::Postgres(PostgresTableAccess {
-                    schema: "public".to_string(),
-                    name: "hello".to_string(),
-                    connection_string: "host=localhost dbname=postgres user=postgres port=5432"
-                        .to_string(),
-                }),
-            })
-            .into()),
 
             // Tables generated from a source query.
             //

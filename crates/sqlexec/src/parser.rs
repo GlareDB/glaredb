@@ -8,40 +8,9 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
 
-#[derive(Debug)]
-pub struct SqlParser;
-
-impl SqlParser {
-    pub fn parse(sql: &str) -> Result<Vec<ast::Statement>> {
-        let statements = Parser::parse_sql(&GlareSqlDialect {}, sql)?;
-        Ok(statements)
-    }
-}
-
-#[derive(Debug)]
-pub struct GlareSqlDialect {}
-
-impl Dialect for GlareSqlDialect {
-    fn is_identifier_start(&self, ch: char) -> bool {
-        PostgreSqlDialect {}.is_identifier_start(ch)
-    }
-
-    fn is_identifier_part(&self, ch: char) -> bool {
-        PostgreSqlDialect {}.is_identifier_part(ch)
-    }
-
-    fn parse_statement(&self, parser: &mut Parser) -> Option<Result<ast::Statement, ParserError>> {
-        PostgreSqlDialect {}.parse_statement(parser)
-    }
-
-    fn supports_filter_during_aggregation(&self) -> bool {
-        PostgreSqlDialect {}.supports_filter_during_aggregation()
-    }
-}
-
 /// DDL extension for GlareDB's external tables.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CreateExternalTable {
+pub struct CreateExternalTableStmt {
     /// Name of the table.
     pub name: String,
     /// Optionally don't error if table exists.
@@ -52,7 +21,7 @@ pub struct CreateExternalTable {
     pub options: HashMap<String, String>,
 }
 
-impl fmt::Display for CreateExternalTable {
+impl fmt::Display for CreateExternalTableStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CREATE EXTERNAL TABLE ")?;
         if self.if_not_exists {
@@ -73,11 +42,20 @@ impl fmt::Display for CreateExternalTable {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Statement {
+pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
     /// Create external table extension.
-    CreateExternalTable(CreateExternalTable),
+    CreateExternalTable(CreateExternalTableStmt),
+}
+
+impl fmt::Display for StatementWithExtensions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StatementWithExtensions::Statement(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
+        }
+    }
 }
 
 /// Parser with our extensions.
@@ -86,7 +64,7 @@ pub struct CustomParser<'a> {
 }
 
 impl<'a> CustomParser<'a> {
-    pub fn parse_sql(sql: &str) -> Result<VecDeque<Statement>, ParserError> {
+    pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
         let dialect = PostgreSqlDialect {};
         let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
         let mut parser = CustomParser {
@@ -116,27 +94,33 @@ impl<'a> CustomParser<'a> {
         Ok(stmts)
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, ParserError> {
+    fn parse_statement(&mut self) -> Result<StatementWithExtensions, ParserError> {
         match self.parser.peek_token() {
             Token::Word(w) => match w.keyword {
                 Keyword::CREATE => {
                     self.parser.next_token();
                     self.parse_create()
                 }
-                _ => Ok(Statement::Statement(self.parser.parse_statement()?)),
+                _ => Ok(StatementWithExtensions::Statement(
+                    self.parser.parse_statement()?,
+                )),
             },
-            _ => Ok(Statement::Statement(self.parser.parse_statement()?)),
+            _ => Ok(StatementWithExtensions::Statement(
+                self.parser.parse_statement()?,
+            )),
         }
     }
 
     /// Parse a SQL CREATE statement
-    fn parse_create(&mut self) -> Result<Statement, ParserError> {
+    fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
         if self.parser.parse_keyword(Keyword::EXTERNAL) {
             // Parse using custom parse rules.
             self.parse_create_external_table()
         } else {
             // Fall back to underlying parser.
-            Ok(Statement::Statement(self.parser.parse_create()?))
+            Ok(StatementWithExtensions::Statement(
+                self.parser.parse_create()?,
+            ))
         }
     }
 
@@ -148,7 +132,7 @@ impl<'a> CustomParser<'a> {
         )))
     }
 
-    fn parse_create_external_table(&mut self) -> Result<Statement, ParserError> {
+    fn parse_create_external_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
         self.parser.expect_keyword(Keyword::TABLE)?;
         let if_not_exists =
             self.parser
@@ -162,12 +146,14 @@ impl<'a> CustomParser<'a> {
         // OPTIONS (..)
         let options = self.parse_datasource_options()?;
 
-        Ok(Statement::CreateExternalTable(CreateExternalTable {
-            name: name.to_string(),
-            if_not_exists,
-            datasource,
-            options,
-        }))
+        Ok(StatementWithExtensions::CreateExternalTable(
+            CreateExternalTableStmt {
+                name: name.to_string(),
+                if_not_exists,
+                datasource,
+                options,
+            },
+        ))
     }
 
     fn parse_datasource(&mut self) -> Result<String, ParserError> {
@@ -189,9 +175,10 @@ impl<'a> CustomParser<'a> {
         self.parser.expect_token(&Token::LParen)?;
 
         loop {
-            let key = self.parser.parse_literal_string()?;
+            let key = self.parser.parse_identifier()?.to_string();
             self.parser.expect_token(&Token::Eq)?;
             let value = self.parser.parse_literal_string()?;
+
             options.insert(key.to_string(), value.to_string());
             let comma = self.parser.consume_token(&Token::Comma);
 
@@ -233,7 +220,7 @@ mod tests {
             "postgres_conn".to_string(),
             "host=localhost user=postgres".to_string(),
         );
-        let stmt = CreateExternalTable {
+        let stmt = CreateExternalTableStmt {
             name: "test".to_string(),
             if_not_exists: false,
             datasource: "postgres".to_string(),
@@ -246,7 +233,7 @@ mod tests {
 
     #[test]
     fn parse_external_table() {
-        let sql = "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres')";
+        let sql = "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public')";
         let mut stmts = CustomParser::parse_sql(sql).unwrap();
 
         let stmt = stmts.pop_front().unwrap();
@@ -255,8 +242,10 @@ mod tests {
             "postgres_conn".to_string(),
             "host=localhost user=postgres".to_string(),
         );
+        options.insert("schema".to_string(), "public".to_string());
+
         assert_eq!(
-            Statement::CreateExternalTable(CreateExternalTable {
+            StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
                 name: "test".to_string(),
                 if_not_exists: false,
                 datasource: "postgres".to_string(),

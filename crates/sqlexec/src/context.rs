@@ -1,7 +1,7 @@
 use crate::errors::{ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
-use crate::parser::SqlParser;
+use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::searchpath::SearchPath;
 use datafusion::arrow::datatypes::DataType;
@@ -186,13 +186,15 @@ impl LatePlanner for SessionContext {
     type Error = ExecError;
 
     fn plan_sql(&self, sql: &str) -> Result<datafusion::logical_expr::LogicalPlan, ExecError> {
-        let mut statements = SqlParser::parse(sql)?;
+        let mut statements = CustomParser::parse_sql(sql)?;
         if statements.len() != 1 {
-            return Err(ExecError::ExpectedExactlyOneStatement(statements));
+            return Err(ExecError::ExpectedExactlyOneStatement(
+                statements.into_iter().collect(),
+            ));
         }
 
         let planner = SessionPlanner::new(self);
-        let plan = planner.plan_ast(statements.pop().unwrap())?;
+        let plan = planner.plan_ast(statements.pop_front().unwrap())?;
         let df_plan = plan.try_into_datafusion_plan()?;
 
         Ok(df_plan)

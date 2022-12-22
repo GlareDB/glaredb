@@ -1,3 +1,5 @@
+use crate::parser::StatementWithExtensions;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExecError {
     #[error("invalid search path; '{schema}' doesn't exist (input: '{input}')")]
@@ -16,7 +18,7 @@ pub enum ExecError {
     EmptySearchPath,
 
     #[error("expected exactly on SQL statement, got: {0:?}")]
-    ExpectedExactlyOneStatement(Vec<datafusion::sql::sqlparser::ast::Statement>),
+    ExpectedExactlyOneStatement(Vec<StatementWithExtensions>),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
