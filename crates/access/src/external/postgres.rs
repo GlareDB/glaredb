@@ -17,9 +17,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use futures::{
-    future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt, TryStreamExt,
-};
+use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;
@@ -171,7 +169,7 @@ impl TableProvider for PostgresTableProvider {
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Project the schema.
         let projected_schema = match projection {
-            Some(projection) => Arc::new(self.arrow_schema.project(&projection)?),
+            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
             None => self.arrow_schema.clone(),
         };
 

@@ -1,7 +1,7 @@
 use crate::errors::{ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
-use crate::parser::{CustomParser, StatementWithExtensions};
+use crate::parser::CustomParser;
 use crate::planner::SessionPlanner;
 use crate::searchpath::SearchPath;
 use datafusion::arrow::datatypes::DataType;

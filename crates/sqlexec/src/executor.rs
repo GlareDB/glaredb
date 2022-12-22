@@ -4,9 +4,6 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::session::Session;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::sql::sqlparser::ast;
-use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
-use datafusion::sql::sqlparser::parser::Parser;
 use std::collections::VecDeque;
 use std::fmt;
 

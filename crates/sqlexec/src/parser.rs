@@ -1,6 +1,6 @@
 use crate::errors::Result;
 use datafusion::sql::sqlparser::ast;
-use datafusion::sql::sqlparser::dialect::{Dialect, PostgreSqlDialect};
+use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
