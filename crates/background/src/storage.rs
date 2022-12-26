@@ -1,17 +1,17 @@
 use crate::errors::Result;
 use crate::BackgroundJob;
 use access::runtime::AccessRuntime;
+use async_trait::async_trait;
 use cloud::client::CloudClient;
 use futures::TryStreamExt;
-use std::future::Future;
-use std::pin::Pin;
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{Interval, MissedTickBehavior};
-use tracing::{debug, debug_span, error, info, Instrument};
+use tracing::{debug, debug_span, info, Instrument};
 
-/// Background job for computing total storage usage of this database and
-/// sending it to cloud.
+/// Background job for computing the total object storage usage of this database
+/// and sending it to cloud.
 ///
 /// NOTE: This may be expanded in the future to hold the total in some in-memory
 /// structure such that it's accessible through the catalog.
@@ -65,6 +65,7 @@ impl DatabaseStorageUsageJob {
     }
 }
 
+#[async_trait]
 impl BackgroundJob for DatabaseStorageUsageJob {
     fn interval(&self) -> Interval {
         // Skip missed ticks instead of bursting to catch up.
@@ -77,24 +78,25 @@ impl BackgroundJob for DatabaseStorageUsageJob {
         interval
     }
 
-    fn job_fut(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-        Box::pin(async move {
-            let span = debug_span!("database_storage_usage_job");
-            async move {
-                match self.compute_storage_total_bytes().await {
-                    Ok(usage_bytes) => {
-                        info!(%usage_bytes, "total storage used");
-                        if let Err(e) = self.send_usage(usage_bytes).await {
-                            error!(%e, "failed to send usage bytes to sink");
-                        }
-                    }
-                    Err(e) => {
-                        error!(%e, "failed to compute total storage usage");
-                    }
+    async fn execute(&self) -> Result<()> {
+        let span = debug_span!("database_storage_usage_job");
+        async move {
+            match self.compute_storage_total_bytes().await {
+                Ok(usage_bytes) => {
+                    info!(%usage_bytes, "total storage used");
+                    self.send_usage(usage_bytes).await
                 }
+                Err(e) => Err(e),
             }
-            .instrument(span)
-            .await
-        })
+        }
+        .instrument(span)
+        .await?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for DatabaseStorageUsageJob {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DatabaseStorageJob")
     }
 }
