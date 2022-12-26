@@ -50,10 +50,27 @@ impl fmt::Display for DebugJob {
     }
 }
 
+#[derive(Debug)]
+struct DisplayableJobsVec(Vec<Box<dyn BackgroundJob>>);
+
+impl fmt::Display for DisplayableJobsVec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.0
+                .iter()
+                .map(|job| job.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
 /// Run all background jobs on periodic intervals.
 #[derive(Debug)]
 pub struct BackgroundWorker {
-    jobs: Vec<Box<dyn BackgroundJob>>,
+    jobs: DisplayableJobsVec,
     // NOTE: Only currently used to avoid dropping tokio task handles.
     shutdown: oneshot::Receiver<()>,
 }
@@ -63,7 +80,7 @@ impl BackgroundWorker {
         jobs: impl IntoIterator<Item = Box<dyn BackgroundJob>>,
         shutdown: oneshot::Receiver<()>,
     ) -> BackgroundWorker {
-        let jobs = jobs.into_iter().collect();
+        let jobs = DisplayableJobsVec(jobs.into_iter().collect());
         BackgroundWorker { jobs, shutdown }
     }
 
@@ -72,16 +89,16 @@ impl BackgroundWorker {
     /// Note that this handles all errors internally. Errors should not stop the
     /// worker from continuing to process jobs.
     pub async fn begin(self) {
-        debug!(jobs = ?self.jobs, "starting background worker");
+        debug!(jobs = %self.jobs, "starting background worker");
 
         // Spin up a thread for each job.
-        for job in self.jobs.into_iter() {
+        for job in self.jobs.0.into_iter() {
             let mut interval = job.interval();
             let _handle = tokio::spawn(async move {
                 loop {
                     interval.tick().await;
                     if let Err(e) = job.execute().await {
-                        error!(?e, ?job, "failed to execute job");
+                        error!(%e, %job, "failed to execute job");
                     }
                 }
             });

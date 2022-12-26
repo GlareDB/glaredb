@@ -1,9 +1,9 @@
 use crate::errors::Result;
 use crate::BackgroundJob;
-use access::runtime::AccessRuntime;
 use async_trait::async_trait;
 use cloud::client::CloudClient;
 use futures::TryStreamExt;
+use object_store::ObjectStore;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,27 +13,30 @@ use tracing::{debug, debug_span, info, Instrument};
 /// Background job for computing the total object storage usage of this database
 /// and sending it to cloud.
 ///
+/// NOTE: It's likely you'll want to be using the `PrefixObjectStore` to only
+/// count files that belong to a single database.
+///
 /// NOTE: This may be expanded in the future to hold the total in some in-memory
 /// structure such that it's accessible through the catalog.
 #[derive(Debug)]
-pub struct DatabaseStorageUsageJob {
-    runtime: Arc<AccessRuntime>,
+pub struct ObjectStorageUsageJob {
+    store: Arc<dyn ObjectStore>,
     client: Option<Arc<CloudClient>>,
     interval_dur: Duration,
 }
 
-impl DatabaseStorageUsageJob {
+impl ObjectStorageUsageJob {
     /// Create a new worker for computing storage usage and sending it to Cloud.
     ///
     /// If client is `None`, no attempt will be made to actually send to Cloud,
     /// and the total usage will just be logged.
     pub fn new(
-        runtime: Arc<AccessRuntime>,
+        store: Arc<dyn ObjectStore>,
         client: Option<Arc<CloudClient>>,
         dur: Duration,
     ) -> Self {
-        DatabaseStorageUsageJob {
-            runtime,
+        ObjectStorageUsageJob {
+            store,
             client,
             interval_dur: dur,
         }
@@ -42,9 +45,8 @@ impl DatabaseStorageUsageJob {
     /// Compute the total storage in bytes that this database is taking up in
     /// object store.
     async fn compute_storage_total_bytes(&self) -> Result<u64> {
-        let prefix = self.runtime.object_path_prefix();
-        debug!(%prefix, "computing storage usage with prefix");
-        let stream = self.runtime.object_store().list(Some(prefix)).await?;
+        debug!(store = %self.store, "computing storage usage");
+        let stream = self.store.list(None).await?;
         let total = stream
             .try_fold(0, |acc, meta| async move { Ok(acc + meta.size) })
             .await?;
@@ -66,7 +68,7 @@ impl DatabaseStorageUsageJob {
 }
 
 #[async_trait]
-impl BackgroundJob for DatabaseStorageUsageJob {
+impl BackgroundJob for ObjectStorageUsageJob {
     fn interval(&self) -> Interval {
         // Skip missed ticks instead of bursting to catch up.
         //
@@ -95,7 +97,7 @@ impl BackgroundJob for DatabaseStorageUsageJob {
     }
 }
 
-impl fmt::Display for DatabaseStorageUsageJob {
+impl fmt::Display for ObjectStorageUsageJob {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DatabaseStorageJob")
     }

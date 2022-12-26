@@ -1,6 +1,6 @@
 use access::runtime::AccessRuntime;
 use anyhow::Result;
-use background::{storage::DatabaseStorageUsageJob, BackgroundJob, BackgroundWorker, DebugJob};
+use background::{storage::ObjectStorageUsageJob, BackgroundJob, BackgroundWorker, DebugJob};
 use cloud::client::CloudClient;
 use cloud::errors::CloudError;
 use common::config::DbConfig;
@@ -71,8 +71,8 @@ impl Server {
         // Spin up background worker jobs.
         let jobs: Vec<Box<dyn BackgroundJob>> = vec![
             Box::new(DebugJob),
-            Box::new(DatabaseStorageUsageJob::new(
-                access.clone(),
+            Box::new(ObjectStorageUsageJob::new(
+                access.object_store().clone(),
                 cloud_client.clone(),
                 config.background.storage_reporting.interval,
             )),
