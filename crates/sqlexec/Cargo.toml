@@ -14,7 +14,6 @@ access = {path = "../access"}
 jsoncat = {path = "../jsoncat"}
 common = {path = "../common"}
 stablestore = {path = "../stablestore"}
-persistence = {path = "../persistence"}
 object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"
 parking_lot = "0.12.1"

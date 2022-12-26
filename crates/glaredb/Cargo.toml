@@ -18,7 +18,7 @@ pgsrv = {path = "../pgsrv"}
 stablestore = {path = "../stablestore"}
 access = {path = "../access"}
 object_store_util = {path = "../object_store_util"}
-object_store = "0.5"
+object_store = {version = "0.5", features = ["gcp"]}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 tokio = { version = "1", features = ["full"] }

@@ -16,7 +16,6 @@ dependencies = [
  "object_store",
  "object_store_util",
  "parking_lot",
- "persistence",
  "scc",
  "serde",
  "tempfile",
@@ -2467,25 +2466,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
 
 [[package]]
-name = "persistence"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "datafusion",
- "futures",
- "logutil",
- "moka",
- "object_store",
- "parking_lot",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "pest"
 version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3325,7 +3305,6 @@ dependencies = [
  "object_store",
  "object_store_util",
  "parking_lot",
- "persistence",
  "pgrepr",
  "postgres-types",
  "regex",
