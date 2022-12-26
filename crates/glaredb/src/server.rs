@@ -7,7 +7,7 @@ use common::{
     config::DbConfig,
 };
 use object_store::{gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, ObjectStore};
-use object_store_util::temp::TempObjectStore;
+use object_store_util::{prefix::PrefixObjectStore, temp::TempObjectStore};
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use stablestore::object_store::ObjectStableStore;
@@ -58,6 +58,8 @@ impl Server {
 
         // Open up object store used for metadata.
         let store = open_object_store(&config.access).await?;
+        // Prefix it with database name.
+        let store = Arc::new(PrefixObjectStore::new(config.access.db_name.clone(), store));
 
         // Stable metadata storage.
         let storage = ObjectStableStore::open(store.clone()).await?;

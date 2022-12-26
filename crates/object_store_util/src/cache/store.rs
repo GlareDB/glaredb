@@ -1,4 +1,5 @@
 //! On-disk cache for byte ranges from object storage
+#![allow(dead_code)]
 use std::{
     fmt::{Display, Formatter},
     ops::Range,
@@ -24,7 +25,7 @@ use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
 
 use super::errors::{internal, CacheError, Result};
-use super::{DEFAULT_BYTE_RANGE_SIZE, OBJECT_STORE_CACHE_NAME};
+use super::OBJECT_STORE_CACHE_NAME;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct ObjectCacheKey {
@@ -482,14 +483,13 @@ pub mod test_util {
 
 #[cfg(test)]
 mod tests {
-    use std::{thread::sleep, time::Duration};
-
+    use super::*;
+    use crate::cache::DEFAULT_BYTE_RANGE_SIZE;
     use futures::future;
     use moka::future::ConcurrentCacheExt;
     use object_store::local::LocalFileSystem;
+    use std::{thread::sleep, time::Duration};
     use tempfile::TempDir;
-
-    use super::*;
 
     #[tokio::test]
     async fn write_cache_file() {

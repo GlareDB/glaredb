@@ -7,7 +7,7 @@ use stablestore::{Blob, StableStorage, VersionReadOption};
 use std::sync::Arc;
 use tracing::debug;
 
-const CHECKPOINT_INFO_BLOB_NAME: &str = "checkpoint";
+const CHECKPOINT_INFO_BLOB_NAME: &str = "catalog/checkpoint";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SerializedCheckpointInfo {}
