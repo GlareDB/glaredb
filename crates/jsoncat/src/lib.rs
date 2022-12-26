@@ -18,16 +18,12 @@ use catalog::Catalog;
 use checkpoint::{CheckpointReader, CheckpointWriter};
 use entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
 use errors::Result;
-use object_store::ObjectStore;
+use stablestore::StableStorage;
 use std::sync::Arc;
 use transaction::Context;
 
 /// Load the catalog from some object store.
-pub async fn load_catalog<C: Context>(
-    ctx: &C,
-    db_name: String,
-    store: Arc<dyn ObjectStore>,
-) -> Result<Catalog> {
+pub async fn load_catalog<C: Context, S: StableStorage>(ctx: &C, storage: S) -> Result<Catalog> {
     let catalog = Catalog::empty();
 
     // Insert defaults.
@@ -44,7 +40,7 @@ pub async fn load_catalog<C: Context>(
         catalog.create_view(ctx, view)?;
     }
 
-    let reader = CheckpointReader::new(db_name, store, catalog);
+    let reader = CheckpointReader::new(storage, catalog);
     reader.load_from_storage(ctx).await?;
     Ok(reader.into_catalog())
 }
@@ -53,13 +49,12 @@ pub async fn load_catalog<C: Context>(
 ///
 /// Checkpointing is allowed to happen concurrently with other operations in the
 /// system (user queries).
-pub async fn checkpoint_catalog<C: Context>(
+pub async fn checkpoint_catalog<C: Context, S: StableStorage>(
     ctx: &C,
-    db_name: String,
-    store: Arc<dyn ObjectStore>,
-    catalog: &Catalog,
+    storage: S,
+    catalog: Arc<Catalog>,
 ) -> Result<()> {
-    let writer = CheckpointWriter::new(db_name, store, catalog);
+    let writer = CheckpointWriter::new(storage, catalog);
     writer.write_to_storage(ctx).await?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 use crate::constants::INFORMATION_SCHEMA;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewEntry {
     pub schema: String,
     pub name: String,

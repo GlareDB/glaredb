@@ -11,14 +11,25 @@ pub type Version = u64;
 
 pub trait Blob: Serialize + for<'de> Deserialize<'de> + Send + Sync {}
 
+/// Option for specifying which version of a file to read.
+#[derive(Debug, Clone)]
+pub enum VersionReadOption {
+    /// Read the latest version.
+    Latest,
+    /// Read a specific version.
+    Version(Version),
+}
+
 /// The main stable storage trait.
 ///
 /// Stable storage should be used for various pieces of metadata for the
 /// database (including the catalog).
 #[async_trait]
-pub trait StableStorage: Send {
-    /// Read the latest blob for some name.
-    async fn latest<B: Blob>(&self, name: &str) -> Result<B>;
+pub trait StableStorage: Sync + Send {
+    /// Read some version of a named blob.
+    ///
+    /// Returns `Ok(None)` if an object doesn't exist with that version.
+    async fn read<B: Blob>(&self, name: &str, opt: VersionReadOption) -> Result<Option<B>>;
 
     /// Append a blob.
     ///

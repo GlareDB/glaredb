@@ -6,6 +6,7 @@ use cloud::errors::CloudError;
 use common::config::DbConfig;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
+use stablestore::object_store::ObjectStableStore;
 use std::env;
 use std::fs;
 use std::sync::Arc;
@@ -54,6 +55,12 @@ impl Server {
         // Get access runtime.
         let access = Arc::new(AccessRuntime::new(config.access).await?);
 
+        // Stable metadata storage.
+        let storage = ObjectStableStore::new(
+            access.object_store().clone(),
+            access.object_path_prefix().to_string(),
+        );
+
         // Create cloud client if configured.
         let cloud_client = match CloudClient::try_from_config(config.cloud).await {
             Ok(client) => Some(Arc::new(client)),
@@ -74,7 +81,7 @@ impl Server {
         let worker = BackgroundWorker::new(jobs, rx);
         let bg_handle = tokio::spawn(worker.begin());
 
-        let engine = Engine::new(access).await?;
+        let engine = Engine::new(storage).await?;
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(engine)),
             bg_handle,

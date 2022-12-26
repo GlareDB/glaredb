@@ -1,5 +1,5 @@
 use crate::errors::{internal, Result};
-use crate::{Blob, StableStorage, Version};
+use crate::{Blob, StableStorage, Version, VersionReadOption};
 use async_trait::async_trait;
 use object_store::{path::Path as ObjectPath, Error as ObjectError, ObjectStore};
 use std::sync::Arc;
@@ -31,7 +31,7 @@ impl ObjectStableStore {
         let path = ObjectPath::from(format!("{}/{}/{}", self.prefix, name, VERSION_FILE_NAME));
         let result = match self.store.get(&path).await {
             Ok(result) => result,
-            Err(ObjectError::NotFound { .. }) => return Ok(0), // Never before seen blog.
+            Err(ObjectError::NotFound { .. }) => return Ok(0), // Never before seen blob.
             Err(e) => return Err(e.into()),
         };
         let bs = result.bytes().await?;
@@ -50,10 +50,19 @@ impl ObjectStableStore {
 
 #[async_trait]
 impl StableStorage for ObjectStableStore {
-    async fn latest<B: Blob>(&self, name: &str) -> Result<B> {
-        let version = self.version_for_name(name).await?;
+    async fn read<B: Blob>(&self, name: &str, opt: VersionReadOption) -> Result<Option<B>> {
+        let version = match opt {
+            VersionReadOption::Latest => self.version_for_name(name).await?,
+            VersionReadOption::Version(v) => v,
+        };
         let path = ObjectPath::from(format!("{}/{}/{}", self.prefix, name, version));
-        let bs = self.store.get(&path).await?.bytes().await?;
+        let result = match self.store.get(&path).await {
+            Ok(result) => result,
+            Err(ObjectError::NotFound { .. }) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+
+        let bs = result.bytes().await?;
         let v = serde_json::from_slice(&bs)?;
         Ok(v)
     }
@@ -108,8 +117,38 @@ mod tests {
             let new_version = store.append("test", &b).await.unwrap();
             assert!(new_version > version);
             version = new_version;
-            let got: MyBlob = store.latest("test").await.unwrap();
-            assert_eq!(b, got);
+            let got: Option<MyBlob> = store.read("test", VersionReadOption::Latest).await.unwrap();
+            assert_eq!(Some(b), got);
         }
+    }
+
+    #[tokio::test]
+    async fn read_version() {
+        let store = ObjectStableStore::new(
+            Arc::new(TempObjectStore::new().unwrap()),
+            "prefix".to_string(),
+        );
+
+        let a = MyBlob { a: 1 };
+        let first = store.append("test", &a).await.unwrap();
+
+        let b = MyBlob { a: 2 };
+        let second = store.append("test", &b).await.unwrap();
+
+        assert_ne!(first, second);
+
+        // Read first version.
+        let got: Option<MyBlob> = store
+            .read("test", VersionReadOption::Version(first))
+            .await
+            .unwrap();
+        assert_eq!(Some(a), got);
+
+        // Read second version.
+        let got: Option<MyBlob> = store
+            .read("test", VersionReadOption::Version(second))
+            .await
+            .unwrap();
+        assert_eq!(Some(b), got);
     }
 }

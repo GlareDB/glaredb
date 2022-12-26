@@ -13,6 +13,7 @@ pgrepr = {path = "../pgrepr"}
 access = {path = "../access"}
 jsoncat = {path = "../jsoncat"}
 common = {path = "../common"}
+stablestore = {path = "../stablestore"}
 persistence = {path = "../persistence"}
 object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"
