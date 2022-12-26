@@ -24,6 +24,9 @@ pub enum VersionReadOption {
 ///
 /// Stable storage should be used for various pieces of metadata for the
 /// database (including the catalog).
+///
+/// Construction of a stable storage implementation should ensure that the
+/// database has appropriate permissions for reading and writing blobs.
 #[async_trait]
 pub trait StableStorage: Sync + Send {
     /// Read some version of a named blob.

@@ -1,9 +1,13 @@
-use access::runtime::AccessRuntime;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use background::{storage::ObjectStorageUsageJob, BackgroundJob, BackgroundWorker, DebugJob};
 use cloud::client::CloudClient;
 use cloud::errors::CloudError;
-use common::config::DbConfig;
+use common::{
+    access::{ObjectStoreConfig, ObjectStoreKind},
+    config::DbConfig,
+};
+use object_store::{gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, ObjectStore};
+use object_store_util::temp::TempObjectStore;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use stablestore::object_store::ObjectStableStore;
@@ -52,14 +56,11 @@ impl Server {
         trace!(?env_tmp, "ensuring temp dir for cache directory");
         fs::create_dir_all(&env_tmp)?;
 
-        // Get access runtime.
-        let access = Arc::new(AccessRuntime::new(config.access).await?);
+        // Open up object store used for metadata.
+        let store = open_object_store(&config.access).await?;
 
         // Stable metadata storage.
-        let storage = ObjectStableStore::new(
-            access.object_store().clone(),
-            access.object_path_prefix().to_string(),
-        );
+        let storage = ObjectStableStore::open(store.clone()).await?;
 
         // Create cloud client if configured.
         let cloud_client = match CloudClient::try_from_config(config.cloud).await {
@@ -72,7 +73,7 @@ impl Server {
         let jobs: Vec<Box<dyn BackgroundJob>> = vec![
             Box::new(DebugJob),
             Box::new(ObjectStorageUsageJob::new(
-                access.object_store().clone(),
+                store,
                 cloud_client.clone(),
                 config.background.storage_reporting.interval,
             )),
@@ -104,4 +105,32 @@ impl Server {
             });
         }
     }
+}
+
+/// Open the object store for use with the catalog and other metadata.
+async fn open_object_store(conf: &ObjectStoreConfig) -> Result<Arc<dyn ObjectStore>> {
+    let store: Arc<dyn ObjectStore> = match &conf.object_store {
+        ObjectStoreKind::LocalTemporary => Arc::new(TempObjectStore::new()?),
+        ObjectStoreKind::Local { object_store_path } => {
+            trace!(
+                ?object_store_path,
+                "Create local object store path if nessary"
+            );
+            fs::create_dir_all(object_store_path)?;
+            Arc::new(LocalFileSystem::new_with_prefix(object_store_path)?)
+        }
+        ObjectStoreKind::Memory => Arc::new(object_store::memory::InMemory::new()),
+        ObjectStoreKind::Gcs {
+            service_account_path,
+            bucket_name,
+        } => Arc::new(
+            GoogleCloudStorageBuilder::new()
+                .with_service_account_path(service_account_path)
+                .with_bucket_name(bucket_name)
+                .build()?,
+        ),
+        ObjectStoreKind::S3 => return Err(anyhow!("s3 object store currently not supported")),
+    };
+
+    Ok(store)
 }

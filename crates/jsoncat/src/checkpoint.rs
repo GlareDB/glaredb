@@ -14,9 +14,9 @@ struct SerializedCheckpointInfo {}
 
 impl Blob for SerializedCheckpointInfo {}
 
-const SCHEMAS_BLOB_NAME: &str = "schemas";
-const TABLES_BLOB_NAME: &str = "tables";
-const VIEWS_BLOB_NAME: &str = "views";
+const SCHEMAS_BLOB_NAME: &str = "catalog/schemas";
+const TABLES_BLOB_NAME: &str = "catalog/tables";
+const VIEWS_BLOB_NAME: &str = "catalog/views";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SerializedSchemas {

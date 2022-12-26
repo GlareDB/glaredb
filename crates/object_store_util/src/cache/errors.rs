@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
-pub enum PersistenceError {
+pub enum CacheError {
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 
@@ -24,13 +24,24 @@ pub enum PersistenceError {
     Internal(String),
 }
 
-pub type Result<T, E = PersistenceError> = std::result::Result<T, E>;
+pub type Result<T, E = CacheError> = std::result::Result<T, E>;
 
-#[allow(unused_macros)]
 macro_rules! internal {
     ($($arg:tt)*) => {
-        crate::errors::PersistenceError::Internal(std::format!($($arg)*))
+        crate::cache::errors::CacheError::Internal(std::format!($($arg)*))
     };
 }
-
 pub(crate) use internal;
+
+//TODO: Dynamically get cache name in the future
+impl From<CacheError> for object_store::Error {
+    fn from(e: CacheError) -> Self {
+        match e {
+            CacheError::ObjectStore(e) => e,
+            e => Self::Generic {
+                store: super::OBJECT_STORE_CACHE_NAME,
+                source: Box::new(e),
+            },
+        }
+    }
+}

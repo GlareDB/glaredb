@@ -1,8 +1,11 @@
-use crate::errors::{internal, Result};
+use crate::errors::{internal, Result, StableStorageError};
 use crate::{Blob, StableStorage, Version, VersionReadOption};
 use async_trait::async_trait;
+use bytes::Bytes;
 use object_store::{path::Path as ObjectPath, Error as ObjectError, ObjectStore};
 use std::sync::Arc;
+use tracing::{info, info_span, Instrument};
+use uuid::Uuid;
 
 /// File name used for per-object versioning.
 const VERSION_FILE_NAME: &str = "version";
@@ -12,23 +15,59 @@ const VERSION_FILE_NAME: &str = "version";
 /// Each version of a blob is an individual object within the object store.
 #[derive(Debug)]
 pub struct ObjectStableStore {
-    prefix: String,
     store: Arc<dyn ObjectStore>,
 }
 
 impl ObjectStableStore {
-    /// Create a new stable store.
+    /// Open a stable store backed by object storage.
     ///
     /// Every object in the store will be prefixed with the provided string. If
     /// attempting to load a previous store, the provided prefix must be same as
     /// the one provided previously.
-    pub fn new(store: Arc<dyn ObjectStore>, prefix: String) -> ObjectStableStore {
-        ObjectStableStore { prefix, store }
+    pub async fn open(store: Arc<dyn ObjectStore>) -> Result<ObjectStableStore> {
+        // Ensure we have permissions by writing to and reading from a random
+        // file.
+        {
+            let store = store.clone();
+            let id = Uuid::new_v4().to_string();
+            let loc = ObjectPath::from(format!("perm_check-{}", id));
+
+            let span = info_span!("object_store_permissions_check", %store, %loc);
+            async move {
+                let bytes = Bytes::from("Hello world!");
+                let range = 0..bytes.len();
+
+                info!("testing put");
+                store.put(&loc, bytes.clone()).await?;
+
+                info!("testing get_range");
+                let got = store.get_range(&loc, range).await?;
+
+                if got != bytes {
+                    return Err(internal!(
+                        "bytes mismtach from object storage; got: {:?}, expected: {:?}",
+                        got,
+                        bytes
+                    ));
+                }
+
+                info!("testing delete");
+                store.delete(&loc).await?;
+
+                info!("able to put, get_range, and delete");
+
+                Ok::<(), StableStorageError>(())
+            }
+            .instrument(span)
+            .await?;
+        }
+
+        Ok(ObjectStableStore { store })
     }
 
     /// Find the latest version for some name.
     async fn version_for_name(&self, name: &str) -> Result<Version> {
-        let path = ObjectPath::from(format!("{}/{}/{}", self.prefix, name, VERSION_FILE_NAME));
+        let path = ObjectPath::from(format!("{}/{}", name, VERSION_FILE_NAME));
         let result = match self.store.get(&path).await {
             Ok(result) => result,
             Err(ObjectError::NotFound { .. }) => return Ok(0), // Never before seen blob.
@@ -55,7 +94,7 @@ impl StableStorage for ObjectStableStore {
             VersionReadOption::Latest => self.version_for_name(name).await?,
             VersionReadOption::Version(v) => v,
         };
-        let path = ObjectPath::from(format!("{}/{}/{}", self.prefix, name, version));
+        let path = ObjectPath::from(format!("{}/{}", name, version));
         let result = match self.store.get(&path).await {
             Ok(result) => result,
             Err(ObjectError::NotFound { .. }) => return Ok(None),
@@ -71,12 +110,12 @@ impl StableStorage for ObjectStableStore {
         let version = self.version_for_name(name).await? + 1;
 
         // Store new object.
-        let path = ObjectPath::from(format!("{}/{}/{}", self.prefix, name, version));
+        let path = ObjectPath::from(format!("{}/{}", name, version));
         let buf = serde_json::to_vec(blob)?;
         self.store.put(&path, buf.into()).await?;
 
         // Update version.
-        let path = ObjectPath::from(format!("{}/{}/{}", self.prefix, name, VERSION_FILE_NAME));
+        let path = ObjectPath::from(format!("{}/{}", name, VERSION_FILE_NAME));
         self.store
             .put(&path, u64::to_be_bytes(version).to_vec().into())
             .await?;
@@ -101,10 +140,9 @@ mod tests {
 
     #[tokio::test]
     async fn append_many() {
-        let store = ObjectStableStore::new(
-            Arc::new(TempObjectStore::new().unwrap()),
-            "prefix".to_string(),
-        );
+        let store = ObjectStableStore::open(Arc::new(TempObjectStore::new().unwrap()))
+            .await
+            .unwrap();
 
         // First append...
         let b = MyBlob { a: 1 };
@@ -124,10 +162,9 @@ mod tests {
 
     #[tokio::test]
     async fn read_version() {
-        let store = ObjectStableStore::new(
-            Arc::new(TempObjectStore::new().unwrap()),
-            "prefix".to_string(),
-        );
+        let store = ObjectStableStore::open(Arc::new(TempObjectStore::new().unwrap()))
+            .await
+            .unwrap();
 
         let a = MyBlob { a: 1 };
         let first = store.append("test", &a).await.unwrap();

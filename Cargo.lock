@@ -1445,6 +1445,7 @@ dependencies = [
  "common",
  "futures",
  "logutil",
+ "object_store",
  "object_store_util",
  "parking_lot",
  "pgsrv",
@@ -2287,10 +2288,14 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures",
+ "logutil",
+ "moka",
  "object_store",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3408,6 +3413,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

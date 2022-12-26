@@ -1,7 +1,7 @@
 use config::{builder::DefaultState, Config, ConfigBuilder, Environment, File, FileFormat};
 use serde::{Deserialize, Serialize};
 
-use crate::access::AccessConfig;
+use crate::access::ObjectStoreConfig;
 use crate::background::BackgroundConfig;
 use crate::cloud::CloudConfig;
 use crate::errors::Result;
@@ -14,7 +14,7 @@ const SEPARATOR: &str = "__";
 /// variables with the following prefix, `GLAREDB__`.
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct DbConfig {
-    pub access: AccessConfig,
+    pub access: ObjectStoreConfig,
     pub background: BackgroundConfig,
     pub cloud: CloudConfig,
 }
