@@ -1,9 +1,9 @@
 use crate::errors::Result;
 use crate::session::Session;
-use access::runtime::AccessRuntime;
 use jsoncat::catalog::Catalog;
 use jsoncat::load_catalog;
 use jsoncat::transaction::StubCatalogContext;
+use stablestore::StableStorage;
 use std::sync::Arc;
 
 /// Wrapper around the database catalog.
@@ -13,13 +13,8 @@ pub struct Engine {
 
 impl Engine {
     /// Create a new engine using the provided access runtime.
-    pub async fn new(runtime: Arc<AccessRuntime>) -> Result<Engine> {
-        let catalog = load_catalog(
-            &StubCatalogContext,
-            runtime.config().db_name.clone(),
-            runtime.object_store().clone(),
-        )
-        .await?;
+    pub async fn new<S: StableStorage>(storage: S) -> Result<Engine> {
+        let catalog = load_catalog(&StubCatalogContext, storage).await?;
         Ok(Engine {
             catalog: Arc::new(catalog),
         })

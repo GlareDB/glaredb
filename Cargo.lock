@@ -16,7 +16,6 @@ dependencies = [
  "object_store",
  "object_store_util",
  "parking_lot",
- "persistence",
  "scc",
  "serde",
  "tempfile",
@@ -1445,6 +1444,7 @@ dependencies = [
  "common",
  "futures",
  "logutil",
+ "object_store",
  "object_store_util",
  "parking_lot",
  "pgsrv",
@@ -1453,6 +1453,7 @@ dependencies = [
  "serde",
  "sqlexec",
  "sqlparser 0.28.0",
+ "stablestore",
  "tempfile",
  "tokio",
  "tokio-serde",
@@ -1794,10 +1795,10 @@ dependencies = [
  "dfutil",
  "futures",
  "logutil",
- "object_store",
  "parking_lot",
  "serde",
  "serde_json",
+ "stablestore",
  "thiserror",
  "tokio",
  "tracing",
@@ -2286,10 +2287,14 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures",
+ "logutil",
+ "moka",
  "object_store",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2459,25 +2464,6 @@ name = "percent-encoding"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
-
-[[package]]
-name = "persistence"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "datafusion",
- "futures",
- "logutil",
- "moka",
- "object_store",
- "parking_lot",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "uuid",
-]
 
 [[package]]
 name = "pest"
@@ -3319,11 +3305,11 @@ dependencies = [
  "object_store",
  "object_store_util",
  "parking_lot",
- "persistence",
  "pgrepr",
  "postgres-types",
  "regex",
  "sqlparser 0.28.0",
+ "stablestore",
  "tempfile",
  "thiserror",
  "tokio",
@@ -3390,6 +3376,23 @@ checksum = "249ae674b9f636b8ff64d8bfe218774cf05a26de40fd9f358669dccc4c0a9d7d"
 dependencies = [
  "log",
  "serde",
+]
+
+[[package]]
+name = "stablestore"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures",
+ "object_store",
+ "object_store_util",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

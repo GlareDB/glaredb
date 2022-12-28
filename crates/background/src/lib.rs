@@ -2,9 +2,9 @@
 pub mod errors;
 pub mod storage;
 
+use async_trait::async_trait;
+use errors::Result;
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::Interval;
@@ -12,16 +12,19 @@ use tracing::{debug, error};
 
 const DEBUG_DURATION: Duration = Duration::from_secs(60);
 
-pub trait BackgroundJob: Send + fmt::Debug {
+#[async_trait]
+pub trait BackgroundJob: Sync + Send + fmt::Display + fmt::Debug {
     /// Return the interval that this job should run on.
     ///
     /// This should return an interval with the appropriate skipped behavior
     /// necessary for the job.
     fn interval(&self) -> Interval;
 
-    /// Return the future for completing the job. The future will be sent to
-    /// some background thread for execution.
-    fn job_fut(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+    /// Execute the background job, returning any errors that occurs.
+    ///
+    /// Note that returning an error will not prevent future executions of the
+    /// job.
+    async fn execute(&self) -> Result<()>;
 }
 
 /// A simple job that prints a debug log at some interval. Useful to check that
@@ -29,22 +32,45 @@ pub trait BackgroundJob: Send + fmt::Debug {
 #[derive(Debug)]
 pub struct DebugJob;
 
+#[async_trait]
 impl BackgroundJob for DebugJob {
     fn interval(&self) -> Interval {
         tokio::time::interval(DEBUG_DURATION)
     }
 
-    fn job_fut(&self) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-        Box::pin(async {
-            debug!("debug interval hit");
-        })
+    async fn execute(&self) -> Result<()> {
+        debug!("debug interval hit");
+        Ok(())
+    }
+}
+
+impl fmt::Display for DebugJob {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DebugJob")
+    }
+}
+
+#[derive(Debug)]
+struct DisplayableJobsVec(Vec<Box<dyn BackgroundJob>>);
+
+impl fmt::Display for DisplayableJobsVec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.0
+                .iter()
+                .map(|job| job.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
 /// Run all background jobs on periodic intervals.
 #[derive(Debug)]
 pub struct BackgroundWorker {
-    jobs: Vec<Box<dyn BackgroundJob>>,
+    jobs: DisplayableJobsVec,
     // NOTE: Only currently used to avoid dropping tokio task handles.
     shutdown: oneshot::Receiver<()>,
 }
@@ -54,7 +80,7 @@ impl BackgroundWorker {
         jobs: impl IntoIterator<Item = Box<dyn BackgroundJob>>,
         shutdown: oneshot::Receiver<()>,
     ) -> BackgroundWorker {
-        let jobs = jobs.into_iter().collect();
+        let jobs = DisplayableJobsVec(jobs.into_iter().collect());
         BackgroundWorker { jobs, shutdown }
     }
 
@@ -63,16 +89,17 @@ impl BackgroundWorker {
     /// Note that this handles all errors internally. Errors should not stop the
     /// worker from continuing to process jobs.
     pub async fn begin(self) {
-        debug!(jobs = ?self.jobs, "starting background worker");
+        debug!(jobs = %self.jobs, "starting background worker");
 
         // Spin up a thread for each job.
-        for job in self.jobs.into_iter() {
+        for job in self.jobs.0.into_iter() {
             let mut interval = job.interval();
             let _handle = tokio::spawn(async move {
                 loop {
                     interval.tick().await;
-                    let job_fut = job.job_fut();
-                    job_fut.await;
+                    if let Err(e) = job.execute().await {
+                        error!(%e, %job, "failed to execute job");
+                    }
                 }
             });
         }
@@ -94,15 +121,22 @@ mod tests {
         hits: Arc<AtomicUsize>,
     }
 
+    #[async_trait]
     impl BackgroundJob for DummyJob {
         fn interval(&self) -> Interval {
             tokio::time::interval(Duration::from_millis(100))
         }
 
-        fn job_fut(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-            Box::pin(async move {
-                self.hits.fetch_add(1, Ordering::Relaxed);
-            })
+        async fn execute(&self) -> Result<()> {
+            self.hits.fetch_add(1, Ordering::Relaxed);
+            debug!("debug interval hit");
+            Ok(())
+        }
+    }
+
+    impl fmt::Display for DummyJob {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "DummyJob")
         }
     }
 

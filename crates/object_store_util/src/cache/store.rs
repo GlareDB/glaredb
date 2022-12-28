@@ -1,4 +1,5 @@
 //! On-disk cache for byte ranges from object storage
+#![allow(dead_code)]
 use std::{
     fmt::{Display, Formatter},
     ops::Range,
@@ -23,7 +24,8 @@ use tokio::{fs, io::AsyncWrite, runtime::Handle};
 use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
 
-use crate::errors::{internal, PersistenceError, Result};
+use super::errors::{internal, CacheError, Result};
+use super::OBJECT_STORE_CACHE_NAME;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct ObjectCacheKey {
@@ -32,7 +34,7 @@ struct ObjectCacheKey {
     offset: usize,
 }
 
-const OBJECT_STORE_CACHE_FILE_EXTENTION: &str = "bin";
+const CACHE_FILE_EXTENSION: &str = "bin";
 
 impl ObjectCacheKey {
     //TODO: Consider changing so generated files are all in base_dir instead of object store path
@@ -41,12 +43,12 @@ impl ObjectCacheKey {
         let id = Uuid::new_v4();
         format!(
             "{}-{}-{}.{}",
-            self.location, self.offset, id, OBJECT_STORE_CACHE_FILE_EXTENTION
+            self.location, self.offset, id, CACHE_FILE_EXTENSION
         )
     }
 
     fn new(location: &str, offset: usize) -> Result<Self> {
-        let location = crate::file::to_object_path(location)?;
+        let location = to_object_path(location)?;
         Ok(Self { location, offset })
     }
 }
@@ -97,10 +99,6 @@ impl Display for ObjectStoreCache {
         )
     }
 }
-
-/// Default size of cached ranges from the object file
-pub const DEFAULT_BYTE_RANGE_SIZE: usize = 4096;
-pub const OBJECT_STORE_CACHE_NAME: &str = "Object Storage Cache";
 
 impl ObjectStoreCache {
     pub fn new(
@@ -203,7 +201,7 @@ impl ObjectStoreCache {
         let path = value
             .path
             .try_read()
-            .map_err(|_| PersistenceError::RetryCacheRead)?;
+            .map_err(|_| CacheError::RetryCacheRead)?;
 
         if let Some(path) = path.as_ref() {
             let contents: Bytes = fs::read(path).await?.into();
@@ -217,7 +215,7 @@ impl ObjectStoreCache {
             }
         } else {
             // Inidcate a retry is required as eviction has set path to None
-            Err(PersistenceError::RetryCacheRead)
+            Err(CacheError::RetryCacheRead)
         }
     }
 
@@ -287,7 +285,7 @@ impl ObjectStoreCache {
             //and re use that here without re-reading from newly written file
             match Self::read_cache_file(&value).await {
                 Ok(contents) => break Ok(contents),
-                Err(PersistenceError::RetryCacheRead) => {
+                Err(CacheError::RetryCacheRead) => {
                     debug!(?key, ?value, "Retrying read from cache");
                     continue;
                 }
@@ -296,7 +294,7 @@ impl ObjectStoreCache {
         }
     }
 
-    async fn init_value(&self, key: &ObjectCacheKey) -> Result<ObjectCacheValue, PersistenceError> {
+    async fn init_value(&self, key: &ObjectCacheKey) -> Result<ObjectCacheValue, CacheError> {
         let location = &key.location;
         let offset = key.offset;
         //TODO: Save and retrieve meta data within the cache to prevent calling head for every
@@ -438,6 +436,24 @@ fn align_range(range: &Range<usize>, alignment: usize) -> Range<usize> {
     Range { start, end }
 }
 
+/// Convert a file system path to an object store path.
+///
+/// The provided path must be relative and canonical.
+///
+/// Note that this doesn't use `ObjectPath::from_filesystem_path` since that
+/// function will attempt to resolve the path using the local filesystem.
+pub fn to_object_path<P: AsRef<Path>>(path: P) -> Result<ObjectStorePath> {
+    let path = path.as_ref();
+    let s = path
+        .to_str()
+        .ok_or_else(|| internal!("provided path not valid utf8: {:?}", path))?;
+    if path.is_absolute() {
+        return Err(internal!("path must be relative: {:?}", path));
+    }
+    let obj_path = ObjectStorePath::parse(s)?;
+    Ok(obj_path)
+}
+
 /// Utility module for creating object store cache for testing
 #[cfg(test)]
 pub mod test_util {
@@ -467,15 +483,13 @@ pub mod test_util {
 
 #[cfg(test)]
 mod tests {
-    use std::{thread::sleep, time::Duration};
-
+    use super::*;
+    use crate::cache::DEFAULT_BYTE_RANGE_SIZE;
     use futures::future;
     use moka::future::ConcurrentCacheExt;
     use object_store::local::LocalFileSystem;
+    use std::{thread::sleep, time::Duration};
     use tempfile::TempDir;
-
-    use super::*;
-    use crate::errors::PersistenceError;
 
     #[tokio::test]
     async fn write_cache_file() {
@@ -551,7 +565,7 @@ mod tests {
         let cache = ObjectStoreCache::new(cache_dir, DEFAULT_BYTE_RANGE_SIZE, 2, Arc::new(store));
 
         assert!(
-            matches!(cache.unwrap_err(), PersistenceError::Internal(e) if e == format!("path must be absolute: {:?}", cache_dir))
+            matches!(cache.unwrap_err(), CacheError::Internal(e) if e == format!("path must be absolute: {:?}", cache_dir))
         );
     }
 
@@ -596,7 +610,7 @@ mod tests {
 
         assert!(matches!(
             read_data_serialized.unwrap_err(),
-            PersistenceError::Io(_)
+            CacheError::Io(_)
         ));
     }
 
@@ -775,8 +789,7 @@ mod tests {
             location: test_obj_store_file,
             offset: test_offset,
         };
-        let unique_portion_length =
-            format!("{}.{}", Uuid::new_v4(), OBJECT_STORE_CACHE_FILE_EXTENTION).len();
+        let unique_portion_length = format!("{}.{}", Uuid::new_v4(), CACHE_FILE_EXTENSION).len();
         let expected_filename = key.to_filename();
         let expected_filename_without_uuid = expected_filename
             .get(..(expected_filename.len() - unique_portion_length))
@@ -858,7 +871,7 @@ mod tests {
         let error = ObjectStoreCache::read_cache_file(&value).await.unwrap_err();
 
         trace!(?error);
-        assert!(matches!(error, PersistenceError::RetryCacheRead));
+        assert!(matches!(error, CacheError::RetryCacheRead));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]

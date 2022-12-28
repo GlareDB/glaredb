@@ -1,41 +1,53 @@
 use crate::catalog::{Catalog, PhysicalSchema};
 use crate::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
-use crate::errors::Result;
+use crate::errors::{internal, Result};
 use crate::transaction::Context;
-use bytes::Bytes;
-use object_store::{path::Path as ObjectPath, Error as ObjectError, ObjectStore};
-use serde_json::{de::SliceRead, StreamDeserializer};
+use serde::{Deserialize, Serialize};
+use stablestore::{Blob, StableStorage, VersionReadOption};
 use std::sync::Arc;
 use tracing::debug;
 
-/// Represents a single catalog file for some type of entry.
-#[derive(Debug)]
-struct EntryFile(&'static str);
+const CHECKPOINT_INFO_BLOB_NAME: &str = "catalog/checkpoint";
 
-impl EntryFile {
-    pub fn object_path(&self, db_name: &str) -> ObjectPath {
-        let path = format!("{}/catalog/{}", db_name, self.0);
-        ObjectPath::from(path)
-    }
+#[derive(Debug, Serialize, Deserialize)]
+struct SerializedCheckpointInfo {}
+
+impl Blob for SerializedCheckpointInfo {}
+
+const SCHEMAS_BLOB_NAME: &str = "catalog/schemas";
+const TABLES_BLOB_NAME: &str = "catalog/tables";
+const VIEWS_BLOB_NAME: &str = "catalog/views";
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SerializedSchemas {
+    schemas: Vec<SchemaEntry>,
 }
 
-const SCHEMAS_FILE: EntryFile = EntryFile("schemas");
-const TABLES_FILE: EntryFile = EntryFile("tables");
-const VIEWS_FILE: EntryFile = EntryFile("views");
+impl Blob for SerializedSchemas {}
 
-pub struct CheckpointReader {
-    db_name: String,
-    store: Arc<dyn ObjectStore>,
+#[derive(Debug, Serialize, Deserialize)]
+struct SerializedTables {
+    tables: Vec<TableEntry>,
+}
+
+impl Blob for SerializedTables {}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SerializedViews {
+    views: Vec<ViewEntry>,
+}
+
+impl Blob for SerializedViews {}
+
+/// Reads a catalog checkpoint from some underlying stable storage.
+pub struct CheckpointReader<S> {
     catalog: Catalog,
+    storage: S,
 }
 
-impl CheckpointReader {
-    pub fn new(db_name: String, store: Arc<dyn ObjectStore>, catalog: Catalog) -> CheckpointReader {
-        CheckpointReader {
-            db_name,
-            store,
-            catalog,
-        }
+impl<S: StableStorage> CheckpointReader<S> {
+    pub fn new(storage: S, catalog: Catalog) -> CheckpointReader<S> {
+        CheckpointReader { storage, catalog }
     }
 
     pub fn into_catalog(self) -> Catalog {
@@ -56,27 +68,27 @@ impl CheckpointReader {
     }
 
     async fn checkpoint_exists(&self) -> Result<bool> {
-        debug!("checking for checkpoint");
-        let result = self
-            .store
-            .head(&SCHEMAS_FILE.object_path(&self.db_name))
-            .await;
+        debug!("checking if checkpoint exists");
 
-        Ok(match result {
-            Ok(_) => true,
-            Err(ObjectError::NotFound { .. }) => false,
-            Err(e) => return Err(e.into()),
-        })
+        let v: Option<SerializedCheckpointInfo> = self
+            .storage
+            .read(CHECKPOINT_INFO_BLOB_NAME, VersionReadOption::Latest)
+            .await?;
+
+        Ok(v.is_some())
     }
 
     async fn load_schemas<C: Context>(&self, ctx: &C) -> Result<()> {
         debug!("loading schemas");
-        let buf = self.object_bytes(&SCHEMAS_FILE).await?;
 
-        let stream = StreamDeserializer::<_, SchemaEntry>::new(SliceRead::new(&buf));
-        for result in stream {
-            let ent = result?;
-            self.catalog.create_schema(ctx, ent)?;
+        let v: SerializedSchemas = self
+            .storage
+            .read(SCHEMAS_BLOB_NAME, VersionReadOption::Latest)
+            .await?
+            .ok_or_else(|| internal!("missing serialized schemas"))?;
+
+        for schema in v.schemas {
+            self.catalog.create_schema(ctx, schema)?;
         }
 
         Ok(())
@@ -84,12 +96,15 @@ impl CheckpointReader {
 
     async fn load_tables<C: Context>(&self, ctx: &C) -> Result<()> {
         debug!("loading tables");
-        let buf = self.object_bytes(&TABLES_FILE).await?;
 
-        let stream = StreamDeserializer::<_, TableEntry>::new(SliceRead::new(&buf));
-        for result in stream {
-            let ent = result?;
-            self.catalog.create_table(ctx, ent)?;
+        let v: SerializedTables = self
+            .storage
+            .read(TABLES_BLOB_NAME, VersionReadOption::Latest)
+            .await?
+            .ok_or_else(|| internal!("missing serialized tables"))?;
+
+        for table in v.tables {
+            self.catalog.create_table(ctx, table)?;
         }
 
         Ok(())
@@ -97,46 +112,29 @@ impl CheckpointReader {
 
     async fn load_views<C: Context>(&self, ctx: &C) -> Result<()> {
         debug!("loading views");
-        let buf = self.object_bytes(&VIEWS_FILE).await?;
 
-        let stream = StreamDeserializer::<_, ViewEntry>::new(SliceRead::new(&buf));
-        for result in stream {
-            let ent = result?;
-            self.catalog.create_view(ctx, ent)?;
+        let v: SerializedViews = self
+            .storage
+            .read(VIEWS_BLOB_NAME, VersionReadOption::Latest)
+            .await?
+            .ok_or_else(|| internal!("missing serialized views"))?;
+
+        for view in v.views {
+            self.catalog.create_view(ctx, view)?;
         }
 
         Ok(())
     }
-
-    async fn object_bytes(&self, file: &EntryFile) -> Result<Bytes> {
-        debug!(?file, "getting bytes for file");
-        let buf = self
-            .store
-            .get(&TABLES_FILE.object_path(&self.db_name))
-            .await?
-            .bytes()
-            .await?;
-        Ok(buf)
-    }
 }
 
-pub struct CheckpointWriter<'a> {
-    db_name: String,
-    store: Arc<dyn ObjectStore>,
-    catalog: &'a Catalog,
+pub struct CheckpointWriter<S> {
+    storage: S,
+    catalog: Arc<Catalog>,
 }
 
-impl<'a> CheckpointWriter<'a> {
-    pub fn new(
-        db_name: String,
-        store: Arc<dyn ObjectStore>,
-        catalog: &'a Catalog,
-    ) -> CheckpointWriter {
-        CheckpointWriter {
-            db_name,
-            store,
-            catalog,
-        }
+impl<S: StableStorage> CheckpointWriter<S> {
+    pub fn new(storage: S, catalog: Arc<Catalog>) -> CheckpointWriter<S> {
+        CheckpointWriter { storage, catalog }
     }
 
     pub async fn write_to_storage<C: Context>(&self, ctx: &C) -> Result<()> {
@@ -151,8 +149,7 @@ impl<'a> CheckpointWriter<'a> {
             schema_ents.push(schema.as_ref().into());
 
             let writer = SchemaCheckpointWriter {
-                db_name: &self.db_name,
-                store: &self.store,
+                storage: &self.storage,
                 schema,
             };
 
@@ -161,44 +158,47 @@ impl<'a> CheckpointWriter<'a> {
         }
 
         // Write the schema entries.
-        let mut buf = Vec::new();
-        for schema in schema_ents {
-            serde_json::to_writer(&mut buf, &schema)?;
-        }
-        self.store
-            .put(&SCHEMAS_FILE.object_path(&self.db_name), buf.into())
+        let v = SerializedSchemas {
+            schemas: schema_ents,
+        };
+        self.storage.append(SCHEMAS_BLOB_NAME, &v).await?;
+
+        // Write out checkpoint into.
+        self.storage
+            .append(CHECKPOINT_INFO_BLOB_NAME, &SerializedCheckpointInfo {})
             .await?;
 
         Ok(())
     }
 }
 
-struct SchemaCheckpointWriter<'a> {
-    db_name: &'a str,
-    store: &'a Arc<dyn ObjectStore>,
+struct SchemaCheckpointWriter<'a, S> {
+    storage: &'a S,
     schema: Arc<PhysicalSchema>,
 }
 
-impl<'a> SchemaCheckpointWriter<'a> {
+impl<'a, S: StableStorage> SchemaCheckpointWriter<'a, S> {
     async fn write_tables<C: Context>(&self, ctx: &C) -> Result<()> {
-        let mut buf = Vec::new();
-        for table in self.schema.tables.iter(ctx) {
-            serde_json::to_writer(&mut buf, table.as_ref())?;
-        }
-        self.store
-            .put(&TABLES_FILE.object_path(self.db_name), buf.into())
-            .await?;
+        let tables: Vec<_> = self
+            .schema
+            .tables
+            .iter(ctx)
+            .map(|ent| ent.as_ref().clone())
+            .collect();
+        let v = SerializedTables { tables };
+        self.storage.append(TABLES_BLOB_NAME, &v).await?;
         Ok(())
     }
 
     async fn write_views<C: Context>(&self, ctx: &C) -> Result<()> {
-        let mut buf = Vec::new();
-        for view in self.schema.views.iter(ctx) {
-            serde_json::to_writer(&mut buf, view.as_ref())?;
-        }
-        self.store
-            .put(&VIEWS_FILE.object_path(self.db_name), buf.into())
-            .await?;
+        let views: Vec<_> = self
+            .schema
+            .views
+            .iter(ctx)
+            .map(|ent| ent.as_ref().clone())
+            .collect();
+        let v = SerializedViews { views };
+        self.storage.append(VIEWS_BLOB_NAME, &v).await?;
         Ok(())
     }
 }
