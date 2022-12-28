@@ -1,11 +1,9 @@
 use crate::errors::{internal, Result};
 use crate::logical_plan::*;
+use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::session::Session;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::sql::sqlparser::ast;
-use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
-use datafusion::sql::sqlparser::parser::Parser;
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -50,16 +48,6 @@ impl fmt::Debug for ExecutionResult {
     }
 }
 
-#[derive(Debug)]
-pub struct SqlParser;
-
-impl SqlParser {
-    pub fn parse(sql: &str) -> Result<Vec<ast::Statement>> {
-        let statements = Parser::parse_sql(&PostgreSqlDialect {}, sql)?;
-        Ok(statements)
-    }
-}
-
 /// A thin wrapper around a session responsible for pull-based execution for a
 /// sql statement.
 ///
@@ -74,14 +62,14 @@ impl SqlParser {
 /// executions.
 pub struct Executor<'a> {
     /// All parsed statements.
-    statements: VecDeque<ast::Statement>,
+    statements: VecDeque<StatementWithExtensions>,
     session: &'a mut Session,
 }
 
 impl<'a> Executor<'a> {
     /// Create a new executor with the provided sql string and session.
     pub fn new(sql: &'a str, session: &'a mut Session) -> Result<Self> {
-        let statements = SqlParser::parse(sql)?.into_iter().collect();
+        let statements = CustomParser::parse_sql(sql)?;
         // TODO: Implicit transaction.
         Ok(Executor {
             statements,
@@ -101,7 +89,10 @@ impl<'a> Executor<'a> {
         Some(self.execute_statement(statement).await)
     }
 
-    async fn execute_statement(&mut self, stmt: ast::Statement) -> Result<ExecutionResult> {
+    async fn execute_statement(
+        &mut self,
+        stmt: StatementWithExtensions,
+    ) -> Result<ExecutionResult> {
         let plan = {
             let planner = SessionPlanner::new(&self.session.ctx);
             planner.plan_ast(stmt)?

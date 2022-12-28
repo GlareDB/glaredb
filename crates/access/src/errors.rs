@@ -5,6 +5,9 @@ use datafusion::parquet::errors::ParquetError;
 #[derive(Debug, thiserror::Error)]
 pub enum AccessError {
     #[error(transparent)]
+    TokioPostgres(#[from] tokio_postgres::Error),
+
+    #[error(transparent)]
     Arrow(#[from] ArrowError),
 
     #[error(transparent)]
