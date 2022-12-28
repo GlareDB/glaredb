@@ -23,6 +23,12 @@ pub enum AccessError {
     ObjectStorePath(#[from] object_store::path::Error),
 
     #[error(transparent)]
+    GcpBigQuery(#[from] gcp_bigquery_client::error::BQError),
+
+    #[error("Failed to decode json: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error("internal: {0}")]
