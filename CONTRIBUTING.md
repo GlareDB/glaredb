@@ -21,6 +21,8 @@ additional system dependencies:
 - Protobuf (protoc)
 - Possibly more
 
+Note that some test scripts that are run in CI will assume the use of nix.
+
 ### Nix setup
 
 The [nix download page](https://nixos.org/download.html) has instructions on installation. To enable flakes,
@@ -37,6 +39,18 @@ most up to date information.
 When all of these steps are complete, you should be able to obtain the projects
 development shell: `nix develop` From this shell you may work on the project and
 use any cli tools needed.
+
+### Additional tooling
+
+While not strictly required for development, having Docker installed and running
+can be helpful in certain scenarios. For example, spinning up a scratch Postgres
+instance in Docker can be done via:
+
+``` shell
+docker run --rm --name my_scratch_postgres -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d postgres:14
+```
+
+See [Get Docker](https://docs.docker.com/get-docker/) for info on installing Docker (Desktop).
 
 ## Testing
 

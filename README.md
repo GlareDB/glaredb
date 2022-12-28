@@ -13,8 +13,11 @@ Repository for the core GlareDB database.
 An in-memory version of GlareDB can be started with the following command:
 
 ``` shell
-cargo run --bin glaredb -- -vv server --storage memory -b 0.0.0.0:6543
+cargo run --bin glaredb -- -v server
 ```
+
+By default, this will start GlareDB on port 6543. All on-disk files will be
+stored in a temporary directory.
 
 To connect, use any Postgres compatible client. E.g. `psql`:
 
