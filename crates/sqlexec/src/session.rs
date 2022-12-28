@@ -60,8 +60,9 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn create_external_table(&self, _plan: CreateExternalTable) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("create external table"))
+    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
+        self.ctx.create_external_table(plan)?;
+        Ok(())
     }
 
     pub(crate) async fn create_table_as(&self, _plan: CreateTableAs) -> Result<()> {

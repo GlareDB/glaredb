@@ -23,6 +23,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-postgres",
  "tracing",
 ]
 
@@ -1796,6 +1797,7 @@ dependencies = [
 name = "jsoncat"
 version = "0.1.0"
 dependencies = [
+ "access",
  "arrow 23.0.0",
  "async-trait",
  "bytes",

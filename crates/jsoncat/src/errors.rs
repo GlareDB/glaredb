@@ -20,6 +20,9 @@ pub enum CatalogError {
     UnhandleableAccess(crate::access::AccessMethod),
 
     #[error(transparent)]
+    Access(#[from] access::errors::AccessError),
+
+    #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
 
     #[error(transparent)]

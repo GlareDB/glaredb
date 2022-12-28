@@ -7,10 +7,13 @@ use crate::system::{
     columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
 };
 use crate::transaction::Context;
+use access::external::postgres::PostgresAccessor;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datafusion::logical_expr::LogicalPlan;
 use std::sync::Arc;
+use tokio::runtime::Handle;
+use tokio::task;
 
 /// Plan a single sql statement, generating a DataFusion logical plan.
 ///
@@ -56,7 +59,7 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
 
         // Check table entries first.
         if let Some(table) = schema_ent.tables.get_entry(self.ctx, name) {
-            return match table.access {
+            return match &table.access {
                 AccessMethod::InternalMemory => {
                     // Just match on the built-in tables.
                     match (table.schema.as_str(), table.name.as_str()) {
@@ -79,7 +82,22 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
                         }),
                     }
                 }
-                other => Err(CatalogError::UnhandleableAccess(other)),
+                AccessMethod::Postgres(pg) => {
+                    // TODO: We'll probably want an "external dispatcher" of sorts.
+                    // TODO: Try not to block on.
+                    let pg = pg.clone();
+                    let result: Result<_, access::errors::AccessError> =
+                        task::block_in_place(move || {
+                            Handle::current().block_on(async move {
+                                let accessor = PostgresAccessor::connect(pg.clone()).await?;
+                                let provider = accessor.into_table_provider(true).await?;
+                                Ok(provider)
+                            })
+                        });
+                    let provider = result?;
+                    Ok(Some(Arc::new(provider)))
+                }
+                other => Err(CatalogError::UnhandleableAccess(other.clone())),
             };
         }
 
