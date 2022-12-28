@@ -19,7 +19,7 @@ pub enum ObjectStoreKind {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct AccessConfig {
+pub struct ObjectStoreConfig {
     pub db_name: String,
     pub object_store: ObjectStoreKind,
     pub cached: bool,
@@ -27,7 +27,7 @@ pub struct AccessConfig {
     pub cache_path: Option<PathBuf>,
 }
 
-impl Default for AccessConfig {
+impl Default for ObjectStoreConfig {
     fn default() -> Self {
         Self {
             db_name: String::from("glaredb"),

@@ -23,10 +23,10 @@ pub enum CatalogError {
     Access(#[from] access::errors::AccessError),
 
     #[error(transparent)]
-    Datafusion(#[from] datafusion::error::DataFusionError),
+    StableStore(#[from] stablestore::errors::StableStorageError),
 
     #[error(transparent)]
-    ObjectStore(#[from] object_store::Error),
+    Datafusion(#[from] datafusion::error::DataFusionError),
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),

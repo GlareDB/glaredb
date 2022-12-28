@@ -20,7 +20,7 @@ const DEFAULT_SCHEMAS: &[DefaultSchema] = &[
     },
 ];
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemaEntry {
     pub schema: String,
     pub internal: bool,

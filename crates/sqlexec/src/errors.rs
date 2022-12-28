@@ -42,9 +42,6 @@ pub enum ExecError {
     VarError(#[from] std::env::VarError),
 
     #[error(transparent)]
-    Persistence(#[from] persistence::errors::PersistenceError),
-
-    #[error(transparent)]
     JsonCat(#[from] jsoncat::errors::CatalogError),
 
     #[error(transparent)]

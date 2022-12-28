@@ -5,7 +5,7 @@ use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use dfutil::convert::from_df_schema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableEntry {
     pub schema: String,
     pub name: String,
@@ -59,7 +59,7 @@ impl From<&TableEntry> for ArrowSchema {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnDefinition {
     pub name: String,
     pub datatype: DataType,

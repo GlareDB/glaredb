@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 common = {path = "../common" }
-persistence = {path = "../persistence"}
 object_store_util = {path = "../object_store_util"}
 dfutil = {path = "../dfutil"}
 thiserror = "1.0"
