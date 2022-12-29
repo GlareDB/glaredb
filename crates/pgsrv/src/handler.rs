@@ -120,14 +120,19 @@ impl ProtocolHandler {
             }
         };
 
+        // TODO: Set session vars from values provided during startup.
+
         // Send server parameters.
-        for (key, val) in DEFAULT_READ_ONLY_PARAMS {
-            framed
-                .send(BackendMessage::ParameterStatus {
-                    key: key.to_string(),
-                    val: val.to_string(),
-                })
-                .await?;
+        let msgs: Vec<_> = sess
+            .get_session_vars()
+            .startup_vars_iter()
+            .map(|var| BackendMessage::ParameterStatus {
+                key: var.name().to_string(),
+                val: var.formatted_value(),
+            })
+            .collect();
+        for msg in msgs {
+            framed.send(msg).await?;
         }
 
         let cs = ClientSession::new(sess, framed);

@@ -140,7 +140,8 @@ impl From<TransactionPlan> for LogicalPlan {
 
 #[derive(Clone, Debug)]
 pub enum ConfigurationPlan {
-    SetConfiguration(SetConfiguration),
+    SetVariable(SetVariable),
+    ShowVariable(ShowVariable),
 }
 
 impl From<ConfigurationPlan> for LogicalPlan {
@@ -150,12 +151,12 @@ impl From<ConfigurationPlan> for LogicalPlan {
 }
 
 #[derive(Clone, Debug)]
-pub struct SetConfiguration {
+pub struct SetVariable {
     pub variable: ast::ObjectName,
     pub values: Vec<ast::Expr>,
 }
 
-impl SetConfiguration {
+impl SetVariable {
     /// Try to get a single string value.
     ///
     /// Errors if more than one value, or if the value is not a string.
@@ -174,4 +175,9 @@ impl SetConfiguration {
             expr => Err(internal!("invalid expression for SET: {}", expr)),
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct ShowVariable {
+    pub variable: String,
 }

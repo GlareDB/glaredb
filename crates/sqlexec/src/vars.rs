@@ -60,19 +60,19 @@ impl SessionVars {
     }
 
     /// Get a value for a variable.
-    pub fn get(&self, name: &str) -> Option<&dyn AnyVar> {
+    pub fn get(&self, name: &str) -> Result<&dyn AnyVar> {
         if name == SERVER_VERSION.name {
-            Some(&self.server_version)
+            Ok(&self.server_version)
         } else if name == APPLICATION_NAME.name {
-            Some(&self.application_name)
+            Ok(&self.application_name)
         } else if name == EXTRA_FLOAT_DIGITS.name {
-            Some(&self.extra_floating_digits)
+            Ok(&self.extra_floating_digits)
         } else if name == TRANSACTION_ISOLATION.name {
-            Some(&self.transaction_isolation)
+            Ok(&self.transaction_isolation)
         } else if name == SEARCH_PATH.name {
-            Some(&self.search_path)
+            Ok(&self.search_path)
         } else {
-            None
+            Err(ExecError::UnknownVariable(name.to_string()))
         }
     }
 
@@ -183,11 +183,6 @@ impl<T: Value + ?Sized + 'static> SessionVar<T> {
             }
         }
         Ok(())
-    }
-
-    /// Clear the session-local value for this variable.
-    fn clear(&mut self) {
-        self.value = None;
     }
 }
 

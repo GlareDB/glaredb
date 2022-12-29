@@ -3,10 +3,11 @@ use crate::errors::{ExecError, Result};
 use crate::executor::ExecutionResult;
 use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
+use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, EmptyRecordBatchStream, ExecutionPlan,
-    SendableRecordBatchStream,
+    coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
+    ExecutionPlan, SendableRecordBatchStream,
 };
 use jsoncat::catalog::Catalog;
 use std::sync::Arc;
@@ -88,12 +89,25 @@ impl Session {
         Err(ExecError::UnsupportedFeature("insert"))
     }
 
-    pub(crate) fn set_configuration(&mut self, plan: SetConfiguration) -> Result<()> {
+    pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
         let key = plan.variable.to_string().to_lowercase();
         self.ctx
             .get_session_vars_mut()
             .set(&key, plan.try_as_single_string()?.as_str())?;
         Ok(())
+    }
+
+    pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
+        let var = self.ctx.get_session_vars().get(&plan.variable)?;
+        let batch = var.record_batch();
+        let schema = batch.schema();
+        // Creating this stream should never error.
+        let stream = MemoryStream::try_new(vec![batch], schema, None).unwrap();
+        Ok(Box::pin(stream))
+    }
+
+    pub fn get_session_vars(&self) -> &SessionVars {
+        &self.ctx.get_session_vars()
     }
 
     /// Store the prepared statement in the current session.
