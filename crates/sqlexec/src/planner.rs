@@ -173,12 +173,31 @@ impl<'a> SessionPlanner<'a> {
             // local variables behave the same as session local (they're not
             // reset on transaction abort/commit).
             ast::Statement::SetVariable {
-                variable, value, ..
-            } => Ok(ConfigurationPlan::SetConfiguration(SetConfiguration {
+                local: false,
+                hivevar: false,
+                variable,
+                value,
+                ..
+            } => Ok(ConfigurationPlan::SetVariable(SetVariable {
                 variable,
                 values: value,
             })
             .into()),
+
+            // "SHOW ..."
+            //
+            // Show the value of a variable.
+            ast::Statement::ShowVariable { mut variable } => {
+                if variable.len() != 1 {
+                    return Err(internal!("invalid variable ident: {:?}", variable));
+                }
+                let variable = variable
+                    .pop()
+                    .ok_or_else(|| internal!("missing ident for variable name"))?
+                    .value;
+
+                Ok(ConfigurationPlan::ShowVariable(ShowVariable { variable }).into())
+            }
 
             stmt => Err(ExecError::UnsupportedSQLStatement(stmt.to_string())),
         }

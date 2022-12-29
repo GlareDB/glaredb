@@ -131,9 +131,13 @@ impl<'a> Executor<'a> {
                 let stream = self.session.execute_physical(physical)?;
                 Ok(ExecutionResult::Query { stream })
             }
-            LogicalPlan::Configuration(ConfigurationPlan::SetConfiguration(plan)) => {
-                self.session.set_configuration(plan)?;
+            LogicalPlan::Configuration(ConfigurationPlan::SetVariable(plan)) => {
+                self.session.set_variable(plan)?;
                 Ok(ExecutionResult::SetLocal)
+            }
+            LogicalPlan::Configuration(ConfigurationPlan::ShowVariable(plan)) => {
+                let stream = self.session.show_variable(plan)?;
+                Ok(ExecutionResult::Query { stream })
             }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }

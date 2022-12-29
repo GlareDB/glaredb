@@ -11,4 +11,4 @@ mod functions;
 mod parser;
 mod placeholders;
 mod planner;
-mod searchpath;
+mod vars;
