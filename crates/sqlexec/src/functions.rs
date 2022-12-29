@@ -87,7 +87,9 @@ impl BuiltinScalarFunction {
             }),
             BuiltinScalarFunction::CurrentSchemas => {
                 let schemas: Vec<_> = sess
-                    .get_search_path()
+                    .get_session_vars()
+                    .search_path
+                    .value()
                     .iter()
                     .map(|path| ScalarValue::Utf8(Some(path.to_string())))
                     .collect();

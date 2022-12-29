@@ -3,7 +3,7 @@ use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
 use crate::parser::CustomParser;
 use crate::planner::SessionPlanner;
-use crate::searchpath::SearchPath;
+use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -29,8 +29,8 @@ use std::sync::Arc;
 pub struct SessionContext {
     /// Database catalog.
     catalog: Arc<Catalog>,
-    /// This session's search path. Used to resolve database objects.
-    search_path: SearchPath,
+    /// Session variables.
+    vars: SessionVars,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -60,7 +60,7 @@ impl SessionContext {
 
         SessionContext {
             catalog,
-            search_path: SearchPath::new(),
+            vars: SessionVars::default(),
             df_state: state,
         }
     }
@@ -134,19 +134,19 @@ impl SessionContext {
         Ok(())
     }
 
-    /// Set the search path.
-    pub fn try_set_search_path(&mut self, text: &str) -> Result<()> {
-        self.search_path
-            .try_set(&StubCatalogContext, &self.catalog, text)
+    /// Get a reference to the session variables.
+    pub fn get_session_vars(&self) -> &SessionVars {
+        &self.vars
+    }
+
+    /// Get a mutable reference to the session variables.
+    pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
+        &mut self.vars
     }
 
     /// Get a reference to the catalog.
     pub fn get_catalog(&self) -> &Arc<Catalog> {
         &self.catalog
-    }
-
-    pub(crate) fn get_search_path(&self) -> &SearchPath {
-        &self.search_path
     }
 
     /// Get a datafusion task context to use for physical plan execution.
@@ -174,9 +174,13 @@ impl SessionContext {
         }
     }
 
+    /// Iterate over all values in the search path.
+    fn search_path_iter(&self) -> impl Iterator<Item = &str> {
+        self.vars.search_path.value().iter().map(|s| s.as_str())
+    }
+
     fn first_schema(&self) -> Result<&str> {
-        self.search_path
-            .iter()
+        self.search_path_iter()
             .next()
             .ok_or(ExecError::EmptySearchPath)
     }
@@ -215,7 +219,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         let dispatcher = CatalogDispatcher::new(&StubCatalogContext, &self.context.catalog);
         match name {
             TableReference::Bare { table } => {
-                for schema in self.context.search_path.iter() {
+                for schema in self.context.search_path_iter() {
                     let opt = dispatcher
                         .dispatch_access(self.context, schema, table)
                         .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
@@ -224,8 +228,8 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
                     }
                 }
                 Err(DataFusionError::Plan(format!(
-                    "failed to resolve bare table: {}, {}",
-                    table, self.context.search_path
+                    "failed to resolve bare table: {}",
+                    table
                 )))
             }
             TableReference::Full { schema, table, .. }
@@ -238,8 +242,8 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
                 }
 
                 Err(DataFusionError::Plan(format!(
-                    "failed to resolve qualified table; schema: {}, table: {}, {}",
-                    schema, table, self.context.search_path
+                    "failed to resolve qualified table; schema: {}, table: {}",
+                    schema, table
                 )))
             }
         }

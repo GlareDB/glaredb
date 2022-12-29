@@ -90,12 +90,9 @@ impl Session {
 
     pub(crate) fn set_configuration(&mut self, plan: SetConfiguration) -> Result<()> {
         let key = plan.variable.to_string().to_lowercase();
-        match key.as_str() {
-            "search_path" => self
-                .ctx
-                .try_set_search_path(&plan.try_as_single_string()?)?,
-            _ => return Err(ExecError::InvalidSetKey(key)),
-        }
+        self.ctx
+            .get_session_vars_mut()
+            .set(&key, plan.try_as_single_string()?.as_str())?;
         Ok(())
     }
 
