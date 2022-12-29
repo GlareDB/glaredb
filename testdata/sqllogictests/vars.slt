@@ -1,0 +1,19 @@
+# Session variables.
+
+statement ok
+set application_name = 'Test Application';
+
+query T
+show application_name;
+----
+Test Application
+
+# Error on trying to set "readonly" params.
+
+statement error
+set server_version = '14.6';
+
+# Error on unknown variables.
+
+statement error
+set unknown_variable = 'Test';

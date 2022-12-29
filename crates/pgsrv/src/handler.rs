@@ -107,7 +107,7 @@ impl ProtocolHandler {
             None => return Ok(()),
         }
 
-        let sess = match self.engine.new_session() {
+        let mut sess = match self.engine.new_session() {
             Ok(sess) => sess,
             Err(e) => {
                 framed
@@ -120,14 +120,27 @@ impl ProtocolHandler {
             }
         };
 
+        // Set params provided on startup.
+        //
+        // Note that we're ignoring unknown params.
+        let vars = sess.get_session_vars_mut();
+        for (key, val) in &params {
+            if let Err(e) = vars.set(key, val) {
+                trace!(%e, %key, %val, "unable to set session variable from startup param");
+            }
+        }
+
         // Send server parameters.
-        for (key, val) in DEFAULT_READ_ONLY_PARAMS {
-            framed
-                .send(BackendMessage::ParameterStatus {
-                    key: key.to_string(),
-                    val: val.to_string(),
-                })
-                .await?;
+        let msgs: Vec<_> = sess
+            .get_session_vars()
+            .startup_vars_iter()
+            .map(|var| BackendMessage::ParameterStatus {
+                key: var.name().to_string(),
+                val: var.formatted_value(),
+            })
+            .collect();
+        for msg in msgs {
+            framed.send(msg).await?;
         }
 
         let cs = ClientSession::new(sess, framed);

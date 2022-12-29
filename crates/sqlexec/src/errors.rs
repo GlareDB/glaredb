@@ -14,6 +14,15 @@ pub enum ExecError {
     #[error("invalid key for SET: {0}")]
     InvalidSetKey(String),
 
+    #[error("Invalid value for session variable: Variable name: {name}, Value: {val}")]
+    InvalidSessionVarValue { name: String, val: String },
+
+    #[error("Variable is readonly: {0}")]
+    VariableReadonly(String),
+
+    #[error("Unknown variable: {0}")]
+    UnknownVariable(String),
+
     #[error("empty search path, unable to resolve schema")]
     EmptySearchPath,
 
