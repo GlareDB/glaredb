@@ -107,7 +107,11 @@ impl Session {
     }
 
     pub fn get_session_vars(&self) -> &SessionVars {
-        &self.ctx.get_session_vars()
+        self.ctx.get_session_vars()
+    }
+
+    pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
+        self.ctx.get_session_vars_mut()
     }
 
     /// Store the prepared statement in the current session.

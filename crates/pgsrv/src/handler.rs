@@ -107,7 +107,7 @@ impl ProtocolHandler {
             None => return Ok(()),
         }
 
-        let sess = match self.engine.new_session() {
+        let mut sess = match self.engine.new_session() {
             Ok(sess) => sess,
             Err(e) => {
                 framed
@@ -120,7 +120,15 @@ impl ProtocolHandler {
             }
         };
 
-        // TODO: Set session vars from values provided during startup.
+        // Set params provided on startup.
+        //
+        // Note that we're ignoring unknown params.
+        let vars = sess.get_session_vars_mut();
+        for (key, val) in &params {
+            if let Err(e) = vars.set(key, val) {
+                trace!(%e, %key, %val, "unable to set session variable from startup param");
+            }
+        }
 
         // Send server parameters.
         let msgs: Vec<_> = sess
