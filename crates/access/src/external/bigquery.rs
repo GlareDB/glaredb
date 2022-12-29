@@ -11,6 +11,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
+use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -32,8 +33,10 @@ use gcp_bigquery_client::Client as BigQueryClient;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;
+use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::{Context, Poll};
 
 // Convenience type aliases.
@@ -124,10 +127,10 @@ impl TableProvider for BigQueryTableProvider {
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Projection.
-        let projected_schema = match projection {
-            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
-            None => self.arrow_schema.clone(),
-        };
+        // let projected_schema = match projection {
+        //     Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
+        //     None => self.arrow_schema.clone(),
+        // };
 
         // TODO: Duplicated key deserialization.
         let mut storage = {
@@ -167,20 +170,22 @@ impl TableProvider for BigQueryTableProvider {
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?
         {
-            streams.push(stream);
+            streams.push(Mutex::new(Some(stream)));
         }
 
-        Ok(BigQueryExec {
+        Ok(Arc::new(BigQueryExec {
             arrow_schema: self.arrow_schema.clone(),
             streams,
-        })
+        }))
     }
 }
 
-#[derive(Debug)]
 struct BigQueryExec {
     arrow_schema: ArrowSchemaRef,
-    streams: Vec<BufferedArrowIpcReader>,
+    /// Open streams to BigQuery storage.
+    ///
+    /// Note that streams are consumed during execution.
+    streams: Vec<Mutex<Option<BufferedArrowIpcReader>>>,
 }
 
 impl ExecutionPlan for BigQueryExec {
@@ -193,7 +198,7 @@ impl ExecutionPlan for BigQueryExec {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
+        Partitioning::UnknownPartitioning(self.streams.len())
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
@@ -215,17 +220,24 @@ impl ExecutionPlan for BigQueryExec {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        unimplemented!()
-        // let stream = ChunkStream {
-        //     state: StreamState::Idle,
-        //     types: self.pg_types.clone(),
-        //     opener: self.opener.clone(),
-        //     arrow_schema: self.arrow_schema.clone(),
-        // };
-        // Ok(Box::pin(stream))
+        let reader = {
+            let reader = self.streams.get(partition).ok_or_else(|| {
+                DataFusionError::Execution(format!("missing stream for partion: {}", partition))
+            })?;
+            let mut reader = reader.lock().unwrap();
+            // Replace the reader, disallowing execution of the same partition.
+            reader.take().ok_or_else(|| {
+                DataFusionError::Execution(format!(
+                    "attempted to read the same partition multiple times: {}",
+                    partition
+                ))
+            })?
+        };
+
+        Ok(Box::pin(BufferedIpcStream::new(self.schema(), reader)))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
@@ -237,33 +249,54 @@ impl ExecutionPlan for BigQueryExec {
     }
 }
 
-/// Convert BigQuery rows to Arrow record batches.
-struct RowAdapterStream {
-    schema: ArrowSchemaRef,
-    stream: Pin<Box<dyn Stream<Item = ArrowResult<RecordBatch>>>>,
+impl fmt::Debug for BigQueryExec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BigQueryExec")
+            .field("arrow_schema", &self.arrow_schema)
+            .finish()
+    }
 }
 
-// impl RowAdapterStream {
-//     fn new(
-//         schema: ArrowSchemaRef,
-//         row_stream: Pin<Box<dyn Stream<Item = Result<Vec<TableRow>, BQError>>>>,
-//     ) -> RowAdapterStream {
-//         let stream_schema = schema.clone();
-//         let stream = stream! {
-//             yield Ok(RecordBatch::new_empty(stream_schema));
-//         };
-//         RowAdapterStream {
-//             schema,
-//             stream: stream.boxed(),
-//         }
-//     }
-// }
+struct BufferedIpcStream {
+    schema: ArrowSchemaRef,
+    inner: Pin<Box<dyn Stream<Item = ArrowResult<RecordBatch>> + Send>>,
+}
 
-impl Stream for RowAdapterStream {
+impl BufferedIpcStream {
+    fn new(schema: ArrowSchemaRef, reader: BufferedArrowIpcReader) -> Self {
+        let stream = stream! {
+            let buf = match reader.into_vec().await {
+                Ok(buf) => buf,
+                Err(e) => {
+                    yield Err(ArrowError::ExternalError(Box::new(e)));
+                    return;
+                },
+            };
+            let mut reader = ArrowStreamReader::try_new(Cursor::new(buf), None)?;
+            while let Some(batch) = reader.next() {
+                let batch = batch?;
+                yield Ok(batch);
+            }
+        };
+
+        BufferedIpcStream {
+            schema,
+            inner: Box::pin(stream),
+        }
+    }
+}
+
+impl Stream for BufferedIpcStream {
     type Item = ArrowResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.stream.poll_next_unpin(cx)
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+impl RecordBatchStream for BufferedIpcStream {
+    fn schema(&self) -> ArrowSchemaRef {
+        self.schema.clone()
     }
 }
 
