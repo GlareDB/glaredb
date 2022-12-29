@@ -51,7 +51,7 @@ pub struct BigQueryTableAccess {
     /// The service account should have 'BigQuery Data Viewer' and 'BigQuery Job
     /// User' permissions.
     pub gcp_service_acccount_key_json: String,
-    pub gpc_project_id: String,
+    pub gcp_project_id: String,
     pub dataset_id: String,
     pub table_id: String,
 }
@@ -83,7 +83,7 @@ impl BigQueryAccessor {
             .metadata
             .table()
             .get(
-                &self.access.gpc_project_id,
+                &self.access.gcp_project_id,
                 &self.access.dataset_id,
                 &self.access.table_id,
                 None,
@@ -143,7 +143,7 @@ impl TableProvider for BigQueryTableProvider {
         };
 
         let mut builder = storage.read_session_builder(bigquery_storage::Table::new(
-            &self.access.gpc_project_id,
+            &self.access.gcp_project_id,
             &self.access.dataset_id,
             &self.access.table_id,
         ));
@@ -315,7 +315,7 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
         let arrow_typ = match &field.r#type {
             FieldType::Bool | FieldType::Boolean => DataType::Boolean,
             FieldType::String => DataType::Utf8,
-            FieldType::Integer => DataType::Int32,
+            FieldType::Integer => DataType::Int64,
             FieldType::Int64 => DataType::Int64,
             FieldType::Float => DataType::Float32,
             FieldType::Float64 => DataType::Float64,
