@@ -26,3 +26,4 @@ serde = { version = "1.0", features = ["derive"] }
 gcp-bigquery-client = "0.16.3"
 serde_json = "1.0.91"
 async-stream = "0.3.3"
+bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
