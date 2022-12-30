@@ -9,12 +9,10 @@ use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{
     engine::Engine,
-    executor::{ExecutionResult, Executor},
     parser::{self, StatementWithExtensions},
-    session::Session,
+    session::{ExecutionResult, Session},
 };
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -267,37 +265,74 @@ where
         let session = &mut self.session;
         let conn = &mut self.conn;
 
-        let mut executor = match Executor::new(&sql, session) {
-            Ok(executor) => executor,
+        let stmts = match parse_sql(&sql) {
+            Ok(stmts) => stmts,
             Err(e) => {
-                conn.send(
-                    ErrorResponse::error_internal(format!("failed to begin execution: {:?}", e))
-                        .into(),
-                )
-                .await?;
+                self.send_error(e.into()).await?;
                 return self.ready_for_query().await;
             }
         };
-        // Determines if we send back an empty query response.
-        let num_statements = executor.statements_remaining();
 
-        // Iterate over all statements to completion, returning on the first
-        // error.
-        while let Some(result) = executor.execute_next().await {
-            let result = match result {
-                Ok(result) => result,
+        // Determines if we send back an empty query response.
+        let num_statements = stmts.len();
+
+        for stmt in stmts {
+            // TODO: Ensure in transaction.
+
+            // Note everything is using unnamed portals/prepared statements.
+
+            const UNNAMED: String = String::new();
+
+            // Parse...
+            if let Err(e) = session.prepare_statement(UNNAMED, Some(stmt), Vec::new()) {
+                self.send_error(e.into()).await?;
+                return self.ready_for_query().await;
+            };
+
+            // Describe...
+            let stmt = match session.get_prepared_statement(&UNNAMED) {
+                Ok(stmt) => stmt.clone(),
                 Err(e) => {
-                    self.conn
-                        .send(
-                            ErrorResponse::error_internal(format!("failed to execute: {:?}", e))
-                                .into(),
-                        )
-                        .await?;
+                    self.send_error(e.into()).await?;
                     return self.ready_for_query().await;
                 }
             };
 
-            Self::send_result(conn, result, true).await?;
+            // Bind...
+            let result_formats = match extend_formats(
+                Vec::new(),
+                stmt.output_schema()
+                    .and_then(|schema| Some(schema.fields().len()))
+                    .unwrap_or(0),
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    self.send_error(e.into()).await?;
+                    return self.ready_for_query().await;
+                }
+            };
+            if let Err(e) =
+                session.bind_statement(UNNAMED, &UNNAMED, Vec::new(), Vec::new(), result_formats)
+            {
+                self.send_error(e.into()).await?;
+                return self.ready_for_query().await;
+            }
+
+            // Maybe row description...
+            if let Some(schema) = stmt.output_schema() {
+                Self::send_row_descriptor(conn, schema).await?;
+            }
+
+            // Execute...
+            let result = match session.execute_portal(&UNNAMED, 0).await {
+                Ok(result) => result,
+                Err(e) => {
+                    self.send_error(e.into()).await?;
+                    return self.ready_for_query().await;
+                }
+            };
+
+            Self::send_result(conn, result).await?;
         }
 
         if num_statements == 0 {
@@ -416,19 +451,11 @@ where
     }
 
     async fn execute(&mut self, portal: String, max_rows: i32) -> Result<()> {
-        let portal_name = if portal.is_empty() {
-            None
-        } else {
-            Some(portal)
-        };
+        // TODO: Ensure in transaction.
 
-        let session = &mut self.session;
         let conn = &mut self.conn;
-
-        trace!(?portal_name, ?max_rows, "received execute");
-
-        let result = session.execute_portal(&portal_name, max_rows).await?;
-        Self::send_result(conn, result, false).await?;
+        let result = self.session.execute_portal(&portal, max_rows).await?;
+        Self::send_result(conn, result).await?;
 
         Ok(())
     }
@@ -439,16 +466,13 @@ where
         self.ready_for_query().await
     }
 
-    async fn send_result(
-        conn: &mut FramedConn<C>,
-        result: ExecutionResult,
-        with_row_descriptor: bool,
-    ) -> Result<()> {
+    async fn send_result(conn: &mut FramedConn<C>, result: ExecutionResult) -> Result<()> {
         match result {
             ExecutionResult::Query { stream } => {
-                let num_rows = Self::stream_batch(conn, stream, with_row_descriptor).await?;
+                let num_rows = Self::stream_batch(conn, stream).await?;
                 Self::command_complete(conn, format!("SELECT {}", num_rows)).await?
             }
+            ExecutionResult::EmptyQuery => conn.send(BackendMessage::EmptyQueryResponse).await?,
             ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
             ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
@@ -478,19 +502,7 @@ where
     async fn stream_batch(
         conn: &mut FramedConn<C>,
         mut stream: SendableRecordBatchStream,
-        with_row_descriptor: bool,
     ) -> Result<usize> {
-        // TODO: Passing around this boolean flag feels a bit hacky.
-        if with_row_descriptor {
-            let schema = stream.schema();
-            let fields: Vec<_> = schema
-                .fields
-                .iter()
-                .map(|field| FieldDescription::new_named(field.name()))
-                .collect();
-            conn.send(BackendMessage::RowDescription(fields)).await?;
-        }
-
         let mut num_rows = 0;
         while let Some(result) = stream.next().await {
             let batch = result?;

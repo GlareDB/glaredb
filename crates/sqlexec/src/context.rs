@@ -190,9 +190,6 @@ impl SessionContext {
     ///
     /// Internally this will create a logical plan for the statement and store
     /// that on the portal.
-    ///
-    /// The result formats will be extended to in accordance with Postgres'
-    /// `Bind` message.
     // TODO: Accept parameters.
     pub fn bind_statement(
         &mut self,
@@ -357,9 +354,9 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
 
 #[derive(Debug, Clone)]
 pub struct PreparedStatement {
-    stmt: Option<StatementWithExtensions>,
-    plan: Option<LogicalPlan>,          // Some if stmt is Some
-    output_schema: Option<ArrowSchema>, // Some if stmt is Some
+    pub(crate) stmt: Option<StatementWithExtensions>,
+    pub(crate) plan: Option<LogicalPlan>, // Some if stmt is Some
+    pub(crate) output_schema: Option<ArrowSchema>, // Some if stmt is Some
 }
 
 impl PreparedStatement {
@@ -396,9 +393,9 @@ impl PreparedStatement {
 #[derive(Debug, Clone)]
 pub struct Portal {
     /// The associated prepared statement.
-    stmt: PreparedStatement,
+    pub(crate) stmt: PreparedStatement,
     /// Requested output formats.
-    result_formats: Vec<Format>,
+    pub(crate) result_formats: Vec<Format>,
 }
 
 impl Portal {
