@@ -126,13 +126,7 @@ impl TableProvider for BigQueryTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        // Projection.
-        // let projected_schema = match projection {
-        //     Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
-        //     None => self.arrow_schema.clone(),
-        // };
-
-        // TODO: Duplicated key deserialization.
+        // TODO: Fix duplicated key deserialization.
         let mut storage = {
             let key = serde_json::from_str(&self.access.gcp_service_acccount_key_json)
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
@@ -140,6 +134,12 @@ impl TableProvider for BigQueryTableProvider {
             BigQueryStorage::new(sa)
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?
+        };
+
+        // Projection.
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
+            None => self.arrow_schema.clone(),
         };
 
         let mut builder = storage.read_session_builder(bigquery_storage::Table::new(
@@ -159,6 +159,14 @@ impl TableProvider for BigQueryTableProvider {
             builder = builder.row_restriction(restriction);
         }
 
+        // Select fields based off of what's in our projected schema.
+        let selected: Vec<_> = projected_schema
+            .fields
+            .iter()
+            .map(|field| field.name().clone())
+            .collect();
+        builder = builder.selected_fields(selected);
+
         let mut sess = builder
             .build()
             .await
@@ -174,7 +182,7 @@ impl TableProvider for BigQueryTableProvider {
         }
 
         Ok(Arc::new(BigQueryExec {
-            arrow_schema: self.arrow_schema.clone(),
+            arrow_schema: projected_schema,
             streams,
         }))
     }
