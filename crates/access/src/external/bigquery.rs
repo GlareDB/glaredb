@@ -1,14 +1,14 @@
 //! BigQuery external table implementation.
-use crate::errors::{internal, AccessError, Result};
-use async_stream::{stream, AsyncStream};
+use crate::errors::{internal, Result};
+use async_stream::stream;
 use async_trait::async_trait;
 use bigquery_storage::yup_oauth2::{
     authenticator::{DefaultHyperClient, HyperClientBuilder},
     ServiceAccountAuthenticator,
 };
-use bigquery_storage::{BufferedArrowIpcReader, Client, ReadSession};
+use bigquery_storage::{BufferedArrowIpcReader, Client};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
@@ -21,14 +21,11 @@ use datafusion::logical_expr::Expr;
 use datafusion::logical_expr::TableType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::physical_plan::Partitioning;
-use datafusion::physical_plan::Statistics;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use gcp_bigquery_client::model::{
-    field_type::FieldType, table::Table, table_field_schema::TableFieldSchema,
+use datafusion::physical_plan::{
+    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
+use futures::{Stream, StreamExt};
+use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -124,7 +121,7 @@ impl TableProvider for BigQueryTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        limit: Option<usize>,
+        _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // TODO: Fix duplicated key deserialization.
         let mut storage = {
