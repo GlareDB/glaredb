@@ -7,6 +7,7 @@ use crate::system::{
     columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
 };
 use crate::transaction::Context;
+use access::external::bigquery::BigQueryAccessor;
 use access::external::postgres::PostgresAccessor;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
@@ -90,6 +91,19 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
                                 let accessor = PostgresAccessor::connect(pg.clone()).await?;
+                                let provider = accessor.into_table_provider(true).await?;
+                                Ok(provider)
+                            })
+                        });
+                    let provider = result?;
+                    Ok(Some(Arc::new(provider)))
+                }
+                AccessMethod::BigQuery(bq) => {
+                    let bq = bq.clone();
+                    let result: Result<_, access::errors::AccessError> =
+                        task::block_in_place(move || {
+                            Handle::current().block_on(async move {
+                                let accessor = BigQueryAccessor::connect(bq.clone()).await?;
                                 let provider = accessor.into_table_provider(true).await?;
                                 Ok(provider)
                             })

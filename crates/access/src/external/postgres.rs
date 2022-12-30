@@ -51,7 +51,7 @@ pub struct PostgresAccessor {
 }
 
 impl PostgresAccessor {
-    /// Connect to a postgres table.
+    /// Connect to a postgres instance.
     pub async fn connect(access: PostgresTableAccess) -> Result<Self> {
         let (client, conn) = tokio_postgres::connect(&access.connection_string, NoTls).await?;
         let handle = tokio::spawn(async move {
@@ -157,7 +157,7 @@ impl TableProvider for PostgresTableProvider {
     }
 
     fn table_type(&self) -> TableType {
-        TableType::View
+        TableType::Base
     }
 
     async fn scan(
