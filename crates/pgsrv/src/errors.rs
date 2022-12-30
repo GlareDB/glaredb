@@ -61,7 +61,7 @@ pub enum PgSrvError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
-    PgRepr(#[from] pgrepr::error::Error),
+    PgRepr(#[from] pgrepr::error::PgReprError),
 
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),

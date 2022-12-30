@@ -1,7 +1,7 @@
 use crate::types::TypeError;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum PgReprError {
     #[error("internal error: {0}")]
     Internal(String),
 
@@ -13,6 +13,9 @@ pub enum Error {
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
+
+    #[error("Invalid format code: {0}")]
+    InvalidFormatCode(i16),
 }
 
 #[derive(Debug, Clone)]
@@ -31,12 +34,12 @@ impl std::fmt::Display for ParseError {
     }
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = PgReprError> = std::result::Result<T, E>;
 
 #[allow(unused_macros)]
 macro_rules! internal {
     ($($arg:tt)*) => {
-        crate::error::Error::Internal(std::format!($($arg)*))
+        crate::error::PgReprError::Internal(std::format!($($arg)*))
     };
 }
 pub(crate) use internal;

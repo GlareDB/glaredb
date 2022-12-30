@@ -1,8 +1,8 @@
-use crate::context::SessionContext;
+use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::errors::{ExecError, Result};
 use crate::executor::ExecutionResult;
-use crate::extended::{Portal, PreparedStatement};
 use crate::logical_plan::*;
+use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
@@ -10,6 +10,7 @@ use datafusion::physical_plan::{
     ExecutionPlan, SendableRecordBatchStream,
 };
 use jsoncat::catalog::Catalog;
+use pgrepr::format::Format;
 use std::sync::Arc;
 
 /// A per-client user session.
@@ -125,27 +126,44 @@ impl Session {
         Err(ExecError::UnsupportedFeature("prepare"))
     }
 
-    pub fn get_prepared_statement(&self, _name: &Option<String>) -> Option<&PreparedStatement> {
-        // Currently called by pgsrv...
-        None
+    /// Prepare a parsed statement for future execution.
+    pub fn prepare_statement(
+        &mut self,
+        name: String,
+        stmt: Option<StatementWithExtensions>,
+        params: Vec<i32>, // OIDs
+    ) -> Result<()> {
+        self.ctx.prepare_statement(name, stmt, params)
     }
 
-    pub fn get_portal(&self, _portal_name: &Option<String>) -> Option<&Portal> {
-        // Currently called by pgsrv...
-        None
+    pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
+        self.ctx.get_prepared_statement(name)
+    }
+
+    pub fn get_portal(&self, name: &str) -> Result<&Portal> {
+        self.ctx.get_portal(name)
     }
 
     /// Bind the parameters of a prepared statement to the given values.
-    /// If successful, the bound statement will create a portal which can be used to execute the statement.
-    pub fn bind_prepared_statement(
+    ///
+    /// If successful, the bound statement will create a portal which can be
+    /// used to execute the statement.
+    pub fn bind_statement(
         &mut self,
-        _portal_name: Option<String>,
-        _statement_name: Option<String>,
-        _param_formats: Vec<i16>,
-        _param_values: Vec<Option<Vec<u8>>>,
-        _result_formats: Vec<i16>,
+        portal_name: String,
+        stmt_name: &str,
+        param_formats: Vec<Format>,
+        param_values: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<Format>,
     ) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("bind"))
+        // We don't currently support parameters. We're already erroring on
+        // attempting to prepare statements with parameters, so this is just
+        // ensuring that we're not missing anything right now.
+        assert_eq!(0, param_formats.len());
+        assert_eq!(0, param_values.len());
+
+        self.ctx
+            .bind_statement(portal_name, stmt_name, result_formats)
     }
 
     pub async fn execute_portal(

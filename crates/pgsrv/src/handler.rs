@@ -1,31 +1,25 @@
 use crate::codec::server::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage,
+    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage, SqlState,
     StartupMessage, TransactionStatus,
 };
 use crate::ssl::{Connection, SslConfig};
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
+use pgrepr::format::Format;
 use sqlexec::logical_plan::LogicalPlan;
 use sqlexec::{
     engine::Engine,
     executor::{ExecutionResult, Executor},
+    parser::{self, StatementWithExtensions},
     session::Session,
 };
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tracing::{trace, warn};
-
-/// Default parameters to send to the frontend on startup. Existing postgres
-/// drivers may expect these in the server response on startup.
-///
-/// See https://www.postgresql.org/docs/current/runtime-config-preset.html for
-/// other parameters we may want to provide.
-///
-/// Some parameters  will eventually be provided at runtime.
-// TODO: Decide proper postgres version to spoof/support
-const DEFAULT_READ_ONLY_PARAMS: &[(&str, &str)] = &[("server_version", "15.1")];
+use tracing::{debug, trace, warn};
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
 /// protocol.
@@ -193,10 +187,10 @@ where
                         continue;
                     }
                     Some(other) => {
-                        tracing::warn!(?other, "discarding message");
+                        warn!(?other, "discarding message");
                     }
                     None => {
-                        tracing::debug!("connection closed");
+                        debug!("connection closed");
                         return Ok(());
                     }
                 }
@@ -254,6 +248,12 @@ where
         }
     }
 
+    /// Send an error response to the client.
+    async fn send_error(&mut self, err: ErrorResponse) -> Result<()> {
+        self.conn.send(err.into()).await?;
+        Ok(())
+    }
+
     async fn ready_for_query(&mut self) -> Result<()> {
         // TODO: Proper status.
         self.conn
@@ -309,160 +309,110 @@ where
 
     /// Parse the provided SQL statement and store it in the session.
     async fn parse(&mut self, name: String, sql: String, param_types: Vec<i32>) -> Result<()> {
-        let session = &mut self.session;
-        let conn = &mut self.conn;
+        // TODO: Ensure in transaction.
 
-        // an empty name selectss the unnamed prepared statement
-        let name = if name.is_empty() { None } else { Some(name) };
+        let mut stmts = match parse_sql(&sql) {
+            Ok(stmts) => stmts,
+            Err(e) => return self.send_error(e).await,
+        };
 
-        trace!(?name, %sql, ?param_types, "received parse");
+        // Can only have one statement per parse.
+        if stmts.len() > 1 {
+            return self
+                .send_error(ErrorResponse::error_internal(
+                    "cannot parse multiple statements",
+                ))
+                .await;
+        }
 
-        session.create_prepared_statement(name, sql, param_types)?;
+        // TODO: Check if in failed transaction.
 
-        conn.send(BackendMessage::ParseComplete).await?;
-
-        Ok(())
+        // Store statement for future use.
+        match self
+            .session
+            .prepare_statement(name, stmts.pop_front(), param_types)
+        {
+            Ok(_) => self.conn.send(BackendMessage::ParseComplete).await,
+            Err(e) => self.send_error(e.into()).await,
+        }
     }
 
+    /// Bind to a prepared statement.
     async fn bind(
         &mut self,
         portal: String,
         statement: String,
-        param_formats: Vec<i16>,
+        param_formats: Vec<Format>,
         param_values: Vec<Option<Vec<u8>>>,
-        result_formats: Vec<i16>,
+        result_formats: Vec<Format>,
     ) -> Result<()> {
-        let portal_name = if portal.is_empty() {
-            None
-        } else {
-            Some(portal)
-        };
-        let statement_name = if statement.is_empty() {
-            None
-        } else {
-            Some(statement)
+        // TODO: Ensure in transaction.
+
+        // Check for the statement.
+        let stmt = match self.session.get_prepared_statement(&statement) {
+            Ok(stmt) => stmt,
+            Err(e) => return self.send_error(e.into()).await,
         };
 
-        // param_formats can be empty, in which case all parameters (if any) are assumed to be text
-        // or it may have one entry, in which case all parameters are assumed to be of that format
-        // or it may have one entry per parameter, in which case each parameter is assumed to be of that format
-        // each code must be 0 (text) or 1 (binary)
-        let param_formats = if param_formats.is_empty() {
-            if param_values.is_empty() {
-                vec![]
-            } else {
-                vec![0]
-            }
-        } else if param_formats.len() == 1 {
-            vec![param_formats[0]; param_values.len()]
-        } else {
-            param_formats
+        // TODO: Check and parse param formats and values.
+
+        // Extend out the result formats.
+        let result_formats = match extend_formats(
+            result_formats,
+            stmt.output_schema()
+                .and_then(|schema| Some(schema.fields().len()))
+                .unwrap_or(0),
+        ) {
+            Ok(formats) => formats,
+            Err(e) => return self.send_error(e).await,
         };
 
-        trace!(
-            ?portal_name,
-            ?statement_name,
-            ?param_formats,
-            ?param_values,
-            ?result_formats,
-            "received bind"
-        );
-
-        let session = &mut self.session;
-        let conn = &mut self.conn;
-
-        session.bind_prepared_statement(
-            portal_name,
-            statement_name,
+        match self.session.bind_statement(
+            portal,
+            &statement,
             param_formats,
             param_values,
             result_formats,
-        )?;
-
-        conn.send(BackendMessage::BindComplete).await?;
-
-        Ok(())
+        ) {
+            Ok(_) => self.conn.send(BackendMessage::BindComplete).await,
+            Err(e) => self.send_error(e.into()).await,
+        }
     }
 
     async fn describe(&mut self, object_type: DescribeObjectType, name: String) -> Result<()> {
-        let session = &mut self.session;
+        // TODO: Ensure in a transaction.
+
         let conn = &mut self.conn;
-
-        let name = if name.is_empty() { None } else { Some(name) };
-
-        trace!(?name, ?object_type, "received describe");
-
         match object_type {
-            DescribeObjectType::Statement => match session.get_prepared_statement(&name) {
-                Some(statement) => {
-                    // The Describe message statement variant returns a ParameterDescription message describing
-                    // the parameters needed by the statement, followed by a RowDescription message describing the
-                    // rows that will be returned when the statement is eventually executed.
-                    // If the statement will not return rows, then a NoData message is returned.
-                    conn.send(BackendMessage::ParameterDescription(
-                        statement.param_types.clone(),
-                    ))
-                    .await?;
-
-                    // TODO: return RowDescription if query will return rows
-                    conn.send(BackendMessage::NoData).await?;
-                }
-                None => {
-                    self.conn
-                        .send(
-                            ErrorResponse::error_internal(format!(
-                                "unknown prepared statement: {:?}",
-                                name
-                            ))
-                            .into(),
-                        )
+            DescribeObjectType::Statement => match self.session.get_prepared_statement(&name) {
+                Ok(stmt) => {
+                    // TODO: We don't accept parameters yet. So just send back
+                    // an empty paramaters list.
+                    conn.send(BackendMessage::ParameterDescription(Vec::new()))
                         .await?;
-                }
-            },
-            DescribeObjectType::Portal => {
-                // Describe (portal variant) returns a RowDescription message describing the rows
-                // that will be returned. If the portal contains a query that returns no rows, then
-                // a NoData message is returned instead.
-                match session.get_portal(&name) {
-                    Some(portal) => match &portal.plan {
-                        LogicalPlan::Ddl(_) => {
-                            self.conn.send(BackendMessage::NoData).await?;
-                        }
-                        LogicalPlan::Write(_) => {
-                            todo!("return portal describe response for Write");
-                        }
-                        LogicalPlan::Query(df_plan) => {
-                            let schema = df_plan.schema();
-                            let fields: Vec<_> = schema
-                                .fields()
-                                .iter()
-                                .map(|field| FieldDescription::new_named(field.name()))
-                                .collect();
-                            conn.send(BackendMessage::RowDescription(fields)).await?;
-                        }
-                        LogicalPlan::Transaction(_) => {
-                            todo!("return portal describe response for Transaction");
-                        }
-                        LogicalPlan::Configuration(_) => {
-                            todo!("return portal describe response for Runtime");
-                        }
-                    },
-                    None => {
-                        self.conn
-                            .send(
-                                ErrorResponse::error_internal(format!(
-                                    "unknown portal: {:?}",
-                                    name
-                                ))
-                                .into(),
-                            )
-                            .await?;
-                    }
-                }
-            }
-        }
 
-        Ok(())
+                    // Send back row description.
+                    match stmt.output_schema() {
+                        Some(schema) => Self::send_row_descriptor(conn, schema).await?,
+                        None => self.conn.send(BackendMessage::NoData).await?,
+                    }
+
+                    Ok(())
+                }
+                Err(e) => self.send_error(e.into()).await,
+            },
+            DescribeObjectType::Portal => match self.session.get_portal(&name) {
+                Ok(portal) => {
+                    // Send back row description.
+                    match portal.output_schema() {
+                        Some(schema) => Self::send_row_descriptor(conn, schema).await?,
+                        None => self.conn.send(BackendMessage::NoData).await?,
+                    }
+                    Ok(())
+                }
+                Err(e) => self.send_error(e.into()).await,
+            },
+        }
     }
 
     async fn execute(&mut self, portal: String, max_rows: i32) -> Result<()> {
@@ -512,6 +462,18 @@ where
         Ok(())
     }
 
+    /// Convert an arrow schema into a row descriptor and send it to the client.
+    // TODO: Provide formats too.
+    async fn send_row_descriptor(conn: &mut FramedConn<C>, schema: &ArrowSchema) -> Result<()> {
+        let fields: Vec<_> = schema
+            .fields
+            .iter()
+            .map(|field| FieldDescription::new_named(field.name()))
+            .collect();
+        conn.send(BackendMessage::RowDescription(fields)).await?;
+        Ok(())
+    }
+
     /// Streams the batch to the client, returned the total number of rows sent.
     async fn stream_batch(
         conn: &mut FramedConn<C>,
@@ -554,4 +516,26 @@ where
     fn clear_error(&mut self) {
         self.error_state = false;
     }
+}
+
+/// Parse a sql string, returning an error response if failed to parse.
+fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ErrorResponse> {
+    parser::parse_sql(sql).map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
+}
+
+/// Extend a vector of format codes to the desired size.
+///
+/// See the doc for the `Bind` message for more.
+fn extend_formats(formats: Vec<Format>, num: usize) -> Result<Vec<Format>, ErrorResponse> {
+    Ok(match formats.len() {
+        0 => vec![Format::Text; num], // Everything defaults to text,
+        1 => vec![formats[0]; num],   // Use the singly specified format for everything.
+        len if len == num => formats,
+        len => {
+            return Err(ErrorResponse::error_internal(format!(
+                "invalid number for format specifiers, got: {}, expected: {}",
+                len, num,
+            )))
+        }
+    })
 }

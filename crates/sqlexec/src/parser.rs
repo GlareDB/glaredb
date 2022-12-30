@@ -8,6 +8,12 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
 
+/// Wrapper around our custom parse for parsing a sql statement.
+pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
+    let stmts = CustomParser::parse_sql(sql)?;
+    Ok(stmts)
+}
+
 /// DDL extension for GlareDB's external tables.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalTableStmt {

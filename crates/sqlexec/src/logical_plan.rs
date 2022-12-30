@@ -1,5 +1,5 @@
 use crate::errors::{internal, ExecError, Result};
-use datafusion::arrow::datatypes::Field;
+use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
 use jsoncat::access::AccessMethod;
@@ -16,7 +16,7 @@ pub enum LogicalPlan {
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
-    Configuration(ConfigurationPlan),
+    Variable(VariablePlan),
 }
 
 impl LogicalPlan {
@@ -25,6 +25,20 @@ impl LogicalPlan {
         match self {
             LogicalPlan::Query(plan) => Ok(plan),
             other => Err(internal!("expected datafusion plan, got: {:?}", other)),
+        }
+    }
+
+    /// Get the arrow schema of the output for the logical plan.
+    pub fn output_schema(&self) -> ArrowSchema {
+        match self {
+            LogicalPlan::Query(plan) => {
+                let schema: ArrowSchema = plan.schema().as_ref().into();
+                schema
+            }
+            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
+                ArrowSchema::new(vec![Field::new(&plan.variable, DataType::Utf8, false)])
+            }
+            _ => ArrowSchema::empty(),
         }
     }
 }
@@ -139,14 +153,14 @@ impl From<TransactionPlan> for LogicalPlan {
 }
 
 #[derive(Clone, Debug)]
-pub enum ConfigurationPlan {
+pub enum VariablePlan {
     SetVariable(SetVariable),
     ShowVariable(ShowVariable),
 }
 
-impl From<ConfigurationPlan> for LogicalPlan {
-    fn from(plan: ConfigurationPlan) -> Self {
-        LogicalPlan::Configuration(plan)
+impl From<VariablePlan> for LogicalPlan {
+    fn from(plan: VariablePlan) -> Self {
+        LogicalPlan::Variable(plan)
     }
 }
 

@@ -9,6 +9,7 @@ use bytesutil::{BufStringMut, Cursor};
 use datafusion::scalar::ScalarValue;
 use futures::{SinkExt, TryStreamExt};
 use ioutil::write::InfallibleWrite;
+use pgrepr::format::Format;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -124,13 +125,21 @@ impl PgCodec {
         let portal = buf.read_cstring()?.to_string();
         let statement = buf.read_cstring()?.to_string();
 
+        // Input param formats.
+        //
+        // Valid lengths may be:
+        // 0 -> Use default format for all inputs (text)
+        // 1 -> Use this one format for all inputs
+        // n -> Individually specified formats for each input.
         let num_params = buf.get_i16() as usize;
         let mut param_formats = Vec::with_capacity(num_params);
         for _ in 0..num_params {
-            param_formats.push(buf.get_i16());
+            let format: Format = buf.get_i16().try_into()?;
+            param_formats.push(format);
         }
 
-        let num_values = buf.get_i16() as usize; // must match num_params
+        // Input param values.
+        let num_values = buf.get_i16() as usize;
         let mut param_values = Vec::with_capacity(num_values);
         for _ in 0..num_values {
             let len = buf.get_i32();
@@ -146,7 +155,8 @@ impl PgCodec {
         let num_params = buf.get_i16() as usize;
         let mut result_formats = Vec::with_capacity(num_params);
         for _ in 0..num_params {
-            result_formats.push(buf.get_i16());
+            let format: Format = buf.get_i16().try_into()?;
+            result_formats.push(format);
         }
 
         Ok(FrontendMessage::Bind {

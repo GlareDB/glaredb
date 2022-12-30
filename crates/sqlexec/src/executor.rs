@@ -131,11 +131,11 @@ impl<'a> Executor<'a> {
                 let stream = self.session.execute_physical(physical)?;
                 Ok(ExecutionResult::Query { stream })
             }
-            LogicalPlan::Configuration(ConfigurationPlan::SetVariable(plan)) => {
+            LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
                 self.session.set_variable(plan)?;
                 Ok(ExecutionResult::SetLocal)
             }
-            LogicalPlan::Configuration(ConfigurationPlan::ShowVariable(plan)) => {
+            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
                 let stream = self.session.show_variable(plan)?;
                 Ok(ExecutionResult::Query { stream })
             }
