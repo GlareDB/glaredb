@@ -3023,12 +3023,9 @@ dependencies = [
 
 [[package]]
 name = "scc"
-version = "0.12.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c7ab7aaaf543c12c5e2347845e1c5551c9e14c63765b781b1571f3d0f1dad63"
-dependencies = [
- "scopeguard",
-]
+checksum = "e23fc25d86085f364dfaa84d82c432474cf2d96cc70fefd898f681a47e9806fc"
 
 [[package]]
 name = "schannel"
