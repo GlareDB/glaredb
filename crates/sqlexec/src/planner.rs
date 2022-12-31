@@ -2,6 +2,7 @@ use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
 use crate::parser::{CreateExternalTableStmt, StatementWithExtensions};
+use access::external::bigquery::BigQueryTableAccess;
 use access::external::postgres::PostgresTableAccess;
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
@@ -50,6 +51,21 @@ impl<'a> SessionPlanner<'a> {
                         connection_string: conn_str,
                         schema: source_schema,
                         name: source_table,
+                    }),
+                }
+            }
+            "bigquery" => {
+                let sa_key = pop_required_opt(m, "gcp_service_account_key")?;
+                let project_id = pop_required_opt(m, "gcp_project_id")?;
+                let dataset_id = pop_required_opt(m, "dataset_id")?;
+                let table_id = pop_required_opt(m, "table_id")?;
+                CreateExternalTable {
+                    table_name: stmt.name,
+                    access: AccessMethod::BigQuery(BigQueryTableAccess {
+                        gcp_service_acccount_key_json: sa_key,
+                        gcp_project_id: project_id,
+                        dataset_id,
+                        table_id,
                     }),
                 }
             }
