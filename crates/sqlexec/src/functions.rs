@@ -17,6 +17,9 @@ pub enum BuiltinScalarFunction {
     /// 'current_schemas' -> [String]
     /// Get a list of schemas in the current search path.
     CurrentSchemas,
+    /// 'connection_id' -> String
+    /// Get the connection id that this session was started with.
+    ConnectionId,
 }
 
 impl BuiltinScalarFunction {
@@ -25,6 +28,7 @@ impl BuiltinScalarFunction {
         Some(match name {
             "version" => BuiltinScalarFunction::Version,
             "current_schemas" => BuiltinScalarFunction::CurrentSchemas,
+            "connection_id" => BuiltinScalarFunction::ConnectionId,
             _ => return None,
         })
     }
@@ -45,6 +49,7 @@ impl BuiltinScalarFunction {
         match self {
             BuiltinScalarFunction::Version => "version",
             BuiltinScalarFunction::CurrentSchemas => "current_schemas",
+            BuiltinScalarFunction::ConnectionId => "connection_id",
         }
     }
 
@@ -56,6 +61,9 @@ impl BuiltinScalarFunction {
             }
             BuiltinScalarFunction::CurrentSchemas => {
                 Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Stable)
+            }
+            BuiltinScalarFunction::ConnectionId => {
+                Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
             }
         }
     }
@@ -71,6 +79,7 @@ impl BuiltinScalarFunction {
                     false,
                 )))))
             }),
+            BuiltinScalarFunction::ConnectionId => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
         }
     }
 
@@ -98,6 +107,14 @@ impl BuiltinScalarFunction {
                     Box::new(Field::new("", DataType::Utf8, false)),
                 );
                 Arc::new(move |_| Ok(ColumnarValue::Scalar(val.clone()))) // TODO: Figure out how not to clone here.
+            }
+            BuiltinScalarFunction::ConnectionId => {
+                let id = sess.id();
+                Arc::new(move |_| {
+                    Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                        id.to_string(),
+                    ))))
+                })
             }
         }
     }

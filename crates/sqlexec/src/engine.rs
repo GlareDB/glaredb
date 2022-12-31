@@ -5,6 +5,7 @@ use jsoncat::load_catalog;
 use jsoncat::transaction::StubCatalogContext;
 use stablestore::StableStorage;
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Wrapper around the database catalog.
 pub struct Engine {
@@ -20,7 +21,7 @@ impl Engine {
         })
     }
 
-    pub fn new_session(&self) -> Result<Session> {
-        Session::new(self.catalog.clone())
+    pub fn new_session(&self, id: Uuid) -> Result<Session> {
+        Session::new(self.catalog.clone(), id)
     }
 }

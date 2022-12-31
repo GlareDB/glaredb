@@ -27,3 +27,4 @@ postgres-types = "0.2.4"
 reqwest = { version = "0.11.13", features = ["json"] }
 openssl = "0.10.45"
 tokio-openssl = "0.6.3"
+uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }

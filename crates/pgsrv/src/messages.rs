@@ -60,6 +60,7 @@ pub enum FrontendMessage {
         /// The parameter format codes. Each must presently be zero (text) or
         /// one (binary).
         ///
+        /// Valid lengths may be:
         /// 0 -> Use default format for all inputs (text)
         /// 1 -> Use this one format for all inputs
         /// n -> Individually specified formats for each input.
@@ -94,6 +95,21 @@ pub enum FrontendMessage {
     },
     Sync,
     Terminate,
+}
+
+impl FrontendMessage {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            FrontendMessage::Query { .. } => "query",
+            FrontendMessage::PasswordMessage { .. } => "password",
+            FrontendMessage::Parse { .. } => "parse",
+            FrontendMessage::Bind { .. } => "bind",
+            FrontendMessage::Describe { .. } => "describe",
+            FrontendMessage::Execute { .. } => "execute",
+            FrontendMessage::Sync => "sync",
+            FrontendMessage::Terminate => "terminate",
+        }
+    }
 }
 
 #[derive(Debug)]

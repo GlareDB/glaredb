@@ -12,6 +12,7 @@ use jsoncat::catalog::Catalog;
 use pgrepr::format::Format;
 use std::fmt;
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
@@ -71,8 +72,8 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(catalog: Arc<Catalog>) -> Result<Session> {
-        let ctx = SessionContext::new(catalog);
+    pub fn new(catalog: Arc<Catalog>, id: Uuid) -> Result<Session> {
+        let ctx = SessionContext::new(catalog, id);
         Ok(Session { ctx })
     }
 

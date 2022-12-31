@@ -38,6 +38,12 @@ lazy_static! {
     };
 }
 
+// GlareDB specific.
+const GLAREDB_BUILD_VERSION: ServerVar<str> = ServerVar {
+    name: "glaredb_build_version",
+    value: buildenv::git_tag(),
+};
+
 /// Variables for a session.
 ///
 /// Variables that can be changed are of the `SessionVar` type, and default to
@@ -49,6 +55,7 @@ pub struct SessionVars {
     pub extra_floating_digits: SessionVar<i32>,
     pub transaction_isolation: ServerVar<str>,
     pub search_path: SessionVar<[String]>,
+    pub glaredb_build_version: ServerVar<str>,
 }
 
 impl SessionVars {
@@ -71,6 +78,8 @@ impl SessionVars {
             Ok(&self.transaction_isolation)
         } else if name == SEARCH_PATH.name {
             Ok(&self.search_path)
+        } else if name == GLAREDB_BUILD_VERSION.name {
+            Ok(&self.glaredb_build_version)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -88,6 +97,10 @@ impl SessionVars {
             Err(ExecError::VariableReadonly(SERVER_VERSION.name.to_string()))
         } else if name == SEARCH_PATH.name {
             self.search_path.set(val)
+        } else if name == GLAREDB_BUILD_VERSION.name {
+            Err(ExecError::VariableReadonly(
+                GLAREDB_BUILD_VERSION.name.to_string(),
+            ))
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -102,6 +115,7 @@ impl Default for SessionVars {
             extra_floating_digits: SessionVar::new(&EXTRA_FLOAT_DIGITS),
             transaction_isolation: TRANSACTION_ISOLATION,
             search_path: SessionVar::new(&SEARCH_PATH),
+            glaredb_build_version: GLAREDB_BUILD_VERSION,
         }
     }
 }

@@ -17,7 +17,8 @@ use sqlexec::{
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tracing::{debug, trace, warn};
+use tracing::{debug, debug_span, trace, warn, Instrument};
+use uuid::Uuid;
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
 /// protocol.
@@ -37,7 +38,7 @@ impl ProtocolHandler {
         }
     }
 
-    pub async fn handle_connection<C>(&self, conn: C) -> Result<()>
+    pub async fn handle_connection<C>(&self, id: Uuid, conn: C) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
@@ -48,7 +49,7 @@ impl ProtocolHandler {
 
             match startup {
                 StartupMessage::StartupRequest { params, .. } => {
-                    self.begin(conn, params).await?;
+                    self.begin(id, conn, params).await?;
                     return Ok(());
                 }
                 StartupMessage::SSLRequest { .. } => {
@@ -78,7 +79,12 @@ impl ProtocolHandler {
     }
 
     /// Runs the postgres protocol for a connection to completion.
-    async fn begin<C>(&self, conn: Connection<C>, params: HashMap<String, String>) -> Result<()>
+    async fn begin<C>(
+        &self,
+        id: Uuid,
+        conn: Connection<C>,
+        params: HashMap<String, String>,
+    ) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
@@ -98,7 +104,7 @@ impl ProtocolHandler {
             None => return Ok(()),
         }
 
-        let mut sess = match self.engine.new_session() {
+        let mut sess = match self.engine.new_session(id) {
             Ok(sess) => sess,
             Err(e) => {
                 framed
@@ -168,20 +174,33 @@ where
         self.ready_for_query().await?;
         loop {
             let msg = self.conn.read().await?;
+
+            let msg = match msg {
+                Some(msg) => msg,
+                None => {
+                    // No message received, connection closed.
+                    trace!("connection closed");
+                    return Ok(());
+                }
+            };
+
+            let span = debug_span!("pg_protocol_message", name = msg.name());
+            span.follows_from(tracing::Span::current());
+
             match msg {
-                Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
-                Some(FrontendMessage::Parse {
+                FrontendMessage::Query { sql } => self.query(sql).instrument(span).await?,
+                FrontendMessage::Parse {
                     name,
                     sql,
                     param_types,
-                }) => self.parse(name, sql, param_types).await?,
-                Some(FrontendMessage::Bind {
+                } => self.parse(name, sql, param_types).instrument(span).await?,
+                FrontendMessage::Bind {
                     portal,
                     statement,
                     param_formats,
                     param_values,
                     result_formats,
-                }) => {
+                } => {
                     self.bind(
                         portal,
                         statement,
@@ -189,16 +208,17 @@ where
                         param_values,
                         result_formats,
                     )
+                    .instrument(span)
                     .await?
                 }
-                Some(FrontendMessage::Describe { object_type, name }) => {
-                    self.describe(object_type, name).await?
+                FrontendMessage::Describe { object_type, name } => {
+                    self.describe(object_type, name).instrument(span).await?
                 }
-                Some(FrontendMessage::Execute { portal, max_rows }) => {
-                    self.execute(portal, max_rows).await?
+                FrontendMessage::Execute { portal, max_rows } => {
+                    self.execute(portal, max_rows).instrument(span).await?
                 }
-                Some(FrontendMessage::Sync) => self.sync().await?,
-                Some(other) => {
+                FrontendMessage::Sync => self.sync().instrument(span).await?,
+                other => {
                     warn!(?other, "unsupported frontend message");
                     self.conn
                         .send(
@@ -210,10 +230,6 @@ where
                         )
                         .await?;
                     self.ready_for_query().await?;
-                }
-                None => {
-                    trace!("connection closed");
-                    return Ok(());
                 }
             }
         }

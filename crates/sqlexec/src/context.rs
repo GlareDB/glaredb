@@ -23,12 +23,14 @@ use jsoncat::transaction::StubCatalogContext;
 use pgrepr::format::Format;
 use std::collections::HashMap;
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Context for a session used during execution.
 ///
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
+    id: Uuid,
     /// Database catalog.
     catalog: Arc<Catalog>,
     /// Session variables.
@@ -46,7 +48,7 @@ pub struct SessionContext {
 
 impl SessionContext {
     /// Create a new session context with the given catalog.
-    pub fn new(catalog: Arc<Catalog>) -> SessionContext {
+    pub fn new(catalog: Arc<Catalog>, id: Uuid) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
         // NOTE: We handle catalog/schema defaults and information schemas
@@ -65,12 +67,18 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
+            id,
             catalog,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
             df_state: state,
         }
+    }
+
+    /// Get the id for this session.
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 
     /// Create a table.
