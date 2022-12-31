@@ -228,6 +228,13 @@ impl SessionContext {
         Ok(())
     }
 
+    /// Get a prepared statement.
+    pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
+        self.prepared
+            .get(name)
+            .ok_or_else(|| ExecError::UnknownPreparedStatement(name.to_string()))
+    }
+
     /// Get a portal.
     pub fn get_portal(&self, name: &str) -> Result<&Portal> {
         self.portals
@@ -235,11 +242,16 @@ impl SessionContext {
             .ok_or_else(|| ExecError::UnknownPortal(name.to_string()))
     }
 
-    /// Get a prepared statement.
-    pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
-        self.prepared
-            .get(name)
-            .ok_or_else(|| ExecError::UnknownPreparedStatement(name.to_string()))
+    /// Remove a prepared statement.
+    pub fn remove_prepared_statement(&mut self, name: &str) {
+        // TODO: This should technically also remove portals that make use of
+        // this prepared statement.
+        self.prepared.remove(name);
+    }
+
+    /// Remove a portal.
+    pub fn remove_portal(&mut self, name: &str) {
+        self.portals.remove(name);
     }
 
     /// Get a datafusion task context to use for physical plan execution.

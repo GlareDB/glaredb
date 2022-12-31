@@ -97,6 +97,16 @@ fn run_send(
                 )?;
                 Ok(())
             }
+            "CloseStatement" => {
+                let val: CloseStatement = serde_json::from_str(json)?;
+                frontend::close(b'S', &val.name.unwrap_or_default(), buf)?;
+                Ok(())
+            }
+            "ClosePortal" => {
+                let val: ClosePortal = serde_json::from_str(json)?;
+                frontend::close(b'P', &val.name.unwrap_or_default(), buf)?;
+                Ok(())
+            }
             "Sync" => {
                 frontend::sync(buf);
                 Ok(())

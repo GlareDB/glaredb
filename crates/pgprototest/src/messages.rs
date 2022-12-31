@@ -71,6 +71,7 @@ impl TryFrom<(char, Message)> for SerializedMessage {
             ),
             Message::ParseComplete => ("ParseComplete", String::new()),
             Message::BindComplete => ("BindComplete", String::new()),
+            Message::CloseComplete => ("CloseComplete", String::new()),
             Message::NoData => ("NoData", String::new()),
             Message::EmptyQueryResponse => ("EmptyQueryResponse", String::new()),
             Message::ErrorResponse(msg) => (
@@ -116,6 +117,16 @@ pub struct Bind {
 pub struct Execute {
     pub portal: Option<String>,
     pub max_rows: Option<i32>,
+}
+
+#[derive(Deserialize)]
+pub struct CloseStatement {
+    pub name: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ClosePortal {
+    pub name: Option<String>,
 }
 
 #[derive(Deserialize)]

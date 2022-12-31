@@ -17,7 +17,7 @@ use sqlexec::{
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tracing::{debug, debug_span, trace, warn, Instrument};
+use tracing::{debug_span, trace, warn, Instrument};
 use uuid::Uuid;
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
@@ -159,7 +159,7 @@ impl ProtocolHandler {
 
 struct ClientSession<C> {
     conn: FramedConn<C>,
-    session: Session, // TODO: Make this a trait for stubbability?
+    session: Session,
 }
 
 impl<C> ClientSession<C>
@@ -217,7 +217,13 @@ where
                 FrontendMessage::Execute { portal, max_rows } => {
                     self.execute(portal, max_rows).instrument(span).await?
                 }
+                FrontendMessage::Close { object_type, name } => {
+                    self.close_object(object_type, name)
+                        .instrument(span)
+                        .await?
+                }
                 FrontendMessage::Sync => self.sync().instrument(span).await?,
+                FrontendMessage::Flush => self.flush().instrument(span).await?,
                 other => {
                     warn!(?other, "unsupported frontend message");
                     self.conn
@@ -245,7 +251,8 @@ where
         // TODO: Proper status.
         self.conn
             .send(BackendMessage::ReadyForQuery(TransactionStatus::Idle))
-            .await
+            .await?;
+        self.flush().await
     }
 
     async fn query(&mut self, sql: String) -> Result<()> {
@@ -450,8 +457,21 @@ where
         Ok(())
     }
 
+    async fn close_object(&mut self, object_type: DescribeObjectType, name: String) -> Result<()> {
+        match object_type {
+            DescribeObjectType::Statement => self.session.remove_prepared_statement(&name),
+            DescribeObjectType::Portal => self.session.remove_portal(&name),
+        }
+        self.conn.send(BackendMessage::CloseComplete).await
+    }
+
     async fn sync(&mut self) -> Result<()> {
         self.ready_for_query().await
+    }
+
+    async fn flush(&mut self) -> Result<()> {
+        self.conn.flush().await?;
+        Ok(())
     }
 
     async fn send_result(conn: &mut FramedConn<C>, result: ExecutionResult) -> Result<()> {

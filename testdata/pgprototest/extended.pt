@@ -37,3 +37,23 @@ BindComplete
 DataRow {"fields":["1"]}
 CommandComplete {"tag":"SELECT 1"}
 ReadyForQuery {"status":"I"}
+
+# Close a portal.
+
+send
+Parse {"query": "select 1", "name": "statement"}
+Bind {"portal": "portal", "statement": "statement"}
+Execute {"portal": "portal"}
+ClosePortal {"name": "portal"}
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+CloseComplete 
+ReadyForQuery {"status":"I"}

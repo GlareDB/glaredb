@@ -178,6 +178,14 @@ impl Session {
         self.ctx.get_portal(name)
     }
 
+    pub fn remove_prepared_statement(&mut self, name: &str) {
+        self.ctx.remove_prepared_statement(name);
+    }
+
+    pub fn remove_portal(&mut self, name: &str) {
+        self.ctx.remove_portal(name);
+    }
+
     /// Bind the parameters of a prepared statement to the given values.
     ///
     /// If successful, the bound statement will create a portal which can be

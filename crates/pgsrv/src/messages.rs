@@ -32,13 +32,9 @@ pub enum StartupMessage {
 #[derive(Debug)]
 pub enum FrontendMessage {
     /// A query (or queries) to execute.
-    Query {
-        sql: String,
-    },
+    Query { sql: String },
     /// An encrypted or unencrypted password.
-    PasswordMessage {
-        password: String,
-    },
+    PasswordMessage { password: String },
     /// An extended query parse message.
     Parse {
         /// The name of the prepared statement. An empty string denotes the
@@ -93,7 +89,17 @@ pub enum FrontendMessage {
         /// that returns rows (ignored otherwise). Zero denotes "no limit".
         max_rows: i32,
     },
+    Close {
+        /// The kind of item to close (portal or statement).
+        object_type: DescribeObjectType,
+        /// Name of the object to close.
+        name: String,
+    },
+    /// Synchronize after running through the extended query protocol.
     Sync,
+    /// Flush the connection.
+    Flush,
+    /// Close the connection.
     Terminate,
 }
 
@@ -106,6 +112,8 @@ impl FrontendMessage {
             FrontendMessage::Bind { .. } => "bind",
             FrontendMessage::Describe { .. } => "describe",
             FrontendMessage::Execute { .. } => "execute",
+            FrontendMessage::Close { .. } => "close",
+            FrontendMessage::Flush => "flush",
             FrontendMessage::Sync => "sync",
             FrontendMessage::Terminate => "terminate",
         }
@@ -133,6 +141,7 @@ pub enum BackendMessage {
     DataRow(RecordBatch, usize),
     ParseComplete,
     BindComplete,
+    CloseComplete,
     NoData,
     ParameterDescription(Vec<i32>),
 }
