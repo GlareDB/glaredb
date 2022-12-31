@@ -4,19 +4,36 @@
 #
 # Note that there's no row description before sending the data rows.
 
-# TODO: Uncomment this when extended query protocol is better supported.
-# send
-# Parse {"query": "select 1"}
-# Bind
-# Execute
-# Sync
-# ----
+send
+Parse {"query": "select 1"}
+Bind
+Execute
+Sync
+----
 
-# until
-# ReadyForQuery
-# ----
-# ParseComplete 
-# BindComplete 
-# DataRow {"fields":["1"]}
-# CommandComplete {"tag":"SELECT 1"}
-# ReadyForQuery {"status":"I"}
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+# Basic named portal.
+
+send
+Parse {"query": "select 1", "name": "my_statement"}
+Bind {"portal": "my_portal", "statement": "my_statement"}
+Execute {"portal": "my_portal"}
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}

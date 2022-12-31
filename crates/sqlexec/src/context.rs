@@ -355,8 +355,11 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
 #[derive(Debug, Clone)]
 pub struct PreparedStatement {
     pub(crate) stmt: Option<StatementWithExtensions>,
-    pub(crate) plan: Option<LogicalPlan>, // Some if stmt is Some
-    pub(crate) output_schema: Option<ArrowSchema>, // Some if stmt is Some
+    /// The logical plan for the statement. Is `Some` if the statement is
+    /// `Some`.
+    pub(crate) plan: Option<LogicalPlan>,
+    /// The output schema of the statement if it produces an output.
+    pub(crate) output_schema: Option<ArrowSchema>,
 }
 
 impl PreparedStatement {
@@ -372,7 +375,7 @@ impl PreparedStatement {
             Ok(PreparedStatement {
                 stmt: Some(inner),
                 plan: Some(plan),
-                output_schema: Some(schema),
+                output_schema: schema,
             })
         } else {
             // No statement to plan.

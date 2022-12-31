@@ -28,17 +28,18 @@ impl LogicalPlan {
         }
     }
 
-    /// Get the arrow schema of the output for the logical plan.
-    pub fn output_schema(&self) -> ArrowSchema {
+    /// Get the arrow schema of the output for the logical plan if it produces
+    /// one.
+    pub fn output_schema(&self) -> Option<ArrowSchema> {
         match self {
             LogicalPlan::Query(plan) => {
                 let schema: ArrowSchema = plan.schema().as_ref().into();
-                schema
+                Some(schema)
             }
-            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
-                ArrowSchema::new(vec![Field::new(&plan.variable, DataType::Utf8, false)])
-            }
-            _ => ArrowSchema::empty(),
+            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => Some(ArrowSchema::new(
+                vec![Field::new(&plan.variable, DataType::Utf8, false)],
+            )),
+            _ => None,
         }
     }
 }

@@ -92,7 +92,6 @@ impl ProtocolHandler {
         let msg = framed.read().await?;
         match msg {
             Some(FrontendMessage::PasswordMessage { password }) => {
-                trace!(%password, "received password");
                 framed.send(BackendMessage::AuthenticationOk).await?;
             }
             Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.
@@ -155,8 +154,6 @@ impl ProtocolHandler {
 struct ClientSession<C> {
     conn: FramedConn<C>,
     session: Session, // TODO: Make this a trait for stubbability?
-
-    error_state: bool,
 }
 
 impl<C> ClientSession<C>
@@ -164,83 +161,59 @@ where
     C: AsyncRead + AsyncWrite + Unpin,
 {
     fn new(session: Session, conn: FramedConn<C>) -> Self {
-        ClientSession {
-            session,
-            conn,
-            error_state: false,
-        }
+        ClientSession { session, conn }
     }
 
     async fn run(mut self) -> Result<()> {
         self.ready_for_query().await?;
         loop {
             let msg = self.conn.read().await?;
-            // If we're in an error state, we should only process Sync messages.
-            // Until this is received, we should discard all incoming messages
-            if self.error_state {
-                match msg {
-                    Some(FrontendMessage::Sync) => {
-                        self.clear_error();
-                        self.ready_for_query().await?;
-                        continue;
-                    }
-                    Some(other) => {
-                        warn!(?other, "discarding message");
-                    }
-                    None => {
-                        debug!("connection closed");
-                        return Ok(());
-                    }
-                }
-            } else {
-                // Execute messages as normal if not in an error state.
-                match msg {
-                    Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
-                    Some(FrontendMessage::Parse {
-                        name,
-                        sql,
-                        param_types,
-                    }) => self.parse(name, sql, param_types).await?,
-                    Some(FrontendMessage::Bind {
+            match msg {
+                Some(FrontendMessage::Query { sql }) => self.query(sql).await?,
+                Some(FrontendMessage::Parse {
+                    name,
+                    sql,
+                    param_types,
+                }) => self.parse(name, sql, param_types).await?,
+                Some(FrontendMessage::Bind {
+                    portal,
+                    statement,
+                    param_formats,
+                    param_values,
+                    result_formats,
+                }) => {
+                    self.bind(
                         portal,
                         statement,
                         param_formats,
                         param_values,
                         result_formats,
-                    }) => {
-                        self.bind(
-                            portal,
-                            statement,
-                            param_formats,
-                            param_values,
-                            result_formats,
+                    )
+                    .await?
+                }
+                Some(FrontendMessage::Describe { object_type, name }) => {
+                    self.describe(object_type, name).await?
+                }
+                Some(FrontendMessage::Execute { portal, max_rows }) => {
+                    self.execute(portal, max_rows).await?
+                }
+                Some(FrontendMessage::Sync) => self.sync().await?,
+                Some(other) => {
+                    warn!(?other, "unsupported frontend message");
+                    self.conn
+                        .send(
+                            ErrorResponse::feature_not_supported(format!(
+                                "unsupported frontend message: {:?}",
+                                other
+                            ))
+                            .into(),
                         )
-                        .await?
-                    }
-                    Some(FrontendMessage::Describe { object_type, name }) => {
-                        self.describe(object_type, name).await?
-                    }
-                    Some(FrontendMessage::Execute { portal, max_rows }) => {
-                        self.execute(portal, max_rows).await?
-                    }
-                    Some(FrontendMessage::Sync) => self.sync().await?,
-                    Some(other) => {
-                        warn!(?other, "unsupported frontend message");
-                        self.conn
-                            .send(
-                                ErrorResponse::feature_not_supported(format!(
-                                    "unsupported frontend message: {:?}",
-                                    other
-                                ))
-                                .into(),
-                            )
-                            .await?;
-                        self.ready_for_query().await?;
-                    }
-                    None => {
-                        trace!("connection closed");
-                        return Ok(());
-                    }
+                        .await?;
+                    self.ready_for_query().await?;
+                }
+                None => {
+                    trace!("connection closed");
+                    return Ok(());
                 }
             }
         }
@@ -260,8 +233,6 @@ where
     }
 
     async fn query(&mut self, sql: String) -> Result<()> {
-        trace!(%sql, "received query");
-
         let session = &mut self.session;
         let conn = &mut self.conn;
 
@@ -319,6 +290,9 @@ where
             }
 
             // Maybe row description...
+            //
+            // Only send back a row description if the statement produces
+            // output.
             if let Some(schema) = stmt.output_schema() {
                 Self::send_row_descriptor(conn, schema).await?;
             }
@@ -461,8 +435,6 @@ where
     }
 
     async fn sync(&mut self) -> Result<()> {
-        trace!("received sync");
-
         self.ready_for_query().await
     }
 
@@ -519,14 +491,6 @@ where
     async fn command_complete(conn: &mut FramedConn<C>, tag: impl Into<String>) -> Result<()> {
         conn.send(BackendMessage::CommandComplete { tag: tag.into() })
             .await
-    }
-
-    fn set_error(&mut self) {
-        self.error_state = true;
-    }
-
-    fn clear_error(&mut self) {
-        self.error_state = false;
     }
 }
 
