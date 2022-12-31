@@ -97,7 +97,8 @@ impl ProtocolHandler {
             .await?;
         let msg = framed.read().await?;
         match msg {
-            Some(FrontendMessage::PasswordMessage { password }) => {
+            Some(FrontendMessage::PasswordMessage { password: _ }) => {
+                // TODO: Do something with password.
                 framed.send(BackendMessage::AuthenticationOk).await?;
             }
             Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.
@@ -262,7 +263,7 @@ where
         let stmts = match parse_sql(&sql) {
             Ok(stmts) => stmts,
             Err(e) => {
-                self.send_error(e.into()).await?;
+                self.send_error(e).await?;
                 return self.ready_for_query().await;
             }
         };
@@ -296,12 +297,12 @@ where
             let result_formats = match extend_formats(
                 Vec::new(),
                 stmt.output_schema()
-                    .and_then(|schema| Some(schema.fields().len()))
+                    .map(|schema| schema.fields().len())
                     .unwrap_or(0),
             ) {
                 Ok(v) => v,
                 Err(e) => {
-                    self.send_error(e.into()).await?;
+                    self.send_error(e).await?;
                     return self.ready_for_query().await;
                 }
             };
@@ -392,7 +393,7 @@ where
         let result_formats = match extend_formats(
             result_formats,
             stmt.output_schema()
-                .and_then(|schema| Some(schema.fields().len()))
+                .map(|schema| schema.fields().len())
                 .unwrap_or(0),
         ) {
             Ok(formats) => formats,

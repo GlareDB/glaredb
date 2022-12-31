@@ -172,7 +172,7 @@ impl SessionContext {
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>,
     ) -> Result<()> {
-        if params.len() > 0 {
+        if !params.is_empty() {
             return Err(ExecError::UnsupportedFeature(
                 "prepared statements with parameters",
             ));
@@ -181,7 +181,7 @@ impl SessionContext {
         // Unnamed (empty string) prepared statements can be overwritten
         // whenever. Named prepared statements must be explicitly removed before
         // being used again.
-        if name != "" && self.prepared.contains_key(&name) {
+        if !name.is_empty() && self.prepared.contains_key(&name) {
             return Err(internal!(
                 "named prepared statments must be deallocated before reuse, name: {}",
                 name
@@ -207,7 +207,7 @@ impl SessionContext {
     ) -> Result<()> {
         // Unnamed portals can be overwritten, named portals need to be
         // explicitly deallocated.
-        if portal_name != "" && self.portals.contains_key(&portal_name) {
+        if !portal_name.is_empty() && self.portals.contains_key(&portal_name) {
             return Err(internal!(
                 "named portals must be deallocated before reuse, name: {}",
                 portal_name,
@@ -373,6 +373,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PreparedStatement {
     pub(crate) stmt: Option<StatementWithExtensions>,
     /// The logical plan for the statement. Is `Some` if the statement is
@@ -414,6 +415,7 @@ impl PreparedStatement {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Portal {
     /// The associated prepared statement.
     pub(crate) stmt: PreparedStatement,
