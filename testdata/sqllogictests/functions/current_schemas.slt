@@ -1,7 +1,7 @@
 # 'current_schemas' function
 
 statement ok
-set search_path = 'public';
+set search_path = public;
 
 query T
 select current_schemas()::text;
@@ -15,6 +15,14 @@ create schema current_schemas_test;
 
 statement ok
 set search_path = 'public,current_schemas_test';
+
+query T
+select current_schemas()::text;
+----
+[public, current_schemas_test]
+
+statement ok
+set search_path = public,current_schemas_test;
 
 query T
 select current_schemas()::text;

@@ -172,23 +172,26 @@ pub struct SetVariable {
 }
 
 impl SetVariable {
-    /// Try to get a single string value.
-    ///
-    /// Errors if more than one value, or if the value is not a string.
-    pub fn try_as_single_string(&self) -> Result<String> {
-        if self.values.len() > 1 {
-            return Err(internal!(
-                "invalid number of values given: {:?}",
-                self.values
-            ));
-        }
+    /// Try to convert the value into a string.
+    pub fn try_into_string(&self) -> Result<String> {
+        let expr_to_string = |expr: &ast::Expr| {
+            Ok(match expr {
+                ast::Expr::Identifier(_) | ast::Expr::CompoundIdentifier(_) => expr.to_string(),
+                ast::Expr::Value(ast::Value::SingleQuotedString(s)) => s.clone(),
+                ast::Expr::Value(ast::Value::DoubleQuotedString(s)) => format!("\"{}\"", s),
+                ast::Expr::Value(ast::Value::UnQuotedString(s)) => s.clone(),
+                ast::Expr::Value(ast::Value::Number(s, _)) => s.clone(),
+                ast::Expr::Value(v) => v.to_string(),
+                other => return Err(internal!("invalid expression for SET var: {:}", other)),
+            })
+        };
 
-        let first = self.values.first().unwrap();
-        match first {
-            ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
-            ast::Expr::Value(ast::Value::SingleQuotedString(s)) => Ok(s.clone()),
-            expr => Err(internal!("invalid expression for SET: {}", expr)),
-        }
+        Ok(self
+            .values
+            .iter()
+            .map(expr_to_string)
+            .collect::<Result<Vec<_>>>()?
+            .join(","))
     }
 }
 

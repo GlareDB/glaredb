@@ -17,3 +17,13 @@ set server_version = '14.6';
 
 statement error
 set unknown_variable = 'Test';
+
+# Try to set a variable that has number value.
+
+statement ok
+set extra_float_digits = 3;
+
+query T
+show extra_float_digits;
+----
+3

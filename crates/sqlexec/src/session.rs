@@ -139,7 +139,7 @@ impl Session {
         let key = plan.variable.to_string().to_lowercase();
         self.ctx
             .get_session_vars_mut()
-            .set(&key, plan.try_as_single_string()?.as_str())?;
+            .set(&key, plan.try_into_string()?.as_str())?;
         Ok(())
     }
 
