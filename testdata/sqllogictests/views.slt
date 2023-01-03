@@ -1,0 +1,43 @@
+# View tests
+
+statement ok
+create schema views;
+
+statement ok
+set search_path = views;
+
+# Unaliased select
+
+statement ok
+create view with_select as select 1;
+
+query I
+select * from with_select;
+----
+1
+
+# Aliased select
+
+statement ok
+create view with_alias as select 1 as a, 2 as b;
+
+query I
+select * from with_alias;
+----
+1  2
+
+query I
+select b from with_alias;
+----
+2
+
+# Values
+
+statement ok
+create view with_values as values (1,2), (3,4);
+
+query II
+select * from with_values order by 1;
+----
+1  2
+3  4

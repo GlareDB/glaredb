@@ -19,6 +19,7 @@ use jsoncat::catalog::{Catalog, DropEntry, EntryType};
 use jsoncat::dispatch::{CatalogDispatcher, LatePlanner};
 use jsoncat::entry::schema::SchemaEntry;
 use jsoncat::entry::table::{ColumnDefinition, TableEntry};
+use jsoncat::entry::view::ViewEntry;
 use jsoncat::transaction::StubCatalogContext;
 use pgrepr::format::Format;
 use std::collections::HashMap;
@@ -120,6 +121,19 @@ impl SessionContext {
         };
 
         self.catalog.create_schema(&StubCatalogContext, ent)?;
+        Ok(())
+    }
+
+    pub fn create_view(&self, plan: CreateView) -> Result<()> {
+        let (schema, name) = self.resolve_table_reference(plan.view_name)?;
+        let ent = ViewEntry {
+            schema,
+            name,
+            column_count: plan.num_columns as u32,
+            sql: plan.sql,
+        };
+
+        self.catalog.create_view(&StubCatalogContext, ent)?;
         Ok(())
     }
 
