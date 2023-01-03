@@ -1,5 +1,5 @@
-use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::catalog::access::AccessMethod;
+use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
 use crate::parser::{CreateExternalTableStmt, StatementWithExtensions};
