@@ -1,4 +1,4 @@
-use crate::catalog::transaction::Context;
+use crate::catalog::transaction::CatalogContext;
 use crate::catalog::Catalog;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
@@ -6,7 +6,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use std::sync::Arc;
 
-pub fn views_memory_table<C: Context>(ctx: &C, catalog: &Catalog) -> MemTable {
+pub fn views_memory_table<C: CatalogContext>(ctx: &C, catalog: &Catalog) -> MemTable {
     let arrow_schema = Arc::new(views_arrow_schema());
 
     let mut schema_names = StringBuilder::new();

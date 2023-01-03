@@ -5,77 +5,67 @@ use crate::catalog::errors::{CatalogError, Result};
 use crate::catalog::system::{
     columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
 };
-use crate::catalog::transaction::Context;
-use crate::catalog::Catalog;
+use crate::catalog::transaction::StubCatalogContext;
+use crate::context::SessionContext;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
-use datafusion::logical_expr::LogicalPlan;
 use datasource_bigquery::BigQueryAccessor;
 use datasource_postgres::PostgresAccessor;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
 
-/// Plan a single sql statement, generating a DataFusion logical plan.
-///
-/// Some objects, namely views, require that we generate logical plans very late
-/// in the planning process.
-pub trait LatePlanner {
-    type Error: std::fmt::Display;
-    fn plan_sql(&self, sql: &str) -> std::result::Result<LogicalPlan, Self::Error>;
-}
-
 /// Dispatch to the appropriate table sources.
-pub struct CatalogDispatcher<'a, C> {
-    catalog: &'a Arc<Catalog>,
-    ctx: &'a C,
+pub struct SessionDispatcher<'a> {
+    ctx: &'a SessionContext,
 }
 
-impl<'a, C: Context> CatalogDispatcher<'a, C> {
+impl<'a> SessionDispatcher<'a> {
     /// Create a new dispatcher.
-    pub fn new(ctx: &'a C, catalog: &'a Arc<Catalog>) -> Self {
-        CatalogDispatcher { catalog, ctx }
+    pub fn new(ctx: &'a SessionContext) -> Self {
+        SessionDispatcher { ctx }
     }
 
     /// Return a datafusion table provider based on how the table should be
     /// accessed.
     ///
     /// Returns `None` if no table or view exist within a schema.
-    ///
-    /// Note `planner` is only used when accessing views.
-    pub fn dispatch_access<P: LatePlanner>(
+    pub fn dispatch_access(
         &self,
-        planner: &P,
         schema: &str,
         name: &str,
     ) -> Result<Option<Arc<dyn TableProvider>>> {
-        let schema_ent = self
-            .catalog
+        let catalog = self.ctx.get_catalog();
+        let schema_ent = catalog
             .schemas
-            .get_entry(self.ctx, schema)
+            .get_entry(&StubCatalogContext, schema)
             .ok_or_else(|| CatalogError::MissingEntry {
                 typ: "schema",
                 name: schema.to_string(),
             })?;
 
         // Check table entries first.
-        if let Some(table) = schema_ent.tables.get_entry(self.ctx, name) {
+        if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
             return match &table.access {
                 AccessMethod::InternalMemory => {
                     // Just match on the built-in tables.
                     match (table.schema.as_str(), table.name.as_str()) {
-                        (INTERNAL_SCHEMA, "views") => {
-                            Ok(Some(Arc::new(views_memory_table(self.ctx, self.catalog))))
-                        }
-                        (INTERNAL_SCHEMA, "schemas") => {
-                            Ok(Some(Arc::new(schemas_memory_table(self.ctx, self.catalog))))
-                        }
-                        (INTERNAL_SCHEMA, "tables") => {
-                            Ok(Some(Arc::new(tables_memory_table(self.ctx, self.catalog))))
-                        }
-                        (INTERNAL_SCHEMA, "columns") => {
-                            Ok(Some(Arc::new(columns_memory_table(self.ctx, self.catalog))))
-                        }
+                        (INTERNAL_SCHEMA, "views") => Ok(Some(Arc::new(views_memory_table(
+                            &StubCatalogContext,
+                            catalog,
+                        )))),
+                        (INTERNAL_SCHEMA, "schemas") => Ok(Some(Arc::new(schemas_memory_table(
+                            &StubCatalogContext,
+                            catalog,
+                        )))),
+                        (INTERNAL_SCHEMA, "tables") => Ok(Some(Arc::new(tables_memory_table(
+                            &StubCatalogContext,
+                            catalog,
+                        )))),
+                        (INTERNAL_SCHEMA, "columns") => Ok(Some(Arc::new(columns_memory_table(
+                            &StubCatalogContext,
+                            catalog,
+                        )))),
                         (schema, name) => Err(CatalogError::MissingTableForAccessMethod {
                             method: AccessMethod::InternalMemory,
                             schema: schema.to_string(),
@@ -90,7 +80,7 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
                     let result: Result<_, datasource_postgres::errors::PostgresError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
-                                let accessor = PostgresAccessor::connect(pg.clone()).await?;
+                                let accessor = PostgresAccessor::connect(pg).await?;
                                 let provider = accessor.into_table_provider(true).await?;
                                 Ok(provider)
                             })
@@ -103,7 +93,7 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
                     let result: Result<_, datasource_bigquery::errors::BigQueryError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
-                                let accessor = BigQueryAccessor::connect(bq.clone()).await?;
+                                let accessor = BigQueryAccessor::connect(bq).await?;
                                 let provider = accessor.into_table_provider(true).await?;
                                 Ok(provider)
                             })
@@ -116,10 +106,11 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
         }
 
         // Fall back to checking views.
-        if let Some(view) = schema_ent.views.get_entry(self.ctx, name) {
+        if let Some(view) = schema_ent.views.get_entry(&StubCatalogContext, name) {
             // Do some late planning.
-            let plan = planner
-                .plan_sql(&view.sql)
+            let plan = self
+                .ctx
+                .late_view_plan(&view.sql)
                 .map_err(|e| CatalogError::LatePlanning(e.to_string()))?;
 
             return Ok(Some(Arc::new(ViewTable::try_new(plan, None)?)));

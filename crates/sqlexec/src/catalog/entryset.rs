@@ -1,5 +1,5 @@
 use crate::catalog::errors::{internal, Result};
-use crate::catalog::transaction::{Context, Timestamp};
+use crate::catalog::transaction::{CatalogContext, Timestamp};
 use parking_lot::RwLock;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -56,7 +56,7 @@ impl<T> EntrySet<T> {
         }
     }
 
-    pub fn create_entry<C: Context>(
+    pub fn create_entry<C: CatalogContext>(
         &self,
         ctx: &C,
         name: impl Into<String>,
@@ -101,7 +101,7 @@ impl<T> EntrySet<T> {
         Ok(EntryInsert::Inserted)
     }
 
-    pub fn get_entry<C: Context>(&self, ctx: &C, name: &str) -> Option<Arc<T>> {
+    pub fn get_entry<C: CatalogContext>(&self, ctx: &C, name: &str) -> Option<Arc<T>> {
         let inner = self.inner.read();
 
         // TODO: Transactional lookup.
@@ -115,7 +115,7 @@ impl<T> EntrySet<T> {
         Some(ent.clone())
     }
 
-    pub fn entry_exists<C: Context>(&self, ctx: &C, name: &str) -> bool {
+    pub fn entry_exists<C: CatalogContext>(&self, ctx: &C, name: &str) -> bool {
         let inner = self.inner.read();
 
         // TODO: Transactional lookup.
@@ -127,7 +127,7 @@ impl<T> EntrySet<T> {
         }
     }
 
-    pub fn drop_entry<C: Context>(&self, ctx: &C, name: &str) -> Result<EntryDrop> {
+    pub fn drop_entry<C: CatalogContext>(&self, ctx: &C, name: &str) -> Result<EntryDrop> {
         let mut inner = self.inner.write();
 
         // TODO: Transactional lookup.
@@ -149,7 +149,7 @@ impl<T> EntrySet<T> {
         }
     }
 
-    pub fn iter<'a, C: Context>(&'a self, ctx: &'a C) -> EntrySetIter<'a, T, C> {
+    pub fn iter<'a, C: CatalogContext>(&'a self, ctx: &'a C) -> EntrySetIter<'a, T, C> {
         EntrySetIter {
             idx: 0,
             ctx,
@@ -157,7 +157,7 @@ impl<T> EntrySet<T> {
         }
     }
 
-    fn get_entry_by_idx<C: Context>(&self, ctx: &C, idx: usize) -> Option<Arc<T>> {
+    fn get_entry_by_idx<C: CatalogContext>(&self, ctx: &C, idx: usize) -> Option<Arc<T>> {
         // TODO: Transactional.
         let inner = self.inner.read();
         inner.entries.get(&idx).cloned()
@@ -179,7 +179,7 @@ pub struct EntrySetIter<'a, T, C> {
     entryset: &'a EntrySet<T>,
 }
 
-impl<'a, T, C: Context> Iterator for EntrySetIter<'a, T, C> {
+impl<'a, T, C: CatalogContext> Iterator for EntrySetIter<'a, T, C> {
     type Item = Arc<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
