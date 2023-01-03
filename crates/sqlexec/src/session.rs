@@ -1,8 +1,7 @@
-use crate::context::SessionContext;
-use crate::errors::{ExecError, Result};
-use crate::executor::ExecutionResult;
-use crate::extended::{Portal, PreparedStatement};
+use crate::context::{Portal, PreparedStatement, SessionContext};
+use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
+use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
@@ -10,7 +9,54 @@ use datafusion::physical_plan::{
     ExecutionPlan, SendableRecordBatchStream,
 };
 use jsoncat::catalog::Catalog;
+use pgrepr::format::Format;
+use std::fmt;
 use std::sync::Arc;
+use uuid::Uuid;
+
+/// Results from a sql statement execution.
+pub enum ExecutionResult {
+    /// The stream for the output of a query.
+    Query { stream: SendableRecordBatchStream },
+    /// No statement provided.
+    EmptyQuery,
+    /// Transaction started.
+    Begin,
+    /// Transaction committed,
+    Commit,
+    /// Transaction rolled abck.
+    Rollback,
+    /// Data successfully written.
+    WriteSuccess,
+    /// Table created.
+    CreateTable,
+    /// Schema created.
+    CreateSchema,
+    /// A client local variable was set.
+    SetLocal,
+    /// Tables dropped.
+    DropTables,
+    /// Schemas dropped.
+    DropSchemas,
+}
+
+impl fmt::Debug for ExecutionResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExecutionResult::Query { stream } => write!(f, "query (schema: {:?})", stream.schema()),
+            ExecutionResult::EmptyQuery => write!(f, "empty query"),
+            ExecutionResult::Begin => write!(f, "begin"),
+            ExecutionResult::Commit => write!(f, "commit"),
+            ExecutionResult::Rollback => write!(f, "rollback"),
+            ExecutionResult::WriteSuccess => write!(f, "write success"),
+            ExecutionResult::CreateTable => write!(f, "create table"),
+            ExecutionResult::CreateSchema => write!(f, "create schema"),
+            ExecutionResult::SetLocal => write!(f, "set local"),
+            ExecutionResult::DropTables => write!(f, "drop tables"),
+            ExecutionResult::DropSchemas => write!(f, "drop schemas"),
+        }
+    }
+}
 
 /// A per-client user session.
 ///
@@ -26,8 +72,8 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(catalog: Arc<Catalog>) -> Result<Session> {
-        let ctx = SessionContext::new(catalog);
+    pub fn new(catalog: Arc<Catalog>, id: Uuid) -> Result<Session> {
+        let ctx = SessionContext::new(catalog, id);
         Ok(Session { ctx })
     }
 
@@ -93,7 +139,7 @@ impl Session {
         let key = plan.variable.to_string().to_lowercase();
         self.ctx
             .get_session_vars_mut()
-            .set(&key, plan.try_as_single_string()?.as_str())?;
+            .set(&key, plan.try_into_string()?.as_str())?;
         Ok(())
     }
 
@@ -114,45 +160,110 @@ impl Session {
         self.ctx.get_session_vars_mut()
     }
 
-    /// Store the prepared statement in the current session.
-    /// It will later be readied for execution by using `bind_prepared_statement`.
-    pub fn create_prepared_statement(
+    /// Prepare a parsed statement for future execution.
+    pub fn prepare_statement(
         &mut self,
-        _name: Option<String>,
-        _sql: String,
-        _params: Vec<i32>,
+        name: String,
+        stmt: Option<StatementWithExtensions>,
+        params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("prepare"))
+        self.ctx.prepare_statement(name, stmt, params)
     }
 
-    pub fn get_prepared_statement(&self, _name: &Option<String>) -> Option<&PreparedStatement> {
-        // Currently called by pgsrv...
-        None
+    pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
+        self.ctx.get_prepared_statement(name)
     }
 
-    pub fn get_portal(&self, _portal_name: &Option<String>) -> Option<&Portal> {
-        // Currently called by pgsrv...
-        None
+    pub fn get_portal(&self, name: &str) -> Result<&Portal> {
+        self.ctx.get_portal(name)
+    }
+
+    pub fn remove_prepared_statement(&mut self, name: &str) {
+        self.ctx.remove_prepared_statement(name);
+    }
+
+    pub fn remove_portal(&mut self, name: &str) {
+        self.ctx.remove_portal(name);
     }
 
     /// Bind the parameters of a prepared statement to the given values.
-    /// If successful, the bound statement will create a portal which can be used to execute the statement.
-    pub fn bind_prepared_statement(
+    ///
+    /// If successful, the bound statement will create a portal which can be
+    /// used to execute the statement.
+    pub fn bind_statement(
         &mut self,
-        _portal_name: Option<String>,
-        _statement_name: Option<String>,
-        _param_formats: Vec<i16>,
-        _param_values: Vec<Option<Vec<u8>>>,
-        _result_formats: Vec<i16>,
+        portal_name: String,
+        stmt_name: &str,
+        param_formats: Vec<Format>,
+        param_values: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<Format>,
     ) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("bind"))
+        // We don't currently support parameters. We're already erroring on
+        // attempting to prepare statements with parameters, so this is just
+        // ensuring that we're not missing anything right now.
+        assert_eq!(0, param_formats.len());
+        assert_eq!(0, param_values.len());
+
+        self.ctx
+            .bind_statement(portal_name, stmt_name, result_formats)
     }
 
+    /// Execute a portal.
+    // TODO: Handle max rows.
     pub async fn execute_portal(
         &mut self,
-        _portal_name: &Option<String>,
+        portal_name: &str,
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
-        Err(ExecError::UnsupportedFeature("execute"))
+        let portal = self.ctx.get_portal(portal_name)?;
+        let plan = match &portal.stmt.plan {
+            Some(plan) => plan.clone(),
+            None => return Ok(ExecutionResult::EmptyQuery),
+        };
+
+        match plan {
+            LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
+                self.create_table(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
+                self.create_external_table(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
+                self.create_table_as(plan).await?;
+                Ok(ExecutionResult::CreateTable)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
+                self.create_schema(plan).await?;
+                Ok(ExecutionResult::CreateSchema)
+            }
+            LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
+                self.drop_tables(plan).await?;
+                Ok(ExecutionResult::DropTables)
+            }
+            LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
+                self.drop_schemas(plan).await?;
+                Ok(ExecutionResult::DropSchemas)
+            }
+            LogicalPlan::Write(WritePlan::Insert(plan)) => {
+                self.insert(plan).await?;
+                Ok(ExecutionResult::WriteSuccess)
+            }
+            LogicalPlan::Query(plan) => {
+                let physical = self.create_physical_plan(plan).await?;
+                let stream = self.execute_physical(physical)?;
+                Ok(ExecutionResult::Query { stream })
+            }
+            LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
+                self.set_variable(plan)?;
+                Ok(ExecutionResult::SetLocal)
+            }
+            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
+                let stream = self.show_variable(plan)?;
+                Ok(ExecutionResult::Query { stream })
+            }
+            other => Err(internal!("unimplemented logical plan: {:?}", other)),
+        }
     }
 }

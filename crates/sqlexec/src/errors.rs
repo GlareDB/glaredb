@@ -23,6 +23,12 @@ pub enum ExecError {
     #[error("Unknown variable: {0}")]
     UnknownVariable(String),
 
+    #[error("Unknown prepared statement with name: {0}")]
+    UnknownPreparedStatement(String),
+
+    #[error("Unknown portal with name: {0}")]
+    UnknownPortal(String),
+
     #[error("empty search path, unable to resolve schema")]
     EmptySearchPath,
 
@@ -39,7 +45,7 @@ pub enum ExecError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
-    PgRepr(#[from] pgrepr::error::Error),
+    PgRepr(#[from] pgrepr::error::PgReprError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),

@@ -71,8 +71,18 @@ impl TryFrom<(char, Message)> for SerializedMessage {
             ),
             Message::ParseComplete => ("ParseComplete", String::new()),
             Message::BindComplete => ("BindComplete", String::new()),
+            Message::CloseComplete => ("CloseComplete", String::new()),
             Message::NoData => ("NoData", String::new()),
             Message::EmptyQueryResponse => ("EmptyQueryResponse", String::new()),
+            Message::ErrorResponse(msg) => (
+                "ErrorResponse",
+                serde_json::to_string(&ErrorResponse {
+                    fields: msg
+                        .fields()
+                        .map(|field| Ok(field.value().to_string()))
+                        .collect()?,
+                })?,
+            ),
             _ => return Err(anyhow!("unhandle message, type identifier: {}", id)),
         };
         Ok(SerializedMessage {
@@ -107,6 +117,16 @@ pub struct Bind {
 pub struct Execute {
     pub portal: Option<String>,
     pub max_rows: Option<i32>,
+}
+
+#[derive(Deserialize)]
+pub struct CloseStatement {
+    pub name: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ClosePortal {
+    pub name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -145,4 +165,9 @@ pub struct ParameterDescription {
 #[derive(Serialize)]
 pub struct CommandComplete {
     pub tag: String,
+}
+
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub fields: Vec<String>,
 }

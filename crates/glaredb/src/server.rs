@@ -17,8 +17,8 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tracing::trace;
-use tracing::{debug, info};
+use tracing::{debug, debug_span, info, trace, Instrument};
+use uuid::Uuid;
 
 pub struct ServerConfig {
     pub pg_listener: TcpListener,
@@ -98,13 +98,18 @@ impl Server {
         loop {
             let (conn, client_addr) = conf.pg_listener.accept().await?;
             let pg_handler = self.pg_handler.clone();
-            tokio::spawn(async move {
-                debug!(%client_addr, "client connected (pg)");
-                match pg_handler.handle_connection(conn).await {
-                    Ok(_) => debug!(%client_addr, "client disconnected"),
-                    Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
+            let conn_id = Uuid::new_v4();
+            let span = debug_span!("glaredb_connection", %conn_id);
+            tokio::spawn(
+                async move {
+                    debug!(%client_addr, "client connected (pg)");
+                    match pg_handler.handle_connection(conn_id, conn).await {
+                        Ok(_) => debug!(%client_addr, "client disconnected"),
+                        Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
+                    }
                 }
-            });
+                .instrument(span),
+            );
         }
     }
 }

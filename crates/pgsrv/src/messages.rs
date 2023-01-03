@@ -1,4 +1,6 @@
 use datafusion::arrow::record_batch::RecordBatch;
+use pgrepr::format::Format;
+use sqlexec::errors::ExecError;
 use std::collections::HashMap;
 
 use crate::errors::PgSrvError;
@@ -30,13 +32,9 @@ pub enum StartupMessage {
 #[derive(Debug)]
 pub enum FrontendMessage {
     /// A query (or queries) to execute.
-    Query {
-        sql: String,
-    },
+    Query { sql: String },
     /// An encrypted or unencrypted password.
-    PasswordMessage {
-        password: String,
-    },
+    PasswordMessage { password: String },
     /// An extended query parse message.
     Parse {
         /// The name of the prepared statement. An empty string denotes the
@@ -57,13 +55,23 @@ pub enum FrontendMessage {
         statement: String,
         /// The parameter format codes. Each must presently be zero (text) or
         /// one (binary).
-        param_formats: Vec<i16>,
+        ///
+        /// Valid lengths may be:
+        /// 0 -> Use default format for all inputs (text)
+        /// 1 -> Use this one format for all inputs
+        /// n -> Individually specified formats for each input.
+        param_formats: Vec<Format>,
         /// The parameter values, in the format indicated by the associated
         /// format code. n is the above length.
         param_values: Vec<Option<Vec<u8>>>,
         /// The result-column format codes. Each must presently be zero (text)
         /// or one (binary).
-        result_formats: Vec<i16>,
+        ///
+        /// Valid lengths may be:
+        /// 0 -> Use default format for all outputs (text)
+        /// 1 -> Use this one format for all outputs
+        /// n -> Individually specified formats for each output.
+        result_formats: Vec<Format>,
     },
     Describe {
         /// The kind of item to describe: 'S' to describe a prepared statement;
@@ -81,8 +89,35 @@ pub enum FrontendMessage {
         /// that returns rows (ignored otherwise). Zero denotes "no limit".
         max_rows: i32,
     },
+    Close {
+        /// The kind of item to close (portal or statement).
+        object_type: DescribeObjectType,
+        /// Name of the object to close.
+        name: String,
+    },
+    /// Synchronize after running through the extended query protocol.
     Sync,
+    /// Flush the connection.
+    Flush,
+    /// Close the connection.
     Terminate,
+}
+
+impl FrontendMessage {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            FrontendMessage::Query { .. } => "query",
+            FrontendMessage::PasswordMessage { .. } => "password",
+            FrontendMessage::Parse { .. } => "parse",
+            FrontendMessage::Bind { .. } => "bind",
+            FrontendMessage::Describe { .. } => "describe",
+            FrontendMessage::Execute { .. } => "execute",
+            FrontendMessage::Close { .. } => "close",
+            FrontendMessage::Flush => "flush",
+            FrontendMessage::Sync => "sync",
+            FrontendMessage::Terminate => "terminate",
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -106,6 +141,7 @@ pub enum BackendMessage {
     DataRow(RecordBatch, usize),
     ParseComplete,
     BindComplete,
+    CloseComplete,
     NoData,
     ParameterDescription(Vec<i32>),
 }
@@ -144,9 +180,19 @@ impl ErrorSeverity {
 /// See a complete list here: https://www.postgresql.org/docs/current/errcodes-appendix.html
 #[derive(Debug)]
 pub enum SqlState {
+    // Class 00 — Successful Completion
     Successful,
+
+    // Class 01 — Warning
     Warning,
+
+    // Class 0A — Feature Not Supported
     FeatureNotSupported,
+
+    // Class 42 — Syntax Error or Access Rule Violation
+    SyntaxError,
+
+    // Class XX — Internal Error
     InternalError,
 }
 
@@ -156,6 +202,7 @@ impl SqlState {
             SqlState::Successful => "00000",
             SqlState::Warning => "01000",
             SqlState::FeatureNotSupported => "0A000",
+            SqlState::SyntaxError => "42601",
             SqlState::InternalError => "XX000",
         }
     }
@@ -169,20 +216,20 @@ pub struct ErrorResponse {
 }
 
 impl ErrorResponse {
-    pub fn feature_not_supported(msg: impl Into<String>) -> ErrorResponse {
+    pub fn error(code: SqlState, msg: impl Into<String>) -> ErrorResponse {
         ErrorResponse {
             severity: ErrorSeverity::Error,
-            code: SqlState::FeatureNotSupported,
+            code,
             message: msg.into(),
         }
     }
 
+    pub fn feature_not_supported(msg: impl Into<String>) -> ErrorResponse {
+        Self::error(SqlState::FeatureNotSupported, msg)
+    }
+
     pub fn error_internal(msg: impl Into<String>) -> ErrorResponse {
-        ErrorResponse {
-            severity: ErrorSeverity::Error,
-            code: SqlState::InternalError,
-            message: msg.into(),
-        }
+        Self::error(SqlState::InternalError, msg)
     }
 
     pub fn fatal_internal(msg: impl Into<String>) -> ErrorResponse {
@@ -191,6 +238,13 @@ impl ErrorResponse {
             code: SqlState::InternalError,
             message: msg.into(),
         }
+    }
+}
+
+impl From<ExecError> for ErrorResponse {
+    fn from(e: ExecError) -> Self {
+        // TODO: Actually set appropriate codes.
+        ErrorResponse::error_internal(e.to_string())
     }
 }
 

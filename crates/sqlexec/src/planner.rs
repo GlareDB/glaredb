@@ -194,7 +194,7 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(ConfigurationPlan::SetVariable(SetVariable {
+            } => Ok(VariablePlan::SetVariable(SetVariable {
                 variable,
                 values: value,
             })
@@ -212,7 +212,7 @@ impl<'a> SessionPlanner<'a> {
                     .ok_or_else(|| internal!("missing ident for variable name"))?
                     .value;
 
-                Ok(ConfigurationPlan::ShowVariable(ShowVariable { variable }).into())
+                Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
             }
 
             stmt => Err(ExecError::UnsupportedSQLStatement(stmt.to_string())),

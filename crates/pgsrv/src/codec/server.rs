@@ -7,8 +7,9 @@ use crate::ssl::Connection;
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use datafusion::scalar::ScalarValue;
-use futures::{SinkExt, TryStreamExt};
+use futures::{sink::Buffer, SinkExt, TryStreamExt};
 use ioutil::write::InfallibleWrite;
+use pgrepr::format::Format;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -16,7 +17,7 @@ use tracing::{debug, trace};
 
 /// A connection that can encode and decode postgres protocol messages.
 pub struct FramedConn<C> {
-    conn: Framed<Connection<C>, PgCodec>, // TODO: Buffer.
+    conn: Buffer<Framed<Connection<C>, PgCodec>, BackendMessage>,
 }
 
 impl<C> FramedConn<C>
@@ -26,7 +27,7 @@ where
     /// Create a new framed connection.
     pub fn new(conn: Connection<C>) -> Self {
         FramedConn {
-            conn: Framed::new(conn, PgCodec),
+            conn: Framed::new(conn, PgCodec).buffer(16),
         }
     }
 
@@ -48,9 +49,18 @@ where
         self.conn.send(msg).await
     }
 
+    /// Flush the connection.
+    pub async fn flush(&mut self) -> Result<()> {
+        self.conn.flush().await?;
+        Ok(())
+    }
+
     /// Consumes the `FramedConn`, returning the underlying `Framed`
+    ///
+    /// The connection should be flushed before calling this.
+    // TODO: This should probably just return the connection itself.
     pub fn into_inner(self) -> Framed<Connection<C>, PgCodec> {
-        self.conn
+        self.conn.into_inner()
     }
 }
 
@@ -124,13 +134,21 @@ impl PgCodec {
         let portal = buf.read_cstring()?.to_string();
         let statement = buf.read_cstring()?.to_string();
 
+        // Input param formats.
+        //
+        // Valid lengths may be:
+        // 0 -> Use default format for all inputs (text)
+        // 1 -> Use this one format for all inputs
+        // n -> Individually specified formats for each input.
         let num_params = buf.get_i16() as usize;
         let mut param_formats = Vec::with_capacity(num_params);
         for _ in 0..num_params {
-            param_formats.push(buf.get_i16());
+            let format: Format = buf.get_i16().try_into()?;
+            param_formats.push(format);
         }
 
-        let num_values = buf.get_i16() as usize; // must match num_params
+        // Input param values.
+        let num_values = buf.get_i16() as usize;
         let mut param_values = Vec::with_capacity(num_values);
         for _ in 0..num_values {
             let len = buf.get_i32();
@@ -146,7 +164,8 @@ impl PgCodec {
         let num_params = buf.get_i16() as usize;
         let mut result_formats = Vec::with_capacity(num_params);
         for _ in 0..num_params {
-            result_formats.push(buf.get_i16());
+            let format: Format = buf.get_i16().try_into()?;
+            result_formats.push(format);
         }
 
         Ok(FrontendMessage::Bind {
@@ -171,8 +190,19 @@ impl PgCodec {
         Ok(FrontendMessage::Execute { portal, max_rows })
     }
 
+    fn decode_close(buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        let object_type = buf.get_u8().try_into()?;
+        let name = buf.read_cstring()?.to_string();
+
+        Ok(FrontendMessage::Close { object_type, name })
+    }
+
     fn decode_sync(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
         Ok(FrontendMessage::Sync)
+    }
+
+    fn decode_flush(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
+        Ok(FrontendMessage::Flush)
     }
 
     fn decode_terminate(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
@@ -220,6 +250,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::NoticeResponse(_) => b'N',
             BackendMessage::ParseComplete => b'1',
             BackendMessage::BindComplete => b'2',
+            BackendMessage::CloseComplete => b'3',
             BackendMessage::NoData => b'n',
             BackendMessage::ParameterDescription(_) => b't',
         };
@@ -235,6 +266,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::EmptyQueryResponse => (),
             BackendMessage::ParseComplete => (),
             BackendMessage::BindComplete => (),
+            BackendMessage::CloseComplete => (),
             BackendMessage::NoData => (),
             BackendMessage::ParameterStatus { key, val } => {
                 dst.put_cstring(&key);
@@ -344,9 +376,10 @@ impl Decoder for PgCodec {
             b'B' => Self::decode_bind(&mut buf)?,
             b'D' => Self::decode_describe(&mut buf)?,
             b'E' => Self::decode_execute(&mut buf)?,
+            b'C' => Self::decode_close(&mut buf)?,
             b'S' => Self::decode_sync(&mut buf)?,
-            // X - Terminate
-            b'X' => return Ok(None),
+            b'H' => Self::decode_flush(&mut buf)?,
+            b'X' => return Ok(None), // Terminate
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 

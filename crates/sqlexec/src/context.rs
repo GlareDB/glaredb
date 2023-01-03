@@ -1,10 +1,10 @@
-use crate::errors::{ExecError, Result};
+use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
-use crate::parser::CustomParser;
+use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
@@ -20,17 +20,25 @@ use jsoncat::dispatch::{CatalogDispatcher, LatePlanner};
 use jsoncat::entry::schema::SchemaEntry;
 use jsoncat::entry::table::{ColumnDefinition, TableEntry};
 use jsoncat::transaction::StubCatalogContext;
+use pgrepr::format::Format;
+use std::collections::HashMap;
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Context for a session used during execution.
 ///
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
+    id: Uuid,
     /// Database catalog.
     catalog: Arc<Catalog>,
     /// Session variables.
     vars: SessionVars,
+    /// Prepared statements.
+    prepared: HashMap<String, PreparedStatement>,
+    /// Bound portals.
+    portals: HashMap<String, Portal>,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -40,7 +48,7 @@ pub struct SessionContext {
 
 impl SessionContext {
     /// Create a new session context with the given catalog.
-    pub fn new(catalog: Arc<Catalog>) -> SessionContext {
+    pub fn new(catalog: Arc<Catalog>, id: Uuid) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
         // NOTE: We handle catalog/schema defaults and information schemas
@@ -59,10 +67,18 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
+            id,
             catalog,
             vars: SessionVars::default(),
+            prepared: HashMap::new(),
+            portals: HashMap::new(),
             df_state: state,
         }
+    }
+
+    /// Get the id for this session.
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 
     /// Create a table.
@@ -147,6 +163,95 @@ impl SessionContext {
     /// Get a reference to the catalog.
     pub fn get_catalog(&self) -> &Arc<Catalog> {
         &self.catalog
+    }
+
+    /// Create a prepared statement.
+    pub fn prepare_statement(
+        &mut self,
+        name: String,
+        stmt: Option<StatementWithExtensions>,
+        params: Vec<i32>,
+    ) -> Result<()> {
+        if !params.is_empty() {
+            return Err(ExecError::UnsupportedFeature(
+                "prepared statements with parameters",
+            ));
+        }
+
+        // Unnamed (empty string) prepared statements can be overwritten
+        // whenever. Named prepared statements must be explicitly removed before
+        // being used again.
+        if !name.is_empty() && self.prepared.contains_key(&name) {
+            return Err(internal!(
+                "named prepared statments must be deallocated before reuse, name: {}",
+                name
+            ));
+        }
+
+        let stmt = PreparedStatement::new(stmt, self)?;
+        self.prepared.insert(name, stmt);
+
+        Ok(())
+    }
+
+    /// Bind a planned prepared statement to a portal.
+    ///
+    /// Internally this will create a logical plan for the statement and store
+    /// that on the portal.
+    // TODO: Accept parameters.
+    pub fn bind_statement(
+        &mut self,
+        portal_name: String,
+        stmt_name: &str,
+        result_formats: Vec<Format>,
+    ) -> Result<()> {
+        // Unnamed portals can be overwritten, named portals need to be
+        // explicitly deallocated.
+        if !portal_name.is_empty() && self.portals.contains_key(&portal_name) {
+            return Err(internal!(
+                "named portals must be deallocated before reuse, name: {}",
+                portal_name,
+            ));
+        }
+
+        let stmt = match self.prepared.get(stmt_name) {
+            Some(prepared) => prepared.clone(),
+            None => return Err(ExecError::UnknownPreparedStatement(stmt_name.to_string())),
+        };
+
+        let portal = Portal {
+            stmt,
+            result_formats,
+        };
+        self.portals.insert(portal_name, portal);
+
+        Ok(())
+    }
+
+    /// Get a prepared statement.
+    pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
+        self.prepared
+            .get(name)
+            .ok_or_else(|| ExecError::UnknownPreparedStatement(name.to_string()))
+    }
+
+    /// Get a portal.
+    pub fn get_portal(&self, name: &str) -> Result<&Portal> {
+        self.portals
+            .get(name)
+            .ok_or_else(|| ExecError::UnknownPortal(name.to_string()))
+    }
+
+    /// Remove a prepared statement.
+    pub fn remove_prepared_statement(&mut self, name: &str) {
+        // TODO: This should technically also remove portals that make use of
+        // this prepared statement.
+        self.prepared.remove(name);
+    }
+
+    /// Remove a portal.
+    pub fn remove_portal(&mut self, name: &str) {
+        self.portals.remove(name);
     }
 
     /// Get a datafusion task context to use for physical plan execution.
@@ -264,5 +369,63 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
 
     fn get_config_option(&self, _variable: &str) -> Option<ScalarValue> {
         None
+    }
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct PreparedStatement {
+    pub(crate) stmt: Option<StatementWithExtensions>,
+    /// The logical plan for the statement. Is `Some` if the statement is
+    /// `Some`.
+    pub(crate) plan: Option<LogicalPlan>,
+    /// The output schema of the statement if it produces an output.
+    pub(crate) output_schema: Option<ArrowSchema>,
+}
+
+impl PreparedStatement {
+    /// Create and plan a new prepared statement.
+    // TODO: Not sure if we want to delay the planning portion.
+    fn new(mut stmt: Option<StatementWithExtensions>, ctx: &SessionContext) -> Result<Self> {
+        if let Some(inner) = stmt.take() {
+            // Go ahead and plan using the session context.
+            let planner = SessionPlanner::new(ctx);
+            let plan = planner.plan_ast(inner.clone())?;
+            let schema = plan.output_schema();
+
+            Ok(PreparedStatement {
+                stmt: Some(inner),
+                plan: Some(plan),
+                output_schema: schema,
+            })
+        } else {
+            // No statement to plan.
+            Ok(PreparedStatement {
+                stmt: None,
+                plan: None,
+                output_schema: None,
+            })
+        }
+    }
+
+    /// Get the ouput schema for this statement.
+    pub fn output_schema(&self) -> Option<&ArrowSchema> {
+        self.output_schema.as_ref()
+    }
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct Portal {
+    /// The associated prepared statement.
+    pub(crate) stmt: PreparedStatement,
+    /// Requested output formats.
+    pub(crate) result_formats: Vec<Format>,
+}
+
+impl Portal {
+    /// Get the output schema for this portal.
+    pub fn output_schema(&self) -> Option<&ArrowSchema> {
+        self.stmt.output_schema()
     }
 }

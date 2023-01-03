@@ -1,5 +1,5 @@
 use crate::errors::{internal, ExecError, Result};
-use datafusion::arrow::datatypes::Field;
+use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
 use jsoncat::access::AccessMethod;
@@ -16,7 +16,7 @@ pub enum LogicalPlan {
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
-    Configuration(ConfigurationPlan),
+    Variable(VariablePlan),
 }
 
 impl LogicalPlan {
@@ -25,6 +25,21 @@ impl LogicalPlan {
         match self {
             LogicalPlan::Query(plan) => Ok(plan),
             other => Err(internal!("expected datafusion plan, got: {:?}", other)),
+        }
+    }
+
+    /// Get the arrow schema of the output for the logical plan if it produces
+    /// one.
+    pub fn output_schema(&self) -> Option<ArrowSchema> {
+        match self {
+            LogicalPlan::Query(plan) => {
+                let schema: ArrowSchema = plan.schema().as_ref().into();
+                Some(schema)
+            }
+            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => Some(ArrowSchema::new(
+                vec![Field::new(&plan.variable, DataType::Utf8, false)],
+            )),
+            _ => None,
         }
     }
 }
@@ -139,14 +154,14 @@ impl From<TransactionPlan> for LogicalPlan {
 }
 
 #[derive(Clone, Debug)]
-pub enum ConfigurationPlan {
+pub enum VariablePlan {
     SetVariable(SetVariable),
     ShowVariable(ShowVariable),
 }
 
-impl From<ConfigurationPlan> for LogicalPlan {
-    fn from(plan: ConfigurationPlan) -> Self {
-        LogicalPlan::Configuration(plan)
+impl From<VariablePlan> for LogicalPlan {
+    fn from(plan: VariablePlan) -> Self {
+        LogicalPlan::Variable(plan)
     }
 }
 
@@ -157,23 +172,26 @@ pub struct SetVariable {
 }
 
 impl SetVariable {
-    /// Try to get a single string value.
-    ///
-    /// Errors if more than one value, or if the value is not a string.
-    pub fn try_as_single_string(&self) -> Result<String> {
-        if self.values.len() > 1 {
-            return Err(internal!(
-                "invalid number of values given: {:?}",
-                self.values
-            ));
-        }
+    /// Try to convert the value into a string.
+    pub fn try_into_string(&self) -> Result<String> {
+        let expr_to_string = |expr: &ast::Expr| {
+            Ok(match expr {
+                ast::Expr::Identifier(_) | ast::Expr::CompoundIdentifier(_) => expr.to_string(),
+                ast::Expr::Value(ast::Value::SingleQuotedString(s)) => s.clone(),
+                ast::Expr::Value(ast::Value::DoubleQuotedString(s)) => format!("\"{}\"", s),
+                ast::Expr::Value(ast::Value::UnQuotedString(s)) => s.clone(),
+                ast::Expr::Value(ast::Value::Number(s, _)) => s.clone(),
+                ast::Expr::Value(v) => v.to_string(),
+                other => return Err(internal!("invalid expression for SET var: {:}", other)),
+            })
+        };
 
-        let first = self.values.first().unwrap();
-        match first {
-            ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
-            ast::Expr::Value(ast::Value::SingleQuotedString(s)) => Ok(s.clone()),
-            expr => Err(internal!("invalid expression for SET: {}", expr)),
-        }
+        Ok(self
+            .values
+            .iter()
+            .map(expr_to_string)
+            .collect::<Result<Vec<_>>>()?
+            .join(","))
     }
 }
 

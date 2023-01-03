@@ -1592,6 +1592,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -2751,6 +2752,7 @@ dependencies = [
  "tokio-openssl",
  "tokio-util",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
