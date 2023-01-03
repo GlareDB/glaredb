@@ -77,11 +77,17 @@ impl<'a> SessionDispatcher<'a> {
                     // TODO: We'll probably want an "external dispatcher" of sorts.
                     // TODO: Try not to block on.
                     let pg = pg.clone();
+                    let predicate_pushdown = *self
+                        .ctx
+                        .get_session_vars()
+                        .postgres_predicate_pushdown
+                        .value();
                     let result: Result<_, datasource_postgres::errors::PostgresError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
                                 let accessor = PostgresAccessor::connect(pg).await?;
-                                let provider = accessor.into_table_provider(true).await?;
+                                let provider =
+                                    accessor.into_table_provider(predicate_pushdown).await?;
                                 Ok(provider)
                             })
                         });
@@ -90,11 +96,17 @@ impl<'a> SessionDispatcher<'a> {
                 }
                 AccessMethod::BigQuery(bq) => {
                     let bq = bq.clone();
+                    let predicate_pushdown = *self
+                        .ctx
+                        .get_session_vars()
+                        .bigquery_predicate_pushdown
+                        .value();
                     let result: Result<_, datasource_bigquery::errors::BigQueryError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
                                 let accessor = BigQueryAccessor::connect(bq).await?;
-                                let provider = accessor.into_table_provider(true).await?;
+                                let provider =
+                                    accessor.into_table_provider(predicate_pushdown).await?;
                                 Ok(provider)
                             })
                         });

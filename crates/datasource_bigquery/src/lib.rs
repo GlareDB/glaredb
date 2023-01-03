@@ -21,7 +21,7 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::TableType;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
@@ -119,6 +119,13 @@ impl TableProvider for BigQueryTableProvider {
         TableType::Base
     }
 
+    fn supports_filter_pushdown(
+        &self,
+        _filter: &Expr,
+    ) -> DatafusionResult<TableProviderFilterPushDown> {
+        Ok(TableProviderFilterPushDown::Inexact)
+    }
+
     async fn scan(
         &self,
         _ctx: &SessionState,
@@ -150,14 +157,17 @@ impl TableProvider for BigQueryTableProvider {
 
         // Add row restriction.
         // TODO: Check what restrictions are valid.
-        if self.predicate_pushdown {
+        let predicate = if self.predicate_pushdown {
             let restriction = filters
                 .iter()
                 .map(|expr| expr.to_string())
                 .collect::<Vec<_>>()
                 .join(" AND ");
-            builder = builder.row_restriction(restriction);
-        }
+            builder = builder.row_restriction(restriction.clone());
+            restriction
+        } else {
+            String::new()
+        };
 
         // Select fields based off of what's in our projected schema.
         let selected: Vec<_> = projected_schema
@@ -182,6 +192,7 @@ impl TableProvider for BigQueryTableProvider {
         }
 
         Ok(Arc::new(BigQueryExec {
+            predicate,
             arrow_schema: projected_schema,
             streams,
         }))
@@ -189,6 +200,7 @@ impl TableProvider for BigQueryTableProvider {
 }
 
 struct BigQueryExec {
+    predicate: String,
     arrow_schema: ArrowSchemaRef,
     /// Open streams to BigQuery storage.
     ///
@@ -249,7 +261,15 @@ impl ExecutionPlan for BigQueryExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BigQueryExec: schema={}", self.arrow_schema)
+        write!(
+            f,
+            "BigQueryExec: predicate={}",
+            if self.predicate.is_empty() {
+                "None"
+            } else {
+                self.predicate.as_str()
+            }
+        )
     }
 
     fn statistics(&self) -> Statistics {
