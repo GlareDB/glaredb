@@ -149,6 +149,44 @@ impl<'a> SessionPlanner<'a> {
                 .into())
             }
 
+            // Views
+            ast::Statement::CreateView {
+                or_replace: false,
+                materialized: false,
+                name,
+                columns,
+                query,
+                with_options,
+            } => {
+                if !columns.is_empty() {
+                    return Err(ExecError::UnsupportedFeature("named columns in views"));
+                }
+                if !with_options.is_empty() {
+                    return Err(ExecError::UnsupportedFeature("view options"));
+                }
+
+                // Also validates that the view body is either a SELECT or
+                // VALUES.
+                let num_columns = match query.body.as_ref() {
+                    ast::SetExpr::Select(select) => select.projection.len(),
+                    ast::SetExpr::Values(values) => {
+                        values.0.first().map(|first| first.len()).unwrap_or(0)
+                    }
+                    _ => {
+                        return Err(ExecError::InvalidViewStatement {
+                            msg: "view body must either be a SELECT or VALUES statement",
+                        })
+                    }
+                };
+
+                Ok(DdlPlan::CreateView(CreateView {
+                    view_name: name.to_string(),
+                    num_columns,
+                    sql: query.to_string(),
+                })
+                .into())
+            }
+
             stmt @ ast::Statement::Insert { .. } => {
                 Err(ExecError::UnsupportedSQLStatement(stmt.to_string()))
             }

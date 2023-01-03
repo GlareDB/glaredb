@@ -2,9 +2,6 @@ use crate::parser::StatementWithExtensions;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExecError {
-    #[error("invalid search path; '{schema}' doesn't exist (input: '{input}')")]
-    InvalidSearchPath { input: String, schema: String },
-
     #[error("SQL statement current unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
@@ -23,16 +20,19 @@ pub enum ExecError {
     #[error("Unknown variable: {0}")]
     UnknownVariable(String),
 
+    #[error("Invalid view statement: {msg}")]
+    InvalidViewStatement { msg: &'static str },
+
     #[error("Unknown prepared statement with name: {0}")]
     UnknownPreparedStatement(String),
 
     #[error("Unknown portal with name: {0}")]
     UnknownPortal(String),
 
-    #[error("empty search path, unable to resolve schema")]
+    #[error("Empty search path, unable to resolve schema")]
     EmptySearchPath,
 
-    #[error("expected exactly on SQL statement, got: {0:?}")]
+    #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<StatementWithExtensions>),
 
     #[error(transparent)]

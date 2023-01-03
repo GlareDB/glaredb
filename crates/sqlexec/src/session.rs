@@ -32,6 +32,8 @@ pub enum ExecutionResult {
     CreateTable,
     /// Schema created.
     CreateSchema,
+    /// A view was created.
+    CreateView,
     /// A client local variable was set.
     SetLocal,
     /// Tables dropped.
@@ -51,6 +53,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateSchema => write!(f, "create schema"),
+            ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
@@ -121,12 +124,17 @@ impl Session {
         Ok(())
     }
 
-    pub async fn drop_tables(&self, plan: DropTables) -> Result<()> {
+    pub(crate) async fn create_view(&self, plan: CreateView) -> Result<()> {
+        self.ctx.create_view(plan)?;
+        Ok(())
+    }
+
+    pub(crate) async fn drop_tables(&self, plan: DropTables) -> Result<()> {
         self.ctx.drop_tables(plan)?;
         Ok(())
     }
 
-    pub async fn drop_schemas(&self, plan: DropSchemas) -> Result<()> {
+    pub(crate) async fn drop_schemas(&self, plan: DropSchemas) -> Result<()> {
         self.ctx.drop_schemas(plan)?;
         Ok(())
     }
@@ -237,6 +245,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;
                 Ok(ExecutionResult::CreateSchema)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
+                self.create_view(plan).await?;
+                Ok(ExecutionResult::CreateView)
             }
             LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
                 self.drop_tables(plan).await?;

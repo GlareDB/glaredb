@@ -256,6 +256,11 @@ where
         self.flush().await
     }
 
+    /// Run the simple query flow.
+    ///
+    /// Note that this should only returns errors related to the underlying
+    /// connection. All errors resulting from query execution should be sent to
+    /// client following by a "ready for query".
     async fn query(&mut self, sql: String) -> Result<()> {
         let session = &mut self.session;
         let conn = &mut self.conn;
@@ -488,6 +493,7 @@ where
             ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
+            ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
