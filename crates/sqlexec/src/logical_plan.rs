@@ -1,8 +1,8 @@
+use crate::catalog::access::AccessMethod;
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
-use jsoncat::access::AccessMethod;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {

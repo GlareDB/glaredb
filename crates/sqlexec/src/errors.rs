@@ -57,7 +57,7 @@ pub enum ExecError {
     VarError(#[from] std::env::VarError),
 
     #[error(transparent)]
-    JsonCat(#[from] jsoncat::errors::CatalogError),
+    Catalog(#[from] crate::catalog::errors::CatalogError),
 
     #[error("internal error: {0}")]
     Internal(String),

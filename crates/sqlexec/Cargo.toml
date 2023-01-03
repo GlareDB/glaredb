@@ -10,7 +10,6 @@ logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
 buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
-jsoncat = {path = "../jsoncat"}
 common = {path = "../common"}
 stablestore = {path = "../stablestore"}
 object_store_util = {path = "../object_store_util"}
@@ -21,6 +20,7 @@ parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
 sqlparser = "0.29.0"
 datafusion = "15.0"
+arrow = { version = "*", default-features = false, features = ["serde"] }
 futures = "0.3.25"
 tracing = "0.1"
 async-trait = "0.1.59"
@@ -29,6 +29,8 @@ postgres-types = "0.2.4"
 object_store = "0.5"
 regex = "1.7"
 lazy_static = "1.4"
+serde_json = "1.0.91"
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3"

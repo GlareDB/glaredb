@@ -8,7 +8,7 @@ pub enum CatalogError {
 
     #[error("missing table or view for access method: {method}, schema: {schema}, name: {name}")]
     MissingTableForAccessMethod {
-        method: crate::access::AccessMethod,
+        method: crate::catalog::access::AccessMethod,
         schema: String,
         name: String,
     },
@@ -17,7 +17,7 @@ pub enum CatalogError {
     LatePlanning(String),
 
     #[error("unable to handle access method: {0}")]
-    UnhandleableAccess(crate::access::AccessMethod),
+    UnhandleableAccess(crate::catalog::access::AccessMethod),
 
     #[error(transparent)]
     DatasourceBigQuery(#[from] datasource_bigquery::errors::BigQueryError),
@@ -43,7 +43,7 @@ pub type Result<T, E = CatalogError> = std::result::Result<T, E>;
 #[allow(unused_macros)]
 macro_rules! internal {
     ($($arg:tt)*) => {
-        crate::errors::CatalogError::Internal(std::format!($($arg)*))
+        crate::catalog::errors::CatalogError::Internal(std::format!($($arg)*))
     };
 }
 pub(crate) use internal;
