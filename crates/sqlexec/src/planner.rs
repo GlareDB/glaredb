@@ -2,13 +2,13 @@ use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
 use crate::parser::{CreateExternalTableStmt, StatementWithExtensions};
-use access::external::bigquery::BigQueryTableAccess;
-use access::external::postgres::PostgresTableAccess;
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use datasource_bigquery::BigQueryTableAccess;
+use datasource_postgres::PostgresTableAccess;
 use jsoncat::access::AccessMethod;
 use std::collections::HashMap;
 use tracing::debug;

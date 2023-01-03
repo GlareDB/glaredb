@@ -1,6 +1,6 @@
 //! Access methods.
-use access::external::bigquery::BigQueryTableAccess;
-use access::external::postgres::PostgresTableAccess;
+use datasource_bigquery::BigQueryTableAccess;
+use datasource_postgres::PostgresTableAccess;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

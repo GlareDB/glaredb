@@ -10,7 +10,6 @@ logutil = {path = "../logutil"}
 ioutil = {path = "../ioutil"}
 common = {path = "../common"}
 sqlexec = {path = "../sqlexec"}
-access = {path = "../access"}
 serde = { version = "1.0", features = ["derive"] }
 bytesutil = {path = "../bytesutil"}
 object_store_util = {path = "../object_store_util"}
