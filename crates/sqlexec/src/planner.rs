@@ -1,3 +1,4 @@
+use crate::catalog::access::AccessMethod;
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
@@ -9,7 +10,6 @@ use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datasource_bigquery::BigQueryTableAccess;
 use datasource_postgres::PostgresTableAccess;
-use jsoncat::access::AccessMethod;
 use std::collections::HashMap;
 use tracing::debug;
 

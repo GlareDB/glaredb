@@ -1,8 +1,8 @@
+use crate::catalog::load_catalog;
+use crate::catalog::transaction::StubCatalogContext;
+use crate::catalog::Catalog;
 use crate::errors::Result;
 use crate::session::Session;
-use jsoncat::catalog::Catalog;
-use jsoncat::load_catalog;
-use jsoncat::transaction::StubCatalogContext;
 use stablestore::StableStorage;
 use std::sync::Arc;
 use uuid::Uuid;

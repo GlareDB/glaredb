@@ -1,12 +1,12 @@
 //! Adapter types for dispatching to table sources.
-use crate::access::AccessMethod;
-use crate::catalog::Catalog;
-use crate::constants::INTERNAL_SCHEMA;
-use crate::errors::{CatalogError, Result};
-use crate::system::{
+use crate::catalog::access::AccessMethod;
+use crate::catalog::constants::INTERNAL_SCHEMA;
+use crate::catalog::errors::{CatalogError, Result};
+use crate::catalog::system::{
     columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
 };
-use crate::transaction::Context;
+use crate::catalog::transaction::Context;
+use crate::catalog::Catalog;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datafusion::logical_expr::LogicalPlan;

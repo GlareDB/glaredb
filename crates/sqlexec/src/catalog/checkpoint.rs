@@ -1,7 +1,7 @@
+use crate::catalog::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
+use crate::catalog::errors::{internal, Result};
+use crate::catalog::transaction::Context;
 use crate::catalog::{Catalog, PhysicalSchema};
-use crate::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
-use crate::errors::{internal, Result};
-use crate::transaction::Context;
 use serde::{Deserialize, Serialize};
 use stablestore::{Blob, StableStorage, VersionReadOption};
 use std::sync::Arc;

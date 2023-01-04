@@ -1948,28 +1948,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsoncat"
-version = "0.1.0"
-dependencies = [
- "arrow 23.0.0",
- "async-trait",
- "bytes",
- "datafusion",
- "datasource_bigquery",
- "datasource_postgres",
- "dfutil",
- "futures",
- "logutil",
- "parking_lot",
- "serde",
- "serde_json",
- "stablestore",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3597,6 +3575,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
+ "arrow 23.0.0",
  "async-trait",
  "buildenv",
  "common",
@@ -3605,7 +3584,6 @@ dependencies = [
  "datasource_postgres",
  "dfutil",
  "futures",
- "jsoncat",
  "lazy_static",
  "logutil",
  "object_store",
@@ -3614,6 +3592,8 @@ dependencies = [
  "pgrepr",
  "postgres-types",
  "regex",
+ "serde",
+ "serde_json",
  "sqlparser 0.29.0",
  "stablestore",
  "tempfile",

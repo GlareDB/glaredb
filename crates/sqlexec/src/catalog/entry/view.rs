@@ -1,4 +1,4 @@
-use crate::constants::INFORMATION_SCHEMA;
+use crate::catalog::constants::INFORMATION_SCHEMA;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

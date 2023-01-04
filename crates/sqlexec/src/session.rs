@@ -1,3 +1,4 @@
+use crate::catalog::Catalog;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
@@ -8,7 +9,6 @@ use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
     ExecutionPlan, SendableRecordBatchStream,
 };
-use jsoncat::catalog::Catalog;
 use pgrepr::format::Format;
 use std::fmt;
 use std::sync::Arc;

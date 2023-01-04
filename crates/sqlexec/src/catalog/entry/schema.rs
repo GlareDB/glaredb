@@ -1,4 +1,6 @@
-use crate::constants::{DEFAULT_SCHEMA, INFORMATION_SCHEMA, INTERNAL_SCHEMA, POSTGRES_SCHEMA};
+use crate::catalog::constants::{
+    DEFAULT_SCHEMA, INFORMATION_SCHEMA, INTERNAL_SCHEMA, POSTGRES_SCHEMA,
+};
 use serde::{Deserialize, Serialize};
 
 struct DefaultSchema {

@@ -1,5 +1,5 @@
-use crate::errors::{internal, Result};
-use crate::transaction::{Context, Timestamp};
+use crate::catalog::errors::{internal, Result};
+use crate::catalog::transaction::{Context, Timestamp};
 use parking_lot::RwLock;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -192,7 +192,7 @@ impl<'a, T, C: Context> Iterator for EntrySetIter<'a, T, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transaction::StubCatalogContext;
+    use crate::catalog::transaction::StubCatalogContext;
 
     #[test]
     fn simple() {
