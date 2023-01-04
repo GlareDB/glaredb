@@ -16,7 +16,6 @@ background = {path = "../background"}
 sqlexec = {path = "../sqlexec"}
 pgsrv = {path = "../pgsrv"}
 stablestore = {path = "../stablestore"}
-access = {path = "../access"}
 object_store_util = {path = "../object_store_util"}
 object_store = {version = "0.5", features = ["gcp"]}
 anyhow = "1.0"

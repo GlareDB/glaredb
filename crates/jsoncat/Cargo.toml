@@ -8,8 +8,9 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
-access = {path = "../access"}
 stablestore = {path = "../stablestore"}
+datasource_bigquery = {path = "../datasource_bigquery"}
+datasource_postgres = {path = "../datasource_postgres"}
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 tracing = "0.1"

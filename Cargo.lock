@@ -3,32 +3,6 @@
 version = 3
 
 [[package]]
-name = "access"
-version = "0.1.0"
-dependencies = [
- "async-stream",
- "async-trait",
- "bigquery-storage",
- "bytes",
- "common",
- "datafusion",
- "dfutil",
- "futures",
- "gcp-bigquery-client",
- "logutil",
- "object_store",
- "object_store_util",
- "parking_lot",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-postgres",
- "tracing",
-]
-
-[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -427,7 +401,6 @@ dependencies = [
 name = "background"
 version = "0.1.0"
 dependencies = [
- "access",
  "async-trait",
  "cloud",
  "common",
@@ -1128,6 +1101,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "datasource_bigquery"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "bigquery-storage",
+ "datafusion",
+ "futures",
+ "gcp-bigquery-client",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "datasource_postgres"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "datafusion",
+ "futures",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1564,7 +1569,6 @@ dependencies = [
 name = "glaredb"
 version = "0.1.0"
 dependencies = [
- "access",
  "anyhow",
  "async-trait",
  "background",
@@ -1947,11 +1951,12 @@ dependencies = [
 name = "jsoncat"
 version = "0.1.0"
 dependencies = [
- "access",
  "arrow 23.0.0",
  "async-trait",
  "bytes",
  "datafusion",
+ "datasource_bigquery",
+ "datasource_postgres",
  "dfutil",
  "futures",
  "logutil",
@@ -2731,7 +2736,6 @@ dependencies = [
 name = "pgsrv"
 version = "0.1.0"
 dependencies = [
- "access",
  "async-trait",
  "bytes",
  "bytesutil",
@@ -3593,11 +3597,12 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
- "access",
  "async-trait",
  "buildenv",
  "common",
  "datafusion",
+ "datasource_bigquery",
+ "datasource_postgres",
  "dfutil",
  "futures",
  "jsoncat",

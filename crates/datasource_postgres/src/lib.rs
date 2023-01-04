@@ -1,4 +1,7 @@
-use crate::errors::{internal, AccessError, Result};
+pub mod errors;
+
+use errors::{PostgresError, Result};
+
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
@@ -47,6 +50,9 @@ pub struct PostgresAccessor {
     /// The Postgres client.
     client: tokio_postgres::Client,
     /// Handle for the underlying Postgres connection.
+    ///
+    /// Kept on struct to avoid dropping future.
+    #[allow(dead_code)]
     conn_handle: JoinHandle<()>,
 }
 
@@ -128,7 +134,7 @@ ORDER BY attnum;
             .iter()
             .map(|oid| PostgresType::from_oid(*oid))
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| internal!("unknown postgres oids: {:?}", type_oids))?;
+            .ok_or(PostgresError::UnknownPostgresOids(type_oids))?;
 
         Ok(PostgresTableProvider {
             predicate_pushdown,
@@ -446,7 +452,7 @@ macro_rules! make_column {
 }
 
 /// Convert binary rows into a single record batch.
-fn binary_rows_to_record_batch<E: Into<AccessError>>(
+fn binary_rows_to_record_batch<E: Into<PostgresError>>(
     rows: Vec<Result<BinaryCopyOutRow, E>>,
     schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
@@ -487,12 +493,7 @@ fn binary_rows_to_record_batch<E: Into<AccessError>>(
                 }
                 Arc::new(arr.finish())
             }
-            other => {
-                return Err(internal!(
-                    "unable to copy binary row value for datatype: {}",
-                    other
-                ))
-            }
+            other => return Err(PostgresError::FailedBinaryCopy(other.clone())),
         };
         columns.push(col)
     }
@@ -517,7 +518,7 @@ fn try_create_arrow_schema(names: Vec<String>, types: Vec<String>) -> Result<Arr
             "float8" => DataType::Float64,
             "char" | "bpchar" | "varchar" | "text" | "jsonb" | "json" => DataType::Utf8,
             "bytea" => DataType::Binary,
-            other => return Err(internal!("unsupported postgres type: {}", other)),
+            other => return Err(PostgresError::UnsupportedPostgresType(other.to_string())),
         };
 
         // Assume all fields are nullable.

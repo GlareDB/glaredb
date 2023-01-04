@@ -1,5 +1,8 @@
 //! BigQuery external table implementation.
-use crate::errors::{internal, Result};
+pub mod errors;
+
+use errors::{BigQueryError, Result};
+
 use async_stream::stream;
 use async_trait::async_trait;
 use bigquery_storage::yup_oauth2::{
@@ -311,7 +314,7 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
         .schema
         .fields
         .as_ref()
-        .ok_or_else(|| internal!("unknown fields in bigquery table"))?;
+        .ok_or(BigQueryError::UnknownFieldsForTable)?;
 
     let mut arrow_fields = Vec::with_capacity(fields.len());
     // See <https://cloud.google.com/bigquery/docs/reference/storage#arrow_schema_details>
@@ -326,7 +329,7 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
             FieldType::Float64 => DataType::Float64,
             FieldType::Bytes => DataType::Binary,
             FieldType::Date => DataType::Date32,
-            other => return Err(internal!("unsupported bigquery type: {:?}", other)),
+            other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
         };
 
         let field = Field::new(&field.name, arrow_typ, true);

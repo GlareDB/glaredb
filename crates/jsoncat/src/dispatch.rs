@@ -7,11 +7,11 @@ use crate::system::{
     columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
 };
 use crate::transaction::Context;
-use access::external::bigquery::BigQueryAccessor;
-use access::external::postgres::PostgresAccessor;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datafusion::logical_expr::LogicalPlan;
+use datasource_bigquery::BigQueryAccessor;
+use datasource_postgres::PostgresAccessor;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -87,7 +87,7 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
                     // TODO: We'll probably want an "external dispatcher" of sorts.
                     // TODO: Try not to block on.
                     let pg = pg.clone();
-                    let result: Result<_, access::errors::AccessError> =
+                    let result: Result<_, datasource_postgres::errors::PostgresError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
                                 let accessor = PostgresAccessor::connect(pg.clone()).await?;
@@ -100,7 +100,7 @@ impl<'a, C: Context> CatalogDispatcher<'a, C> {
                 }
                 AccessMethod::BigQuery(bq) => {
                     let bq = bq.clone();
-                    let result: Result<_, access::errors::AccessError> =
+                    let result: Result<_, datasource_bigquery::errors::BigQueryError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
                                 let accessor = BigQueryAccessor::connect(bq.clone()).await?;

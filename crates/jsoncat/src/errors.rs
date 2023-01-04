@@ -20,7 +20,10 @@ pub enum CatalogError {
     UnhandleableAccess(crate::access::AccessMethod),
 
     #[error(transparent)]
-    Access(#[from] access::errors::AccessError),
+    DatasourceBigQuery(#[from] datasource_bigquery::errors::BigQueryError),
+
+    #[error(transparent)]
+    DatasourcePostgres(#[from] datasource_postgres::errors::PostgresError),
 
     #[error(transparent)]
     StableStore(#[from] stablestore::errors::StableStorageError),
