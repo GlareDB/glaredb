@@ -218,9 +218,8 @@ impl TableProvider for PostgresTableProvider {
         // convert some predicates.
         let predicate_string = {
             if self.predicate_pushdown {
-                let s = exprs_to_predicate_string(filters)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                s
+                exprs_to_predicate_string(filters)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?
             } else {
                 String::new()
             }
