@@ -8,12 +8,13 @@ use datafusion::arrow::datatypes::{
 };
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::TableType;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::ExecutionPlan;
@@ -23,7 +24,7 @@ use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -166,6 +167,13 @@ impl TableProvider for PostgresTableProvider {
         TableType::Base
     }
 
+    fn supports_filter_pushdown(
+        &self,
+        _filter: &Expr,
+    ) -> DatafusionResult<TableProviderFilterPushDown> {
+        Ok(TableProviderFilterPushDown::Inexact)
+    }
+
     async fn scan(
         &self,
         _ctx: &SessionState,
@@ -210,16 +218,8 @@ impl TableProvider for PostgresTableProvider {
         // convert some predicates.
         let predicate_string = {
             if self.predicate_pushdown {
-                let s = filters
-                    .iter()
-                    .map(|expr| expr.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" AND ");
-                if s.is_empty() {
-                    String::new()
-                } else {
-                    format!("WHERE {}", s)
-                }
+                exprs_to_predicate_string(filters)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?
             } else {
                 String::new()
             }
@@ -227,12 +227,18 @@ impl TableProvider for PostgresTableProvider {
 
         // Build copy query.
         let query = format!(
-            "COPY (SELECT {} FROM {}.{} {} {}) TO STDOUT (FORMAT binary)",
-            projection_string,
-            self.accessor.access.schema,
-            self.accessor.access.name,
-            predicate_string,
-            limit_string,
+            "COPY (SELECT {} FROM {}.{} {} {} {}) TO STDOUT (FORMAT binary)",
+            projection_string,           // SELECT <str>
+            self.accessor.access.schema, // FROM <schema>
+            self.accessor.access.name,   // .<table>
+            // [WHERE]
+            if predicate_string.is_empty() {
+                ""
+            } else {
+                "WHERE "
+            },
+            predicate_string.as_str(), // <where-predicate>
+            limit_string,              // [LIMIT ..]
         );
 
         let opener = StreamOpener {
@@ -241,6 +247,7 @@ impl TableProvider for PostgresTableProvider {
         };
 
         Ok(Arc::new(BinaryCopyExec {
+            predicate: predicate_string,
             accessor: self.accessor.clone(),
             pg_types: projected_types,
             arrow_schema: projected_schema,
@@ -251,6 +258,7 @@ impl TableProvider for PostgresTableProvider {
 
 /// Copy data from the source Postgres table using the binary copy protocol.
 struct BinaryCopyExec {
+    predicate: String,
     accessor: Arc<PostgresAccessor>,
     pg_types: Arc<Vec<PostgresType>>,
     arrow_schema: ArrowSchemaRef,
@@ -304,8 +312,14 @@ impl ExecutionPlan for BinaryCopyExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "BinaryCopyExec: schema={}, name={}",
-            self.accessor.access.schema, self.accessor.access.name,
+            "BinaryCopyExec: schema={}, name={}, predicate={}",
+            self.accessor.access.schema,
+            self.accessor.access.name,
+            if self.predicate.is_empty() {
+                "None"
+            } else {
+                self.predicate.as_str()
+            }
         )
     }
 
@@ -527,4 +541,142 @@ fn try_create_arrow_schema(names: Vec<String>, types: Vec<String>) -> Result<Arr
     }
 
     Ok(ArrowSchema::new(fields))
+}
+
+/// Convert filtering expressions to a predicate string usable with the
+/// generated Postgres query.
+fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+    let mut ss = Vec::new();
+    let mut buf = String::new();
+    for expr in exprs {
+        if write_expr(expr, &mut buf)? {
+            ss.push(buf);
+            buf = String::new();
+        }
+    }
+
+    Ok(ss.join(" AND "))
+}
+
+/// Try to write the expression to the string, returning true if it was written.
+fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
+    match expr {
+        Expr::Column(col) => {
+            write!(s, "{}", col)?;
+        }
+        Expr::Literal(val) => match val {
+            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{}'", utf8)?,
+            other => write!(s, "{}", other)?,
+        },
+        Expr::IsNull(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsNotNull(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS NOT NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsTrue(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS TRUE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsFalse(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS FALSE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::BinaryExpr(binary) => {
+            if !write_expr(binary.left.as_ref(), s)? {
+                return Ok(false);
+            }
+            write!(s, " {} ", binary.op)?;
+            if !write_expr(binary.right.as_ref(), s)? {
+                return Ok(false);
+            }
+        }
+        _ => {
+            // Unsupported.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::common::Column;
+    use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    #[test]
+    fn valid_expr_string() {
+        let exprs = vec![
+            Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "a".to_string(),
+                })),
+                op: Operator::Lt,
+                right: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "b".to_string(),
+                })),
+            }),
+            Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "c".to_string(),
+                })),
+                op: Operator::Lt,
+                right: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "d".to_string(),
+                })),
+            }),
+        ];
+
+        let out = exprs_to_predicate_string(&exprs).unwrap();
+        assert_eq!(out, "a < b AND c < d")
+    }
+
+    #[test]
+    fn skip_unsupported_expr_string() {
+        let exprs = vec![
+            Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "a".to_string(),
+                })),
+                op: Operator::Lt,
+                right: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "b".to_string(),
+                })),
+            }),
+            // Not currently supported for our expression writing.
+            Expr::Sort {
+                expr: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "a".to_string(),
+                })),
+                asc: true,
+                nulls_first: true,
+            },
+        ];
+
+        let out = exprs_to_predicate_string(&exprs).unwrap();
+        assert_eq!(out, "a < b")
+    }
 }

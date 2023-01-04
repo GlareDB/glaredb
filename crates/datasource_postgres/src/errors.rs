@@ -14,6 +14,9 @@ pub enum PostgresError {
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    Fmt(#[from] std::fmt::Error),
 }
 
 pub type Result<T, E = PostgresError> = std::result::Result<T, E>;
