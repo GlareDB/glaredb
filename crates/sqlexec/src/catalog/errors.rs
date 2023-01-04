@@ -26,6 +26,9 @@ pub enum CatalogError {
     DatasourcePostgres(#[from] datasource_postgres::errors::PostgresError),
 
     #[error(transparent)]
+    DatasourceObjectStore(#[from] datasource_object_store::errors::ObjectStoreSourceError),
+
+    #[error(transparent)]
     StableStore(#[from] stablestore::errors::StableStorageError),
 
     #[error(transparent)]
