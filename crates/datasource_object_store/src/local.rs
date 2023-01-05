@@ -1,20 +1,28 @@
 use std::{any::Any, fmt, sync::Arc};
 
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::{
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+};
 use datafusion::{
-    arrow::datatypes::SchemaRef as ArrowSchemaRef,
-    datasource::TableProvider,
+    datasource::{file_format::parquet::ParquetFormat, listing::ListingTableUrl, TableProvider},
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::{SessionState, TaskContext},
     logical_expr::{Expr, TableType},
+    parquet::arrow::{
+        arrow_reader::ParquetRecordBatchReaderBuilder, ParquetRecordBatchStreamBuilder,
+    },
     physical_expr::PhysicalSortExpr,
     physical_plan::{
         display::DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
         Statistics,
     },
+    prelude::ParquetReadOptions,
+    row::accessor,
 };
 use object_store::{local::LocalFileSystem, ObjectStore};
 use serde::{Deserialize, Serialize};
+use tokio::fs::File;
 
 use crate::errors::Result;
 
@@ -43,11 +51,19 @@ impl LocalAccessor {
         })
     }
 
-    pub async fn into_table_provider(
-        self,
-        _predicate_pushdown: bool,
-    ) -> Result<LocalTableProvider> {
-        todo!()
+    pub async fn into_table_provider(self, predicate_pushdown: bool) -> Result<LocalTableProvider> {
+        let file = File::open(&self.access.file).await.unwrap();
+
+        let arrow_schema = ParquetRecordBatchStreamBuilder::new(file)
+            .await?
+            .schema()
+            .clone();
+
+        Ok(LocalTableProvider {
+            predicate_pushdown,
+            accessor: Arc::new(self),
+            arrow_schema,
+        })
     }
 }
 
@@ -68,7 +84,7 @@ impl TableProvider for LocalTableProvider {
     }
 
     fn table_type(&self) -> TableType {
-        TableType::View
+        TableType::Base
     }
 
     async fn scan(

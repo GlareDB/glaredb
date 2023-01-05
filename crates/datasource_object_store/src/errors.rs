@@ -1,3 +1,5 @@
+use datafusion::datasource::file_format::parquet;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectStoreSourceError {
     #[error("Unknown fields for table")]
@@ -8,6 +10,9 @@ pub enum ObjectStoreSourceError {
 
     #[error(transparent)]
     ObjectStorePath(#[from] object_store::path::Error),
+
+    #[error(transparent)]
+    Parquet(#[from] datafusion::parquet::errors::ParquetError),
 
     #[error("Failed to decode json: {0}")]
     SerdeJson(#[from] serde_json::Error),

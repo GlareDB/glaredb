@@ -103,6 +103,7 @@ impl<'a> SessionPlanner<'a> {
     fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let context = ContextProviderAdapter { context: self.ctx };
         let planner = SqlToRel::new(&context);
+        tracing::trace!(?statement, "incoming planned query");
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
