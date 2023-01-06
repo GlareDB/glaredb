@@ -72,7 +72,7 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "local" => {
-                let file = pop_required_opt(m, "file")?;
+                let file = pop_required_opt(m, "location")?;
                 CreateExternalTable {
                     table_name: stmt.name,
                     access: AccessMethod::Local(LocalTableAccess { file }),
@@ -81,7 +81,7 @@ impl<'a> SessionPlanner<'a> {
             "gcs" => {
                 let bucket_name = pop_required_opt(m, "bucket_name")?;
                 let service_account_path = pop_required_opt(m, "gcs_service_account_path")?;
-                let table_location = pop_required_opt(m, "file")?;
+                let table_location = pop_required_opt(m, "location")?;
                 CreateExternalTable {
                     table_name: stmt.name,
                     access: AccessMethod::Gcs(GcsTableAccess {

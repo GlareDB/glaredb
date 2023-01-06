@@ -1,4 +1,4 @@
-use std::{any::Any, fmt, sync::Arc};
+use std::{any::Any, fmt, ops::Deref, sync::Arc};
 
 use async_trait::async_trait;
 use datafusion::{
@@ -7,16 +7,22 @@ use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::{SessionState, TaskContext},
     logical_expr::{Expr, TableType},
+    parquet::arrow::ParquetRecordBatchStreamBuilder,
     physical_expr::PhysicalSortExpr,
     physical_plan::{
         display::DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
         Statistics,
     },
 };
-use object_store::{gcp::GoogleCloudStorageBuilder, ObjectStore};
+use object_store::{
+    gcp::GoogleCloudStorageBuilder, path::Path as ObjectStorePath, ObjectMeta, ObjectStore,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::errors::Result;
+use crate::{
+    errors::Result,
+    parquet::{ParquetFileStream, ParquetObjectReader, ParquetOpener, StreamState},
+};
 
 /// Information needed for accessing an external Parquet file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,14 +59,34 @@ impl GcsAccessor {
     }
 
     pub async fn into_table_provider(self, _predicate_pushdown: bool) -> Result<GcsTableProvider> {
-        todo!()
+        let location = ObjectStorePath::from(self.access.location.clone());
+        let meta = self.object_store.head(&location).await?;
+
+        let reader = ParquetObjectReader {
+            store: self.object_store.clone(),
+            meta: meta.clone(),
+            meta_size_hint: None,
+        };
+
+        let reader = ParquetRecordBatchStreamBuilder::new(reader).await?;
+
+        let arrow_schema = reader.schema().clone();
+
+        Ok(GcsTableProvider {
+            _predicate_pushdown,
+            accessor: Arc::new(self),
+            arrow_schema,
+            meta: Arc::new(meta),
+        })
     }
 }
 
 pub struct GcsTableProvider {
-    predicate_pushdown: bool,
+    _predicate_pushdown: bool,
     accessor: Arc<GcsAccessor>,
     arrow_schema: ArrowSchemaRef,
+    /// Object store access information
+    meta: Arc<ObjectMeta>,
 }
 
 #[async_trait]
@@ -84,15 +110,22 @@ impl TableProvider for GcsTableProvider {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        todo!()
+        let exec = GcsExec {
+            accessor: self.accessor.clone(),
+            arrow_schema: self.arrow_schema.clone(),
+            meta: self.meta.clone(),
+        };
+        let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
+        Ok(exec)
     }
 }
 
 /// Copy data from the source Postgres table using the binary copy protocol.
 #[derive(Debug)]
 struct GcsExec {
+    accessor: Arc<GcsAccessor>,
     arrow_schema: ArrowSchemaRef,
-    // opener: StreamOpener,
+    meta: Arc<ObjectMeta>,
 }
 
 impl ExecutionPlan for GcsExec {
@@ -130,7 +163,20 @@ impl ExecutionPlan for GcsExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        todo!()
+        let meta = self.meta.deref().clone();
+        let opener = ParquetOpener {
+            store: self.accessor.object_store.clone(),
+            meta,
+            meta_size_hint: None,
+        };
+
+        let stream = ParquetFileStream {
+            schema: self.arrow_schema.clone(),
+            opener,
+            state: StreamState::Idle,
+        };
+
+        Ok(Box::pin(stream))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {

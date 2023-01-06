@@ -16,6 +16,7 @@ use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
 };
 use object_store::local::LocalFileSystem;
+use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 
@@ -47,8 +48,11 @@ impl LocalAccessor {
         })
     }
 
-    pub async fn into_table_provider(self, predicate_pushdown: bool) -> Result<LocalTableProvider> {
-        let location = object_store::path::Path::from(self.access.file.clone());
+    pub async fn into_table_provider(
+        self,
+        _predicate_pushdown: bool,
+    ) -> Result<LocalTableProvider> {
+        let location = ObjectStorePath::from(self.access.file.clone());
         let meta = self.object_store.head(&location).await?;
 
         let reader = ParquetObjectReader {
@@ -62,7 +66,7 @@ impl LocalAccessor {
         let arrow_schema = reader.schema().clone();
 
         Ok(LocalTableProvider {
-            _predicate_pushdown: predicate_pushdown,
+            _predicate_pushdown,
             accessor: Arc::new(self),
             arrow_schema,
             meta: Arc::new(meta),
@@ -169,7 +173,11 @@ impl ExecutionPlan for LocalExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ParquetExec: schema={}", self.arrow_schema)
+        write!(
+            f,
+            "LocalExec: schema={} location={}",
+            self.arrow_schema, self.meta.location
+        )
     }
 
     fn statistics(&self) -> Statistics {
