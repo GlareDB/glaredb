@@ -2,7 +2,6 @@ use datafusion::arrow::error::ArrowError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectStoreSourceError {
-
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 
@@ -11,7 +10,6 @@ pub enum ObjectStoreSourceError {
 
     #[error(transparent)]
     Parquet(#[from] datafusion::parquet::errors::ParquetError),
-
 }
 
 pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;
