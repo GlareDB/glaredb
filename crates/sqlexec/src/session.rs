@@ -116,7 +116,7 @@ impl Session {
     }
 
     pub(crate) async fn create_table_as(&self, _plan: CreateTableAs) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("create table as"))
+        Err(ExecError::UnsupportedFeature("CREATE TABLE ... AS ..."))
     }
 
     pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
@@ -140,7 +140,7 @@ impl Session {
     }
 
     pub(crate) async fn insert(&self, _plan: Insert) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("insert"))
+        Err(ExecError::UnsupportedFeature("INSERT"))
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
