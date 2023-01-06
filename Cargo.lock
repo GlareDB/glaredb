@@ -1216,6 +1216,7 @@ version = "0.1.0"
 dependencies = [
  "async-stream",
  "async-trait",
+ "bytes",
  "datafusion",
  "futures",
  "object_store",

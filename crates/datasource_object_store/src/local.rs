@@ -1,30 +1,26 @@
-use std::{any::Any, fmt, sync::Arc};
+use std::any::Any;
+use std::fmt;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::logical_expr::{Expr, TableType};
+use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::display::DisplayFormatType;
+use datafusion::physical_plan::{
+    ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
 };
-use datafusion::{
-    datasource::{file_format::parquet::ParquetFormat, listing::ListingTableUrl, TableProvider},
-    error::{DataFusionError, Result as DatafusionResult},
-    execution::context::{SessionState, TaskContext},
-    logical_expr::{Expr, TableType},
-    parquet::arrow::{
-        arrow_reader::ParquetRecordBatchReaderBuilder, ParquetRecordBatchStreamBuilder,
-    },
-    physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        display::DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-        Statistics,
-    },
-    prelude::ParquetReadOptions,
-    row::accessor,
-};
-use object_store::{local::LocalFileSystem, ObjectStore};
+use object_store::local::LocalFileSystem;
+use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
-use tokio::fs::File;
 
 use crate::errors::Result;
+use crate::parquet::{ParquetFileStream, ParquetObjectReader, ParquetOpener, StreamState};
 
 /// Information needed for accessing an external Parquet file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,25 +48,35 @@ impl LocalAccessor {
     }
 
     pub async fn into_table_provider(self, predicate_pushdown: bool) -> Result<LocalTableProvider> {
-        let file = File::open(&self.access.file).await.unwrap();
+        let location = object_store::path::Path::from(self.access.file.clone());
+        let meta = self.object_store.head(&location).await?;
 
-        let arrow_schema = ParquetRecordBatchStreamBuilder::new(file)
-            .await?
-            .schema()
-            .clone();
+        let reader = ParquetObjectReader {
+            store: self.object_store.clone(),
+            meta: meta.clone(),
+            meta_size_hint: None,
+        };
+
+        let reader = ParquetRecordBatchStreamBuilder::new(reader).await?;
+
+        let arrow_schema = reader.schema().clone();
 
         Ok(LocalTableProvider {
-            predicate_pushdown,
+            _predicate_pushdown: predicate_pushdown,
             accessor: Arc::new(self),
             arrow_schema,
+            meta: Arc::new(meta),
         })
     }
 }
 
 pub struct LocalTableProvider {
-    predicate_pushdown: bool,
+    _predicate_pushdown: bool,
     accessor: Arc<LocalAccessor>,
+    /// Schema for parquet file
     arrow_schema: ArrowSchemaRef,
+    /// Object store access information
+    meta: Arc<ObjectMeta>,
 }
 
 #[async_trait]
@@ -94,15 +100,21 @@ impl TableProvider for LocalTableProvider {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        todo!()
+        let exec = LocalExec {
+            accessor: self.accessor.clone(),
+            arrow_schema: self.arrow_schema.clone(),
+            meta: self.meta.clone(),
+        };
+        let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
+        Ok(exec)
     }
 }
 
-/// Copy data from the source Postgres table using the binary copy protocol.
 #[derive(Debug)]
 struct LocalExec {
+    accessor: Arc<LocalAccessor>,
     arrow_schema: ArrowSchemaRef,
-    // opener: StreamOpener,
+    meta: Arc<ObjectMeta>,
 }
 
 impl ExecutionPlan for LocalExec {
@@ -131,7 +143,7 @@ impl ExecutionPlan for LocalExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for BinaryCopyExec".to_string(),
+            "cannot replace children for ParquetExec".to_string(),
         ))
     }
 
@@ -140,11 +152,24 @@ impl ExecutionPlan for LocalExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        todo!()
+        let meta = self.meta.deref().clone();
+        let opener = ParquetOpener {
+            store: self.accessor.object_store.clone(),
+            meta,
+            meta_size_hint: None,
+        };
+
+        let stream = ParquetFileStream {
+            schema: self.arrow_schema.clone(),
+            opener,
+            state: StreamState::Idle,
+        };
+
+        Ok(Box::pin(stream))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "LocalExec: schema={}", self.arrow_schema)
+        write!(f, "ParquetExec: schema={}", self.arrow_schema)
     }
 
     fn statistics(&self) -> Statistics {

@@ -1,4 +1,4 @@
-use datafusion::datasource::file_format::parquet;
+use datafusion::arrow::error::ArrowError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectStoreSourceError {
@@ -14,8 +14,18 @@ pub enum ObjectStoreSourceError {
     #[error(transparent)]
     Parquet(#[from] datafusion::parquet::errors::ParquetError),
 
+    #[error(transparent)]
+    Arrow(#[from] ArrowError),
+
     #[error("Failed to decode json: {0}")]
     SerdeJson(#[from] serde_json::Error),
 }
 
 pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;
+
+#[allow(clippy::from_over_into)]
+impl Into<ArrowError> for ObjectStoreSourceError {
+    fn into(self) -> ArrowError {
+        ArrowError::ExternalError(Box::new(self))
+    }
+}
