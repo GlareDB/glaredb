@@ -13,7 +13,7 @@ use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
 use datasource_postgres::PostgresTableAccess;
 use std::collections::HashMap;
-use tracing::{debug, trace};
+use tracing::debug;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -94,9 +94,7 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
-        let plan = DdlPlan::CreateExternalTable(plan).into();
-        trace!(?plan, "logical plan");
-        Ok(plan)
+        Ok(DdlPlan::CreateExternalTable(plan).into())
     }
 
     fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {

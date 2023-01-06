@@ -114,7 +114,7 @@ impl TableProvider for GcsTableProvider {
     }
 }
 
-/// Copy data from the source Postgres table using the binary copy protocol.
+/// Retrive data from GCS object storage with a parquet stream reader
 #[derive(Debug)]
 struct GcsExec {
     arrow_schema: ArrowSchemaRef,
@@ -173,11 +173,7 @@ impl ExecutionPlan for GcsExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "GcsExec: schema={} location={}",
-            self.arrow_schema, self.meta.location
-        )
+        write!(f, "GcsExec: location={}", self.meta.location)
     }
 
     fn statistics(&self) -> Statistics {

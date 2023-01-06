@@ -165,11 +165,7 @@ impl ExecutionPlan for LocalExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "LocalExec: schema={} location={}",
-            self.arrow_schema, self.meta.location
-        )
+        write!(f, "LocalExec: location={}", self.meta.location)
     }
 
     fn statistics(&self) -> Statistics {
