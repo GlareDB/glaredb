@@ -121,7 +121,7 @@ impl<'a> SessionDispatcher<'a> {
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
-                                let accessor = LocalAccessor::new(local.clone()).await?;
+                                let accessor = LocalAccessor::new(local).await?;
                                 let provider = accessor.into_table_provider(true).await?;
                                 Ok(provider)
                             })
@@ -135,7 +135,7 @@ impl<'a> SessionDispatcher<'a> {
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
                         task::block_in_place(move || {
                             Handle::current().block_on(async move {
-                                let accessor = GcsAccessor::new(gcs.clone()).await?;
+                                let accessor = GcsAccessor::new(gcs).await?;
                                 let provider = accessor.into_table_provider(true).await?;
                                 Ok(provider)
                             })
