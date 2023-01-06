@@ -1,10 +1,10 @@
 use crate::catalog::access::AccessMethod;
-use crate::catalog::dispatch::{CatalogDispatcher, LatePlanner};
 use crate::catalog::entry::schema::SchemaEntry;
 use crate::catalog::entry::table::{ColumnDefinition, TableEntry};
 use crate::catalog::entry::view::ViewEntry;
 use crate::catalog::transaction::StubCatalogContext;
 use crate::catalog::{Catalog, DropEntry, EntryType};
+use crate::dispatch::SessionDispatcher;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
@@ -278,6 +278,25 @@ impl SessionContext {
         &self.df_state
     }
 
+    /// Plan the body of a view.
+    pub(crate) fn late_view_plan(
+        &self,
+        sql: &str,
+    ) -> Result<datafusion::logical_expr::LogicalPlan, ExecError> {
+        let mut statements = CustomParser::parse_sql(sql)?;
+        if statements.len() != 1 {
+            return Err(ExecError::ExpectedExactlyOneStatement(
+                statements.into_iter().collect(),
+            ));
+        }
+
+        let planner = SessionPlanner::new(self);
+        let plan = planner.plan_ast(statements.pop_front().unwrap())?;
+        let df_plan = plan.try_into_datafusion_plan()?;
+
+        Ok(df_plan)
+    }
+
     /// Resolves a table reference for creating tables and views.
     fn resolve_table_reference(&self, name: String) -> Result<(String, String)> {
         let reference = TableReference::from(name.as_str());
@@ -305,25 +324,6 @@ impl SessionContext {
     }
 }
 
-impl LatePlanner for SessionContext {
-    type Error = ExecError;
-
-    fn plan_sql(&self, sql: &str) -> Result<datafusion::logical_expr::LogicalPlan, ExecError> {
-        let mut statements = CustomParser::parse_sql(sql)?;
-        if statements.len() != 1 {
-            return Err(ExecError::ExpectedExactlyOneStatement(
-                statements.into_iter().collect(),
-            ));
-        }
-
-        let planner = SessionPlanner::new(self);
-        let plan = planner.plan_ast(statements.pop_front().unwrap())?;
-        let df_plan = plan.try_into_datafusion_plan()?;
-
-        Ok(df_plan)
-    }
-}
-
 /// Adapter for datafusion planning.
 pub struct ContextProviderAdapter<'a> {
     pub context: &'a SessionContext,
@@ -335,12 +335,12 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         // will actually try to downcast the `TableSource` to a `TableProvider`
         // during physical planning. This only works with `DefaultTableSource`.
 
-        let dispatcher = CatalogDispatcher::new(&StubCatalogContext, &self.context.catalog);
+        let dispatcher = SessionDispatcher::new(self.context);
         match name {
             TableReference::Bare { table } => {
                 for schema in self.context.search_path_iter() {
                     let opt = dispatcher
-                        .dispatch_access(self.context, schema, table)
+                        .dispatch_access(schema, table)
                         .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
                     if let Some(provider) = opt {
                         return Ok(Arc::new(DefaultTableSource::new(provider)));
@@ -354,7 +354,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
             TableReference::Full { schema, table, .. }
             | TableReference::Partial { schema, table } => {
                 let opt = dispatcher
-                    .dispatch_access(self.context, schema, table)
+                    .dispatch_access(schema, table)
                     .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
                 if let Some(provider) = opt {
                     return Ok(Arc::new(DefaultTableSource::new(provider)));

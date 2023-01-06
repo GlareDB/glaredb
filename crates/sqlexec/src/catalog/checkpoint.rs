@@ -1,6 +1,6 @@
 use crate::catalog::entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
 use crate::catalog::errors::{internal, Result};
-use crate::catalog::transaction::Context;
+use crate::catalog::transaction::CatalogContext;
 use crate::catalog::{Catalog, PhysicalSchema};
 use serde::{Deserialize, Serialize};
 use stablestore::{Blob, StableStorage, VersionReadOption};
@@ -55,7 +55,7 @@ impl<S: StableStorage> CheckpointReader<S> {
     }
 
     /// Load the catalog from storage.
-    pub async fn load_from_storage<C: Context>(&self, ctx: &C) -> Result<()> {
+    pub async fn load_from_storage<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         if !self.checkpoint_exists().await? {
             debug!("no checkpoint, skipping...");
             return Ok(());
@@ -78,7 +78,7 @@ impl<S: StableStorage> CheckpointReader<S> {
         Ok(v.is_some())
     }
 
-    async fn load_schemas<C: Context>(&self, ctx: &C) -> Result<()> {
+    async fn load_schemas<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         debug!("loading schemas");
 
         let v: SerializedSchemas = self
@@ -94,7 +94,7 @@ impl<S: StableStorage> CheckpointReader<S> {
         Ok(())
     }
 
-    async fn load_tables<C: Context>(&self, ctx: &C) -> Result<()> {
+    async fn load_tables<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         debug!("loading tables");
 
         let v: SerializedTables = self
@@ -110,7 +110,7 @@ impl<S: StableStorage> CheckpointReader<S> {
         Ok(())
     }
 
-    async fn load_views<C: Context>(&self, ctx: &C) -> Result<()> {
+    async fn load_views<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         debug!("loading views");
 
         let v: SerializedViews = self
@@ -137,7 +137,7 @@ impl<S: StableStorage> CheckpointWriter<S> {
         CheckpointWriter { storage, catalog }
     }
 
-    pub async fn write_to_storage<C: Context>(&self, ctx: &C) -> Result<()> {
+    pub async fn write_to_storage<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         let mut schema_ents: Vec<SchemaEntry> = Vec::new();
         // Write out catalog entries for each schema.
         for schema in self.catalog.schemas.iter(ctx) {
@@ -178,7 +178,7 @@ struct SchemaCheckpointWriter<'a, S> {
 }
 
 impl<'a, S: StableStorage> SchemaCheckpointWriter<'a, S> {
-    async fn write_tables<C: Context>(&self, ctx: &C) -> Result<()> {
+    async fn write_tables<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         let tables: Vec<_> = self
             .schema
             .tables
@@ -190,7 +190,7 @@ impl<'a, S: StableStorage> SchemaCheckpointWriter<'a, S> {
         Ok(())
     }
 
-    async fn write_views<C: Context>(&self, ctx: &C) -> Result<()> {
+    async fn write_views<C: CatalogContext>(&self, ctx: &C) -> Result<()> {
         let views: Vec<_> = self
             .schema
             .views

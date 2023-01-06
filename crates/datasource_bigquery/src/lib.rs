@@ -16,12 +16,13 @@ use datafusion::arrow::datatypes::{
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::TableType;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
@@ -32,7 +33,7 @@ use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -119,6 +120,13 @@ impl TableProvider for BigQueryTableProvider {
         TableType::Base
     }
 
+    fn supports_filter_pushdown(
+        &self,
+        _filter: &Expr,
+    ) -> DatafusionResult<TableProviderFilterPushDown> {
+        Ok(TableProviderFilterPushDown::Inexact)
+    }
+
     async fn scan(
         &self,
         _ctx: &SessionState,
@@ -150,14 +158,14 @@ impl TableProvider for BigQueryTableProvider {
 
         // Add row restriction.
         // TODO: Check what restrictions are valid.
-        if self.predicate_pushdown {
-            let restriction = filters
-                .iter()
-                .map(|expr| expr.to_string())
-                .collect::<Vec<_>>()
-                .join(" AND ");
-            builder = builder.row_restriction(restriction);
-        }
+        let predicate = if self.predicate_pushdown {
+            let restriction = exprs_to_predicate_string(filters)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            builder = builder.row_restriction(restriction.clone());
+            restriction
+        } else {
+            String::new()
+        };
 
         // Select fields based off of what's in our projected schema.
         let selected: Vec<_> = projected_schema
@@ -182,6 +190,7 @@ impl TableProvider for BigQueryTableProvider {
         }
 
         Ok(Arc::new(BigQueryExec {
+            predicate,
             arrow_schema: projected_schema,
             streams,
         }))
@@ -189,6 +198,7 @@ impl TableProvider for BigQueryTableProvider {
 }
 
 struct BigQueryExec {
+    predicate: String,
     arrow_schema: ArrowSchemaRef,
     /// Open streams to BigQuery storage.
     ///
@@ -249,7 +259,15 @@ impl ExecutionPlan for BigQueryExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BigQueryExec: schema={}", self.arrow_schema)
+        write!(
+            f,
+            "BigQueryExec: predicate={}",
+            if self.predicate.is_empty() {
+                "None"
+            } else {
+                self.predicate.as_str()
+            }
+        )
     }
 
     fn statistics(&self) -> Statistics {
@@ -337,4 +355,143 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
     }
 
     Ok(ArrowSchema::new(arrow_fields))
+}
+
+/// Convert filtering expressions to a predicate string usable with BigQuery's
+/// row restriction.
+fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+    let mut ss = Vec::new();
+    let mut buf = String::new();
+    for expr in exprs {
+        if write_expr(expr, &mut buf)? {
+            ss.push(buf);
+            buf = String::new();
+        }
+    }
+
+    Ok(ss.join(" AND "))
+}
+
+/// Try to write the expression to the string, returning true if it was written.
+fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
+    match expr {
+        Expr::Column(col) => {
+            write!(s, "{}", col)?;
+        }
+        Expr::Literal(val) => match val {
+            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{}'", utf8)?,
+            other => write!(s, "{}", other)?,
+        },
+        Expr::IsNull(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsNotNull(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS NOT NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsTrue(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS TRUE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsFalse(expr) => {
+            if write_expr(expr, s)? {
+                write!(s, " IS FALSE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::BinaryExpr(binary) => {
+            if !write_expr(binary.left.as_ref(), s)? {
+                return Ok(false);
+            }
+            write!(s, " {} ", binary.op)?;
+            if !write_expr(binary.right.as_ref(), s)? {
+                return Ok(false);
+            }
+        }
+        _ => {
+            // Unsupported.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::common::Column;
+    use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    #[test]
+    fn valid_expr_string() {
+        let exprs = vec![
+            Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "a".to_string(),
+                })),
+                op: Operator::Lt,
+                right: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "b".to_string(),
+                })),
+            }),
+            Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "c".to_string(),
+                })),
+                op: Operator::Lt,
+                right: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "d".to_string(),
+                })),
+            }),
+        ];
+
+        let out = exprs_to_predicate_string(&exprs).unwrap();
+        assert_eq!(out, "a < b AND c < d")
+    }
+
+    #[test]
+    fn skip_unsupported_expr_string() {
+        let exprs = vec![
+            Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "a".to_string(),
+                })),
+                op: Operator::Lt,
+                right: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "b".to_string(),
+                })),
+            }),
+            // BigQuery doesn't support sorting expressions in the row
+            // restriction.
+            Expr::Sort {
+                expr: Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: "a".to_string(),
+                })),
+                asc: true,
+                nulls_first: true,
+            },
+        ];
+
+        let out = exprs_to_predicate_string(&exprs).unwrap();
+        assert_eq!(out, "a < b")
+    }
 }

@@ -14,6 +14,9 @@ pub enum BigQueryError {
 
     #[error("Failed to decode json: {0}")]
     SerdeJson(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Fmt(#[from] std::fmt::Error),
 }
 
 pub type Result<T, E = BigQueryError> = std::result::Result<T, E>;

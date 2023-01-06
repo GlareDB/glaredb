@@ -26,7 +26,7 @@ futures = "0.3.25"
 rand = "0.8"
 parking_lot = "0.12.1"
 clap = { version = "4.0.32", features = ["derive"] }
-sqlparser = { version = "0.29", features = ["serde"] }
+sqlparser = { version = "0.30", features = ["serde"] }
 tokio-util = { version = "0.7.4", features = ["codec"] }
 tokio-serde = { version = "0.8", features = ["bincode"] }
 tracing = "0.1"
