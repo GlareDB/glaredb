@@ -16,11 +16,12 @@ use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_plan::RecordBatchStream;
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
-use futures::stream::{BoxStream, TryStreamExt};
-use futures::{ready, stream::StreamExt, Stream};
+use futures::stream::{BoxStream, StreamExt, TryStreamExt};
+use futures::{ready, Stream};
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::errors::Result;
+
 pub type ParquetStreamOpenFuture =
     BoxFuture<'static, Result<BoxStream<'static, ArrowResult<RecordBatch>>>>;
 
@@ -28,7 +29,7 @@ pub type ParquetStreamOpenFuture =
 #[derive(Debug)]
 pub struct ParquetObjectReader {
     pub store: Arc<dyn ObjectStore>,
-    pub meta: ObjectMeta,
+    pub meta: Arc<ObjectMeta>,
     pub meta_size_hint: Option<usize>,
 }
 
@@ -66,7 +67,7 @@ impl AsyncFileReader for ParquetObjectReader {
 /// Open and stream the parquet file from object storage.
 pub struct ParquetOpener {
     pub store: Arc<dyn ObjectStore>,
-    pub meta: ObjectMeta,
+    pub meta: Arc<ObjectMeta>,
     pub meta_size_hint: Option<usize>,
 }
 

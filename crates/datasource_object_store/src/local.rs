@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::fmt;
-use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -23,41 +22,38 @@ use serde::{Deserialize, Serialize};
 use crate::errors::Result;
 use crate::parquet::{ParquetFileStream, ParquetObjectReader, ParquetOpener, StreamState};
 
-/// Information needed for accessing an external Parquet file.
+/// Information needed for accessing an Parquet file on local file system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalTableAccess {
-    /// Path to local file
-    pub file: String,
+    pub location: String,
 }
 
 #[derive(Debug)]
 pub struct LocalAccessor {
-    access: LocalTableAccess,
-    /// Object store access information
-    pub object_store: Arc<dyn ObjectStore>,
+    /// Local filesystem  object store access info
+    pub store: Arc<dyn ObjectStore>,
+    /// Meta information for location/object
+    pub meta: Arc<ObjectMeta>,
 }
 
 impl LocalAccessor {
-    /// Setup accessor for GCS
+    /// Setup accessor for Local file system
     pub async fn new(access: LocalTableAccess) -> Result<Self> {
-        let object_store = Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>;
+        let store = Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>;
 
-        Ok(Self {
-            access,
-            object_store,
-        })
+        let location = ObjectStorePath::from(access.location);
+        let meta = Arc::new(store.head(&location).await?);
+
+        Ok(Self { store, meta })
     }
 
     pub async fn into_table_provider(
         self,
         _predicate_pushdown: bool,
     ) -> Result<LocalTableProvider> {
-        let location = ObjectStorePath::from(self.access.file.clone());
-        let meta = self.object_store.head(&location).await?;
-
         let reader = ParquetObjectReader {
-            store: self.object_store.clone(),
-            meta: meta.clone(),
+            store: self.store.clone(),
+            meta: self.meta.clone(),
             meta_size_hint: None,
         };
 
@@ -67,20 +63,17 @@ impl LocalAccessor {
 
         Ok(LocalTableProvider {
             _predicate_pushdown,
-            accessor: Arc::new(self),
+            accessor: self,
             arrow_schema,
-            meta: Arc::new(meta),
         })
     }
 }
 
 pub struct LocalTableProvider {
     _predicate_pushdown: bool,
-    accessor: Arc<LocalAccessor>,
+    accessor: LocalAccessor,
     /// Schema for parquet file
     arrow_schema: ArrowSchemaRef,
-    /// Object store access information
-    meta: Arc<ObjectMeta>,
 }
 
 #[async_trait]
@@ -105,9 +98,9 @@ impl TableProvider for LocalTableProvider {
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let exec = LocalExec {
-            accessor: self.accessor.clone(),
+            store: self.accessor.store.clone(),
             arrow_schema: self.arrow_schema.clone(),
-            meta: self.meta.clone(),
+            meta: self.accessor.meta.clone(),
         };
         let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
         Ok(exec)
@@ -116,8 +109,8 @@ impl TableProvider for LocalTableProvider {
 
 #[derive(Debug)]
 struct LocalExec {
-    accessor: Arc<LocalAccessor>,
     arrow_schema: ArrowSchemaRef,
+    store: Arc<dyn ObjectStore>,
     meta: Arc<ObjectMeta>,
 }
 
@@ -156,10 +149,9 @@ impl ExecutionPlan for LocalExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let meta = self.meta.deref().clone();
         let opener = ParquetOpener {
-            store: self.accessor.object_store.clone(),
-            meta,
+            store: self.store.clone(),
+            meta: self.meta.clone(),
             meta_size_hint: None,
         };
 

@@ -13,7 +13,7 @@ use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
 use datasource_postgres::PostgresTableAccess;
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, trace};
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -75,12 +75,12 @@ impl<'a> SessionPlanner<'a> {
                 let file = pop_required_opt(m, "location")?;
                 CreateExternalTable {
                     table_name: stmt.name,
-                    access: AccessMethod::Local(LocalTableAccess { file }),
+                    access: AccessMethod::Local(LocalTableAccess { location: file }),
                 }
             }
             "gcs" => {
-                let bucket_name = pop_required_opt(m, "bucket_name")?;
                 let service_account_path = pop_required_opt(m, "gcs_service_account_path")?;
+                let bucket_name = pop_required_opt(m, "bucket_name")?;
                 let table_location = pop_required_opt(m, "location")?;
                 CreateExternalTable {
                     table_name: stmt.name,
@@ -94,16 +94,14 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
-        tracing::trace!(?plan, "check1");
         let plan = DdlPlan::CreateExternalTable(plan).into();
-        tracing::trace!(?plan, "check2");
+        trace!(?plan, "logical plan");
         Ok(plan)
     }
 
     fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let context = ContextProviderAdapter { context: self.ctx };
         let planner = SqlToRel::new(&context);
-        tracing::trace!(?statement, "incoming planned query");
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
