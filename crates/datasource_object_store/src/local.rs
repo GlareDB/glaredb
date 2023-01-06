@@ -93,13 +93,18 @@ impl TableProvider for LocalTableProvider {
     async fn scan(
         &self,
         _ctx: &SessionState,
-        _projection: Option<&Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
+            None => self.arrow_schema.clone(),
+        };
+
         let exec = LocalExec {
             store: self.accessor.store.clone(),
-            arrow_schema: self.arrow_schema.clone(),
+            arrow_schema: projected_schema,
             meta: self.accessor.meta.clone(),
         };
         let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
