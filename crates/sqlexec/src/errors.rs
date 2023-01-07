@@ -2,14 +2,11 @@ use crate::parser::StatementWithExtensions;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExecError {
-    #[error("SQL statement current unsupported: {0}")]
+    #[error("SQL statement currently unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
     #[error("Unsupported feature: '{0}'. Check back soon!")]
     UnsupportedFeature(&'static str),
-
-    #[error("invalid key for SET: {0}")]
-    InvalidSetKey(String),
 
     #[error("Invalid value for session variable: Variable name: {name}, Value: {val}")]
     InvalidSessionVarValue { name: String, val: String },

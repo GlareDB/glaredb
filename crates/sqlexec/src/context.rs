@@ -325,16 +325,17 @@ impl SessionContext {
 }
 
 /// Adapter for datafusion planning.
+///
+/// NOTE: While `ContextProvider` is for _logical_ planning, DataFusion will
+/// actually try to downcast the `TableSource` to a `TableProvider` during
+/// physical planning. This only works with `DefaultTableSource` which is what
+/// this adapter uses.
 pub struct ContextProviderAdapter<'a> {
     pub context: &'a SessionContext,
 }
 
 impl<'a> ContextProvider for ContextProviderAdapter<'a> {
     fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
-        // NOTE: While `ContextProvider` is for _logical_ planning, DataFusion
-        // will actually try to downcast the `TableSource` to a `TableProvider`
-        // during physical planning. This only works with `DefaultTableSource`.
-
         let dispatcher = SessionDispatcher::new(self.context);
         match name {
             TableReference::Bare { table } => {
