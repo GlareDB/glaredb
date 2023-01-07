@@ -9,6 +9,8 @@ use datafusion::arrow::datatypes::{
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datasource_bigquery::BigQueryTableAccess;
+use datasource_object_store::gcs::GcsTableAccess;
+use datasource_object_store::local::LocalTableAccess;
 use datasource_postgres::PostgresTableAccess;
 use std::collections::HashMap;
 use tracing::debug;
@@ -66,6 +68,26 @@ impl<'a> SessionPlanner<'a> {
                         gcp_project_id: project_id,
                         dataset_id,
                         table_id,
+                    }),
+                }
+            }
+            "local" => {
+                let file = pop_required_opt(m, "location")?;
+                CreateExternalTable {
+                    table_name: stmt.name,
+                    access: AccessMethod::Local(LocalTableAccess { location: file }),
+                }
+            }
+            "gcs" => {
+                let service_account_path = pop_required_opt(m, "gcs_service_account_path")?;
+                let bucket_name = pop_required_opt(m, "bucket_name")?;
+                let table_location = pop_required_opt(m, "location")?;
+                CreateExternalTable {
+                    table_name: stmt.name,
+                    access: AccessMethod::Gcs(GcsTableAccess {
+                        bucket_name,
+                        service_account_path,
+                        location: table_location,
                     }),
                 }
             }

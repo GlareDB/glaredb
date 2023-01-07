@@ -10,6 +10,8 @@ use crate::context::SessionContext;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::BigQueryAccessor;
+use datasource_object_store::gcs::GcsAccessor;
+use datasource_object_store::local::LocalAccessor;
 use datasource_postgres::PostgresAccessor;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -107,6 +109,34 @@ impl<'a> SessionDispatcher<'a> {
                                 let accessor = BigQueryAccessor::connect(bq).await?;
                                 let provider =
                                     accessor.into_table_provider(predicate_pushdown).await?;
+                                Ok(provider)
+                            })
+                        });
+                    let provider = result?;
+                    Ok(Some(Arc::new(provider)))
+                }
+                AccessMethod::Local(local) => {
+                    tracing::trace!("Using Local filesystem to access parquet file");
+                    let local = local.clone();
+                    let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
+                        task::block_in_place(move || {
+                            Handle::current().block_on(async move {
+                                let accessor = LocalAccessor::new(local).await?;
+                                let provider = accessor.into_table_provider(true).await?;
+                                Ok(provider)
+                            })
+                        });
+                    let provider = result?;
+                    Ok(Some(Arc::new(provider)))
+                }
+                AccessMethod::Gcs(gcs) => {
+                    tracing::trace!("Using GCS to access parquet file");
+                    let gcs = gcs.clone();
+                    let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
+                        task::block_in_place(move || {
+                            Handle::current().block_on(async move {
+                                let accessor = GcsAccessor::new(gcs).await?;
+                                let provider = accessor.into_table_provider(true).await?;
                                 Ok(provider)
                             })
                         });
