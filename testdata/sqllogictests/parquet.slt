@@ -1,16 +1,16 @@
 # Creating external tables with parquet files.
 
+# Support for external tables backed by local parquet files have been removed
+# for the time being.
+halt
+
 statement ok
-create external table userdata1 from local options (location='/Users/rustomms/Developer/glaredb/testdata/parquet/userdata1.parquet')
+create external table userdata1 stored as parquet location 'testdata/parquet/userdata1.parquet';
 
 query I
 select count(*) from userdata1;
 ----
 1000
-
-# halt
-
-# TODO: Filtering and aggration is not yet supported for external parquet files
 
 query IT
 select count(*), gender from userdata1 group by gender order by gender;
