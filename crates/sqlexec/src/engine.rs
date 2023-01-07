@@ -21,6 +21,7 @@ impl Engine {
         })
     }
 
+    /// Create a new session with the given id.
     pub fn new_session(&self, id: Uuid) -> Result<Session> {
         Session::new(self.catalog.clone(), id)
     }
