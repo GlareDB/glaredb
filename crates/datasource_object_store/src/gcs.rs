@@ -113,6 +113,7 @@ impl TableProvider for GcsTableProvider {
             store: self.accessor.store.clone(),
             arrow_schema: projected_schema,
             meta: self.accessor.meta.clone(),
+            projection: projection.cloned(),
         };
 
         let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
@@ -126,6 +127,7 @@ struct GcsExec {
     arrow_schema: ArrowSchemaRef,
     store: Arc<dyn ObjectStore>,
     meta: Arc<ObjectMeta>,
+    projection: Option<Vec<usize>>,
 }
 
 impl ExecutionPlan for GcsExec {
@@ -167,6 +169,7 @@ impl ExecutionPlan for GcsExec {
             store: self.store.clone(),
             meta: self.meta.clone(),
             meta_size_hint: None,
+            projection: self.projection.clone(),
         };
 
         let stream = ParquetFileStream {

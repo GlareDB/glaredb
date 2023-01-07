@@ -11,7 +11,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
 use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
-use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
+use datafusion::parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_plan::RecordBatchStream;
@@ -69,6 +69,7 @@ pub struct ParquetOpener {
     pub store: Arc<dyn ObjectStore>,
     pub meta: Arc<ObjectMeta>,
     pub meta_size_hint: Option<usize>,
+    pub projection: Option<Vec<usize>>,
 }
 
 impl ParquetOpener {
@@ -79,10 +80,21 @@ impl ParquetOpener {
             meta_size_hint: self.meta_size_hint,
         };
 
+        let projection = self.projection.clone();
+
         Ok(Box::pin(async move {
             let read_opts = ArrowReaderOptions::new().with_page_index(true);
-            let builder =
+            let mut builder =
                 ParquetRecordBatchStreamBuilder::new_with_options(reader, read_opts).await?;
+
+            if let Some(projection) = projection {
+                // Parquet schemas are tree like in that each field may contain
+                // nested fields (e.g. a struct).
+                //
+                // "roots" here indicates we're masking on the top-level fields.
+                let mask = ProjectionMask::roots(builder.parquet_schema(), projection);
+                builder = builder.with_projection(mask);
+            }
 
             let reader = builder.build()?.map_err(|e| e.into());
 

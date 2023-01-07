@@ -42,6 +42,7 @@ impl LocalAccessor {
         let store = Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>;
 
         let location = ObjectStorePath::from(access.location);
+        tracing::trace!(?location, "path to file");
         let meta = Arc::new(store.head(&location).await?);
 
         Ok(Self { store, meta })
@@ -106,6 +107,7 @@ impl TableProvider for LocalTableProvider {
             store: self.accessor.store.clone(),
             arrow_schema: projected_schema,
             meta: self.accessor.meta.clone(),
+            projection: projection.cloned(),
         };
         let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
         Ok(exec)
@@ -117,6 +119,7 @@ struct LocalExec {
     arrow_schema: ArrowSchemaRef,
     store: Arc<dyn ObjectStore>,
     meta: Arc<ObjectMeta>,
+    projection: Option<Vec<usize>>,
 }
 
 impl ExecutionPlan for LocalExec {
@@ -158,6 +161,7 @@ impl ExecutionPlan for LocalExec {
             store: self.store.clone(),
             meta: self.meta.clone(),
             meta_size_hint: None,
+            projection: self.projection.clone(),
         };
 
         let stream = ParquetFileStream {
