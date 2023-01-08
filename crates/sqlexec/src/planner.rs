@@ -36,6 +36,7 @@ impl<'a> SessionPlanner<'a> {
     }
 
     fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
+        let create_sql = stmt.to_string();
         let pop_required_opt = |m: &mut HashMap<String, String>, k: &str| {
             m.remove(k)
                 .ok_or_else(|| internal!("missing required option: {}", k))
@@ -48,6 +49,7 @@ impl<'a> SessionPlanner<'a> {
                 let source_schema = pop_required_opt(m, "schema")?;
                 let source_table = pop_required_opt(m, "table")?;
                 CreateExternalTable {
+                    create_sql,
                     table_name: stmt.name,
                     access: AccessMethod::Postgres(PostgresTableAccess {
                         connection_string: conn_str,
@@ -62,6 +64,7 @@ impl<'a> SessionPlanner<'a> {
                 let dataset_id = pop_required_opt(m, "dataset_id")?;
                 let table_id = pop_required_opt(m, "table_id")?;
                 CreateExternalTable {
+                    create_sql,
                     table_name: stmt.name,
                     access: AccessMethod::BigQuery(BigQueryTableAccess {
                         gcp_service_acccount_key_json: sa_key,
@@ -74,6 +77,7 @@ impl<'a> SessionPlanner<'a> {
             "local" => {
                 let file = pop_required_opt(m, "location")?;
                 CreateExternalTable {
+                    create_sql,
                     table_name: stmt.name,
                     access: AccessMethod::Local(LocalTableAccess { location: file }),
                 }
@@ -83,6 +87,7 @@ impl<'a> SessionPlanner<'a> {
                 let bucket_name = pop_required_opt(m, "bucket_name")?;
                 let table_location = pop_required_opt(m, "location")?;
                 CreateExternalTable {
+                    create_sql,
                     table_name: stmt.name,
                     access: AccessMethod::Gcs(GcsTableAccess {
                         bucket_name,
@@ -100,6 +105,7 @@ impl<'a> SessionPlanner<'a> {
     fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let context = ContextProviderAdapter { context: self.ctx };
         let planner = SqlToRel::new(&context);
+        let sql_string = statement.to_string();
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
@@ -124,6 +130,7 @@ impl<'a> SessionPlanner<'a> {
                 schema_name,
                 if_not_exists,
             } => Ok(DdlPlan::CreateSchema(CreateSchema {
+                create_sql: sql_string,
                 schema_name: schema_name.to_string(),
                 if_not_exists,
             })
@@ -147,6 +154,7 @@ impl<'a> SessionPlanner<'a> {
                 }
 
                 Ok(DdlPlan::CreateTable(CreateTable {
+                    create_sql: sql_string,
                     table_name: name.to_string(),
                     columns: arrow_cols,
                     if_not_exists,
@@ -165,6 +173,7 @@ impl<'a> SessionPlanner<'a> {
             } => {
                 let source = planner.query_to_plan(*query, &mut HashMap::new())?;
                 Ok(DdlPlan::CreateTableAs(CreateTableAs {
+                    create_sql: sql_string,
                     table_name: name.to_string(),
                     source,
                 })
@@ -202,6 +211,7 @@ impl<'a> SessionPlanner<'a> {
                 };
 
                 Ok(DdlPlan::CreateView(CreateView {
+                    create_sql: sql_string,
                     view_name: name.to_string(),
                     num_columns,
                     sql: query.to_string(),

@@ -1,12 +1,13 @@
 //! Adapter types for dispatching to table sources.
 use crate::catalog::access::AccessMethod;
-use crate::catalog::constants::INTERNAL_SCHEMA;
+use crate::catalog::builtins::{GLARE_COLUMNS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS};
 use crate::catalog::errors::{CatalogError, Result};
-use crate::catalog::system::{
-    columns_memory_table, schemas_memory_table, tables_memory_table, views_memory_table,
-};
-use crate::catalog::transaction::StubCatalogContext;
+use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
+use crate::catalog::Catalog;
 use crate::context::SessionContext;
+use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::BigQueryAccessor;
@@ -49,31 +50,10 @@ impl<'a> SessionDispatcher<'a> {
         // Check table entries first.
         if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
             return match &table.access {
-                AccessMethod::InternalMemory => {
-                    // Just match on the built-in tables.
-                    match (table.schema.as_str(), table.name.as_str()) {
-                        (INTERNAL_SCHEMA, "views") => Ok(Some(Arc::new(views_memory_table(
-                            &StubCatalogContext,
-                            catalog,
-                        )))),
-                        (INTERNAL_SCHEMA, "schemas") => Ok(Some(Arc::new(schemas_memory_table(
-                            &StubCatalogContext,
-                            catalog,
-                        )))),
-                        (INTERNAL_SCHEMA, "tables") => Ok(Some(Arc::new(tables_memory_table(
-                            &StubCatalogContext,
-                            catalog,
-                        )))),
-                        (INTERNAL_SCHEMA, "columns") => Ok(Some(Arc::new(columns_memory_table(
-                            &StubCatalogContext,
-                            catalog,
-                        )))),
-                        (schema, name) => Err(CatalogError::MissingTableForAccessMethod {
-                            method: AccessMethod::InternalMemory,
-                            schema: schema.to_string(),
-                            name: name.to_string(),
-                        }),
-                    }
+                AccessMethod::System => {
+                    let table = SystemTableDispatcher::new(&StubCatalogContext, catalog)
+                        .dispatch(schema, name)?;
+                    Ok(Some(table))
                 }
                 AccessMethod::Postgres(pg) => {
                     // TODO: We'll probably want an "external dispatcher" of sorts.
@@ -159,5 +139,145 @@ impl<'a> SessionDispatcher<'a> {
         }
 
         Ok(None)
+    }
+}
+
+/// Dispatch to builtin system tables.
+struct SystemTableDispatcher<'a, C> {
+    ctx: &'a C,
+    catalog: &'a Catalog,
+}
+
+impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
+    fn new(ctx: &'a C, catalog: &'a Catalog) -> Self {
+        SystemTableDispatcher { ctx, catalog }
+    }
+
+    fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+        Ok(if GLARE_TABLES.matches(schema, name) {
+            Arc::new(self.build_glare_tables())
+        } else if GLARE_COLUMNS.matches(schema, name) {
+            Arc::new(self.build_glare_columns())
+        } else if GLARE_VIEWS.matches(schema, name) {
+            Arc::new(self.build_glare_views())
+        } else if GLARE_SCHEMAS.matches(schema, name) {
+            Arc::new(self.build_glare_schemas())
+        } else {
+            return Err(CatalogError::MissingTableForAccessMethod {
+                method: AccessMethod::System,
+                schema: schema.to_string(),
+                name: name.to_string(),
+            });
+        })
+    }
+
+    fn build_glare_schemas(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_SCHEMAS.arrow_schema());
+        let mut schema_names = StringBuilder::new();
+        for schema in self.catalog.schemas.iter(self.ctx) {
+            schema_names.append_value(&schema.name);
+        }
+        let batch =
+            RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schema_names.finish())])
+                .unwrap();
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_tables(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_TABLES.arrow_schema());
+
+        let mut schema_names = StringBuilder::new();
+        let mut table_names = StringBuilder::new();
+        let mut column_counts = UInt32Builder::new();
+        let mut accesses = StringBuilder::new();
+
+        for schema in self.catalog.schemas.iter(self.ctx) {
+            for table in schema.tables.iter(self.ctx) {
+                schema_names.append_value(&table.schema);
+                table_names.append_value(&table.name);
+                column_counts.append_value(table.columns.len() as u32);
+                accesses.append_value(table.access.to_string());
+            }
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(schema_names.finish()),
+                Arc::new(table_names.finish()),
+                Arc::new(column_counts.finish()),
+                Arc::new(accesses.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_columns(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_COLUMNS.arrow_schema());
+
+        let mut schema_names = StringBuilder::new();
+        let mut table_names = StringBuilder::new();
+        let mut column_names = StringBuilder::new();
+        let mut column_indexes = UInt32Builder::new();
+        let mut data_types = StringBuilder::new();
+        let mut is_nullables = BooleanBuilder::new();
+
+        for schema in self.catalog.schemas.iter(self.ctx) {
+            for table in schema.tables.iter(self.ctx) {
+                for (i, col) in table.columns.iter().enumerate() {
+                    schema_names.append_value(&table.schema);
+                    table_names.append_value(&table.name);
+                    column_names.append_value(&col.name);
+                    column_indexes.append_value(i as u32);
+                    data_types.append_value(col.datatype.to_string());
+                    is_nullables.append_value(col.nullable);
+                }
+            }
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(schema_names.finish()),
+                Arc::new(table_names.finish()),
+                Arc::new(column_names.finish()),
+                Arc::new(column_indexes.finish()),
+                Arc::new(data_types.finish()),
+                Arc::new(is_nullables.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_views(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_VIEWS.arrow_schema());
+
+        let mut schema_names = StringBuilder::new();
+        let mut view_names = StringBuilder::new();
+        let mut sqls = StringBuilder::new();
+
+        for schema in self.catalog.schemas.iter(self.ctx) {
+            for view in schema.views.iter(self.ctx) {
+                schema_names.append_value(&view.schema);
+                view_names.append_value(&view.name);
+                sqls.append_value(&view.sql);
+            }
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(schema_names.finish()),
+                Arc::new(view_names.finish()),
+                Arc::new(sqls.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 }

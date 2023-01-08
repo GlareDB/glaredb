@@ -2,7 +2,7 @@
 #![allow(unused_variables)]
 #![allow(clippy::new_without_default)]
 pub mod access;
-pub mod checkpoint;
+pub mod builtins;
 pub mod constants;
 pub mod entry;
 pub mod errors;
@@ -11,75 +11,15 @@ pub mod transaction;
 
 mod entryset;
 
-use checkpoint::{CheckpointReader, CheckpointWriter};
-use entry::{schema::SchemaEntry, table::TableEntry, view::ViewEntry};
+use builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
+use entry::{DropEntry, EntryType, SchemaEntry, TableEntry, ViewEntry};
 use entryset::EntrySet;
 use errors::{internal, CatalogError, Result};
 use stablestore::StableStorage;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use transaction::CatalogContext;
-
-/// Load the catalog from some object store.
-pub async fn load_catalog<C: CatalogContext, S: StableStorage>(
-    ctx: &C,
-    storage: S,
-) -> Result<Catalog> {
-    let catalog = Catalog::empty();
-
-    // Insert defaults.
-    let schemas = SchemaEntry::generate_defaults();
-    for schema in schemas {
-        catalog.create_schema(ctx, schema)?;
-    }
-    let tables = TableEntry::generate_defaults();
-    for table in tables {
-        catalog.create_table(ctx, table)?;
-    }
-    let views = ViewEntry::generate_defaults();
-    for view in views {
-        catalog.create_view(ctx, view)?;
-    }
-
-    let reader = CheckpointReader::new(storage, catalog);
-    reader.load_from_storage(ctx).await?;
-    Ok(reader.into_catalog())
-}
-
-/// Checkpoint the catalog to some object store.
-///
-/// Checkpointing is allowed to happen concurrently with other operations in the
-/// system (user queries).
-pub async fn checkpoint_catalog<C: CatalogContext, S: StableStorage>(
-    ctx: &C,
-    storage: S,
-    catalog: Arc<Catalog>,
-) -> Result<()> {
-    let writer = CheckpointWriter::new(storage, catalog);
-    writer.write_to_storage(ctx).await?;
-    Ok(())
-}
-
-/// Types of entries the catalog holds.
-#[derive(Debug)]
-pub enum EntryType {
-    Schema,
-    Table,
-    View,
-    Index,
-    Sequence,
-}
-
-#[derive(Debug)]
-pub struct DropEntry {
-    /// Entry type to drop.
-    pub typ: EntryType,
-    /// Schema the entry is in.
-    pub schema: String,
-    /// Name of the entry to drop. If dropping a schema, must be the same name
-    /// as the schema.
-    pub name: String,
-}
+use transaction::StubCatalogContext;
 
 /// The in-memory catalog.
 pub struct Catalog {
@@ -90,12 +30,28 @@ pub struct Catalog {
 }
 
 impl Catalog {
-    /// Create an empty catalog.
-    pub fn empty() -> Catalog {
-        Catalog {
+    /// Open a catalog.
+    pub async fn open() -> Result<Catalog> {
+        let catalog = Catalog {
             version: AtomicU64::new(0),
             schemas: EntrySet::new(),
+        };
+
+        let ctx = &StubCatalogContext;
+
+        for schema in BuiltinSchema::builtins() {
+            catalog.create_schema(ctx, schema.into())?;
         }
+        for table in BuiltinTable::builtins() {
+            catalog.create_table(ctx, table.into())?;
+        }
+        for view in BuiltinView::builtins() {
+            catalog.create_view(ctx, view.into())?;
+        }
+
+        // TODO: We'll eventually load from storage here.
+
+        Ok(catalog)
     }
 
     pub fn create_view<C: CatalogContext>(&self, ctx: &C, view: ViewEntry) -> Result<()> {
@@ -110,13 +66,12 @@ impl Catalog {
 
     pub fn create_schema<C: CatalogContext>(&self, ctx: &C, schema_ent: SchemaEntry) -> Result<()> {
         let schema = PhysicalSchema {
-            name: schema_ent.schema.clone(),
+            name: schema_ent.name.clone(),
             views: EntrySet::new(),
             tables: EntrySet::new(),
-            internal: schema_ent.internal,
         };
         self.schemas
-            .create_entry(ctx, schema_ent.schema, schema)?
+            .create_entry(ctx, schema_ent.name, schema)?
             .expect_inserted()
     }
 
@@ -152,7 +107,6 @@ impl Catalog {
 
 pub(crate) struct PhysicalSchema {
     pub(crate) name: String, // TODO: Don't store name here.
-    pub(crate) internal: bool,
     pub(crate) views: EntrySet<ViewEntry>,
     pub(crate) tables: EntrySet<TableEntry>,
 }
@@ -177,14 +131,5 @@ impl PhysicalSchema {
             other => return Err(internal!("invalid drop type: {:?}", other)),
         };
         Ok(())
-    }
-}
-
-impl From<&PhysicalSchema> for SchemaEntry {
-    fn from(s: &PhysicalSchema) -> Self {
-        SchemaEntry {
-            schema: s.name.clone(),
-            internal: s.internal,
-        }
     }
 }

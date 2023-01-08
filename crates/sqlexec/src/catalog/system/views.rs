@@ -18,7 +18,6 @@ pub fn views_memory_table<C: CatalogContext>(ctx: &C, catalog: &Catalog) -> MemT
         for view in schema.views.iter(ctx) {
             schema_names.append_value(&view.schema);
             view_names.append_value(&view.name);
-            column_counts.append_value(view.column_count);
             sqls.append_value(&view.sql);
         }
     }
@@ -28,7 +27,6 @@ pub fn views_memory_table<C: CatalogContext>(ctx: &C, catalog: &Catalog) -> MemT
         vec![
             Arc::new(schema_names.finish()),
             Arc::new(view_names.finish()),
-            Arc::new(column_counts.finish()),
             Arc::new(sqls.finish()),
         ],
     )
@@ -41,7 +39,6 @@ pub fn views_arrow_schema() -> ArrowSchema {
     let fields = vec![
         Field::new("schema_name", DataType::Utf8, false),
         Field::new("view_name", DataType::Utf8, false),
-        Field::new("column_count", DataType::UInt32, false),
         Field::new("sql", DataType::Utf8, false),
     ];
     ArrowSchema::new(fields)

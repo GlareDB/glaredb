@@ -10,7 +10,6 @@ pub fn schemas_memory_table<C: CatalogContext>(ctx: &C, catalog: &Catalog) -> Me
     let arrow_schema = Arc::new(schema_arrow_schema());
 
     let mut schema_names = StringBuilder::new();
-
     for schema in catalog.schemas.iter(ctx) {
         schema_names.append_value(&schema.name);
     }
