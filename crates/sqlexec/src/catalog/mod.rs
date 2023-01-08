@@ -6,7 +6,6 @@ pub mod builtins;
 pub mod constants;
 pub mod entry;
 pub mod errors;
-pub mod system;
 pub mod transaction;
 
 mod entryset;
@@ -15,7 +14,6 @@ use builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
 use entry::{DropEntry, EntryType, SchemaEntry, TableEntry, ViewEntry};
 use entryset::EntrySet;
 use errors::{internal, CatalogError, Result};
-use stablestore::StableStorage;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use transaction::CatalogContext;

@@ -12,7 +12,7 @@ pub struct Engine {
 
 impl Engine {
     /// Create a new engine using the provided access runtime.
-    pub async fn new<S: StableStorage>(storage: S) -> Result<Engine> {
+    pub async fn new<S: StableStorage>(_storage: S) -> Result<Engine> {
         let catalog = Catalog::open().await?;
         Ok(Engine {
             catalog: Arc::new(catalog),
