@@ -115,6 +115,16 @@ pub struct BuiltinView {
     pub sql: &'static str,
 }
 
+pub static INFORMATION_SCHEMA_SCHEMATA: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: INFORMATION_SCHEMA,
+    name: "schemata",
+    sql: "
+SELECT
+    null AS catalog_name,
+    null AS schema_name,
+    null AS schema_owner",
+});
+
 pub static INFORMATION_SCHEMA_TABLES: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: INFORMATION_SCHEMA,
     name: "tables",
@@ -134,8 +144,39 @@ SELECT null AS
 FROM glare_catalog.views",
 });
 
+pub static INFORMATION_SCHEMA_COLUMNS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: INFORMATION_SCHEMA,
+    name: "columns",
+    sql: "
+SELECT
+    null AS table_catalog,
+    null AS table_schema,
+    null AS table_name,
+    null AS column_name,
+    null AS ordinal_position,
+    null AS column_default,
+    null AS is_nullable,
+    null AS data_type",
+});
+
+pub static PG_AM: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_am",
+    sql: "
+SELECT
+    null AS oid,
+    null AS amname,
+    null AS amhandler,
+    null AS amtype",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
-        vec![&INFORMATION_SCHEMA_TABLES]
+        vec![
+            &INFORMATION_SCHEMA_SCHEMATA,
+            &INFORMATION_SCHEMA_TABLES,
+            &INFORMATION_SCHEMA_COLUMNS,
+            &PG_AM,
+        ]
     }
 }
