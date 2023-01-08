@@ -2,6 +2,7 @@
 pub mod errors;
 
 use async_trait::async_trait;
+use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
@@ -32,6 +33,8 @@ use std::task::{Context, Poll};
 pub enum DebugTableType {
     /// A table that will always return an error on the record batch stream.
     ErrorDuringExecution,
+    /// A table that never stops sending record batches.
+    NeverEnding,
 }
 
 impl fmt::Display for DebugTableType {
@@ -46,6 +49,7 @@ impl FromStr for DebugTableType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "error_during_execution" => DebugTableType::ErrorDuringExecution,
+            "never_ending" => DebugTableType::NeverEnding,
             other => return Err(DebugError::UnknownDebugTableType(other.to_string())),
         })
     }
@@ -58,6 +62,11 @@ impl DebugTableType {
             DebugTableType::ErrorDuringExecution => {
                 ArrowSchema::new(vec![Field::new("a", DataType::Int32, false)])
             }
+            DebugTableType::NeverEnding => ArrowSchema::new(vec![
+                Field::new("a", DataType::Int32, false),
+                Field::new("b", DataType::Int32, false),
+                Field::new("c", DataType::Int32, false),
+            ]),
         }
     }
 
@@ -72,9 +81,41 @@ impl DebugTableType {
         }
     }
 
+    /// Produces a record batch that matches this debug table's schema.
+    pub fn record_batch(&self) -> RecordBatch {
+        match self {
+            DebugTableType::ErrorDuringExecution => RecordBatch::try_new(
+                Arc::new(self.arrow_schema()),
+                vec![Arc::new(Int32Array::from_value(1, 30))],
+            )
+            .unwrap(),
+            DebugTableType::NeverEnding => RecordBatch::try_new(
+                Arc::new(self.arrow_schema()),
+                vec![
+                    Arc::new(Int32Array::from_value(1, 30)),
+                    Arc::new(Int32Array::from_value(2, 30)),
+                    Arc::new(Int32Array::from_value(3, 30)),
+                ],
+            )
+            .unwrap(),
+        }
+    }
+
+    /// Get a projected record batch for this debug table type.
+    pub fn projected_record_batch(
+        &self,
+        projection: Option<&Vec<usize>>,
+    ) -> ArrowResult<RecordBatch> {
+        match projection {
+            Some(proj) => self.record_batch().project(proj),
+            None => Ok(self.record_batch()),
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             DebugTableType::ErrorDuringExecution => "error_during_execution",
+            DebugTableType::NeverEnding => "never_ending",
         }
     }
 
@@ -113,11 +154,15 @@ impl TableProvider for DebugTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        // Ensure valid projection before returning exec.
+        let _ = self.typ.projected_arrow_schema(projection)?;
+
         Ok(Arc::new(DebugTableExec {
             typ: self.typ.clone(),
-            schema: Arc::new(self.typ.projected_arrow_schema(projection)?),
+            projection: projection.cloned(),
+            limit,
         }))
     }
 }
@@ -125,7 +170,8 @@ impl TableProvider for DebugTableProvider {
 #[derive(Debug)]
 struct DebugTableExec {
     typ: DebugTableType,
-    schema: ArrowSchemaRef,
+    projection: Option<Vec<usize>>,
+    limit: Option<usize>,
 }
 
 impl ExecutionPlan for DebugTableExec {
@@ -134,7 +180,11 @@ impl ExecutionPlan for DebugTableExec {
     }
 
     fn schema(&self) -> ArrowSchemaRef {
-        self.schema.clone()
+        Arc::new(
+            self.typ
+                .projected_arrow_schema(self.projection.as_ref())
+                .unwrap(),
+        )
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -165,7 +215,15 @@ impl ExecutionPlan for DebugTableExec {
     ) -> DatafusionResult<SendableRecordBatchStream> {
         Ok(match &self.typ {
             DebugTableType::ErrorDuringExecution => Box::pin(AlwaysErrorStream {
-                arrow_schema: self.schema.clone(),
+                arrow_schema: self.schema(),
+            }),
+            DebugTableType::NeverEnding => Box::pin(NeverEndingStream {
+                batch: self
+                    .typ
+                    .projected_record_batch(self.projection.as_ref())
+                    .unwrap(),
+                curr_count: 0,
+                limit: self.limit.clone(),
             }),
         })
     }
@@ -196,5 +254,32 @@ impl Stream for AlwaysErrorStream {
 impl RecordBatchStream for AlwaysErrorStream {
     fn schema(&self) -> ArrowSchemaRef {
         self.arrow_schema.clone()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct NeverEndingStream {
+    batch: RecordBatch,
+    curr_count: usize,
+    limit: Option<usize>,
+}
+
+impl Stream for NeverEndingStream {
+    type Item = ArrowResult<RecordBatch>;
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(limit) = self.limit {
+            if self.curr_count > limit {
+                return Poll::Ready(None);
+            }
+        }
+        let batch = self.batch.clone();
+        self.curr_count += batch.num_rows();
+        Poll::Ready(Some(Ok(batch)))
+    }
+}
+
+impl RecordBatchStream for NeverEndingStream {
+    fn schema(&self) -> ArrowSchemaRef {
+        self.batch.schema()
     }
 }
