@@ -223,7 +223,7 @@ impl ExecutionPlan for DebugTableExec {
                     .projected_record_batch(self.projection.as_ref())
                     .unwrap(),
                 curr_count: 0,
-                limit: self.limit.clone(),
+                limit: self.limit,
             }),
         })
     }
