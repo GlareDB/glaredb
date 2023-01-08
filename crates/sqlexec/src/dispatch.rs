@@ -123,6 +123,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
+                AccessMethod::Debug(debug) => Ok(Some(debug.clone().into_table_provider())),
                 other => Err(CatalogError::UnhandleableAccess(other.clone())),
             };
         }

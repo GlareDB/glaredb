@@ -58,6 +58,9 @@ pub enum ExecError {
 
     #[error("internal error: {0}")]
     Internal(String),
+
+    #[error(transparent)]
+    DatasourceDebug(#[from] datasource_debug::errors::DebugError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

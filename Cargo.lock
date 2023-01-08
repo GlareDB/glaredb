@@ -1211,6 +1211,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "datasource_debug"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "datafusion",
+ "futures",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "datasource_object_store"
 version = "0.1.0"
 dependencies = [
@@ -3723,6 +3737,7 @@ dependencies = [
  "common",
  "datafusion",
  "datasource_bigquery",
+ "datasource_debug",
  "datasource_object_store",
  "datasource_postgres",
  "dfutil",
