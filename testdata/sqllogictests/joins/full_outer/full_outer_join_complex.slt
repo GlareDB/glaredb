@@ -6,10 +6,10 @@ create schema full_outer_join_complex;
 statement ok
 set search_path = full_outer_join_complex;
 
+halt
+
 statement ok
 CREATE TABLE integers(i INTEGER, j INTEGER)
-
-halt
 
 statement ok
 INSERT INTO integers VALUES (1, 1)

@@ -6,14 +6,14 @@ create schema over_grouping;
 statement ok
 set search_path = over_grouping;
 
+halt
+
 statement ok
 create table image  (
     id          smallint primary key,
     width       int not null,
     height      integer not null
 );
-
-halt
 
 statement ok
 insert into image (id, width, height) values (1, 500, 297);
