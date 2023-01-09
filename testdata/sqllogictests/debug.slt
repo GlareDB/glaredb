@@ -1,0 +1,26 @@
+# Test that debug data sources do what they would expect.
+
+statement ok
+create schema debug_datasources;
+
+statement ok
+set search_path = debug_datasources;
+
+statement ok
+set enable_debug_datasources to false;
+
+# Ensure we can't create a debug data source if above var is false.
+
+statement error
+create table error_table from debug options (table_type = 'error_during_execution');
+
+# Enable debug table creates.
+
+statement ok
+set enable_debug_datasources to true;
+
+statement ok
+create external table error_table from debug options (table_type = 'error_during_execution');
+
+# TODO: Check that a select errors. Currently client disconnects if error sent
+# back on stream.

@@ -9,10 +9,12 @@ use datafusion::arrow::datatypes::{
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, ObjectType};
 use datasource_bigquery::BigQueryTableAccess;
+use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
 use datasource_postgres::PostgresTableAccess;
 use std::collections::HashMap;
+use std::str::FromStr;
 use tracing::debug;
 
 /// Plan SQL statements for a session.
@@ -94,6 +96,15 @@ impl<'a> SessionPlanner<'a> {
                         service_account_path,
                         location: table_location,
                     }),
+                }
+            }
+            "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
+                let typ = pop_required_opt(m, "table_type")?;
+                let typ = DebugTableType::from_str(&typ)?;
+                CreateExternalTable {
+                    create_sql,
+                    table_name: stmt.name,
+                    access: AccessMethod::Debug(typ),
                 }
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
