@@ -6,10 +6,10 @@ create schema topn_basic;
 statement ok
 set search_path = topn_basic;
 
+halt
+
 statement ok
 CREATE TABLE test (b INTEGER);
-
-halt
 
 statement ok
 INSERT INTO test VALUES (22), (2), (7);

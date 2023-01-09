@@ -6,10 +6,10 @@ create schema basic_cte;
 statement ok
 set search_path = basic_cte;
 
+halt
+
 statement ok
 create table a(i integer);
-
-halt
 
 statement ok
 insert into a values (42);

@@ -6,11 +6,11 @@ create schema search_path_schema_1;
 statement ok
 set search_path = search_path_schema_1;
 
+halt
+
 # Creates table in 'search_path_schema_1'
 statement ok
 create table t (a int);
-
-halt
 
 # Marker values for first schema.
 statement ok

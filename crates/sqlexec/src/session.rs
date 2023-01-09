@@ -105,9 +105,10 @@ impl Session {
         }
     }
 
-    pub(crate) async fn create_table(&self, plan: CreateTable) -> Result<()> {
-        self.ctx.create_table(plan)?;
-        Ok(())
+    pub(crate) async fn create_table(&self, _plan: CreateTable) -> Result<()> {
+        // Disable creating table temporarily since we actually can't insert
+        // anything into tables yet.
+        Err(ExecError::UnsupportedFeature("CREATE TABLE ..."))
     }
 
     pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {

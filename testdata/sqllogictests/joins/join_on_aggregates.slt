@@ -6,11 +6,10 @@ create schema join_on_aggregates;
 statement ok
 set search_path = join_on_aggregates;
 
+halt
+
 statement ok
 CREATE TABLE integers(i INTEGER)
-
-# TODO: Can't insert null into table.
-halt
 
 statement ok
 INSERT INTO integers VALUES (1), (2), (3), (NULL)

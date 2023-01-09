@@ -6,10 +6,10 @@ create schema inner_join;
 statement ok
 set search_path = inner_join;
 
+halt
+
 statement ok
 CREATE TABLE test (a INTEGER, b INTEGER);
-
-halt
 
 statement ok
 INSERT INTO test VALUES (11, 1), (12, 2), (13, 3)
