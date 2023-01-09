@@ -242,6 +242,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::AuthenticationCleartextPassword => b'R',
             BackendMessage::EmptyQueryResponse => b'I',
             BackendMessage::ParameterStatus { .. } => b'S',
+            BackendMessage::BackendKeyData { .. } => b'K',
             BackendMessage::ReadyForQuery(_) => b'Z',
             BackendMessage::CommandComplete { .. } => b'C',
             BackendMessage::RowDescription(_) => b'T',
@@ -271,6 +272,10 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::ParameterStatus { key, val } => {
                 dst.put_cstring(&key);
                 dst.put_cstring(&val);
+            }
+            BackendMessage::BackendKeyData { pid, secret } => {
+                dst.put_i32(pid);
+                dst.put_i32(secret);
             }
             BackendMessage::ReadyForQuery(status) => match status {
                 TransactionStatus::Idle => dst.put_u8(b'I'),

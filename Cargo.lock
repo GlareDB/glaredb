@@ -3750,6 +3750,7 @@ dependencies = [
  "parking_lot",
  "pgrepr",
  "postgres-types",
+ "rand",
  "regex",
  "serde",
  "serde_json",

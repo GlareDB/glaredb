@@ -133,6 +133,7 @@ pub enum BackendMessage {
     NoticeResponse(NoticeResponse),
     AuthenticationOk,
     AuthenticationCleartextPassword,
+    BackendKeyData { pid: i32, secret: i32 },
     ParameterStatus { key: String, val: String },
     EmptyQueryResponse,
     ReadyForQuery(TransactionStatus),

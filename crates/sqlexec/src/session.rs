@@ -4,14 +4,20 @@ use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
 use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
+use datafusion::arrow::error::Result as ArrowResult;
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
     ExecutionPlan, SendableRecordBatchStream,
 };
+use futures::{Stream, StreamExt};
 use pgrepr::format::Format;
 use std::fmt;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::sync::watch;
 use uuid::Uuid;
 
 /// Results from a sql statement execution.
@@ -68,6 +74,10 @@ impl fmt::Debug for ExecutionResult {
 /// in the future (e.g. consensus).
 pub struct Session {
     pub(crate) ctx: SessionContext,
+    /// Channel for sending cancel requets.
+    cancel_tx: Arc<watch::Sender<()>>,
+    /// Channel for receiving cancel requests.
+    cancel_rx: watch::Receiver<()>,
 }
 
 impl Session {
@@ -77,7 +87,17 @@ impl Session {
     /// the provided catalog.
     pub fn new(catalog: Arc<Catalog>, id: Uuid) -> Result<Session> {
         let ctx = SessionContext::new(catalog, id);
-        Ok(Session { ctx })
+        let (tx, rx) = watch::channel(());
+        Ok(Session {
+            ctx,
+            cancel_tx: Arc::new(tx),
+            cancel_rx: rx,
+        })
+    }
+
+    /// Get the channel used for sending cancellation requests.
+    pub fn get_cancel_tx(&self) -> Arc<watch::Sender<()>> {
+        self.cancel_tx.clone()
     }
 
     /// Create a physical plan for a given datafusion logical plan.
@@ -277,5 +297,33 @@ impl Session {
             }
             other => Err(internal!("unimplemented logical plan: {:?}", other)),
         }
+    }
+}
+
+/// How many batches are sent before checking for a cancel.
+const CHECK_CANCEL_AFTER_COUNT: usize = 16;
+
+/// A record batch stream that can be canceled.
+pub struct CancellableRecordBatchStream {
+    inner: SendableRecordBatchStream,
+    cancel_rx: watch::Receiver<()>,
+    ready: usize,
+}
+
+impl Stream for CancellableRecordBatchStream {
+    type Item = ArrowResult<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.inner.poll_next_unpin(cx) {
+            Poll::Ready(Some(result)) => {
+                self.ready += 1;
+                Poll::Ready(Some(result))
+            }
+            other => other,
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
     }
 }

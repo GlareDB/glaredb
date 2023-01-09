@@ -16,6 +16,7 @@ use sqlexec::{
 };
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::{debug_span, trace, warn, Instrument};
 use uuid::Uuid;

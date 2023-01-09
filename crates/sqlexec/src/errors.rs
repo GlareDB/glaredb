@@ -32,6 +32,9 @@ pub enum ExecError {
     #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<StatementWithExtensions>),
 
+    #[error("Duplicate PID: {0}")]
+    DuplicatePid(i32),
+
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
 
