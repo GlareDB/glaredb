@@ -91,12 +91,14 @@ impl From<DdlPlan> for LogicalPlan {
 
 #[derive(Clone, Debug)]
 pub struct CreateSchema {
+    pub create_sql: String,
     pub schema_name: String,
     pub if_not_exists: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateTable {
+    pub create_sql: String,
     pub table_name: String,
     pub if_not_exists: bool,
     pub columns: Vec<Field>,
@@ -104,18 +106,21 @@ pub struct CreateTable {
 
 #[derive(Clone, Debug)]
 pub struct CreateExternalTable {
+    pub create_sql: String,
     pub table_name: String,
     pub access: AccessMethod,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateTableAs {
+    pub create_sql: String,
     pub table_name: String,
     pub source: DfLogicalPlan,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateView {
+    pub create_sql: String,
     pub view_name: String,
     pub num_columns: usize,
     pub sql: String,

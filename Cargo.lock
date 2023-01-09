@@ -3731,6 +3731,7 @@ dependencies = [
  "logutil",
  "object_store",
  "object_store_util",
+ "once_cell",
  "parking_lot",
  "pgrepr",
  "postgres-types",

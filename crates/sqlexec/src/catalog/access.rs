@@ -10,7 +10,7 @@ use std::fmt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AccessMethod {
     Unknown,
-    InternalMemory,
+    System,
     Postgres(PostgresTableAccess),
     BigQuery(BigQueryTableAccess),
     Gcs(GcsTableAccess),
@@ -21,7 +21,7 @@ impl fmt::Display for AccessMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AccessMethod::Unknown => write!(f, "unknown"),
-            AccessMethod::InternalMemory => write!(f, "internal memory"),
+            AccessMethod::System => write!(f, "system"),
             AccessMethod::Postgres(_) => write!(f, "postgres"),
             AccessMethod::BigQuery(_) => write!(f, "bigquery"),
             AccessMethod::Gcs(_) => write!(f, "gcs"),

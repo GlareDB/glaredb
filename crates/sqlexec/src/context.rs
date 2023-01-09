@@ -1,9 +1,8 @@
 use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::schema::SchemaEntry;
-use crate::catalog::entry::table::{ColumnDefinition, TableEntry};
-use crate::catalog::entry::view::ViewEntry;
+use crate::catalog::entry::{ColumnDefinition, SchemaEntry, TableEntry, ViewEntry};
+use crate::catalog::entry::{DropEntry, EntryType};
 use crate::catalog::transaction::StubCatalogContext;
-use crate::catalog::{Catalog, DropEntry, EntryType};
+use crate::catalog::Catalog;
 use crate::dispatch::SessionDispatcher;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
@@ -20,7 +19,6 @@ use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
-use dfutil::convert::from_df_field;
 use pgrepr::format::Format;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -86,14 +84,11 @@ impl SessionContext {
     pub fn create_table(&self, plan: CreateTable) -> Result<()> {
         let (schema, name) = self.resolve_table_reference(plan.table_name)?;
         let ent = TableEntry {
+            created_by: plan.create_sql.into(),
             schema,
             name,
             access: AccessMethod::Unknown,
-            columns: plan
-                .columns
-                .into_iter()
-                .map(|f| ColumnDefinition::from(&from_df_field(f)))
-                .collect(),
+            columns: plan.columns.iter().map(ColumnDefinition::from).collect(),
         };
 
         self.catalog.create_table(&StubCatalogContext, ent)?;
@@ -103,6 +98,7 @@ impl SessionContext {
     pub fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
         let (schema, name) = self.resolve_table_reference(plan.table_name)?;
         let ent = TableEntry {
+            created_by: plan.create_sql.into(),
             schema,
             name,
             access: plan.access,
@@ -116,8 +112,8 @@ impl SessionContext {
     /// Create a schema.
     pub fn create_schema(&self, plan: CreateSchema) -> Result<()> {
         let ent = SchemaEntry {
-            schema: plan.schema_name,
-            internal: false,
+            created_by: plan.create_sql.into(),
+            name: plan.schema_name,
         };
 
         self.catalog.create_schema(&StubCatalogContext, ent)?;
@@ -127,9 +123,9 @@ impl SessionContext {
     pub fn create_view(&self, plan: CreateView) -> Result<()> {
         let (schema, name) = self.resolve_table_reference(plan.view_name)?;
         let ent = ViewEntry {
+            created_by: plan.create_sql.into(),
             schema,
             name,
-            column_count: plan.num_columns as u32,
             sql: plan.sql,
         };
 

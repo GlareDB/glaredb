@@ -1,5 +1,3 @@
-use crate::catalog::load_catalog;
-use crate::catalog::transaction::StubCatalogContext;
 use crate::catalog::Catalog;
 use crate::errors::Result;
 use crate::session::Session;
@@ -14,8 +12,8 @@ pub struct Engine {
 
 impl Engine {
     /// Create a new engine using the provided access runtime.
-    pub async fn new<S: StableStorage>(storage: S) -> Result<Engine> {
-        let catalog = load_catalog(&StubCatalogContext, storage).await?;
+    pub async fn new<S: StableStorage>(_storage: S) -> Result<Engine> {
+        let catalog = Catalog::open().await?;
         Ok(Engine {
             catalog: Arc::new(catalog),
         })
