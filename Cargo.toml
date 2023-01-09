@@ -1,2 +1,8 @@
 [workspace]
 members = ["crates/*"]
+
+# Temporarily use object_store with the following fix until
+# https://github.com/apache/arrow-rs/pull/3489 (commit id eae993) is released
+# on crates.io (likley 0.5.4)
+[patch.crates-io]
+object_store = { git = "https://github.com/apache/arrow-rs.git", rev = "eae993fd196d0a8df8a90857bc4a7ae8f5a3e845" }

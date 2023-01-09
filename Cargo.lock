@@ -1684,10 +1684,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -2542,16 +2540,14 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0014545954c5023b5fb8260415e54467cde434db6c824c9028a4b329f1b28e48"
+version = "0.5.3"
+source = "git+https://github.com/apache/arrow-rs.git?rev=eae993fd196d0a8df8a90857bc4a7ae8f5a3e845#eae993fd196d0a8df8a90857bc4a7ae8f5a3e845"
 dependencies = [
  "async-trait",
- "base64 0.13.1",
+ "base64 0.20.0",
  "bytes",
  "chrono",
  "futures",
- "getrandom",
  "itertools",
  "parking_lot",
  "percent-encoding",
@@ -3131,9 +3127,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.26.0"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f50b1c63b38611e7d4d7f68b82d3ad0cc71a2ad2e7f61fc10f1328d917c93cd"
+checksum = "ffc053f057dd768a56f62cd7e434c42c831d296968997e9ac1f76ea7c2d14c41"
 dependencies = [
  "memchr",
  "serde",
