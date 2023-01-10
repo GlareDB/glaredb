@@ -3,6 +3,7 @@ use common::cloud::CloudConfig;
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
+use tracing::debug;
 
 const REPORT_STORAGE_ENDPOINT: &str = "/api/internal/databases/usage";
 
@@ -54,10 +55,15 @@ impl CloudClient {
         // is returned. Therefore we accept 404s silently.
         let status = res.status().as_u16();
 
+        if status == 404 {
+            debug!("database not found when reporting usage");
+        }
+
         if status != 204 && status != 404 {
             let text = res.text().await?;
             return Err(CloudError::UnexpectedResponse(text));
         }
+
         Ok(())
     }
 
