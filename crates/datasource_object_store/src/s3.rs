@@ -58,10 +58,7 @@ impl S3Accessor {
         Ok(Self { store, meta })
     }
 
-    pub async fn into_table_provider(
-        self,
-        _predicate_pushdown: bool,
-    ) -> Result<ParquetTableProvider> {
+    pub async fn into_table_provider(self, _predicate_pushdown: bool) -> Result<S3TableProvider> {
         let reader = ParquetObjectReader {
             store: self.store.clone(),
             meta: self.meta.clone(),
@@ -72,7 +69,7 @@ impl S3Accessor {
 
         let arrow_schema = reader.schema().clone();
 
-        Ok(ParquetTableProvider {
+        Ok(S3TableProvider {
             _predicate_pushdown,
             accessor: self,
             arrow_schema,
@@ -80,14 +77,14 @@ impl S3Accessor {
     }
 }
 
-pub struct ParquetTableProvider {
+pub struct S3TableProvider {
     _predicate_pushdown: bool,
     accessor: S3Accessor,
     arrow_schema: ArrowSchemaRef,
 }
 
 #[async_trait]
-impl TableProvider for ParquetTableProvider {
+impl TableProvider for S3TableProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }
