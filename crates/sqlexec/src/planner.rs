@@ -85,7 +85,7 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "gcs" => {
-                let service_account_path = pop_required_opt(m, "gcs_service_account_path")?;
+                let service_acccount_key_json = pop_required_opt(m, "gcs_service_account_key")?;
                 let bucket_name = pop_required_opt(m, "bucket_name")?;
                 let table_location = pop_required_opt(m, "location")?;
                 CreateExternalTable {
@@ -93,7 +93,7 @@ impl<'a> SessionPlanner<'a> {
                     table_name: stmt.name,
                     access: AccessMethod::Gcs(GcsTableAccess {
                         bucket_name,
-                        service_account_path,
+                        service_acccount_key_json,
                         location: table_location,
                     }),
                 }

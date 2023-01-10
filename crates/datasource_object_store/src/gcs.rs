@@ -27,8 +27,8 @@ use crate::parquet::{ParquetFileStream, ParquetObjectReader, ParquetOpener, Stre
 pub struct GcsTableAccess {
     /// GCS object store bucket name
     pub bucket_name: String,
-    /// GCS object store service account credentials
-    pub service_account_path: String,
+    /// GCS object store service account key
+    pub service_acccount_key_json: String,
     /// GCS object store table location
     pub location: String,
 }
@@ -46,7 +46,7 @@ impl GcsAccessor {
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
         let store = Arc::new(
             GoogleCloudStorageBuilder::new()
-                .with_service_account_path(access.service_account_path)
+                .with_service_account_key(access.service_acccount_key_json)
                 .with_bucket_name(access.bucket_name)
                 .build()?,
         ) as Arc<dyn ObjectStore>;
