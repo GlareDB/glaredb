@@ -520,7 +520,14 @@ where
     ) -> Result<usize> {
         let mut num_rows = 0;
         while let Some(result) = stream.next().await {
-            let batch = result?;
+            let batch = match result {
+                Ok(r) => r,
+                Err(e) => {
+                    conn.send(ErrorResponse::error(SqlState::InternalError, e.to_string()).into())
+                        .await?;
+                    return Ok(num_rows);
+                }
+            };
             num_rows += batch.num_rows();
             for row_idx in 0..batch.num_rows() {
                 // Clone is cheapish here, all columns behind an arc.
