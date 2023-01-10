@@ -47,7 +47,14 @@ impl CloudClient {
             .json(&Body { usage_bytes })
             .send()
             .await?;
-        if res.status().as_u16() != 204 {
+
+        // A status of 204 is expected for a succesful usage push. However,
+        // when a db is deleted, there is an eventual consistency between the
+        // pod being killed and resources being cleaned up. In this case, a 404
+        // is returned. Therefore we accept 404s silently.
+        let status = res.status().as_u16();
+
+        if status != 204 && status != 404 {
             let text = res.text().await?;
             return Err(CloudError::UnexpectedResponse(text));
         }
