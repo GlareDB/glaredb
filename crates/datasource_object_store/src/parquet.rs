@@ -1,20 +1,28 @@
 //! Helpers for handling parquet files.
+use std::any::Any;
+use std::fmt;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{SchemaRef as ArrowSchemaRef, SchemaRef};
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::TaskContext;
 use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
 use datafusion::parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_plan::RecordBatchStream;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::display::DisplayFormatType;
+use datafusion::physical_plan::{
+    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+};
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use futures::stream::{BoxStream, StreamExt, TryStreamExt};
 use futures::{ready, Stream};
@@ -37,7 +45,7 @@ impl AsyncFileReader for ParquetObjectReader {
     fn get_bytes(&mut self, range: Range<usize>) -> BoxFuture<'_, ParquetResult<Bytes>> {
         self.store
             .get_range(&self.meta.location, range)
-            .map_err(|e| ParquetError::General(format!("get bytes: {}", e)))
+            .map_err(|e| ParquetError::General(format!("get bytes: {e}")))
             .boxed()
     }
 
@@ -49,7 +57,7 @@ impl AsyncFileReader for ParquetObjectReader {
             self.store
                 .get_ranges(&self.meta.location, &ranges)
                 .await
-                .map_err(|e| ParquetError::General(format!("get ranges: {}", e)))
+                .map_err(|e| ParquetError::General(format!("get ranges: {e}")))
         })
     }
 
@@ -58,7 +66,7 @@ impl AsyncFileReader for ParquetObjectReader {
             let metadata =
                 fetch_parquet_metadata(self.store.as_ref(), &self.meta, self.meta_size_hint)
                     .await
-                    .map_err(|e| ParquetError::General(format!("fetch metadata: {}", e)))?;
+                    .map_err(|e| ParquetError::General(format!("fetch metadata: {e}")))?;
             Ok(Arc::new(metadata))
         })
     }
@@ -172,5 +180,74 @@ impl Stream for ParquetFileStream {
 impl RecordBatchStream for ParquetFileStream {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
+    }
+}
+
+/// Retrive data from object storage with a parquet stream reader
+#[derive(Debug)]
+pub(crate) struct ParquetExec {
+    pub(crate) arrow_schema: ArrowSchemaRef,
+    pub(crate) store: Arc<dyn ObjectStore>,
+    pub(crate) meta: Arc<ObjectMeta>,
+    pub(crate) projection: Option<Vec<usize>>,
+}
+
+impl ExecutionPlan for ParquetExec {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> ArrowSchemaRef {
+        self.arrow_schema.clone()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        Vec::new()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        Err(DataFusionError::Execution(
+            "cannot replace children for ParquetExec".to_string(),
+        ))
+    }
+
+    fn execute(
+        &self,
+        _partition: usize,
+        _context: Arc<TaskContext>,
+    ) -> DatafusionResult<SendableRecordBatchStream> {
+        let opener = ParquetOpener {
+            store: self.store.clone(),
+            meta: self.meta.clone(),
+            meta_size_hint: None,
+            projection: self.projection.clone(),
+        };
+
+        let stream = ParquetFileStream {
+            schema: self.arrow_schema.clone(),
+            opener,
+            state: StreamState::Idle,
+        };
+
+        Ok(Box::pin(stream))
+    }
+
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ParquetExec: location={}", self.meta.location)
+    }
+
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
     }
 }

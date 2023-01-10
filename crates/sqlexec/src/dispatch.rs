@@ -122,7 +122,6 @@ impl<'a> SessionDispatcher<'a> {
                                 Ok(provider)
                             })
                         });
-                    trace!("test3");
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
