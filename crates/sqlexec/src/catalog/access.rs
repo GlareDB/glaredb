@@ -1,11 +1,13 @@
 //! Access methods.
+use std::fmt;
+
 use datasource_bigquery::BigQueryTableAccess;
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
+use datasource_object_store::s3::S3TableAccess;
 use datasource_postgres::PostgresTableAccess;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// How we access tables.
 // TODO: We might want to have this enum determine whether or not we persist
@@ -17,6 +19,7 @@ pub enum AccessMethod {
     Postgres(PostgresTableAccess),
     BigQuery(BigQueryTableAccess),
     Gcs(GcsTableAccess),
+    S3(S3TableAccess),
     Local(LocalTableAccess),
     Debug(DebugTableType),
 }
@@ -29,6 +32,7 @@ impl fmt::Display for AccessMethod {
             AccessMethod::Postgres(_) => write!(f, "postgres"),
             AccessMethod::BigQuery(_) => write!(f, "bigquery"),
             AccessMethod::Gcs(_) => write!(f, "gcs"),
+            AccessMethod::S3(_) => write!(f, "S3"),
             AccessMethod::Local(_) => write!(f, "local"),
             AccessMethod::Debug(_) => write!(f, "debug"),
         }

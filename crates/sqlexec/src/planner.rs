@@ -12,6 +12,7 @@ use datasource_bigquery::BigQueryTableAccess;
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
+use datasource_object_store::s3::S3TableAccess;
 use datasource_postgres::PostgresTableAccess;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -94,6 +95,24 @@ impl<'a> SessionPlanner<'a> {
                     access: AccessMethod::Gcs(GcsTableAccess {
                         bucket_name,
                         service_acccount_key_json,
+                        location: table_location,
+                    }),
+                }
+            }
+            "s3" => {
+                let access_key_id = pop_required_opt(m, "aws_access_key_id")?;
+                let secret_access_key = pop_required_opt(m, "aws_secret_access_key")?;
+                let region = pop_required_opt(m, "region")?;
+                let bucket_name = pop_required_opt(m, "bucket_name")?;
+                let table_location = pop_required_opt(m, "location")?;
+                CreateExternalTable {
+                    create_sql,
+                    table_name: stmt.name,
+                    access: AccessMethod::S3(S3TableAccess {
+                        region,
+                        bucket_name,
+                        access_key_id,
+                        secret_access_key,
                         location: table_location,
                     }),
                 }
