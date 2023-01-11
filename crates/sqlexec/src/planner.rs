@@ -7,7 +7,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
-use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::BigQueryTableAccess;
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::GcsTableAccess;
@@ -305,6 +305,15 @@ impl<'a> SessionPlanner<'a> {
             // Show the value of a variable.
             ast::Statement::ShowVariable { mut variable } => {
                 if variable.len() != 1 {
+                    if is_show_transaction_isolation_level(&variable) {
+                        // Consider the special case where the query is:
+                        // "SHOW TRANSACTION ISOLATION LEVEL".
+                        // This is an alias of "SHOW transaction_isolation".
+                        return Ok(VariablePlan::ShowVariable(ShowVariable {
+                            variable: "transaction_isolation".to_owned(),
+                        })
+                        .into());
+                    }
                     return Err(internal!("invalid variable ident: {:?}", variable));
                 }
                 let variable = variable
@@ -457,4 +466,14 @@ fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> Result<DataT
     } else {
         Ok(DataType::Decimal128(precision, scale))
     }
+}
+
+/// Is the "SHOW ..." statement equivalent to "SHOW TRANSACTION ISOLATION LEVEL".
+fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
+    let statement = ["transaction", "isolation", "level"];
+    if statement.len() != variable.len() {
+        return false;
+    }
+    let transaction_isolation_level = variable.iter().map(|i| i.value.to_lowercase());
+    statement.into_iter().eq(transaction_isolation_level)
 }
