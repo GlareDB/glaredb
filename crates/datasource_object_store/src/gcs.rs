@@ -44,7 +44,7 @@ impl GcsAccessor {
                 .with_service_account_key(access.service_acccount_key_json)
                 .with_bucket_name(access.bucket_name)
                 .build()?,
-        ) as Arc<dyn ObjectStore>;
+        );
 
         let location = ObjectStorePath::from(access.location);
         let meta = Arc::new(store.head(&location).await?);
@@ -111,7 +111,6 @@ impl TableProvider for GcsTableProvider {
             projection: projection.cloned(),
         };
 
-        let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
-        Ok(exec)
+        Ok(Arc::new(exec))
     }
 }

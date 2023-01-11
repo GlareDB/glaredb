@@ -50,7 +50,7 @@ impl S3Accessor {
                 .with_access_key_id(access.access_key_id)
                 .with_secret_access_key(access.secret_access_key)
                 .build()?,
-        ) as Arc<dyn ObjectStore>;
+        );
 
         let location = ObjectStorePath::from(access.location);
         let meta = Arc::new(store.head(&location).await?);
@@ -117,7 +117,6 @@ impl TableProvider for S3TableProvider {
             projection: projection.cloned(),
         };
 
-        let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
-        Ok(exec)
+        Ok(Arc::new(exec))
     }
 }

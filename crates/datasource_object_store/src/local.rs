@@ -35,7 +35,7 @@ pub struct LocalAccessor {
 impl LocalAccessor {
     /// Setup accessor for Local file system
     pub async fn new(access: LocalTableAccess) -> Result<Self> {
-        let store = Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>;
+        let store = Arc::new(LocalFileSystem::new());
 
         let location = ObjectStorePath::from(access.location);
         trace!(?location, "location");
@@ -105,7 +105,7 @@ impl TableProvider for LocalTableProvider {
             meta: self.accessor.meta.clone(),
             projection: projection.cloned(),
         };
-        let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
-        Ok(exec)
+
+        Ok(Arc::new(exec))
     }
 }
