@@ -281,6 +281,9 @@ impl<'a> CustomParser<'a> {
 mod tests {
     use super::*;
 
+    // TODO: Hash maps make the order of iteration for the options
+    // non-deterministic. Can cause test failures.
+
     #[test]
     fn external_table_display() {
         let mut options = HashMap::new();

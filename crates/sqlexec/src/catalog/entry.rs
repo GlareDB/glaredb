@@ -9,6 +9,7 @@ use std::ops::Deref;
 pub enum EntryType {
     Schema,
     Table,
+    Connection,
     View,
     Index,
     Sequence,
@@ -128,6 +129,18 @@ impl From<&ColumnDefinition> for Field {
     fn from(col: &ColumnDefinition) -> Self {
         Field::new(&col.name, col.datatype.clone(), col.nullable)
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum ConnectionMethod {
+    Debug,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectionEntry {
+    pub name: String,
+    pub schema: String,
+    pub method: ConnectionMethod,
 }
 
 #[derive(Debug, Clone)]

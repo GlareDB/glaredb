@@ -1,5 +1,7 @@
 use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::{ColumnDefinition, SchemaEntry, TableEntry, ViewEntry};
+use crate::catalog::entry::{
+    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, ViewEntry,
+};
 use crate::catalog::entry::{DropEntry, EntryType};
 use crate::catalog::transaction::StubCatalogContext;
 use crate::catalog::Catalog;
@@ -117,6 +119,18 @@ impl SessionContext {
         };
 
         self.catalog.create_schema(&StubCatalogContext, ent)?;
+        Ok(())
+    }
+
+    pub fn create_connection(&self, plan: CreateConnection) -> Result<()> {
+        let (schema, name) = self.resolve_table_reference(plan.connection_name)?;
+        let ent = ConnectionEntry {
+            name,
+            schema,
+            method: plan.method,
+        };
+
+        self.catalog.create_connection(&StubCatalogContext, ent)?;
         Ok(())
     }
 

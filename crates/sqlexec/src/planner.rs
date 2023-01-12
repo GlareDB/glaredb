@@ -1,8 +1,9 @@
 use crate::catalog::access::AccessMethod;
+use crate::catalog::entry::ConnectionMethod;
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
-use crate::parser::{CreateExternalTableStmt, StatementWithExtensions};
+use crate::parser::{CreateConnectionStmt, CreateExternalTableStmt, StatementWithExtensions};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -35,25 +36,34 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateExternalTable(stmt) => {
                 self.plan_create_external_table(stmt)
             }
-            StatementWithExtensions::CreateConnection(stmt) => {
-                unimplemented!()
-            }
+            StatementWithExtensions::CreateConnection(stmt) => self.plan_create_connection(stmt),
         }
+    }
+
+    fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
+        let m = &mut stmt.options;
+        let plan = match stmt.datasource.to_lowercase().as_str() {
+            "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::Debug,
+                }
+            }
+            other => return Err(internal!("unsupported datasource: {}", other)),
+        };
+
+        Ok(LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)))
     }
 
     fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
         let create_sql = stmt.to_string();
-        let pop_required_opt = |m: &mut HashMap<String, String>, k: &str| {
-            m.remove(k)
-                .ok_or_else(|| internal!("missing required option: {}", k))
-        };
 
         let m = &mut stmt.options;
         let plan = match stmt.datasource.to_lowercase().as_str() {
             "postgres" => {
-                let conn_str = pop_required_opt(m, "postgres_conn")?;
-                let source_schema = pop_required_opt(m, "schema")?;
-                let source_table = pop_required_opt(m, "table")?;
+                let conn_str = remove_required_opt(m, "postgres_conn")?;
+                let source_schema = remove_required_opt(m, "schema")?;
+                let source_table = remove_required_opt(m, "table")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -65,10 +75,10 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "bigquery" => {
-                let sa_key = pop_required_opt(m, "gcp_service_account_key")?;
-                let project_id = pop_required_opt(m, "gcp_project_id")?;
-                let dataset_id = pop_required_opt(m, "dataset_id")?;
-                let table_id = pop_required_opt(m, "table_id")?;
+                let sa_key = remove_required_opt(m, "gcp_service_account_key")?;
+                let project_id = remove_required_opt(m, "gcp_project_id")?;
+                let dataset_id = remove_required_opt(m, "dataset_id")?;
+                let table_id = remove_required_opt(m, "table_id")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -81,7 +91,7 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "local" => {
-                let file = pop_required_opt(m, "location")?;
+                let file = remove_required_opt(m, "location")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -89,9 +99,9 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "gcs" => {
-                let service_acccount_key_json = pop_required_opt(m, "gcs_service_account_key")?;
-                let bucket_name = pop_required_opt(m, "bucket_name")?;
-                let table_location = pop_required_opt(m, "location")?;
+                let service_acccount_key_json = remove_required_opt(m, "gcs_service_account_key")?;
+                let bucket_name = remove_required_opt(m, "bucket_name")?;
+                let table_location = remove_required_opt(m, "location")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -103,11 +113,11 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "s3" => {
-                let access_key_id = pop_required_opt(m, "aws_access_key_id")?;
-                let secret_access_key = pop_required_opt(m, "aws_secret_access_key")?;
-                let region = pop_required_opt(m, "region")?;
-                let bucket_name = pop_required_opt(m, "bucket_name")?;
-                let table_location = pop_required_opt(m, "location")?;
+                let access_key_id = remove_required_opt(m, "aws_access_key_id")?;
+                let secret_access_key = remove_required_opt(m, "aws_secret_access_key")?;
+                let region = remove_required_opt(m, "region")?;
+                let bucket_name = remove_required_opt(m, "bucket_name")?;
+                let table_location = remove_required_opt(m, "location")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -121,7 +131,7 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
-                let typ = pop_required_opt(m, "table_type")?;
+                let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
                 CreateExternalTable {
                     create_sql,
@@ -479,4 +489,9 @@ fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
     }
     let transaction_isolation_level = variable.iter().map(|i| i.value.to_lowercase());
     statement.into_iter().eq(transaction_isolation_level)
+}
+
+fn remove_required_opt(m: &mut HashMap<String, String>, k: &str) -> Result<String> {
+    m.remove(k)
+        .ok_or_else(|| internal!("missing required option: {}", k))
 }

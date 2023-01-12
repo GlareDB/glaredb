@@ -1,4 +1,5 @@
 use crate::catalog::access::AccessMethod;
+use crate::catalog::entry::ConnectionMethod;
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
@@ -78,6 +79,7 @@ pub enum DdlPlan {
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
+    CreateConnection(CreateConnection),
     CreateView(CreateView),
     DropTables(DropTables),
     DropSchemas(DropSchemas),
@@ -116,6 +118,12 @@ pub struct CreateTableAs {
     pub create_sql: String,
     pub table_name: String,
     pub source: DfLogicalPlan,
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateConnection {
+    pub connection_name: String,
+    pub method: ConnectionMethod,
 }
 
 #[derive(Clone, Debug)]
