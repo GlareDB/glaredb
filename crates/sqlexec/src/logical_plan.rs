@@ -1,5 +1,4 @@
-use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::{AccessOrConnectionMethod, ConnectionMethod, TableOptions};
+use crate::catalog::entry::{AccessOrConnection, ConnectionMethod, TableOptions};
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
@@ -110,7 +109,7 @@ pub struct CreateTable {
 pub struct CreateExternalTable {
     pub create_sql: String,
     pub table_name: String,
-    pub access: AccessOrConnectionMethod,
+    pub access: AccessOrConnection,
     pub table_options: TableOptions,
 }
 

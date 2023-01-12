@@ -1,5 +1,5 @@
 use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::{AccessOrConnectionMethod, ConnectionMethod, TableOptions};
+use crate::catalog::entry::{AccessOrConnection, ConnectionMethod, TableOptions};
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
@@ -41,8 +41,15 @@ impl<'a> SessionPlanner<'a> {
     }
 
     fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
-        let _m = &mut stmt.options;
+        let m = &mut stmt.options;
         let plan = match stmt.datasource.to_lowercase().as_str() {
+            "postgres" => {
+                let connection_string = remove_required_opt(m, "postgres_conn")?;
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::Postgres { connection_string },
+                }
+            }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
                 CreateConnection {
                     connection_name: stmt.name,
@@ -72,8 +79,21 @@ impl<'a> SessionPlanner<'a> {
                     CreateExternalTable {
                         create_sql,
                         table_name: stmt.name,
-                        access: AccessOrConnectionMethod::Connection(conn.name.clone()),
+                        access: AccessOrConnection::Connection(conn.name.clone()),
                         table_options: TableOptions::Debug { typ },
+                    }
+                }
+                ConnectionMethod::Postgres { .. } => {
+                    let source_schema = remove_required_opt(m, "schema")?;
+                    let source_table = remove_required_opt(m, "table")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::Postgres {
+                            schema: source_schema,
+                            table: source_table,
+                        },
                     }
                 }
             };

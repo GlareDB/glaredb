@@ -76,18 +76,20 @@ impl From<&BuiltinSchema> for SchemaEntry {
 
 // TODO: Remove when everything uses a connection.
 #[derive(Debug, Clone)]
-pub enum AccessOrConnectionMethod {
+pub enum AccessOrConnection {
     Access(AccessMethod),
+    /// Name of the connection to use.
+    // Technically should be a stable id.
     Connection(String),
 }
 
-impl From<AccessMethod> for AccessOrConnectionMethod {
+impl From<AccessMethod> for AccessOrConnection {
     fn from(m: AccessMethod) -> Self {
-        AccessOrConnectionMethod::Access(m)
+        AccessOrConnection::Access(m)
     }
 }
 
-impl fmt::Display for AccessOrConnectionMethod {
+impl fmt::Display for AccessOrConnection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -97,6 +99,7 @@ impl fmt::Display for AccessOrConnectionMethod {
 pub enum TableOptions {
     None,
     Debug { typ: DebugTableType },
+    Postgres { schema: String, table: String },
 }
 
 #[derive(Debug, Clone)]
@@ -104,7 +107,7 @@ pub struct TableEntry {
     pub created_by: EntryCreatedBy,
     pub schema: String,
     pub name: String,
-    pub access: AccessOrConnectionMethod,
+    pub access: AccessOrConnection,
     pub table_options: TableOptions,
     pub columns: Vec<ColumnDefinition>,
 }
@@ -163,6 +166,7 @@ impl From<&ColumnDefinition> for Field {
 #[derive(Debug, Clone)]
 pub enum ConnectionMethod {
     Debug,
+    Postgres { connection_string: String },
 }
 
 #[derive(Debug, Clone)]

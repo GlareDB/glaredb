@@ -1,9 +1,7 @@
 //! Adapter types for dispatching to table sources.
 use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{GLARE_COLUMNS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS};
-use crate::catalog::entry::{
-    AccessOrConnectionMethod, ConnectionEntry, ConnectionMethod, TableOptions,
-};
+use crate::catalog::entry::{AccessOrConnection, ConnectionEntry, ConnectionMethod, TableOptions};
 use crate::catalog::errors::{internal, CatalogError, Result};
 use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
 use crate::catalog::Catalog;
@@ -17,7 +15,7 @@ use datasource_bigquery::BigQueryAccessor;
 use datasource_object_store::gcs::GcsAccessor;
 use datasource_object_store::local::LocalAccessor;
 use datasource_object_store::s3::S3Accessor;
-use datasource_postgres::PostgresAccessor;
+use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -55,12 +53,12 @@ impl<'a> SessionDispatcher<'a> {
         // Check table entries first.
         if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
             return match &table.access {
-                AccessOrConnectionMethod::Access(AccessMethod::System) => {
+                AccessOrConnection::Access(AccessMethod::System) => {
                     let table = SystemTableDispatcher::new(&StubCatalogContext, catalog)
                         .dispatch(schema, name)?;
                     Ok(Some(table))
                 }
-                AccessOrConnectionMethod::Access(AccessMethod::Postgres(pg)) => {
+                AccessOrConnection::Access(AccessMethod::Postgres(pg)) => {
                     // TODO: We'll probably want an "external dispatcher" of sorts.
                     // TODO: Try not to block on.
                     let pg = pg.clone();
@@ -81,7 +79,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessOrConnectionMethod::Access(AccessMethod::BigQuery(bq)) => {
+                AccessOrConnection::Access(AccessMethod::BigQuery(bq)) => {
                     let bq = bq.clone();
                     let predicate_pushdown = *self
                         .ctx
@@ -100,7 +98,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessOrConnectionMethod::Access(AccessMethod::Local(local)) => {
+                AccessOrConnection::Access(AccessMethod::Local(local)) => {
                     trace!("Using Local filesystem to access parquet file");
                     let local = local.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -114,7 +112,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessOrConnectionMethod::Access(AccessMethod::S3(s3)) => {
+                AccessOrConnection::Access(AccessMethod::S3(s3)) => {
                     trace!("Using S3 to access parquet file");
                     let s3 = s3.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -128,7 +126,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessOrConnectionMethod::Access(AccessMethod::Gcs(gcs)) => {
+                AccessOrConnection::Access(AccessMethod::Gcs(gcs)) => {
                     trace!("Using GCS to access parquet file");
                     let gcs = gcs.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -142,10 +140,10 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessOrConnectionMethod::Access(AccessMethod::Debug(debug)) => {
+                AccessOrConnection::Access(AccessMethod::Debug(debug)) => {
                     Ok(Some(debug.clone().into_table_provider()))
                 }
-                AccessOrConnectionMethod::Connection(name) => {
+                AccessOrConnection::Connection(name) => {
                     let conn = self
                         .ctx
                         .get_connection(name)
@@ -158,8 +156,39 @@ impl<'a> SessionDispatcher<'a> {
                                 ..
                             },
                         ) => Ok(Some(typ.clone().into_table_provider())),
+                        (
+                            TableOptions::Postgres { schema, table },
+                            ConnectionEntry {
+                                method: ConnectionMethod::Postgres { connection_string },
+                                ..
+                            },
+                        ) => {
+                            let table_access = PostgresTableAccess {
+                                schema: schema.clone(),
+                                name: table.clone(),
+                                connection_string: connection_string.clone(),
+                            };
+                            let predicate_pushdown = *self
+                                .ctx
+                                .get_session_vars()
+                                .postgres_predicate_pushdown
+                                .value();
+                            let result: Result<_, datasource_postgres::errors::PostgresError> =
+                                task::block_in_place(move || {
+                                    Handle::current().block_on(async move {
+                                        let accessor =
+                                            PostgresAccessor::connect(table_access).await?;
+                                        let provider = accessor
+                                            .into_table_provider(predicate_pushdown)
+                                            .await?;
+                                        Ok(provider)
+                                    })
+                                });
+                            let provider = result?;
+                            Ok(Some(Arc::new(provider)))
+                        }
                         (opts, conn) => Err(internal!(
-                            "invalid types; options: {:?}, conn: {:?}",
+                            "unhandled types; options: {:?}, conn: {:?}",
                             opts,
                             conn
                         )),
