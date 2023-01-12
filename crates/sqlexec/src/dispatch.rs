@@ -1,7 +1,10 @@
 //! Adapter types for dispatching to table sources.
 use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{GLARE_COLUMNS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS};
-use crate::catalog::errors::{CatalogError, Result};
+use crate::catalog::entry::{
+    AccessOrConnectionMethod, ConnectionEntry, ConnectionMethod, TableOptions,
+};
+use crate::catalog::errors::{internal, CatalogError, Result};
 use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
 use crate::catalog::Catalog;
 use crate::context::SessionContext;
@@ -52,12 +55,12 @@ impl<'a> SessionDispatcher<'a> {
         // Check table entries first.
         if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
             return match &table.access {
-                AccessMethod::System => {
+                AccessOrConnectionMethod::Access(AccessMethod::System) => {
                     let table = SystemTableDispatcher::new(&StubCatalogContext, catalog)
                         .dispatch(schema, name)?;
                     Ok(Some(table))
                 }
-                AccessMethod::Postgres(pg) => {
+                AccessOrConnectionMethod::Access(AccessMethod::Postgres(pg)) => {
                     // TODO: We'll probably want an "external dispatcher" of sorts.
                     // TODO: Try not to block on.
                     let pg = pg.clone();
@@ -78,7 +81,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::BigQuery(bq) => {
+                AccessOrConnectionMethod::Access(AccessMethod::BigQuery(bq)) => {
                     let bq = bq.clone();
                     let predicate_pushdown = *self
                         .ctx
@@ -97,7 +100,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::Local(local) => {
+                AccessOrConnectionMethod::Access(AccessMethod::Local(local)) => {
                     trace!("Using Local filesystem to access parquet file");
                     let local = local.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -111,7 +114,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::S3(s3) => {
+                AccessOrConnectionMethod::Access(AccessMethod::S3(s3)) => {
                     trace!("Using S3 to access parquet file");
                     let s3 = s3.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -125,7 +128,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::Gcs(gcs) => {
+                AccessOrConnectionMethod::Access(AccessMethod::Gcs(gcs)) => {
                     trace!("Using GCS to access parquet file");
                     let gcs = gcs.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -139,10 +142,30 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::Debug(debug) => Ok(Some(debug.clone().into_table_provider())),
-                AccessMethod::Unknown => {
-                    Err(CatalogError::UnhandleableAccess(table.access.clone()))
+                AccessOrConnectionMethod::Access(AccessMethod::Debug(debug)) => {
+                    Ok(Some(debug.clone().into_table_provider()))
                 }
+                AccessOrConnectionMethod::Connection(name) => {
+                    let conn = self
+                        .ctx
+                        .get_connection(name)
+                        .map_err(|e| internal!("{}", e))?;
+                    match (&table.table_options, conn.as_ref()) {
+                        (
+                            TableOptions::Debug { typ },
+                            ConnectionEntry {
+                                method: ConnectionMethod::Debug,
+                                ..
+                            },
+                        ) => Ok(Some(typ.clone().into_table_provider())),
+                        (opts, conn) => Err(internal!(
+                            "invalid types; options: {:?}, conn: {:?}",
+                            opts,
+                            conn
+                        )),
+                    }
+                }
+                other => Err(CatalogError::UnhandleableAccess(other.clone())),
             };
         }
 

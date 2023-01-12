@@ -4,7 +4,7 @@ use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -21,10 +21,10 @@ pub struct CreateExternalTableStmt {
     pub name: String,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
-    /// The data source for the table.
-    pub datasource: String,
+    /// The data source or connection name for the table.
+    pub datasource_or_connection: String,
     /// Datasource specific options.
-    pub options: HashMap<String, String>,
+    pub options: BTreeMap<String, String>,
 }
 
 impl fmt::Display for CreateExternalTableStmt {
@@ -33,7 +33,7 @@ impl fmt::Display for CreateExternalTableStmt {
         if self.if_not_exists {
             write!(f, "IF NOT EXISTS")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.datasource)?;
+        write!(f, "{} FROM {} ", self.name, self.datasource_or_connection)?;
 
         let opts = self
             .options
@@ -56,7 +56,7 @@ pub struct CreateConnectionStmt {
     /// The data source the connection is for.
     pub datasource: String,
     /// Options for the connection.
-    pub options: HashMap<String, String>,
+    pub options: BTreeMap<String, String>,
 }
 
 impl fmt::Display for CreateConnectionStmt {
@@ -218,7 +218,7 @@ impl<'a> CustomParser<'a> {
             CreateExternalTableStmt {
                 name: name.to_string(),
                 if_not_exists,
-                datasource,
+                datasource_or_connection: datasource,
                 options,
             },
         ))
@@ -232,8 +232,8 @@ impl<'a> CustomParser<'a> {
     }
 
     /// Parse options for a datasource.
-    fn parse_datasource_options(&mut self) -> Result<HashMap<String, String>, ParserError> {
-        let mut options = HashMap::new();
+    fn parse_datasource_options(&mut self) -> Result<BTreeMap<String, String>, ParserError> {
+        let mut options = BTreeMap::new();
 
         // No options provided.
         if !self.consume_token(&Token::make_keyword("OPTIONS")) {
@@ -281,12 +281,9 @@ impl<'a> CustomParser<'a> {
 mod tests {
     use super::*;
 
-    // TODO: Hash maps make the order of iteration for the options
-    // non-deterministic. Can cause test failures.
-
     #[test]
     fn external_table_display() {
-        let mut options = HashMap::new();
+        let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
             "host=localhost user=postgres".to_string(),
@@ -294,7 +291,7 @@ mod tests {
         let stmt = CreateExternalTableStmt {
             name: "test".to_string(),
             if_not_exists: false,
-            datasource: "postgres".to_string(),
+            datasource_or_connection: "postgres".to_string(),
             options,
         };
 
@@ -308,7 +305,7 @@ mod tests {
         let mut stmts = CustomParser::parse_sql(sql).unwrap();
 
         let stmt = stmts.pop_front().unwrap();
-        let mut options = HashMap::new();
+        let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
             "host=localhost user=postgres".to_string(),
@@ -319,7 +316,7 @@ mod tests {
             StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
                 name: "test".to_string(),
                 if_not_exists: false,
-                datasource: "postgres".to_string(),
+                datasource_or_connection: "postgres".to_string(),
                 options,
             }),
             stmt
@@ -330,7 +327,7 @@ mod tests {
     fn connection_roundtrip() {
         // Display the create string...
 
-        let mut options = HashMap::new();
+        let mut options = BTreeMap::new();
         for (k, v) in [("host", "localhost"), ("user", "postgres")] {
             options.insert(k.to_string(), v.to_string());
         }

@@ -1,6 +1,6 @@
 use crate::catalog::access::AccessMethod;
 use crate::catalog::entry::{
-    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, ViewEntry,
+    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, TableOptions, ViewEntry,
 };
 use crate::catalog::entry::{DropEntry, EntryType};
 use crate::catalog::transaction::StubCatalogContext;
@@ -89,7 +89,8 @@ impl SessionContext {
             created_by: plan.create_sql.into(),
             schema,
             name,
-            access: AccessMethod::Unknown,
+            access: AccessMethod::Unknown.into(),
+            table_options: TableOptions::None,
             columns: plan.columns.iter().map(ColumnDefinition::from).collect(),
         };
 
@@ -104,6 +105,7 @@ impl SessionContext {
             schema,
             name,
             access: plan.access,
+            table_options: plan.table_options,
             columns: Vec::new(),
         };
 
@@ -172,6 +174,19 @@ impl SessionContext {
             self.catalog.drop_entry(&StubCatalogContext, ent)?;
         }
         Ok(())
+    }
+
+    pub fn get_connection(&self, name: &str) -> Result<Arc<ConnectionEntry>> {
+        let schema = self
+            .catalog
+            .schemas
+            .get_entry(&StubCatalogContext, self.first_schema()?)
+            .ok_or_else(|| internal!("missing schema"))?;
+        let conn = schema
+            .connections
+            .get_entry(&StubCatalogContext, name)
+            .ok_or_else(|| internal!("missing connection"))?;
+        Ok(conn)
     }
 
     /// Get a reference to the session variables.

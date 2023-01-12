@@ -1,5 +1,5 @@
 use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::ConnectionMethod;
+use crate::catalog::entry::{AccessOrConnectionMethod, ConnectionMethod, TableOptions};
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
@@ -15,7 +15,7 @@ use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
 use datasource_object_store::s3::S3TableAccess;
 use datasource_postgres::PostgresTableAccess;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use tracing::debug;
 
@@ -41,7 +41,7 @@ impl<'a> SessionPlanner<'a> {
     }
 
     fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
-        let m = &mut stmt.options;
+        let _m = &mut stmt.options;
         let plan = match stmt.datasource.to_lowercase().as_str() {
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
                 CreateConnection {
@@ -58,8 +58,30 @@ impl<'a> SessionPlanner<'a> {
     fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
         let create_sql = stmt.to_string();
 
+        let datasource_or_connection = stmt.datasource_or_connection.to_lowercase();
         let m = &mut stmt.options;
-        let plan = match stmt.datasource.to_lowercase().as_str() {
+
+        // TODO: Remove jank. Just here until things get switched over to using
+        // only connections.
+        if !is_datasource(datasource_or_connection.as_str()) {
+            let conn = self.ctx.get_connection(&datasource_or_connection)?;
+            let plan = match conn.method {
+                ConnectionMethod::Debug => {
+                    let typ = remove_required_opt(m, "table_type")?;
+                    let typ = DebugTableType::from_str(&typ)?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnectionMethod::Connection(conn.name.clone()),
+                        table_options: TableOptions::Debug { typ },
+                    }
+                }
+            };
+
+            return Ok(LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)));
+        }
+
+        let plan = match stmt.datasource_or_connection.to_lowercase().as_str() {
             "postgres" => {
                 let conn_str = remove_required_opt(m, "postgres_conn")?;
                 let source_schema = remove_required_opt(m, "schema")?;
@@ -71,7 +93,9 @@ impl<'a> SessionPlanner<'a> {
                         connection_string: conn_str,
                         schema: source_schema,
                         name: source_table,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "bigquery" => {
@@ -87,7 +111,9 @@ impl<'a> SessionPlanner<'a> {
                         gcp_project_id: project_id,
                         dataset_id,
                         table_id,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "local" => {
@@ -95,7 +121,8 @@ impl<'a> SessionPlanner<'a> {
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
-                    access: AccessMethod::Local(LocalTableAccess { location: file }),
+                    access: AccessMethod::Local(LocalTableAccess { location: file }).into(),
+                    table_options: TableOptions::None,
                 }
             }
             "gcs" => {
@@ -109,7 +136,9 @@ impl<'a> SessionPlanner<'a> {
                         bucket_name,
                         service_acccount_key_json,
                         location: table_location,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "s3" => {
@@ -127,7 +156,9 @@ impl<'a> SessionPlanner<'a> {
                         access_key_id,
                         secret_access_key,
                         location: table_location,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
@@ -136,7 +167,8 @@ impl<'a> SessionPlanner<'a> {
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
-                    access: AccessMethod::Debug(typ),
+                    access: AccessMethod::Debug(typ).into(),
+                    table_options: TableOptions::None,
                 }
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
@@ -491,7 +523,15 @@ fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
     statement.into_iter().eq(transaction_isolation_level)
 }
 
-fn remove_required_opt(m: &mut HashMap<String, String>, k: &str) -> Result<String> {
+fn remove_required_opt(m: &mut BTreeMap<String, String>, k: &str) -> Result<String> {
     m.remove(k)
         .ok_or_else(|| internal!("missing required option: {}", k))
+}
+
+// TODO: Remove when everything uses connections.
+fn is_datasource(s: &str) -> bool {
+    matches!(
+        s,
+        "postgres" | "local" | "bigquery" | "gcs" | "s3" | "debug"
+    )
 }

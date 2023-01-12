@@ -2,6 +2,8 @@
 use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use datasource_debug::DebugTableType;
+use std::fmt;
 use std::ops::Deref;
 
 /// Types of entries the catalog holds.
@@ -72,12 +74,38 @@ impl From<&BuiltinSchema> for SchemaEntry {
     }
 }
 
+// TODO: Remove when everything uses a connection.
+#[derive(Debug, Clone)]
+pub enum AccessOrConnectionMethod {
+    Access(AccessMethod),
+    Connection(String),
+}
+
+impl From<AccessMethod> for AccessOrConnectionMethod {
+    fn from(m: AccessMethod) -> Self {
+        AccessOrConnectionMethod::Access(m)
+    }
+}
+
+impl fmt::Display for AccessOrConnectionMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TableOptions {
+    None,
+    Debug { typ: DebugTableType },
+}
+
 #[derive(Debug, Clone)]
 pub struct TableEntry {
     pub created_by: EntryCreatedBy,
     pub schema: String,
     pub name: String,
-    pub access: AccessMethod,
+    pub access: AccessOrConnectionMethod,
+    pub table_options: TableOptions,
     pub columns: Vec<ColumnDefinition>,
 }
 
@@ -87,7 +115,8 @@ impl From<&BuiltinTable> for TableEntry {
             created_by: EntryCreatedBy::System,
             schema: builtin.schema.to_string(),
             name: builtin.name.to_string(),
-            access: AccessMethod::System,
+            access: AccessMethod::System.into(),
+            table_options: TableOptions::None,
             columns: builtin.columns.clone(),
         }
     }
