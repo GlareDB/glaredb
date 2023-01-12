@@ -49,22 +49,18 @@ impl CloudClient {
             .send()
             .await?;
 
-        // A status of 204 is expected for a succesful usage push. However,
+        // A status of 204 is expected for a successful usage push. However,
         // when a db is deleted, there is an eventual consistency between the
         // pod being killed and resources being cleaned up. In this case, a 404
         // is returned. Therefore we accept 404s silently.
-        let status = res.status().as_u16();
-
-        if status == 404 {
-            debug!("database not found when reporting usage");
+        match res.status().as_u16() {
+            404 => {
+                debug!("database not found when reporting usage");
+                Ok(())
+            }
+            204 => Ok(()),
+            _ => Err(CloudError::UnexpectedResponse(res.text().await?)),
         }
-
-        if status != 204 && status != 404 {
-            let text = res.text().await?;
-            return Err(CloudError::UnexpectedResponse(text));
-        }
-
-        Ok(())
     }
 
     async fn ping(&self) -> Result<()> {
