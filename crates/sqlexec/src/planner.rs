@@ -7,11 +7,12 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
-use datafusion::sql::sqlparser::ast::{self, ObjectType};
+use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::BigQueryTableAccess;
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
+use datasource_object_store::s3::S3TableAccess;
 use datasource_postgres::PostgresTableAccess;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -94,6 +95,24 @@ impl<'a> SessionPlanner<'a> {
                     access: AccessMethod::Gcs(GcsTableAccess {
                         bucket_name,
                         service_acccount_key_json,
+                        location: table_location,
+                    }),
+                }
+            }
+            "s3" => {
+                let access_key_id = pop_required_opt(m, "aws_access_key_id")?;
+                let secret_access_key = pop_required_opt(m, "aws_secret_access_key")?;
+                let region = pop_required_opt(m, "region")?;
+                let bucket_name = pop_required_opt(m, "bucket_name")?;
+                let table_location = pop_required_opt(m, "location")?;
+                CreateExternalTable {
+                    create_sql,
+                    table_name: stmt.name,
+                    access: AccessMethod::S3(S3TableAccess {
+                        region,
+                        bucket_name,
+                        access_key_id,
+                        secret_access_key,
                         location: table_location,
                     }),
                 }
@@ -286,6 +305,15 @@ impl<'a> SessionPlanner<'a> {
             // Show the value of a variable.
             ast::Statement::ShowVariable { mut variable } => {
                 if variable.len() != 1 {
+                    if is_show_transaction_isolation_level(&variable) {
+                        // Consider the special case where the query is:
+                        // "SHOW TRANSACTION ISOLATION LEVEL".
+                        // This is an alias of "SHOW transaction_isolation".
+                        return Ok(VariablePlan::ShowVariable(ShowVariable {
+                            variable: "transaction_isolation".to_owned(),
+                        })
+                        .into());
+                    }
                     return Err(internal!("invalid variable ident: {:?}", variable));
                 }
                 let variable = variable
@@ -438,4 +466,14 @@ fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> Result<DataT
     } else {
         Ok(DataType::Decimal128(precision, scale))
     }
+}
+
+/// Is the "SHOW ..." statement equivalent to "SHOW TRANSACTION ISOLATION LEVEL".
+fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
+    let statement = ["transaction", "isolation", "level"];
+    if statement.len() != variable.len() {
+        return false;
+    }
+    let transaction_isolation_level = variable.iter().map(|i| i.value.to_lowercase());
+    statement.into_iter().eq(transaction_isolation_level)
 }

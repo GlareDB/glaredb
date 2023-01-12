@@ -336,9 +336,9 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         match name {
             TableReference::Bare { table } => {
                 for schema in self.context.search_path_iter() {
-                    let opt = dispatcher
-                        .dispatch_access(schema, table)
-                        .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
+                    let opt = dispatcher.dispatch_access(schema, table).map_err(|e| {
+                        DataFusionError::Plan(format!("failed dispatch for bare table: {}", e))
+                    })?;
                     if let Some(provider) = opt {
                         return Ok(Arc::new(DefaultTableSource::new(provider)));
                     }
@@ -350,9 +350,9 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
             }
             TableReference::Full { schema, table, .. }
             | TableReference::Partial { schema, table } => {
-                let opt = dispatcher
-                    .dispatch_access(schema, table)
-                    .map_err(|e| DataFusionError::Plan(format!("failed dispatch: {}", e)))?;
+                let opt = dispatcher.dispatch_access(schema, table).map_err(|e| {
+                    DataFusionError::Plan(format!("failed dispatch for qualified table: {}", e))
+                })?;
                 if let Some(provider) = opt {
                     return Ok(Arc::new(DefaultTableSource::new(provider)));
                 }
