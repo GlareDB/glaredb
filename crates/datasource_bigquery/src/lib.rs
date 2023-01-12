@@ -11,7 +11,7 @@ use bigquery_storage::yup_oauth2::{
 };
 use bigquery_storage::{BufferedArrowIpcReader, Client};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
@@ -343,10 +343,19 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
             FieldType::String => DataType::Utf8,
             FieldType::Integer => DataType::Int64,
             FieldType::Int64 => DataType::Int64,
-            FieldType::Float => DataType::Float32,
+            FieldType::Float => DataType::Float64,
             FieldType::Float64 => DataType::Float64,
             FieldType::Bytes => DataType::Binary,
             FieldType::Date => DataType::Date32,
+            FieldType::Datetime => DataType::Timestamp(TimeUnit::Microsecond, None),
+            FieldType::Timestamp => {
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_owned()))
+            }
+            FieldType::Time => DataType::Time64(TimeUnit::Microsecond),
+            FieldType::Numeric => DataType::Decimal128(38, 9),
+            // TODO: Bignumeric throws an error which terminates the connection abruptly.
+            // FieldType::Bignumeric => DataType::Decimal256(76, 38),
+            FieldType::Geography => DataType::Utf8,
             other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
         };
 
