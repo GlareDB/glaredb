@@ -3,6 +3,7 @@ use common::cloud::CloudConfig;
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
+use tracing::debug;
 
 const REPORT_STORAGE_ENDPOINT: &str = "/api/internal/databases/usage";
 
@@ -47,11 +48,19 @@ impl CloudClient {
             .json(&Body { usage_bytes })
             .send()
             .await?;
-        if res.status().as_u16() != 204 {
-            let text = res.text().await?;
-            return Err(CloudError::UnexpectedResponse(text));
+
+        // A status of 204 is expected for a successful usage push. However,
+        // when a db is deleted, there is an eventual consistency between the
+        // pod being killed and resources being cleaned up. In this case, a 404
+        // is returned. Therefore we accept 404s silently.
+        match res.status().as_u16() {
+            404 => {
+                debug!("database not found when reporting usage");
+                Ok(())
+            }
+            204 => Ok(()),
+            _ => Err(CloudError::UnexpectedResponse(res.text().await?)),
         }
-        Ok(())
     }
 
     async fn ping(&self) -> Result<()> {
