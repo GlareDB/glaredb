@@ -196,7 +196,9 @@ impl<'a> SessionDispatcher<'a> {
                         )),
                     }
                 }
-                other => Err(CatalogError::UnhandleableAccess(other.clone())),
+                AccessOrConnection::Access(AccessMethod::Unknown) => {
+                    Err(CatalogError::UnhandleableAccess(table.access.clone()))
+                }
             };
         }
 
