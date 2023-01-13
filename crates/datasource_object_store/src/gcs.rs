@@ -20,7 +20,7 @@ use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::Result;
-use crate::parquet::{ParquetFileStream, ParquetObjectReader, ParquetOpener, StreamState};
+use crate::parquet::{ParquetObjectReader, SimpleParquetFileReaderFactory};
 
 /// Information needed for accessing an external Parquet file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,20 +165,7 @@ impl ExecutionPlan for GcsExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let opener = ParquetOpener {
-            store: self.store.clone(),
-            meta: self.meta.clone(),
-            meta_size_hint: None,
-            projection: self.projection.clone(),
-        };
-
-        let stream = ParquetFileStream {
-            schema: self.arrow_schema.clone(),
-            opener,
-            state: StreamState::Idle,
-        };
-
-        Ok(Box::pin(stream))
+        todo!()
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {

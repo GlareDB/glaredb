@@ -4,6 +4,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::config::ConfigOptions;
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -11,6 +13,7 @@ use datafusion::logical_expr::{Expr, TableType};
 use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
+use datafusion::physical_plan::file_format::{FileScanConfig, ParquetExec};
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
 };
@@ -20,7 +23,7 @@ use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::Result;
-use crate::parquet::{ParquetFileStream, ParquetObjectReader, ParquetOpener, StreamState};
+use crate::parquet::{ParquetObjectReader, SimpleParquetFileReaderFactory};
 
 /// Information needed for accessing an Parquet file on local file system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,14 +47,13 @@ impl LocalAccessor {
         let location = ObjectStorePath::from(access.location);
         tracing::trace!(?location, "path to file");
         let meta = Arc::new(store.head(&location).await?);
+        //TODO: RUSTOM - REMOVE
+        tracing::trace!(?meta, "META info");
 
         Ok(Self { store, meta })
     }
 
-    pub async fn into_table_provider(
-        self,
-        _predicate_pushdown: bool,
-    ) -> Result<LocalTableProvider> {
+    pub async fn into_table_provider(self, predicate_pushdown: bool) -> Result<LocalTableProvider> {
         let reader = ParquetObjectReader {
             store: self.store.clone(),
             meta: self.meta.clone(),
@@ -63,7 +65,7 @@ impl LocalAccessor {
         let arrow_schema = reader.schema().clone();
 
         Ok(LocalTableProvider {
-            _predicate_pushdown,
+            predicate_pushdown,
             accessor: self,
             arrow_schema,
         })
@@ -71,7 +73,7 @@ impl LocalAccessor {
 }
 
 pub struct LocalTableProvider {
-    _predicate_pushdown: bool,
+    predicate_pushdown: bool,
     accessor: LocalAccessor,
     /// Schema for parquet file
     arrow_schema: ArrowSchemaRef,
@@ -88,96 +90,46 @@ impl TableProvider for LocalTableProvider {
     }
 
     fn table_type(&self) -> TableType {
-        TableType::Base
+        TableType::View
     }
 
     async fn scan(
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        let projected_schema = match projection {
-            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
-            None => self.arrow_schema.clone(),
+        let predicate = if self.predicate_pushdown {
+            filters
+                .to_vec()
+                .into_iter()
+                .reduce(|accum, expr| accum.and(expr))
+        } else {
+            None
         };
 
-        let exec = LocalExec {
-            store: self.accessor.store.clone(),
-            arrow_schema: projected_schema,
-            meta: self.accessor.meta.clone(),
+        let base_config = FileScanConfig {
+            object_store_url: ObjectStoreUrl::local_filesystem(), // to be ignored
+            file_schema: self.arrow_schema.clone(),
+            file_groups: Vec::new(),
+            statistics: Statistics::default(),
             projection: projection.cloned(),
-        };
-        let exec = Arc::new(exec) as Arc<dyn ExecutionPlan>;
-        Ok(exec)
-    }
-}
-
-#[derive(Debug)]
-struct LocalExec {
-    arrow_schema: ArrowSchemaRef,
-    store: Arc<dyn ObjectStore>,
-    meta: Arc<ObjectMeta>,
-    projection: Option<Vec<usize>>,
-}
-
-impl ExecutionPlan for LocalExec {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn schema(&self) -> ArrowSchemaRef {
-        self.arrow_schema.clone()
-    }
-
-    fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
-    }
-
-    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        None
-    }
-
-    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        Vec::new()
-    }
-
-    fn with_new_children(
-        self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
-    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for ParquetExec".to_string(),
-        ))
-    }
-
-    fn execute(
-        &self,
-        _partition: usize,
-        _context: Arc<TaskContext>,
-    ) -> DatafusionResult<SendableRecordBatchStream> {
-        let opener = ParquetOpener {
-            store: self.store.clone(),
-            meta: self.meta.clone(),
-            meta_size_hint: None,
-            projection: self.projection.clone(),
+            limit,
+            table_partition_cols: Vec::new(),
+            output_ordering: None,
+            config_options: ConfigOptions::new().into_shareable(),
         };
 
-        let stream = ParquetFileStream {
-            schema: self.arrow_schema.clone(),
-            opener,
-            state: StreamState::Idle,
-        };
+        let factory = Arc::new(SimpleParquetFileReaderFactory::new(
+            self.accessor.store.clone(),
+            base_config.clone(),
+        ));
 
-        Ok(Box::pin(stream))
-    }
+        let exec = ParquetExec::new(base_config, predicate, None)
+            .with_parquet_file_reader_factory(factory)
+            .with_pushdown_filters(self.predicate_pushdown);
 
-    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "LocalExec: location={}", self.meta.location)
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+        Ok(Arc::new(exec))
     }
 }
