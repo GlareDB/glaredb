@@ -514,7 +514,7 @@ checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 [[package]]
 name = "bigquery-storage"
 version = "0.1.2"
-source = "git+https://github.com/glaredb/bigquery-storage?branch=master#e22a1e4663287709f000d23fab4bdf058e33dd47"
+source = "git+https://github.com/glaredb/bigquery-storage?branch=master#599f0df0fffe12872e6d0b26b35c11c63eb6bcb2"
 dependencies = [
  "futures",
  "hyper",
