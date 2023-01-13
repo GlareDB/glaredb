@@ -1,6 +1,8 @@
 //! Adapter types for dispatching to table sources.
 use crate::catalog::access::AccessMethod;
-use crate::catalog::builtins::{GLARE_COLUMNS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS};
+use crate::catalog::builtins::{
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
+};
 use crate::catalog::entry::{AccessOrConnection, ConnectionEntry, ConnectionMethod, TableOptions};
 use crate::catalog::errors::{internal, CatalogError, Result};
 use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
@@ -233,6 +235,8 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
             Arc::new(self.build_glare_views())
         } else if GLARE_SCHEMAS.matches(schema, name) {
             Arc::new(self.build_glare_schemas())
+        } else if GLARE_CONNECTIONS.matches(schema, name) {
+            Arc::new(self.build_glare_connections())
         } else {
             return Err(CatalogError::MissingTableForAccessMethod {
                 method: AccessMethod::System,
@@ -345,6 +349,34 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
                 Arc::new(schema_names.finish()),
                 Arc::new(view_names.finish()),
                 Arc::new(sqls.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_connections(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_CONNECTIONS.arrow_schema());
+
+        let mut schema_names = StringBuilder::new();
+        let mut view_names = StringBuilder::new();
+        let mut methods = StringBuilder::new();
+
+        for schema in self.catalog.schemas.iter(self.ctx) {
+            for connection in schema.connections.iter(self.ctx) {
+                schema_names.append_value(&connection.schema);
+                view_names.append_value(&connection.name);
+                methods.append_value(connection.method.to_string());
+            }
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(schema_names.finish()),
+                Arc::new(view_names.finish()),
+                Arc::new(methods.finish()),
             ],
         )
         .unwrap();

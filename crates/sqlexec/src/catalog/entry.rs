@@ -169,6 +169,19 @@ pub enum ConnectionMethod {
     Postgres { connection_string: String },
 }
 
+impl fmt::Display for ConnectionMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ConnectionMethod::Debug => "debug",
+                ConnectionMethod::Postgres { .. } => "postgres",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ConnectionEntry {
     pub name: String,

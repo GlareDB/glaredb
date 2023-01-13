@@ -57,6 +57,16 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "connections",
+    columns: ColumnDefinition::from_arrow_fields(&[
+        Field::new("schema_name", DataType::Utf8, false),
+        Field::new("connection_name", DataType::Utf8, false),
+        Field::new("connection_method", DataType::Utf8, false),
+    ]),
+});
+
 impl BuiltinTable {
     /// Check if this table matches the provided schema and name.
     pub fn matches(&self, schema: &str, name: &str) -> bool {
@@ -70,7 +80,13 @@ impl BuiltinTable {
 
     /// Return a vector of all builtin tables.
     pub fn builtins() -> Vec<&'static BuiltinTable> {
-        vec![&GLARE_VIEWS, &GLARE_SCHEMAS, &GLARE_TABLES, &GLARE_COLUMNS]
+        vec![
+            &GLARE_VIEWS,
+            &GLARE_SCHEMAS,
+            &GLARE_TABLES,
+            &GLARE_COLUMNS,
+            &GLARE_CONNECTIONS,
+        ]
     }
 }
 
