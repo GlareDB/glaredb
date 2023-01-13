@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.59"
+async-trait = "0.1.61"
 futures = "0.3.25"
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3.3"
@@ -16,5 +16,5 @@ datafusion = "15.0"
 serde_json = "1.0.91"
 serde = { version = "1.0", features = ["derive"] }
 object_store = { version = "0.5", features = ["gcp", "aws"] }
-parquet = "30.0.0"
+parquet = "30.0.1"
 bytes = "1.3.0"
