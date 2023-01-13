@@ -34,6 +34,8 @@ pub enum ExecutionResult {
     CreateSchema,
     /// A view was created.
     CreateView,
+    /// A connection was created.
+    CreateConnection,
     /// A client local variable was set.
     SetLocal,
     /// Tables dropped.
@@ -54,6 +56,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::CreateView => write!(f, "create view"),
+            ExecutionResult::CreateConnection => write!(f, "create connection"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
@@ -122,6 +125,11 @@ impl Session {
 
     pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
         self.ctx.create_schema(plan)?;
+        Ok(())
+    }
+
+    pub(crate) async fn create_connection(&self, plan: CreateConnection) -> Result<()> {
+        self.ctx.create_connection(plan)?;
         Ok(())
     }
 
@@ -246,6 +254,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;
                 Ok(ExecutionResult::CreateSchema)
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)) => {
+                self.create_connection(plan).await?;
+                Ok(ExecutionResult::CreateConnection)
             }
             LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
                 self.create_view(plan).await?;

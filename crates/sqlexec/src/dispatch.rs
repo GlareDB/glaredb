@@ -1,7 +1,10 @@
 //! Adapter types for dispatching to table sources.
 use crate::catalog::access::AccessMethod;
-use crate::catalog::builtins::{GLARE_COLUMNS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS};
-use crate::catalog::errors::{CatalogError, Result};
+use crate::catalog::builtins::{
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
+};
+use crate::catalog::entry::{AccessOrConnection, ConnectionEntry, ConnectionMethod, TableOptions};
+use crate::catalog::errors::{internal, CatalogError, Result};
 use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
 use crate::catalog::Catalog;
 use crate::context::SessionContext;
@@ -14,7 +17,7 @@ use datasource_bigquery::BigQueryAccessor;
 use datasource_object_store::gcs::GcsAccessor;
 use datasource_object_store::local::LocalAccessor;
 use datasource_object_store::s3::S3Accessor;
-use datasource_postgres::PostgresAccessor;
+use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -52,12 +55,12 @@ impl<'a> SessionDispatcher<'a> {
         // Check table entries first.
         if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
             return match &table.access {
-                AccessMethod::System => {
+                AccessOrConnection::Access(AccessMethod::System) => {
                     let table = SystemTableDispatcher::new(&StubCatalogContext, catalog)
                         .dispatch(schema, name)?;
                     Ok(Some(table))
                 }
-                AccessMethod::Postgres(pg) => {
+                AccessOrConnection::Access(AccessMethod::Postgres(pg)) => {
                     // TODO: We'll probably want an "external dispatcher" of sorts.
                     // TODO: Try not to block on.
                     let pg = pg.clone();
@@ -78,7 +81,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::BigQuery(bq) => {
+                AccessOrConnection::Access(AccessMethod::BigQuery(bq)) => {
                     let bq = bq.clone();
                     let predicate_pushdown = *self
                         .ctx
@@ -97,7 +100,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::Local(local) => {
+                AccessOrConnection::Access(AccessMethod::Local(local)) => {
                     trace!("Using Local filesystem to access parquet file");
                     let local = local.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -111,7 +114,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::S3(s3) => {
+                AccessOrConnection::Access(AccessMethod::S3(s3)) => {
                     trace!("Using S3 to access parquet file");
                     let s3 = s3.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -125,7 +128,7 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::Gcs(gcs) => {
+                AccessOrConnection::Access(AccessMethod::Gcs(gcs)) => {
                     trace!("Using GCS to access parquet file");
                     let gcs = gcs.clone();
                     let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
@@ -139,8 +142,61 @@ impl<'a> SessionDispatcher<'a> {
                     let provider = result?;
                     Ok(Some(Arc::new(provider)))
                 }
-                AccessMethod::Debug(debug) => Ok(Some(debug.clone().into_table_provider())),
-                AccessMethod::Unknown => {
+                AccessOrConnection::Access(AccessMethod::Debug(debug)) => {
+                    Ok(Some(debug.clone().into_table_provider()))
+                }
+                AccessOrConnection::Connection(name) => {
+                    let conn = self
+                        .ctx
+                        .get_connection(name)
+                        .map_err(|e| internal!("{}", e))?;
+                    match (&table.table_options, conn.as_ref()) {
+                        (
+                            TableOptions::Debug { typ },
+                            ConnectionEntry {
+                                method: ConnectionMethod::Debug,
+                                ..
+                            },
+                        ) => Ok(Some(typ.clone().into_table_provider())),
+                        (
+                            TableOptions::Postgres { schema, table },
+                            ConnectionEntry {
+                                method: ConnectionMethod::Postgres { connection_string },
+                                ..
+                            },
+                        ) => {
+                            let table_access = PostgresTableAccess {
+                                schema: schema.clone(),
+                                name: table.clone(),
+                                connection_string: connection_string.clone(),
+                            };
+                            let predicate_pushdown = *self
+                                .ctx
+                                .get_session_vars()
+                                .postgres_predicate_pushdown
+                                .value();
+                            let result: Result<_, datasource_postgres::errors::PostgresError> =
+                                task::block_in_place(move || {
+                                    Handle::current().block_on(async move {
+                                        let accessor =
+                                            PostgresAccessor::connect(table_access).await?;
+                                        let provider = accessor
+                                            .into_table_provider(predicate_pushdown)
+                                            .await?;
+                                        Ok(provider)
+                                    })
+                                });
+                            let provider = result?;
+                            Ok(Some(Arc::new(provider)))
+                        }
+                        (opts, conn) => Err(internal!(
+                            "unhandled types; options: {:?}, conn: {:?}",
+                            opts,
+                            conn
+                        )),
+                    }
+                }
+                AccessOrConnection::Access(AccessMethod::Unknown) => {
                     Err(CatalogError::UnhandleableAccess(table.access.clone()))
                 }
             };
@@ -181,6 +237,8 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
             Arc::new(self.build_glare_views())
         } else if GLARE_SCHEMAS.matches(schema, name) {
             Arc::new(self.build_glare_schemas())
+        } else if GLARE_CONNECTIONS.matches(schema, name) {
+            Arc::new(self.build_glare_connections())
         } else {
             return Err(CatalogError::MissingTableForAccessMethod {
                 method: AccessMethod::System,
@@ -293,6 +351,34 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
                 Arc::new(schema_names.finish()),
                 Arc::new(view_names.finish()),
                 Arc::new(sqls.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_connections(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_CONNECTIONS.arrow_schema());
+
+        let mut schema_names = StringBuilder::new();
+        let mut view_names = StringBuilder::new();
+        let mut methods = StringBuilder::new();
+
+        for schema in self.catalog.schemas.iter(self.ctx) {
+            for connection in schema.connections.iter(self.ctx) {
+                schema_names.append_value(&connection.schema);
+                view_names.append_value(&connection.name);
+                methods.append_value(connection.method.to_string());
+            }
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(schema_names.finish()),
+                Arc::new(view_names.finish()),
+                Arc::new(methods.finish()),
             ],
         )
         .unwrap();

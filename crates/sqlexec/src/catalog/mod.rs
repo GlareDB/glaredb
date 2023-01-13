@@ -11,7 +11,7 @@ pub mod transaction;
 mod entryset;
 
 use builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
-use entry::{DropEntry, EntryType, SchemaEntry, TableEntry, ViewEntry};
+use entry::{ConnectionEntry, DropEntry, EntryType, SchemaEntry, TableEntry, ViewEntry};
 use entryset::EntrySet;
 use errors::{internal, CatalogError, Result};
 use std::sync::atomic::AtomicU64;
@@ -65,12 +65,22 @@ impl Catalog {
     pub fn create_schema<C: CatalogContext>(&self, ctx: &C, schema_ent: SchemaEntry) -> Result<()> {
         let schema = PhysicalSchema {
             name: schema_ent.name.clone(),
+            connections: EntrySet::new(),
             views: EntrySet::new(),
             tables: EntrySet::new(),
         };
         self.schemas
             .create_entry(ctx, schema_ent.name, schema)?
             .expect_inserted()
+    }
+
+    pub fn create_connection<C: CatalogContext>(
+        &self,
+        ctx: &C,
+        conn: ConnectionEntry,
+    ) -> Result<()> {
+        let schema = self.get_schema(ctx, &conn.schema)?;
+        schema.create_connection(ctx, conn)
     }
 
     /// Check if a schema exists.
@@ -105,6 +115,7 @@ impl Catalog {
 
 pub(crate) struct PhysicalSchema {
     pub(crate) name: String, // TODO: Don't store name here.
+    pub(crate) connections: EntrySet<ConnectionEntry>,
     pub(crate) views: EntrySet<ViewEntry>,
     pub(crate) tables: EntrySet<TableEntry>,
 }
@@ -119,6 +130,12 @@ impl PhysicalSchema {
     fn create_table<C: CatalogContext>(&self, ctx: &C, table: TableEntry) -> Result<()> {
         self.tables
             .create_entry(ctx, table.name.clone(), table)?
+            .expect_inserted()
+    }
+
+    fn create_connection<C: CatalogContext>(&self, ctx: &C, conn: ConnectionEntry) -> Result<()> {
+        self.connections
+            .create_entry(ctx, conn.name.clone(), conn)?
             .expect_inserted()
     }
 

@@ -494,6 +494,9 @@ where
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
+            ExecutionResult::CreateConnection => {
+                Self::command_complete(conn, "CREATE CONNECTION").await?
+            }
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
