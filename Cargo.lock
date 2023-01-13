@@ -1234,7 +1234,7 @@ dependencies = [
  "datafusion",
  "futures",
  "object_store",
- "parquet 30.0.0",
+ "parquet 30.0.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -2734,9 +2734,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "30.0.0"
+version = "30.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cafbdb07468f96c468f0c6e5b108485872f974f22f2e1bee899210e65e2c81f3"
+checksum = "4bba2a7630d2946f9e2020225062ad5619d70320e06dae6ae1074febf4c4e932"
 dependencies = [
  "ahash 0.8.2",
  "arrow-array 30.0.0",
