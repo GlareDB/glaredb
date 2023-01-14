@@ -1,19 +1,33 @@
 //! Helpers for handling parquet files.
+use std::any::Any;
 use std::ops::Range;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use bytes::Bytes;
+use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::config::ConfigOptions;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
-use datafusion::error::DataFusionError;
+use datafusion::datasource::object_store::ObjectStoreUrl;
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::TableType;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
+use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_plan::file_format::{FileMeta, ParquetFileReaderFactory};
+use datafusion::physical_plan::file_format::{
+    FileMeta, FileScanConfig, ParquetExec, ParquetFileReaderFactory,
+};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
+use datafusion::prelude::Expr;
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::errors::Result;
+use crate::TableAccessor;
 
 #[derive(Debug)]
 pub struct SimpleParquetFileReaderFactory {
@@ -86,5 +100,95 @@ impl AsyncFileReader for ParquetObjectReader {
                     .map_err(|e| ParquetError::General(format!("fetch metadata: {e}")))?;
             Ok(Arc::new(metadata))
         })
+    }
+}
+
+pub struct ParquetTableProvider<T>
+where
+    T: TableAccessor,
+{
+    pub(crate) predicate_pushdown: bool,
+    pub(crate) accessor: T,
+    /// Schema for parquet file
+    pub(crate) arrow_schema: ArrowSchemaRef,
+}
+
+pub async fn into_table_provider<T: TableAccessor>(
+    accessor: T,
+    predicate_pushdown: bool,
+) -> Result<ParquetTableProvider<T>> {
+    let reader = ParquetObjectReader {
+        store: accessor.store().clone(),
+        meta: accessor.object_meta().clone(),
+        meta_size_hint: None,
+    };
+
+    let reader = ParquetRecordBatchStreamBuilder::new(reader).await?;
+
+    let arrow_schema = reader.schema().clone();
+
+    Ok(ParquetTableProvider {
+        predicate_pushdown,
+        accessor,
+        arrow_schema,
+    })
+}
+
+#[async_trait]
+impl<T> TableProvider for ParquetTableProvider<T>
+where
+    T: TableAccessor + 'static,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> ArrowSchemaRef {
+        self.arrow_schema.clone()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::View
+    }
+
+    async fn scan(
+        &self,
+        _ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let predicate = if self.predicate_pushdown {
+            filters
+                .iter()
+                .cloned()
+                .reduce(|accum, expr| accum.and(expr))
+        } else {
+            None
+        };
+
+        let file = self.accessor.object_meta().as_ref().clone().into();
+
+        let base_config = FileScanConfig {
+            object_store_url: ObjectStoreUrl::local_filesystem(), // to be ignored
+            file_schema: self.arrow_schema.clone(),
+            file_groups: vec![vec![file]],
+            statistics: Statistics::default(),
+            projection: projection.cloned(),
+            limit,
+            table_partition_cols: Vec::new(),
+            output_ordering: None,
+            config_options: ConfigOptions::new().into_shareable(),
+        };
+
+        let factory = Arc::new(SimpleParquetFileReaderFactory::new(
+            self.accessor.store().clone(),
+        ));
+
+        let exec = ParquetExec::new(base_config, predicate, None)
+            .with_parquet_file_reader_factory(factory)
+            .with_pushdown_filters(self.predicate_pushdown);
+
+        Ok(Arc::new(exec))
     }
 }
