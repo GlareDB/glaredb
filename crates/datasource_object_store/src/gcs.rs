@@ -9,7 +9,8 @@ use crate::errors::Result;
 use crate::parquet::ParquetTableProvider;
 use crate::TableAccessor;
 
-/// Information needed for accessing an external Parquet file on Google Cloud Storage.
+/// Information needed for accessing an external Parquet file on Google Cloud
+/// Storage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GcsTableAccess {
     /// GCS object store bucket name

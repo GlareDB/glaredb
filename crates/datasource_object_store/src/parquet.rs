@@ -29,8 +29,8 @@ use object_store::{ObjectMeta, ObjectStore};
 use crate::errors::Result;
 use crate::TableAccessor;
 
-/// Custom `ParquetFileReaderFactory` to provide a custom datasource in `ParquetExec` instead of
-/// datafusion Object Store registry
+/// Custom `ParquetFileReaderFactory` to provide a custom datasource in
+/// `ParquetExec` instead of datafusion Object Store registry
 #[derive(Debug)]
 pub struct SimpleParquetFileReaderFactory {
     /// Object Store to read from
@@ -172,8 +172,9 @@ where
         let file = self.accessor.object_meta().as_ref().clone().into();
 
         let base_config = FileScanConfig {
-            // `object_store_url` will be ignored as we are providing a `SimpleParquetFileReaderFactory` to
-            // `ParquetExec` to use instead of the datafusion object store registry.
+            // `object_store_url` will be ignored as we are providing a
+            // `SimpleParquetFileReaderFactory` to `ParquetExec` to use instead of the
+            // datafusion object store registry.
             object_store_url: ObjectStoreUrl::local_filesystem(),
             file_schema: self.arrow_schema.clone(),
             file_groups: vec![vec![file]],
