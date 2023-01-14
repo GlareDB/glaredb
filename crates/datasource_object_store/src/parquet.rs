@@ -48,8 +48,6 @@ impl ParquetFileReaderFactory for SimpleParquetFileReaderFactory {
         metadata_size_hint: Option<usize>,
         _metrics: &ExecutionPlanMetricsSet,
     ) -> Result<Box<dyn AsyncFileReader + Send>, DataFusionError> {
-        //TODO: RUSTOM - REMOVE
-        tracing::trace!("NEW READER");
         Ok(Box::new(ParquetObjectReader {
             store: self.store.clone(),
             meta: Arc::new(file_meta.object_meta),
@@ -68,8 +66,6 @@ pub struct ParquetObjectReader {
 
 impl AsyncFileReader for ParquetObjectReader {
     fn get_bytes(&mut self, range: Range<usize>) -> BoxFuture<'_, ParquetResult<Bytes>> {
-        //TODO: RUSTOM - REMOVE
-        tracing::trace!("get_bytes");
         self.store
             .get_range(&self.meta.location, range)
             .map_err(|e| ParquetError::General(format!("get bytes: {e}")))
@@ -80,8 +76,6 @@ impl AsyncFileReader for ParquetObjectReader {
         &mut self,
         ranges: Vec<Range<usize>>,
     ) -> BoxFuture<'_, ParquetResult<Vec<Bytes>>> {
-        //TODO: RUSTOM - REMOVE
-        tracing::trace!("get_byte_ranges");
         Box::pin(async move {
             self.store
                 .get_ranges(&self.meta.location, &ranges)
@@ -91,8 +85,6 @@ impl AsyncFileReader for ParquetObjectReader {
     }
 
     fn get_metadata(&mut self) -> BoxFuture<'_, ParquetResult<Arc<ParquetMetaData>>> {
-        //TODO: RUSTOM - REMOVE
-        tracing::trace!("get_metadata");
         Box::pin(async move {
             let metadata =
                 fetch_parquet_metadata(self.store.as_ref(), &self.meta, self.meta_size_hint)
