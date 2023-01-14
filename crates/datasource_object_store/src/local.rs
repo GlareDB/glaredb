@@ -50,6 +50,6 @@ impl LocalAccessor {
         self,
         predicate_pushdown: bool,
     ) -> Result<ParquetTableProvider<LocalAccessor>> {
-        crate::parquet::into_table_provider(self, predicate_pushdown).await
+        ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await
     }
 }

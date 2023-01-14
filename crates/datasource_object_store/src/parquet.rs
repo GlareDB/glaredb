@@ -29,8 +29,11 @@ use object_store::{ObjectMeta, ObjectStore};
 use crate::errors::Result;
 use crate::TableAccessor;
 
+/// Custom `ParquetFileReaderFactory` to provide a custom datasource in `ParquetExec` instead of
+/// datafusion Object Store registry
 #[derive(Debug)]
 pub struct SimpleParquetFileReaderFactory {
+    /// Object Store to read from
     store: Arc<dyn ObjectStore>,
 }
 
@@ -56,7 +59,7 @@ impl ParquetFileReaderFactory for SimpleParquetFileReaderFactory {
     }
 }
 
-/// Implement parquet's `AsyncFileReader` interface.
+/// A Parquet file reader using the `AsyncFileReader` interface.
 #[derive(Debug)]
 pub struct ParquetObjectReader {
     pub store: Arc<dyn ObjectStore>,
@@ -64,6 +67,7 @@ pub struct ParquetObjectReader {
     pub meta_size_hint: Option<usize>,
 }
 
+/// Implement parquet's `AsyncFileReader` interface.
 impl AsyncFileReader for ParquetObjectReader {
     fn get_bytes(&mut self, range: Range<usize>) -> BoxFuture<'_, ParquetResult<Bytes>> {
         self.store
@@ -95,6 +99,7 @@ impl AsyncFileReader for ParquetObjectReader {
     }
 }
 
+/// Table provider for Parquet table
 pub struct ParquetTableProvider<T>
 where
     T: TableAccessor,
@@ -105,25 +110,30 @@ where
     pub(crate) arrow_schema: ArrowSchemaRef,
 }
 
-pub async fn into_table_provider<T: TableAccessor>(
-    accessor: T,
-    predicate_pushdown: bool,
-) -> Result<ParquetTableProvider<T>> {
-    let reader = ParquetObjectReader {
-        store: accessor.store().clone(),
-        meta: accessor.object_meta().clone(),
-        meta_size_hint: None,
-    };
+impl<T> ParquetTableProvider<T>
+where
+    T: TableAccessor,
+{
+    pub async fn from_table_accessor(
+        accessor: T,
+        predicate_pushdown: bool,
+    ) -> Result<ParquetTableProvider<T>> {
+        let reader = ParquetObjectReader {
+            store: accessor.store().clone(),
+            meta: accessor.object_meta().clone(),
+            meta_size_hint: None,
+        };
 
-    let reader = ParquetRecordBatchStreamBuilder::new(reader).await?;
+        let reader = ParquetRecordBatchStreamBuilder::new(reader).await?;
 
-    let arrow_schema = reader.schema().clone();
+        let arrow_schema = reader.schema().clone();
 
-    Ok(ParquetTableProvider {
-        predicate_pushdown,
-        accessor,
-        arrow_schema,
-    })
+        Ok(ParquetTableProvider {
+            predicate_pushdown,
+            accessor,
+            arrow_schema,
+        })
+    }
 }
 
 #[async_trait]
@@ -162,7 +172,9 @@ where
         let file = self.accessor.object_meta().as_ref().clone().into();
 
         let base_config = FileScanConfig {
-            object_store_url: ObjectStoreUrl::local_filesystem(), // to be ignored
+            // `object_store_url` will be ignored as we are providing a `SimpleParquetFileReaderFactory` to
+            // `ParquetExec` to use instead of the datafusion object store registry.
+            object_store_url: ObjectStoreUrl::local_filesystem(),
             file_schema: self.arrow_schema.clone(),
             file_groups: vec![vec![file]],
             statistics: Statistics::default(),
