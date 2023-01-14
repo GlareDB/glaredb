@@ -3,19 +3,22 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::config::ConfigOptions;
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableType};
 use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::file_format::{FileScanConfig, ParquetExec};
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::Result;
-use crate::parquet::{ParquetExec, ParquetObjectReader};
+use crate::parquet::{ParquetObjectReader, SimpleParquetFileReaderFactory};
 
 /// Information needed for accessing an external Parquet file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +55,7 @@ impl GcsAccessor {
         Ok(Self { store, meta })
     }
 
-    pub async fn into_table_provider(self, _predicate_pushdown: bool) -> Result<GcsTableProvider> {
+    pub async fn into_table_provider(self, predicate_pushdown: bool) -> Result<GcsTableProvider> {
         let reader = ParquetObjectReader {
             store: self.store.clone(),
             meta: self.meta.clone(),
@@ -64,7 +67,7 @@ impl GcsAccessor {
         let arrow_schema = reader.schema().clone();
 
         Ok(GcsTableProvider {
-            _predicate_pushdown,
+            predicate_pushdown,
             accessor: self,
             arrow_schema,
         })
@@ -72,8 +75,9 @@ impl GcsAccessor {
 }
 
 pub struct GcsTableProvider {
-    _predicate_pushdown: bool,
+    predicate_pushdown: bool,
     accessor: GcsAccessor,
+    /// Schema for parquet file
     arrow_schema: ArrowSchemaRef,
 }
 
@@ -95,21 +99,39 @@ impl TableProvider for GcsTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        // Projection.
-        let projected_schema = match projection {
-            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
-            None => self.arrow_schema.clone(),
+        let predicate = if self.predicate_pushdown {
+            filters
+                .iter()
+                .cloned()
+                .reduce(|accum, expr| accum.and(expr))
+        } else {
+            None
         };
 
-        let exec = ParquetExec {
-            store: self.accessor.store.clone(),
-            arrow_schema: projected_schema,
-            meta: self.accessor.meta.clone(),
+        let file = self.accessor.meta.as_ref().clone().into();
+
+        let base_config = FileScanConfig {
+            object_store_url: ObjectStoreUrl::local_filesystem(), // to be ignored
+            file_schema: self.arrow_schema.clone(),
+            file_groups: vec![vec![file]],
+            statistics: Statistics::default(),
             projection: projection.cloned(),
+            limit,
+            table_partition_cols: Vec::new(),
+            output_ordering: None,
+            config_options: ConfigOptions::new().into_shareable(),
         };
+
+        let factory = Arc::new(SimpleParquetFileReaderFactory::new(
+            self.accessor.store.clone(),
+        ));
+
+        let exec = ParquetExec::new(base_config, predicate, None)
+            .with_parquet_file_reader_factory(factory)
+            .with_pushdown_filters(self.predicate_pushdown);
 
         Ok(Arc::new(exec))
     }
