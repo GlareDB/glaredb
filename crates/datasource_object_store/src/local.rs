@@ -1,5 +1,7 @@
 use std::any::Any;
+use std::borrow::Borrow;
 use std::fmt;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -109,10 +111,12 @@ impl TableProvider for LocalTableProvider {
             None
         };
 
+        let file = self.accessor.meta.as_ref().clone().into();
+
         let base_config = FileScanConfig {
             object_store_url: ObjectStoreUrl::local_filesystem(), // to be ignored
             file_schema: self.arrow_schema.clone(),
-            file_groups: Vec::new(),
+            file_groups: vec![vec![file]],
             statistics: Statistics::default(),
             projection: projection.cloned(),
             limit,
