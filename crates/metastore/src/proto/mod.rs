@@ -3,3 +3,4 @@
 //! Do not edit. Modifications will be overwritten during builds.
 pub mod arrow;
 pub mod catalog;
+pub mod service;

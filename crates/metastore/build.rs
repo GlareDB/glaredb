@@ -6,13 +6,21 @@ fn main() {
     tonic_build::configure()
         .build_server(true)
         .build_client(true)
-        .compile(&["proto/arrow.proto", "proto/catalog.proto"], &["proto"])
+        .compile(
+            &[
+                "proto/arrow.proto",
+                "proto/catalog.proto",
+                "proto/service.proto",
+            ],
+            &["proto"],
+        )
         .unwrap();
 
     // Copy generated files to the `proto` modules.
     let src_dest = [
         ("metastore.arrow.rs", "arrow.rs"),
         ("metastore.catalog.rs", "catalog.rs"),
+        ("metastore.service.rs", "service.rs"),
     ];
     let out: PathBuf = std::env::var("OUT_DIR").unwrap().into();
     for (src, dest) in src_dest {

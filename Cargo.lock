@@ -2303,10 +2303,20 @@ dependencies = [
 name = "metastore"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "futures",
+ "logutil",
+ "object_store",
+ "once_cell",
+ "parking_lot",
  "prost",
  "prost-types",
+ "thiserror",
+ "tokio",
  "tonic",
  "tonic-build",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
