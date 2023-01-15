@@ -6,7 +6,7 @@ package metastore.catalog;
 
 import "arrow.proto";
 
-message DatabaseCatalog {
+message CatalogState {
   // Database that this catalog is for (UUID).
   string db_id = 1;
 

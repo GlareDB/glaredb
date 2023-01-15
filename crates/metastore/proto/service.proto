@@ -11,7 +11,7 @@ message FetchCatalogRequest {
   string db_id = 1;
 }
 
-message FetchCatalogResponse { catalog.DatabaseCatalog catalog = 1; }
+message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
 
 // The result of a catalog mutation request (add, drop, alter).
 message CatalogMutateStatus {
@@ -31,7 +31,7 @@ message CatalogMutateStatus {
   // If the mutation was accepted, this catalog will included that mutation. If
   // the mutation was rejected, this catalog will not have that mutation
   // applied. In either case, this catalog should replace any stale catalog.
-  catalog.DatabaseCatalog catalog = 2;
+  catalog.CatalogState catalog = 2;
 }
 
 message CreateEntryRequest {

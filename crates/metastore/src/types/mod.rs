@@ -16,8 +16,14 @@ pub enum ProtoConvError {
     #[error("Unknown enum variant for '{0}': {1}")]
     UnknownEnumVariant(&'static str, i32),
 
+    #[error("Received zero-value enum variant for '{0}'")]
+    ZeroValueEnumVariant(&'static str),
+
     #[error("Unsupported serialization: {0}")]
     UnsupportedSerialization(&'static str),
+
+    #[error(transparent)]
+    Uuid(#[from] uuid::Error),
 }
 
 /// An extension trait that adds the methods `optional` and `required` to any

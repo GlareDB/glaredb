@@ -9,7 +9,7 @@ pub struct FetchCatalogRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FetchCatalogResponse {
     #[prost(message, optional, tag = "1")]
-    pub catalog: ::core::option::Option<super::catalog::DatabaseCatalog>,
+    pub catalog: ::core::option::Option<super::catalog::CatalogState>,
 }
 /// The result of a catalog mutation request (add, drop, alter).
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -24,7 +24,7 @@ pub struct CatalogMutateStatus {
     /// the mutation was rejected, this catalog will not have that mutation
     /// applied. In either case, this catalog should replace any stale catalog.
     #[prost(message, optional, tag = "2")]
-    pub catalog: ::core::option::Option<super::catalog::DatabaseCatalog>,
+    pub catalog: ::core::option::Option<super::catalog::CatalogState>,
 }
 /// Nested message and enum types in `CatalogMutateStatus`.
 pub mod catalog_mutate_status {

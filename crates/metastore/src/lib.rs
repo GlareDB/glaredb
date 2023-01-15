@@ -1,4 +1,6 @@
+pub mod errors;
 pub mod proto;
+pub mod session;
 pub mod types;
 
 mod database;

@@ -1,6 +1,6 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DatabaseCatalog {
+pub struct CatalogState {
     /// Database that this catalog is for (UUID).
     #[prost(string, tag = "1")]
     pub db_id: ::prost::alloc::string::String,
