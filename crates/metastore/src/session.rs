@@ -10,8 +10,8 @@ pub struct SessionCatalog {
     state: Arc<CatalogState>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
-    /// Map object names (tables, views, etc) to their ids.
-    object_names: HashMap<ObjectNameKey, u32>,
+    /// Map schema IDs to objects in the schema.
+    schema_objects: HashMap<u32, SchemaObjects>,
 }
 
 impl SessionCatalog {
@@ -57,12 +57,22 @@ impl SessionCatalog {
     ///
     /// Note that this will never return a schema entry.
     pub fn resolve_entry(&self, schema: &str, name: &str) -> Option<&CatalogEntry> {
-        unimplemented!()
+        let schema_id = self.schema_names.get(schema)?;
+        let obj = self.schema_objects.get(schema_id)?;
+        let obj_id = obj.objects.get(name)?;
+
+        let ent = self.state.entries.get(obj_id).expect(&format!(
+            "object name points to invalid id; name: {}, id: {}",
+            name, obj_id,
+        ));
+        assert!(!ent.is_schema());
+
+        Some(ent)
     }
 
     fn rebuild_name_maps(&mut self) {
         self.schema_names.clear();
-        self.object_names.clear();
+        self.schema_objects.clear();
 
         for (id, ent) in &self.state.entries {
             let name = ent.get_meta().name.clone();
@@ -70,19 +80,17 @@ impl SessionCatalog {
             if ent.is_schema() {
                 self.schema_names.insert(name, *id);
             } else {
-                let key = ObjectNameKey {
-                    schema_id: ent.get_meta().parent,
-                    object_name: name,
-                };
-                self.object_names.insert(key, *id);
+                let schema_id = ent.get_meta().parent;
+                let ent = self.schema_objects.entry(schema_id).or_default();
+                ent.objects.insert(name, *id);
             }
         }
     }
 }
 
-/// Identify database objects by name
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct ObjectNameKey {
-    schema_id: u32,
-    object_name: String,
+/// Holds names to object ids for a single schema.
+#[derive(Debug, Default)]
+struct SchemaObjects {
+    /// Maps names to ids in this schema.
+    objects: HashMap<String, u32>,
 }

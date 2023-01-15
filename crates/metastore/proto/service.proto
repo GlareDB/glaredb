@@ -13,8 +13,52 @@ message FetchCatalogRequest {
 
 message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
 
-// The result of a catalog mutation request (add, drop, alter).
-message CatalogMutateStatus {
+// Possible mutations to make.
+message Mutation {
+  oneof mutation {
+    DropSchema drop_schema = 1;
+    DropObject drop_object = 2;
+    CreateSchema create_schema = 3;
+    CreateView create_view = 4;
+  }
+}
+
+message DropSchema { string name = 1; }
+
+message DropObject {
+  string schema = 1;
+  string name = 2;
+}
+
+// Create a new schema.
+message CreateSchema {
+  string name = 1;
+  // Do not error if the schema already exists.
+  bool if_not_exists = 2;
+}
+
+// Create a new view.
+message CreateView {
+  string name = 1;
+  string sql = 2;
+}
+
+message MutateRequest {
+  // Mutate the catalog for this database.
+  string db_id = 1;
+
+  // Catalog version we're trying to execution mutations against. Mutations will
+  // be rejected if this version doesn't match Metastore's version of the
+  // catalog.
+  uint64 catalog_version = 2;
+
+  // Mutations to attempt to execute against the catalog.
+  repeated Mutation mutations = 3;
+
+  // next: 4
+}
+
+message MutateResponse {
   enum Status {
     UNKNOWN = 0;
     // Mutation applied.
@@ -32,51 +76,18 @@ message CatalogMutateStatus {
   // the mutation was rejected, this catalog will not have that mutation
   // applied. In either case, this catalog should replace any stale catalog.
   catalog.CatalogState catalog = 2;
+
+  // next: 3
 }
-
-message CreateEntryRequest {
-  oneof request {
-    CreateSchema schema = 1;
-    CreateView view = 2;
-  }
-}
-
-// Create a new schema.
-message CreateSchema {
-  string name = 1;
-  // Do not error if the schema already exists.
-  bool if_not_exists = 2;
-}
-
-// Create a new view.
-message CreateView {
-  string name = 1;
-  string sql = 2;
-}
-
-message CreateEntryResponse { CatalogMutateStatus status = 1; }
-
-message DropEntryRequest {}
-
-message DropEntryResponse { CatalogMutateStatus status = 1; }
-
-message AlterEntryRequest {}
-
-message AlterEntryResponse { CatalogMutateStatus status = 1; }
 
 service MetastoreService {
   // Fetch the catalog for some database.
   //
   // The returned catalog will be the latest catalog that this metastore node
   // knows about.
+  // TODO: Could be streaming.
   rpc FetchCatalog(FetchCatalogRequest) returns (FetchCatalogResponse);
 
-  // Create an entry in the catalog.
-  rpc CreateEntry(CreateEntryRequest) returns (CreateEntryResponse);
-
-  // Drop an entry from the catalog.
-  rpc DropEntry(DropEntryRequest) returns (DropEntryResponse);
-
-  // Alter an entry in the catalog.
-  rpc AlterEntry(AlterEntryRequest) returns (AlterEntryResponse);
+  // Mutate a database's catalog.
+  rpc MutateCatalog(MutateRequest) returns (MutateResponse);
 }

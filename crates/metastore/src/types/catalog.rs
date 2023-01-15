@@ -29,12 +29,14 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
 #[derive(Debug, Clone, Arbitrary)]
 pub enum CatalogEntry {
     Schema(SchemaEntry),
+    View(ViewEntry),
 }
 
 impl CatalogEntry {
     pub const fn entry_type(&self) -> EntryType {
         match self {
             CatalogEntry::Schema(_) => EntryType::Schema,
+            CatalogEntry::View(_) => EntryType::View,
         }
     }
 
@@ -46,6 +48,7 @@ impl CatalogEntry {
     pub fn get_meta(&self) -> &EntryMeta {
         match self {
             CatalogEntry::Schema(schema) => &schema.meta,
+            CatalogEntry::View(view) => &view.meta,
         }
     }
 }
@@ -55,6 +58,7 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
     fn try_from(value: catalog::catalog_entry::Entry) -> Result<Self, Self::Error> {
         Ok(match value {
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
+            catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
             _ => todo!(),
         })
     }
@@ -153,6 +157,23 @@ impl TryFrom<catalog::SchemaEntry> for SchemaEntry {
     fn try_from(value: catalog::SchemaEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(SchemaEntry { meta })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct ViewEntry {
+    pub meta: EntryMeta,
+    pub sql: String,
+}
+
+impl TryFrom<catalog::ViewEntry> for ViewEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ViewEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(ViewEntry {
+            meta,
+            sql: value.sql,
+        })
     }
 }
 

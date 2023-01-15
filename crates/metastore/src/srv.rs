@@ -17,24 +17,10 @@ impl MetastoreService for Service {
         unimplemented!()
     }
 
-    async fn create_entry(
+    async fn mutate_catalog(
         &self,
-        request: Request<CreateEntryRequest>,
-    ) -> Result<Response<CreateEntryResponse>, Status> {
-        unimplemented!()
-    }
-
-    async fn drop_entry(
-        &self,
-        request: Request<DropEntryRequest>,
-    ) -> Result<Response<DropEntryResponse>, Status> {
-        unimplemented!()
-    }
-
-    async fn alter_entry(
-        &self,
-        request: Request<AlterEntryRequest>,
-    ) -> Result<Response<AlterEntryResponse>, Status> {
+        request: Request<MutateRequest>,
+    ) -> Result<Response<MutateResponse>, Status> {
         unimplemented!()
     }
 }

@@ -11,12 +11,81 @@ pub struct FetchCatalogResponse {
     #[prost(message, optional, tag = "1")]
     pub catalog: ::core::option::Option<super::catalog::CatalogState>,
 }
-/// The result of a catalog mutation request (add, drop, alter).
+/// Possible mutations to make.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CatalogMutateStatus {
+pub struct Mutation {
+    #[prost(oneof = "mutation::Mutation", tags = "1, 2, 3, 4")]
+    pub mutation: ::core::option::Option<mutation::Mutation>,
+}
+/// Nested message and enum types in `Mutation`.
+pub mod mutation {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Mutation {
+        #[prost(message, tag = "1")]
+        DropSchema(super::DropSchema),
+        #[prost(message, tag = "2")]
+        DropObject(super::DropObject),
+        #[prost(message, tag = "3")]
+        CreateSchema(super::CreateSchema),
+        #[prost(message, tag = "4")]
+        CreateView(super::CreateView),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DropSchema {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DropObject {
+    #[prost(string, tag = "1")]
+    pub schema: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+}
+/// Create a new schema.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateSchema {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    /// Do not error if the schema already exists.
+    #[prost(bool, tag = "2")]
+    pub if_not_exists: bool,
+}
+/// Create a new view.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateView {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub sql: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MutateRequest {
+    /// Mutate the catalog for this database.
+    #[prost(string, tag = "1")]
+    pub db_id: ::prost::alloc::string::String,
+    /// Catalog version we're trying to execution mutations against. Mutations will
+    /// be rejected if this version doesn't match Metastore's version of the
+    /// catalog.
+    #[prost(uint64, tag = "2")]
+    pub catalog_version: u64,
+    /// Mutations to attempt to execute against the catalog.
+    #[prost(message, repeated, tag = "3")]
+    pub mutations: ::prost::alloc::vec::Vec<Mutation>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MutateResponse {
     /// Status of the mutation.
-    #[prost(enumeration = "catalog_mutate_status::Status", tag = "1")]
+    #[prost(enumeration = "mutate_response::Status", tag = "1")]
     pub status: i32,
     /// The current state of the catalog as witnessed by metastore.
     ///
@@ -26,8 +95,8 @@ pub struct CatalogMutateStatus {
     #[prost(message, optional, tag = "2")]
     pub catalog: ::core::option::Option<super::catalog::CatalogState>,
 }
-/// Nested message and enum types in `CatalogMutateStatus`.
-pub mod catalog_mutate_status {
+/// Nested message and enum types in `MutateResponse`.
+pub mod mutate_response {
     #[derive(
         Clone,
         Copy,
@@ -69,66 +138,6 @@ pub mod catalog_mutate_status {
             }
         }
     }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateEntryRequest {
-    #[prost(oneof = "create_entry_request::Request", tags = "1, 2")]
-    pub request: ::core::option::Option<create_entry_request::Request>,
-}
-/// Nested message and enum types in `CreateEntryRequest`.
-pub mod create_entry_request {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Request {
-        #[prost(message, tag = "1")]
-        Schema(super::CreateSchema),
-        #[prost(message, tag = "2")]
-        View(super::CreateView),
-    }
-}
-/// Create a new schema.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateSchema {
-    #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
-    /// Do not error if the schema already exists.
-    #[prost(bool, tag = "2")]
-    pub if_not_exists: bool,
-}
-/// Create a new view.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateView {
-    #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub sql: ::prost::alloc::string::String,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateEntryResponse {
-    #[prost(message, optional, tag = "1")]
-    pub status: ::core::option::Option<CatalogMutateStatus>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DropEntryRequest {}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DropEntryResponse {
-    #[prost(message, optional, tag = "1")]
-    pub status: ::core::option::Option<CatalogMutateStatus>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AlterEntryRequest {}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AlterEntryResponse {
-    #[prost(message, optional, tag = "1")]
-    pub status: ::core::option::Option<CatalogMutateStatus>,
 }
 /// Generated client implementations.
 pub mod metastore_service_client {
@@ -203,6 +212,7 @@ pub mod metastore_service_client {
         ///
         /// The returned catalog will be the latest catalog that this metastore node
         /// knows about.
+        /// TODO: Could be streaming.
         pub async fn fetch_catalog(
             &mut self,
             request: impl tonic::IntoRequest<super::FetchCatalogRequest>,
@@ -222,11 +232,11 @@ pub mod metastore_service_client {
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
-        /// Create an entry in the catalog.
-        pub async fn create_entry(
+        /// Mutate a database's catalog.
+        pub async fn mutate_catalog(
             &mut self,
-            request: impl tonic::IntoRequest<super::CreateEntryRequest>,
-        ) -> Result<tonic::Response<super::CreateEntryResponse>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::MutateRequest>,
+        ) -> Result<tonic::Response<super::MutateResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -238,47 +248,7 @@ pub mod metastore_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/metastore.service.MetastoreService/CreateEntry",
-            );
-            self.inner.unary(request.into_request(), path, codec).await
-        }
-        /// Drop an entry from the catalog.
-        pub async fn drop_entry(
-            &mut self,
-            request: impl tonic::IntoRequest<super::DropEntryRequest>,
-        ) -> Result<tonic::Response<super::DropEntryResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/metastore.service.MetastoreService/DropEntry",
-            );
-            self.inner.unary(request.into_request(), path, codec).await
-        }
-        /// Alter an entry in the catalog.
-        pub async fn alter_entry(
-            &mut self,
-            request: impl tonic::IntoRequest<super::AlterEntryRequest>,
-        ) -> Result<tonic::Response<super::AlterEntryResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/metastore.service.MetastoreService/AlterEntry",
+                "/metastore.service.MetastoreService/MutateCatalog",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -295,25 +265,16 @@ pub mod metastore_service_server {
         ///
         /// The returned catalog will be the latest catalog that this metastore node
         /// knows about.
+        /// TODO: Could be streaming.
         async fn fetch_catalog(
             &self,
             request: tonic::Request<super::FetchCatalogRequest>,
         ) -> Result<tonic::Response<super::FetchCatalogResponse>, tonic::Status>;
-        /// Create an entry in the catalog.
-        async fn create_entry(
+        /// Mutate a database's catalog.
+        async fn mutate_catalog(
             &self,
-            request: tonic::Request<super::CreateEntryRequest>,
-        ) -> Result<tonic::Response<super::CreateEntryResponse>, tonic::Status>;
-        /// Drop an entry from the catalog.
-        async fn drop_entry(
-            &self,
-            request: tonic::Request<super::DropEntryRequest>,
-        ) -> Result<tonic::Response<super::DropEntryResponse>, tonic::Status>;
-        /// Alter an entry in the catalog.
-        async fn alter_entry(
-            &self,
-            request: tonic::Request<super::AlterEntryRequest>,
-        ) -> Result<tonic::Response<super::AlterEntryResponse>, tonic::Status>;
+            request: tonic::Request<super::MutateRequest>,
+        ) -> Result<tonic::Response<super::MutateResponse>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct MetastoreServiceServer<T: MetastoreService> {
@@ -414,25 +375,25 @@ pub mod metastore_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/metastore.service.MetastoreService/CreateEntry" => {
+                "/metastore.service.MetastoreService/MutateCatalog" => {
                     #[allow(non_camel_case_types)]
-                    struct CreateEntrySvc<T: MetastoreService>(pub Arc<T>);
+                    struct MutateCatalogSvc<T: MetastoreService>(pub Arc<T>);
                     impl<
                         T: MetastoreService,
-                    > tonic::server::UnaryService<super::CreateEntryRequest>
-                    for CreateEntrySvc<T> {
-                        type Response = super::CreateEntryResponse;
+                    > tonic::server::UnaryService<super::MutateRequest>
+                    for MutateCatalogSvc<T> {
+                        type Response = super::MutateResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::CreateEntryRequest>,
+                            request: tonic::Request<super::MutateRequest>,
                         ) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move {
-                                (*inner).create_entry(request).await
+                                (*inner).mutate_catalog(request).await
                             };
                             Box::pin(fut)
                         }
@@ -442,83 +403,7 @@ pub mod metastore_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = CreateEntrySvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/metastore.service.MetastoreService/DropEntry" => {
-                    #[allow(non_camel_case_types)]
-                    struct DropEntrySvc<T: MetastoreService>(pub Arc<T>);
-                    impl<
-                        T: MetastoreService,
-                    > tonic::server::UnaryService<super::DropEntryRequest>
-                    for DropEntrySvc<T> {
-                        type Response = super::DropEntryResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::DropEntryRequest>,
-                        ) -> Self::Future {
-                            let inner = self.0.clone();
-                            let fut = async move { (*inner).drop_entry(request).await };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = DropEntrySvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/metastore.service.MetastoreService/AlterEntry" => {
-                    #[allow(non_camel_case_types)]
-                    struct AlterEntrySvc<T: MetastoreService>(pub Arc<T>);
-                    impl<
-                        T: MetastoreService,
-                    > tonic::server::UnaryService<super::AlterEntryRequest>
-                    for AlterEntrySvc<T> {
-                        type Response = super::AlterEntryResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::AlterEntryRequest>,
-                        ) -> Self::Future {
-                            let inner = self.0.clone();
-                            let fut = async move { (*inner).alter_entry(request).await };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = AlterEntrySvc(inner);
+                        let method = MutateCatalogSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
