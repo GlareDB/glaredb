@@ -162,9 +162,8 @@ pub struct ViewEntry {
 pub struct ConnectionEntry {
     #[prost(message, optional, tag = "1")]
     pub meta: ::core::option::Option<EntryMeta>,
-    /// Datasource type for this connection.
-    #[prost(enumeration = "DataSource", tag = "2")]
-    pub datasource: i32,
+    #[prost(enumeration = "ConnectionType", tag = "2")]
+    pub connection_type: i32,
     /// Details about this connection.
     #[prost(message, optional, tag = "3")]
     pub details: ::core::option::Option<ConnectionDetails>,
@@ -195,10 +194,10 @@ pub struct ConnectionPostgres {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
 }
-/// Supported data sources.
+/// Supported connection types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
-pub enum DataSource {
+pub enum ConnectionType {
     Unknown = 0,
     Debug = 1,
     Postgres = 2,
@@ -207,32 +206,32 @@ pub enum DataSource {
     S3 = 5,
     Local = 6,
 }
-impl DataSource {
+impl ConnectionType {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            DataSource::Unknown => "UNKNOWN",
-            DataSource::Debug => "DEBUG",
-            DataSource::Postgres => "POSTGRES",
-            DataSource::Bigquery => "BIGQUERY",
-            DataSource::Gcs => "GCS",
-            DataSource::S3 => "S3",
-            DataSource::Local => "LOCAL",
+            ConnectionType::Unknown => "CONNECTION_TYPE_UNKNOWN",
+            ConnectionType::Debug => "CONNECTION_TYPE_DEBUG",
+            ConnectionType::Postgres => "CONNECTION_TYPE_POSTGRES",
+            ConnectionType::Bigquery => "CONNECTION_TYPE_BIGQUERY",
+            ConnectionType::Gcs => "CONNECTION_TYPE_GCS",
+            ConnectionType::S3 => "CONNECTION_TYPE_S3",
+            ConnectionType::Local => "CONNECTION_TYPE_LOCAL",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
-            "UNKNOWN" => Some(Self::Unknown),
-            "DEBUG" => Some(Self::Debug),
-            "POSTGRES" => Some(Self::Postgres),
-            "BIGQUERY" => Some(Self::Bigquery),
-            "GCS" => Some(Self::Gcs),
-            "S3" => Some(Self::S3),
-            "LOCAL" => Some(Self::Local),
+            "CONNECTION_TYPE_UNKNOWN" => Some(Self::Unknown),
+            "CONNECTION_TYPE_DEBUG" => Some(Self::Debug),
+            "CONNECTION_TYPE_POSTGRES" => Some(Self::Postgres),
+            "CONNECTION_TYPE_BIGQUERY" => Some(Self::Bigquery),
+            "CONNECTION_TYPE_GCS" => Some(Self::Gcs),
+            "CONNECTION_TYPE_S3" => Some(Self::S3),
+            "CONNECTION_TYPE_LOCAL" => Some(Self::Local),
             _ => None,
         }
     }

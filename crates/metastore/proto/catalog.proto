@@ -113,22 +113,20 @@ message ViewEntry {
   // next: 3
 }
 
-// Supported data sources.
-enum DataSource {
-  UNKNOWN = 0;
-  DEBUG = 1;
-  POSTGRES = 2;
-  BIGQUERY = 3;
-  GCS = 4;
-  S3 = 5;
-  LOCAL = 6;
+// Supported connection types.
+enum ConnectionType {
+  CONNECTION_TYPE_UNKNOWN = 0;
+  CONNECTION_TYPE_DEBUG = 1;
+  CONNECTION_TYPE_POSTGRES = 2;
+  CONNECTION_TYPE_BIGQUERY = 3;
+  CONNECTION_TYPE_GCS = 4;
+  CONNECTION_TYPE_S3 = 5;
+  CONNECTION_TYPE_LOCAL = 6;
 }
 
 message ConnectionEntry {
   EntryMeta meta = 1;
-
-  // Datasource type for this connection.
-  DataSource datasource = 2;
+  ConnectionType connection_type = 2;
 
   // Details about this connection.
   ConnectionDetails details = 3;

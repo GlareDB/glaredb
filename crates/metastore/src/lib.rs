@@ -1,5 +1,7 @@
 pub mod proto;
+pub mod types;
 
+mod database;
 mod srv;
 
 fn test() {

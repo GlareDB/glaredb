@@ -1,6 +1,4 @@
-//! Generate protobuf code.
-//!
-//! Do not edit. Modifications will be overwritten during builds.
+//! Generated protobuf code.
 pub mod arrow;
 pub mod catalog;
 pub mod service;
