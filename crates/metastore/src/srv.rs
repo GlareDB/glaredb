@@ -106,7 +106,7 @@ impl MetastoreService for Service {
 mod tests {
     use super::*;
     use crate::types::catalog::CatalogState;
-    use crate::types::service::{CreateSchema, CreateView, Mutation};
+    use crate::types::service::{CreateSchema, Mutation};
 
     fn new_service() -> Service {
         Service {
