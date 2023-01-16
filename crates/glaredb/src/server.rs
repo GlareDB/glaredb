@@ -1,7 +1,4 @@
 use anyhow::{anyhow, Result};
-use background::{storage::ObjectStorageUsageJob, BackgroundJob, BackgroundWorker, DebugJob};
-use cloud::client::CloudClient;
-use cloud::errors::CloudError;
 use common::{
     access::{ObjectStoreConfig, ObjectStoreKind},
     config::DbConfig,
@@ -15,8 +12,6 @@ use std::env;
 use std::fs;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::oneshot;
-use tokio::task::JoinHandle;
 use tracing::{debug, debug_span, info, trace, Instrument};
 use uuid::Uuid;
 
@@ -26,19 +21,6 @@ pub struct ServerConfig {
 
 pub struct Server {
     pg_handler: Arc<ProtocolHandler>,
-    /// Join handle for the background worker.
-    ///
-    /// Exists on the struct to avoid dropping the future after the call to
-    /// `connect`.
-    #[allow(dead_code)]
-    bg_handle: JoinHandle<()>,
-
-    /// Oneshot for shutting down the background worker.
-    ///
-    /// Not currently used. Exists on the struct so that the worker will
-    /// continue to run for the lifetime of this struct.
-    #[allow(dead_code)]
-    bg_shutdown_sender: oneshot::Sender<()>,
 }
 
 impl Server {
@@ -64,31 +46,9 @@ impl Server {
         // Stable metadata storage.
         let storage = ObjectStableStore::open(store.clone()).await?;
 
-        // Create cloud client if configured.
-        let cloud_client = match CloudClient::try_from_config(config.cloud).await {
-            Ok(client) => Some(Arc::new(client)),
-            Err(CloudError::CloudCommsDisabled) => None,
-            Err(e) => return Err(e.into()),
-        };
-
-        // Spin up background worker jobs.
-        let jobs: Vec<Box<dyn BackgroundJob>> = vec![
-            Box::new(DebugJob),
-            Box::new(ObjectStorageUsageJob::new(
-                store,
-                cloud_client.clone(),
-                config.background.storage_reporting.interval,
-            )),
-        ];
-        let (tx, rx) = oneshot::channel(); // Note we don't use the shutdown sender yet.
-        let worker = BackgroundWorker::new(jobs, rx);
-        let bg_handle = tokio::spawn(worker.begin());
-
         let engine = Engine::new(storage).await?;
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(engine)),
-            bg_handle,
-            bg_shutdown_sender: tx,
         })
     }
 
