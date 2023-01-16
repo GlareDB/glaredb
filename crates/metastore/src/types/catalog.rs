@@ -45,6 +45,7 @@ pub enum CatalogEntry {
     Schema(SchemaEntry),
     View(ViewEntry),
     Connection(ConnectionEntry),
+    ExternalTable(ExternalTableEntry),
 }
 
 impl CatalogEntry {
@@ -53,6 +54,7 @@ impl CatalogEntry {
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
             CatalogEntry::Connection(_) => EntryType::Connection,
+            CatalogEntry::ExternalTable(_) => EntryType::ExternalTable,
         }
     }
 
@@ -66,6 +68,7 @@ impl CatalogEntry {
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
             CatalogEntry::Connection(conn) => &conn.meta,
+            CatalogEntry::ExternalTable(tbl) => &tbl.meta,
         }
     }
 }
@@ -77,7 +80,10 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
             catalog::catalog_entry::Entry::Connection(v) => CatalogEntry::Connection(v.try_into()?),
-            _ => todo!(),
+            catalog::catalog_entry::Entry::ExternalTable(v) => {
+                CatalogEntry::ExternalTable(v.try_into()?)
+            }
+            catalog::catalog_entry::Entry::Table(_) => todo!(),
         })
     }
 }
@@ -95,6 +101,9 @@ impl From<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
             CatalogEntry::Connection(v) => catalog::catalog_entry::Entry::Connection(v.into()),
+            CatalogEntry::ExternalTable(v) => {
+                catalog::catalog_entry::Entry::ExternalTable(v.into())
+            }
         };
         catalog::CatalogEntry { entry: Some(ent) }
     }
@@ -247,6 +256,35 @@ impl From<ConnectionEntry> for catalog::ConnectionEntry {
     fn from(value: ConnectionEntry) -> Self {
         catalog::ConnectionEntry {
             meta: Some(value.meta.into()),
+            options: Some(value.options.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct ExternalTableEntry {
+    pub meta: EntryMeta,
+    pub connection_id: u32,
+    pub options: TableOptions,
+}
+
+impl TryFrom<catalog::ExternalTableEntry> for ExternalTableEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ExternalTableEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(ExternalTableEntry {
+            meta,
+            connection_id: value.connection_id,
+            options: value.options.required("options")?,
+        })
+    }
+}
+
+impl From<ExternalTableEntry> for catalog::ExternalTableEntry {
+    fn from(value: ExternalTableEntry) -> Self {
+        catalog::ExternalTableEntry {
+            meta: Some(value.meta.into()),
+            connection_id: value.connection_id,
             options: Some(value.options.into()),
         }
     }

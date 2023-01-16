@@ -1,7 +1,8 @@
 //! Module for handling the catalog for a single database.
 use crate::errors::{MetastoreError, Result};
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, SchemaEntry, ViewEntry,
+    CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, ExternalTableEntry,
+    SchemaEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
 use parking_lot::{Mutex, MutexGuard};
@@ -195,7 +196,34 @@ impl State {
                         oid,
                     )?;
                 }
-                _ => unimplemented!(),
+                Mutation::CreateExternalTable(create_ext) => {
+                    // TODO: If not exists.
+
+                    let schema_id = self.get_schema_id(&create_ext.schema)?;
+
+                    if !self.entries.contains_key(&create_ext.connection_id) {
+                        return Err(MetastoreError::MissingEntry(create_ext.connection_id));
+                    }
+
+                    // Create new entry.
+                    let oid = self.next_oid();
+                    let ent = ExternalTableEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::ExternalTable,
+                            id: oid,
+                            parent: schema_id,
+                            name: create_ext.name.clone(),
+                        },
+                        connection_id: create_ext.connection_id,
+                        options: create_ext.options,
+                    };
+
+                    self.try_insert_entry_for_schema(
+                        CatalogEntry::ExternalTable(ent),
+                        schema_id,
+                        oid,
+                    )?;
+                }
             }
         }
 
@@ -205,7 +233,9 @@ impl State {
     /// Try to insert an entry for a schema.
     ///
     /// Errors if there already exists an entry with the same name in the
-    /// schema.
+    /// schema. Consequentially this means all entries in a schema share the
+    /// same namespace even for different entry types. E.g. a connection cannot
+    /// have the same name as a table.
     fn try_insert_entry_for_schema(
         &mut self,
         ent: CatalogEntry,
@@ -238,4 +268,77 @@ impl State {
 struct SchemaObjects {
     /// Maps names to ids in this schema.
     objects: HashMap<String, u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::service::{CreateSchema, DropSchema};
+
+    async fn new_catalog() -> DatabaseCatalog {
+        DatabaseCatalog::open(Uuid::new_v4()).await.unwrap()
+    }
+
+    async fn version(db: &DatabaseCatalog) -> u64 {
+        db.get_state().await.unwrap().version
+    }
+
+    #[tokio::test]
+    async fn drop_missing_schema() {
+        let db = new_catalog().await;
+
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::DropSchema(DropSchema {
+                name: "yoshi".to_string(),
+            })],
+        )
+        .await
+        .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn duplicate_schema_names() {
+        let db = new_catalog().await;
+
+        // First should pass.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateSchema(CreateSchema {
+                name: "mario".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+
+        // Duplicate should fail.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateSchema(CreateSchema {
+                name: "mario".to_string(),
+            })],
+        )
+        .await
+        .unwrap_err();
+
+        // Drop schema.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::DropSchema(DropSchema {
+                name: "mario".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+
+        // Re-adding schema should pass.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateSchema(CreateSchema {
+                name: "mario".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+    }
 }

@@ -17,7 +17,7 @@ pub struct CatalogState {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogEntry {
-    #[prost(oneof = "catalog_entry::Entry", tags = "1, 2, 3, 4")]
+    #[prost(oneof = "catalog_entry::Entry", tags = "1, 2, 3, 4, 5")]
     pub entry: ::core::option::Option<catalog_entry::Entry>,
 }
 /// Nested message and enum types in `CatalogEntry`.
@@ -33,6 +33,8 @@ pub mod catalog_entry {
         View(super::ViewEntry),
         #[prost(message, tag = "4")]
         Connection(super::ConnectionEntry),
+        #[prost(message, tag = "5")]
+        ExternalTable(super::ExternalTableEntry),
     }
 }
 /// Metadata for every entry in the catalog.

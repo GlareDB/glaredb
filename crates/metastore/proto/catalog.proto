@@ -28,6 +28,7 @@ message CatalogEntry {
     TableEntry table = 2;
     ViewEntry view = 3;
     ConnectionEntry connection = 4;
+    ExternalTableEntry external_table = 5;
   }
 }
 

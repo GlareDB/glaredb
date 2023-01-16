@@ -12,6 +12,9 @@ pub enum MetastoreError {
     #[error("Missing database object; schema: {schema}, name: {name}")]
     MissingNamedObject { schema: String, name: String },
 
+    #[error("Missing entry: {0}")]
+    MissingEntry(u32),
+
     #[error("Catalog version mismatch; have: {have}, need: {need}")]
     VersionMismtatch { have: u64, need: u64 },
 
