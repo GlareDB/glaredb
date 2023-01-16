@@ -7,14 +7,14 @@ pub struct Schema {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Field {
-    /// name of the field
+    /// Name of the field.
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, boxed, tag = "2")]
     pub arrow_type: ::core::option::Option<::prost::alloc::boxed::Box<ArrowType>>,
     #[prost(bool, tag = "3")]
     pub nullable: bool,
-    /// for complex data types like structs, unions
+    /// For complex data types like structs, unions.
     #[prost(message, repeated, tag = "4")]
     pub children: ::prost::alloc::vec::Vec<Field>,
 }
@@ -184,7 +184,6 @@ pub struct ScalarFixedSizeBinary {
     #[prost(int32, tag = "2")]
     pub length: i32,
 }
-/// was PrimitiveScalarType null_value = 19;
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ScalarValue {

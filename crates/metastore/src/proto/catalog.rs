@@ -1,10 +1,12 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogState {
-    /// Database that this catalog is for (UUID).
+    /// Database that this catalog is for.
+    ///
+    /// The bytes should be convertible into a UUID (V4).
     #[prost(bytes = "vec", tag = "1")]
     pub db_id: ::prost::alloc::vec::Vec<u8>,
-    /// Version of this catalog.
+    /// Version of this catalog. Increments on every mutation.
     #[prost(uint64, tag = "2")]
     pub version: u64,
     /// All entries in this catalog.
@@ -178,8 +180,10 @@ pub struct TableOptionsDebug {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptionsPostgres {
+    /// Source schema to connect to on Postgres.
     #[prost(string, tag = "1")]
     pub schema: ::prost::alloc::string::String,
+    /// Source table to connect to.
     #[prost(string, tag = "2")]
     pub table: ::prost::alloc::string::String,
 }

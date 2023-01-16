@@ -1,6 +1,6 @@
 // Arrow type definitions.
 //
-// Copied from datafusion. Can clean this up before moving to prod.
+// Bootstrapped from datafusion.
 
 syntax = "proto3";
 
@@ -9,11 +9,11 @@ package metastore.arrow;
 message Schema { repeated Field columns = 1; }
 
 message Field {
-  // name of the field
+  // Name of the field.
   string name = 1;
   ArrowType arrow_type = 2;
   bool nullable = 3;
-  // for complex data types like structs, unions
+  // For complex data types like structs, unions.
   repeated Field children = 4;
 }
 
@@ -130,6 +130,8 @@ message ScalarFixedSizeBinary {
 }
 
 message ScalarValue {
+  reserved 19, 18, 16;
+
   // was PrimitiveScalarType null_value = 19;
 
   oneof value {

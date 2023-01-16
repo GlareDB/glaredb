@@ -17,8 +17,6 @@ pub struct Service {
     catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>, // Fancy!
 }
 
-impl Service {}
-
 #[async_trait]
 impl MetastoreService for Service {
     async fn initialize_catalog(
@@ -65,7 +63,7 @@ impl MetastoreService for Service {
 
         let catalog = catalogs
             .get(&id)
-            .ok_or_else(|| MetastoreError::MissingCatalog(id))?;
+            .ok_or(MetastoreError::MissingCatalog(id))?;
 
         let state = catalog.get_state().await?;
 
@@ -85,7 +83,7 @@ impl MetastoreService for Service {
         let catalogs = self.catalogs.read().await;
         let catalog = catalogs
             .get(&id)
-            .ok_or_else(|| MetastoreError::MissingCatalog(id))?;
+            .ok_or(MetastoreError::MissingCatalog(id))?;
 
         let mutations = req
             .mutations

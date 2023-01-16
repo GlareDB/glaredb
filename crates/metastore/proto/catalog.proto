@@ -7,10 +7,12 @@ package metastore.catalog;
 import "arrow.proto";
 
 message CatalogState {
-  // Database that this catalog is for (UUID).
+  // Database that this catalog is for.
+  //
+  // The bytes should be convertible into a UUID (V4).
   bytes db_id = 1;
 
-  // Version of this catalog.
+  // Version of this catalog. Increments on every mutation.
   uint64 version = 2;
 
   // All entries in this catalog.
@@ -117,7 +119,9 @@ message TableOptionsDebug {
 }
 
 message TableOptionsPostgres {
+  // Source schema to connect to on Postgres.
   string schema = 1;
+  // Source table to connect to.
   string table = 2;
 }
 

@@ -117,7 +117,7 @@ impl State {
                     let schema_id = self
                         .schema_names
                         .remove(&drop_schema.name)
-                        .ok_or_else(|| MetastoreError::MissingNamedSchema(drop_schema.name))?;
+                        .ok_or(MetastoreError::MissingNamedSchema(drop_schema.name))?;
                     _ = schema_id
                 }
                 Mutation::DropObject(drop_object) => {
@@ -125,12 +125,12 @@ impl State {
                     let schema_id = self.get_schema_id(&drop_object.name)?;
 
                     let objs = self.schema_objects.get_mut(&schema_id).unwrap(); // Bug if doesn't exist.
-                    let ent_id = objs.objects.remove(&drop_object.name).ok_or_else(|| {
+                    let ent_id = objs.objects.remove(&drop_object.name).ok_or(
                         MetastoreError::MissingNamedObject {
                             schema: drop_object.schema,
                             name: drop_object.name,
-                        }
-                    })?;
+                        },
+                    )?;
                     let _ = self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::CreateSchema(create_schema) => {
@@ -273,7 +273,8 @@ struct SchemaObjects {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::service::{CreateSchema, DropSchema};
+    use crate::types::service::{CreateSchema, CreateView, DropSchema};
+    use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {
         DatabaseCatalog::open(Uuid::new_v4()).await.unwrap()
@@ -295,6 +296,43 @@ mod tests {
         )
         .await
         .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn multipl_entries() {
+        let db = new_catalog().await;
+
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateSchema(CreateSchema {
+                name: "numbers".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+
+        let mutations: Vec<_> = (0..10)
+            .map(|i| {
+                Mutation::CreateView(CreateView {
+                    schema: "numbers".to_string(),
+                    name: i.to_string(),
+                    sql: format!("select {i}"),
+                })
+            })
+            .collect();
+
+        db.try_mutate(version(&db).await, mutations).await.unwrap();
+
+        let state = db.get_state().await.unwrap();
+
+        let mut found = HashSet::new();
+        for (_, ent) in state.entries {
+            if !ent.is_schema() {
+                found.insert(ent.get_meta().name.clone());
+            }
+        }
+
+        assert_eq!(10, found.len(), "missing entries: found: {:?}", found,)
     }
 
     #[tokio::test]
@@ -340,5 +378,44 @@ mod tests {
         )
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn duplicate_entry_names() {
+        let db = new_catalog().await;
+
+        // Add schema.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateSchema(CreateSchema {
+                name: "luigi".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+
+        // Add view.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "luigi".to_string(),
+                name: "peach".to_string(),
+                sql: "select 1".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+
+        // Duplicate view name.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "luigi".to_string(),
+                name: "peach".to_string(),
+                sql: "select 2".to_string(),
+            })],
+        )
+        .await
+        .unwrap_err();
     }
 }

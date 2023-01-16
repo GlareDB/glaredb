@@ -122,7 +122,7 @@ impl TryFrom<i32> for EntryType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         catalog::entry_meta::EntryType::from_i32(value)
-            .ok_or_else(|| ProtoConvError::UnknownEnumVariant("EntryType", value))
+            .ok_or(ProtoConvError::UnknownEnumVariant("EntryType", value))
             .and_then(|t| t.try_into())
     }
 }

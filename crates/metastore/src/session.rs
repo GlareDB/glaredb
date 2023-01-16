@@ -1,10 +1,12 @@
-use crate::errors::Result;
 use crate::types::catalog::{CatalogEntry, CatalogState, SchemaEntry};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
 /// The session local catalog.
+///
+/// This catalog should be stored on the "client" side and periodically updated
+/// from the remote state provided by metastore.
 pub struct SessionCatalog {
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,
@@ -37,10 +39,11 @@ impl SessionCatalog {
         // - The catalog entry type that the id points to must be a schema.
 
         let id = self.schema_names.get(name)?;
-        let ent = self.state.entries.get(id).expect(&format!(
-            "schema name points to invalid id; name: {}, id: {}",
-            name, id
-        ));
+        let ent = self
+            .state
+            .entries
+            .get(id)
+            .expect("schema name points to invalid id");
 
         match ent {
             CatalogEntry::Schema(s) => Some(s),
@@ -61,10 +64,11 @@ impl SessionCatalog {
         let obj = self.schema_objects.get(schema_id)?;
         let obj_id = obj.objects.get(name)?;
 
-        let ent = self.state.entries.get(obj_id).expect(&format!(
-            "object name points to invalid id; name: {}, id: {}",
-            name, obj_id,
-        ));
+        let ent = self
+            .state
+            .entries
+            .get(obj_id)
+            .expect("object name points to invalid id");
         assert!(!ent.is_schema());
 
         Some(ent)
