@@ -12,7 +12,6 @@ logutil = {path = "../logutil"}
 buildenv = {path = "../buildenv"}
 common = {path = "../common"}
 cloud = {path = "../cloud"}
-background = {path = "../background"}
 sqlexec = {path = "../sqlexec"}
 pgsrv = {path = "../pgsrv"}
 stablestore = {path = "../stablestore"}
