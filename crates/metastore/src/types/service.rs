@@ -6,6 +6,8 @@ use proptest_derive::Arbitrary;
 pub enum Mutation {
     DropSchema(DropSchema),
     DropObject(DropObject),
+    CreateSchema(CreateSchema),
+    CreateView(CreateView),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -21,6 +23,8 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
         Ok(match value {
             service::mutation::Mutation::DropSchema(v) => Mutation::DropSchema(v.try_into()?),
             service::mutation::Mutation::DropObject(v) => Mutation::DropObject(v.try_into()?),
+            service::mutation::Mutation::CreateSchema(v) => Mutation::CreateSchema(v.try_into()?),
+            service::mutation::Mutation::CreateView(v) => Mutation::CreateView(v.try_into()?),
             _ => unimplemented!(),
         })
     }
@@ -31,7 +35,16 @@ impl From<Mutation> for service::mutation::Mutation {
         match value {
             Mutation::DropSchema(v) => service::mutation::Mutation::DropSchema(v.into()),
             Mutation::DropObject(v) => service::mutation::Mutation::DropObject(v.into()),
-            _ => unimplemented!(),
+            Mutation::CreateSchema(v) => service::mutation::Mutation::CreateSchema(v.into()),
+            Mutation::CreateView(v) => service::mutation::Mutation::CreateView(v.into()),
+        }
+    }
+}
+
+impl From<Mutation> for service::Mutation {
+    fn from(value: Mutation) -> Self {
+        service::Mutation {
+            mutation: Some(value.into()),
         }
     }
 }
@@ -125,6 +138,36 @@ impl From<CreateView> for service::CreateView {
             schema: value.schema,
             name: value.name,
             sql: value.sql,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateExternalTable {
+    pub schema: String,
+    pub name: String,
+    pub connection_id: u32,
+}
+
+impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateExternalTable) -> Result<Self, Self::Error> {
+        // TODO: Check if string are zero value.
+        Ok(CreateExternalTable {
+            schema: value.schema,
+            name: value.name,
+            connection_id: value.connection_id,
+        })
+    }
+}
+
+impl From<CreateExternalTable> for service::CreateExternalTable {
+    fn from(value: CreateExternalTable) -> Self {
+        service::CreateExternalTable {
+            schema: value.schema,
+            name: value.name,
+            connection_id: value.connection_id,
+            options: None,
         }
     }
 }

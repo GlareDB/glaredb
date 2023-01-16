@@ -6,6 +6,23 @@ package metastore.service;
 
 import "catalog.proto";
 
+message InitializeCatalogRequest {
+  // ID of the catalog to initialize.
+  bytes db_id = 1;
+}
+
+message InitializeCatalogResponse {
+  enum Status {
+    UNKNOWN = 0;
+    // Catalog initialized.
+    INITIALIZED = 1;
+    // Catalog already loaded.
+    ALREADY_LOADED = 2;
+  }
+
+  Status status = 1;
+}
+
 message FetchCatalogRequest {
   // ID of the database catalog to fetch.
   bytes db_id = 1;
@@ -42,7 +59,7 @@ message CreateView {
 message CreateExternalTable {
   string schema = 1;
   string name = 2;
-  string connection_id = 3;
+  uint32 connection_id = 3;
   catalog.TableOptions options = 4;
   // next: 5
 }
@@ -85,6 +102,12 @@ message MutateResponse {
 }
 
 service MetastoreService {
+  // Initialize a database catalog.
+  //
+  // Idempotent, safe to call multiple times.
+  rpc InitializeCatalog(InitializeCatalogRequest)
+      returns (InitializeCatalogResponse);
+
   // Fetch the catalog for some database.
   //
   // The returned catalog will be the latest catalog that this metastore node

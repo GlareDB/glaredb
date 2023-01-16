@@ -123,7 +123,10 @@ message TableOptions {
   }
 }
 
-message TableOptionsDebug { string table_type = 1; }
+message TableOptionsDebug {
+  // TODO: Probably make thise well-known id.
+  string table_type = 1;
+}
 
 message TableOptionsPostgres {
   string schema = 1;

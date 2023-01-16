@@ -1,5 +1,62 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InitializeCatalogRequest {
+    /// ID of the catalog to initialize.
+    #[prost(bytes = "vec", tag = "1")]
+    pub db_id: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InitializeCatalogResponse {
+    #[prost(enumeration = "initialize_catalog_response::Status", tag = "1")]
+    pub status: i32,
+}
+/// Nested message and enum types in `InitializeCatalogResponse`.
+pub mod initialize_catalog_response {
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum Status {
+        Unknown = 0,
+        /// Catalog initialized.
+        Initialized = 1,
+        /// Catalog already loaded.
+        AlreadyLoaded = 2,
+    }
+    impl Status {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Status::Unknown => "UNKNOWN",
+                Status::Initialized => "INITIALIZED",
+                Status::AlreadyLoaded => "ALREADY_LOADED",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "UNKNOWN" => Some(Self::Unknown),
+                "INITIALIZED" => Some(Self::Initialized),
+                "ALREADY_LOADED" => Some(Self::AlreadyLoaded),
+                _ => None,
+            }
+        }
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FetchCatalogRequest {
     /// ID of the database catalog to fetch.
     #[prost(bytes = "vec", tag = "1")]
@@ -72,8 +129,8 @@ pub struct CreateExternalTable {
     pub schema: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub connection_id: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub connection_id: u32,
     /// next: 5
     #[prost(message, optional, tag = "4")]
     pub options: ::core::option::Option<super::catalog::TableOptions>,
@@ -220,6 +277,28 @@ pub mod metastore_service_client {
             self.inner = self.inner.accept_compressed(encoding);
             self
         }
+        /// Initialize a database catalog.
+        ///
+        /// Idempotent, safe to call multiple times.
+        pub async fn initialize_catalog(
+            &mut self,
+            request: impl tonic::IntoRequest<super::InitializeCatalogRequest>,
+        ) -> Result<tonic::Response<super::InitializeCatalogResponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/metastore.service.MetastoreService/InitializeCatalog",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
         /// Fetch the catalog for some database.
         ///
         /// The returned catalog will be the latest catalog that this metastore node
@@ -273,6 +352,13 @@ pub mod metastore_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with MetastoreServiceServer.
     #[async_trait]
     pub trait MetastoreService: Send + Sync + 'static {
+        /// Initialize a database catalog.
+        ///
+        /// Idempotent, safe to call multiple times.
+        async fn initialize_catalog(
+            &self,
+            request: tonic::Request<super::InitializeCatalogRequest>,
+        ) -> Result<tonic::Response<super::InitializeCatalogResponse>, tonic::Status>;
         /// Fetch the catalog for some database.
         ///
         /// The returned catalog will be the latest catalog that this metastore node
@@ -347,6 +433,46 @@ pub mod metastore_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
+                "/metastore.service.MetastoreService/InitializeCatalog" => {
+                    #[allow(non_camel_case_types)]
+                    struct InitializeCatalogSvc<T: MetastoreService>(pub Arc<T>);
+                    impl<
+                        T: MetastoreService,
+                    > tonic::server::UnaryService<super::InitializeCatalogRequest>
+                    for InitializeCatalogSvc<T> {
+                        type Response = super::InitializeCatalogResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::InitializeCatalogRequest>,
+                        ) -> Self::Future {
+                            let inner = self.0.clone();
+                            let fut = async move {
+                                (*inner).initialize_catalog(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = InitializeCatalogSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/metastore.service.MetastoreService/FetchCatalog" => {
                     #[allow(non_camel_case_types)]
                     struct FetchCatalogSvc<T: MetastoreService>(pub Arc<T>);

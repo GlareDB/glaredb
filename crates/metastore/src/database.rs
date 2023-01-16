@@ -1,10 +1,15 @@
 //! Module for handling the catalog for a single database.
 use crate::errors::{MetastoreError, Result};
-use crate::types::catalog::{CatalogEntry, CatalogState};
+use crate::types::catalog::{
+    CatalogEntry, CatalogState, EntryMeta, EntryType, SchemaEntry, ViewEntry,
+};
 use crate::types::service::Mutation;
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::HashMap;
 use uuid::Uuid;
+
+/// Special id indicating that schemas have no parents.
+const SCHEMA_PARENT_ID: u32 = 0;
 
 /// Catalog for a single database.
 pub struct DatabaseCatalog {
@@ -129,6 +134,62 @@ impl State {
                     })?;
                     let _ = self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
                 }
+                Mutation::CreateSchema(create_schema) => {
+                    // TODO: If not exists.
+                    if self.schema_names.contains_key(&create_schema.name) {
+                        return Err(MetastoreError::DuplicateName(create_schema.name));
+                    }
+
+                    // Create new entry
+                    let oid = self.next_oid();
+                    let ent = SchemaEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::Schema,
+                            id: oid,
+                            parent: SCHEMA_PARENT_ID,
+                            name: create_schema.name.clone(),
+                        },
+                    };
+                    self.entries.insert(oid, CatalogEntry::Schema(ent));
+
+                    // Add to name map
+                    self.schema_names.insert(create_schema.name, oid);
+                }
+                Mutation::CreateView(create_view) => {
+                    // TODO: If not exists.
+
+                    let schema_id = self
+                        .schema_names
+                        .get(&create_view.schema)
+                        .cloned()
+                        .ok_or_else(|| {
+                            MetastoreError::MissingNamedSchema(create_view.schema.clone())
+                        })?;
+
+                    // Create new entry
+                    let oid = self.next_oid();
+                    let ent = ViewEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::View,
+                            id: oid,
+                            parent: schema_id,
+                            name: create_view.name.clone(),
+                        },
+                        sql: create_view.sql,
+                    };
+
+                    // Insert new entry for schema. Checks if there exists an
+                    // object with the same name.
+                    let objs = self.schema_objects.entry(schema_id).or_default();
+                    if objs.objects.contains_key(&create_view.name) {
+                        return Err(MetastoreError::DuplicateName(create_view.name));
+                    }
+                    objs.objects.insert(create_view.name, oid);
+
+                    // Insert into catalog.
+                    self.entries.insert(oid, CatalogEntry::View(ent));
+                }
+                _ => unimplemented!(),
             }
         }
 

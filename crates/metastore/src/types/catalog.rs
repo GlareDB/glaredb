@@ -221,6 +221,93 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub enum TableOptions {
+    Debug(TableOptionsDebug),
+    Postgres(TableOptionsPostgres),
+}
+
+impl TryFrom<catalog::table_options::Options> for TableOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::table_options::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            catalog::table_options::Options::Debug(v) => TableOptions::Debug(v.try_into()?),
+            catalog::table_options::Options::Postgres(v) => TableOptions::Postgres(v.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<catalog::TableOptions> for TableOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptions) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl From<TableOptions> for catalog::table_options::Options {
+    fn from(value: TableOptions) -> Self {
+        match value {
+            TableOptions::Debug(v) => catalog::table_options::Options::Debug(v.into()),
+            TableOptions::Postgres(v) => catalog::table_options::Options::Postgres(v.into()),
+        }
+    }
+}
+
+impl From<TableOptions> for catalog::TableOptions {
+    fn from(value: TableOptions) -> Self {
+        catalog::TableOptions {
+            options: Some(value.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsDebug {
+    pub table_type: String,
+}
+
+impl TryFrom<catalog::TableOptionsDebug> for TableOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(TableOptionsDebug {
+            table_type: value.table_type,
+        })
+    }
+}
+
+impl From<TableOptionsDebug> for catalog::TableOptionsDebug {
+    fn from(value: TableOptionsDebug) -> Self {
+        catalog::TableOptionsDebug {
+            table_type: value.table_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsPostgres {
+    pub schema: String,
+    pub table: String,
+}
+
+impl TryFrom<catalog::TableOptionsPostgres> for TableOptionsPostgres {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsPostgres) -> Result<Self, Self::Error> {
+        Ok(TableOptionsPostgres {
+            schema: value.schema,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsPostgres> for catalog::TableOptionsPostgres {
+    fn from(value: TableOptionsPostgres) -> Self {
+        catalog::TableOptionsPostgres {
+            schema: value.schema,
+            table: value.table,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,6 +328,15 @@ mod tests {
         fn roundtrip_entry_meta(expected in any::<EntryMeta>()) {
             let p: catalog::EntryMeta = expected.clone().into();
             let got: EntryMeta = p.try_into().unwrap();
+            assert_eq!(expected, got);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn roundtrip_table_options(expected in any::<TableOptions>()) {
+            let p: catalog::TableOptions = expected.clone().into();
+            let got: TableOptions = p.try_into().unwrap();
             assert_eq!(expected, got);
         }
     }

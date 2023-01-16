@@ -1,5 +1,8 @@
 #[derive(thiserror::Error, Debug)]
 pub enum MetastoreError {
+    #[error("Duplicate name: {0}")]
+    DuplicateName(String),
+
     #[error("Missing database catalog: {0}")]
     MissingCatalog(uuid::Uuid),
 
