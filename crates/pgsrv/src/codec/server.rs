@@ -379,7 +379,7 @@ impl Decoder for PgCodec {
             b'C' => Self::decode_close(&mut buf)?,
             b'S' => Self::decode_sync(&mut buf)?,
             b'H' => Self::decode_flush(&mut buf)?,
-            b'X' => return Ok(None), // Terminate
+            b'X' => Self::decode_terminate(&mut buf)?,
             other => return Err(PgSrvError::InvalidMsgType(other)),
         };
 
