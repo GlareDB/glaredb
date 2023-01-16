@@ -2,8 +2,8 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogState {
     /// Database that this catalog is for (UUID).
-    #[prost(string, tag = "1")]
-    pub db_id: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "1")]
+    pub db_id: ::prost::alloc::vec::Vec<u8>,
     /// Version of this catalog.
     #[prost(uint64, tag = "2")]
     pub version: u64,
@@ -83,10 +83,12 @@ pub mod entry_meta {
         Schema = 1,
         /// Database tables.
         Table = 2,
+        /// External database tables.
+        ExternalTable = 3,
         /// Database views.
-        View = 3,
+        View = 4,
         /// Connections to external data sources.
-        Connection = 4,
+        Connection = 5,
     }
     impl EntryType {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -98,6 +100,7 @@ pub mod entry_meta {
                 EntryType::Unknown => "UNKNOWN",
                 EntryType::Schema => "SCHEMA",
                 EntryType::Table => "TABLE",
+                EntryType::ExternalTable => "EXTERNAL_TABLE",
                 EntryType::View => "VIEW",
                 EntryType::Connection => "CONNECTION",
             }
@@ -108,6 +111,7 @@ pub mod entry_meta {
                 "UNKNOWN" => Some(Self::Unknown),
                 "SCHEMA" => Some(Self::Schema),
                 "TABLE" => Some(Self::Table),
+                "EXTERNAL_TABLE" => Some(Self::ExternalTable),
                 "VIEW" => Some(Self::View),
                 "CONNECTION" => Some(Self::Connection),
                 _ => None,
@@ -129,6 +133,52 @@ pub struct TableEntry {
     /// Columns in the table.
     #[prost(message, repeated, tag = "2")]
     pub columns: ::prost::alloc::vec::Vec<ColumnDefinition>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExternalTableEntry {
+    #[prost(message, optional, tag = "1")]
+    pub meta: ::core::option::Option<EntryMeta>,
+    /// Type of external table.
+    #[prost(enumeration = "ExternalTableType", tag = "2")]
+    pub table_type: i32,
+    /// ID to the connection to use.
+    #[prost(uint32, tag = "3")]
+    pub connection_id: u32,
+    /// Table specific options to use when connecting to the external table.
+    #[prost(message, optional, tag = "4")]
+    pub options: ::core::option::Option<TableOptions>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptions {
+    #[prost(oneof = "table_options::Options", tags = "1, 2")]
+    pub options: ::core::option::Option<table_options::Options>,
+}
+/// Nested message and enum types in `TableOptions`.
+pub mod table_options {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Options {
+        #[prost(message, tag = "1")]
+        Debug(super::TableOptionsDebug),
+        #[prost(message, tag = "2")]
+        Postgres(super::TableOptionsPostgres),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsDebug {
+    #[prost(string, tag = "1")]
+    pub table_type: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsPostgres {
+    #[prost(string, tag = "1")]
+    pub schema: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub table: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -194,7 +244,54 @@ pub struct ConnectionPostgres {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
 }
+/// Supported external table types.
+///
+/// Enum values must match the values for `ConnectionType`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ExternalTableType {
+    Unknown = 0,
+    Debug = 1,
+    Postgres = 2,
+    Bigquery = 3,
+    Gcs = 4,
+    S3 = 5,
+    Local = 6,
+}
+impl ExternalTableType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            ExternalTableType::Unknown => "EXTERNAL_TABLE_TYPE_UNKNOWN",
+            ExternalTableType::Debug => "EXTERNAL_TABLE_TYPE_DEBUG",
+            ExternalTableType::Postgres => "EXTERNAL_TABLE_TYPE_POSTGRES",
+            ExternalTableType::Bigquery => "EXTERNAL_TABLE_TYPE_BIGQUERY",
+            ExternalTableType::Gcs => "EXTERNAL_TABLE_TYPE_GCS",
+            ExternalTableType::S3 => "EXTERNAL_TABLE_TYPE_S3",
+            ExternalTableType::Local => "EXTERNAL_TABLE_TYPE_LOCAL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "EXTERNAL_TABLE_TYPE_UNKNOWN" => Some(Self::Unknown),
+            "EXTERNAL_TABLE_TYPE_DEBUG" => Some(Self::Debug),
+            "EXTERNAL_TABLE_TYPE_POSTGRES" => Some(Self::Postgres),
+            "EXTERNAL_TABLE_TYPE_BIGQUERY" => Some(Self::Bigquery),
+            "EXTERNAL_TABLE_TYPE_GCS" => Some(Self::Gcs),
+            "EXTERNAL_TABLE_TYPE_S3" => Some(Self::S3),
+            "EXTERNAL_TABLE_TYPE_LOCAL" => Some(Self::Local),
+            _ => None,
+        }
+    }
+}
 /// Supported connection types.
+///
+/// Enum values must match the values for `ExternalTableType`. Note that there
+/// may be more types for connections than table types (e.g. for SSH tunnels).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ConnectionType {

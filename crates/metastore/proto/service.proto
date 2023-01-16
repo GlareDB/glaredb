@@ -8,7 +8,7 @@ import "catalog.proto";
 
 message FetchCatalogRequest {
   // ID of the database catalog to fetch.
-  string db_id = 1;
+  bytes db_id = 1;
 }
 
 message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
@@ -20,6 +20,7 @@ message Mutation {
     DropObject drop_object = 2;
     CreateSchema create_schema = 3;
     CreateView create_view = 4;
+    CreateExternalTable create_external_table = 5;
   }
 }
 
@@ -30,22 +31,25 @@ message DropObject {
   string name = 2;
 }
 
-// Create a new schema.
-message CreateSchema {
-  string name = 1;
-  // Do not error if the schema already exists.
-  bool if_not_exists = 2;
+message CreateSchema { string name = 1; }
+
+message CreateView {
+  string schema = 1;
+  string name = 2;
+  string sql = 3;
 }
 
-// Create a new view.
-message CreateView {
-  string name = 1;
-  string sql = 2;
+message CreateExternalTable {
+  string schema = 1;
+  string name = 2;
+  string connection_id = 3;
+  catalog.TableOptions options = 4;
+  // next: 5
 }
 
 message MutateRequest {
   // Mutate the catalog for this database.
-  string db_id = 1;
+  bytes db_id = 1;
 
   // Catalog version we're trying to execution mutations against. Mutations will
   // be rejected if this version doesn't match Metastore's version of the

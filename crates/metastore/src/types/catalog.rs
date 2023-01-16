@@ -19,10 +19,24 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
             entries.insert(id, ent.try_into()?);
         }
         Ok(CatalogState {
-            db_id: Uuid::parse_str(&value.db_id)?,
+            db_id: Uuid::from_slice(&value.db_id)?,
             version: value.version,
             entries,
         })
+    }
+}
+
+impl From<CatalogState> for catalog::CatalogState {
+    fn from(value: CatalogState) -> Self {
+        catalog::CatalogState {
+            db_id: value.db_id.into_bytes().to_vec(),
+            version: value.version,
+            entries: value
+                .entries
+                .into_iter()
+                .map(|(id, ent)| (id, ent.into()))
+                .collect(),
+        }
     }
 }
 
@@ -71,9 +85,20 @@ impl TryFrom<catalog::CatalogEntry> for CatalogEntry {
     }
 }
 
+impl From<CatalogEntry> for catalog::CatalogEntry {
+    fn from(value: CatalogEntry) -> Self {
+        let ent = match value {
+            CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
+            CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
+        };
+        catalog::CatalogEntry { entry: Some(ent) }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum EntryType {
     Schema,
+    ExternalTable,
     Table,
     View,
     Connection,
@@ -96,6 +121,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
                 return Err(ProtoConvError::ZeroValueEnumVariant("EntryType"))
             }
             catalog::entry_meta::EntryType::Schema => EntryType::Schema,
+            catalog::entry_meta::EntryType::ExternalTable => EntryType::ExternalTable,
             catalog::entry_meta::EntryType::Table => EntryType::Table,
             catalog::entry_meta::EntryType::View => EntryType::View,
             catalog::entry_meta::EntryType::Connection => EntryType::Connection,
@@ -108,6 +134,7 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
         match value {
             EntryType::Schema => catalog::entry_meta::EntryType::Schema,
             EntryType::Table => catalog::entry_meta::EntryType::Table,
+            EntryType::ExternalTable => catalog::entry_meta::EntryType::ExternalTable,
             EntryType::View => catalog::entry_meta::EntryType::View,
             EntryType::Connection => catalog::entry_meta::EntryType::Connection,
         }
@@ -160,6 +187,14 @@ impl TryFrom<catalog::SchemaEntry> for SchemaEntry {
     }
 }
 
+impl From<SchemaEntry> for catalog::SchemaEntry {
+    fn from(value: SchemaEntry) -> Self {
+        catalog::SchemaEntry {
+            meta: Some(value.meta.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary)]
 pub struct ViewEntry {
     pub meta: EntryMeta,
@@ -174,6 +209,15 @@ impl TryFrom<catalog::ViewEntry> for ViewEntry {
             meta,
             sql: value.sql,
         })
+    }
+}
+
+impl From<ViewEntry> for catalog::ViewEntry {
+    fn from(value: ViewEntry) -> Self {
+        catalog::ViewEntry {
+            meta: Some(value.meta.into()),
+            sql: value.sql,
+        }
     }
 }
 

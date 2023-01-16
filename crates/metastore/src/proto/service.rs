@@ -2,8 +2,8 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FetchCatalogRequest {
     /// ID of the database catalog to fetch.
-    #[prost(string, tag = "1")]
-    pub db_id: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "1")]
+    pub db_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -15,7 +15,7 @@ pub struct FetchCatalogResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Mutation {
-    #[prost(oneof = "mutation::Mutation", tags = "1, 2, 3, 4")]
+    #[prost(oneof = "mutation::Mutation", tags = "1, 2, 3, 4, 5")]
     pub mutation: ::core::option::Option<mutation::Mutation>,
 }
 /// Nested message and enum types in `Mutation`.
@@ -31,6 +31,8 @@ pub mod mutation {
         CreateSchema(super::CreateSchema),
         #[prost(message, tag = "4")]
         CreateView(super::CreateView),
+        #[prost(message, tag = "5")]
+        CreateExternalTable(super::CreateExternalTable),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -47,31 +49,41 @@ pub struct DropObject {
     #[prost(string, tag = "2")]
     pub name: ::prost::alloc::string::String,
 }
-/// Create a new schema.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateSchema {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
-    /// Do not error if the schema already exists.
-    #[prost(bool, tag = "2")]
-    pub if_not_exists: bool,
 }
-/// Create a new view.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateView {
     #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
+    pub schema: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
     pub sql: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateExternalTable {
+    #[prost(string, tag = "1")]
+    pub schema: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub connection_id: ::prost::alloc::string::String,
+    /// next: 5
+    #[prost(message, optional, tag = "4")]
+    pub options: ::core::option::Option<super::catalog::TableOptions>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MutateRequest {
     /// Mutate the catalog for this database.
-    #[prost(string, tag = "1")]
-    pub db_id: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "1")]
+    pub db_id: ::prost::alloc::vec::Vec<u8>,
     /// Catalog version we're trying to execution mutations against. Mutations will
     /// be rejected if this version doesn't match Metastore's version of the
     /// catalog.

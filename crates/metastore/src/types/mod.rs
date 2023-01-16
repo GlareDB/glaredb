@@ -6,6 +6,7 @@
 
 pub mod arrow;
 pub mod catalog;
+pub mod service;
 
 /// Errors related to converting to/from protobuf types.
 #[derive(thiserror::Error, Debug)]

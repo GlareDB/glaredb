@@ -8,7 +8,7 @@ import "arrow.proto";
 
 message CatalogState {
   // Database that this catalog is for (UUID).
-  string db_id = 1;
+  bytes db_id = 1;
 
   // Version of this catalog.
   uint64 version = 2;
@@ -43,10 +43,12 @@ message EntryMeta {
     SCHEMA = 1;
     // Database tables.
     TABLE = 2;
+    // External database tables.
+    EXTERNAL_TABLE = 3;
     // Database views.
-    VIEW = 3;
+    VIEW = 4;
     // Connections to external data sources.
-    CONNECTION = 4;
+    CONNECTION = 5;
   }
 
   // Type of the entry.
@@ -86,6 +88,48 @@ message TableEntry {
   // next: 3
 }
 
+// Supported external table types.
+//
+// Enum values must match the values for `ConnectionType`.
+enum ExternalTableType {
+  EXTERNAL_TABLE_TYPE_UNKNOWN = 0;
+  EXTERNAL_TABLE_TYPE_DEBUG = 1;
+  EXTERNAL_TABLE_TYPE_POSTGRES = 2;
+  EXTERNAL_TABLE_TYPE_BIGQUERY = 3;
+  EXTERNAL_TABLE_TYPE_GCS = 4;
+  EXTERNAL_TABLE_TYPE_S3 = 5;
+  EXTERNAL_TABLE_TYPE_LOCAL = 6;
+}
+
+message ExternalTableEntry {
+  EntryMeta meta = 1;
+
+  // Type of external table.
+  ExternalTableType table_type = 2;
+
+  // ID to the connection to use.
+  uint32 connection_id = 3;
+
+  // Table specific options to use when connecting to the external table.
+  TableOptions options = 4;
+
+  // next: 5
+}
+
+message TableOptions {
+  oneof options {
+    TableOptionsDebug debug = 1;
+    TableOptionsPostgres postgres = 2;
+  }
+}
+
+message TableOptionsDebug { string table_type = 1; }
+
+message TableOptionsPostgres {
+  string schema = 1;
+  string table = 2;
+}
+
 message ColumnDefinition {
   // Name of the column in the table.
   string name = 1;
@@ -114,6 +158,9 @@ message ViewEntry {
 }
 
 // Supported connection types.
+//
+// Enum values must match the values for `ExternalTableType`. Note that there
+// may be more types for connections than table types (e.g. for SSH tunnels).
 enum ConnectionType {
   CONNECTION_TYPE_UNKNOWN = 0;
   CONNECTION_TYPE_DEBUG = 1;
