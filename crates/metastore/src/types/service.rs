@@ -1,5 +1,6 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::service;
+use crate::types::catalog::{ConnectionOptions, TableOptions};
 use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
@@ -8,6 +9,8 @@ pub enum Mutation {
     DropObject(DropObject),
     CreateSchema(CreateSchema),
     CreateView(CreateView),
+    CreateConnection(CreateConnection),
+    CreateExternalTable(CreateExternalTable),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -25,7 +28,12 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::DropObject(v) => Mutation::DropObject(v.try_into()?),
             service::mutation::Mutation::CreateSchema(v) => Mutation::CreateSchema(v.try_into()?),
             service::mutation::Mutation::CreateView(v) => Mutation::CreateView(v.try_into()?),
-            _ => unimplemented!(),
+            service::mutation::Mutation::CreateConnection(v) => {
+                Mutation::CreateConnection(v.try_into()?)
+            }
+            service::mutation::Mutation::CreateExternalTable(v) => {
+                Mutation::CreateExternalTable(v.try_into()?)
+            }
         })
     }
 }
@@ -37,6 +45,12 @@ impl From<Mutation> for service::mutation::Mutation {
             Mutation::DropObject(v) => service::mutation::Mutation::DropObject(v.into()),
             Mutation::CreateSchema(v) => service::mutation::Mutation::CreateSchema(v.into()),
             Mutation::CreateView(v) => service::mutation::Mutation::CreateView(v.into()),
+            Mutation::CreateConnection(v) => {
+                service::mutation::Mutation::CreateConnection(v.into())
+            }
+            Mutation::CreateExternalTable(v) => {
+                service::mutation::Mutation::CreateExternalTable(v.into())
+            }
         }
     }
 }
@@ -143,10 +157,39 @@ impl From<CreateView> for service::CreateView {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateConnection {
+    pub schema: String,
+    pub name: String,
+    pub options: ConnectionOptions,
+}
+
+impl TryFrom<service::CreateConnection> for CreateConnection {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateConnection) -> Result<Self, Self::Error> {
+        Ok(CreateConnection {
+            schema: value.schema,
+            name: value.name,
+            options: value.options.required("options")?,
+        })
+    }
+}
+
+impl From<CreateConnection> for service::CreateConnection {
+    fn from(value: CreateConnection) -> Self {
+        service::CreateConnection {
+            schema: value.schema,
+            name: value.name,
+            options: Some(value.options.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
     pub connection_id: u32,
+    pub options: TableOptions,
 }
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
@@ -157,6 +200,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             schema: value.schema,
             name: value.name,
             connection_id: value.connection_id,
+            options: value.options.required("options")?,
         })
     }
 }
@@ -167,7 +211,7 @@ impl From<CreateExternalTable> for service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
             connection_id: value.connection_id,
-            options: None,
+            options: Some(value.options.into()),
         }
     }
 }

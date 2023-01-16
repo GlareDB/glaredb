@@ -44,6 +44,7 @@ impl From<CatalogState> for catalog::CatalogState {
 pub enum CatalogEntry {
     Schema(SchemaEntry),
     View(ViewEntry),
+    Connection(ConnectionEntry),
 }
 
 impl CatalogEntry {
@@ -51,6 +52,7 @@ impl CatalogEntry {
         match self {
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
+            CatalogEntry::Connection(_) => EntryType::Connection,
         }
     }
 
@@ -63,6 +65,7 @@ impl CatalogEntry {
         match self {
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
+            CatalogEntry::Connection(conn) => &conn.meta,
         }
     }
 }
@@ -73,6 +76,7 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
         Ok(match value {
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
+            catalog::catalog_entry::Entry::Connection(v) => CatalogEntry::Connection(v.try_into()?),
             _ => todo!(),
         })
     }
@@ -90,6 +94,7 @@ impl From<CatalogEntry> for catalog::CatalogEntry {
         let ent = match value {
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
+            CatalogEntry::Connection(v) => catalog::catalog_entry::Entry::Connection(v.into()),
         };
         catalog::CatalogEntry { entry: Some(ent) }
     }
@@ -221,6 +226,32 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary)]
+pub struct ConnectionEntry {
+    pub meta: EntryMeta,
+    pub options: ConnectionOptions,
+}
+
+impl TryFrom<catalog::ConnectionEntry> for ConnectionEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(ConnectionEntry {
+            meta,
+            options: value.options.required("options")?,
+        })
+    }
+}
+
+impl From<ConnectionEntry> for catalog::ConnectionEntry {
+    fn from(value: ConnectionEntry) -> Self {
+        catalog::ConnectionEntry {
+            meta: Some(value.meta.into()),
+            options: Some(value.options.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum TableOptions {
     Debug(TableOptionsDebug),
@@ -308,6 +339,90 @@ impl From<TableOptionsPostgres> for catalog::TableOptionsPostgres {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub enum ConnectionOptions {
+    Debug(ConnectionOptionsDebug),
+    Postgres(ConnectionOptionsPostgres),
+}
+
+impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::connection_options::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            catalog::connection_options::Options::Debug(v) => {
+                ConnectionOptions::Debug(v.try_into()?)
+            }
+            catalog::connection_options::Options::Postgres(v) => {
+                ConnectionOptions::Postgres(v.try_into()?)
+            }
+        })
+    }
+}
+
+impl TryFrom<catalog::ConnectionOptions> for ConnectionOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptions) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl From<ConnectionOptions> for catalog::connection_options::Options {
+    fn from(value: ConnectionOptions) -> Self {
+        match value {
+            ConnectionOptions::Debug(v) => catalog::connection_options::Options::Debug(v.into()),
+            ConnectionOptions::Postgres(v) => {
+                catalog::connection_options::Options::Postgres(v.into())
+            }
+        }
+    }
+}
+
+impl From<ConnectionOptions> for catalog::ConnectionOptions {
+    fn from(value: ConnectionOptions) -> Self {
+        catalog::ConnectionOptions {
+            options: Some(value.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsDebug {}
+
+impl TryFrom<catalog::ConnectionOptionsDebug> for ConnectionOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(_value: catalog::ConnectionOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsDebug {})
+    }
+}
+
+impl From<ConnectionOptionsDebug> for catalog::ConnectionOptionsDebug {
+    fn from(_value: ConnectionOptionsDebug) -> Self {
+        catalog::ConnectionOptionsDebug {}
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsPostgres {
+    pub connection_string: String,
+}
+
+impl TryFrom<catalog::ConnectionOptionsPostgres> for ConnectionOptionsPostgres {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsPostgres) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsPostgres {
+            connection_string: value.connection_string,
+        })
+    }
+}
+
+impl From<ConnectionOptionsPostgres> for catalog::ConnectionOptionsPostgres {
+    fn from(value: ConnectionOptionsPostgres) -> Self {
+        catalog::ConnectionOptionsPostgres {
+            connection_string: value.connection_string,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,6 +452,15 @@ mod tests {
         fn roundtrip_table_options(expected in any::<TableOptions>()) {
             let p: catalog::TableOptions = expected.clone().into();
             let got: TableOptions = p.try_into().unwrap();
+            assert_eq!(expected, got);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn roundtrip_connection_options(expected in any::<ConnectionOptions>()) {
+            let p: catalog::ConnectionOptions = expected.clone().into();
+            let got: ConnectionOptions = p.try_into().unwrap();
             assert_eq!(expected, got);
         }
     }

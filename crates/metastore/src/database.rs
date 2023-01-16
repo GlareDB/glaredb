@@ -1,7 +1,7 @@
 //! Module for handling the catalog for a single database.
 use crate::errors::{MetastoreError, Result};
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, EntryMeta, EntryType, SchemaEntry, ViewEntry,
+    CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, SchemaEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
 use parking_lot::{Mutex, MutexGuard};
@@ -121,11 +121,9 @@ impl State {
                 }
                 Mutation::DropObject(drop_object) => {
                     // TODO: Dependency checking.
-                    let schema_id =
-                        self.schema_names.get(&drop_object.schema).ok_or_else(|| {
-                            MetastoreError::MissingNamedSchema(drop_object.schema.clone())
-                        })?;
-                    let objs = self.schema_objects.get_mut(schema_id).unwrap(); // Bug if doesn't exist.
+                    let schema_id = self.get_schema_id(&drop_object.name)?;
+
+                    let objs = self.schema_objects.get_mut(&schema_id).unwrap(); // Bug if doesn't exist.
                     let ent_id = objs.objects.remove(&drop_object.name).ok_or_else(|| {
                         MetastoreError::MissingNamedObject {
                             schema: drop_object.schema,
@@ -158,13 +156,7 @@ impl State {
                 Mutation::CreateView(create_view) => {
                     // TODO: If not exists.
 
-                    let schema_id = self
-                        .schema_names
-                        .get(&create_view.schema)
-                        .cloned()
-                        .ok_or_else(|| {
-                            MetastoreError::MissingNamedSchema(create_view.schema.clone())
-                        })?;
+                    let schema_id = self.get_schema_id(&create_view.schema)?;
 
                     // Create new entry
                     let oid = self.next_oid();
@@ -178,22 +170,66 @@ impl State {
                         sql: create_view.sql,
                     };
 
-                    // Insert new entry for schema. Checks if there exists an
-                    // object with the same name.
-                    let objs = self.schema_objects.entry(schema_id).or_default();
-                    if objs.objects.contains_key(&create_view.name) {
-                        return Err(MetastoreError::DuplicateName(create_view.name));
-                    }
-                    objs.objects.insert(create_view.name, oid);
+                    self.try_insert_entry_for_schema(CatalogEntry::View(ent), schema_id, oid)?;
+                }
+                Mutation::CreateConnection(create_conn) => {
+                    // TODO: If not exists.
 
-                    // Insert into catalog.
-                    self.entries.insert(oid, CatalogEntry::View(ent));
+                    let schema_id = self.get_schema_id(&create_conn.schema)?;
+
+                    // Create new entry.
+                    let oid = self.next_oid();
+                    let ent = ConnectionEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::Connection,
+                            id: oid,
+                            parent: schema_id,
+                            name: create_conn.name.clone(),
+                        },
+                        options: create_conn.options,
+                    };
+
+                    self.try_insert_entry_for_schema(
+                        CatalogEntry::Connection(ent),
+                        schema_id,
+                        oid,
+                    )?;
                 }
                 _ => unimplemented!(),
             }
         }
 
         Ok(())
+    }
+
+    /// Try to insert an entry for a schema.
+    ///
+    /// Errors if there already exists an entry with the same name in the
+    /// schema.
+    fn try_insert_entry_for_schema(
+        &mut self,
+        ent: CatalogEntry,
+        schema_id: u32,
+        oid: u32,
+    ) -> Result<()> {
+        // Insert new entry for schema. Checks if there exists an
+        // object with the same name.
+        let objs = self.schema_objects.entry(schema_id).or_default();
+        if objs.objects.contains_key(&ent.get_meta().name) {
+            return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
+        }
+        objs.objects.insert(ent.get_meta().name.clone(), oid);
+
+        // Insert connection.
+        self.entries.insert(oid, ent);
+        Ok(())
+    }
+
+    fn get_schema_id(&self, name: &str) -> Result<u32> {
+        self.schema_names
+            .get(name)
+            .cloned()
+            .ok_or_else(|| MetastoreError::MissingNamedSchema(name.to_string()))
     }
 }
 

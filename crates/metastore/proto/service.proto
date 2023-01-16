@@ -37,8 +37,10 @@ message Mutation {
     DropObject drop_object = 2;
     CreateSchema create_schema = 3;
     CreateView create_view = 4;
-    CreateExternalTable create_external_table = 5;
+    CreateConnection create_connection = 5;
+    CreateExternalTable create_external_table = 6;
   }
+  // next: 7
 }
 
 message DropSchema { string name = 1; }
@@ -54,6 +56,13 @@ message CreateView {
   string schema = 1;
   string name = 2;
   string sql = 3;
+}
+
+message CreateConnection {
+  string schema = 1;
+  string name = 2;
+  catalog.ConnectionOptions options = 3;
+  // next: 4
 }
 
 message CreateExternalTable {

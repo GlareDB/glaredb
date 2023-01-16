@@ -139,14 +139,14 @@ pub struct TableEntry {
 pub struct ExternalTableEntry {
     #[prost(message, optional, tag = "1")]
     pub meta: ::core::option::Option<EntryMeta>,
-    /// Type of external table.
-    #[prost(enumeration = "ExternalTableType", tag = "2")]
-    pub table_type: i32,
     /// ID to the connection to use.
-    #[prost(uint32, tag = "3")]
+    #[prost(uint32, tag = "2")]
     pub connection_id: u32,
     /// Table specific options to use when connecting to the external table.
-    #[prost(message, optional, tag = "4")]
+    ///
+    /// The external table type (postgres, bigquery, etc) is derived from these
+    /// options. The type derived here must match the connection type.
+    #[prost(message, optional, tag = "3")]
     pub options: ::core::option::Option<TableOptions>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -213,124 +213,35 @@ pub struct ViewEntry {
 pub struct ConnectionEntry {
     #[prost(message, optional, tag = "1")]
     pub meta: ::core::option::Option<EntryMeta>,
-    #[prost(enumeration = "ConnectionType", tag = "2")]
-    pub connection_type: i32,
-    /// Details about this connection.
-    #[prost(message, optional, tag = "3")]
-    pub details: ::core::option::Option<ConnectionDetails>,
+    /// Options related to this connection.
+    ///
+    /// The connection type is derived from these options.
+    #[prost(message, optional, tag = "2")]
+    pub options: ::core::option::Option<ConnectionOptions>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConnectionDetails {
-    #[prost(oneof = "connection_details::Connection", tags = "1, 2")]
-    pub connection: ::core::option::Option<connection_details::Connection>,
+pub struct ConnectionOptions {
+    #[prost(oneof = "connection_options::Options", tags = "1, 2")]
+    pub options: ::core::option::Option<connection_options::Options>,
 }
-/// Nested message and enum types in `ConnectionDetails`.
-pub mod connection_details {
+/// Nested message and enum types in `ConnectionOptions`.
+pub mod connection_options {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Connection {
+    pub enum Options {
         #[prost(message, tag = "1")]
-        Debug(super::ConnectionDebug),
+        Debug(super::ConnectionOptionsDebug),
         #[prost(message, tag = "2")]
-        Postgres(super::ConnectionPostgres),
+        Postgres(super::ConnectionOptionsPostgres),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConnectionDebug {}
+pub struct ConnectionOptionsDebug {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConnectionPostgres {
+pub struct ConnectionOptionsPostgres {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
-}
-/// Supported external table types.
-///
-/// Enum values must match the values for `ConnectionType`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ExternalTableType {
-    Unknown = 0,
-    Debug = 1,
-    Postgres = 2,
-    Bigquery = 3,
-    Gcs = 4,
-    S3 = 5,
-    Local = 6,
-}
-impl ExternalTableType {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            ExternalTableType::Unknown => "EXTERNAL_TABLE_TYPE_UNKNOWN",
-            ExternalTableType::Debug => "EXTERNAL_TABLE_TYPE_DEBUG",
-            ExternalTableType::Postgres => "EXTERNAL_TABLE_TYPE_POSTGRES",
-            ExternalTableType::Bigquery => "EXTERNAL_TABLE_TYPE_BIGQUERY",
-            ExternalTableType::Gcs => "EXTERNAL_TABLE_TYPE_GCS",
-            ExternalTableType::S3 => "EXTERNAL_TABLE_TYPE_S3",
-            ExternalTableType::Local => "EXTERNAL_TABLE_TYPE_LOCAL",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "EXTERNAL_TABLE_TYPE_UNKNOWN" => Some(Self::Unknown),
-            "EXTERNAL_TABLE_TYPE_DEBUG" => Some(Self::Debug),
-            "EXTERNAL_TABLE_TYPE_POSTGRES" => Some(Self::Postgres),
-            "EXTERNAL_TABLE_TYPE_BIGQUERY" => Some(Self::Bigquery),
-            "EXTERNAL_TABLE_TYPE_GCS" => Some(Self::Gcs),
-            "EXTERNAL_TABLE_TYPE_S3" => Some(Self::S3),
-            "EXTERNAL_TABLE_TYPE_LOCAL" => Some(Self::Local),
-            _ => None,
-        }
-    }
-}
-/// Supported connection types.
-///
-/// Enum values must match the values for `ExternalTableType`. Note that there
-/// may be more types for connections than table types (e.g. for SSH tunnels).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ConnectionType {
-    Unknown = 0,
-    Debug = 1,
-    Postgres = 2,
-    Bigquery = 3,
-    Gcs = 4,
-    S3 = 5,
-    Local = 6,
-}
-impl ConnectionType {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            ConnectionType::Unknown => "CONNECTION_TYPE_UNKNOWN",
-            ConnectionType::Debug => "CONNECTION_TYPE_DEBUG",
-            ConnectionType::Postgres => "CONNECTION_TYPE_POSTGRES",
-            ConnectionType::Bigquery => "CONNECTION_TYPE_BIGQUERY",
-            ConnectionType::Gcs => "CONNECTION_TYPE_GCS",
-            ConnectionType::S3 => "CONNECTION_TYPE_S3",
-            ConnectionType::Local => "CONNECTION_TYPE_LOCAL",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "CONNECTION_TYPE_UNKNOWN" => Some(Self::Unknown),
-            "CONNECTION_TYPE_DEBUG" => Some(Self::Debug),
-            "CONNECTION_TYPE_POSTGRES" => Some(Self::Postgres),
-            "CONNECTION_TYPE_BIGQUERY" => Some(Self::Bigquery),
-            "CONNECTION_TYPE_GCS" => Some(Self::Gcs),
-            "CONNECTION_TYPE_S3" => Some(Self::S3),
-            "CONNECTION_TYPE_LOCAL" => Some(Self::Local),
-            _ => None,
-        }
-    }
 }

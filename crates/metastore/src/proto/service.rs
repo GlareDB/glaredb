@@ -72,7 +72,7 @@ pub struct FetchCatalogResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Mutation {
-    #[prost(oneof = "mutation::Mutation", tags = "1, 2, 3, 4, 5")]
+    #[prost(oneof = "mutation::Mutation", tags = "1, 2, 3, 4, 5, 6")]
     pub mutation: ::core::option::Option<mutation::Mutation>,
 }
 /// Nested message and enum types in `Mutation`.
@@ -89,6 +89,8 @@ pub mod mutation {
         #[prost(message, tag = "4")]
         CreateView(super::CreateView),
         #[prost(message, tag = "5")]
+        CreateConnection(super::CreateConnection),
+        #[prost(message, tag = "6")]
         CreateExternalTable(super::CreateExternalTable),
     }
 }
@@ -121,6 +123,17 @@ pub struct CreateView {
     pub name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub sql: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateConnection {
+    #[prost(string, tag = "1")]
+    pub schema: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    /// next: 4
+    #[prost(message, optional, tag = "3")]
+    pub options: ::core::option::Option<super::catalog::ConnectionOptions>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
