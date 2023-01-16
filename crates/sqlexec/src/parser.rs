@@ -4,7 +4,7 @@ use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -21,10 +21,10 @@ pub struct CreateExternalTableStmt {
     pub name: String,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
-    /// The data source for the table.
-    pub datasource: String,
+    /// The data source or connection name for the table.
+    pub datasource_or_connection: String,
     /// Datasource specific options.
-    pub options: HashMap<String, String>,
+    pub options: BTreeMap<String, String>,
 }
 
 impl fmt::Display for CreateExternalTableStmt {
@@ -33,14 +33,46 @@ impl fmt::Display for CreateExternalTableStmt {
         if self.if_not_exists {
             write!(f, "IF NOT EXISTS")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.datasource)?;
+        write!(f, "{} FROM {} ", self.name, self.datasource_or_connection)?;
 
         let opts = self
             .options
             .iter()
             .map(|(k, v)| format!("{} = '{}'", k, v))
             .collect::<Vec<_>>()
-            .join(",");
+            .join(", ");
+
+        write!(f, "OPTIONS ({})", opts)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateConnectionStmt {
+    /// Name of the connection.
+    pub name: String,
+    /// Optionatlly don't error if the connection already exists.
+    pub if_not_exists: bool,
+    /// The data source the connection is for.
+    pub datasource: String,
+    /// Options for the connection.
+    pub options: BTreeMap<String, String>,
+}
+
+impl fmt::Display for CreateConnectionStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CREATE CONNECTION ")?;
+        if self.if_not_exists {
+            write!(f, "IF NOT EXISTS")?;
+        }
+        write!(f, "{} FOR {} ", self.name, self.datasource)?;
+
+        let opts = self
+            .options
+            .iter()
+            .map(|(k, v)| format!("{} = '{}'", k, v))
+            .collect::<Vec<_>>()
+            .join(", ");
 
         write!(f, "OPTIONS ({})", opts)?;
         Ok(())
@@ -53,6 +85,8 @@ pub enum StatementWithExtensions {
     Statement(ast::Statement),
     /// Create external table extension.
     CreateExternalTable(CreateExternalTableStmt),
+    /// Create connection extension.
+    CreateConnection(CreateConnectionStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -60,6 +94,7 @@ impl fmt::Display for StatementWithExtensions {
         match self {
             StatementWithExtensions::Statement(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateConnection(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -120,8 +155,11 @@ impl<'a> CustomParser<'a> {
     /// Parse a SQL CREATE statement
     fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
         if self.parser.parse_keyword(Keyword::EXTERNAL) {
-            // Parse using custom parse rules.
+            // CREATE EXTERNAL TABLE ...
             self.parse_create_external_table()
+        } else if self.parser.parse_keyword(Keyword::CONNECTION) {
+            // CREATE CONNECTION ...
+            self.parse_create_connection()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -136,6 +174,30 @@ impl<'a> CustomParser<'a> {
             "Expected {}, found: {}",
             expected, found
         )))
+    }
+
+    fn parse_create_connection(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_not_exists =
+            self.parser
+                .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
+        let name = self.parser.parse_object_name()?;
+
+        // FOR datasource
+        self.parser.expect_keyword(Keyword::FOR)?;
+
+        let datasource = self.parse_datasource()?;
+
+        // OPTIONS (..)
+        let options = self.parse_datasource_options()?;
+
+        Ok(StatementWithExtensions::CreateConnection(
+            CreateConnectionStmt {
+                name: name.to_string(),
+                if_not_exists,
+                datasource,
+                options,
+            },
+        ))
     }
 
     fn parse_create_external_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
@@ -156,7 +218,7 @@ impl<'a> CustomParser<'a> {
             CreateExternalTableStmt {
                 name: name.to_string(),
                 if_not_exists,
-                datasource,
+                datasource_or_connection: datasource,
                 options,
             },
         ))
@@ -170,8 +232,8 @@ impl<'a> CustomParser<'a> {
     }
 
     /// Parse options for a datasource.
-    fn parse_datasource_options(&mut self) -> Result<HashMap<String, String>, ParserError> {
-        let mut options = HashMap::new();
+    fn parse_datasource_options(&mut self) -> Result<BTreeMap<String, String>, ParserError> {
+        let mut options = BTreeMap::new();
 
         // No options provided.
         if !self.consume_token(&Token::make_keyword("OPTIONS")) {
@@ -220,8 +282,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn display() {
-        let mut options = HashMap::new();
+    fn external_table_display() {
+        let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
             "host=localhost user=postgres".to_string(),
@@ -229,7 +291,7 @@ mod tests {
         let stmt = CreateExternalTableStmt {
             name: "test".to_string(),
             if_not_exists: false,
-            datasource: "postgres".to_string(),
+            datasource_or_connection: "postgres".to_string(),
             options,
         };
 
@@ -238,12 +300,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_external_table() {
+    fn external_table_parse() {
         let sql = "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public')";
         let mut stmts = CustomParser::parse_sql(sql).unwrap();
 
         let stmt = stmts.pop_front().unwrap();
-        let mut options = HashMap::new();
+        let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
             "host=localhost user=postgres".to_string(),
@@ -254,10 +316,35 @@ mod tests {
             StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
                 name: "test".to_string(),
                 if_not_exists: false,
-                datasource: "postgres".to_string(),
+                datasource_or_connection: "postgres".to_string(),
                 options,
             }),
             stmt
         );
+    }
+
+    #[test]
+    fn connection_roundtrip() {
+        // Display the create string...
+
+        let mut options = BTreeMap::new();
+        for (k, v) in [("host", "localhost"), ("user", "postgres")] {
+            options.insert(k.to_string(), v.to_string());
+        }
+        let conn_stmt = CreateConnectionStmt {
+            name: "my_conn".to_string(),
+            if_not_exists: false,
+            datasource: "postgres".to_string(),
+            options,
+        };
+
+        let out = conn_stmt.to_string();
+        assert_eq!("CREATE CONNECTION my_conn FOR postgres OPTIONS (host = 'localhost', user = 'postgres')", out);
+
+        // Parse the string we go back.
+        let mut stmts = CustomParser::parse_sql(&out).unwrap();
+        assert_eq!(1, stmts.len());
+        let parsed = stmts.pop_front().unwrap();
+        assert_eq!(StatementWithExtensions::CreateConnection(conn_stmt), parsed);
     }
 }

@@ -1,8 +1,9 @@
 use crate::catalog::access::AccessMethod;
+use crate::catalog::entry::{AccessOrConnection, ConnectionMethod, TableOptions};
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
-use crate::parser::{CreateExternalTableStmt, StatementWithExtensions};
+use crate::parser::{CreateConnectionStmt, CreateExternalTableStmt, StatementWithExtensions};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -14,7 +15,7 @@ use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
 use datasource_object_store::s3::S3TableAccess;
 use datasource_postgres::PostgresTableAccess;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use tracing::debug;
 
@@ -35,22 +36,76 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateExternalTable(stmt) => {
                 self.plan_create_external_table(stmt)
             }
+            StatementWithExtensions::CreateConnection(stmt) => self.plan_create_connection(stmt),
         }
+    }
+
+    fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
+        let m = &mut stmt.options;
+        let plan = match stmt.datasource.to_lowercase().as_str() {
+            "postgres" => {
+                let connection_string = remove_required_opt(m, "postgres_conn")?;
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::Postgres { connection_string },
+                }
+            }
+            "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::Debug,
+                }
+            }
+            other => return Err(internal!("unsupported datasource: {}", other)),
+        };
+
+        Ok(LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)))
     }
 
     fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
         let create_sql = stmt.to_string();
-        let pop_required_opt = |m: &mut HashMap<String, String>, k: &str| {
-            m.remove(k)
-                .ok_or_else(|| internal!("missing required option: {}", k))
-        };
 
+        let datasource_or_connection = stmt.datasource_or_connection.to_lowercase();
         let m = &mut stmt.options;
-        let plan = match stmt.datasource.to_lowercase().as_str() {
+
+        // TODO: Remove jank. Just here until things get switched over to using
+        // only connections.
+        if !is_datasource(datasource_or_connection.as_str()) {
+            let conn = self.ctx.get_connection(&datasource_or_connection)?;
+            let plan = match conn.method {
+                ConnectionMethod::Debug => {
+                    let typ = remove_required_opt(m, "table_type")?;
+                    let typ = DebugTableType::from_str(&typ)?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::Debug { typ },
+                    }
+                }
+                ConnectionMethod::Postgres { .. } => {
+                    let source_schema = remove_required_opt(m, "schema")?;
+                    let source_table = remove_required_opt(m, "table")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::Postgres {
+                            schema: source_schema,
+                            table: source_table,
+                        },
+                    }
+                }
+            };
+
+            return Ok(LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)));
+        }
+
+        let plan = match stmt.datasource_or_connection.to_lowercase().as_str() {
             "postgres" => {
-                let conn_str = pop_required_opt(m, "postgres_conn")?;
-                let source_schema = pop_required_opt(m, "schema")?;
-                let source_table = pop_required_opt(m, "table")?;
+                let conn_str = remove_required_opt(m, "postgres_conn")?;
+                let source_schema = remove_required_opt(m, "schema")?;
+                let source_table = remove_required_opt(m, "table")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -58,14 +113,16 @@ impl<'a> SessionPlanner<'a> {
                         connection_string: conn_str,
                         schema: source_schema,
                         name: source_table,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "bigquery" => {
-                let sa_key = pop_required_opt(m, "gcp_service_account_key")?;
-                let project_id = pop_required_opt(m, "gcp_project_id")?;
-                let dataset_id = pop_required_opt(m, "dataset_id")?;
-                let table_id = pop_required_opt(m, "table_id")?;
+                let sa_key = remove_required_opt(m, "gcp_service_account_key")?;
+                let project_id = remove_required_opt(m, "gcp_project_id")?;
+                let dataset_id = remove_required_opt(m, "dataset_id")?;
+                let table_id = remove_required_opt(m, "table_id")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -74,21 +131,24 @@ impl<'a> SessionPlanner<'a> {
                         gcp_project_id: project_id,
                         dataset_id,
                         table_id,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "local" => {
-                let file = pop_required_opt(m, "location")?;
+                let file = remove_required_opt(m, "location")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
-                    access: AccessMethod::Local(LocalTableAccess { location: file }),
+                    access: AccessMethod::Local(LocalTableAccess { location: file }).into(),
+                    table_options: TableOptions::None,
                 }
             }
             "gcs" => {
-                let service_acccount_key_json = pop_required_opt(m, "gcs_service_account_key")?;
-                let bucket_name = pop_required_opt(m, "bucket_name")?;
-                let table_location = pop_required_opt(m, "location")?;
+                let service_acccount_key_json = remove_required_opt(m, "gcp_service_account_key")?;
+                let bucket_name = remove_required_opt(m, "bucket_name")?;
+                let table_location = remove_required_opt(m, "location")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -96,15 +156,17 @@ impl<'a> SessionPlanner<'a> {
                         bucket_name,
                         service_acccount_key_json,
                         location: table_location,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "s3" => {
-                let access_key_id = pop_required_opt(m, "aws_access_key_id")?;
-                let secret_access_key = pop_required_opt(m, "aws_secret_access_key")?;
-                let region = pop_required_opt(m, "region")?;
-                let bucket_name = pop_required_opt(m, "bucket_name")?;
-                let table_location = pop_required_opt(m, "location")?;
+                let access_key_id = remove_required_opt(m, "aws_access_key_id")?;
+                let secret_access_key = remove_required_opt(m, "aws_secret_access_key")?;
+                let region = remove_required_opt(m, "region")?;
+                let bucket_name = remove_required_opt(m, "bucket_name")?;
+                let table_location = remove_required_opt(m, "location")?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
@@ -114,16 +176,19 @@ impl<'a> SessionPlanner<'a> {
                         access_key_id,
                         secret_access_key,
                         location: table_location,
-                    }),
+                    })
+                    .into(),
+                    table_options: TableOptions::None,
                 }
             }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
-                let typ = pop_required_opt(m, "table_type")?;
+                let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
                 CreateExternalTable {
                     create_sql,
                     table_name: stmt.name,
-                    access: AccessMethod::Debug(typ),
+                    access: AccessMethod::Debug(typ).into(),
+                    table_options: TableOptions::None,
                 }
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
@@ -476,4 +541,17 @@ fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
     }
     let transaction_isolation_level = variable.iter().map(|i| i.value.to_lowercase());
     statement.into_iter().eq(transaction_isolation_level)
+}
+
+fn remove_required_opt(m: &mut BTreeMap<String, String>, k: &str) -> Result<String> {
+    m.remove(k)
+        .ok_or_else(|| internal!("missing required option: {}", k))
+}
+
+// TODO: Remove when everything uses connections.
+fn is_datasource(s: &str) -> bool {
+    matches!(
+        s,
+        "postgres" | "local" | "bigquery" | "gcs" | "s3" | "debug"
+    )
 }

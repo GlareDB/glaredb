@@ -25,7 +25,7 @@ datafusion = "15.0"
 arrow = { version = "*", default-features = false, features = ["serde"] }
 futures = "0.3.25"
 tracing = "0.1"
-async-trait = "0.1.59"
+async-trait = "0.1.61"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
 postgres-types = "0.2.4"
 object_store = "0.5"

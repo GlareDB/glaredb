@@ -16,8 +16,8 @@ pub enum CatalogError {
     #[error("failed to do late planning: {0}")]
     LatePlanning(String),
 
-    #[error("unable to handle access method: {0}")]
-    UnhandleableAccess(crate::catalog::access::AccessMethod),
+    #[error("unable to handle access method: {0:?}")]
+    UnhandleableAccess(crate::catalog::entry::AccessOrConnection),
 
     #[error(transparent)]
     DatasourceBigQuery(#[from] datasource_bigquery::errors::BigQueryError),

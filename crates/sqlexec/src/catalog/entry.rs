@@ -2,6 +2,8 @@
 use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use datasource_debug::DebugTableType;
+use std::fmt;
 use std::ops::Deref;
 
 /// Types of entries the catalog holds.
@@ -9,6 +11,7 @@ use std::ops::Deref;
 pub enum EntryType {
     Schema,
     Table,
+    Connection,
     View,
     Index,
     Sequence,
@@ -71,12 +74,41 @@ impl From<&BuiltinSchema> for SchemaEntry {
     }
 }
 
+// TODO: Remove when everything uses a connection.
+#[derive(Debug, Clone)]
+pub enum AccessOrConnection {
+    Access(AccessMethod),
+    /// Name of the connection to use.
+    // Technically should be a stable id.
+    Connection(String),
+}
+
+impl From<AccessMethod> for AccessOrConnection {
+    fn from(m: AccessMethod) -> Self {
+        AccessOrConnection::Access(m)
+    }
+}
+
+impl fmt::Display for AccessOrConnection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TableOptions {
+    None,
+    Debug { typ: DebugTableType },
+    Postgres { schema: String, table: String },
+}
+
 #[derive(Debug, Clone)]
 pub struct TableEntry {
     pub created_by: EntryCreatedBy,
     pub schema: String,
     pub name: String,
-    pub access: AccessMethod,
+    pub access: AccessOrConnection,
+    pub table_options: TableOptions,
     pub columns: Vec<ColumnDefinition>,
 }
 
@@ -86,7 +118,8 @@ impl From<&BuiltinTable> for TableEntry {
             created_by: EntryCreatedBy::System,
             schema: builtin.schema.to_string(),
             name: builtin.name.to_string(),
-            access: AccessMethod::System,
+            access: AccessMethod::System.into(),
+            table_options: TableOptions::None,
             columns: builtin.columns.clone(),
         }
     }
@@ -128,6 +161,32 @@ impl From<&ColumnDefinition> for Field {
     fn from(col: &ColumnDefinition) -> Self {
         Field::new(&col.name, col.datatype.clone(), col.nullable)
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum ConnectionMethod {
+    Debug,
+    Postgres { connection_string: String },
+}
+
+impl fmt::Display for ConnectionMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ConnectionMethod::Debug => "debug",
+                ConnectionMethod::Postgres { .. } => "postgres",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectionEntry {
+    pub name: String,
+    pub schema: String,
+    pub method: ConnectionMethod,
 }
 
 #[derive(Debug, Clone)]
