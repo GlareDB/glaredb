@@ -1,12 +1,15 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use common::config::DbConfig;
+use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
+use logutil::Verbosity;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
@@ -42,13 +45,13 @@ enum Commands {
         config: Option<String>,
     },
 
+    /// Starts an instance of the pgsrv proxy.
     Proxy {
         /// TCP address to bind to.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6544"))]
         bind: String,
 
         /// Path to SSL server cert to use.
-        // TODO: This and the key path should be provided by a config.
         #[clap(long)]
         ssl_server_cert: Option<String>,
 
@@ -59,11 +62,27 @@ enum Commands {
         /// Address of the GlareDB cloud server.
         api_addr: String,
     },
+
+    /// Starts an instance of the Metastore.
+    Metastore {
+        /// TCP address to bind do.
+        #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6545"))]
+        bind: String,
+    },
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
-    logutil::init(cli.verbose, cli.json_logging);
+    let cli = match Cli::try_parse() {
+        Ok(cli) => {
+            logutil::init(cli.verbose, cli.json_logging);
+            cli
+        }
+        Err(e) => {
+            logutil::init(Verbosity::Trace, true);
+            error!(%e, "failed to parse args");
+            std::process::exit(1);
+        }
+    };
 
     let version = buildenv::git_tag();
     info!(%version, "starting...");
@@ -88,20 +107,21 @@ fn main() -> Result<()> {
             ssl_server_key,
             api_addr,
         } => {
-            let runtime = build_runtime()?;
+            let runtime = build_runtime("pgsrv")?;
             runtime.block_on(async move {
                 let pg_listener = TcpListener::bind(bind).await?;
                 let proxy = Proxy::new(api_addr, ssl_server_cert, ssl_server_key).await?;
                 proxy.serve(pg_listener).await
             })?;
         }
+        Commands::Metastore { bind } => begin_metastore(&bind)?,
     }
 
     Ok(())
 }
 
 fn begin_server(config: DbConfig, pg_bind: &str) -> Result<()> {
-    let runtime = build_runtime()?;
+    let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
@@ -110,12 +130,21 @@ fn begin_server(config: DbConfig, pg_bind: &str) -> Result<()> {
     })
 }
 
-fn build_runtime() -> Result<Runtime> {
+fn begin_metastore(bind: &str) -> Result<()> {
+    let addr: SocketAddr = bind.parse()?;
+    let runtime = build_runtime("metastore")?;
+    runtime.block_on(async move {
+        let metastore = Metastore::new()?;
+        metastore.serve(addr).await
+    })
+}
+
+fn build_runtime(thread_label: &'static str) -> Result<Runtime> {
     let runtime = Builder::new_multi_thread()
-        .thread_name_fn(|| {
+        .thread_name_fn(move || {
             static THREAD_ID: AtomicU64 = AtomicU64::new(0);
             let id = THREAD_ID.fetch_add(1, Ordering::Relaxed);
-            format!("glaredb-thread-{}", id)
+            format!("{}-thread-{}", thread_label, id)
         })
         .enable_all()
         .build()?;

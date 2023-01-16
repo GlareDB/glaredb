@@ -17,6 +17,20 @@ pub struct Service {
     catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>, // Fancy!
 }
 
+impl Service {
+    pub fn new() -> Service {
+        Service {
+            catalogs: RwLock::new(HashMap::new()),
+        }
+    }
+}
+
+impl Default for Service {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl MetastoreService for Service {
     async fn initialize_catalog(
@@ -109,9 +123,7 @@ mod tests {
     use crate::types::service::{CreateSchema, Mutation};
 
     fn new_service() -> Service {
-        Service {
-            catalogs: RwLock::new(HashMap::new()),
-        }
+        Service::new()
     }
 
     #[tokio::test]
