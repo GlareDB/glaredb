@@ -2,7 +2,6 @@ use config::{builder::DefaultState, Config, ConfigBuilder, Environment, File, Fi
 use serde::{Deserialize, Serialize};
 
 use crate::access::ObjectStoreConfig;
-use crate::background::BackgroundConfig;
 use crate::cloud::CloudConfig;
 use crate::errors::Result;
 
@@ -15,7 +14,6 @@ const SEPARATOR: &str = "__";
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct DbConfig {
     pub access: ObjectStoreConfig,
-    pub background: BackgroundConfig,
     pub cloud: CloudConfig,
 }
 
