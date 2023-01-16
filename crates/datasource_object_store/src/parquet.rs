@@ -1,39 +1,65 @@
 //! Helpers for handling parquet files.
 use std::any::Any;
-use std::fmt;
 use std::ops::Range;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
+use async_trait::async_trait;
 use bytes::Bytes;
-use datafusion::arrow::datatypes::{SchemaRef as ArrowSchemaRef, SchemaRef};
-use datafusion::arrow::error::Result as ArrowResult;
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::config::ConfigOptions;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
+use datafusion::datasource::object_store::ObjectStoreUrl;
+use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::TaskContext;
-use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::TableType;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
-use datafusion::parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
+use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::display::DisplayFormatType;
-use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+use datafusion::physical_plan::file_format::{
+    FileMeta, FileScanConfig, ParquetExec, ParquetFileReaderFactory,
 };
+use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
+use datafusion::prelude::Expr;
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
-use futures::stream::{BoxStream, StreamExt, TryStreamExt};
-use futures::{ready, Stream};
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::errors::Result;
+use crate::TableAccessor;
 
-pub type ParquetStreamOpenFuture =
-    BoxFuture<'static, Result<BoxStream<'static, ArrowResult<RecordBatch>>>>;
+/// Custom `ParquetFileReaderFactory` to provide a custom datasource in
+/// `ParquetExec` instead of datafusion Object Store registry
+#[derive(Debug)]
+pub struct SimpleParquetFileReaderFactory {
+    /// Object Store to read from
+    store: Arc<dyn ObjectStore>,
+}
 
-/// Implement parquet's `AsyncFileReader` interface.
+impl SimpleParquetFileReaderFactory {
+    pub fn new(store: Arc<dyn ObjectStore>) -> Self {
+        Self { store }
+    }
+}
+
+impl ParquetFileReaderFactory for SimpleParquetFileReaderFactory {
+    fn create_reader(
+        &self,
+        _partition_index: usize,
+        file_meta: FileMeta,
+        metadata_size_hint: Option<usize>,
+        _metrics: &ExecutionPlanMetricsSet,
+    ) -> Result<Box<dyn AsyncFileReader + Send>, DataFusionError> {
+        Ok(Box::new(ParquetObjectReader {
+            store: self.store.clone(),
+            meta: Arc::new(file_meta.object_meta),
+            meta_size_hint: metadata_size_hint,
+        }))
+    }
+}
+
+/// A Parquet file reader using the `AsyncFileReader` interface.
 #[derive(Debug)]
 pub struct ParquetObjectReader {
     pub store: Arc<dyn ObjectStore>,
@@ -41,6 +67,7 @@ pub struct ParquetObjectReader {
     pub meta_size_hint: Option<usize>,
 }
 
+/// Implement parquet's `AsyncFileReader` interface.
 impl AsyncFileReader for ParquetObjectReader {
     fn get_bytes(&mut self, range: Range<usize>) -> BoxFuture<'_, ParquetResult<Bytes>> {
         self.store
@@ -72,127 +99,48 @@ impl AsyncFileReader for ParquetObjectReader {
     }
 }
 
-/// Open and stream the parquet file from object storage.
-pub struct ParquetOpener {
-    pub store: Arc<dyn ObjectStore>,
-    pub meta: Arc<ObjectMeta>,
-    pub meta_size_hint: Option<usize>,
-    pub projection: Option<Vec<usize>>,
+/// Table provider for Parquet table
+pub struct ParquetTableProvider<T>
+where
+    T: TableAccessor,
+{
+    pub(crate) predicate_pushdown: bool,
+    pub(crate) accessor: T,
+    /// Schema for parquet file
+    pub(crate) arrow_schema: ArrowSchemaRef,
 }
 
-impl ParquetOpener {
-    pub fn open(&self) -> Result<ParquetStreamOpenFuture> {
+impl<T> ParquetTableProvider<T>
+where
+    T: TableAccessor,
+{
+    pub async fn from_table_accessor(
+        accessor: T,
+        predicate_pushdown: bool,
+    ) -> Result<ParquetTableProvider<T>> {
         let reader = ParquetObjectReader {
-            store: self.store.clone(),
-            meta: self.meta.clone(),
-            meta_size_hint: self.meta_size_hint,
+            store: accessor.store().clone(),
+            meta: accessor.object_meta().clone(),
+            meta_size_hint: None,
         };
 
-        let projection = self.projection.clone();
+        let reader = ParquetRecordBatchStreamBuilder::new(reader).await?;
 
-        Ok(Box::pin(async move {
-            let read_opts = ArrowReaderOptions::new().with_page_index(true);
-            let mut builder =
-                ParquetRecordBatchStreamBuilder::new_with_options(reader, read_opts).await?;
+        let arrow_schema = reader.schema().clone();
 
-            if let Some(projection) = projection {
-                // Parquet schemas are tree like in that each field may contain
-                // nested fields (e.g. a struct).
-                //
-                // "roots" here indicates we're masking on the top-level fields.
-                let mask = ProjectionMask::roots(builder.parquet_schema(), projection);
-                builder = builder.with_projection(mask);
-            }
-
-            let reader = builder.build()?.map_err(|e| e.into());
-
-            let stream = Box::pin(reader) as BoxStream<'_, _>;
-            Ok(stream)
-        }))
+        Ok(ParquetTableProvider {
+            predicate_pushdown,
+            accessor,
+            arrow_schema,
+        })
     }
 }
 
-pub(crate) enum StreamState {
-    /// File is not currently being read.
-    Idle,
-    /// File is being opened.
-    Open { fut: ParquetStreamOpenFuture },
-    /// The file completed opening with the given stream.
-    Scan {
-        stream: BoxStream<'static, ArrowResult<RecordBatch>>,
-    },
-    /// Done scanning.
-    Done,
-    /// Encountered an error.
-    Error,
-}
-
-pub struct ParquetFileStream {
-    pub(crate) schema: SchemaRef,
-    pub(crate) opener: ParquetOpener,
-    pub(crate) state: StreamState,
-}
-
-impl ParquetFileStream {
-    fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<ArrowResult<RecordBatch>>> {
-        loop {
-            match &mut self.state {
-                StreamState::Idle => match self.opener.open() {
-                    Ok(fut) => {
-                        self.state = StreamState::Open { fut };
-                    }
-                    Err(e) => {
-                        self.state = StreamState::Error;
-                        return Poll::Ready(Some(Err(e.into())));
-                    }
-                },
-                StreamState::Open { fut } => match ready!(fut.poll_unpin(cx)) {
-                    Ok(stream) => {
-                        self.state = StreamState::Scan { stream };
-                    }
-                    Err(e) => {
-                        self.state = StreamState::Error;
-                        return Poll::Ready(Some(Err(e.into())));
-                    }
-                },
-                StreamState::Scan { stream } => match ready!(stream.poll_next_unpin(cx)) {
-                    Some(result) => {
-                        return Poll::Ready(Some(result));
-                    }
-                    None => {
-                        self.state = StreamState::Done;
-                    }
-                },
-                StreamState::Done | StreamState::Error => return Poll::Ready(None),
-            }
-        }
-    }
-}
-
-impl Stream for ParquetFileStream {
-    type Item = ArrowResult<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.poll_inner(cx)
-    }
-}
-
-impl RecordBatchStream for ParquetFileStream {
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
-    }
-}
-
-/// Retrive data from object storage with a parquet stream reader
-#[derive(Debug)]
-pub(crate) struct ParquetExec {
-    pub(crate) arrow_schema: ArrowSchemaRef,
-    pub(crate) store: Arc<dyn ObjectStore>,
-    pub(crate) meta: Arc<ObjectMeta>,
-    pub(crate) projection: Option<Vec<usize>>,
-}
-
-impl ExecutionPlan for ParquetExec {
+#[async_trait]
+impl<T> TableProvider for ParquetTableProvider<T>
+where
+    T: TableAccessor + 'static,
+{
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -201,53 +149,51 @@ impl ExecutionPlan for ParquetExec {
         self.arrow_schema.clone()
     }
 
-    fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
+    fn table_type(&self) -> TableType {
+        TableType::View
     }
 
-    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        None
-    }
-
-    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        Vec::new()
-    }
-
-    fn with_new_children(
-        self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
-    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for ParquetExec".to_string(),
-        ))
-    }
-
-    fn execute(
+    async fn scan(
         &self,
-        _partition: usize,
-        _context: Arc<TaskContext>,
-    ) -> DatafusionResult<SendableRecordBatchStream> {
-        let opener = ParquetOpener {
-            store: self.store.clone(),
-            meta: self.meta.clone(),
-            meta_size_hint: None,
-            projection: self.projection.clone(),
+        _ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let predicate = if self.predicate_pushdown {
+            filters
+                .iter()
+                .cloned()
+                .reduce(|accum, expr| accum.and(expr))
+        } else {
+            None
         };
 
-        let stream = ParquetFileStream {
-            schema: self.arrow_schema.clone(),
-            opener,
-            state: StreamState::Idle,
+        let file = self.accessor.object_meta().as_ref().clone().into();
+
+        let base_config = FileScanConfig {
+            // `object_store_url` will be ignored as we are providing a
+            // `SimpleParquetFileReaderFactory` to `ParquetExec` to use instead of the
+            // datafusion object store registry.
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_schema: self.arrow_schema.clone(),
+            file_groups: vec![vec![file]],
+            statistics: Statistics::default(),
+            projection: projection.cloned(),
+            limit,
+            table_partition_cols: Vec::new(),
+            output_ordering: None,
+            config_options: ConfigOptions::new().into_shareable(),
         };
 
-        Ok(Box::pin(stream))
-    }
+        let factory = Arc::new(SimpleParquetFileReaderFactory::new(
+            self.accessor.store().clone(),
+        ));
 
-    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ParquetExec: location={}", self.meta.location)
-    }
+        let exec = ParquetExec::new(base_config, predicate, None)
+            .with_parquet_file_reader_factory(factory)
+            .with_pushdown_filters(self.predicate_pushdown);
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+        Ok(Arc::new(exec))
     }
 }
