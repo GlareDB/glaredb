@@ -146,7 +146,7 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
             "gcs" => {
-                let service_acccount_key_json = remove_required_opt(m, "gcs_service_account_key")?;
+                let service_acccount_key_json = remove_required_opt(m, "gcp_service_account_key")?;
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let table_location = remove_required_opt(m, "location")?;
                 CreateExternalTable {
