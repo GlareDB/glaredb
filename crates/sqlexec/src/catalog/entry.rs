@@ -100,6 +100,7 @@ pub enum TableOptions {
     None,
     Debug { typ: DebugTableType },
     Postgres { schema: String, table: String },
+    BigQuery { dataset_id: String, table_id: String }
 }
 
 #[derive(Debug, Clone)]
@@ -167,6 +168,7 @@ impl From<&ColumnDefinition> for Field {
 pub enum ConnectionMethod {
     Debug,
     Postgres { connection_string: String },
+    BigQuery { service_account_key: String, project_id: String }
 }
 
 impl fmt::Display for ConnectionMethod {
@@ -177,6 +179,7 @@ impl fmt::Display for ConnectionMethod {
             match self {
                 ConnectionMethod::Debug => "debug",
                 ConnectionMethod::Postgres { .. } => "postgres",
+                ConnectionMethod::BigQuery { .. } => "bigquery",
             }
         )
     }
