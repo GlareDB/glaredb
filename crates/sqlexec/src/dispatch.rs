@@ -13,7 +13,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
-use datasource_bigquery::BigQueryAccessor;
+use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_object_store::gcs::GcsAccessor;
 use datasource_object_store::local::LocalAccessor;
 use datasource_object_store::s3::S3Accessor;
@@ -180,6 +180,45 @@ impl<'a> SessionDispatcher<'a> {
                                     Handle::current().block_on(async move {
                                         let accessor =
                                             PostgresAccessor::connect(table_access).await?;
+                                        let provider = accessor
+                                            .into_table_provider(predicate_pushdown)
+                                            .await?;
+                                        Ok(provider)
+                                    })
+                                });
+                            let provider = result?;
+                            Ok(Some(Arc::new(provider)))
+                        }
+                        (
+                            TableOptions::BigQuery {
+                                dataset_id,
+                                table_id,
+                            },
+                            ConnectionEntry {
+                                method:
+                                    ConnectionMethod::BigQuery {
+                                        service_account_key,
+                                        project_id,
+                                    },
+                                ..
+                            },
+                        ) => {
+                            let table_access = BigQueryTableAccess {
+                                gcp_service_acccount_key_json: service_account_key.clone(),
+                                gcp_project_id: project_id.clone(),
+                                dataset_id: dataset_id.clone(),
+                                table_id: table_id.clone(),
+                            };
+                            let predicate_pushdown = *self
+                                .ctx
+                                .get_session_vars()
+                                .bigquery_predicate_pushdown
+                                .value();
+                            let result: Result<_, datasource_bigquery::errors::BigQueryError> =
+                                task::block_in_place(move || {
+                                    Handle::current().block_on(async move {
+                                        let accessor =
+                                            BigQueryAccessor::connect(table_access).await?;
                                         let provider = accessor
                                             .into_table_provider(predicate_pushdown)
                                             .await?;

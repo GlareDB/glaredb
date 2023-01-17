@@ -50,6 +50,17 @@ impl<'a> SessionPlanner<'a> {
                     method: ConnectionMethod::Postgres { connection_string },
                 }
             }
+            "bigquery" => {
+                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let project_id = remove_required_opt(m, "project_id")?;
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::BigQuery {
+                        service_account_key,
+                        project_id,
+                    },
+                }
+            }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
                 CreateConnection {
                     connection_name: stmt.name,
@@ -93,6 +104,19 @@ impl<'a> SessionPlanner<'a> {
                         table_options: TableOptions::Postgres {
                             schema: source_schema,
                             table: source_table,
+                        },
+                    }
+                }
+                ConnectionMethod::BigQuery { .. } => {
+                    let dataset_id = remove_required_opt(m, "dataset_id")?;
+                    let table_id = remove_required_opt(m, "table_id")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::BigQuery {
+                            dataset_id,
+                            table_id,
                         },
                     }
                 }
