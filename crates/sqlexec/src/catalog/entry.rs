@@ -112,6 +112,10 @@ pub enum TableOptions {
     Local {
         location: String,
     },
+    Gcs {
+        bucket_name: String,
+        location: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -186,6 +190,9 @@ pub enum ConnectionMethod {
         project_id: String,
     },
     Local,
+    Gcs {
+        service_account_key: String,
+    },
 }
 
 impl fmt::Display for ConnectionMethod {
@@ -198,6 +205,7 @@ impl fmt::Display for ConnectionMethod {
                 ConnectionMethod::Postgres { .. } => "postgres",
                 ConnectionMethod::BigQuery { .. } => "bigquery",
                 ConnectionMethod::Local => "local",
+                ConnectionMethod::Gcs { .. } => "gcs",
             }
         )
     }

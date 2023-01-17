@@ -14,7 +14,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_object_store::gcs::GcsAccessor;
+use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::S3Accessor;
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
@@ -244,6 +244,37 @@ impl<'a> SessionDispatcher<'a> {
                             > = task::block_in_place(move || {
                                 Handle::current().block_on(async move {
                                     let accessor = LocalAccessor::new(table_access).await?;
+                                    let provider = accessor.into_table_provider(true).await?;
+                                    Ok(provider)
+                                })
+                            });
+                            let provider = result?;
+                            Ok(Some(Arc::new(provider)))
+                        }
+                        (
+                            TableOptions::Gcs {
+                                bucket_name,
+                                location,
+                            },
+                            ConnectionEntry {
+                                method:
+                                    ConnectionMethod::Gcs {
+                                        service_account_key,
+                                    },
+                                ..
+                            },
+                        ) => {
+                            let table_access = GcsTableAccess {
+                                service_acccount_key_json: service_account_key.clone(),
+                                bucket_name: bucket_name.clone(),
+                                location: location.clone(),
+                            };
+                            let result: Result<
+                                _,
+                                datasource_object_store::errors::ObjectStoreSourceError,
+                            > = task::block_in_place(move || {
+                                Handle::current().block_on(async move {
+                                    let accessor = GcsAccessor::new(table_access).await?;
                                     let provider = accessor.into_table_provider(true).await?;
                                     Ok(provider)
                                 })
