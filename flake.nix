@@ -204,7 +204,14 @@
           # GlareDB image.
           glaredb-image = mkContainer {
             name = "glaredb";
-            contents = [pkgs.cacert config-directory packages.glaredb-bin];
+            contents = [
+              pkgs.cacert
+              config-directory
+              packages.glaredb-bin
+              # Generated certs used for SSL connections in pgsrv. GlareDB
+              # proper does not currently use certs.
+              generated-certs
+            ];
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 
