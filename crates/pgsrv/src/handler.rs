@@ -91,7 +91,7 @@ impl ProtocolHandler {
     /// Runs the postgres protocol for a connection to completion.
     async fn begin<C>(
         &self,
-        id: Uuid,
+        conn_id: Uuid,
         conn: Connection<C>,
         params: HashMap<String, String>,
     ) -> Result<()>
@@ -128,10 +128,7 @@ impl ProtocolHandler {
             None => return Ok(()),
         }
 
-        // TODO: Use database id here to create new session.
-        _ = db_id;
-
-        let mut sess = match self.engine.new_session(id) {
+        let mut sess = match self.engine.new_session(conn_id, db_id).await {
             Ok(sess) => sess,
             Err(e) => {
                 framed
@@ -147,6 +144,10 @@ impl ProtocolHandler {
         // Set params provided on startup.
         //
         // Note that we're ignoring unknown params.
+        //
+        // TODO: We might also want to filter out custom params that pgsrv sets.
+        // No harm leaving those in for now, will just get some additional trace
+        // logs.
         let vars = sess.get_session_vars_mut();
         for (key, val) in &params {
             if let Err(e) = vars.set(key, val) {
@@ -310,7 +311,10 @@ where
             const UNNAMED: String = String::new();
 
             // Parse...
-            if let Err(e) = session.prepare_statement(UNNAMED, Some(stmt), Vec::new()) {
+            if let Err(e) = session
+                .prepare_statement(UNNAMED, Some(stmt), Vec::new())
+                .await
+            {
                 self.send_error(e.into()).await?;
                 return self.ready_for_query().await;
             };
@@ -395,6 +399,7 @@ where
         match self
             .session
             .prepare_statement(name, stmts.pop_front(), param_types)
+            .await
         {
             Ok(_) => self.conn.send(BackendMessage::ParseComplete).await,
             Err(e) => self.send_error(e.into()).await,

@@ -32,6 +32,19 @@ pub enum ExecError {
     #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<StatementWithExtensions>),
 
+    // TODO: Need to be more granular about errors from Metastore.
+    #[error("Failed Metastore request: {0}")]
+    MetastoreTonic(#[from] tonic::Status),
+
+    #[error("Metastore database worker overloaded.")]
+    MetastoreDatabaseWorkerOverload,
+
+    #[error(transparent)]
+    Metastore(#[from] metastore::errors::MetastoreError),
+
+    #[error(transparent)]
+    ProtoConvError(#[from] metastore::types::ProtoConvError),
+
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
 

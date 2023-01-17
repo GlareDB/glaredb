@@ -18,6 +18,8 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
+use metastore::session::SessionCatalog;
+use metastore::types::catalog::EntryType;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -52,11 +54,14 @@ impl<'a> SessionDispatcher<'a> {
                 name: schema.to_string(),
             })?;
 
+        // TODO
+        let sess_catalog = self.ctx.get_session_catalog();
+
         // Check table entries first.
         if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
             return match &table.access {
                 AccessOrConnection::Access(AccessMethod::System) => {
-                    let table = SystemTableDispatcher::new(&StubCatalogContext, catalog)
+                    let table = SystemTableDispatcher::new(&StubCatalogContext, sess_catalog)
                         .dispatch(schema, name)?;
                     Ok(Some(table))
                 }
@@ -348,11 +353,11 @@ impl<'a> SessionDispatcher<'a> {
 /// Dispatch to builtin system tables.
 struct SystemTableDispatcher<'a, C> {
     ctx: &'a C,
-    catalog: &'a Catalog,
+    catalog: &'a SessionCatalog,
 }
 
 impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
-    fn new(ctx: &'a C, catalog: &'a Catalog) -> Self {
+    fn new(ctx: &'a C, catalog: &'a SessionCatalog) -> Self {
         SystemTableDispatcher { ctx, catalog }
     }
 
@@ -379,8 +384,12 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
     fn build_glare_schemas(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_SCHEMAS.arrow_schema());
         let mut schema_names = StringBuilder::new();
-        for schema in self.catalog.schemas.iter(self.ctx) {
-            schema_names.append_value(&schema.name);
+        for schema in self
+            .catalog
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Schema)
+        {
+            schema_names.append_value(&schema.entry.get_meta().name);
         }
         let batch =
             RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schema_names.finish())])
@@ -396,13 +405,18 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
         let mut column_counts = UInt32Builder::new();
         let mut accesses = StringBuilder::new();
 
-        for schema in self.catalog.schemas.iter(self.ctx) {
-            for table in schema.tables.iter(self.ctx) {
-                schema_names.append_value(&table.schema);
-                table_names.append_value(&table.name);
-                column_counts.append_value(table.columns.len() as u32);
-                accesses.append_value(table.access.to_string());
-            }
+        for table in self.catalog.iter_entries().filter(|ent| {
+            ent.entry_type() == EntryType::Table || ent.entry_type() == EntryType::ExternalTable
+        }) {
+            schema_names.append_value(
+                &table
+                    .schema_entry
+                    .map(|schema| schema.get_meta().name.as_str())
+                    .unwrap_or("<invalid>"),
+            );
+            table_names.append_value(&table.entry.get_meta().name);
+            column_counts.append_value(0);
+            accesses.append_value("hello");
         }
 
         let batch = RecordBatch::try_new(
@@ -429,18 +443,19 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
         let mut data_types = StringBuilder::new();
         let mut is_nullables = BooleanBuilder::new();
 
-        for schema in self.catalog.schemas.iter(self.ctx) {
-            for table in schema.tables.iter(self.ctx) {
-                for (i, col) in table.columns.iter().enumerate() {
-                    schema_names.append_value(&table.schema);
-                    table_names.append_value(&table.name);
-                    column_names.append_value(&col.name);
-                    column_indexes.append_value(i as u32);
-                    data_types.append_value(col.datatype.to_string());
-                    is_nullables.append_value(col.nullable);
-                }
-            }
-        }
+        // TODO
+        // for schema in self.catalog.schemas.iter(self.ctx) {
+        //     for table in schema.tables.iter(self.ctx) {
+        //         for (i, col) in table.columns.iter().enumerate() {
+        //             schema_names.append_value(&table.schema);
+        //             table_names.append_value(&table.name);
+        //             column_names.append_value(&col.name);
+        //             column_indexes.append_value(i as u32);
+        //             data_types.append_value(col.datatype.to_string());
+        //             is_nullables.append_value(col.nullable);
+        //         }
+        //     }
+        // }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
@@ -465,13 +480,14 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
         let mut view_names = StringBuilder::new();
         let mut sqls = StringBuilder::new();
 
-        for schema in self.catalog.schemas.iter(self.ctx) {
-            for view in schema.views.iter(self.ctx) {
-                schema_names.append_value(&view.schema);
-                view_names.append_value(&view.name);
-                sqls.append_value(&view.sql);
-            }
-        }
+        // TODO
+        // for schema in self.catalog.schemas.iter(self.ctx) {
+        //     for view in schema.views.iter(self.ctx) {
+        //         schema_names.append_value(&view.schema);
+        //         view_names.append_value(&view.name);
+        //         sqls.append_value(&view.sql);
+        //     }
+        // }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
@@ -493,13 +509,14 @@ impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
         let mut view_names = StringBuilder::new();
         let mut methods = StringBuilder::new();
 
-        for schema in self.catalog.schemas.iter(self.ctx) {
-            for connection in schema.connections.iter(self.ctx) {
-                schema_names.append_value(&connection.schema);
-                view_names.append_value(&connection.name);
-                methods.append_value(connection.method.to_string());
-            }
-        }
+        // TODO
+        // for schema in self.catalog.schemas.iter(self.ctx) {
+        //     for connection in schema.connections.iter(self.ctx) {
+        //         schema_names.append_value(&connection.schema);
+        //         view_names.append_value(&connection.name);
+        //         methods.append_value(connection.method.to_string());
+        //     }
+        // }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),

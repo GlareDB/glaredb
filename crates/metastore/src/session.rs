@@ -1,4 +1,5 @@
-use crate::types::catalog::{CatalogEntry, CatalogState, SchemaEntry};
+use crate::proto::service::metastore_service_client::MetastoreServiceClient;
+use crate::types::catalog::{CatalogEntry, CatalogState, EntryType, SchemaEntry};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
@@ -17,17 +18,26 @@ pub struct SessionCatalog {
 }
 
 impl SessionCatalog {
-    /// Maybe swap the session local catalog with a new catalog state.
-    ///
-    /// This will only swap if the new state contains a catalog state with a
-    /// newer version.
-    // TODO: This should also _not_ swap if inside a transaction.
-    pub fn maybe_swap(&mut self, new_state: &Arc<CatalogState>) {
-        if self.state.version < new_state.version {
-            debug!(old = %self.state.version, new = %new_state.version, "swapping catalog");
-            self.state = new_state.clone();
-            self.rebuild_name_maps();
-        }
+    /// Create a new session catalog with an initial state.
+    pub fn new(state: Arc<CatalogState>) -> SessionCatalog {
+        let mut catalog = SessionCatalog {
+            state,
+            schema_names: HashMap::new(),
+            schema_objects: HashMap::new(),
+        };
+        catalog.rebuild_name_maps();
+        catalog
+    }
+
+    /// Get the version of this catalog state.
+    pub fn version(&self) -> u64 {
+        self.state.version
+    }
+
+    /// Swap the underlying state of the catalog.
+    pub fn swap_state(&mut self, new_state: Arc<CatalogState>) {
+        self.state = new_state;
+        self.rebuild_name_maps();
     }
 
     /// Resolve a schema by name.
@@ -74,6 +84,25 @@ impl SessionCatalog {
         Some(ent)
     }
 
+    /// Iterate over all entries in this catalog.
+    ///
+    /// All non-schema entries will also include an entry pointing to its parent
+    /// schema.
+    pub fn iter_entries(&self) -> impl Iterator<Item = NamespacedCatalogEntry> {
+        self.state.entries.iter().map(|(oid, entry)| {
+            let schema_entry = if !entry.is_schema() {
+                Some(self.state.entries.get(&entry.get_meta().parent).unwrap()) // Bug if it doesn't exist.
+            } else {
+                None
+            };
+            NamespacedCatalogEntry {
+                oid: *oid,
+                schema_entry,
+                entry,
+            }
+        })
+    }
+
     fn rebuild_name_maps(&mut self) {
         self.schema_names.clear();
         self.schema_objects.clear();
@@ -97,4 +126,23 @@ impl SessionCatalog {
 struct SchemaObjects {
     /// Maps names to ids in this schema.
     objects: HashMap<String, u32>,
+}
+
+/// An entry that's possibly namespaces by a schema.
+#[derive(Debug)]
+pub struct NamespacedCatalogEntry<'a> {
+    /// The OID of the entry.
+    pub oid: u32,
+    /// The parent schema for this entry. This will be `None` when the entry
+    /// itself is a schema.
+    pub schema_entry: Option<&'a CatalogEntry>,
+    /// The entry.
+    pub entry: &'a CatalogEntry,
+}
+
+impl NamespacedCatalogEntry<'_> {
+    /// Get the entry type for this entry.
+    pub fn entry_type(&self) -> EntryType {
+        self.entry.get_meta().entry_type
+    }
 }

@@ -3847,6 +3847,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "logutil",
+ "metastore",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -3861,6 +3862,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tonic",
  "tracing",
  "uuid",
 ]

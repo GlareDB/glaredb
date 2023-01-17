@@ -29,7 +29,7 @@ pub struct Catalog {
 
 impl Catalog {
     /// Open a catalog.
-    pub async fn open() -> Result<Catalog> {
+    pub fn open() -> Result<Catalog> {
         let catalog = Catalog {
             version: AtomicU64::new(0),
             schemas: EntrySet::new(),

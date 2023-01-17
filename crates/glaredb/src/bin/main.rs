@@ -40,6 +40,10 @@ enum Commands {
         #[clap(short, long, value_parser)]
         db_name: Option<String>,
 
+        /// Address to the Metastore.
+        #[clap(short, long, value_parser, default_value_t = String::from("http://localhost:6545"))]
+        metastore_addr: String,
+
         /// Path to config file
         #[clap(short, long, value_parser)]
         config: Option<String>,
@@ -100,17 +104,10 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Server {
             bind,
-            db_name,
-            config,
+            metastore_addr,
             local,
         } => {
-            // Use clap values as default
-            let config: DbConfig = DbConfig::base(config)
-                .set_override_option("access.db_name", db_name)?
-                .build()?
-                .try_deserialize()?;
-
-            begin_server(config, &bind, local)?;
+            begin_server(&bind, metastore_addr, local)?;
         }
         Commands::Proxy {
             bind,
@@ -131,12 +128,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server(config: DbConfig, pg_bind: &str, local: bool) -> Result<()> {
+fn begin_server(pg_bind: &str, metastore_addr: String, local: bool) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(config, local).await?;
+        let server = Server::connect(metastore_addr, local).await?;
         server.serve(conf).await
     })
 }
