@@ -61,6 +61,10 @@ impl<'a> SessionPlanner<'a> {
                     },
                 }
             }
+            "local" => CreateConnection {
+                connection_name: stmt.name,
+                method: ConnectionMethod::Local,
+            },
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
                 CreateConnection {
                     connection_name: stmt.name,
@@ -118,6 +122,15 @@ impl<'a> SessionPlanner<'a> {
                             dataset_id,
                             table_id,
                         },
+                    }
+                }
+                ConnectionMethod::Local => {
+                    let location = remove_required_opt(m, "location")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::Local { location },
                     }
                 }
             };

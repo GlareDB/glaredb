@@ -109,6 +109,9 @@ pub enum TableOptions {
         dataset_id: String,
         table_id: String,
     },
+    Local {
+        location: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -182,6 +185,7 @@ pub enum ConnectionMethod {
         service_account_key: String,
         project_id: String,
     },
+    Local,
 }
 
 impl fmt::Display for ConnectionMethod {
@@ -193,6 +197,7 @@ impl fmt::Display for ConnectionMethod {
                 ConnectionMethod::Debug => "debug",
                 ConnectionMethod::Postgres { .. } => "postgres",
                 ConnectionMethod::BigQuery { .. } => "bigquery",
+                ConnectionMethod::Local => "local",
             }
         )
     }

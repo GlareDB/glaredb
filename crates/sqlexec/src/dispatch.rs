@@ -15,7 +15,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_object_store::gcs::GcsAccessor;
-use datasource_object_store::local::LocalAccessor;
+use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::S3Accessor;
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use std::sync::Arc;
@@ -225,6 +225,29 @@ impl<'a> SessionDispatcher<'a> {
                                         Ok(provider)
                                     })
                                 });
+                            let provider = result?;
+                            Ok(Some(Arc::new(provider)))
+                        }
+                        (
+                            TableOptions::Local { location },
+                            ConnectionEntry {
+                                method: ConnectionMethod::Local,
+                                ..
+                            },
+                        ) => {
+                            let table_access = LocalTableAccess {
+                                location: location.clone(),
+                            };
+                            let result: Result<
+                                _,
+                                datasource_object_store::errors::ObjectStoreSourceError,
+                            > = task::block_in_place(move || {
+                                Handle::current().block_on(async move {
+                                    let accessor = LocalAccessor::new(table_access).await?;
+                                    let provider = accessor.into_table_provider(true).await?;
+                                    Ok(provider)
+                                })
+                            });
                             let provider = result?;
                             Ok(Some(Arc::new(provider)))
                         }
