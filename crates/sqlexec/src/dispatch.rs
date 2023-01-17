@@ -217,9 +217,11 @@ impl<'a> SessionDispatcher<'a> {
                             let result: Result<_, datasource_bigquery::errors::BigQueryError> =
                                 task::block_in_place(move || {
                                     Handle::current().block_on(async move {
-                                        let accessor = BigQueryAccessor::connect(table_access).await?;
-                                        let provider =
-                                            accessor.into_table_provider(predicate_pushdown).await?;
+                                        let accessor =
+                                            BigQueryAccessor::connect(table_access).await?;
+                                        let provider = accessor
+                                            .into_table_provider(predicate_pushdown)
+                                            .await?;
                                         Ok(provider)
                                     })
                                 });
