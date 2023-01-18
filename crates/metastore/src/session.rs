@@ -1,8 +1,6 @@
-use crate::proto::service::metastore_service_client::MetastoreServiceClient;
 use crate::types::catalog::{CatalogEntry, CatalogState, EntryType, SchemaEntry};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::debug;
 
 /// The session local catalog.
 ///
@@ -97,6 +95,7 @@ impl SessionCatalog {
             };
             NamespacedCatalogEntry {
                 oid: *oid,
+                builtin: entry.get_meta().builtin,
                 schema_entry,
                 entry,
             }
@@ -133,6 +132,8 @@ struct SchemaObjects {
 pub struct NamespacedCatalogEntry<'a> {
     /// The OID of the entry.
     pub oid: u32,
+    /// Whether or not this entry is builtin.
+    pub builtin: bool,
     /// The parent schema for this entry. This will be `None` when the entry
     /// itself is a schema.
     pub schema_entry: Option<&'a CatalogEntry>,

@@ -1,8 +1,5 @@
 //! Adapter types for dispatching to table sources.
 use crate::catalog::access::AccessMethod;
-use crate::catalog::builtins::{
-    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
-};
 use crate::catalog::errors::{internal, CatalogError, Result};
 use crate::catalog::Catalog;
 use crate::context::SessionContext;
@@ -16,8 +13,13 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
+use metastore::builtins::{
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
+};
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{CatalogEntry, EntryType, ExternalTableEntry, ViewEntry};
+use metastore::types::catalog::{
+    CatalogEntry, ConnectionEntry, EntryType, ExternalTableEntry, ViewEntry,
+};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -47,7 +49,7 @@ impl<'a> SessionDispatcher<'a> {
                     name: name.to_string(),
                 })?;
 
-        // Only allow dispatching to types we can actually conver to a table
+        // Only allow dispatching to types we can actually convert to a table
         // provider.
         if !matches!(
             ent.entry_type(),
@@ -57,7 +59,7 @@ impl<'a> SessionDispatcher<'a> {
         }
 
         // Dispatch to system tables if builtin...
-        if ent.get_meta().builtin {
+        if ent.get_meta().builtin && ent.entry_type() == EntryType::Table {
             let table = SystemTableDispatcher::new(catalog).dispatch(schema, name)?;
             return Ok(table);
         }
@@ -81,7 +83,7 @@ impl<'a> SessionDispatcher<'a> {
 
     fn dispatch_external_table(
         &self,
-        table: &ExternalTableEntry,
+        _table: &ExternalTableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
         //     return match &table.access {
         //         AccessOrConnection::Access(AccessMethod::System) => {
@@ -393,31 +395,45 @@ impl<'a> SystemTableDispatcher<'a> {
 
     fn build_glare_schemas(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_SCHEMAS.arrow_schema());
+
+        let mut oids = UInt32Builder::new();
+        let mut builtins = BooleanBuilder::new();
         let mut schema_names = StringBuilder::new();
+
         for schema in self
             .catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Schema)
         {
+            oids.append_value(schema.oid);
+            builtins.append_value(schema.builtin);
             schema_names.append_value(&schema.entry.get_meta().name);
         }
-        let batch =
-            RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schema_names.finish())])
-                .unwrap();
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oids.finish()),
+                Arc::new(builtins.finish()),
+                Arc::new(schema_names.finish()),
+            ],
+        )
+        .unwrap();
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
     fn build_glare_tables(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_TABLES.arrow_schema());
 
+        let mut oids = UInt32Builder::new();
+        let mut builtins = BooleanBuilder::new();
         let mut schema_names = StringBuilder::new();
         let mut table_names = StringBuilder::new();
-        let mut column_counts = UInt32Builder::new();
-        let mut accesses = StringBuilder::new();
 
         for table in self.catalog.iter_entries().filter(|ent| {
             ent.entry_type() == EntryType::Table || ent.entry_type() == EntryType::ExternalTable
         }) {
+            oids.append_value(table.oid);
+            builtins.append_value(table.builtin);
             schema_names.append_value(
                 &table
                     .schema_entry
@@ -425,17 +441,15 @@ impl<'a> SystemTableDispatcher<'a> {
                     .unwrap_or("<invalid>"),
             );
             table_names.append_value(&table.entry.get_meta().name);
-            column_counts.append_value(0);
-            accesses.append_value("hello");
         }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
+                Arc::new(oids.finish()),
+                Arc::new(builtins.finish()),
                 Arc::new(schema_names.finish()),
                 Arc::new(table_names.finish()),
-                Arc::new(column_counts.finish()),
-                Arc::new(accesses.finish()),
             ],
         )
         .unwrap();
@@ -446,6 +460,7 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_columns(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_COLUMNS.arrow_schema());
 
+        let mut table_oids = UInt32Builder::new();
         let mut schema_names = StringBuilder::new();
         let mut table_names = StringBuilder::new();
         let mut column_names = StringBuilder::new();
@@ -453,23 +468,36 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut data_types = StringBuilder::new();
         let mut is_nullables = BooleanBuilder::new();
 
-        // TODO
-        // for schema in self.catalog.schemas.iter(self.ctx) {
-        //     for table in schema.tables.iter(self.ctx) {
-        //         for (i, col) in table.columns.iter().enumerate() {
-        //             schema_names.append_value(&table.schema);
-        //             table_names.append_value(&table.name);
-        //             column_names.append_value(&col.name);
-        //             column_indexes.append_value(i as u32);
-        //             data_types.append_value(col.datatype.to_string());
-        //             is_nullables.append_value(col.nullable);
-        //         }
-        //     }
-        // }
+        for table in self
+            .catalog
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Table)
+        {
+            let ent = match table.entry {
+                CatalogEntry::Table(ent) => ent,
+                other => panic!("unexpected entry type: {:?}", other), // Bug
+            };
+
+            for (i, col) in ent.columns.iter().enumerate() {
+                table_oids.append_value(table.oid);
+                schema_names.append_value(
+                    &table
+                        .schema_entry
+                        .map(|schema| schema.get_meta().name.as_str())
+                        .unwrap_or("<invalid>"),
+                );
+                table_names.append_value(&table.entry.get_meta().name);
+                column_names.append_value(&col.name);
+                column_indexes.append_value(i as u32);
+                data_types.append_value(col.arrow_type.to_string());
+                is_nullables.append_value(col.nullable);
+            }
+        }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
+                Arc::new(table_oids.finish()),
                 Arc::new(schema_names.finish()),
                 Arc::new(table_names.finish()),
                 Arc::new(column_names.finish()),
@@ -486,22 +514,39 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_views(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_VIEWS.arrow_schema());
 
+        let mut oids = UInt32Builder::new();
+        let mut builtins = BooleanBuilder::new();
         let mut schema_names = StringBuilder::new();
         let mut view_names = StringBuilder::new();
         let mut sqls = StringBuilder::new();
 
-        // TODO
-        // for schema in self.catalog.schemas.iter(self.ctx) {
-        //     for view in schema.views.iter(self.ctx) {
-        //         schema_names.append_value(&view.schema);
-        //         view_names.append_value(&view.name);
-        //         sqls.append_value(&view.sql);
-        //     }
-        // }
+        for view in self
+            .catalog
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::View)
+        {
+            let ent = match view.entry {
+                CatalogEntry::View(ent) => ent,
+                other => panic!("unexpected catalog entry: {:?}", other), // Bug
+            };
+
+            oids.append_value(view.oid);
+            builtins.append_value(view.builtin);
+            schema_names.append_value(
+                &view
+                    .schema_entry
+                    .map(|schema| schema.get_meta().name.as_str())
+                    .unwrap_or("<invalid>"),
+            );
+            view_names.append_value(&view.entry.get_meta().name);
+            sqls.append_value(&ent.sql);
+        }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
+                Arc::new(oids.finish()),
+                Arc::new(builtins.finish()),
                 Arc::new(schema_names.finish()),
                 Arc::new(view_names.finish()),
                 Arc::new(sqls.finish()),
@@ -515,25 +560,42 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_connections(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_CONNECTIONS.arrow_schema());
 
+        let mut oids = UInt32Builder::new();
+        let mut builtins = BooleanBuilder::new();
         let mut schema_names = StringBuilder::new();
-        let mut view_names = StringBuilder::new();
-        let mut methods = StringBuilder::new();
+        let mut connection_names = StringBuilder::new();
+        let mut connection_types = StringBuilder::new();
 
-        // TODO
-        // for schema in self.catalog.schemas.iter(self.ctx) {
-        //     for connection in schema.connections.iter(self.ctx) {
-        //         schema_names.append_value(&connection.schema);
-        //         view_names.append_value(&connection.name);
-        //         methods.append_value(connection.method.to_string());
-        //     }
-        // }
+        for conn in self
+            .catalog
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Connection)
+        {
+            let ent = match conn.entry {
+                CatalogEntry::Connection(ent) => ent,
+                other => panic!("unexpected catalog entry: {:?}", other), // Bug
+            };
+
+            oids.append_value(conn.oid);
+            builtins.append_value(conn.builtin);
+            schema_names.append_value(
+                &conn
+                    .schema_entry
+                    .map(|schema| schema.get_meta().name.as_str())
+                    .unwrap_or("<invalid>"),
+            );
+            connection_names.append_value(&conn.entry.get_meta().name);
+            connection_types.append_value(ent.options.to_string());
+        }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
+                Arc::new(oids.finish()),
+                Arc::new(builtins.finish()),
                 Arc::new(schema_names.finish()),
-                Arc::new(view_names.finish()),
-                Arc::new(methods.finish()),
+                Arc::new(connection_names.finish()),
+                Arc::new(connection_types.finish()),
             ],
         )
         .unwrap();

@@ -2311,6 +2311,7 @@ dependencies = [
  "object_store",
  "once_cell",
  "parking_lot",
+ "pgrepr",
  "proptest",
  "proptest-derive",
  "prost",

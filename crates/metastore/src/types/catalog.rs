@@ -90,12 +90,12 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
     fn try_from(value: catalog::catalog_entry::Entry) -> Result<Self, Self::Error> {
         Ok(match value {
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
+            catalog::catalog_entry::Entry::Table(v) => CatalogEntry::Table(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
             catalog::catalog_entry::Entry::Connection(v) => CatalogEntry::Connection(v.try_into()?),
             catalog::catalog_entry::Entry::ExternalTable(v) => {
                 CatalogEntry::ExternalTable(v.try_into()?)
             }
-            catalog::catalog_entry::Entry::Table(_) => todo!(),
         })
     }
 }
@@ -276,6 +276,26 @@ pub struct ColumnDefinition {
     pub name: String,
     pub nullable: bool,
     pub arrow_type: DataType,
+}
+
+impl ColumnDefinition {
+    /// Create a vec of column definitions.
+    ///
+    /// Tuples are in the form of:
+    /// (name, datatype, nullable)
+    pub fn from_tuples<C, N>(cols: C) -> Vec<ColumnDefinition>
+    where
+        C: IntoIterator<Item = (N, DataType, bool)>,
+        N: Into<String>,
+    {
+        cols.into_iter()
+            .map(|(name, arrow_type, nullable)| ColumnDefinition {
+                name: name.into(),
+                nullable,
+                arrow_type,
+            })
+            .collect()
+    }
 }
 
 impl TryFrom<catalog::ColumnDefinition> for ColumnDefinition {
@@ -476,6 +496,15 @@ impl From<TableOptionsPostgres> for catalog::TableOptionsPostgres {
 pub enum ConnectionOptions {
     Debug(ConnectionOptionsDebug),
     Postgres(ConnectionOptionsPostgres),
+}
+
+impl fmt::Display for ConnectionOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConnectionOptions::Debug(_) => write!(f, "DEBUG"),
+            ConnectionOptions::Postgres(_) => write!(f, "POSTGRES"),
+        }
+    }
 }
 
 impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
