@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use common::config::DbConfig;
+use glaredb::metastore::Metastore;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use sqllogictest::{AsyncDB, ColumnType, DBOutput, Runner};
@@ -32,6 +33,12 @@ enum Commands {
         /// Omitting this will attempt to bind to any available port.
         #[clap(long, value_parser)]
         bind: Option<String>,
+
+        /// Address of metastore to use.
+        ///
+        /// If not provided, a Metastore will be spun up automatically.
+        #[clap(long, value_parser)]
+        metastore_addr: Option<String>,
 
         /// Whether or not to keep the GlareDB server running after a failure.
         ///
@@ -93,24 +100,30 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Embedded {
             bind,
+            metastore_addr,
             keep_running,
-            db_name,
-            config,
             ..
         } => runtime.block_on(async move {
             let pg_listener =
                 TcpListener::bind(bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
             let pg_addr = pg_listener.local_addr()?;
-            let conf = ServerConfig { pg_listener };
+            let server_conf = ServerConfig { pg_listener };
 
-            // Use clap values as default
-            let config: DbConfig = DbConfig::base(config)
-                .set_override_option("access.db_name", db_name)?
-                .build()?
-                .try_deserialize()?;
+            // Start up metastore if address isn't provided.
+            //
+            // Defaults to starting up on port 6545.
+            let metastore_addr = match metastore_addr {
+                Some(addr) => addr,
+                None => {
+                    let bind: SocketAddr = "0.0.0.0:6545".parse()?;
+                    let metastore = Metastore::new()?;
+                    tokio::spawn(metastore.serve(bind));
+                    "http://localhost:6545".to_string()
+                }
+            };
 
-            let server = Server::connect(config, true).await?;
-            let _ = tokio::spawn(server.serve(conf));
+            let server = Server::connect(metastore_addr, true).await?;
+            let _ = tokio::spawn(server.serve(server_conf));
 
             let runner = TestRunner::connect_embedded(pg_addr).await?;
             match runner.exec_tests(&files).await {

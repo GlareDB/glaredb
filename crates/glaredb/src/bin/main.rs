@@ -106,6 +106,7 @@ fn main() -> Result<()> {
             bind,
             metastore_addr,
             local,
+            ..
         } => {
             begin_server(&bind, metastore_addr, local)?;
         }
