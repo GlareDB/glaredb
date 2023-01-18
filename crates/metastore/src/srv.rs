@@ -82,7 +82,7 @@ impl MetastoreService for Service {
         let state = catalog.get_state().await?;
 
         Ok(Response::new(FetchCatalogResponse {
-            catalog: Some(state.into()),
+            catalog: Some(state.try_into().map_err(MetastoreError::from)?),
         }))
     }
 
@@ -111,7 +111,7 @@ impl MetastoreService for Service {
 
         Ok(Response::new(MutateResponse {
             status: service::mutate_response::Status::Applied as i32,
-            catalog: Some(updated.into()),
+            catalog: Some(updated.try_into().map_err(MetastoreError::from)?),
         }))
     }
 }

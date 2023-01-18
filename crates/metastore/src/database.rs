@@ -147,6 +147,7 @@ impl State {
                             id: oid,
                             parent: SCHEMA_PARENT_ID,
                             name: create_schema.name.clone(),
+                            builtin: false,
                         },
                     };
                     self.entries.insert(oid, CatalogEntry::Schema(ent));
@@ -167,6 +168,7 @@ impl State {
                             id: oid,
                             parent: schema_id,
                             name: create_view.name.clone(),
+                            builtin: false,
                         },
                         sql: create_view.sql,
                     };
@@ -186,6 +188,7 @@ impl State {
                             id: oid,
                             parent: schema_id,
                             name: create_conn.name.clone(),
+                            builtin: false,
                         },
                         options: create_conn.options,
                     };
@@ -213,6 +216,7 @@ impl State {
                             id: oid,
                             parent: schema_id,
                             name: create_ext.name.clone(),
+                            builtin: false,
                         },
                         connection_id: create_ext.connection_id,
                         options: create_ext.options,

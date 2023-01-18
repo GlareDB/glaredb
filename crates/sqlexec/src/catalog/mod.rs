@@ -104,12 +104,13 @@ impl Catalog {
     }
 
     fn get_schema<C: CatalogContext>(&self, ctx: &C, name: &str) -> Result<Arc<PhysicalSchema>> {
-        self.schemas
-            .get_entry(ctx, name)
-            .ok_or(CatalogError::MissingEntry {
-                typ: "schema",
-                name: name.to_string(),
-            })
+        unimplemented!()
+        // self.schemas
+        //     .get_entry(ctx, name)
+        //     .ok_or(CatalogError::MissingEntry {
+        //         typ: "schema",
+        //         name: name.to_string(),
+        //     })
     }
 }
 

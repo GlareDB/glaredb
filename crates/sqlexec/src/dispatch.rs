@@ -3,9 +3,7 @@ use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{
     GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
 };
-use crate::catalog::entry::{AccessOrConnection, ConnectionEntry, ConnectionMethod, TableOptions};
 use crate::catalog::errors::{internal, CatalogError, Result};
-use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
 use crate::catalog::Catalog;
 use crate::context::SessionContext;
 use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder};
@@ -19,7 +17,7 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::EntryType;
+use metastore::types::catalog::{CatalogEntry, EntryType, ExternalTableEntry, ViewEntry};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -38,327 +36,339 @@ impl<'a> SessionDispatcher<'a> {
 
     /// Return a datafusion table provider based on how the table should be
     /// accessed.
-    ///
-    /// Returns `None` if no table or view exist within a schema.
-    pub fn dispatch_access(
+    pub fn dispatch_access(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+        let catalog = self.ctx.get_session_catalog();
+
+        let ent =
+            catalog
+                .resolve_entry(schema, name)
+                .ok_or_else(|| CatalogError::MissingEntry {
+                    schema: schema.to_string(),
+                    name: name.to_string(),
+                })?;
+
+        // Only allow dispatching to types we can actually conver to a table
+        // provider.
+        if !matches!(
+            ent.entry_type(),
+            EntryType::View | EntryType::Table | EntryType::ExternalTable
+        ) {
+            return Err(CatalogError::InvalidEntryTypeForDispath(ent.entry_type()));
+        }
+
+        // Dispatch to system tables if builtin...
+        if ent.get_meta().builtin {
+            let table = SystemTableDispatcher::new(catalog).dispatch(schema, name)?;
+            return Ok(table);
+        }
+
+        match ent {
+            CatalogEntry::View(view) => self.dispatch_view(&view),
+            CatalogEntry::ExternalTable(table) => self.dispatch_external_table(&table),
+            // Note that all 'table' entries should have already been handled
+            // with the above builtin table dispatcher.
+            other => Err(CatalogError::UnhandledEntryType(other.entry_type())),
+        }
+    }
+
+    fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
+        let plan = self
+            .ctx
+            .late_view_plan(&view.sql)
+            .map_err(|e| CatalogError::LatePlanning(e.to_string()))?;
+        Ok(Arc::new(ViewTable::try_new(plan, None)?))
+    }
+
+    fn dispatch_external_table(
         &self,
-        schema: &str,
-        name: &str,
-    ) -> Result<Option<Arc<dyn TableProvider>>> {
-        let catalog = self.ctx.get_catalog();
-        let schema_ent = catalog
-            .schemas
-            .get_entry(&StubCatalogContext, schema)
-            .ok_or_else(|| CatalogError::MissingEntry {
-                typ: "schema",
-                name: schema.to_string(),
-            })?;
-
-        // TODO
-        let sess_catalog = self.ctx.get_session_catalog();
-
-        // Check table entries first.
-        if let Some(table) = schema_ent.tables.get_entry(&StubCatalogContext, name) {
-            return match &table.access {
-                AccessOrConnection::Access(AccessMethod::System) => {
-                    let table = SystemTableDispatcher::new(&StubCatalogContext, sess_catalog)
-                        .dispatch(schema, name)?;
-                    Ok(Some(table))
-                }
-                AccessOrConnection::Access(AccessMethod::Postgres(pg)) => {
-                    // TODO: We'll probably want an "external dispatcher" of sorts.
-                    // TODO: Try not to block on.
-                    let pg = pg.clone();
-                    let predicate_pushdown = *self
-                        .ctx
-                        .get_session_vars()
-                        .postgres_predicate_pushdown
-                        .value();
-                    let result: Result<_, datasource_postgres::errors::PostgresError> =
-                        task::block_in_place(move || {
-                            Handle::current().block_on(async move {
-                                let accessor = PostgresAccessor::connect(pg).await?;
-                                let provider =
-                                    accessor.into_table_provider(predicate_pushdown).await?;
-                                Ok(provider)
-                            })
-                        });
-                    let provider = result?;
-                    Ok(Some(Arc::new(provider)))
-                }
-                AccessOrConnection::Access(AccessMethod::BigQuery(bq)) => {
-                    let bq = bq.clone();
-                    let predicate_pushdown = *self
-                        .ctx
-                        .get_session_vars()
-                        .bigquery_predicate_pushdown
-                        .value();
-                    let result: Result<_, datasource_bigquery::errors::BigQueryError> =
-                        task::block_in_place(move || {
-                            Handle::current().block_on(async move {
-                                let accessor = BigQueryAccessor::connect(bq).await?;
-                                let provider =
-                                    accessor.into_table_provider(predicate_pushdown).await?;
-                                Ok(provider)
-                            })
-                        });
-                    let provider = result?;
-                    Ok(Some(Arc::new(provider)))
-                }
-                AccessOrConnection::Access(AccessMethod::Local(local)) => {
-                    trace!("Using Local filesystem to access parquet file");
-                    let local = local.clone();
-                    let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
-                        task::block_in_place(move || {
-                            Handle::current().block_on(async move {
-                                let accessor = LocalAccessor::new(local).await?;
-                                let provider = accessor.into_table_provider(true).await?;
-                                Ok(provider)
-                            })
-                        });
-                    let provider = result?;
-                    Ok(Some(Arc::new(provider)))
-                }
-                AccessOrConnection::Access(AccessMethod::S3(s3)) => {
-                    trace!("Using S3 to access parquet file");
-                    let s3 = s3.clone();
-                    let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
-                        task::block_in_place(move || {
-                            Handle::current().block_on(async move {
-                                let accessor = S3Accessor::new(s3).await?;
-                                let provider = accessor.into_table_provider(true).await?;
-                                Ok(provider)
-                            })
-                        });
-                    let provider = result?;
-                    Ok(Some(Arc::new(provider)))
-                }
-                AccessOrConnection::Access(AccessMethod::Gcs(gcs)) => {
-                    trace!("Using GCS to access parquet file");
-                    let gcs = gcs.clone();
-                    let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
-                        task::block_in_place(move || {
-                            Handle::current().block_on(async move {
-                                let accessor = GcsAccessor::new(gcs).await?;
-                                let provider = accessor.into_table_provider(true).await?;
-                                Ok(provider)
-                            })
-                        });
-                    let provider = result?;
-                    Ok(Some(Arc::new(provider)))
-                }
-                AccessOrConnection::Access(AccessMethod::Debug(debug)) => {
-                    Ok(Some(debug.clone().into_table_provider()))
-                }
-                AccessOrConnection::Connection(name) => {
-                    let conn = self
-                        .ctx
-                        .get_connection(name)
-                        .map_err(|e| internal!("{}", e))?;
-                    match (&table.table_options, conn.as_ref()) {
-                        (
-                            TableOptions::Debug { typ },
-                            ConnectionEntry {
-                                method: ConnectionMethod::Debug,
-                                ..
-                            },
-                        ) => Ok(Some(typ.clone().into_table_provider())),
-                        (
-                            TableOptions::Postgres { schema, table },
-                            ConnectionEntry {
-                                method: ConnectionMethod::Postgres { connection_string },
-                                ..
-                            },
-                        ) => {
-                            let table_access = PostgresTableAccess {
-                                schema: schema.clone(),
-                                name: table.clone(),
-                                connection_string: connection_string.clone(),
-                            };
-                            let predicate_pushdown = *self
-                                .ctx
-                                .get_session_vars()
-                                .postgres_predicate_pushdown
-                                .value();
-                            let result: Result<_, datasource_postgres::errors::PostgresError> =
-                                task::block_in_place(move || {
-                                    Handle::current().block_on(async move {
-                                        let accessor =
-                                            PostgresAccessor::connect(table_access).await?;
-                                        let provider = accessor
-                                            .into_table_provider(predicate_pushdown)
-                                            .await?;
-                                        Ok(provider)
-                                    })
-                                });
-                            let provider = result?;
-                            Ok(Some(Arc::new(provider)))
-                        }
-                        (
-                            TableOptions::BigQuery {
-                                dataset_id,
-                                table_id,
-                            },
-                            ConnectionEntry {
-                                method:
-                                    ConnectionMethod::BigQuery {
-                                        service_account_key,
-                                        project_id,
-                                    },
-                                ..
-                            },
-                        ) => {
-                            let table_access = BigQueryTableAccess {
-                                gcp_service_acccount_key_json: service_account_key.clone(),
-                                gcp_project_id: project_id.clone(),
-                                dataset_id: dataset_id.clone(),
-                                table_id: table_id.clone(),
-                            };
-                            let predicate_pushdown = *self
-                                .ctx
-                                .get_session_vars()
-                                .bigquery_predicate_pushdown
-                                .value();
-                            let result: Result<_, datasource_bigquery::errors::BigQueryError> =
-                                task::block_in_place(move || {
-                                    Handle::current().block_on(async move {
-                                        let accessor =
-                                            BigQueryAccessor::connect(table_access).await?;
-                                        let provider = accessor
-                                            .into_table_provider(predicate_pushdown)
-                                            .await?;
-                                        Ok(provider)
-                                    })
-                                });
-                            let provider = result?;
-                            Ok(Some(Arc::new(provider)))
-                        }
-                        (
-                            TableOptions::Local { location },
-                            ConnectionEntry {
-                                method: ConnectionMethod::Local,
-                                ..
-                            },
-                        ) => {
-                            let table_access = LocalTableAccess {
-                                location: location.clone(),
-                            };
-                            let result: Result<
-                                _,
-                                datasource_object_store::errors::ObjectStoreSourceError,
-                            > = task::block_in_place(move || {
-                                Handle::current().block_on(async move {
-                                    let accessor = LocalAccessor::new(table_access).await?;
-                                    let provider = accessor.into_table_provider(true).await?;
-                                    Ok(provider)
-                                })
-                            });
-                            let provider = result?;
-                            Ok(Some(Arc::new(provider)))
-                        }
-                        (
-                            TableOptions::Gcs {
-                                bucket_name,
-                                location,
-                            },
-                            ConnectionEntry {
-                                method:
-                                    ConnectionMethod::Gcs {
-                                        service_account_key,
-                                    },
-                                ..
-                            },
-                        ) => {
-                            let table_access = GcsTableAccess {
-                                service_acccount_key_json: service_account_key.clone(),
-                                bucket_name: bucket_name.clone(),
-                                location: location.clone(),
-                            };
-                            let result: Result<
-                                _,
-                                datasource_object_store::errors::ObjectStoreSourceError,
-                            > = task::block_in_place(move || {
-                                Handle::current().block_on(async move {
-                                    let accessor = GcsAccessor::new(table_access).await?;
-                                    let provider = accessor.into_table_provider(true).await?;
-                                    Ok(provider)
-                                })
-                            });
-                            let provider = result?;
-                            Ok(Some(Arc::new(provider)))
-                        }
-                        (
-                            TableOptions::S3 {
-                                region,
-                                bucket_name,
-                                location,
-                            },
-                            ConnectionEntry {
-                                method:
-                                    ConnectionMethod::S3 {
-                                        access_key_id,
-                                        access_key_secret,
-                                    },
-                                ..
-                            },
-                        ) => {
-                            let table_access = S3TableAccess {
-                                region: region.clone(),
-                                bucket_name: bucket_name.clone(),
-                                location: location.clone(),
-                                access_key_id: access_key_id.clone(),
-                                secret_access_key: access_key_secret.clone(),
-                            };
-                            let result: Result<
-                                _,
-                                datasource_object_store::errors::ObjectStoreSourceError,
-                            > = task::block_in_place(move || {
-                                Handle::current().block_on(async move {
-                                    let accessor = S3Accessor::new(table_access).await?;
-                                    let provider = accessor.into_table_provider(true).await?;
-                                    Ok(provider)
-                                })
-                            });
-                            let provider = result?;
-                            Ok(Some(Arc::new(provider)))
-                        }
-                        (opts, conn) => Err(internal!(
-                            "unhandled types; options: {:?}, conn: {:?}",
-                            opts,
-                            conn
-                        )),
-                    }
-                }
-                AccessOrConnection::Access(AccessMethod::Unknown) => {
-                    Err(CatalogError::UnhandleableAccess(table.access.clone()))
-                }
-            };
-        }
-
-        // Fall back to checking views.
-        if let Some(view) = schema_ent.views.get_entry(&StubCatalogContext, name) {
-            // Do some late planning.
-            let plan = self
-                .ctx
-                .late_view_plan(&view.sql)
-                .map_err(|e| CatalogError::LatePlanning(e.to_string()))?;
-
-            return Ok(Some(Arc::new(ViewTable::try_new(plan, None)?)));
-        }
-
-        Ok(None)
+        table: &ExternalTableEntry,
+    ) -> Result<Arc<dyn TableProvider>> {
+        //     return match &table.access {
+        //         AccessOrConnection::Access(AccessMethod::System) => {
+        //             let table = SystemTableDispatcher::new(&StubCatalogContext, sess_catalog)
+        //                 .dispatch(schema, name)?;
+        //             Ok(Some(table))
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::Postgres(pg)) => {
+        //             // TODO: We'll probably want an "external dispatcher" of sorts.
+        //             // TODO: Try not to block on.
+        //             let pg = pg.clone();
+        //             let predicate_pushdown = *self
+        //                 .ctx
+        //                 .get_session_vars()
+        //                 .postgres_predicate_pushdown
+        //                 .value();
+        //             let result: Result<_, datasource_postgres::errors::PostgresError> =
+        //                 task::block_in_place(move || {
+        //                     Handle::current().block_on(async move {
+        //                         let accessor = PostgresAccessor::connect(pg).await?;
+        //                         let provider =
+        //                             accessor.into_table_provider(predicate_pushdown).await?;
+        //                         Ok(provider)
+        //                     })
+        //                 });
+        //             let provider = result?;
+        //             Ok(Some(Arc::new(provider)))
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::BigQuery(bq)) => {
+        //             let bq = bq.clone();
+        //             let predicate_pushdown = *self
+        //                 .ctx
+        //                 .get_session_vars()
+        //                 .bigquery_predicate_pushdown
+        //                 .value();
+        //             let result: Result<_, datasource_bigquery::errors::BigQueryError> =
+        //                 task::block_in_place(move || {
+        //                     Handle::current().block_on(async move {
+        //                         let accessor = BigQueryAccessor::connect(bq).await?;
+        //                         let provider =
+        //                             accessor.into_table_provider(predicate_pushdown).await?;
+        //                         Ok(provider)
+        //                     })
+        //                 });
+        //             let provider = result?;
+        //             Ok(Some(Arc::new(provider)))
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::Local(local)) => {
+        //             trace!("Using Local filesystem to access parquet file");
+        //             let local = local.clone();
+        //             let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
+        //                 task::block_in_place(move || {
+        //                     Handle::current().block_on(async move {
+        //                         let accessor = LocalAccessor::new(local).await?;
+        //                         let provider = accessor.into_table_provider(true).await?;
+        //                         Ok(provider)
+        //                     })
+        //                 });
+        //             let provider = result?;
+        //             Ok(Some(Arc::new(provider)))
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::S3(s3)) => {
+        //             trace!("Using S3 to access parquet file");
+        //             let s3 = s3.clone();
+        //             let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
+        //                 task::block_in_place(move || {
+        //                     Handle::current().block_on(async move {
+        //                         let accessor = S3Accessor::new(s3).await?;
+        //                         let provider = accessor.into_table_provider(true).await?;
+        //                         Ok(provider)
+        //                     })
+        //                 });
+        //             let provider = result?;
+        //             Ok(Some(Arc::new(provider)))
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::Gcs(gcs)) => {
+        //             trace!("Using GCS to access parquet file");
+        //             let gcs = gcs.clone();
+        //             let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
+        //                 task::block_in_place(move || {
+        //                     Handle::current().block_on(async move {
+        //                         let accessor = GcsAccessor::new(gcs).await?;
+        //                         let provider = accessor.into_table_provider(true).await?;
+        //                         Ok(provider)
+        //                     })
+        //                 });
+        //             let provider = result?;
+        //             Ok(Some(Arc::new(provider)))
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::Debug(debug)) => {
+        //             Ok(Some(debug.clone().into_table_provider()))
+        //         }
+        //         AccessOrConnection::Connection(name) => {
+        //             let conn = self
+        //                 .ctx
+        //                 .get_connection(name)
+        //                 .map_err(|e| internal!("{}", e))?;
+        //             match (&table.table_options, conn.as_ref()) {
+        //                 (
+        //                     TableOptions::Debug { typ },
+        //                     ConnectionEntry {
+        //                         method: ConnectionMethod::Debug,
+        //                         ..
+        //                     },
+        //                 ) => Ok(Some(typ.clone().into_table_provider())),
+        //                 (
+        //                     TableOptions::Postgres { schema, table },
+        //                     ConnectionEntry {
+        //                         method: ConnectionMethod::Postgres { connection_string },
+        //                         ..
+        //                     },
+        //                 ) => {
+        //                     let table_access = PostgresTableAccess {
+        //                         schema: schema.clone(),
+        //                         name: table.clone(),
+        //                         connection_string: connection_string.clone(),
+        //                     };
+        //                     let predicate_pushdown = *self
+        //                         .ctx
+        //                         .get_session_vars()
+        //                         .postgres_predicate_pushdown
+        //                         .value();
+        //                     let result: Result<_, datasource_postgres::errors::PostgresError> =
+        //                         task::block_in_place(move || {
+        //                             Handle::current().block_on(async move {
+        //                                 let accessor =
+        //                                     PostgresAccessor::connect(table_access).await?;
+        //                                 let provider = accessor
+        //                                     .into_table_provider(predicate_pushdown)
+        //                                     .await?;
+        //                                 Ok(provider)
+        //                             })
+        //                         });
+        //                     let provider = result?;
+        //                     Ok(Some(Arc::new(provider)))
+        //                 }
+        //                 (
+        //                     TableOptions::BigQuery {
+        //                         dataset_id,
+        //                         table_id,
+        //                     },
+        //                     ConnectionEntry {
+        //                         method:
+        //                             ConnectionMethod::BigQuery {
+        //                                 service_account_key,
+        //                                 project_id,
+        //                             },
+        //                         ..
+        //                     },
+        //                 ) => {
+        //                     let table_access = BigQueryTableAccess {
+        //                         gcp_service_acccount_key_json: service_account_key.clone(),
+        //                         gcp_project_id: project_id.clone(),
+        //                         dataset_id: dataset_id.clone(),
+        //                         table_id: table_id.clone(),
+        //                     };
+        //                     let predicate_pushdown = *self
+        //                         .ctx
+        //                         .get_session_vars()
+        //                         .bigquery_predicate_pushdown
+        //                         .value();
+        //                     let result: Result<_, datasource_bigquery::errors::BigQueryError> =
+        //                         task::block_in_place(move || {
+        //                             Handle::current().block_on(async move {
+        //                                 let accessor =
+        //                                     BigQueryAccessor::connect(table_access).await?;
+        //                                 let provider = accessor
+        //                                     .into_table_provider(predicate_pushdown)
+        //                                     .await?;
+        //                                 Ok(provider)
+        //                             })
+        //                         });
+        //                     let provider = result?;
+        //                     Ok(Some(Arc::new(provider)))
+        //                 }
+        //                 (
+        //                     TableOptions::Local { location },
+        //                     ConnectionEntry {
+        //                         method: ConnectionMethod::Local,
+        //                         ..
+        //                     },
+        //                 ) => {
+        //                     let table_access = LocalTableAccess {
+        //                         location: location.clone(),
+        //                     };
+        //                     let result: Result<
+        //                         _,
+        //                         datasource_object_store::errors::ObjectStoreSourceError,
+        //                     > = task::block_in_place(move || {
+        //                         Handle::current().block_on(async move {
+        //                             let accessor = LocalAccessor::new(table_access).await?;
+        //                             let provider = accessor.into_table_provider(true).await?;
+        //                             Ok(provider)
+        //                         })
+        //                     });
+        //                     let provider = result?;
+        //                     Ok(Some(Arc::new(provider)))
+        //                 }
+        //                 (
+        //                     TableOptions::Gcs {
+        //                         bucket_name,
+        //                         location,
+        //                     },
+        //                     ConnectionEntry {
+        //                         method:
+        //                             ConnectionMethod::Gcs {
+        //                                 service_account_key,
+        //                             },
+        //                         ..
+        //                     },
+        //                 ) => {
+        //                     let table_access = GcsTableAccess {
+        //                         service_acccount_key_json: service_account_key.clone(),
+        //                         bucket_name: bucket_name.clone(),
+        //                         location: location.clone(),
+        //                     };
+        //                     let result: Result<
+        //                         _,
+        //                         datasource_object_store::errors::ObjectStoreSourceError,
+        //                     > = task::block_in_place(move || {
+        //                         Handle::current().block_on(async move {
+        //                             let accessor = GcsAccessor::new(table_access).await?;
+        //                             let provider = accessor.into_table_provider(true).await?;
+        //                             Ok(provider)
+        //                         })
+        //                     });
+        //                     let provider = result?;
+        //                     Ok(Some(Arc::new(provider)))
+        //                 }
+        //                 (
+        //                     TableOptions::S3 {
+        //                         region,
+        //                         bucket_name,
+        //                         location,
+        //                     },
+        //                     ConnectionEntry {
+        //                         method:
+        //                             ConnectionMethod::S3 {
+        //                                 access_key_id,
+        //                                 access_key_secret,
+        //                             },
+        //                         ..
+        //                     },
+        //                 ) => {
+        //                     let table_access = S3TableAccess {
+        //                         region: region.clone(),
+        //                         bucket_name: bucket_name.clone(),
+        //                         location: location.clone(),
+        //                         access_key_id: access_key_id.clone(),
+        //                         secret_access_key: access_key_secret.clone(),
+        //                     };
+        //                     let result: Result<
+        //                         _,
+        //                         datasource_object_store::errors::ObjectStoreSourceError,
+        //                     > = task::block_in_place(move || {
+        //                         Handle::current().block_on(async move {
+        //                             let accessor = S3Accessor::new(table_access).await?;
+        //                             let provider = accessor.into_table_provider(true).await?;
+        //                             Ok(provider)
+        //                         })
+        //                     });
+        //                     let provider = result?;
+        //                     Ok(Some(Arc::new(provider)))
+        //                 }
+        //                 (opts, conn) => Err(internal!(
+        //                     "unhandled types; options: {:?}, conn: {:?}",
+        //                     opts,
+        //                     conn
+        //                 )),
+        //             }
+        //         }
+        //         AccessOrConnection::Access(AccessMethod::Unknown) => {
+        //             Err(CatalogError::UnhandleableAccess(table.access.clone()))
+        //         }
+        //     };
+        unimplemented!()
     }
 }
 
 /// Dispatch to builtin system tables.
-struct SystemTableDispatcher<'a, C> {
-    ctx: &'a C,
+struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
 }
 
-impl<'a, C: CatalogContext> SystemTableDispatcher<'a, C> {
-    fn new(ctx: &'a C, catalog: &'a SessionCatalog) -> Self {
-        SystemTableDispatcher { ctx, catalog }
+impl<'a> SystemTableDispatcher<'a> {
+    fn new(catalog: &'a SessionCatalog) -> Self {
+        SystemTableDispatcher { catalog }
     }
 
     fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {

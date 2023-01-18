@@ -1,7 +1,13 @@
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
-    #[error("missing catalog entry; type: {typ}, name: {name}")]
-    MissingEntry { typ: &'static str, name: String },
+    #[error("missing catalog entry; schema: {schema}, name: {name}")]
+    MissingEntry { schema: String, name: String },
+
+    #[error("Invalid entry for table dispatch: {0}")]
+    InvalidEntryTypeForDispath(metastore::types::catalog::EntryType),
+
+    #[error("Unhandled entry for table dispatch: {0}")]
+    UnhandledEntryType(metastore::types::catalog::EntryType),
 
     #[error("duplicate entry for name: {0}")]
     DuplicateEntryForName(String),

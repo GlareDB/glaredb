@@ -1,7 +1,10 @@
 use super::{FromOptionalField, ProtoConvError};
+use crate::proto::arrow;
 use crate::proto::catalog;
+use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
+use std::fmt;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -26,23 +29,30 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
     }
 }
 
-impl From<CatalogState> for catalog::CatalogState {
-    fn from(value: CatalogState) -> Self {
-        catalog::CatalogState {
+impl TryFrom<CatalogState> for catalog::CatalogState {
+    type Error = ProtoConvError;
+    fn try_from(value: CatalogState) -> Result<Self, Self::Error> {
+        Ok(catalog::CatalogState {
             db_id: value.db_id.into_bytes().to_vec(),
             version: value.version,
             entries: value
                 .entries
                 .into_iter()
-                .map(|(id, ent)| (id, ent.into()))
-                .collect(),
-        }
+                .map(|(id, ent)| match ent.try_into() {
+                    Ok(ent) => Ok((id, ent)),
+                    Err(e) => Err(e),
+                })
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+// TODO: Implement Arbitrary and add test. This would require implementing
+// Arbitrary for arrow's DataType.
+#[derive(Debug, Clone)]
 pub enum CatalogEntry {
     Schema(SchemaEntry),
+    Table(TableEntry),
     View(ViewEntry),
     Connection(ConnectionEntry),
     ExternalTable(ExternalTableEntry),
@@ -53,6 +63,7 @@ impl CatalogEntry {
         match self {
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
+            CatalogEntry::Table(_) => EntryType::Table,
             CatalogEntry::Connection(_) => EntryType::Connection,
             CatalogEntry::ExternalTable(_) => EntryType::ExternalTable,
         }
@@ -67,6 +78,7 @@ impl CatalogEntry {
         match self {
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
+            CatalogEntry::Table(table) => &table.meta,
             CatalogEntry::Connection(conn) => &conn.meta,
             CatalogEntry::ExternalTable(tbl) => &tbl.meta,
         }
@@ -95,17 +107,19 @@ impl TryFrom<catalog::CatalogEntry> for CatalogEntry {
     }
 }
 
-impl From<CatalogEntry> for catalog::CatalogEntry {
-    fn from(value: CatalogEntry) -> Self {
+impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: CatalogEntry) -> Result<Self, Self::Error> {
         let ent = match value {
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
+            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
             CatalogEntry::Connection(v) => catalog::catalog_entry::Entry::Connection(v.into()),
             CatalogEntry::ExternalTable(v) => {
                 catalog::catalog_entry::Entry::ExternalTable(v.into())
             }
         };
-        catalog::CatalogEntry { entry: Some(ent) }
+        Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
 }
 
@@ -155,6 +169,16 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
     }
 }
 
+impl fmt::Display for EntryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            catalog::entry_meta::EntryType::from(*self).as_str_name()
+        )
+    }
+}
+
 /// Metadata associated with every entry in the catalog.
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct EntryMeta {
@@ -162,6 +186,7 @@ pub struct EntryMeta {
     pub id: u32,
     pub parent: u32,
     pub name: String,
+    pub builtin: bool,
 }
 
 impl From<EntryMeta> for catalog::EntryMeta {
@@ -172,6 +197,7 @@ impl From<EntryMeta> for catalog::EntryMeta {
             id: value.id,
             parent: value.parent,
             name: value.name,
+            builtin: value.builtin,
         }
     }
 }
@@ -184,6 +210,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
             id: value.id,
             parent: value.parent,
             name: value.name,
+            builtin: value.builtin,
         })
     }
 }
@@ -206,6 +233,74 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
         catalog::SchemaEntry {
             meta: Some(value.meta.into()),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TableEntry {
+    pub meta: EntryMeta,
+    pub columns: Vec<ColumnDefinition>,
+}
+
+impl TryFrom<catalog::TableEntry> for TableEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(TableEntry {
+            meta,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl TryFrom<TableEntry> for catalog::TableEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
+        Ok(catalog::TableEntry {
+            meta: Some(value.meta.into()),
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ColumnDefinition {
+    pub name: String,
+    pub nullable: bool,
+    pub arrow_type: DataType,
+}
+
+impl TryFrom<catalog::ColumnDefinition> for ColumnDefinition {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ColumnDefinition) -> Result<Self, Self::Error> {
+        let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
+        Ok(ColumnDefinition {
+            name: value.name,
+            nullable: value.nullable,
+            arrow_type,
+        })
+    }
+}
+
+// TODO: Try to make this just `From`. Would require some additional conversions
+// for the arrow types.
+impl TryFrom<ColumnDefinition> for catalog::ColumnDefinition {
+    type Error = ProtoConvError;
+    fn try_from(value: ColumnDefinition) -> Result<Self, Self::Error> {
+        let arrow_type = arrow::ArrowType::try_from(&value.arrow_type)?;
+        Ok(catalog::ColumnDefinition {
+            name: value.name,
+            nullable: value.nullable,
+            arrow_type: Some(arrow_type),
+        })
     }
 }
 
