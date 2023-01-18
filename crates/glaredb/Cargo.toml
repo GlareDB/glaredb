@@ -17,6 +17,7 @@ pgsrv = {path = "../pgsrv"}
 stablestore = {path = "../stablestore"}
 object_store_util = {path = "../object_store_util"}
 object_store = {version = "0.5", features = ["gcp"]}
+metastore = {path = "../metastore"}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 tokio = { version = "1", features = ["full"] }
@@ -34,6 +35,7 @@ rustyline = "10.0.0"
 bincode = "1.3.3"
 tempfile = "3"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
 
 [build-dependencies]
 common = {path = "../common"}
