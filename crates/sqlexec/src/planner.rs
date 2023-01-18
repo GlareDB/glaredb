@@ -61,6 +61,30 @@ impl<'a> SessionPlanner<'a> {
                     },
                 }
             }
+            "local" => CreateConnection {
+                connection_name: stmt.name,
+                method: ConnectionMethod::Local,
+            },
+            "gcs" => {
+                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::Gcs {
+                        service_account_key,
+                    },
+                }
+            }
+            "s3" => {
+                let access_key_id = remove_required_opt(m, "access_key_id")?;
+                let access_key_secret = remove_required_opt(m, "access_key_secret")?;
+                CreateConnection {
+                    connection_name: stmt.name,
+                    method: ConnectionMethod::S3 {
+                        access_key_id,
+                        access_key_secret,
+                    },
+                }
+            }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
                 CreateConnection {
                     connection_name: stmt.name,
@@ -117,6 +141,43 @@ impl<'a> SessionPlanner<'a> {
                         table_options: TableOptions::BigQuery {
                             dataset_id,
                             table_id,
+                        },
+                    }
+                }
+                ConnectionMethod::Local => {
+                    let location = remove_required_opt(m, "location")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::Local { location },
+                    }
+                }
+                ConnectionMethod::Gcs { .. } => {
+                    let bucket_name = remove_required_opt(m, "bucket_name")?;
+                    let location = remove_required_opt(m, "location")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::Gcs {
+                            bucket_name,
+                            location,
+                        },
+                    }
+                }
+                ConnectionMethod::S3 { .. } => {
+                    let region = remove_required_opt(m, "region")?;
+                    let bucket_name = remove_required_opt(m, "bucket_name")?;
+                    let location = remove_required_opt(m, "location")?;
+                    CreateExternalTable {
+                        create_sql,
+                        table_name: stmt.name,
+                        access: AccessOrConnection::Connection(conn.name.clone()),
+                        table_options: TableOptions::S3 {
+                            region,
+                            bucket_name,
+                            location,
                         },
                     }
                 }
