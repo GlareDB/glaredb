@@ -1,0 +1,177 @@
+// Catalog type definitions.
+
+syntax = "proto3";
+
+package metastore.catalog;
+
+import "arrow.proto";
+
+message CatalogState {
+  // Database that this catalog is for.
+  //
+  // The bytes should be convertible into a UUID (V4).
+  bytes db_id = 1;
+
+  // Version of this catalog. Increments on every mutation.
+  uint64 version = 2;
+
+  // All entries in this catalog.
+  //
+  // ID -> Entry
+  map<uint32, CatalogEntry> entries = 3;
+
+  // next: 4
+}
+
+// Possible top-level catalog entries.
+message CatalogEntry {
+  oneof entry {
+    SchemaEntry schema = 1;
+    TableEntry table = 2;
+    ViewEntry view = 3;
+    ConnectionEntry connection = 4;
+    ExternalTableEntry external_table = 5;
+  }
+}
+
+// Metadata for every entry in the catalog.
+message EntryMeta {
+  // Possible entry types in the catalog.
+  //
+  // Each entry of this type shares the same ID space.
+  enum EntryType {
+    // Unknown catalog entry. We should error if this is encountered.
+    UNKNOWN = 0;
+    // Database schemas.
+    SCHEMA = 1;
+    // Database tables.
+    TABLE = 2;
+    // External database tables.
+    EXTERNAL_TABLE = 3;
+    // Database views.
+    VIEW = 4;
+    // Connections to external data sources.
+    CONNECTION = 5;
+  }
+
+  // Type of the entry.
+  EntryType entry_type = 1;
+
+  // ID of the entry. This id must be unique within the database, and will act
+  // similarly to Postgres' OIDs.
+  //
+  // System entries have well-known IDs.
+  uint32 id = 2;
+
+  // ID of the parent entry.
+  //
+  // For tables, views, and connections, the parent id will be the schema id.
+  //
+  // Schemas are a special case, and have a parent id of 0.
+  uint32 parent = 3;
+
+  // Name of this entry.
+  string name = 4;
+
+  // next: 5
+}
+
+message SchemaEntry {
+  EntryMeta meta = 1;
+
+  // next: 2
+}
+
+message TableEntry {
+  EntryMeta meta = 1;
+
+  // Columns in the table.
+  repeated ColumnDefinition columns = 2;
+
+  // next: 3
+}
+
+message ExternalTableEntry {
+  EntryMeta meta = 1;
+
+  // ID to the connection to use.
+  uint32 connection_id = 2;
+
+  // Table specific options to use when connecting to the external table.
+  //
+  // The external table type (postgres, bigquery, etc) is derived from these
+  // options. The type derived here must match the connection type.
+  TableOptions options = 3;
+
+  // next: 4
+}
+
+message TableOptions {
+  oneof options {
+    TableOptionsDebug debug = 1;
+    TableOptionsPostgres postgres = 2;
+  }
+}
+
+message TableOptionsDebug {
+  // TODO: Probably make thise well-known id.
+  string table_type = 1;
+}
+
+message TableOptionsPostgres {
+  // Source schema to connect to on Postgres.
+  string schema = 1;
+  // Source table to connect to.
+  string table = 2;
+}
+
+message ColumnDefinition {
+  // Name of the column in the table.
+  string name = 1;
+
+  // Ordinal of the column in the table.
+  uint32 ord = 2;
+
+  // Field is nullable.
+  bool nullable = 3;
+
+  // Arrow type for the field.
+  //
+  // Note this will likely need to be expanded for complex types.
+  arrow.ArrowType arrow_type = 4;
+
+  // next: 5
+}
+
+message ViewEntry {
+  EntryMeta meta = 1;
+
+  // The sql statement for materializing the view.
+  string sql = 2;
+
+  // next: 3
+}
+
+message ConnectionEntry {
+  EntryMeta meta = 1;
+
+  // Options related to this connection.
+  //
+  // The connection type is derived from these options.
+  ConnectionOptions options = 2;
+
+  // next: 3
+}
+
+message ConnectionOptions {
+  oneof options {
+    ConnectionOptionsDebug debug = 1;
+    ConnectionOptionsPostgres postgres = 2;
+  }
+
+  // next: 3
+}
+
+message ConnectionOptionsDebug {}
+
+message ConnectionOptionsPostgres { string connection_string = 1; }

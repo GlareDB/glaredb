@@ -1,0 +1,129 @@
+// Metastore service definition.
+
+syntax = "proto3";
+
+package metastore.service;
+
+import "catalog.proto";
+
+message InitializeCatalogRequest {
+  // ID of the catalog to initialize.
+  bytes db_id = 1;
+}
+
+message InitializeCatalogResponse {
+  enum Status {
+    UNKNOWN = 0;
+    // Catalog initialized.
+    INITIALIZED = 1;
+    // Catalog already loaded.
+    ALREADY_LOADED = 2;
+  }
+
+  Status status = 1;
+}
+
+message FetchCatalogRequest {
+  // ID of the database catalog to fetch.
+  bytes db_id = 1;
+}
+
+message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
+
+// Possible mutations to make.
+message Mutation {
+  oneof mutation {
+    DropSchema drop_schema = 1;
+    DropObject drop_object = 2;
+    CreateSchema create_schema = 3;
+    CreateView create_view = 4;
+    CreateConnection create_connection = 5;
+    CreateExternalTable create_external_table = 6;
+  }
+  // next: 7
+}
+
+message DropSchema { string name = 1; }
+
+message DropObject {
+  string schema = 1;
+  string name = 2;
+}
+
+message CreateSchema { string name = 1; }
+
+message CreateView {
+  string schema = 1;
+  string name = 2;
+  string sql = 3;
+}
+
+message CreateConnection {
+  string schema = 1;
+  string name = 2;
+  catalog.ConnectionOptions options = 3;
+  // next: 4
+}
+
+message CreateExternalTable {
+  string schema = 1;
+  string name = 2;
+  uint32 connection_id = 3;
+  catalog.TableOptions options = 4;
+  // next: 5
+}
+
+message MutateRequest {
+  // Mutate the catalog for this database.
+  bytes db_id = 1;
+
+  // Catalog version we're trying to execution mutations against. Mutations will
+  // be rejected if this version doesn't match Metastore's version of the
+  // catalog.
+  uint64 catalog_version = 2;
+
+  // Mutations to attempt to execute against the catalog.
+  repeated Mutation mutations = 3;
+
+  // next: 4
+}
+
+message MutateResponse {
+  enum Status {
+    UNKNOWN = 0;
+    // Mutation applied.
+    APPLIED = 1;
+    // Mutation rejected.
+    REJECTED = 2;
+  }
+
+  // Status of the mutation.
+  Status status = 1;
+
+  // The current state of the catalog as witnessed by metastore.
+  //
+  // If the mutation was accepted, this catalog will included that mutation. If
+  // the mutation was rejected, this catalog will not have that mutation
+  // applied. In either case, this catalog should replace any stale catalog.
+  catalog.CatalogState catalog = 2;
+
+  // next: 3
+}
+
+service MetastoreService {
+  // Initialize a database catalog.
+  //
+  // Idempotent, safe to call multiple times.
+  rpc InitializeCatalog(InitializeCatalogRequest)
+      returns (InitializeCatalogResponse);
+
+  // Fetch the catalog for some database.
+  //
+  // The returned catalog will be the latest catalog that this metastore node
+  // knows about.
+  // TODO: Could be streaming.
+  rpc FetchCatalog(FetchCatalogRequest) returns (FetchCatalogResponse);
+
+  // Mutate a database's catalog.
+  rpc MutateCatalog(MutateRequest) returns (MutateResponse);
+}
