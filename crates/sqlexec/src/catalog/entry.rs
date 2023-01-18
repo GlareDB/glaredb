@@ -116,6 +116,11 @@ pub enum TableOptions {
         bucket_name: String,
         location: String,
     },
+    S3 {
+        region: String,
+        bucket_name: String,
+        location: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -193,6 +198,10 @@ pub enum ConnectionMethod {
     Gcs {
         service_account_key: String,
     },
+    S3 {
+        access_key_id: String,
+        access_key_secret: String,
+    },
 }
 
 impl fmt::Display for ConnectionMethod {
@@ -206,6 +215,7 @@ impl fmt::Display for ConnectionMethod {
                 ConnectionMethod::BigQuery { .. } => "bigquery",
                 ConnectionMethod::Local => "local",
                 ConnectionMethod::Gcs { .. } => "gcs",
+                ConnectionMethod::S3 { .. } => "s3",
             }
         )
     }

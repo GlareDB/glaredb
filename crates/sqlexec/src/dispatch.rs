@@ -16,7 +16,7 @@ use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
-use datasource_object_store::s3::S3Accessor;
+use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -275,6 +275,41 @@ impl<'a> SessionDispatcher<'a> {
                             > = task::block_in_place(move || {
                                 Handle::current().block_on(async move {
                                     let accessor = GcsAccessor::new(table_access).await?;
+                                    let provider = accessor.into_table_provider(true).await?;
+                                    Ok(provider)
+                                })
+                            });
+                            let provider = result?;
+                            Ok(Some(Arc::new(provider)))
+                        }
+                        (
+                            TableOptions::S3 {
+                                region,
+                                bucket_name,
+                                location,
+                            },
+                            ConnectionEntry {
+                                method:
+                                    ConnectionMethod::S3 {
+                                        access_key_id,
+                                        access_key_secret,
+                                    },
+                                ..
+                            },
+                        ) => {
+                            let table_access = S3TableAccess {
+                                region: region.clone(),
+                                bucket_name: bucket_name.clone(),
+                                location: location.clone(),
+                                access_key_id: access_key_id.clone(),
+                                secret_access_key: access_key_secret.clone(),
+                            };
+                            let result: Result<
+                                _,
+                                datasource_object_store::errors::ObjectStoreSourceError,
+                            > = task::block_in_place(move || {
+                                Handle::current().block_on(async move {
+                                    let accessor = S3Accessor::new(table_access).await?;
                                     let provider = accessor.into_table_provider(true).await?;
                                     Ok(provider)
                                 })
