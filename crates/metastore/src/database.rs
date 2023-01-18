@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn multipl_entries() {
+    async fn multiple_entries() {
         let db = new_catalog().await;
 
         db.try_mutate(
