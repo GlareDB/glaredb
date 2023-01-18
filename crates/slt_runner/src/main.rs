@@ -109,7 +109,7 @@ fn main() -> Result<()> {
                 .build()?
                 .try_deserialize()?;
 
-            let server = Server::connect(config).await?;
+            let server = Server::connect(config, true).await?;
             let _ = tokio::spawn(server.serve(conf));
 
             let runner = TestRunner::connect_embedded(pg_addr).await?;

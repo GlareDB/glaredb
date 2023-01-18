@@ -26,7 +26,7 @@ pub struct Server {
 impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
-    pub async fn connect(config: DbConfig) -> Result<Self> {
+    pub async fn connect(config: DbConfig, local: bool) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
         //
@@ -48,7 +48,7 @@ impl Server {
 
         let engine = Engine::new(storage).await?;
         Ok(Server {
-            pg_handler: Arc::new(ProtocolHandler::new(engine)),
+            pg_handler: Arc::new(ProtocolHandler::new(engine, local)),
         })
     }
 

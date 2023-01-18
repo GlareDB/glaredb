@@ -29,6 +29,12 @@ pub enum PgSrvError {
     #[error("missing options parameter: {0}")]
     MissingOptionsParameter(&'static str),
 
+    #[error("Invalid database ID: {0}")]
+    InvalidDatabaseId(String),
+
+    #[error("Missing database ID param.")]
+    MissingDatabaseIdParam,
+
     /// A stringified error from cloud.
     #[error("cloud: {0}")]
     CloudResponse(String),

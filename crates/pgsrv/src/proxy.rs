@@ -12,6 +12,10 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::{debug, trace};
 
+/// Param key for setting the database id in startup params. Added by pgsrv
+/// during proxying.
+pub const GLAREDB_DATABASE_ID_KEY: &str = "glaredb_database_id";
+
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.
 ///
@@ -82,7 +86,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     async fn proxy_startup<C>(
         &self,
         conn: Connection<C>,
-        params: HashMap<String, String>,
+        mut params: HashMap<String, String>,
     ) -> Result<()>
     where
         C: AsyncRead + AsyncWrite + Unpin,
@@ -116,6 +120,9 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         // Note that the connection from the proxy to the db is unencrypted,
         // with no option (currently) of encrypting it.
         let mut db_framed = FramedClientConn::new(Connection::Unencrypted(db_conn));
+
+        // Add addition params to the startup message.
+        params.insert(GLAREDB_DATABASE_ID_KEY.to_string(), db_details.database_id);
 
         let startup = StartupMessage::StartupRequest {
             version: VERSION_V3,

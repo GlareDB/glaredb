@@ -6,8 +6,13 @@ use std::fmt;
 /// Connection details for a database. Returned by the connection authenticator.
 #[derive(Deserialize, Debug, Clone)]
 pub struct DatabaseDetails {
+    /// IP to connect to.
+    // TODO: Rename to host.
     pub ip: String,
+    /// Port to connect to.
     pub port: String,
+    /// ID of the database we're connecting to (UUID).
+    pub database_id: String,
 }
 
 #[async_trait]
