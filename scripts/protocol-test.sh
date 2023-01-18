@@ -12,7 +12,7 @@ nix build .#glaredb-bin
 
 # Start up GlareDB.
 log_file="/tmp/glaredb.log-${RANDOM}"
-nohup nix run .#glaredb -- -v server > "${log_file}" 2>&1 &
+nohup nix run .#glaredb -- -v server --local > "${log_file}" 2>&1 &
 
 # Get pid so we can shut it down at the end of this script.
 glaredb_pid=$!

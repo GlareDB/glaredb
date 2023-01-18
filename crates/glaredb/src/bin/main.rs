@@ -43,6 +43,16 @@ enum Commands {
         /// Path to config file
         #[clap(short, long, value_parser)]
         config: Option<String>,
+
+        /// Whether or not this instance is running locally.
+        ///
+        /// When not set, the postgres protocol handler will expect additional
+        /// parameters to found on the startup message for each connection.
+        /// These additional params are set by the pgsrv proxy.
+        ///
+        /// When set to true, these additional params are not expected.
+        #[clap(short, long, value_parser)]
+        local: bool,
     },
 
     /// Starts an instance of the pgsrv proxy.
@@ -92,6 +102,7 @@ fn main() -> Result<()> {
             bind,
             db_name,
             config,
+            local,
         } => {
             // Use clap values as default
             let config: DbConfig = DbConfig::base(config)
@@ -99,7 +110,7 @@ fn main() -> Result<()> {
                 .build()?
                 .try_deserialize()?;
 
-            begin_server(config, &bind)?;
+            begin_server(config, &bind, local)?;
         }
         Commands::Proxy {
             bind,
@@ -120,12 +131,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server(config: DbConfig, pg_bind: &str) -> Result<()> {
+fn begin_server(config: DbConfig, pg_bind: &str, local: bool) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(config).await?;
+        let server = Server::connect(config, local).await?;
         server.serve(conf).await
     })
 }

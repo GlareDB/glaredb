@@ -248,6 +248,13 @@ impl From<ExecError> for ErrorResponse {
     }
 }
 
+impl From<&PgSrvError> for ErrorResponse {
+    fn from(e: &PgSrvError) -> Self {
+        // TODO: Actually set appropriate codes.
+        ErrorResponse::error_internal(e.to_string())
+    }
+}
+
 #[derive(Debug)]
 pub enum NoticeSeverity {
     Warning,
