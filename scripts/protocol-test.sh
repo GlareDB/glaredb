@@ -10,11 +10,19 @@ set -e
 # Build first so that `nix run ...` can start right away.
 nix build .#glaredb-bin
 
-# Start up GlareDB.
-log_file="/tmp/glaredb.log-${RANDOM}"
-nohup nix run .#glaredb -- -v server --local > "${log_file}" 2>&1 &
+run_id=${RANDOM}
 
-# Get pid so we can shut it down at the end of this script.
+# Start up Metastore.
+metastore_log_file="/tmp/metastore.log-${run_id}"
+nohup nix run .#glaredb -- -v metastore > "${metastore_log_file}" 2>&1 &
+
+# Get pids so we can shut it down at the end of this script.
+metastore_pid=$!
+
+# Start up GlareDB.
+glaredb_log_file="/tmp/glaredb.log-${run_id}"
+nohup nix run .#glaredb -- -v server --local > "${glaredb_log_file}" 2>&1 &
+
 glaredb_pid=$!
 
 # Give it some time. Eventually we could wait on a signal or poll system status
@@ -31,13 +39,18 @@ nix run .#pgprototest -- \
     --database glaredb \
     -v || ret=$?
 
-# Kill GlareDB
+# Kill Metastore and GlareDB.
 kill "${glaredb_pid}"
+kill "${metastore_pid}"
 
 # Print out log if failed.
 if [[ "${ret}" -ne 0 ]]; then
+    echo "--- Metastore Logs ---"
+    cat "${metastore_log_file}"
+
     echo "--- GlareDB Logs ---"
-    cat "${log_file}"
+    cat "${glaredb_log_file}"
+
     exit "${ret}"
 fi
 
