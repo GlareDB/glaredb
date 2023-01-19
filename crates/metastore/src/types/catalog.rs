@@ -409,16 +409,28 @@ impl From<ExternalTableEntry> for catalog::ExternalTableEntry {
 pub enum TableOptions {
     Debug(TableOptionsDebug),
     Postgres(TableOptionsPostgres),
+    BigQuery(TableOptionsBigQuery),
+    Local(TableOptionsLocal),
+    Gcs(TableOptionsGcs),
+    S3(TableOptionsS3),
 }
 
 impl TableOptions {
     pub const DEBUG: &str = "debug";
     pub const POSTGRES: &str = "postgres";
+    pub const BIGQUERY: &str = "bigquery";
+    pub const LOCAL: &str = "local";
+    pub const GCS: &str = "gcs";
+    pub const S3_STORAGE: &str = "s3";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             TableOptions::Debug(_) => Self::DEBUG,
             TableOptions::Postgres(_) => Self::POSTGRES,
+            TableOptions::BigQuery(_) => Self::BIGQUERY,
+            TableOptions::Local(_) => Self::LOCAL,
+            TableOptions::Gcs(_) => Self::GCS,
+            TableOptions::S3(_) => Self::S3_STORAGE,
         }
     }
 }
@@ -435,6 +447,10 @@ impl TryFrom<catalog::table_options::Options> for TableOptions {
         Ok(match value {
             catalog::table_options::Options::Debug(v) => TableOptions::Debug(v.try_into()?),
             catalog::table_options::Options::Postgres(v) => TableOptions::Postgres(v.try_into()?),
+            catalog::table_options::Options::Bigquery(v) => TableOptions::BigQuery(v.try_into()?),
+            catalog::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
+            catalog::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
+            catalog::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
         })
     }
 }
@@ -451,6 +467,10 @@ impl From<TableOptions> for catalog::table_options::Options {
         match value {
             TableOptions::Debug(v) => catalog::table_options::Options::Debug(v.into()),
             TableOptions::Postgres(v) => catalog::table_options::Options::Postgres(v.into()),
+            TableOptions::BigQuery(v) => catalog::table_options::Options::Bigquery(v.into()),
+            TableOptions::Local(v) => catalog::table_options::Options::Local(v.into()),
+            TableOptions::Gcs(v) => catalog::table_options::Options::Gcs(v.into()),
+            TableOptions::S3(v) => catalog::table_options::Options::S3(v.into()),
         }
     }
 }
@@ -511,19 +531,131 @@ impl From<TableOptionsPostgres> for catalog::TableOptionsPostgres {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsBigQuery {
+    pub dataset_id: String,
+    pub table_id: String,
+}
+
+impl TryFrom<catalog::TableOptionsBigQuery> for TableOptionsBigQuery {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsBigQuery) -> Result<Self, Self::Error> {
+        Ok(TableOptionsBigQuery {
+            dataset_id: value.dataset_id,
+            table_id: value.table_id,
+        })
+    }
+}
+
+impl From<TableOptionsBigQuery> for catalog::TableOptionsBigQuery {
+    fn from(value: TableOptionsBigQuery) -> Self {
+        catalog::TableOptionsBigQuery {
+            dataset_id: value.dataset_id,
+            table_id: value.table_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsLocal {
+    pub location: String,
+}
+
+impl TryFrom<catalog::TableOptionsLocal> for TableOptionsLocal {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsLocal) -> Result<Self, Self::Error> {
+        Ok(TableOptionsLocal {
+            location: value.location,
+        })
+    }
+}
+
+impl From<TableOptionsLocal> for catalog::TableOptionsLocal {
+    fn from(value: TableOptionsLocal) -> Self {
+        catalog::TableOptionsLocal {
+            location: value.location,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsGcs {
+    pub bucket_name: String,
+    pub location: String,
+}
+
+impl TryFrom<catalog::TableOptionsGcs> for TableOptionsGcs {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsGcs) -> Result<Self, Self::Error> {
+        Ok(TableOptionsGcs {
+            bucket_name: value.bucket_name,
+            location: value.location,
+        })
+    }
+}
+
+impl From<TableOptionsGcs> for catalog::TableOptionsGcs {
+    fn from(value: TableOptionsGcs) -> Self {
+        catalog::TableOptionsGcs {
+            bucket_name: value.bucket_name,
+            location: value.location,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsS3 {
+    pub region: String,
+    pub bucket_name: String,
+    pub location: String,
+}
+
+impl TryFrom<catalog::TableOptionsS3> for TableOptionsS3 {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsS3) -> Result<Self, Self::Error> {
+        Ok(TableOptionsS3 {
+            region: value.region,
+            bucket_name: value.bucket_name,
+            location: value.location,
+        })
+    }
+}
+
+impl From<TableOptionsS3> for catalog::TableOptionsS3 {
+    fn from(value: TableOptionsS3) -> Self {
+        catalog::TableOptionsS3 {
+            region: value.region,
+            bucket_name: value.bucket_name,
+            location: value.location,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum ConnectionOptions {
     Debug(ConnectionOptionsDebug),
     Postgres(ConnectionOptionsPostgres),
+    BigQuery(ConnectionOptionsBigQuery),
+    Local(ConnectionOptionsLocal),
+    Gcs(ConnectionOptionsGcs),
+    S3(ConnectionOptionsS3),
 }
 
 impl ConnectionOptions {
     pub const DEBUG: &str = "debug";
     pub const POSTGRES: &str = "postgres";
+    pub const BIGQUERY: &str = "bigquery";
+    pub const LOCAL: &str = "local";
+    pub const GCS: &str = "gcs";
+    pub const S3_STORAGE: &str = "s3";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             ConnectionOptions::Debug(_) => Self::DEBUG,
             ConnectionOptions::Postgres(_) => Self::POSTGRES,
+            ConnectionOptions::BigQuery(_) => Self::BIGQUERY,
+            ConnectionOptions::Local(_) => Self::LOCAL,
+            ConnectionOptions::Gcs(_) => Self::GCS,
+            ConnectionOptions::S3(_) => Self::S3_STORAGE,
         }
     }
 }
@@ -544,6 +676,14 @@ impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
             catalog::connection_options::Options::Postgres(v) => {
                 ConnectionOptions::Postgres(v.try_into()?)
             }
+            catalog::connection_options::Options::Bigquery(v) => {
+                ConnectionOptions::BigQuery(v.try_into()?)
+            }
+            catalog::connection_options::Options::Local(v) => {
+                ConnectionOptions::Local(v.try_into()?)
+            }
+            catalog::connection_options::Options::Gcs(v) => ConnectionOptions::Gcs(v.try_into()?),
+            catalog::connection_options::Options::S3(v) => ConnectionOptions::S3(v.try_into()?),
         })
     }
 }
@@ -562,6 +702,12 @@ impl From<ConnectionOptions> for catalog::connection_options::Options {
             ConnectionOptions::Postgres(v) => {
                 catalog::connection_options::Options::Postgres(v.into())
             }
+            ConnectionOptions::BigQuery(v) => {
+                catalog::connection_options::Options::Bigquery(v.into())
+            }
+            ConnectionOptions::Local(v) => catalog::connection_options::Options::Local(v.into()),
+            ConnectionOptions::Gcs(v) => catalog::connection_options::Options::Gcs(v.into()),
+            ConnectionOptions::S3(v) => catalog::connection_options::Options::S3(v.into()),
         }
     }
 }
@@ -608,6 +754,94 @@ impl From<ConnectionOptionsPostgres> for catalog::ConnectionOptionsPostgres {
     fn from(value: ConnectionOptionsPostgres) -> Self {
         catalog::ConnectionOptionsPostgres {
             connection_string: value.connection_string,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsBigQuery {
+    pub service_account_key: String,
+    pub project_id: String,
+}
+
+impl TryFrom<catalog::ConnectionOptionsBigQuery> for ConnectionOptionsBigQuery {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsBigQuery) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsBigQuery {
+            service_account_key: value.service_account_key,
+            project_id: value.project_id,
+        })
+    }
+}
+
+impl From<ConnectionOptionsBigQuery> for catalog::ConnectionOptionsBigQuery {
+    fn from(value: ConnectionOptionsBigQuery) -> Self {
+        catalog::ConnectionOptionsBigQuery {
+            service_account_key: value.service_account_key,
+            project_id: value.project_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsLocal {}
+
+impl TryFrom<catalog::ConnectionOptionsLocal> for ConnectionOptionsLocal {
+    type Error = ProtoConvError;
+    fn try_from(_value: catalog::ConnectionOptionsLocal) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsLocal {})
+    }
+}
+
+impl From<ConnectionOptionsLocal> for catalog::ConnectionOptionsLocal {
+    fn from(_value: ConnectionOptionsLocal) -> Self {
+        catalog::ConnectionOptionsLocal {}
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsGcs {
+    pub service_account_key: String,
+}
+
+impl TryFrom<catalog::ConnectionOptionsGcs> for ConnectionOptionsGcs {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsGcs) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsGcs {
+            service_account_key: value.service_account_key,
+        })
+    }
+}
+
+impl From<ConnectionOptionsGcs> for catalog::ConnectionOptionsGcs {
+    fn from(value: ConnectionOptionsGcs) -> Self {
+        catalog::ConnectionOptionsGcs {
+            service_account_key: value.service_account_key,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsS3 {
+    pub access_key_id: String,
+    pub access_key_secret: String,
+}
+
+impl TryFrom<catalog::ConnectionOptionsS3> for ConnectionOptionsS3 {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsS3) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsS3 {
+            access_key_id: value.access_key_id,
+            access_key_secret: value.access_key_secret,
+        })
+    }
+}
+
+impl From<ConnectionOptionsS3> for catalog::ConnectionOptionsS3 {
+    fn from(value: ConnectionOptionsS3) -> Self {
+        catalog::ConnectionOptionsS3 {
+            access_key_id: value.access_key_id,
+            access_key_secret: value.access_key_secret,
         }
     }
 }

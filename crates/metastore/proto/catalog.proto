@@ -113,6 +113,10 @@ message TableOptions {
   oneof options {
     TableOptionsDebug debug = 1;
     TableOptionsPostgres postgres = 2;
+    TableOptionsBigQuery bigquery = 3;
+    TableOptionsLocal local = 4;
+    TableOptionsGcs gcs = 5;
+    TableOptionsS3 s3 = 6;
   }
 }
 
@@ -126,6 +130,34 @@ message TableOptionsPostgres {
   string schema = 1;
   // Source table to connect to.
   string table = 2;
+}
+
+message TableOptionsBigQuery {
+  // The dataset where table belongs.
+  string dataset_id = 1;
+  // Name of the table.
+  string table_id = 2;
+}
+
+message TableOptionsLocal {
+  // File path on the local machine.
+  string location = 1;
+}
+
+message TableOptionsGcs {
+  // Bucket the file belongs to.
+  string bucket_name = 1;
+  // Name of the object.
+  string location = 2;
+}
+
+message TableOptionsS3 {
+  // Region the bucket belongs to.
+  string region = 1;
+  // Bucket the file belongs to.
+  string bucket_name = 2;
+  // Name of the object.
+  string location = 3;
 }
 
 message ColumnDefinition {
@@ -167,11 +199,29 @@ message ConnectionOptions {
   oneof options {
     ConnectionOptionsDebug debug = 1;
     ConnectionOptionsPostgres postgres = 2;
+    ConnectionOptionsBigQuery bigquery = 3;
+    ConnectionOptionsLocal local = 4;
+    ConnectionOptionsGcs gcs = 5;
+    ConnectionOptionsS3 s3 = 6;
   }
 
-  // next: 3
+  // next:7
 }
 
 message ConnectionOptionsDebug {}
 
 message ConnectionOptionsPostgres { string connection_string = 1; }
+
+message ConnectionOptionsBigQuery {
+  string service_account_key = 1;
+  string project_id = 2;
+}
+
+message ConnectionOptionsLocal {}
+
+message ConnectionOptionsGcs { string service_account_key = 1; }
+
+message ConnectionOptionsS3 {
+  string access_key_id = 1;
+  string access_key_secret = 2;
+}

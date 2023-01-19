@@ -159,7 +159,7 @@ pub struct ExternalTableEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptions {
-    #[prost(oneof = "table_options::Options", tags = "1, 2")]
+    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6")]
     pub options: ::core::option::Option<table_options::Options>,
 }
 /// Nested message and enum types in `TableOptions`.
@@ -171,6 +171,14 @@ pub mod table_options {
         Debug(super::TableOptionsDebug),
         #[prost(message, tag = "2")]
         Postgres(super::TableOptionsPostgres),
+        #[prost(message, tag = "3")]
+        Bigquery(super::TableOptionsBigQuery),
+        #[prost(message, tag = "4")]
+        Local(super::TableOptionsLocal),
+        #[prost(message, tag = "5")]
+        Gcs(super::TableOptionsGcs),
+        #[prost(message, tag = "6")]
+        S3(super::TableOptionsS3),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -189,6 +197,46 @@ pub struct TableOptionsPostgres {
     /// Source table to connect to.
     #[prost(string, tag = "2")]
     pub table: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsBigQuery {
+    /// The dataset where table belongs.
+    #[prost(string, tag = "1")]
+    pub dataset_id: ::prost::alloc::string::String,
+    /// Name of the table.
+    #[prost(string, tag = "2")]
+    pub table_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsLocal {
+    /// File path on the local machine.
+    #[prost(string, tag = "1")]
+    pub location: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsGcs {
+    /// Bucket the file belongs to.
+    #[prost(string, tag = "1")]
+    pub bucket_name: ::prost::alloc::string::String,
+    /// Name of the object.
+    #[prost(string, tag = "2")]
+    pub location: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsS3 {
+    /// Region the bucket belongs to.
+    #[prost(string, tag = "1")]
+    pub region: ::prost::alloc::string::String,
+    /// Bucket the file belongs to.
+    #[prost(string, tag = "2")]
+    pub bucket_name: ::prost::alloc::string::String,
+    /// Name of the object.
+    #[prost(string, tag = "3")]
+    pub location: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -228,7 +276,7 @@ pub struct ConnectionEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConnectionOptions {
-    #[prost(oneof = "connection_options::Options", tags = "1, 2")]
+    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6")]
     pub options: ::core::option::Option<connection_options::Options>,
 }
 /// Nested message and enum types in `ConnectionOptions`.
@@ -240,6 +288,14 @@ pub mod connection_options {
         Debug(super::ConnectionOptionsDebug),
         #[prost(message, tag = "2")]
         Postgres(super::ConnectionOptionsPostgres),
+        #[prost(message, tag = "3")]
+        Bigquery(super::ConnectionOptionsBigQuery),
+        #[prost(message, tag = "4")]
+        Local(super::ConnectionOptionsLocal),
+        #[prost(message, tag = "5")]
+        Gcs(super::ConnectionOptionsGcs),
+        #[prost(message, tag = "6")]
+        S3(super::ConnectionOptionsS3),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -250,4 +306,29 @@ pub struct ConnectionOptionsDebug {}
 pub struct ConnectionOptionsPostgres {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsBigQuery {
+    #[prost(string, tag = "1")]
+    pub service_account_key: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub project_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsLocal {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsGcs {
+    #[prost(string, tag = "1")]
+    pub service_account_key: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsS3 {
+    #[prost(string, tag = "1")]
+    pub access_key_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub access_key_secret: ::prost::alloc::string::String,
 }
