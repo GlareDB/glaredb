@@ -411,6 +411,24 @@ pub enum TableOptions {
     Postgres(TableOptionsPostgres),
 }
 
+impl TableOptions {
+    pub const DEBUG: &str = "debug";
+    pub const POSTGRES: &str = "postgres";
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TableOptions::Debug(_) => Self::DEBUG,
+            TableOptions::Postgres(_) => Self::POSTGRES,
+        }
+    }
+}
+
+impl fmt::Display for TableOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 impl TryFrom<catalog::table_options::Options> for TableOptions {
     type Error = ProtoConvError;
     fn try_from(value: catalog::table_options::Options) -> Result<Self, Self::Error> {

@@ -119,7 +119,7 @@ impl SessionContext {
         self.mutate_catalog([Mutation::CreateConnection(service::CreateConnection {
             schema,
             name,
-            options: catalog::ConnectionOptions::Debug(catalog::ConnectionOptionsDebug {}), // TODO
+            options: plan.options,
         })])
         .await?;
 

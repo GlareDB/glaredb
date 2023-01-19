@@ -82,6 +82,11 @@ impl SessionCatalog {
         Some(ent)
     }
 
+    /// Get an entry by its id.
+    pub fn get_by_oid(&self, oid: u32) -> Option<&CatalogEntry> {
+        self.state.entries.get(&oid)
+    }
+
     /// Iterate over all entries in this catalog.
     ///
     /// All non-schema entries will also include an entry pointing to its parent

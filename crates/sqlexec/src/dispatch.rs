@@ -5,11 +5,15 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
+use datasource_debug::DebugTableType;
 use metastore::builtins::{
     GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{CatalogEntry, EntryType, ExternalTableEntry, ViewEntry};
+use metastore::types::catalog::{
+    CatalogEntry, ConnectionOptions, EntryType, ExternalTableEntry, TableOptions, ViewEntry,
+};
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
@@ -20,17 +24,30 @@ pub enum DispatchError {
     #[error("Missing builtin table; schema: {schema}, name: {name}")]
     MissingBuiltinTable { schema: String, name: String },
 
+    #[error("Missing object with oid: {0}")]
+    MissingObjectWithOid(u32),
+
     #[error("Invalid entry for table dispatch: {0}")]
-    InvalidEntryTypeForDispatch(metastore::types::catalog::EntryType),
+    InvalidEntryTypeForDispatch(EntryType),
 
     #[error("Unhandled entry for table dispatch: {0}")]
-    UnhandledEntryType(metastore::types::catalog::EntryType),
+    UnhandledEntryType(EntryType),
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::errors::ExecError>),
 
+    #[error(
+        "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
+    )]
+    UnhandledExternalDispatch {
+        table_type: String,
+        connection_type: String,
+    },
+
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
+    #[error(transparent)]
+    DebugDatasource(#[from] datasource_debug::errors::DebugError),
 }
 
 impl DispatchError {
@@ -109,8 +126,33 @@ impl<'a> SessionDispatcher<'a> {
 
     fn dispatch_external_table(
         &self,
-        _table: &ExternalTableEntry,
+        table: &ExternalTableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
+        let conn = self
+            .ctx
+            .get_session_catalog()
+            .get_by_oid(table.connection_id)
+            .ok_or(DispatchError::MissingObjectWithOid(table.connection_id))?;
+        let conn = match conn {
+            CatalogEntry::Connection(conn) => conn,
+            other => {
+                return Err(DispatchError::InvalidEntryTypeForDispatch(
+                    other.entry_type(),
+                ))
+            }
+        };
+
+        match (&conn.options, &table.options) {
+            (ConnectionOptions::Debug(_), TableOptions::Debug(table)) => {
+                let provider = DebugTableType::from_str(&table.table_type)?;
+                Ok(provider.into_table_provider())
+            }
+            (conn, table) => Err(DispatchError::UnhandledExternalDispatch {
+                table_type: table.to_string(),
+                connection_type: conn.to_string(),
+            }),
+        }
+
         //     return match &table.access {
         //         AccessOrConnection::Access(AccessMethod::System) => {
         //             let table = SystemTableDispatcher::new(&StubCatalogContext, sess_catalog)
@@ -385,7 +427,6 @@ impl<'a> SessionDispatcher<'a> {
         //             Err(DispatchError::UnhandleableAccess(table.access.clone()))
         //         }
         //     };
-        unimplemented!()
     }
 }
 
