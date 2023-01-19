@@ -6,10 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+logutil = {path = "../logutil"}
+pgrepr = {path = "../pgrepr"}
 tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"
-logutil = {path = "../logutil"}
 thiserror = "1.0"
 parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }

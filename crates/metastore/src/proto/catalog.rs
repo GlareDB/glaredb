@@ -62,6 +62,9 @@ pub struct EntryMeta {
     /// Name of this entry.
     #[prost(string, tag = "4")]
     pub name: ::prost::alloc::string::String,
+    /// Whether or not this entry is builtin. Builtin entries cannot be dropped.
+    #[prost(bool, tag = "5")]
+    pub builtin: bool,
 }
 /// Nested message and enum types in `EntryMeta`.
 pub mod entry_meta {
@@ -193,16 +196,13 @@ pub struct ColumnDefinition {
     /// Name of the column in the table.
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
-    /// Ordinal of the column in the table.
-    #[prost(uint32, tag = "2")]
-    pub ord: u32,
     /// Field is nullable.
-    #[prost(bool, tag = "3")]
+    #[prost(bool, tag = "2")]
     pub nullable: bool,
     /// Arrow type for the field.
     ///
     /// Note this will likely need to be expanded for complex types.
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "3")]
     pub arrow_type: ::core::option::Option<super::arrow::ArrowType>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]

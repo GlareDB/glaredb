@@ -19,7 +19,7 @@ impl Metastore {
     pub async fn serve(self, addr: SocketAddr) -> Result<()> {
         debug!(%addr, "starting metastore service");
         Server::builder()
-            .trace_fn(|_| debug_span!("metastore trace"))
+            .trace_fn(|_| debug_span!("metastore_service_request"))
             .add_service(MetastoreServiceServer::new(self.service))
             .serve(addr)
             .await?;
