@@ -73,7 +73,10 @@ message EntryMeta {
   // Name of this entry.
   string name = 4;
 
-  // next: 5
+  // Whether or not this entry is builtin. Builtin entries cannot be dropped.
+  bool builtin = 5;
+
+  // next: 6
 }
 
 message SchemaEntry {
@@ -129,18 +132,15 @@ message ColumnDefinition {
   // Name of the column in the table.
   string name = 1;
 
-  // Ordinal of the column in the table.
-  uint32 ord = 2;
-
   // Field is nullable.
-  bool nullable = 3;
+  bool nullable = 2;
 
   // Arrow type for the field.
   //
   // Note this will likely need to be expanded for complex types.
-  arrow.ArrowType arrow_type = 4;
+  arrow.ArrowType arrow_type = 3;
 
-  // next: 5
+  // next: 4
 }
 
 message ViewEntry {

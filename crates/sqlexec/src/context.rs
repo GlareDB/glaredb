@@ -1,14 +1,8 @@
-use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::{
-    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, TableOptions, ViewEntry,
-};
-use crate::catalog::entry::{DropEntry, EntryType};
-use crate::catalog::transaction::StubCatalogContext;
-use crate::catalog::Catalog;
 use crate::dispatch::SessionDispatcher;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
+use crate::metastore::SupervisorClient;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
@@ -21,9 +15,13 @@ use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
+use metastore::session::SessionCatalog;
+use metastore::types::catalog::{self, ConnectionEntry};
+use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::debug;
 use uuid::Uuid;
 
 /// Context for a session used during execution.
@@ -31,9 +29,10 @@ use uuid::Uuid;
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
-    id: Uuid,
+    conn_id: Uuid,
     /// Database catalog.
-    catalog: Arc<Catalog>,
+    metastore_catalog: SessionCatalog,
+    metastore: SupervisorClient,
     /// Session variables.
     vars: SessionVars,
     /// Prepared statements.
@@ -49,7 +48,11 @@ pub struct SessionContext {
 
 impl SessionContext {
     /// Create a new session context with the given catalog.
-    pub fn new(catalog: Arc<Catalog>, id: Uuid) -> SessionContext {
+    pub fn new(
+        conn_id: Uuid,
+        catalog: SessionCatalog,
+        metastore: SupervisorClient,
+    ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
         // NOTE: We handle catalog/schema defaults and information schemas
@@ -68,8 +71,9 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
-            id,
-            catalog,
+            conn_id,
+            metastore_catalog: catalog,
+            metastore,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -77,116 +81,103 @@ impl SessionContext {
         }
     }
 
-    /// Get the id for this session.
-    pub fn id(&self) -> Uuid {
-        self.id
+    /// Get the connection id for this session.
+    pub fn conn_id(&self) -> Uuid {
+        self.conn_id
     }
 
     /// Create a table.
-    pub fn create_table(&self, plan: CreateTable) -> Result<()> {
-        let (schema, name) = self.resolve_table_reference(plan.table_name)?;
-        let ent = TableEntry {
-            created_by: plan.create_sql.into(),
-            schema,
-            name,
-            access: AccessMethod::Unknown.into(),
-            table_options: TableOptions::None,
-            columns: plan.columns.iter().map(ColumnDefinition::from).collect(),
-        };
-
-        self.catalog.create_table(&StubCatalogContext, ent)?;
-        Ok(())
+    pub fn create_table(&self, _plan: CreateTable) -> Result<()> {
+        Err(ExecError::UnsupportedFeature("CREATE TABLE"))
     }
 
-    pub fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
-        let (schema, name) = self.resolve_table_reference(plan.table_name)?;
-        let ent = TableEntry {
-            created_by: plan.create_sql.into(),
-            schema,
-            name,
-            access: plan.access,
-            table_options: plan.table_options,
-            columns: Vec::new(),
-        };
-
-        self.catalog.create_table(&StubCatalogContext, ent)?;
+    pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
+        let (schema, name) = self.resolve_object_reference(plan.table_name)?;
+        self.mutate_catalog([Mutation::CreateExternalTable(
+            service::CreateExternalTable {
+                schema,
+                name,
+                connection_id: plan.connection_id,
+                options: plan.table_options,
+            },
+        )])
+        .await?;
         Ok(())
     }
 
     /// Create a schema.
-    pub fn create_schema(&self, plan: CreateSchema) -> Result<()> {
-        let ent = SchemaEntry {
-            created_by: plan.create_sql.into(),
+    pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
+        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema {
             name: plan.schema_name,
-        };
-
-        self.catalog.create_schema(&StubCatalogContext, ent)?;
+        })])
+        .await?;
         Ok(())
     }
 
-    pub fn create_connection(&self, plan: CreateConnection) -> Result<()> {
-        let (schema, name) = self.resolve_table_reference(plan.connection_name)?;
-        let ent = ConnectionEntry {
-            name,
+    pub async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
+        let (schema, name) = self.resolve_object_reference(plan.connection_name)?;
+        self.mutate_catalog([Mutation::CreateConnection(service::CreateConnection {
             schema,
-            method: plan.method,
-        };
+            name,
+            options: plan.options,
+        })])
+        .await?;
 
-        self.catalog.create_connection(&StubCatalogContext, ent)?;
         Ok(())
     }
 
-    pub fn create_view(&self, plan: CreateView) -> Result<()> {
-        let (schema, name) = self.resolve_table_reference(plan.view_name)?;
-        let ent = ViewEntry {
-            created_by: plan.create_sql.into(),
+    pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
+        let (schema, name) = self.resolve_object_reference(plan.view_name)?;
+        self.mutate_catalog([Mutation::CreateView(service::CreateView {
             schema,
             name,
             sql: plan.sql,
-        };
+        })])
+        .await?;
 
-        self.catalog.create_view(&StubCatalogContext, ent)?;
         Ok(())
     }
 
     /// Drop one or more tables.
-    pub fn drop_tables(&self, plan: DropTables) -> Result<()> {
+    pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
+        let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            let (schema, name) = self.resolve_table_reference(name)?;
-            let ent = DropEntry {
-                typ: EntryType::Table,
-                schema,
-                name,
-            };
-            self.catalog.drop_entry(&StubCatalogContext, ent)?;
+            let (schema, name) = self.resolve_object_reference(name)?;
+            drops.push(Mutation::DropObject(service::DropObject { schema, name }));
         }
+
+        self.mutate_catalog(drops).await?;
+
         Ok(())
     }
 
     /// Drop one or more schemas.
-    pub fn drop_schemas(&self, plan: DropSchemas) -> Result<()> {
+    pub async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
+        let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            let ent = DropEntry {
-                typ: EntryType::Schema,
-                schema: name.clone(),
-                name,
-            };
-            self.catalog.drop_entry(&StubCatalogContext, ent)?;
+            drops.push(Mutation::DropSchema(service::DropSchema { name }));
         }
+
+        self.mutate_catalog(drops).await?;
+
         Ok(())
     }
 
-    pub fn get_connection(&self, name: &str) -> Result<Arc<ConnectionEntry>> {
-        let schema = self
-            .catalog
-            .schemas
-            .get_entry(&StubCatalogContext, self.first_schema()?)
-            .ok_or_else(|| internal!("missing schema"))?;
-        let conn = schema
-            .connections
-            .get_entry(&StubCatalogContext, name)
-            .ok_or_else(|| internal!("missing connection"))?;
-        Ok(conn)
+    /// Get a connection entry from the catalog.
+    pub fn get_connection(&self, name: String) -> Result<&ConnectionEntry> {
+        let (schema, name) = self.resolve_object_reference(name)?;
+        let ent = self
+            .metastore_catalog
+            .resolve_entry(&schema, &name)
+            .ok_or(ExecError::MissingConnection { schema, name })?;
+
+        match ent {
+            catalog::CatalogEntry::Connection(ent) => Ok(ent),
+            other => Err(ExecError::UnexpectedEntryType {
+                got: other.entry_type(),
+                want: catalog::EntryType::Connection,
+            }),
+        }
     }
 
     /// Get a reference to the session variables.
@@ -199,18 +190,28 @@ impl SessionContext {
         &mut self.vars
     }
 
-    /// Get a reference to the catalog.
-    pub fn get_catalog(&self) -> &Arc<Catalog> {
-        &self.catalog
+    /// Get a reference to the session catalog.
+    pub fn get_session_catalog(&self) -> &SessionCatalog {
+        &self.metastore_catalog
     }
 
     /// Create a prepared statement.
-    pub fn prepare_statement(
+    pub async fn prepare_statement(
         &mut self,
         name: String,
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>,
     ) -> Result<()> {
+        // Swap out cached catalog if a newer one was fetched.
+        //
+        // Note that when we have transactions, we should move this to only
+        // swapping states between transactions.
+        if self.metastore.version_hint() != self.metastore_catalog.version() {
+            debug!(version = %self.metastore_catalog.version(), "swapping catalog state for session");
+            let new_state = self.metastore.get_cached_state().await?;
+            self.metastore_catalog.swap_state(new_state);
+        }
+
         if !params.is_empty() {
             return Err(ExecError::UnsupportedFeature(
                 "prepared statements with parameters",
@@ -322,8 +323,26 @@ impl SessionContext {
         Ok(df_plan)
     }
 
-    /// Resolves a table reference for creating tables and views.
-    fn resolve_table_reference(&self, name: String) -> Result<(String, String)> {
+    /// Attempt to apply mutations to the catalog.
+    async fn mutate_catalog(
+        &mut self,
+        mutations: impl IntoIterator<Item = Mutation>,
+    ) -> Result<()> {
+        // Note that when we have transactions, these shouldn't be sent until
+        // commit.
+        let state = self
+            .metastore
+            .try_mutate(
+                self.metastore_catalog.version(),
+                mutations.into_iter().collect(),
+            )
+            .await?;
+        self.metastore_catalog.swap_state(state);
+        Ok(())
+    }
+
+    /// Resolves a reference for an object that existing inside a schema.
+    fn resolve_object_reference(&self, name: String) -> Result<(String, String)> {
         let reference = TableReference::from(name.as_str());
         match reference {
             TableReference::Bare { .. } => {
@@ -365,11 +384,15 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         match name {
             TableReference::Bare { table } => {
                 for schema in self.context.search_path_iter() {
-                    let opt = dispatcher.dispatch_access(schema, table).map_err(|e| {
-                        DataFusionError::Plan(format!("failed dispatch for bare table: {}", e))
-                    })?;
-                    if let Some(provider) = opt {
-                        return Ok(Arc::new(DefaultTableSource::new(provider)));
+                    match dispatcher.dispatch_access(schema, table) {
+                        Ok(table) => return Ok(Arc::new(DefaultTableSource::new(table))),
+                        Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
+                        Err(e) => {
+                            return Err(DataFusionError::Plan(format!(
+                                "failed to dispatch bare table: {}",
+                                e
+                            )))
+                        }
                     }
                 }
                 Err(DataFusionError::Plan(format!(
@@ -379,17 +402,10 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
             }
             TableReference::Full { schema, table, .. }
             | TableReference::Partial { schema, table } => {
-                let opt = dispatcher.dispatch_access(schema, table).map_err(|e| {
+                let table = dispatcher.dispatch_access(schema, table).map_err(|e| {
                     DataFusionError::Plan(format!("failed dispatch for qualified table: {}", e))
                 })?;
-                if let Some(provider) = opt {
-                    return Ok(Arc::new(DefaultTableSource::new(provider)));
-                }
-
-                Err(DataFusionError::Plan(format!(
-                    "failed to resolve qualified table; schema: {}, table: {}",
-                    schema, table
-                )))
+                Ok(Arc::new(DefaultTableSource::new(table)))
             }
         }
     }

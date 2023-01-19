@@ -2311,6 +2311,7 @@ dependencies = [
  "object_store",
  "once_cell",
  "parking_lot",
+ "pgrepr",
  "proptest",
  "proptest-derive",
  "prost",
@@ -3847,6 +3848,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "logutil",
+ "metastore",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -3861,6 +3863,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tonic",
  "tracing",
  "uuid",
 ]

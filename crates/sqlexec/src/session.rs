@@ -1,7 +1,7 @@
-use crate::catalog::Catalog;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
+use crate::metastore::SupervisorClient;
 use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
@@ -9,6 +9,7 @@ use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
     ExecutionPlan, SendableRecordBatchStream,
 };
+use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use std::fmt;
 use std::sync::Arc;
@@ -78,8 +79,12 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
-    pub fn new(catalog: Arc<Catalog>, id: Uuid) -> Result<Session> {
-        let ctx = SessionContext::new(catalog, id);
+    pub fn new(
+        conn_id: Uuid,
+        catalog: SessionCatalog,
+        metastore: SupervisorClient,
+    ) -> Result<Session> {
+        let ctx = SessionContext::new(conn_id, catalog, metastore);
         Ok(Session { ctx })
     }
 
@@ -114,8 +119,8 @@ impl Session {
         Err(ExecError::UnsupportedFeature("CREATE TABLE ..."))
     }
 
-    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
-        self.ctx.create_external_table(plan)?;
+    pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
+        self.ctx.create_external_table(plan).await?;
         Ok(())
     }
 
@@ -123,28 +128,28 @@ impl Session {
         Err(ExecError::UnsupportedFeature("CREATE TABLE ... AS ..."))
     }
 
-    pub(crate) async fn create_schema(&self, plan: CreateSchema) -> Result<()> {
-        self.ctx.create_schema(plan)?;
+    pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
+        self.ctx.create_schema(plan).await?;
         Ok(())
     }
 
-    pub(crate) async fn create_connection(&self, plan: CreateConnection) -> Result<()> {
-        self.ctx.create_connection(plan)?;
+    pub(crate) async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
+        self.ctx.create_connection(plan).await?;
         Ok(())
     }
 
-    pub(crate) async fn create_view(&self, plan: CreateView) -> Result<()> {
-        self.ctx.create_view(plan)?;
+    pub(crate) async fn create_view(&mut self, plan: CreateView) -> Result<()> {
+        self.ctx.create_view(plan).await?;
         Ok(())
     }
 
-    pub(crate) async fn drop_tables(&self, plan: DropTables) -> Result<()> {
-        self.ctx.drop_tables(plan)?;
+    pub(crate) async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
+        self.ctx.drop_tables(plan).await?;
         Ok(())
     }
 
-    pub(crate) async fn drop_schemas(&self, plan: DropSchemas) -> Result<()> {
-        self.ctx.drop_schemas(plan)?;
+    pub(crate) async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
+        self.ctx.drop_schemas(plan).await?;
         Ok(())
     }
 
@@ -178,13 +183,13 @@ impl Session {
     }
 
     /// Prepare a parsed statement for future execution.
-    pub fn prepare_statement(
+    pub async fn prepare_statement(
         &mut self,
         name: String,
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        self.ctx.prepare_statement(name, stmt, params)
+        self.ctx.prepare_statement(name, stmt, params).await
     }
 
     pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {

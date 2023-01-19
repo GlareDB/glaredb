@@ -1,16 +1,23 @@
 //! Module for handling the catalog for a single database.
+use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA_ID};
 use crate::errors::{MetastoreError, Result};
 use crate::types::catalog::{
     CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, ExternalTableEntry,
-    SchemaEntry, ViewEntry,
+    SchemaEntry, TableEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
+use once_cell::sync::Lazy;
 use parking_lot::{Mutex, MutexGuard};
+use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Special id indicating that schemas have no parents.
 const SCHEMA_PARENT_ID: u32 = 0;
+
+/// A global builtin catalog. This is meant to be cloned for every database
+/// catalog.
+static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new().unwrap());
 
 /// Catalog for a single database.
 pub struct DatabaseCatalog {
@@ -21,15 +28,17 @@ pub struct DatabaseCatalog {
 impl DatabaseCatalog {
     /// Open the catalog for a database.
     pub async fn open(id: Uuid) -> Result<DatabaseCatalog> {
-        // TODO: Storage
+        // TODO: Read from storage.
+        let builtins = BUILTIN_CATALOG.clone();
+
         Ok(DatabaseCatalog {
             db_id: id,
             state: Mutex::new(State {
                 version: 0,
-                oid_counter: 0,
-                entries: HashMap::new(),
-                schema_names: HashMap::new(),
-                schema_objects: HashMap::new(),
+                oid_counter: FIRST_AVAILABLE_ID,
+                entries: builtins.entries,
+                schema_names: builtins.schema_names,
+                schema_objects: builtins.schema_objects,
             }),
         })
     }
@@ -147,6 +156,7 @@ impl State {
                             id: oid,
                             parent: SCHEMA_PARENT_ID,
                             name: create_schema.name.clone(),
+                            builtin: false,
                         },
                     };
                     self.entries.insert(oid, CatalogEntry::Schema(ent));
@@ -167,6 +177,7 @@ impl State {
                             id: oid,
                             parent: schema_id,
                             name: create_view.name.clone(),
+                            builtin: false,
                         },
                         sql: create_view.sql,
                     };
@@ -186,6 +197,7 @@ impl State {
                             id: oid,
                             parent: schema_id,
                             name: create_conn.name.clone(),
+                            builtin: false,
                         },
                         options: create_conn.options,
                     };
@@ -213,6 +225,7 @@ impl State {
                             id: oid,
                             parent: schema_id,
                             name: create_ext.name.clone(),
+                            builtin: false,
                         },
                         connection_id: create_ext.connection_id,
                         options: create_ext.options,
@@ -264,10 +277,110 @@ impl State {
 }
 
 /// Holds names to object ids for a single schema.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct SchemaObjects {
     /// Maps names to ids in this schema.
     objects: HashMap<String, u32>,
+}
+
+/// Catalog with builtin objects. Used during database catalog initialization.
+#[derive(Clone)]
+struct BuiltinCatalog {
+    /// All entries in the catalog.
+    entries: HashMap<u32, CatalogEntry>,
+    /// Map schema names to their ids.
+    schema_names: HashMap<String, u32>,
+    /// Map schema IDs to objects in the schema.
+    schema_objects: HashMap<u32, SchemaObjects>,
+}
+
+impl BuiltinCatalog {
+    /// Create a new builtin catalog.
+    ///
+    /// It is a programmer error if this fails to build.
+    fn new() -> Result<BuiltinCatalog> {
+        let mut entries = HashMap::new();
+        let mut schema_names = HashMap::new();
+        let mut schema_objects = HashMap::new();
+
+        for schema in BuiltinSchema::builtins() {
+            schema_names.insert(schema.name.to_string(), schema.oid);
+            schema_objects.insert(schema.oid, SchemaObjects::default());
+            entries.insert(
+                schema.oid,
+                CatalogEntry::Schema(SchemaEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Schema,
+                        id: schema.oid,
+                        parent: SCHEMA_PARENT_ID,
+                        name: schema.name.to_string(),
+                        builtin: true,
+                    },
+                }),
+            );
+        }
+
+        // All the below items don't have stable ids.
+        let mut oid = FIRST_NON_SCHEMA_ID;
+
+        for table in BuiltinTable::builtins() {
+            let schema_id = schema_names
+                .get(table.schema)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(table.schema.to_string()))?;
+            entries.insert(
+                oid,
+                CatalogEntry::Table(TableEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Table,
+                        id: oid,
+                        parent: *schema_id,
+                        name: table.name.to_string(),
+                        builtin: true,
+                    },
+                    columns: table.columns.clone(),
+                }),
+            );
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .objects
+                .insert(table.name.to_string(), oid);
+
+            oid += 1;
+        }
+
+        for view in BuiltinView::builtins() {
+            let schema_id = schema_names
+                .get(view.schema)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(view.schema.to_string()))?;
+            entries.insert(
+                oid,
+                CatalogEntry::View(ViewEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::View,
+                        id: oid,
+                        parent: *schema_id,
+                        name: view.name.to_string(),
+                        builtin: true,
+                    },
+                    sql: view.sql.to_string(),
+                }),
+            );
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .objects
+                .insert(view.name.to_string(), oid);
+
+            oid += 1;
+        }
+
+        Ok(BuiltinCatalog {
+            entries,
+            schema_names,
+            schema_objects,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -282,6 +395,11 @@ mod tests {
 
     async fn version(db: &DatabaseCatalog) -> u64 {
         db.get_state().await.unwrap().version
+    }
+
+    #[test]
+    fn builtin_catalog_builds() {
+        BuiltinCatalog::new().unwrap();
     }
 
     #[tokio::test]
@@ -332,7 +450,9 @@ mod tests {
             }
         }
 
-        assert_eq!(10, found.len(), "missing entries: found: {:?}", found,)
+        for i in 0..10 {
+            assert!(found.contains(i.to_string().as_str()));
+        }
     }
 
     #[tokio::test]
