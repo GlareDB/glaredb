@@ -19,6 +19,9 @@ nohup nix run .#glaredb -- -v metastore > "${metastore_log_file}" 2>&1 &
 # Get pids so we can shut it down at the end of this script.
 metastore_pid=$!
 
+# Give Metastore some time to startup.
+sleep 5
+
 # Start up GlareDB.
 glaredb_log_file="/tmp/glaredb.log-${run_id}"
 nohup nix run .#glaredb -- -v server --local > "${glaredb_log_file}" 2>&1 &
