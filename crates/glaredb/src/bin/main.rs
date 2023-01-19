@@ -4,12 +4,11 @@ use common::config::DbConfig;
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
-use logutil::Verbosity;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::{error, info};
+use tracing::info;
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
