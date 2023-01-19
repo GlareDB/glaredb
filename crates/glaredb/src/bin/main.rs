@@ -3,12 +3,11 @@ use clap::{Parser, Subcommand};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
-use logutil::Verbosity;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::{error, info};
+use tracing::info;
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
@@ -77,17 +76,8 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    let cli = match Cli::try_parse() {
-        Ok(cli) => {
-            logutil::init(cli.verbose, cli.json_logging);
-            cli
-        }
-        Err(e) => {
-            logutil::init(Verbosity::Trace, true);
-            error!(%e, "failed to parse args");
-            std::process::exit(1);
-        }
-    };
+    let cli = Cli::parse();
+    logutil::init(cli.verbose, cli.json_logging);
 
     let version = buildenv::git_tag();
     info!(%version, "starting...");
