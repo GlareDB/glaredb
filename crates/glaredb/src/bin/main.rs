@@ -82,17 +82,8 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    let cli = match Cli::try_parse() {
-        Ok(cli) => {
-            logutil::init(cli.verbose, cli.json_logging);
-            cli
-        }
-        Err(e) => {
-            logutil::init(Verbosity::Trace, true);
-            error!(%e, "failed to parse args");
-            std::process::exit(1);
-        }
-    };
+    let cli = Cli::parse();
+    logutil::init(cli.verbose, cli.json_logging);
 
     let version = buildenv::git_tag();
     info!(%version, "starting...");
