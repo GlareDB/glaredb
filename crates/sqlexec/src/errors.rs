@@ -32,6 +32,15 @@ pub enum ExecError {
     #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<StatementWithExtensions>),
 
+    #[error("Unexpected entry type; got: {got}, want: {want}")]
+    UnexpectedEntryType {
+        got: metastore::types::catalog::EntryType,
+        want: metastore::types::catalog::EntryType,
+    },
+
+    #[error("Missing connection; schema: {schema}, name: {name}")]
+    MissingConnection { schema: String, name: String },
+
     // TODO: Need to be more granular about errors from Metastore.
     #[error("Failed Metastore request: {0}")]
     MetastoreTonic(#[from] tonic::Status),

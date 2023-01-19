@@ -9,10 +9,10 @@ set search_path = debug_datasources;
 statement ok
 set enable_debug_datasources to false;
 
-# Ensure we can't create a debug data source if above var is false.
+# Ensure we can't create a debug connection if above var is false.
 
 statement error
-create table error_table from debug options (table_type = 'error_during_execution');
+create connection debug_conn for debug;
 
 # Enable debug table creates.
 
@@ -20,7 +20,13 @@ statement ok
 set enable_debug_datasources to true;
 
 statement ok
-create external table error_table from debug options (table_type = 'error_during_execution');
+create connection debug_conn for debug;
 
-# TODO: Check that a select errors. Currently client disconnects if error sent
-# back on stream.
+statement ok
+create external table error_table from debug_conn options (table_type = 'error_during_execution');
+
+# Should always error.
+
+# TODO: Re-enable when _only_ error is sent back, and not both the error and command tag.
+# statement error
+# select * from error_table;

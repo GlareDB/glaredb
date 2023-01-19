@@ -1,8 +1,8 @@
-use crate::catalog::entry::{AccessOrConnection, ConnectionMethod, TableOptions};
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
+use metastore::types::catalog::{ConnectionOptions, TableOptions};
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -92,14 +92,12 @@ impl From<DdlPlan> for LogicalPlan {
 
 #[derive(Clone, Debug)]
 pub struct CreateSchema {
-    pub create_sql: String,
     pub schema_name: String,
     pub if_not_exists: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateTable {
-    pub create_sql: String,
     pub table_name: String,
     pub if_not_exists: bool,
     pub columns: Vec<Field>,
@@ -107,15 +105,13 @@ pub struct CreateTable {
 
 #[derive(Clone, Debug)]
 pub struct CreateExternalTable {
-    pub create_sql: String,
     pub table_name: String,
-    pub access: AccessOrConnection,
+    pub connection_id: u32,
     pub table_options: TableOptions,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateTableAs {
-    pub create_sql: String,
     pub table_name: String,
     pub source: DfLogicalPlan,
 }
@@ -123,12 +119,11 @@ pub struct CreateTableAs {
 #[derive(Clone, Debug)]
 pub struct CreateConnection {
     pub connection_name: String,
-    pub method: ConnectionMethod,
+    pub options: ConnectionOptions,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateView {
-    pub create_sql: String,
     pub view_name: String,
     pub num_columns: usize,
     pub sql: String,

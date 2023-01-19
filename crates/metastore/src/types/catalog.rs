@@ -498,12 +498,21 @@ pub enum ConnectionOptions {
     Postgres(ConnectionOptionsPostgres),
 }
 
+impl ConnectionOptions {
+    pub const DEBUG: &str = "debug";
+    pub const POSTGRES: &str = "postgres";
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ConnectionOptions::Debug(_) => Self::DEBUG,
+            ConnectionOptions::Postgres(_) => Self::POSTGRES,
+        }
+    }
+}
+
 impl fmt::Display for ConnectionOptions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConnectionOptions::Debug(_) => write!(f, "DEBUG"),
-            ConnectionOptions::Postgres(_) => write!(f, "POSTGRES"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 

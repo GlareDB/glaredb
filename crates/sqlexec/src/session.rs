@@ -119,8 +119,8 @@ impl Session {
         Err(ExecError::UnsupportedFeature("CREATE TABLE ..."))
     }
 
-    pub(crate) async fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
-        self.ctx.create_external_table(plan)?;
+    pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
+        self.ctx.create_external_table(plan).await?;
         Ok(())
     }
 

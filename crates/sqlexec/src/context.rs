@@ -1,6 +1,4 @@
-use crate::catalog::entry::{
-    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, TableOptions, ViewEntry,
-};
+use crate::catalog::entry::{ColumnDefinition, SchemaEntry, TableEntry, TableOptions, ViewEntry};
 use crate::dispatch::SessionDispatcher;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
@@ -19,7 +17,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog;
+use metastore::types::catalog::{self, ConnectionEntry};
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use std::collections::HashMap;
@@ -94,20 +92,18 @@ impl SessionContext {
         Err(ExecError::UnsupportedFeature("CREATE TABLE"))
     }
 
-    pub fn create_external_table(&self, plan: CreateExternalTable) -> Result<()> {
-        unimplemented!()
-        // let (schema, name) = self.resolve_table_reference(plan.table_name)?;
-        // let ent = TableEntry {
-        //     created_by: plan.create_sql.into(),
-        //     schema,
-        //     name,
-        //     access: plan.access,
-        //     table_options: plan.table_options,
-        //     columns: Vec::new(),
-        // };
-
-        // self.catalog.create_table(&StubCatalogContext, ent)?;
-        // Ok(())
+    pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
+        let (schema, name) = self.resolve_object_reference(plan.table_name)?;
+        self.mutate_catalog([Mutation::CreateExternalTable(
+            service::CreateExternalTable {
+                schema,
+                name,
+                connection_id: plan.connection_id,
+                options: plan.table_options,
+            },
+        )])
+        .await?;
+        Ok(())
     }
 
     /// Create a schema.
@@ -120,7 +116,7 @@ impl SessionContext {
     }
 
     pub async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
-        let (schema, name) = self.resolve_table_reference(plan.connection_name)?;
+        let (schema, name) = self.resolve_object_reference(plan.connection_name)?;
         self.mutate_catalog([Mutation::CreateConnection(service::CreateConnection {
             schema,
             name,
@@ -132,7 +128,7 @@ impl SessionContext {
     }
 
     pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
-        let (schema, name) = self.resolve_table_reference(plan.view_name)?;
+        let (schema, name) = self.resolve_object_reference(plan.view_name)?;
         self.mutate_catalog([Mutation::CreateView(service::CreateView {
             schema,
             name,
@@ -147,7 +143,7 @@ impl SessionContext {
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            let (schema, name) = self.resolve_table_reference(name)?;
+            let (schema, name) = self.resolve_object_reference(name)?;
             drops.push(Mutation::DropObject(service::DropObject { schema, name }));
         }
 
@@ -168,18 +164,21 @@ impl SessionContext {
         Ok(())
     }
 
-    pub fn get_connection(&self, name: &str) -> Result<Arc<ConnectionEntry>> {
-        unimplemented!()
-        // let schema = self
-        //     .catalog
-        //     .schemas
-        //     .get_entry(&StubCatalogContext, self.first_schema()?)
-        //     .ok_or_else(|| internal!("missing schema"))?;
-        // let conn = schema
-        //     .connections
-        //     .get_entry(&StubCatalogContext, name)
-        //     .ok_or_else(|| internal!("missing connection"))?;
-        // Ok(conn)
+    /// Get a connection entry from the catalog.
+    pub fn get_connection(&self, name: String) -> Result<&ConnectionEntry> {
+        let (schema, name) = self.resolve_object_reference(name)?;
+        let ent = self
+            .metastore_catalog
+            .resolve_entry(&schema, &name)
+            .ok_or_else(|| ExecError::MissingConnection { schema, name })?;
+
+        match ent {
+            catalog::CatalogEntry::Connection(ent) => Ok(ent),
+            other => Err(ExecError::UnexpectedEntryType {
+                got: other.entry_type(),
+                want: catalog::EntryType::Connection,
+            }),
+        }
     }
 
     /// Get a reference to the session variables.
@@ -343,8 +342,8 @@ impl SessionContext {
         Ok(())
     }
 
-    /// Resolves a table reference for creating tables and views.
-    fn resolve_table_reference(&self, name: String) -> Result<(String, String)> {
+    /// Resolves a reference for an object that existing inside a schema.
+    fn resolve_object_reference(&self, name: String) -> Result<(String, String)> {
         let reference = TableReference::from(name.as_str());
         match reference {
             TableReference::Bare { .. } => {

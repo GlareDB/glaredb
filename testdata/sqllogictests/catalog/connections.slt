@@ -20,7 +20,7 @@ create connection c2 for debug;
 # Ensure connections get listed in the builtin in table.
 
 query TTT
-select * from glare_catalog.connections c where c.schema_name = 'builtin_connection_test' order by c.connection_name;
+select builtin, schema_name, connection_name, connection_type from glare_catalog.connections c where c.schema_name = 'builtin_connection_test' order by c.connection_name;
 ----
-builtin_connection_test   c1   debug
-builtin_connection_test   c2   debug
+f   builtin_connection_test   c1   debug
+f   builtin_connection_test   c2   debug
