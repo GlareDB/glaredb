@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use common::config::DbConfig;
 use glaredb::metastore::Metastore;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
@@ -46,14 +45,6 @@ enum Commands {
         /// debugging.
         #[clap(long, value_parser)]
         keep_running: bool,
-
-        /// Name of the database to connect to.
-        #[clap(short, long, value_parser)]
-        db_name: Option<String>,
-
-        /// Path to config file
-        #[clap(short, long, value_parser)]
-        config: Option<String>,
 
         /// Path to test files.
         files: Vec<String>,

@@ -1,5 +1,4 @@
-use anyhow::{anyhow, Result};
-use common::config::DbConfig;
+use anyhow::Result;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
@@ -7,7 +6,7 @@ use std::env;
 use std::fs;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::{debug, debug_span, info, trace, warn, Instrument};
+use tracing::{debug, debug_span, info, trace, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {

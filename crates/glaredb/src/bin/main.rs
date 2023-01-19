@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use common::config::DbConfig;
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
@@ -36,17 +35,9 @@ enum Commands {
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
         bind: String,
 
-        /// Name of the database to connect to.
-        #[clap(short, long, value_parser)]
-        db_name: Option<String>,
-
         /// Address to the Metastore.
         #[clap(short, long, value_parser, default_value_t = String::from("http://localhost:6545"))]
         metastore_addr: String,
-
-        /// Path to config file
-        #[clap(short, long, value_parser)]
-        config: Option<String>,
 
         /// Whether or not this instance is running locally.
         ///
@@ -106,7 +97,6 @@ fn main() -> Result<()> {
             bind,
             metastore_addr,
             local,
-            ..
         } => {
             begin_server(&bind, metastore_addr, local)?;
         }
