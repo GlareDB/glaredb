@@ -1,6 +1,6 @@
 use crate::catalog::access::AccessMethod;
 use crate::catalog::entry::{
-    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, ViewEntry,
+    ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, TableOptions, ViewEntry,
 };
 use crate::catalog::entry::{DropEntry, EntryType};
 use crate::catalog::transaction::StubCatalogContext;
@@ -21,7 +21,6 @@ use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
-use metastore::types::catalog::{TableOptions, TableOptionsNone};
 use pgrepr::format::Format;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -91,7 +90,7 @@ impl SessionContext {
             schema,
             name,
             access: AccessMethod::Unknown.into(),
-            table_options: TableOptions::None(TableOptionsNone {}),
+            table_options: TableOptions::None,
             columns: plan.columns.iter().map(ColumnDefinition::from).collect(),
         };
 

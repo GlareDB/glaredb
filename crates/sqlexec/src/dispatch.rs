@@ -3,7 +3,7 @@ use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{
     GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
 };
-use crate::catalog::entry::{AccessOrConnection, ConnectionEntry};
+use crate::catalog::entry::{AccessOrConnection, ConnectionEntry, ConnectionMethod, TableOptions};
 use crate::catalog::errors::{internal, CatalogError, Result};
 use crate::catalog::transaction::{CatalogContext, StubCatalogContext};
 use crate::catalog::Catalog;
@@ -18,12 +18,6 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
-use metastore::types::catalog::{
-    ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
-    ConnectionOptionsLocal, ConnectionOptionsPostgres, ConnectionOptionsS3, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsPostgres, TableOptionsS3,
-};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -158,19 +152,16 @@ impl<'a> SessionDispatcher<'a> {
                         .map_err(|e| internal!("{}", e))?;
                     match (&table.table_options, conn.as_ref()) {
                         (
-                            TableOptions::Debug(TableOptionsDebug { table_type }),
+                            TableOptions::Debug { typ },
                             ConnectionEntry {
-                                method: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                                method: ConnectionMethod::Debug,
                                 ..
                             },
-                        ) => Ok(Some(table_type.clone().into_table_provider())),
+                        ) => Ok(Some(typ.clone().into_table_provider())),
                         (
-                            TableOptions::Postgres(TableOptionsPostgres { schema, table }),
+                            TableOptions::Postgres { schema, table },
                             ConnectionEntry {
-                                method:
-                                    ConnectionOptions::Postgres(ConnectionOptionsPostgres {
-                                        connection_string,
-                                    }),
+                                method: ConnectionMethod::Postgres { connection_string },
                                 ..
                             },
                         ) => {
@@ -199,16 +190,16 @@ impl<'a> SessionDispatcher<'a> {
                             Ok(Some(Arc::new(provider)))
                         }
                         (
-                            TableOptions::BigQuery(TableOptionsBigQuery {
+                            TableOptions::BigQuery {
                                 dataset_id,
                                 table_id,
-                            }),
+                            },
                             ConnectionEntry {
                                 method:
-                                    ConnectionOptions::BigQuery(ConnectionOptionsBigQuery {
+                                    ConnectionMethod::BigQuery {
                                         service_account_key,
                                         project_id,
-                                    }),
+                                    },
                                 ..
                             },
                         ) => {
@@ -238,9 +229,9 @@ impl<'a> SessionDispatcher<'a> {
                             Ok(Some(Arc::new(provider)))
                         }
                         (
-                            TableOptions::Local(TableOptionsLocal { location }),
+                            TableOptions::Local { location },
                             ConnectionEntry {
-                                method: ConnectionOptions::Local(ConnectionOptionsLocal {}),
+                                method: ConnectionMethod::Local,
                                 ..
                             },
                         ) => {
@@ -261,15 +252,15 @@ impl<'a> SessionDispatcher<'a> {
                             Ok(Some(Arc::new(provider)))
                         }
                         (
-                            TableOptions::Gcs(TableOptionsGcs {
+                            TableOptions::Gcs {
                                 bucket_name,
                                 location,
-                            }),
+                            },
                             ConnectionEntry {
                                 method:
-                                    ConnectionOptions::Gcs(ConnectionOptionsGcs {
+                                    ConnectionMethod::Gcs {
                                         service_account_key,
-                                    }),
+                                    },
                                 ..
                             },
                         ) => {
@@ -292,17 +283,17 @@ impl<'a> SessionDispatcher<'a> {
                             Ok(Some(Arc::new(provider)))
                         }
                         (
-                            TableOptions::S3(TableOptionsS3 {
+                            TableOptions::S3 {
                                 region,
                                 bucket_name,
                                 location,
-                            }),
+                            },
                             ConnectionEntry {
                                 method:
-                                    ConnectionOptions::S3(ConnectionOptionsS3 {
+                                    ConnectionMethod::S3 {
                                         access_key_id,
                                         access_key_secret,
-                                    }),
+                                    },
                                 ..
                             },
                         ) => {

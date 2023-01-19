@@ -1,9 +1,8 @@
-use crate::catalog::entry::AccessOrConnection;
+use crate::catalog::entry::{AccessOrConnection, ConnectionMethod, TableOptions};
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
-use metastore::types::catalog::{ConnectionOptions, TableOptions};
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -124,7 +123,7 @@ pub struct CreateTableAs {
 #[derive(Clone, Debug)]
 pub struct CreateConnection {
     pub connection_name: String,
-    pub method: ConnectionOptions,
+    pub method: ConnectionMethod,
 }
 
 #[derive(Clone, Debug)]

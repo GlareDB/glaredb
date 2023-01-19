@@ -20,9 +20,6 @@ pub enum CatalogError {
     UnhandleableAccess(crate::catalog::entry::AccessOrConnection),
 
     #[error(transparent)]
-    DataSourceDebug(#[from] datasource_debug::errors::DebugError),
-
-    #[error(transparent)]
     DatasourceBigQuery(#[from] datasource_bigquery::errors::BigQueryError),
 
     #[error(transparent)]

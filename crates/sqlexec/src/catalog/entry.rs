@@ -2,7 +2,7 @@
 use crate::catalog::access::AccessMethod;
 use crate::catalog::builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use metastore::types::catalog::{ConnectionOptions, TableOptions, TableOptionsNone};
+use datasource_debug::DebugTableType;
 use std::fmt;
 use std::ops::Deref;
 
@@ -96,6 +96,34 @@ impl fmt::Display for AccessOrConnection {
 }
 
 #[derive(Debug, Clone)]
+pub enum TableOptions {
+    None,
+    Debug {
+        typ: DebugTableType,
+    },
+    Postgres {
+        schema: String,
+        table: String,
+    },
+    BigQuery {
+        dataset_id: String,
+        table_id: String,
+    },
+    Local {
+        location: String,
+    },
+    Gcs {
+        bucket_name: String,
+        location: String,
+    },
+    S3 {
+        region: String,
+        bucket_name: String,
+        location: String,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub struct TableEntry {
     pub created_by: EntryCreatedBy,
     pub schema: String,
@@ -112,7 +140,7 @@ impl From<&BuiltinTable> for TableEntry {
             schema: builtin.schema.to_string(),
             name: builtin.name.to_string(),
             access: AccessMethod::System.into(),
-            table_options: TableOptions::None(TableOptionsNone {}),
+            table_options: TableOptions::None,
             columns: builtin.columns.clone(),
         }
     }
@@ -157,10 +185,47 @@ impl From<&ColumnDefinition> for Field {
 }
 
 #[derive(Debug, Clone)]
+pub enum ConnectionMethod {
+    Debug,
+    Postgres {
+        connection_string: String,
+    },
+    BigQuery {
+        service_account_key: String,
+        project_id: String,
+    },
+    Local,
+    Gcs {
+        service_account_key: String,
+    },
+    S3 {
+        access_key_id: String,
+        access_key_secret: String,
+    },
+}
+
+impl fmt::Display for ConnectionMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ConnectionMethod::Debug => "debug",
+                ConnectionMethod::Postgres { .. } => "postgres",
+                ConnectionMethod::BigQuery { .. } => "bigquery",
+                ConnectionMethod::Local => "local",
+                ConnectionMethod::Gcs { .. } => "gcs",
+                ConnectionMethod::S3 { .. } => "s3",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ConnectionEntry {
     pub name: String,
     pub schema: String,
-    pub method: ConnectionOptions,
+    pub method: ConnectionMethod,
 }
 
 #[derive(Debug, Clone)]
