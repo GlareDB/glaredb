@@ -24,6 +24,9 @@ pub enum ProtoConvError {
     UnsupportedSerialization(&'static str),
 
     #[error(transparent)]
+    DatasourceDebug(#[from] datasource_debug::errors::DebugError),
+
+    #[error(transparent)]
     Uuid(#[from] uuid::Error),
 }
 

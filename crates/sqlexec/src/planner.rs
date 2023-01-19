@@ -1,5 +1,5 @@
 use crate::catalog::access::AccessMethod;
-use crate::catalog::entry::{AccessOrConnection, ConnectionMethod, TableOptions};
+use crate::catalog::entry::AccessOrConnection;
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
@@ -15,6 +15,12 @@ use datasource_object_store::gcs::GcsTableAccess;
 use datasource_object_store::local::LocalTableAccess;
 use datasource_object_store::s3::S3TableAccess;
 use datasource_postgres::PostgresTableAccess;
+use metastore::types::catalog::{
+    ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
+    ConnectionOptionsLocal, ConnectionOptionsPostgres, ConnectionOptionsS3, TableOptions,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsNone,
+    TableOptionsPostgres, TableOptionsS3,
+};
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use tracing::debug;
@@ -47,7 +53,9 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
                 CreateConnection {
                     connection_name: stmt.name,
-                    method: ConnectionMethod::Postgres { connection_string },
+                    method: ConnectionOptions::Postgres(ConnectionOptionsPostgres {
+                        connection_string,
+                    }),
                 }
             }
             "bigquery" => {
@@ -55,23 +63,23 @@ impl<'a> SessionPlanner<'a> {
                 let project_id = remove_required_opt(m, "project_id")?;
                 CreateConnection {
                     connection_name: stmt.name,
-                    method: ConnectionMethod::BigQuery {
+                    method: ConnectionOptions::BigQuery(ConnectionOptionsBigQuery {
                         service_account_key,
                         project_id,
-                    },
+                    }),
                 }
             }
             "local" => CreateConnection {
                 connection_name: stmt.name,
-                method: ConnectionMethod::Local,
+                method: ConnectionOptions::Local(ConnectionOptionsLocal {}),
             },
             "gcs" => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
                 CreateConnection {
                     connection_name: stmt.name,
-                    method: ConnectionMethod::Gcs {
+                    method: ConnectionOptions::Gcs(ConnectionOptionsGcs {
                         service_account_key,
-                    },
+                    }),
                 }
             }
             "s3" => {
@@ -79,16 +87,16 @@ impl<'a> SessionPlanner<'a> {
                 let access_key_secret = remove_required_opt(m, "access_key_secret")?;
                 CreateConnection {
                     connection_name: stmt.name,
-                    method: ConnectionMethod::S3 {
+                    method: ConnectionOptions::S3(ConnectionOptionsS3 {
                         access_key_id,
                         access_key_secret,
-                    },
+                    }),
                 }
             }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
                 CreateConnection {
                     connection_name: stmt.name,
-                    method: ConnectionMethod::Debug,
+                    method: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
                 }
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
@@ -108,65 +116,65 @@ impl<'a> SessionPlanner<'a> {
         if !is_datasource(datasource_or_connection.as_str()) {
             let conn = self.ctx.get_connection(&datasource_or_connection)?;
             let plan = match conn.method {
-                ConnectionMethod::Debug => {
-                    let typ = remove_required_opt(m, "table_type")?;
-                    let typ = DebugTableType::from_str(&typ)?;
+                ConnectionOptions::Debug { .. } => {
+                    let table_type = remove_required_opt(m, "table_type")?;
+                    let table_type = DebugTableType::from_str(&table_type)?;
                     CreateExternalTable {
                         create_sql,
                         table_name: stmt.name,
                         access: AccessOrConnection::Connection(conn.name.clone()),
-                        table_options: TableOptions::Debug { typ },
+                        table_options: TableOptions::Debug(TableOptionsDebug { table_type }),
                     }
                 }
-                ConnectionMethod::Postgres { .. } => {
+                ConnectionOptions::Postgres { .. } => {
                     let source_schema = remove_required_opt(m, "schema")?;
                     let source_table = remove_required_opt(m, "table")?;
                     CreateExternalTable {
                         create_sql,
                         table_name: stmt.name,
                         access: AccessOrConnection::Connection(conn.name.clone()),
-                        table_options: TableOptions::Postgres {
+                        table_options: TableOptions::Postgres(TableOptionsPostgres {
                             schema: source_schema,
                             table: source_table,
-                        },
+                        }),
                     }
                 }
-                ConnectionMethod::BigQuery { .. } => {
+                ConnectionOptions::BigQuery { .. } => {
                     let dataset_id = remove_required_opt(m, "dataset_id")?;
                     let table_id = remove_required_opt(m, "table_id")?;
                     CreateExternalTable {
                         create_sql,
                         table_name: stmt.name,
                         access: AccessOrConnection::Connection(conn.name.clone()),
-                        table_options: TableOptions::BigQuery {
+                        table_options: TableOptions::BigQuery(TableOptionsBigQuery {
                             dataset_id,
                             table_id,
-                        },
+                        }),
                     }
                 }
-                ConnectionMethod::Local => {
+                ConnectionOptions::Local { .. } => {
                     let location = remove_required_opt(m, "location")?;
                     CreateExternalTable {
                         create_sql,
                         table_name: stmt.name,
                         access: AccessOrConnection::Connection(conn.name.clone()),
-                        table_options: TableOptions::Local { location },
+                        table_options: TableOptions::Local(TableOptionsLocal { location }),
                     }
                 }
-                ConnectionMethod::Gcs { .. } => {
+                ConnectionOptions::Gcs { .. } => {
                     let bucket_name = remove_required_opt(m, "bucket_name")?;
                     let location = remove_required_opt(m, "location")?;
                     CreateExternalTable {
                         create_sql,
                         table_name: stmt.name,
                         access: AccessOrConnection::Connection(conn.name.clone()),
-                        table_options: TableOptions::Gcs {
+                        table_options: TableOptions::Gcs(TableOptionsGcs {
                             bucket_name,
                             location,
-                        },
+                        }),
                     }
                 }
-                ConnectionMethod::S3 { .. } => {
+                ConnectionOptions::S3 { .. } => {
                     let region = remove_required_opt(m, "region")?;
                     let bucket_name = remove_required_opt(m, "bucket_name")?;
                     let location = remove_required_opt(m, "location")?;
@@ -174,11 +182,11 @@ impl<'a> SessionPlanner<'a> {
                         create_sql,
                         table_name: stmt.name,
                         access: AccessOrConnection::Connection(conn.name.clone()),
-                        table_options: TableOptions::S3 {
+                        table_options: TableOptions::S3(TableOptionsS3 {
                             region,
                             bucket_name,
                             location,
-                        },
+                        }),
                     }
                 }
             };
@@ -200,7 +208,7 @@ impl<'a> SessionPlanner<'a> {
                         name: source_table,
                     })
                     .into(),
-                    table_options: TableOptions::None,
+                    table_options: TableOptions::None(TableOptionsNone {}),
                 }
             }
             "bigquery" => {
@@ -218,7 +226,7 @@ impl<'a> SessionPlanner<'a> {
                         table_id,
                     })
                     .into(),
-                    table_options: TableOptions::None,
+                    table_options: TableOptions::None(TableOptionsNone {}),
                 }
             }
             "local" => {
@@ -227,7 +235,7 @@ impl<'a> SessionPlanner<'a> {
                     create_sql,
                     table_name: stmt.name,
                     access: AccessMethod::Local(LocalTableAccess { location: file }).into(),
-                    table_options: TableOptions::None,
+                    table_options: TableOptions::None(TableOptionsNone {}),
                 }
             }
             "gcs" => {
@@ -243,7 +251,7 @@ impl<'a> SessionPlanner<'a> {
                         location: table_location,
                     })
                     .into(),
-                    table_options: TableOptions::None,
+                    table_options: TableOptions::None(TableOptionsNone {}),
                 }
             }
             "s3" => {
@@ -263,7 +271,7 @@ impl<'a> SessionPlanner<'a> {
                         location: table_location,
                     })
                     .into(),
-                    table_options: TableOptions::None,
+                    table_options: TableOptions::None(TableOptionsNone {}),
                 }
             }
             "debug" if *self.ctx.get_session_vars().enable_debug_datasources.value() => {
@@ -273,7 +281,7 @@ impl<'a> SessionPlanner<'a> {
                     create_sql,
                     table_name: stmt.name,
                     access: AccessMethod::Debug(typ).into(),
-                    table_options: TableOptions::None,
+                    table_options: TableOptions::None(TableOptionsNone {}),
                 }
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
