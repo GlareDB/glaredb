@@ -14,5 +14,3 @@ tokio = { version = "1", features = ["full"] }
 async-stream = "0.3.3"
 serde = { version = "1.0", features = ["derive"] }
 datafusion = "15.0"
-proptest = "1.0"
-proptest-derive = "0.3" 

@@ -21,7 +21,6 @@ use datafusion::physical_plan::{
 };
 use errors::DebugError;
 use futures::Stream;
-use proptest_derive::Arbitrary;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;
@@ -30,7 +29,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-#[derive(Debug, Clone, Arbitrary, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DebugTableType {
     /// A table that will always return an error on the record batch stream.
     ErrorDuringExecution,
