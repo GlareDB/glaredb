@@ -40,6 +40,9 @@ pub enum ExecError {
     MetastoreDatabaseWorkerOverload,
 
     #[error(transparent)]
+    Dispatch(#[from] crate::dispatch::DispatchError),
+
+    #[error(transparent)]
     Metastore(#[from] metastore::errors::MetastoreError),
 
     #[error(transparent)]
@@ -65,9 +68,6 @@ pub enum ExecError {
 
     #[error(transparent)]
     VarError(#[from] std::env::VarError),
-
-    #[error(transparent)]
-    Catalog(#[from] crate::catalog::errors::CatalogError),
 
     #[error("internal error: {0}")]
     Internal(String),

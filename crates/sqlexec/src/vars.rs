@@ -1,10 +1,10 @@
 //! Server and session variables.
-use crate::catalog::constants::DEFAULT_SCHEMA;
 use crate::errors::{ExecError, Result};
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use lazy_static::lazy_static;
+use metastore::builtins::DEFAULT_SCHEMA;
 use regex::Regex;
 use std::borrow::{Borrow, ToOwned};
 use std::sync::Arc;

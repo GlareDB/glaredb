@@ -1,10 +1,6 @@
-use crate::catalog::access::AccessMethod;
 use crate::catalog::entry::{
     ColumnDefinition, ConnectionEntry, SchemaEntry, TableEntry, TableOptions, ViewEntry,
 };
-use crate::catalog::entry::{DropEntry, EntryType};
-use crate::catalog::transaction::StubCatalogContext;
-use crate::catalog::Catalog;
 use crate::dispatch::SessionDispatcher;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
@@ -194,12 +190,6 @@ impl SessionContext {
     /// Get a mutable reference to the session variables.
     pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
         &mut self.vars
-    }
-
-    /// Get a reference to the catalog.
-    pub fn get_catalog(&self) -> &Arc<Catalog> {
-        unimplemented!()
-        // &self.catalog
     }
 
     /// Get a reference to the session catalog.

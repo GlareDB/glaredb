@@ -12,7 +12,7 @@ use tokio::sync::RwLock;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
-use tracing::{debug, debug_span, error, Instrument};
+use tracing::{debug_span, error, Instrument};
 use uuid::Uuid;
 
 /// Number of outstanding requests per database.
@@ -29,7 +29,6 @@ pub struct SupervisorClient {
     /// Used to prevent unecessary requests and locking.
     version_hint: Arc<AtomicU64>,
     conn_id: Uuid,
-    db_id: Uuid,
     send: mpsc::Sender<WorkerRequest>,
 }
 
@@ -162,7 +161,6 @@ impl Supervisor {
                     return Ok(SupervisorClient {
                         version_hint: worker.version_hint.clone(),
                         conn_id,
-                        db_id,
                         send: worker.send.clone(),
                     });
                 }
@@ -180,7 +178,6 @@ impl Supervisor {
                 return Ok(SupervisorClient {
                     version_hint: worker.version_hint.clone(),
                     conn_id,
-                    db_id,
                     send: worker.send.clone(),
                 });
             }
@@ -201,7 +198,6 @@ impl Supervisor {
         Ok(SupervisorClient {
             version_hint,
             conn_id,
-            db_id,
             send,
         })
     }

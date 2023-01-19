@@ -1,6 +1,5 @@
 //! Catalog entry types.
 use crate::catalog::access::AccessMethod;
-use crate::catalog::builtins::{BuiltinSchema, BuiltinTable, BuiltinView};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datasource_debug::DebugTableType;
 use std::fmt;
@@ -65,15 +64,6 @@ pub struct SchemaEntry {
     pub name: String,
 }
 
-impl From<&BuiltinSchema> for SchemaEntry {
-    fn from(builtin: &BuiltinSchema) -> Self {
-        SchemaEntry {
-            created_by: EntryCreatedBy::System,
-            name: builtin.name.to_string(),
-        }
-    }
-}
-
 // TODO: Remove when everything uses a connection.
 #[derive(Debug, Clone)]
 pub enum AccessOrConnection {
@@ -131,19 +121,6 @@ pub struct TableEntry {
     pub access: AccessOrConnection,
     pub table_options: TableOptions,
     pub columns: Vec<ColumnDefinition>,
-}
-
-impl From<&BuiltinTable> for TableEntry {
-    fn from(builtin: &BuiltinTable) -> Self {
-        TableEntry {
-            created_by: EntryCreatedBy::System,
-            schema: builtin.schema.to_string(),
-            name: builtin.name.to_string(),
-            access: AccessMethod::System.into(),
-            table_options: TableOptions::None,
-            columns: builtin.columns.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -234,15 +211,4 @@ pub struct ViewEntry {
     pub schema: String,
     pub name: String,
     pub sql: String,
-}
-
-impl From<&BuiltinView> for ViewEntry {
-    fn from(builtin: &BuiltinView) -> Self {
-        ViewEntry {
-            created_by: EntryCreatedBy::System,
-            schema: builtin.schema.to_string(),
-            name: builtin.name.to_string(),
-            sql: builtin.sql.to_string(),
-        }
-    }
 }

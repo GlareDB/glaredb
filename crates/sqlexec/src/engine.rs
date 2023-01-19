@@ -1,4 +1,3 @@
-use crate::catalog::Catalog;
 use crate::errors::Result;
 use crate::metastore::Supervisor;
 use crate::session::Session;

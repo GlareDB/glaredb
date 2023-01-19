@@ -1,4 +1,3 @@
-use crate::catalog::Catalog;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;

@@ -1,29 +1,47 @@
 //! Adapter types for dispatching to table sources.
-use crate::catalog::access::AccessMethod;
-use crate::catalog::errors::{internal, CatalogError, Result};
-use crate::catalog::Catalog;
 use crate::context::SessionContext;
 use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
-use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
-use datasource_object_store::s3::{S3Accessor, S3TableAccess};
-use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
     GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{
-    CatalogEntry, ConnectionEntry, EntryType, ExternalTableEntry, ViewEntry,
-};
+use metastore::types::catalog::{CatalogEntry, EntryType, ExternalTableEntry, ViewEntry};
 use std::sync::Arc;
-use tokio::runtime::Handle;
-use tokio::task;
-use tracing::trace;
+//use tokio::runtime::Handle;
+//use tokio::task;
+//use tracing::trace;
+//use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+//use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
+//use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
+//use datasource_object_store::s3::{S3Accessor, S3TableAccess};
+//use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
+
+#[derive(Debug, thiserror::Error)]
+pub enum DispatchError {
+    #[error("Missing catalog entry; schema: {schema}, name: {name}")]
+    MissingEntry { schema: String, name: String },
+
+    #[error("Missing builtin table; schema: {schema}, name: {name}")]
+    MissingBuiltinTable { schema: String, name: String },
+
+    #[error("Invalid entry for table dispatch: {0}")]
+    InvalidEntryTypeForDispatch(metastore::types::catalog::EntryType),
+
+    #[error("Unhandled entry for table dispatch: {0}")]
+    UnhandledEntryType(metastore::types::catalog::EntryType),
+
+    #[error("failed to do late planning: {0}")]
+    LatePlanning(Box<crate::errors::ExecError>),
+
+    #[error(transparent)]
+    Datafusion(#[from] datafusion::error::DataFusionError),
+}
+
+type Result<T, E = DispatchError> = std::result::Result<T, E>;
 
 /// Dispatch to the appropriate table sources.
 pub struct SessionDispatcher<'a> {
@@ -44,7 +62,7 @@ impl<'a> SessionDispatcher<'a> {
         let ent =
             catalog
                 .resolve_entry(schema, name)
-                .ok_or_else(|| CatalogError::MissingEntry {
+                .ok_or_else(|| DispatchError::MissingEntry {
                     schema: schema.to_string(),
                     name: name.to_string(),
                 })?;
@@ -55,7 +73,7 @@ impl<'a> SessionDispatcher<'a> {
             ent.entry_type(),
             EntryType::View | EntryType::Table | EntryType::ExternalTable
         ) {
-            return Err(CatalogError::InvalidEntryTypeForDispath(ent.entry_type()));
+            return Err(DispatchError::InvalidEntryTypeForDispatch(ent.entry_type()));
         }
 
         // Dispatch to system tables if builtin...
@@ -69,7 +87,7 @@ impl<'a> SessionDispatcher<'a> {
             CatalogEntry::ExternalTable(table) => self.dispatch_external_table(&table),
             // Note that all 'table' entries should have already been handled
             // with the above builtin table dispatcher.
-            other => Err(CatalogError::UnhandledEntryType(other.entry_type())),
+            other => Err(DispatchError::UnhandledEntryType(other.entry_type())),
         }
     }
 
@@ -77,7 +95,7 @@ impl<'a> SessionDispatcher<'a> {
         let plan = self
             .ctx
             .late_view_plan(&view.sql)
-            .map_err(|e| CatalogError::LatePlanning(e.to_string()))?;
+            .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 
@@ -356,7 +374,7 @@ impl<'a> SessionDispatcher<'a> {
         //             }
         //         }
         //         AccessOrConnection::Access(AccessMethod::Unknown) => {
-        //             Err(CatalogError::UnhandleableAccess(table.access.clone()))
+        //             Err(DispatchError::UnhandleableAccess(table.access.clone()))
         //         }
         //     };
         unimplemented!()
@@ -385,8 +403,7 @@ impl<'a> SystemTableDispatcher<'a> {
         } else if GLARE_CONNECTIONS.matches(schema, name) {
             Arc::new(self.build_glare_connections())
         } else {
-            return Err(CatalogError::MissingTableForAccessMethod {
-                method: AccessMethod::System,
+            return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
                 name: name.to_string(),
             });
