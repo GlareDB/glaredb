@@ -3,7 +3,6 @@ use crate::metastore::Supervisor;
 use crate::session::Session;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
-use std::sync::Arc;
 use tonic::transport::Channel;
 use uuid::Uuid;
 

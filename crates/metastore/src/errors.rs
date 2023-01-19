@@ -29,8 +29,6 @@ pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;
 
 impl From<MetastoreError> for tonic::Status {
     fn from(value: MetastoreError) -> Self {
-        match value {
-            other => tonic::Status::from_error(Box::new(other)),
-        }
+        tonic::Status::from_error(Box::new(value))
     }
 }

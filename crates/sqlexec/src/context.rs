@@ -1,4 +1,3 @@
-use crate::catalog::entry::{ColumnDefinition, SchemaEntry, TableEntry, TableOptions, ViewEntry};
 use crate::dispatch::SessionDispatcher;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
@@ -88,7 +87,7 @@ impl SessionContext {
     }
 
     /// Create a table.
-    pub fn create_table(&self, plan: CreateTable) -> Result<()> {
+    pub fn create_table(&self, _plan: CreateTable) -> Result<()> {
         Err(ExecError::UnsupportedFeature("CREATE TABLE"))
     }
 
@@ -170,7 +169,7 @@ impl SessionContext {
         let ent = self
             .metastore_catalog
             .resolve_entry(&schema, &name)
-            .ok_or_else(|| ExecError::MissingConnection { schema, name })?;
+            .ok_or(ExecError::MissingConnection { schema, name })?;
 
         match ent {
             catalog::CatalogEntry::Connection(ent) => Ok(ent),
@@ -385,10 +384,16 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         match name {
             TableReference::Bare { table } => {
                 for schema in self.context.search_path_iter() {
-                    let table = dispatcher.dispatch_access(schema, table).map_err(|e| {
-                        DataFusionError::Plan(format!("failed dispatch for bare table: {}", e))
-                    })?;
-                    return Ok(Arc::new(DefaultTableSource::new(table)));
+                    match dispatcher.dispatch_access(schema, table) {
+                        Ok(table) => return Ok(Arc::new(DefaultTableSource::new(table))),
+                        Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
+                        Err(e) => {
+                            return Err(DataFusionError::Plan(format!(
+                                "failed to dispatch bare table: {}",
+                                e
+                            )))
+                        }
+                    }
                 }
                 Err(DataFusionError::Plan(format!(
                     "failed to resolve bare table: {}",
@@ -400,7 +405,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
                 let table = dispatcher.dispatch_access(schema, table).map_err(|e| {
                     DataFusionError::Plan(format!("failed dispatch for qualified table: {}", e))
                 })?;
-                return Ok(Arc::new(DefaultTableSource::new(table)));
+                Ok(Arc::new(DefaultTableSource::new(table)))
             }
         }
     }

@@ -11,14 +11,6 @@ use metastore::builtins::{
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{CatalogEntry, EntryType, ExternalTableEntry, ViewEntry};
 use std::sync::Arc;
-//use tokio::runtime::Handle;
-//use tokio::task;
-//use tracing::trace;
-//use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-//use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
-//use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
-//use datasource_object_store::s3::{S3Accessor, S3TableAccess};
-//use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DispatchError {
@@ -39,6 +31,22 @@ pub enum DispatchError {
 
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
+}
+
+impl DispatchError {
+    /// Whether or not this error should indicate to the planner to try looking
+    /// in a different schema for the requested object.
+    ///
+    /// For example, if a user's search path is '[public, other]', and 'table_a'
+    /// exists in 'other', then the dispatch will fail the first time with
+    /// `MissingEntry` since it will look for 'public.table_a' first. In such
+    /// cases, we should try the next schema.
+    pub fn should_try_next_schema(&self) -> bool {
+        matches!(
+            self,
+            DispatchError::MissingEntry { .. } | DispatchError::InvalidEntryTypeForDispatch(_)
+        )
+    }
 }
 
 type Result<T, E = DispatchError> = std::result::Result<T, E>;
@@ -83,8 +91,8 @@ impl<'a> SessionDispatcher<'a> {
         }
 
         match ent {
-            CatalogEntry::View(view) => self.dispatch_view(&view),
-            CatalogEntry::ExternalTable(table) => self.dispatch_external_table(&table),
+            CatalogEntry::View(view) => self.dispatch_view(view),
+            CatalogEntry::ExternalTable(table) => self.dispatch_external_table(table),
             // Note that all 'table' entries should have already been handled
             // with the above builtin table dispatcher.
             other => Err(DispatchError::UnhandledEntryType(other.entry_type())),
@@ -452,7 +460,7 @@ impl<'a> SystemTableDispatcher<'a> {
             oids.append_value(table.oid);
             builtins.append_value(table.builtin);
             schema_names.append_value(
-                &table
+                table
                     .schema_entry
                     .map(|schema| schema.get_meta().name.as_str())
                     .unwrap_or("<invalid>"),
@@ -498,7 +506,7 @@ impl<'a> SystemTableDispatcher<'a> {
             for (i, col) in ent.columns.iter().enumerate() {
                 table_oids.append_value(table.oid);
                 schema_names.append_value(
-                    &table
+                    table
                         .schema_entry
                         .map(|schema| schema.get_meta().name.as_str())
                         .unwrap_or("<invalid>"),
@@ -550,8 +558,7 @@ impl<'a> SystemTableDispatcher<'a> {
             oids.append_value(view.oid);
             builtins.append_value(view.builtin);
             schema_names.append_value(
-                &view
-                    .schema_entry
+                view.schema_entry
                     .map(|schema| schema.get_meta().name.as_str())
                     .unwrap_or("<invalid>"),
             );
@@ -596,8 +603,7 @@ impl<'a> SystemTableDispatcher<'a> {
             oids.append_value(conn.oid);
             builtins.append_value(conn.builtin);
             schema_names.append_value(
-                &conn
-                    .schema_entry
+                conn.schema_entry
                     .map(|schema| schema.get_meta().name.as_str())
                     .unwrap_or("<invalid>"),
             );

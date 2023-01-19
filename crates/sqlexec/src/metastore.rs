@@ -5,14 +5,14 @@ use metastore::proto::service::{FetchCatalogRequest, InitializeCatalogRequest, M
 use metastore::types::catalog::CatalogState;
 use metastore::types::service::Mutation;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
-use tracing::{debug_span, error, Instrument};
+use tracing::{debug_span, error, warn, Instrument};
 use uuid::Uuid;
 
 /// Number of outstanding requests per database.
@@ -44,16 +44,37 @@ impl SupervisorClient {
         self.version_hint.load(Ordering::Relaxed)
     }
 
+    /// Ping the worker.
+    pub async fn ping(&self) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .send
+            .send(WorkerRequest::Ping {
+                conn_id: self.conn_id,
+                response: tx,
+            })
+            .await
+            .is_err()
+        {
+            return Err(ExecError::MetastoreDatabaseWorkerOverload);
+        }
+        match rx.await {
+            Ok(_) => Ok(()),
+            Err(_) => Err(ExecError::MetastoreDatabaseWorkerOverload),
+        }
+    }
+
     /// Get the current cached state of the catalog.
     pub async fn get_cached_state(&self) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
-        if let Err(_) = self
+        if self
             .send
             .send(WorkerRequest::GetCachedState {
                 conn_id: self.conn_id,
                 response: tx,
             })
             .await
+            .is_err()
         {
             return Err(ExecError::MetastoreDatabaseWorkerOverload);
         }
@@ -73,7 +94,7 @@ impl SupervisorClient {
         mutations: Vec<Mutation>,
     ) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
-        if let Err(_) = self
+        if self
             .send
             .send(WorkerRequest::ExecMutations {
                 conn_id: self.conn_id,
@@ -82,6 +103,7 @@ impl SupervisorClient {
                 response: tx,
             })
             .await
+            .is_err()
         {
             return Err(ExecError::MetastoreDatabaseWorkerOverload);
         }
@@ -94,10 +116,10 @@ impl SupervisorClient {
 
 /// Possible requests to the worker.
 enum WorkerRequest {
-    /// Initialize a database.
-    Initialize {
+    /// Ping the worker, ensuring it's still running.
+    Ping {
         conn_id: Uuid,
-        response: oneshot::Sender<Result<Arc<CatalogState>>>,
+        response: oneshot::Sender<()>,
     },
 
     /// Get the cached catalog state for some database.
@@ -120,7 +142,7 @@ enum WorkerRequest {
 impl WorkerRequest {
     fn conn_id(&self) -> &Uuid {
         match self {
-            WorkerRequest::Initialize { conn_id, .. } => conn_id,
+            WorkerRequest::Ping { conn_id, .. } => conn_id,
             WorkerRequest::GetCachedState { conn_id, .. } => conn_id,
             WorkerRequest::ExecMutations { conn_id, .. } => conn_id,
         }
@@ -153,6 +175,22 @@ impl Supervisor {
     ///
     /// This will initialize a database worker as appropriate.
     pub async fn init_client(&self, conn_id: Uuid, db_id: Uuid) -> Result<SupervisorClient> {
+        let client = self.init_client_inner(conn_id, db_id).await?;
+        match client.ping().await {
+            Ok(_) => Ok(client),
+            Err(_) => {
+                // This may happen if tokio is delayed in marking a handle as
+                // finished, and we try to send on an mpsc channel that's been
+                // closed. This should be rare.
+                warn!("client failed ping, recreating client");
+                let client = self.init_client_inner(conn_id, db_id).await?;
+                client.ping().await?;
+                Ok(client)
+            }
+        }
+    }
+
+    async fn init_client_inner(&self, conn_id: Uuid, db_id: Uuid) -> Result<SupervisorClient> {
         // Fast path, already have a worker.
         {
             let workers = self.workers.read().await;
@@ -186,10 +224,8 @@ impl Supervisor {
 
         // Insert handle.
         let version_hint = worker.version_hint.clone();
-        let finished = worker.finished.clone();
         let handle = WorkerHandle {
             handle: tokio::spawn(worker.run()),
-            finished,
             version_hint: version_hint.clone(),
             send: send.clone(),
         };
@@ -207,21 +243,18 @@ impl Supervisor {
 struct WorkerHandle {
     handle: JoinHandle<()>,
     version_hint: Arc<AtomicU64>,
-    finished: Arc<AtomicBool>,
     send: mpsc::Sender<WorkerRequest>,
 }
 
 impl WorkerHandle {
+    /// Check if a handle to a worker is done.
     fn is_finished(&self) -> bool {
-        self.finished.load(Ordering::SeqCst)
+        self.handle.is_finished()
     }
 }
 
 /// Worker for a single database.
 struct DatabaseWorker {
-    /// Whether or not this worker is finished.
-    finished: Arc<AtomicBool>,
-
     /// ID of the database we're working with.
     db_id: Uuid,
 
@@ -269,7 +302,6 @@ impl DatabaseWorker {
 
         Ok((
             DatabaseWorker {
-                finished: Arc::new(AtomicBool::new(false)),
                 db_id,
                 version_hint: Arc::new(AtomicU64::new(catalog.version)),
                 cached_state: Arc::new(catalog),
@@ -285,6 +317,9 @@ impl DatabaseWorker {
         loop {
             tokio::select! {
                 _ = interval.tick() => {
+                    // TODO: After some number of ticks without client
+                    // interaction, we should exit so as to release cached
+                    // states not in use.
                     let span = debug_span!("fetch_interval", db_id = %self.db_id);
                     self.fetch().instrument(span).await;
                 }
@@ -303,8 +338,13 @@ impl DatabaseWorker {
     /// the local cache will be updated with that new catalog.
     async fn handle_request(&mut self, req: WorkerRequest) {
         match req {
+            WorkerRequest::Ping { response, .. } => {
+                if response.send(()).is_err() {
+                    error!("failed to respond to ping");
+                }
+            }
             WorkerRequest::GetCachedState { response, .. } => {
-                if let Err(_) = response.send(Ok(self.cached_state.clone())) {
+                if response.send(Ok(self.cached_state.clone())).is_err() {
                     error!("failed to send cached state");
                 }
             }
@@ -340,11 +380,10 @@ impl DatabaseWorker {
                     Err(e) => Err(e.into()),
                 };
 
-                if let Err(_) = response.send(result) {
+                if response.send(result).is_err() {
                     error!("failed to send result of mutate");
                 }
             }
-            _ => unimplemented!(), // Probably just log an error.
         }
     }
 
