@@ -1,0 +1,26 @@
+// Defintions for storage metadata and locks.
+//
+// The structure of catalogs looks something like the following:
+//
+// lock       -> LockInformation
+// metadata   -> CatalogMetadata
+// 20000      -> CatalogEntry
+// 20001      -> CatalogEntry
+// ...
+// 20238      -> CatalogEntry
+//
+// Each entry in the catalog has an object name that corresponds to its OID, and
+// the object contents is the serialized entry.
+//
+// 'metadata' provides metadata about the catalog that's read on load, including
+// the current max OID.
+//
+// 'lock' facilitates locking the catalog.
+
+syntax = "proto3";
+
+package metastore.storage;
+
+message CatalogMetadata {}
+
+message LockInformation {}
