@@ -15,7 +15,7 @@ object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.61"
+async-trait = "0.1.62"
 futures = "0.3.25"
 datafusion = "15.0"
 tokio-util = { version = "0.7.4", features = ["codec"] }
