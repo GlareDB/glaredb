@@ -10,8 +10,6 @@ logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
 buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
-common = {path = "../common"}
-stablestore = {path = "../stablestore"}
 metastore = {path = "../metastore"}
 object_store_util = {path = "../object_store_util"}
 datasource_bigquery = {path = "../datasource_bigquery"}

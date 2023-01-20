@@ -1,6 +1,0 @@
-[access]
-db_name = "glaredb"
-# Provide the two following configs to use GCS object storage
-# object_store.Gcs.service_account_path = "<Path to service account secrets>"
-# object_store.Gcs.bucket_name = "<bucket name>"
-cached = true
