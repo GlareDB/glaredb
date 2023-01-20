@@ -17,7 +17,7 @@ thiserror = "1.0"
 tracing = "0.1"
 async-trait = "0.1.61"
 futures = "0.3.25"
-datafusion = "15.0"
+datafusion = "16.0"
 tokio-util = { version = "0.7.4", features = ["codec"] }
 bytes = "1.3.0"
 tokio = { version = "1", features = ["full"] }
