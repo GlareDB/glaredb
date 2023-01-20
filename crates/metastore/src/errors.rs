@@ -23,6 +23,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
+
+    #[error("internal: {0}")]
+    Internal(String),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;
@@ -32,3 +35,11 @@ impl From<MetastoreError> for tonic::Status {
         tonic::Status::from_error(Box::new(value))
     }
 }
+
+#[allow(unused_macros)]
+macro_rules! internal {
+    ($($arg:tt)*) => {
+        crate::errors::MetastoreError::Internal(std::format!($($arg)*))
+    };
+}
+pub(crate) use internal;

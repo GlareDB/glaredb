@@ -41,6 +41,9 @@ pub enum ExecError {
     #[error("Missing connection; schema: {schema}, name: {name}")]
     MissingConnection { schema: String, name: String },
 
+    #[error("An ssh connection is not supported datasource for CREATE EXTERNAL TABLE. An ssh connection must be provided as an optional ssh_tunnel with another connection type")]
+    ExternalTableWithSsh,
+
     // TODO: Need to be more granular about errors from Metastore.
     #[error("Failed Metastore request: {0}")]
     MetastoreTonic(#[from] tonic::Status),
@@ -70,6 +73,9 @@ pub enum ExecError {
     PgRepr(#[from] pgrepr::error::PgReprError),
 
     #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
@@ -94,3 +100,4 @@ macro_rules! internal {
     };
 }
 pub(crate) use internal;
+use metastore::errors;

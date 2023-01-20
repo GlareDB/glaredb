@@ -1,5 +1,6 @@
 pub mod errors;
 
+use datasource_common::ssh::SshTunnelAccess;
 use errors::{PostgresError, Result};
 
 use async_trait::async_trait;
@@ -28,11 +29,12 @@ use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
 use tokio_postgres::types::Type as PostgresType;
-use tokio_postgres::{CopyOutStream, NoTls};
-use tracing::warn;
+use tokio_postgres::{Config, CopyOutStream, NoTls};
+use tracing::{trace, warn};
 
 /// Information needed for accessing an external Postgres table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,11 +61,64 @@ pub struct PostgresAccessor {
 
 impl PostgresAccessor {
     /// Connect to a postgres instance.
-    pub async fn connect(access: PostgresTableAccess) -> Result<Self> {
+    pub async fn connect(
+        access: PostgresTableAccess,
+        ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<Self> {
+        match ssh_tunnel {
+            None => Self::connect_direct(access).await,
+            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(access, ssh_tunnel).await,
+        }
+    }
+
+    async fn connect_direct(access: PostgresTableAccess) -> Result<Self> {
         let (client, conn) = tokio_postgres::connect(&access.connection_string, NoTls).await?;
         let handle = tokio::spawn(async move {
             if let Err(e) = conn.await {
                 warn!(%e, "postgres connection errored");
+            }
+        });
+
+        Ok(PostgresAccessor {
+            access,
+            client,
+            conn_handle: handle,
+        })
+    }
+
+    async fn connect_with_ssh_tunnel(
+        access: PostgresTableAccess,
+        ssh_tunnel: SshTunnelAccess,
+    ) -> Result<Self> {
+        let mut config: Config = access.connection_string.parse()?;
+
+        let postgres_host = config.get_hosts();
+        let postgres_port = config.get_ports();
+
+        // Open ssh tunnel
+        let session = ssh_tunnel.create_tunnel().await?;
+        // find free port on current server (candidate port for tunnelling)
+        // public key is on bastion server
+        // ssh -i <private key> -L <random-local-port>:<bastion host>:<provided-ssh-port> bastion-user@bastion-server:bastion-server-port
+        //
+        // Should be port generated when making the tunnel
+        let tunnel_port = 1122;
+
+        config.host("localhost");
+        config.port(tunnel_port);
+        let config = config;
+
+        let tcp_stream = TcpStream::connect(("localhost", tunnel_port)).await?;
+
+        let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
+        trace!("able to connect to postgres via ssh tcp tunnel");
+        let handle = tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                warn!(%e, "postgres connection errored");
+            }
+            // If postgres connection is complete, close ssh tunnel
+            if let Err(e) = session.close().await {
+                warn!(%e, "closing ssh tunnel errored");
             }
         });
 

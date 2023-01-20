@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 logutil = {path = "../logutil"}
 pgrepr = {path = "../pgrepr"}
+datasource_common = {path = "../datasource_common"}
 tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"

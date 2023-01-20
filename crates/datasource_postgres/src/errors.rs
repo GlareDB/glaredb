@@ -16,6 +16,12 @@ pub enum PostgresError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
+    Ssh(#[from] datasource_common::errors::Error),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
 }
 

@@ -70,6 +70,8 @@ impl fmt::Display for CreateConnectionStmt {
         let opts = self
             .options
             .iter()
+            // TODO: Make this more flexible in the future to accept non-quoted values. Especailly
+            // helpful for ssh ports which people will often try to provide as a non-quoted number
             .map(|(k, v)| format!("{} = '{}'", k, v))
             .collect::<Vec<_>>()
             .join(", ");

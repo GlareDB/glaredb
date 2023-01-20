@@ -7,11 +7,12 @@ use datafusion::arrow::datatypes::{
 };
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
+use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
-    ConnectionOptionsLocal, ConnectionOptionsPostgres, ConnectionOptionsS3, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    ConnectionOptionsLocal, ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh,
+    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
     TableOptionsPostgres, TableOptionsS3,
 };
 use std::collections::{BTreeMap, HashMap};
@@ -44,10 +45,12 @@ impl<'a> SessionPlanner<'a> {
         let plan = match stmt.datasource.to_lowercase().as_str() {
             ConnectionOptions::POSTGRES => {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
+                let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
                 CreateConnection {
                     connection_name: stmt.name,
                     options: ConnectionOptions::Postgres(ConnectionOptionsPostgres {
                         connection_string,
+                        ssh_tunnel,
                     }),
                 }
             }
@@ -83,6 +86,39 @@ impl<'a> SessionPlanner<'a> {
                     options: ConnectionOptions::S3(ConnectionOptionsS3 {
                         access_key_id,
                         access_key_secret,
+                    }),
+                }
+            }
+            ConnectionOptions::SSH => {
+                let host = remove_required_opt(m, "host")?;
+                let user = remove_required_opt(m, "user")?;
+                let port: u16 = remove_required_opt(m, "port")?.parse()?;
+                let private_key = remove_optional_opt(m, "private_key");
+                let public_key = remove_optional_opt(m, "public_key");
+
+                let key = match (private_key, public_key) {
+                    //TODO: key creation
+                    (None, None) => return Err(internal!("Automatic key creation coming soon. Please provide both the private and public keys at this time")),
+                    // Use provided keys
+                    (Some(private_key), Some(public_key)) => Some(SshKey {
+                        private_key,
+                        public_key,
+                    }),
+                    (Some(_), None) | (None, Some(_)) => {
+                        return Err(internal!(
+                            "Provide both public and private keys. \
+                             If no keys are provided a pair will be generated"
+                        ))
+                    }
+                };
+
+                CreateConnection {
+                    connection_name: stmt.name,
+                    options: ConnectionOptions::Ssh(ConnectionOptionsSsh {
+                        host,
+                        user,
+                        port,
+                        key,
                     }),
                 }
             }
@@ -174,6 +210,9 @@ impl<'a> SessionPlanner<'a> {
                         location,
                     }),
                 }
+            }
+            ConnectionOptions::Ssh(_) => {
+                return Err(ExecError::ExternalTableWithSsh);
             }
         };
 
@@ -524,4 +563,8 @@ fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
 fn remove_required_opt(m: &mut BTreeMap<String, String>, k: &str) -> Result<String> {
     m.remove(k)
         .ok_or_else(|| internal!("missing required option: {}", k))
+}
+
+fn remove_optional_opt(m: &mut BTreeMap<String, String>, k: &str) -> Option<String> {
+    m.remove(k)
 }

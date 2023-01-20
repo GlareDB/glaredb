@@ -6,6 +6,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasource_common::ssh::SshTunnelAccess;
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -16,7 +17,8 @@ use metastore::builtins::{
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
-    CatalogEntry, ConnectionOptions, EntryType, ExternalTableEntry, TableOptions, ViewEntry,
+    CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, EntryType,
+    ExternalTableEntry, TableOptions, ViewEntry,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -33,6 +35,9 @@ pub enum DispatchError {
 
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
+
+    #[error("failed to do late planning: {0}")]
+    MssingSshTunnel(Box<crate::errors::ExecError>),
 
     #[error("Invalid entry for table dispatch: {0}")]
     InvalidEntryTypeForDispatch(EntryType),
@@ -166,6 +171,9 @@ impl<'a> SessionDispatcher<'a> {
                     name: table.table.clone(),
                     connection_string: conn.connection_string.clone(),
                 };
+
+                let ssh_tunnel_access = self.get_ssh_tunnel(conn.ssh_tunnel.to_owned())?;
+
                 let predicate_pushdown = *self
                     .ctx
                     .get_session_vars()
@@ -174,7 +182,8 @@ impl<'a> SessionDispatcher<'a> {
                 let result: Result<_, datasource_postgres::errors::PostgresError> =
                     task::block_in_place(move || {
                         Handle::current().block_on(async move {
-                            let accessor = PostgresAccessor::connect(table_access).await?;
+                            let accessor =
+                                PostgresAccessor::connect(table_access, ssh_tunnel_access).await?;
                             let provider = accessor.into_table_provider(predicate_pushdown).await?;
                             Ok(provider)
                         })
@@ -261,6 +270,46 @@ impl<'a> SessionDispatcher<'a> {
                 connection_type: conn.to_string(),
             }),
         }
+    }
+
+    /// Helper to get ssh tunnel info from connection catalog table
+    fn get_ssh_tunnel(
+        &self,
+        name: Option<String>,
+    ) -> Result<Option<SshTunnelAccess>, DispatchError> {
+        let ssh_tunnel_access = match name {
+            Some(name) => {
+                let conn = self
+                    .ctx
+                    .get_connection(name)
+                    .map_err(|e| DispatchError::MssingSshTunnel(Box::new(e)))?;
+
+                let access = match conn {
+                    ConnectionEntry {
+                        options:
+                            ConnectionOptions::Ssh(ConnectionOptionsSsh {
+                                host,
+                                user,
+                                port,
+                                key,
+                            }),
+                        ..
+                    } => SshTunnelAccess {
+                        host: host.to_owned(),
+                        user: user.to_owned(),
+                        port: port.to_owned(),
+                        key: key.to_owned(),
+                    },
+                    _ => unreachable!(
+                        "All connection methods as part of ssh_tunnel should be ssh connections"
+                    ),
+                };
+
+                Some(access)
+            }
+            None => None,
+        };
+        Ok(ssh_tunnel_access)
     }
 }
 
