@@ -3585,7 +3585,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
- "sqllogictest 0.10.0",
+ "sqllogictest 0.11.1",
  "tokio",
  "tokio-postgres",
 ]
@@ -3696,9 +3696,9 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77967725c7578ba9fd12ea8076a64cc71a8cc1e4bd075ba8cde13deedd0c6515"
+checksum = "8b2f781e2de5df40f526b3d7c93cb972f87425771a27cc8882a4178794b2ad11"
 dependencies = [
  "async-trait",
  "derivative",
