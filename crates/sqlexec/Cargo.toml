@@ -10,8 +10,6 @@ logutil = {path = "../logutil"}
 dfutil = {path = "../dfutil"}
 buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
-common = {path = "../common"}
-stablestore = {path = "../stablestore"}
 metastore = {path = "../metastore"}
 object_store_util = {path = "../object_store_util"}
 datasource_bigquery = {path = "../datasource_bigquery"}
@@ -26,7 +24,7 @@ datafusion = "15.0"
 arrow = { version = "*", default-features = false, features = ["serde"] }
 futures = "0.3.25"
 tracing = "0.1"
-async-trait = "0.1.61"
+async-trait = "0.1.62"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
 postgres-types = "0.2.4"
 object_store = "0.5"

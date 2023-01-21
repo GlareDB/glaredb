@@ -97,16 +97,6 @@
         # and builds.
         cargoArtifacts = craneLib.buildDepsOnly ({} // common-build-args);
 
-        # Derivation for including the default configuration files.
-        config-directory = pkgs.stdenv.mkDerivation {
-          name = "glaredb-config";
-          src = ./config;
-          installPhase = ''
-            mkdir -p $out/config
-            cp -r * $out/config
-          '';
-        };
-
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
           name = "generated-certs";
@@ -206,7 +196,6 @@
             name = "glaredb";
             contents = [
               pkgs.cacert
-              config-directory
               packages.glaredb-bin
               # Generated certs used for SSL connections in pgsrv. GlareDB
               # proper does not currently use certs.
