@@ -169,6 +169,8 @@ impl RemoteLease {
                         Some(finished_tx) = drop_lease_rx.recv() => {
                             let result =  renewer.drop_lease(generation).await;
                             let _ = finished_tx.send(result);
+                            // Exit loop, no longer need to be doing any work.
+                            return;
                         }
                     }
                     interval.tick().await;
