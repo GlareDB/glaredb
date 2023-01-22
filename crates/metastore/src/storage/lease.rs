@@ -48,6 +48,11 @@ pub struct RemoteLeaser {
 }
 
 impl RemoteLeaser {
+    /// Create a new remote leaser to the given object store.
+    pub fn new(process_id: Uuid, store: Arc<dyn ObjectStore>) -> RemoteLeaser {
+        RemoteLeaser { process_id, store }
+    }
+
     /// Initialize a lease for a database.
     ///
     /// This should only be called when a database is created.
@@ -93,62 +98,25 @@ impl RemoteLeaser {
     ///
     /// Errors if some other process holds the lease.
     pub async fn acquire(&self, db_id: Uuid) -> Result<RemoteLease> {
-        // Get initial state of the lock.
+        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_object_path(&db_id, &self.process_id);
         let visible_path = LEASE_INFORMATION_OBJECT.visible_object_path(&db_id);
-        let bs = self.store.get(&visible_path).await?.bytes().await?;
-        let proto = storage::LeaseInformation::decode(bs)?;
-        let lease: LeaseInformation = proto.try_into()?;
-
-        let now = SystemTime::now();
-
-        if lease.state == LeaseState::Locked {
-            let held_by = lease
-                .held_by
-                .ok_or_else(|| StorageError::MissingLeaseField {
-                    db_id: db_id.clone(),
-                    field: "held_by",
-                })?;
-            let expires_at = lease
-                .expires_at
-                .ok_or_else(|| StorageError::MissingLeaseField {
-                    db_id: db_id.clone(),
-                    field: "expires_at",
-                })?;
-
-            // Some other process has the lease.
-            if expires_at > now {
-                return Err(StorageError::LeaseHeldByOtherProcess {
-                    db_id: db_id.clone(),
-                    process_id: held_by,
-                });
-            }
-
-            // Lease was locked, but expired. This should not happen in normal
-            // cases. Log an error so we can catch it and investigate.
-            error!( prev_held_by = %held_by, acquiring_process = %self.process_id, %db_id,
-                    "found expired lease, acquiring lease with new process");
-
-            // Fall through to acquiring...
-        }
-
-        // Create the renewer using the current lease information.
         let renewer = LeaseRenewer {
             db_id,
             process_id: self.process_id,
-            tmp_path: LEASE_INFORMATION_OBJECT.tmp_object_path(&db_id, &self.process_id),
+            tmp_path,
             visible_path,
             store: self.store.clone(),
         };
 
-        // Immediately "renew" the lease. This will lock the lease for this
-        // process.
-        let start_generation = renewer.renew_lease(lease.generation).await?;
+        // Try to acquire.
+        let start_generation = renewer.acquire_lease().await?;
 
         Ok(RemoteLease::new(start_generation, renewer)?)
     }
 }
 
 /// Locks a catalog in object storage for reading and writing.
+#[derive(Debug)]
 pub struct RemoteLease {
     /// Handle for background renews.
     renew_handle: JoinHandle<()>,
@@ -256,37 +224,57 @@ struct LeaseRenewer {
 }
 
 impl LeaseRenewer {
-    async fn renew_lease(&self, current_generation: u64) -> Result<u64> {
-        let generation = self
-            .alter_lease(current_generation, LeaseState::Locked)
-            .await?;
+    /// Acquire the lease if it's available. Errors if it's not available.
+    async fn acquire_lease(&self) -> Result<u64> {
+        let lease = self.read_lease(None).await?;
+        let now = SystemTime::now();
+
+        if lease.state == LeaseState::Locked {
+            let held_by = lease
+                .held_by
+                .ok_or_else(|| StorageError::MissingLeaseField {
+                    db_id: self.db_id,
+                    field: "held_by",
+                })?;
+            let expires_at = lease
+                .expires_at
+                .ok_or_else(|| StorageError::MissingLeaseField {
+                    db_id: self.db_id,
+                    field: "expires_at",
+                })?;
+
+            // Some other process has the lease.
+            if expires_at > now {
+                return Err(StorageError::LeaseHeldByOtherProcess {
+                    db_id: self.db_id,
+                    process_id: held_by,
+                });
+            }
+
+            // Lease was locked, but expired. This should not happen in normal
+            // cases. Log an error so we can catch it and investigate.
+            error!( prev_held_by = %held_by, acquiring_process = %self.process_id, db_id = %self.db_id,
+                    "found expired lease, acquiring lease with new process");
+
+            // Fall through to acquiring...
+        }
+
+        let (generation, _) = lease.generation.overflowing_add(1); // Don't care about overflows.
+        let new_lease = LeaseInformation {
+            state: LeaseState::Locked,
+            generation,
+            expires_at: Some(now + LEASE_DURATION),
+            held_by: Some(self.process_id),
+        };
+
+        self.write_lease(new_lease).await?;
+
         Ok(generation)
     }
 
-    async fn drop_lease(&self, current_generation: u64) -> Result<()> {
-        self.alter_lease(current_generation, LeaseState::Unlocked)
-            .await?;
-        Ok(())
-    }
-
-    /// Alter lease with some state.
-    ///
-    /// Errors if the current generation does not match the generation that's on
-    /// the lease, or if we're outside of the lease duration.
-    async fn alter_lease(&self, current_generation: u64, state: LeaseState) -> Result<u64> {
-        let bs = self.store.get(&self.visible_path).await?.bytes().await?;
-        let proto = storage::LeaseInformation::decode(bs)?;
-        let lease: LeaseInformation = proto.try_into()?;
-
-        // Means we have a second worker or process updating the lease.
-        if lease.generation != current_generation {
-            return Err(StorageError::LeaseGenerationMismatch {
-                expected: current_generation,
-                got: lease.generation,
-                held_by: lease.held_by,
-            });
-        }
-
+    /// Renew a lease.
+    async fn renew_lease(&self, current_generation: u64) -> Result<u64> {
+        let lease = self.read_lease(Some(current_generation)).await?;
         let now = SystemTime::now();
 
         let expires_at = lease
@@ -304,28 +292,59 @@ impl LeaseRenewer {
             });
         }
 
-        // Generate new lease with updated state.
         let (generation, _) = lease.generation.overflowing_add(1); // Don't care about overflows.
-        let new_lease = if state == LeaseState::Locked {
-            // Keeping lease locked.
-            LeaseInformation {
-                state,
-                generation,
-                expires_at: Some(now + LEASE_DURATION),
-                held_by: Some(self.process_id),
-            }
-        } else {
-            // Unlock lease.
-            LeaseInformation {
-                state,
-                generation,
-                expires_at: None,
-                held_by: None,
-            }
+        let new_lease = LeaseInformation {
+            state: LeaseState::Locked,
+            generation,
+            expires_at: Some(now + LEASE_DURATION),
+            held_by: Some(self.process_id),
         };
 
+        self.write_lease(new_lease).await?;
+
+        Ok(generation)
+    }
+
+    /// Drop the lease.
+    async fn drop_lease(&self, current_generation: u64) -> Result<()> {
+        let lease = self.read_lease(Some(current_generation)).await?;
+
+        let (generation, _) = lease.generation.overflowing_add(1); // Don't care about overflows.
+        let new_lease = LeaseInformation {
+            state: LeaseState::Unlocked,
+            generation,
+            expires_at: None,
+            held_by: None,
+        };
+
+        self.write_lease(new_lease).await?;
+
+        Ok(())
+    }
+
+    /// Read the lease, checking that it's the generation we expect if it's provided.
+    async fn read_lease(&self, current_generation: Option<u64>) -> Result<LeaseInformation> {
+        let bs = self.store.get(&self.visible_path).await?.bytes().await?;
+        let proto = storage::LeaseInformation::decode(bs)?;
+        let lease: LeaseInformation = proto.try_into()?;
+
+        if let Some(current_generation) = current_generation {
+            // Means we have a second worker or process updating the lease.
+            if lease.generation != current_generation {
+                return Err(StorageError::LeaseGenerationMismatch {
+                    expected: current_generation,
+                    got: lease.generation,
+                    held_by: lease.held_by,
+                });
+            }
+        }
+
+        Ok(lease)
+    }
+
+    async fn write_lease(&self, lease: LeaseInformation) -> Result<()> {
         // Write to storage.
-        let proto: storage::LeaseInformation = new_lease.into();
+        let proto: storage::LeaseInformation = lease.into();
         let mut bs = BytesMut::new();
         proto.encode(&mut bs)?;
         self.store.put(&self.tmp_path, bs.freeze()).await?;
@@ -342,7 +361,7 @@ impl LeaseRenewer {
             .rename(&self.tmp_path, &self.visible_path)
             .await?;
 
-        Ok(generation)
+        Ok(())
     }
 }
 
@@ -364,7 +383,7 @@ mod tests {
         proto.try_into().unwrap()
     }
 
-    struct TestParams {
+    struct LeaseRenewerTestParams {
         now: SystemTime,
         process_id: Uuid,
         db_id: Uuid,
@@ -373,7 +392,7 @@ mod tests {
         visible_path: ObjectPath,
     }
 
-    impl TestParams {
+    impl LeaseRenewerTestParams {
         /// Create a new renewer using params.
         fn renewer(&self) -> LeaseRenewer {
             LeaseRenewer {
@@ -386,11 +405,11 @@ mod tests {
         }
     }
 
-    impl Default for TestParams {
+    impl Default for LeaseRenewerTestParams {
         fn default() -> Self {
             let process_id = Uuid::new_v4();
             let db_id = Uuid::new_v4();
-            TestParams {
+            LeaseRenewerTestParams {
                 now: SystemTime::now(),
                 process_id,
                 db_id,
@@ -403,7 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn lease_renewer_renew_simple() {
-        let params = TestParams::default();
+        let params = LeaseRenewerTestParams::default();
 
         let start = LeaseInformation {
             state: LeaseState::Locked,
@@ -430,7 +449,7 @@ mod tests {
 
     #[tokio::test]
     async fn lease_renewer_renew_unexpected_generation() {
-        let params = TestParams::default();
+        let params = LeaseRenewerTestParams::default();
 
         let start = LeaseInformation {
             state: LeaseState::Locked,
@@ -449,7 +468,7 @@ mod tests {
 
     #[tokio::test]
     async fn lease_renewer_renew_outside_of_expiration() {
-        let params = TestParams::default();
+        let params = LeaseRenewerTestParams::default();
 
         let start = LeaseInformation {
             state: LeaseState::Locked,
@@ -468,7 +487,7 @@ mod tests {
 
     #[tokio::test]
     async fn lease_renewer_drop_lease() {
-        let params = TestParams::default();
+        let params = LeaseRenewerTestParams::default();
 
         let start = LeaseInformation {
             state: LeaseState::Locked,
@@ -490,5 +509,46 @@ mod tests {
         assert_eq!(3, lease.generation);
         assert_eq!(None, lease.expires_at);
         assert_eq!(None, lease.held_by);
+    }
+
+    #[tokio::test]
+    async fn remote_leaser_acquire_drop() {
+        // TODO: Local filesystem object store doesn't handle renames/copies
+        // correctly.
+        let store = Arc::new(object_store::memory::InMemory::new());
+        let leaser = RemoteLeaser::new(Uuid::new_v4(), store);
+
+        let db_id = Uuid::new_v4();
+        leaser.initialize(&db_id).await.unwrap();
+        let lease = leaser.acquire(db_id).await.unwrap();
+
+        assert!(lease.is_valid());
+
+        let _ = lease.drop_lease().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn remote_leaser_fail_acquire() {
+        let store = Arc::new(object_store::memory::InMemory::new());
+        let process_id = Uuid::new_v4();
+        let leaser = RemoteLeaser::new(process_id, store);
+
+        let db_id = Uuid::new_v4();
+        leaser.initialize(&db_id).await.unwrap();
+
+        let active = leaser.acquire(db_id).await.unwrap();
+
+        // Try to acquire a second lease.
+        let result = leaser.acquire(db_id).await;
+        assert!(
+            matches!(result, Err(StorageError::LeaseHeldByOtherProcess { .. })),
+            "result: {:?}",
+            result,
+        );
+
+        // Dropping previous lease should allow us to acquire a new one.
+        active.drop_lease().await.unwrap();
+
+        let _ = leaser.acquire(db_id).await.unwrap();
     }
 }

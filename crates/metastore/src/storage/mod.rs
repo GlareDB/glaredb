@@ -93,8 +93,8 @@ impl CatalogStorageObject {
         ObjectPath::from(format!(
             "databases/{}/tmp/{}/{}",
             db_id.to_string(),
+            process_id,
             self.0,
-            process_id
         ))
     }
 }
