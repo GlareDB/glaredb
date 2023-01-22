@@ -173,7 +173,6 @@ impl RemoteLease {
                             return;
                         }
                     }
-                    interval.tick().await;
                 }
             }
             .instrument(lease_span),
