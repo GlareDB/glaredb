@@ -7,3 +7,5 @@ pub mod arrow;
 pub mod catalog;
 #[rustfmt::skip]
 pub mod service;
+#[rustfmt::skip]
+pub mod storage;

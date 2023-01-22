@@ -7,6 +7,7 @@
 pub mod arrow;
 pub mod catalog;
 pub mod service;
+pub mod storage;
 
 /// Errors related to converting to/from protobuf types.
 #[derive(thiserror::Error, Debug)]
@@ -22,6 +23,9 @@ pub enum ProtoConvError {
 
     #[error("Unsupported serialization: {0}")]
     UnsupportedSerialization(&'static str),
+
+    #[error(transparent)]
+    TimestampError(#[from] prost_types::TimestampError),
 
     #[error(transparent)]
     Uuid(#[from] uuid::Error),

@@ -1,41 +1,6 @@
-//! Metastore persistent storage.
-
-use crate::errors::{MetastoreError, Result};
-use crate::types::catalog::CatalogEntry;
-use object_store::ObjectStore;
+use crate::errors::Result;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::sync::Arc;
-use uuid::Uuid;
-
-#[derive(Debug, thiserror::Error)]
-pub enum StorageError {
-    #[error("Duplicate key for insert: {0}")]
-    DuplicateKey(String),
-
-    #[error(transparent)]
-    ProtoConv(#[from] crate::types::ProtoConvError),
-}
-
-pub struct Storage {
-    store: Arc<dyn ObjectStore>,
-}
-
-impl Storage {
-    /// Read a database's catalog state from object storage.
-    pub async fn read_database_state(&self, db_id: Uuid) -> Result<HashMap<u32, CatalogEntry>> {
-        unimplemented!()
-    }
-
-    /// Try to commit a transaction against object storage.
-    pub async fn try_commit(
-        &self,
-        db_id: Uuid,
-        tx: StorageTransaction<u32, CatalogEntry>,
-    ) -> Result<()> {
-        unimplemented!()
-    }
-}
 
 /// An all-or-nothing transcation against object storage.
 pub struct StorageTransaction<K, V> {

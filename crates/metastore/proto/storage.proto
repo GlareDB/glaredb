@@ -2,25 +2,52 @@
 //
 // The structure of catalogs looks something like the following:
 //
-// lock       -> LockInformation
+// lease      -> LeaseInformation
 // metadata   -> CatalogMetadata
-// 20000      -> CatalogEntry
-// 20001      -> CatalogEntry
-// ...
-// 20238      -> CatalogEntry
-//
-// Each entry in the catalog has an object name that corresponds to its OID, and
-// the object contents is the serialized entry.
+// catalog    -> CatalogBlob
 //
 // 'metadata' provides metadata about the catalog that's read on load, including
 // the current max OID.
 //
-// 'lock' facilitates locking the catalog.
+// 'lease' facilitates locking the catalog.
+//
+// 'catalog' is the entire catalog blob.
 
 syntax = "proto3";
 
 package metastore.storage;
 
+import "google/protobuf/timestamp.proto";
+
+message LeaseInformation {
+  enum State {
+    UNKOWN = 0;
+    UNLOCKED = 1;
+    LOCKED = 2;
+  }
+  // Current state of the lease.
+  State state = 1;
+
+  // Monotonically increasing generation of the lock.
+  uint64 generation = 2;
+
+  // Expiration of the lease. May be continually updated.
+  //
+  // If the state of the lock is 'LOCKED', and we're past this timestamp, then
+  // the lock can be taken by another process. Processes should be updating this
+  // in the background.
+  //
+  // This protects against a process acquiring the lock then crashing, causing
+  // the lock to never be unlocked.
+  google.protobuf.Timestamp expires_at = 3;
+
+  // UUID of the process holding this lock. May be empty if the lock state is
+  // 'UNLOCKED'.
+  bytes held_by = 4;
+
+  // next: 5
+}
+
 message CatalogMetadata {}
 
-message LockInformation {}
+message CatalogBlob {}
