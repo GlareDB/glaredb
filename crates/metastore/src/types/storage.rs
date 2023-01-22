@@ -84,7 +84,7 @@ impl TryFrom<storage::LeaseInformation> for LeaseInformation {
 
 impl From<LeaseInformation> for storage::LeaseInformation {
     fn from(value: LeaseInformation) -> Self {
-        let state: LeaseState = value.state.into();
+        let state: storage::lease_information::State = value.state.into();
         storage::LeaseInformation {
             state: state as i32,
             generation: value.generation,

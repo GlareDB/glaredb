@@ -32,6 +32,15 @@ pub enum StorageError {
         held_by: Option<Uuid>,
     },
 
+    #[error(
+        "Lease for database '{db_id}' expired; current: {current:?}, expired_at: {expired_at:?}"
+    )]
+    LeaseExpired {
+        db_id: Uuid,
+        current: SystemTime,
+        expired_at: SystemTime,
+    },
+
     #[error("Unable to drop lease in invalid state.")]
     UnableToDropLeaseInInvalidState,
 

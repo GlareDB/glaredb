@@ -2234,6 +2234,7 @@ dependencies = [
  "futures",
  "logutil",
  "object_store",
+ "object_store_util",
  "once_cell",
  "parking_lot",
  "pgrepr",

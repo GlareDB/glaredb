@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 logutil = {path = "../logutil"}
+object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
 tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
