@@ -72,6 +72,7 @@ pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     columns: ColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("builtin", DataType::Boolean, false),
+        ("schema_oid", DataType::UInt32, false),
         ("schema_name", DataType::Utf8, false),
         ("table_name", DataType::Utf8, false),
     ]),
@@ -177,33 +178,61 @@ pub struct BuiltinView {
     pub sql: &'static str,
 }
 
+// Information schema tables.
+//
+// See <https://www.postgresql.org/docs/current/information-schema.html>
+
 pub static INFORMATION_SCHEMA_SCHEMATA: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: INFORMATION_SCHEMA,
     name: "schemata",
     sql: "
 SELECT
-    null AS catalog_name,
-    null AS schema_name,
-    null AS schema_owner",
+    'default' AS catalog_name,
+    schema_name AS schema_name,
+    null AS schema_owner,
+    null AS default_character_set_catalog,
+    null AS default_character_set_schema,
+    null AS default_character_set_name,
+    null AS sql_path
+FROM glare_catalog.schemas",
 });
 
 pub static INFORMATION_SCHEMA_TABLES: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: INFORMATION_SCHEMA,
     name: "tables",
     sql: "
-SELECT
-    null AS table_catalog,
-    schema_name AS table_schema,
-    table_name,
-    'BASE TABLE' AS table_type
-FROM glare_catalog.tables
-UNION ALL
-SELECT null AS
-    table_catalog,
-    schema_name AS table_schema,
-    view_name AS table_name,
-    'VIEW' AS table_type
-FROM glare_catalog.views",
+SELECT *
+FROM (
+    SELECT
+        'default' AS table_catalog,
+        schema_name AS table_schema,
+        table_name AS table_name,
+        'BASE TABLE' AS table_type,
+        null AS self_referencing_column_name,
+        null AS reference_generation,
+        null AS user_defined_type_catalog,
+        null AS user_defined_type_schema,
+        null AS user_defined_type_name,
+        'NO' AS is_insertable_into,
+        'NO' AS is_typed,
+        null AS commit_action
+    FROM glare_catalog.tables
+    UNION ALL
+    SELECT
+        'default' AS table_catalog,
+        schema_name AS table_schema,
+        view_name AS table_name,
+        'VIEW' AS table_type,
+        null AS self_referencing_column_name,
+        null AS reference_generation,
+        null AS user_defined_type_catalog,
+        null AS user_defined_type_schema,
+        null AS user_defined_type_name,
+        'NO' AS is_insertable_into,
+        'NO' AS is_typed,
+        null AS commit_action
+    FROM glare_catalog.views
+)",
 });
 
 pub static INFORMATION_SCHEMA_COLUMNS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
@@ -211,25 +240,152 @@ pub static INFORMATION_SCHEMA_COLUMNS: Lazy<BuiltinView> = Lazy::new(|| BuiltinV
     name: "columns",
     sql: "
 SELECT
-    null AS table_catalog,
-    null AS table_schema,
-    null AS table_name,
-    null AS column_name,
-    null AS ordinal_position,
+    'default' AS table_catalog,
+    c.schema_name AS table_schema,
+    c.table_name AS table_name,
+    c.column_name AS column_name,
+    c.column_index + 1 AS ordinal_position,
     null AS column_default,
-    null AS is_nullable,
-    null AS data_type",
+    c.is_nullable AS is_nullable,
+    c.data_type AS data_type,
+    null AS character_maximum_length,
+    null AS numeric_precision,
+    null AS numeric_precision_radix,
+    null AS numeric_scale,
+    null AS datetime_precision,
+    null AS interval_type,
+    null AS interval_precision,
+    null AS character_set_catalog,
+    null AS character_set_schema,
+    null AS character_set_name,
+    null AS collation_catalog,
+    null AS collation_schema,
+    null AS collation_name,
+    null AS domain_catalog,
+    null AS domain_schema,
+    null AS domain_name,
+    null AS udt_catalog,
+    null AS udt_schema,
+    null AS udt_name,
+    null AS scope_catalog,
+    null AS scope_schema,
+    null AS scope_name,
+    null AS maximum_cardinality,
+    null AS dtd_identifier,
+    null AS is_self_referencing,
+    null AS is_identity,
+    null AS identity_generation,
+    null AS identity_start,
+    null AS identity_increment,
+    null AS identity_maximum,
+    null AS identity_minimum,
+    null AS identity_cyle,
+    null AS is_generated,
+    null AS generation_expression,
+    'NO' AS is_updateable
+FROM glare_catalog.columns c;",
 });
+
+// Postgres catalog tables.
+//
+// See <https://www.postgresql.org/docs/current/catalogs.html>
 
 pub static PG_AM: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
     name: "pg_am",
     sql: "
 SELECT
-    null AS oid,
-    null AS amname,
+    0 AS oid,
+    'scan' AS amname,
     null AS amhandler,
-    null AS amtype",
+    't' AS amtype",
+});
+
+pub static PG_ATTRIBUTE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_attribute",
+    sql: "
+SELECT
+    c.table_oid AS attrelid,
+    c.column_name AS attname,
+    null AS atttypeid,
+    null AS attstattarget,
+    null AS attlen,
+    null AS attnum,
+    null AS attndims,
+    null AS attcacheoff,
+    null AS atttypmod,
+    null AS attbyval,
+    null AS attalign,
+    null AS attstorage,
+    null AS attcompression,
+    null AS attnotnull,
+    null AS atthasdef,
+    null AS atthasmissing,
+    null AS attidentity,
+    null AS attgenerated,
+    null AS attisdropped,
+    null AS attislocal,
+    null AS attinhcount,
+    null AS attcollation,
+    null AS attacl,
+    null AS attoptions,
+    null AS attfdwoptions,
+    null AS attmissingval
+FROM glare_catalog.columns c",
+});
+
+pub static PG_CLASS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_class",
+    sql: "
+SELECT
+    t.oid AS oid,
+    t.table_name AS relname,
+    t.schema_oid AS relnamespace,
+    0 AS reltype,
+    null AS reloftype,
+    null AS relowner,
+    null AS relam,
+    null AS relfilenode,
+    null AS reltablespace,
+    null AS relpages,
+    null AS reltyples,
+    null AS relallvisible,
+    null AS reltoastrelid,
+    null AS relhasindex,
+    null AS relisshared,
+    null AS relpersistence,
+    'r' AS relkind,
+    null AS relnatts,
+    null AS relchecks,
+    null AS relhasrules,
+    null AS relhastriggers,
+    null AS relhassubclass,
+    null AS relrowsecurity,
+    null AS relforcerowsecurity,
+    null AS relispopulated,
+    null AS relreplident,
+    null AS relispartition,
+    null AS relrewrite,
+    null AS relfrozenxid,
+    null AS relminxid,
+    null AS relacl,
+    null AS reloptions,
+    null AS relpartbound
+FROM glare_catalog.tables t",
+});
+
+pub static PG_NAMESPACE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_namespace",
+    sql: "
+SELECT
+    s.oid AS oid,
+    s.schema_name AS nspname,
+    0 AS nspowner,
+    null AS nspacl
+FROM glare_catalog.schemas s",
 });
 
 impl BuiltinView {
@@ -239,6 +395,9 @@ impl BuiltinView {
             &INFORMATION_SCHEMA_TABLES,
             &INFORMATION_SCHEMA_COLUMNS,
             &PG_AM,
+            &PG_ATTRIBUTE,
+            &PG_CLASS,
+            &PG_NAMESPACE,
         ]
     }
 }
@@ -246,12 +405,49 @@ impl BuiltinView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn builtin_schema_oid_range() {
+        let mut oids = HashSet::new();
         for schema in BuiltinSchema::builtins() {
             assert!(schema.oid < FIRST_NON_SCHEMA_ID);
             assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
+        }
+    }
+
+    #[test]
+    fn builtin_unique_schema_names() {
+        let mut names = HashSet::new();
+        for builtin in BuiltinSchema::builtins() {
+            assert!(names.insert(builtin.name.to_string()))
+        }
+    }
+
+    #[test]
+    fn builtin_unique_view_names() {
+        let mut names = HashSet::new();
+        for builtin in BuiltinView::builtins() {
+            let name = format!(
+                "{}.{}",
+                builtin.schema.to_string(),
+                builtin.name.to_string()
+            );
+            assert!(names.insert(name.clone()), "duplicate name: {}", name);
+        }
+    }
+
+    #[test]
+    fn builtin_unique_table_names() {
+        let mut names = HashSet::new();
+        for builtin in BuiltinTable::builtins() {
+            let name = format!(
+                "{}.{}",
+                builtin.schema.to_string(),
+                builtin.name.to_string()
+            );
+            assert!(names.insert(name.clone()), "duplicate name: {}", name);
         }
     }
 }
