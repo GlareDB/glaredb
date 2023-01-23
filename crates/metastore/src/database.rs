@@ -1,6 +1,7 @@
 //! Module for handling the catalog for a single database.
 use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA_ID};
 use crate::errors::{MetastoreError, Result};
+use crate::storage::persist::Storage;
 use crate::types::catalog::{
     CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, ExternalTableEntry,
     SchemaEntry, TableEntry, ViewEntry,
@@ -10,6 +11,7 @@ use once_cell::sync::Lazy;
 use parking_lot::{Mutex, MutexGuard};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Special id indicating that schemas have no parents.
@@ -22,17 +24,22 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 /// Catalog for a single database.
 pub struct DatabaseCatalog {
     db_id: Uuid,
+    storage: Arc<Storage>,
     state: Mutex<State>, // TODO: Replace with storage.
 }
 
 impl DatabaseCatalog {
     /// Open the catalog for a database.
-    pub async fn open(id: Uuid) -> Result<DatabaseCatalog> {
+    pub async fn open(db_id: Uuid, storage: Arc<Storage>) -> Result<DatabaseCatalog> {
         // TODO: Read from storage.
         let builtins = BUILTIN_CATALOG.clone();
 
+        // TODO: Retry.
+        let catalog = storage.read_catalog(db_id).await?;
+
         Ok(DatabaseCatalog {
-            db_id: id,
+            db_id,
+            storage,
             state: Mutex::new(State {
                 version: 0,
                 oid_counter: FIRST_AVAILABLE_ID,
@@ -385,11 +392,17 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::persist::Storage;
     use crate::types::service::{CreateSchema, CreateView, DropSchema};
+    use object_store::memory::InMemory;
     use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {
-        DatabaseCatalog::open(Uuid::new_v4()).await.unwrap()
+        let store = Arc::new(InMemory::new());
+        let storage = Arc::new(Storage::new(Uuid::new_v4(), store));
+        DatabaseCatalog::open(Uuid::new_v4(), storage)
+            .await
+            .unwrap()
     }
 
     async fn version(db: &DatabaseCatalog) -> u64 {

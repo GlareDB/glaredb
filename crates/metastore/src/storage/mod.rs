@@ -1,10 +1,8 @@
 //! Metastore persistent storage.
 
-pub mod transaction;
+pub mod persist;
 
 mod lease;
-
-use transaction::StorageTransaction;
 
 use crate::types::catalog::CatalogEntry;
 use object_store::{path::Path as ObjectPath, ObjectStore};
@@ -40,6 +38,9 @@ pub enum StorageError {
         current: SystemTime,
         expired_at: SystemTime,
     },
+
+    #[error("Lease not valid for database: {db_id}")]
+    LeaseNotValid { db_id: Uuid },
 
     #[error("Unable to drop lease in invalid state.")]
     UnableToDropLeaseInInvalidState,
@@ -96,31 +97,5 @@ impl CatalogStorageObject {
             process_id,
             self.0,
         ))
-    }
-}
-
-const METADATA_OBJECT: CatalogStorageObject = CatalogStorageObject("metadata");
-const CATALOG_BLOB_OBJECT: CatalogStorageObject = CatalogStorageObject("catalog");
-
-pub struct Storage {
-    store: Arc<dyn ObjectStore>,
-}
-
-impl Storage {
-    /// Read a database's catalog state from object storage.
-    pub async fn read_database_state(
-        &self,
-        db_id: Uuid,
-    ) -> Result<Option<HashMap<u32, CatalogEntry>>> {
-        unimplemented!()
-    }
-
-    /// Try to commit a transaction against object storage.
-    pub async fn try_commit(
-        &self,
-        db_id: Uuid,
-        tx: StorageTransaction<u32, CatalogEntry>,
-    ) -> Result<()> {
-        unimplemented!()
     }
 }
