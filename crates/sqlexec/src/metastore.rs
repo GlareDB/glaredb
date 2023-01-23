@@ -12,7 +12,7 @@ use tokio::sync::RwLock;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
-use tracing::{debug_span, error, warn, Instrument};
+use tracing::{debug, debug_span, error, warn, Instrument};
 use uuid::Uuid;
 
 /// Number of outstanding requests per database.
@@ -20,6 +20,9 @@ const PER_DATABASE_BUFFER: usize = 128;
 
 /// How often to fetch the latest catalog from Metastore.
 const FETCH_TICK_DUR: Duration = Duration::from_secs(60 * 5);
+
+/// Number of ticks before the worker exits.
+const MAX_TICKS_BEFORE_EXIT: usize = 3;
 
 /// Worker client. This client can only make requests for a single database.
 pub struct SupervisorClient {
@@ -237,12 +240,29 @@ impl Supervisor {
             send,
         })
     }
+
+    /// Terminate a worker, waiting until the worker thread finishes.
+    ///
+    /// Currently only used to test that we can start up a new worker for the
+    /// same db.
+    #[cfg(test)]
+    async fn terminate_worker(&self, db_id: &Uuid) {
+        let mut workers = self.workers.write().await;
+        if let Some(worker) = workers.remove(db_id) {
+            std::mem::drop(workers);
+            worker.handle.abort();
+            let _ = worker.handle.await;
+        }
+    }
 }
 
 /// Handle to a database worker.
 struct WorkerHandle {
+    /// Handle to the database worker.
     handle: JoinHandle<()>,
+    /// Version hint shared with clients.
     version_hint: Arc<AtomicU64>,
+    /// Sender channel for client requests.
     send: mpsc::Sender<WorkerRequest>,
 }
 
@@ -312,21 +332,34 @@ impl DatabaseWorker {
         ))
     }
 
+    /// Runs the worker until it exits from inactivity.
     async fn run(mut self) {
         let mut interval = tokio::time::interval(FETCH_TICK_DUR);
+        let mut num_ticks_no_activity = 0;
         loop {
             tokio::select! {
                 _ = interval.tick() => {
-                    // TODO: After some number of ticks without client
-                    // interaction, we should exit so as to release cached
-                    // states not in use.
                     let span = debug_span!("fetch_interval", db_id = %self.db_id);
                     self.fetch().instrument(span).await;
+
+                    // If we're the only reference to the state, start counting
+                    // down to exit. Otherwise reset the counter.
+                    let sc = Arc::strong_count(&self.cached_state);
+                    if sc == 1 {
+                        num_ticks_no_activity += 1;
+                        if num_ticks_no_activity >= MAX_TICKS_BEFORE_EXIT {
+                            debug!(db_id = %self.db_id, "exiting database worker");
+                            return;
+                        }
+                    } else {
+                        num_ticks_no_activity = 0;
+                    }
                 }
 
                 Some(req) = self.recv.recv() => {
                     let span = debug_span!("handle_request", conn_id = %req.conn_id(), db_id = %self.db_id);
                     self.handle_request(req).instrument(span).await;
+                    num_ticks_no_activity = 0;
                 }
             }
         }
@@ -423,5 +456,155 @@ impl DatabaseWorker {
         self.cached_state = Arc::new(state);
         self.version_hint
             .store(self.cached_state.version, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
+    use metastore::proto::service::metastore_service_server::MetastoreServiceServer;
+    use metastore::srv::Service;
+    use metastore::types::service::{CreateSchema, CreateView, Mutation};
+    use tokio::task::JoinHandle;
+    use tonic::transport::{Channel, Endpoint, Server, Uri};
+    use tower::service_fn;
+
+    /// Creates a new local Metastore, returning a thread handle to the server,
+    /// and a client connected to that server.
+    ///
+    /// The newly created Metastore will have no database data to begin with.
+    async fn new_local_metastore() -> (JoinHandle<()>, MetastoreServiceClient<Channel>) {
+        let (client, server) = tokio::io::duplex(1024);
+
+        let handle = tokio::spawn(async move {
+            Server::builder()
+                .add_service(MetastoreServiceServer::new(Service::new()))
+                .serve_with_incoming(futures::stream::iter(vec![Ok::<_, &'static str>(server)]))
+                .await
+                .unwrap()
+        });
+
+        let mut client = Some(client);
+        let channel = Endpoint::try_from("http://[::]/6545") // Note that we're not using this uri for the server.
+            .unwrap()
+            .connect_with_connector(service_fn(move |_: Uri| {
+                let client = client.take();
+                async move {
+                    match client {
+                        Some(client) => Ok(client),
+                        None => Err("client already taken"),
+                    }
+                }
+            }))
+            .await
+            .unwrap();
+
+        let client = MetastoreServiceClient::new(channel);
+        (handle, client)
+    }
+
+    #[tokio::test]
+    async fn simple_mutate() {
+        let (_srv, client) = new_local_metastore().await;
+
+        let supervisor = Supervisor::new(client);
+
+        let conn_id = Uuid::nil();
+        let db_id = Uuid::nil();
+        let client = supervisor.init_client(conn_id, db_id).await.unwrap();
+
+        let state = client.get_cached_state().await.unwrap();
+        let new_state = client
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateView(CreateView {
+                    schema: "public".to_string(),
+                    name: "mario".to_string(),
+                    sql: "select 1".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+
+        assert!(new_state.version > state.version);
+    }
+
+    #[tokio::test]
+    async fn out_of_date_mutate() {
+        let (_srv, client) = new_local_metastore().await;
+
+        let supervisor = Supervisor::new(client);
+
+        let db_id = Uuid::nil();
+
+        let c1 = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let c2 = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+
+        // Both clients have the same state.
+        let s1 = c1.get_cached_state().await.unwrap();
+        let s2 = c2.get_cached_state().await.unwrap();
+        assert_eq!(s1.version, s2.version);
+
+        // Client 1 mutates.
+        let _ = c1
+            .try_mutate(
+                s1.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Client 2 fails to mutate because its out of date.
+        c2.try_mutate(
+            s2.version,
+            vec![Mutation::CreateSchema(CreateSchema {
+                name: "yoshi".to_string(),
+            })],
+        )
+        .await
+        .unwrap_err();
+
+        // Version hint should indicate state was updated due to mutation by
+        // client 1.
+        assert!(c2.version_hint() > s2.version);
+
+        // Get updated state.
+        let s2 = c2.get_cached_state().await.unwrap();
+
+        // Mutation should go through now.
+        let _ = c2
+            .try_mutate(
+                s2.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "yoshi".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn restart_worker() {
+        let (_srv, client) = new_local_metastore().await;
+
+        let supervisor = Supervisor::new(client);
+
+        let db_id = Uuid::nil();
+        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+
+        let state = client.get_cached_state().await.unwrap();
+        supervisor.terminate_worker(&db_id).await;
+
+        // Worker gone, we should have the only reference.
+        assert_eq!(1, Arc::strong_count(&state));
+
+        // But now all requests will error.
+        let _ = client.get_cached_state().await.unwrap_err();
+
+        // Initiate a new client, which should spin up a new worker.
+        let _ = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
     }
 }
