@@ -1,17 +1,39 @@
 # Queries related to the information_schema.
 
-halt
+# Sanity check queries.
+#
+# These all just 'select *' to ensure they plan correctly. Queries asserting
+# contents are later in the file.
 
 statement ok
-create table schema_table (a int, b text);
+select * from information_schema.schemata;
 
-query TT
-select table_name, table_type from information_schema.tables where table_name = 'schema_table';
+statement ok
+select * from information_schema.tables;
+
+statement ok
+select * from information_schema.columns;
+
+# Content checks.
+
+query T
+select schema_name from information_schema.schemata where schema_name in ('public', 'information_schema', 'pg_catalog', 'glare_catalog') order by schema_name;
 ----
-schema_table    BASE TABLE
+glare_catalog
+information_schema
+pg_catalog
+public
 
 query TTT
-select table_name, column_name, data_type from information_schema.columns where table_name = 'schema_table' order by column_name;
+select table_schema, table_name, table_type from information_schema.tables where table_schema = 'information_schema' order by table_name;
 ----
-schema_table  a  Int32
-schema_table  b  Utf8
+information_schema  columns   VIEW
+information_schema  schemata  VIEW
+information_schema  tables    VIEW
+
+query TTR
+select table_name, column_name, ordinal_position from information_schema.columns where table_schema = 'glare_catalog' and table_name = 'schemas' order by ordinal_position;
+----
+schemas  oid          1
+schemas  builtin      2
+schemas  schema_name  3

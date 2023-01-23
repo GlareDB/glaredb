@@ -1,0 +1,16 @@
+# Queries related pg catalog compatibility.
+
+# Sanity check queries.
+
+statement ok
+select * from pg_catalog.pg_am;
+
+statement ok
+select * from pg_catalog.pg_attribute;
+
+statement ok
+select * from pg_catalog.pg_namespace;
+
+statement ok
+select * from pg_catalog.pg_class;
+
