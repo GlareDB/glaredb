@@ -17,7 +17,7 @@ select * from information_schema.columns;
 # Content checks.
 
 query T
-select schema_name from information_schema.schemata order by schema_name;
+select schema_name from information_schema.schemata where schema_name in ('public', 'information_schema', 'pg_catalog', 'glare_catalog') order by schema_name;
 ----
 glare_catalog
 information_schema
