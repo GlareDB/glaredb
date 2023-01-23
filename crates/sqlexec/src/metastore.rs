@@ -423,6 +423,24 @@ impl DatabaseWorker {
     /// Fetch the latest catalog from Metastore, updating this local catalog
     /// cache.
     async fn fetch(&mut self) {
+        // TODO: Remove this.
+        //
+        // This is currently required because metastore does not persist
+        // catalogs across redeploys of the service. Once persistence is in,
+        // this should be removed.
+        //
+        // Note that initialization is idempotent.
+        if let Err(e) = self
+            .client
+            .initialize_catalog(tonic::Request::new(InitializeCatalogRequest {
+                db_id: self.db_id.into_bytes().to_vec(),
+            }))
+            .await
+        {
+            error!(%e, "failed to jankily initialize database catalog");
+            return;
+        };
+
         match self
             .client
             .fetch_catalog(tonic::Request::new(FetchCatalogRequest {
