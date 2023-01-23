@@ -1,23 +1,23 @@
-// Defintions for storage metadata and locks.
+// Defintions for objects that get persisted to object storage.
 //
 // The structure of catalogs looks something like the following:
 //
 // lease      -> LeaseInformation
-// metadata   -> CatalogMetadata
-// catalog    -> CatalogBlob
+// catalog    -> PersistedCatalog
 //
-// 'metadata' provides metadata about the catalog that's read on load, including
-// the current max OID.
+// - 'lease' facilitates locking the catalog.
+// - 'catalog' is a blob containing the current database state, as well as some
+//   additional metadata.
 //
-// 'lease' facilitates locking the catalog.
-//
-// 'catalog' is the entire catalog blob.
+// 'catalog' may be split up into individual entries of groups of entries down
+// the depending on how large catalogs get.
 
 syntax = "proto3";
 
 package metastore.storage;
 
 import "google/protobuf/timestamp.proto";
+import "catalog.proto";
 
 message LeaseInformation {
   enum State {
@@ -48,6 +48,17 @@ message LeaseInformation {
   // next: 5
 }
 
-message CatalogMetadata {}
+message PersistedCatalog {
+  // The database that this catalog corresponds to.
+  //
+  // This should be a byte-serialized UUID (v4).
+  bytes db_id = 1;
 
-message CatalogBlob {}
+  // Persisted state of the catalog.
+  catalog.CatalogState state = 2;
+
+  // Persisted oid counter. Used for oid generation for new database objects.
+  uint32 oid_counter = 3;
+
+  // next: 4
+}

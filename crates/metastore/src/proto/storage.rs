@@ -66,7 +66,16 @@ pub mod lease_information {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CatalogMetadata {}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CatalogBlob {}
+pub struct PersistedCatalog {
+    /// The database that this catalog corresponds to.
+    ///
+    /// This should be a byte-serialized UUID (v4).
+    #[prost(bytes = "vec", tag = "1")]
+    pub db_id: ::prost::alloc::vec::Vec<u8>,
+    /// Persisted state of the catalog.
+    #[prost(message, optional, tag = "2")]
+    pub state: ::core::option::Option<super::catalog::CatalogState>,
+    /// Persisted oid counter. Used for oid generation for new database objects.
+    #[prost(uint32, tag = "3")]
+    pub oid_counter: u32,
+}

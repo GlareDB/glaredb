@@ -82,7 +82,6 @@ impl DatabaseCatalog {
     /// Return the serializable state of the catalog at this version.
     fn serializable_state(&self, guard: MutexGuard<State>) -> CatalogState {
         CatalogState {
-            db_id: self.db_id,
             version: guard.version,
             entries: guard.entries.clone(),
         }

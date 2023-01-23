@@ -96,3 +96,32 @@ impl From<LeaseInformation> for storage::LeaseInformation {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct PersistedCatalog {
+    pub db_id: Uuid,
+    pub state: CatalogState,
+    pub oid_counter: u32,
+}
+
+impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
+    type Error = ProtoConvError;
+    fn try_from(value: storage::PersistedCatalog) -> Result<Self, Self::Error> {
+        Ok(PersistedCatalog {
+            db_id: Uuid::from_slice(&value.db_id)?,
+            state: value.state.required("state")?,
+            oid_counter: value.oid_counter,
+        })
+    }
+}
+
+impl TryFrom<PersistedCatalog> for storage::PersistedCatalog {
+    type Error = ProtoConvError;
+    fn try_from(value: PersistedCatalog) -> Result<Self, Self::Error> {
+        Ok(storage::PersistedCatalog {
+            db_id: value.db_id.into_bytes().to_vec(),
+            state: Some(value.state.try_into()?),
+            oid_counter: value.oid_counter,
+        })
+    }
+}
