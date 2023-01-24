@@ -6,3 +6,6 @@ members = ["crates/*"]
 # on crates.io (likley 0.5.4)
 [patch.crates-io]
 object_store = { git = "https://github.com/apache/arrow-rs.git", rev = "eae993fd196d0a8df8a90857bc4a7ae8f5a3e845" }
+# tokio-postgres = { path = "../rust-postgres/tokio-postgres" }
+# tokio-util = { path = "../tokio/tokio-util" }
+# tokio = { path = "../tokio/tokio" }

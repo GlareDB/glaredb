@@ -25,6 +25,7 @@ use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+use std::arch::aarch64::int32x2_t;
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -32,6 +33,7 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
+use tokio_postgres::config::SslMode;
 use tokio_postgres::types::Type as PostgresType;
 use tokio_postgres::{Config, CopyOutStream, NoTls};
 use tracing::{trace, warn};
@@ -90,28 +92,35 @@ impl PostgresAccessor {
         access: PostgresTableAccess,
         ssh_tunnel: SshTunnelAccess,
     ) -> Result<Self> {
-        let mut config: Config = access.connection_string.parse()?;
+        let config: Config = access.connection_string.parse()?;
 
-        let postgres_host = config.get_hosts();
-        let postgres_port = config.get_ports();
+        let postgres_host = match config.get_hosts() {
+            [tokio_postgres::config::Host::Tcp(host)] => host.as_str(),
+            _ => {
+                return Err(PostgresError::UnsupportedPostgresType(
+                    "too many hosts provided".to_string(),
+                ))
+            }
+        };
+        let postgres_port = match config.get_ports() {
+            &[port] => port,
+            _ => {
+                return Err(PostgresError::UnsupportedPostgresType(
+                    "too many ports provided".to_string(),
+                ))
+            }
+        };
+        // let postgres_hosts = config.get_hosts();
+        // let postgres_ports = config.get_ports();
 
         // Open ssh tunnel
-        let session = ssh_tunnel.create_tunnel().await?;
-        // find free port on current server (candidate port for tunnelling)
-        // public key is on bastion server
-        // ssh -i <private key> -L <random-local-port>:<bastion host>:<provided-ssh-port> bastion-user@bastion-server:bastion-server-port
-        //
-        // Should be port generated when making the tunnel
-        let tunnel_port = 1122;
+        let (session, tunnel_addr) = ssh_tunnel
+            .create_tunnel(postgres_host, postgres_port)
+            // .create_tunnel(postgres_hosts, postgres_ports)
+            .await?;
 
-        config.host("localhost");
-        config.port(tunnel_port);
-        let config = config;
-
-        let tcp_stream = TcpStream::connect(("localhost", tunnel_port)).await?;
-
+        let tcp_stream = TcpStream::connect(tunnel_addr).await?;
         let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
-        trace!("able to connect to postgres via ssh tcp tunnel");
         let handle = tokio::spawn(async move {
             if let Err(e) = conn.await {
                 warn!(%e, "postgres connection errored");
