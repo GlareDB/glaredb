@@ -25,8 +25,8 @@ pub struct Storage {
     process_id: Uuid,
     store: Arc<dyn ObjectStore>,
 
-    /// The leaser for leasing catalog objects. Note that leases are used to
-    /// ensure atomicity when reading _or_ writing the persisted catalog.
+    /// The leaser for leasing catalog objects. Leases are only used when making
+    /// modifications to the catalog.
     leaser: RemoteLeaser,
 }
 
@@ -46,6 +46,9 @@ impl Storage {
     /// initialization fails, the state of the catalog is not guaranteed, but
     /// subsequent calls to this function should fix catalogs that haven't been
     /// fully initialized.
+    ///
+    /// Once initialized, a catalog is ready for use without further
+    /// modification. The OID counter is guaranteed to be valid.
     pub async fn initialize(&self, db_id: Uuid) -> Result<()> {
         match self
             .store
@@ -97,6 +100,10 @@ impl Storage {
         lease.drop_lease().await?;
 
         Ok(())
+    }
+
+    pub async fn latest_version(&self, db_id: &Uuid) -> Result<u64> {
+        Ok(self.read_metadata(&db_id).await?.latest_version)
     }
 
     /// Read the state of some catalog.
@@ -161,6 +168,9 @@ impl Storage {
             return Err(e);
         }
 
+        // Drop after successful write.
+        lease.drop_lease().await?;
+
         Ok(())
     }
 
@@ -204,9 +214,8 @@ impl Storage {
 
         // Move objects...
 
-        // Blindly overwrite to prevent subsequent catalog write from getting
-        // stuck if we happen to fail on step 6 or fail the lease check (making
-        // the metadata object visible).
+        // Blindly overwrite to prevent subsequent catalog writes from getting
+        // stuck if we happen to fail on step 6 or fail the lease check.
         self.store
             .rename(&tmp_catalog_path, &catalog_obj.visible_path(&db_id))
             .await?;

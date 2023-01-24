@@ -7,11 +7,13 @@ use crate::types::catalog::{
     SchemaEntry, TableEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
+use crate::types::storage::PersistedCatalog;
 use once_cell::sync::Lazy;
-use parking_lot::{Mutex, MutexGuard};
-use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::{Mutex, MutexGuard};
+use tracing::debug;
 use uuid::Uuid;
 
 /// Special id indicating that schemas have no parents.
@@ -24,35 +26,42 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 /// Catalog for a single database.
 pub struct DatabaseCatalog {
     db_id: Uuid,
+
+    /// Reference to underlying persistant storage.
     storage: Arc<Storage>,
-    state: Mutex<State>, // TODO: Replace with storage.
+
+    /// A cached catalog state for a single database.
+    cached: Mutex<State>,
+
+    /// Whether or not to force a full reload of the catalog from object
+    /// storage.
+    // TODO: Remove when `State` has transactional semantics.
+    require_full_load: AtomicBool,
 }
 
 impl DatabaseCatalog {
     /// Open the catalog for a database.
     pub async fn open(db_id: Uuid, storage: Arc<Storage>) -> Result<DatabaseCatalog> {
-        // TODO: Read from storage.
-        let builtins = BUILTIN_CATALOG.clone();
+        // Always initialize, idempotent.
+        storage.initialize(db_id).await?;
 
-        // TODO: Retry.
-        // let catalog = storage.read_catalog(db_id).await?;
+        let persisted = storage.read_catalog(db_id).await?;
+        let state = State::from_persisted(persisted);
 
         Ok(DatabaseCatalog {
             db_id,
             storage,
-            state: Mutex::new(State {
-                version: 0,
-                oid_counter: FIRST_AVAILABLE_ID,
-                entries: builtins.entries,
-                schema_names: builtins.schema_names,
-                schema_objects: builtins.schema_objects,
-            }),
+            cached: Mutex::new(state),
+            require_full_load: AtomicBool::new(false),
         })
     }
 
     /// Get the current state of the catalog.
     pub async fn get_state(&self) -> Result<CatalogState> {
-        let state = self.state.lock();
+        // TODO: Reduce locking.
+        self.load_latest().await?;
+
+        let state = self.cached.lock().await;
         Ok(self.serializable_state(state))
     }
 
@@ -64,9 +73,10 @@ impl DatabaseCatalog {
     /// On success, a full copy of the updated catalog state will be returned.
     // TODO: All or none.
     pub async fn try_mutate(&self, version: u64, mutations: Vec<Mutation>) -> Result<CatalogState> {
-        // TODO: Try lock?
-        // TODO: Lease lock storage.
-        let mut state = self.state.lock();
+        // TODO: Reduce locking.
+        self.load_latest().await?;
+
+        let mut state = self.cached.lock().await;
         if state.version != version {
             return Err(MetastoreError::VersionMismtatch {
                 have: version,
@@ -76,12 +86,37 @@ impl DatabaseCatalog {
 
         // TODO: Validate mutations.
 
+        // State's version number updated, but we still need to use the old
+        // version number when making a request to storage.
         state.mutate(mutations)?;
+        let old_version = version;
 
+        let persist = PersistedCatalog {
+            version: state.version,
+            oid_counter: state.oid_counter,
+            entries: state.entries.clone(),
+        };
         let updated = self.serializable_state(state);
 
-        // TODO: Write to storage.
         // TODO: Rollback on failed flush.
+        //
+        // Currently this will keep a copy of a catalog in cache without having
+        // it persisted. We'll want `State` to be somewhat transactional,
+        // allowing for a single writer and multiple readers.
+        //
+        // As a stop gap, we can use a `require_full_load` flag which will force
+        // us to a do a full reload on the catalog. This does require that we
+        // hold the lock for the cached state across the write to storage, which
+        // has significant performance implications, but does guarantee we'll
+        // never serve an invalid catalog.
+        if let Err(e) = self
+            .storage
+            .write_catalog(self.db_id, old_version, persist)
+            .await
+        {
+            self.require_full_load.store(true, Ordering::Relaxed);
+            return Err(e.into());
+        }
 
         Ok(updated)
     }
@@ -92,6 +127,40 @@ impl DatabaseCatalog {
             version: guard.version,
             entries: guard.entries.clone(),
         }
+    }
+
+    /// Load the latest state from object storage.
+    async fn load_latest(&self) -> Result<()> {
+        let current_version = {
+            let cached = self.cached.lock().await;
+            cached.version
+        };
+
+        let latest_version = self.storage.latest_version(&self.db_id).await?;
+
+        // We must have the latest version and _not_ have a full load required.
+        if current_version == latest_version && !self.require_full_load.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        // Otherwise rebuild the state from object storage...
+
+        let persisted = self.storage.read_catalog(self.db_id).await?;
+        let state = State::from_persisted(persisted);
+
+        let mut cached = self.cached.lock().await;
+        if cached.version != current_version {
+            // Concurrent call to this function, we can assume that we have the
+            // updated state then.
+            debug!("concurrent update to cached state");
+            return Ok(());
+        }
+        *cached = state;
+
+        // Reset full load flag.
+        self.require_full_load.store(false, Ordering::Relaxed);
+
+        Ok(())
     }
 }
 
@@ -110,6 +179,46 @@ struct State {
 }
 
 impl State {
+    /// Create a new state from a persisted catalog.
+    ///
+    /// The state will be combined with a predefinend builtin catalog objects.
+    ///
+    /// This will build the schema names and objects maps.
+    fn from_persisted(persisted: PersistedCatalog) -> State {
+        let mut schema_names: HashMap<String, u32> = HashMap::new();
+        let mut schema_objects: HashMap<u32, SchemaObjects> = HashMap::new();
+
+        for (oid, entry) in &persisted.entries {
+            if entry.is_schema() {
+                schema_names.insert(entry.get_meta().name.clone(), *oid);
+            } else {
+                let schema_id = entry.get_meta().parent;
+                // Only schemas may have a parent with ID 0. All other objects
+                // must have non-zero parent IDs.
+                assert_ne!(0, schema_id, "Schema ID must not be zero");
+
+                let objects = schema_objects.entry(schema_id).or_default();
+                objects.objects.insert(entry.get_meta().name.clone(), *oid);
+            }
+        }
+
+        let mut state = State {
+            version: persisted.version,
+            oid_counter: persisted.oid_counter,
+            entries: persisted.entries,
+            schema_names,
+            schema_objects,
+        };
+
+        // Extend with builtin objects.
+        let builtin = BUILTIN_CATALOG.clone();
+        state.entries.extend(builtin.entries);
+        state.schema_names.extend(builtin.schema_names);
+        state.schema_objects.extend(builtin.schema_objects);
+
+        state
+    }
+
     /// Get the next oid to use for a catalog entry.
     fn next_oid(&mut self) -> u32 {
         let oid = self.oid_counter;
@@ -398,6 +507,7 @@ mod tests {
     use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {
+        logutil::init_test();
         let store = Arc::new(InMemory::new());
         let storage = Arc::new(Storage::new(Uuid::new_v4(), store));
         DatabaseCatalog::open(Uuid::new_v4(), storage)

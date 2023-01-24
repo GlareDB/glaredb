@@ -18,9 +18,20 @@ use uuid::Uuid;
 
 /// Metastore GRPC service.
 pub struct Service {
+    /// A unique identifier to help debugging.
     process_id: Uuid,
+    /// Reference to underlying object storage.
     storage: Arc<Storage>,
-    catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>, // Fancy!
+    /// Database catalogs that this process knows about.
+    ///
+    /// This is filled on demand. There's currently no method for dropping
+    /// unused catalogs (other than restarts).
+    ///
+    /// Any number of Metastore instances may have references for a single
+    /// database catalog. Catalog mutations are synchronized at the storage
+    /// layer. It is possible for Metastore to serve out of date catalogs, but
+    /// it's not possible to make mutations against an out of date catalog.
+    catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>,
 }
 
 impl Service {
