@@ -1,10 +1,6 @@
-use super::{FromOptionalField, ProtoConvError};
-use crate::proto::arrow;
-use crate::proto::catalog;
+use super::ProtoConvError;
 use crate::proto::storage;
-use crate::types::catalog::{CatalogEntry, CatalogState};
-use proptest_derive::Arbitrary;
-use prost_types::Timestamp;
+use crate::types::catalog::CatalogEntry;
 use std::collections::HashMap;
 use std::time::SystemTime;
 use uuid::Uuid;

@@ -9,11 +9,11 @@
 //! Leases are currently bounded by an `expires_at` field which gets converted
 //! to `SystemTime` during deserialization. `SystemTime` does not guarantee
 //! monotonicity, but since we're working with remote system, this doesn't
-//! matter. We're making the assumption that every system we're interactining
-//! with for locking is has a reasonably accurate clock. Since we should be
-//! updating the expiration time with plenty of time spare before the lease
-//! actually expirations, a little bit of clock drift doens't matter. We should
-//! only be concerned if it's on the order of tens of seconds.
+//! matter. We're making the assumption that every system we're interacting with
+//! for locking is has a reasonably accurate clock. Since we should be updating
+//! the expiration time with plenty of time spare before the lease actually
+//! exprires, a little bit of clock drift doesn't matter. We should only be
+//! concerned if it's on the order of tens of seconds.
 
 use crate::proto::storage;
 use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
@@ -27,7 +27,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
-use tracing::{debug, debug_span, error, Instrument};
+use tracing::{debug_span, error, Instrument};
 use uuid::Uuid;
 
 /// Location of the catalog lock object.
@@ -110,15 +110,15 @@ impl RemoteLeaser {
         // Try to acquire.
         let start_generation = renewer.acquire_lease().await?;
 
-        Ok(RemoteLease::new(start_generation, renewer)?)
+        RemoteLease::new(start_generation, renewer)
     }
 }
 
-/// Locks a catalog in object storage for reading and writing.
+/// Locks a catalog in object storage for writing.
 #[derive(Debug)]
 pub struct RemoteLease {
     /// Handle for background renews.
-    renew_handle: JoinHandle<()>,
+    _renew_handle: JoinHandle<()>,
 
     /// Notify the leaser renewer to drop the lease.
     ///
@@ -178,7 +178,7 @@ impl RemoteLease {
         );
 
         Ok(RemoteLease {
-            renew_handle,
+            _renew_handle: renew_handle,
             drop_lease_notifier: drop_lease_tx,
             valid,
         })
@@ -230,18 +230,14 @@ impl LeaseRenewer {
         let now = SystemTime::now();
 
         if lease.state == LeaseState::Locked {
-            let held_by = lease
-                .held_by
-                .ok_or_else(|| StorageError::MissingLeaseField {
-                    db_id: self.db_id,
-                    field: "held_by",
-                })?;
-            let expires_at = lease
-                .expires_at
-                .ok_or_else(|| StorageError::MissingLeaseField {
-                    db_id: self.db_id,
-                    field: "expires_at",
-                })?;
+            let held_by = lease.held_by.ok_or(StorageError::MissingLeaseField {
+                db_id: self.db_id,
+                field: "held_by",
+            })?;
+            let expires_at = lease.expires_at.ok_or(StorageError::MissingLeaseField {
+                db_id: self.db_id,
+                field: "expires_at",
+            })?;
 
             // Some other process has the lease.
             if expires_at > now {
@@ -277,12 +273,10 @@ impl LeaseRenewer {
         let lease = self.read_lease(Some(current_generation)).await?;
         let now = SystemTime::now();
 
-        let expires_at = lease
-            .expires_at
-            .ok_or_else(|| StorageError::MissingLeaseField {
-                db_id: self.db_id,
-                field: "expires_at",
-            })?;
+        let expires_at = lease.expires_at.ok_or(StorageError::MissingLeaseField {
+            db_id: self.db_id,
+            field: "expires_at",
+        })?;
 
         if now > expires_at {
             return Err(StorageError::LeaseExpired {

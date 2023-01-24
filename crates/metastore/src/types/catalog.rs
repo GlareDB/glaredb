@@ -5,7 +5,6 @@ use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;
-use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct CatalogState {

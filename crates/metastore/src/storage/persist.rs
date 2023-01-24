@@ -8,8 +8,7 @@ use bytes::BytesMut;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use prost::Message;
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -103,7 +102,7 @@ impl Storage {
     }
 
     pub async fn latest_version(&self, db_id: &Uuid) -> Result<u64> {
-        Ok(self.read_metadata(&db_id).await?.latest_version)
+        Ok(self.read_metadata(db_id).await?.latest_version)
     }
 
     /// Read the state of some catalog.

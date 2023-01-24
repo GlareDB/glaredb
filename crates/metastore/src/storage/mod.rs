@@ -4,11 +4,7 @@ pub mod persist;
 
 mod lease;
 
-use crate::types::catalog::CatalogEntry;
-use object_store::{path::Path as ObjectPath, ObjectStore};
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
-use std::sync::Arc;
+use object_store::path::Path as ObjectPath;
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -79,7 +75,7 @@ pub trait StorageObject<S: AsRef<str>> {
     fn tmp_path(&self, db_id: &Uuid, process_id: &Uuid) -> ObjectPath {
         ObjectPath::from(format!(
             "databases/{}/tmp/{}/{}",
-            db_id.to_string(),
+            db_id,
             process_id,
             self.object_name().as_ref(),
         ))
@@ -96,7 +92,7 @@ pub trait StorageObject<S: AsRef<str>> {
     fn visible_path(&self, db_id: &Uuid) -> ObjectPath {
         ObjectPath::from(format!(
             "databases/{}/visible/{}",
-            db_id.to_string(),
+            db_id,
             self.object_name().as_ref(),
         ))
     }

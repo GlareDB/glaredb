@@ -18,8 +18,6 @@ use uuid::Uuid;
 
 /// Metastore GRPC service.
 pub struct Service {
-    /// A unique identifier to help debugging.
-    process_id: Uuid,
     /// Reference to underlying object storage.
     storage: Arc<Storage>,
     /// Database catalogs that this process knows about.
@@ -41,7 +39,6 @@ impl Service {
 
         let storage = Arc::new(Storage::new(process_id, store));
         Service {
-            process_id,
             storage,
             catalogs: RwLock::new(HashMap::new()),
         }
