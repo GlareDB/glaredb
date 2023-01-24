@@ -10,9 +10,6 @@ use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
-    #[error("Failed to initialize database lease, lease already exists.")]
-    FailedInitializationLockExists,
-
     #[error("Lease for database '{db_id}' held by other process; process_id: {process_id}")]
     LeaseHeldByOtherProcess { db_id: Uuid, process_id: Uuid },
 
@@ -46,9 +43,6 @@ pub enum StorageError {
 
     #[error("Lease renewer exited.")]
     LeaseRenewerExited,
-
-    #[error("Duplicate key for insert: {0}")]
-    DuplicateKey(String),
 
     #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
