@@ -12,7 +12,14 @@
 // - 'lease' facilitates locking the catalog.
 // - 'metadata' stores catalog metadata.
 // - 'catalog.version' is a blob containing the current database state at some
-//   version.
+// version.
+//
+// Catalog initialization:
+//
+// A catalog will be intialized with a lease object, metadata object, and
+// catalog object at version 0. Version 0 of the catalog is a valid catalog.
+//
+// Multiple calls to initialize for the catalog are safe.
 //
 // Catalog read flow:
 //
