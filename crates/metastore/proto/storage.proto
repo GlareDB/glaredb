@@ -3,14 +3,47 @@
 // The structure of catalogs looks something like the following:
 //
 // lease      -> LeaseInformation
-// catalog    -> PersistedCatalog
+// metadata   -> CatalogMetadate
+// catalog.0  -> PersistedCatalog
+// catalog.1  -> PersistedCatalog
+// ...
+// catalog.23 -> PersistedCatalog
 //
 // - 'lease' facilitates locking the catalog.
-// - 'catalog' is a blob containing the current database state, as well as some
-// additional metadata.
+// - 'metadata' stores catalog metadata.
+// - 'catalog.version' is a blob containing the current database state at some
+//   version.
 //
-// 'catalog' may be split up into individual entries of groups of entries down
-// the depending on how large catalogs get.
+// Catalog read flow:
+//
+// 1. Read metadata, grab the latest catalog version number (note that no
+//    locking is needed).
+// 2. Read the catalog blob using the version provided in step 1.
+//
+// No leasing/locking is necessary during reads because GCS provides object
+// atomicity, meaning we can read the 'metadata' object even if it's being
+// written to. And since we don't delete old catalog versions, we can guarantee
+// that the version we want to read exists even if a different process is
+// concurrently writing an updated version.
+//
+// Catalog write flow:
+//
+// 1. Obtain lease.
+// 2. Read stored metadata, ensure we are making modifications to the most up to
+//    date version of the catalog.
+// 3. Write updated catalog temp object.
+// 4. Write updated metadata to temp object.
+// 5. Rename catalog temp object.
+// 6. Rename metadata temp object.
+//
+// Writes to the catalog requires obtaining the lease for catalog, and must be
+// held for the duration of the update. A new catalog is only visible once the
+// 'metadata' object has been renamed.
+//
+// If a catalog write fails between steps 5 and 6, the updated catalog will
+// never be read by any other processes, since the 'latest_version' field in the
+// metadata object is the source of truth for what version is the latest
+// version.
 
 syntax = "proto3";
 
