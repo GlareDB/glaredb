@@ -13,7 +13,8 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_SSH_CONNECTIONS, GLARE_TABLES,
+    GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -345,6 +346,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_schemas())
         } else if GLARE_CONNECTIONS.matches(schema, name) {
             Arc::new(self.build_glare_connections())
+        } else if GLARE_SSH_CONNECTIONS.matches(schema, name) {
+            Arc::new(self.build_glare_ssh_connections())
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -562,6 +565,60 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(schema_names.finish()),
                 Arc::new(connection_names.finish()),
                 Arc::new(connection_types.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_ssh_connections(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_SSH_CONNECTIONS.arrow_schema());
+
+        let mut oids = UInt32Builder::new();
+        let mut builtins = BooleanBuilder::new();
+        let mut schema_names = StringBuilder::new();
+        let mut connection_names = StringBuilder::new();
+        let mut public_key = StringBuilder::new();
+
+        for conn in self
+            .catalog
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Connection)
+        {
+            match conn.entry {
+                CatalogEntry::Connection(ConnectionEntry {
+                    options: ConnectionOptions::Ssh(ConnectionOptionsSsh { keypair, .. }),
+                    ..
+                }) => {
+                    let ssh_public_key = SshKey::from_bytes(keypair)
+                        .expect("Keypair should always be a valid ssh key")
+                        .public_key()
+                        .expect("Always produces a valid OpenSSH public key");
+
+                    oids.append_value(conn.oid);
+                    builtins.append_value(conn.builtin);
+                    schema_names.append_value(
+                        conn.schema_entry
+                            .map(|schema| schema.get_meta().name.as_str())
+                            .unwrap_or("<invalid>"),
+                    );
+                    connection_names.append_value(&conn.entry.get_meta().name);
+                    public_key.append_value(ssh_public_key);
+                }
+                CatalogEntry::Connection(_) => (),
+                other => panic!("unexpected catalog entry: {:?}", other), // Bug
+            };
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oids.finish()),
+                Arc::new(builtins.finish()),
+                Arc::new(schema_names.finish()),
+                Arc::new(connection_names.finish()),
+                Arc::new(public_key.finish()),
             ],
         )
         .unwrap();

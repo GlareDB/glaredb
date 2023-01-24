@@ -14,7 +14,6 @@ use tracing::{debug, trace};
 
 use crate::errors::{internal, Result};
 
-// #[derive(Debug, Clone, Arbitrary)]
 #[derive(Debug, Clone)]
 pub struct SshKey {
     keypair: PrivateKey,
@@ -23,30 +22,27 @@ pub struct SshKey {
 impl SshKey {
     /// Generate a random Ed25519 ssh key pair
     pub fn generate_random() -> Result<Self> {
-        let key = Self {
-            keypair: PrivateKey::random(rand::thread_rng(), ssh_key::Algorithm::Ed25519)?,
-        };
-
-        trace!("Public Key: {}", key.public_key()?);
-        trace!("Private Key: {:?}", key.private_key()?);
-
-        Ok(key)
+        let keypair = PrivateKey::random(rand::thread_rng(), ssh_key::Algorithm::Ed25519)?;
+        Ok(Self { keypair })
     }
 
+    /// Recreate ssh key from bytes store in catalog
     pub fn from_bytes(keypair: &[u8]) -> Result<Self> {
-        Ok(Self {
-            keypair: PrivateKey::from_bytes(keypair)?,
-        })
+        let keypair = PrivateKey::from_bytes(keypair)?;
+        Ok(Self { keypair })
     }
 
+    /// Serialize sshk key as raw bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         Ok(self.keypair.to_bytes()?.to_vec())
     }
 
+    /// Create an OpenSSH-formatted public key as a String
     pub fn public_key(&self) -> Result<String> {
         Ok(self.keypair.public_key().to_openssh()?)
     }
 
+    /// Create an OpenSSH-formatted private key as a String
     pub(crate) fn private_key(&self) -> Result<Zeroizing<String>> {
         Ok(self.keypair.to_openssh(LineEnding::default())?)
     }
@@ -66,7 +62,6 @@ impl SshTunnelAccess {
         remote_host: &str,
         remote_port: u16,
     ) -> Result<(Session, SocketAddr)> {
-        trace!("Public key: [{}]", self.keypair.public_key()?);
         let temp_keyfile =
             Self::generate_temp_keyfile(self.keypair.private_key()?.as_ref()).await?;
 
@@ -151,8 +146,7 @@ impl SshTunnelAccess {
 
 #[cfg(test)]
 mod tests {
-    use crate::ssh::SshKey;
-    use crate::ssh::SshTunnelAccess;
+    use crate::ssh::{SshKey, SshTunnelAccess};
 
     #[tokio::test]
     async fn validate_temp_keyfile() {

@@ -104,6 +104,18 @@ pub static GLARE_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_SSH_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "ssh_connections",
+    columns: ColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("builtin", DataType::Boolean, false),
+        ("schema_name", DataType::Utf8, false),
+        ("connection_name", DataType::Utf8, false),
+        ("public_key", DataType::Utf8, false),
+    ]),
+});
+
 impl BuiltinTable {
     /// Check if this table matches the provided schema and name.
     pub fn matches(&self, schema: &str, name: &str) -> bool {
@@ -128,6 +140,7 @@ impl BuiltinTable {
             &GLARE_TABLES,
             &GLARE_COLUMNS,
             &GLARE_CONNECTIONS,
+            &GLARE_SSH_CONNECTIONS,
         ]
     }
 }
