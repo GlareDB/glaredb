@@ -1,10 +1,12 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
+use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
 use tracing::info;
@@ -72,6 +74,12 @@ enum Commands {
         /// TCP address to bind do.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6545"))]
         bind: String,
+
+        /// Bucket to use for database catalogs.
+        bucket: Option<String>,
+
+        /// Path to GCP service account to use when connecting to GCS.
+        service_account_path: Option<String>,
     },
 }
 
@@ -103,7 +111,25 @@ fn main() -> Result<()> {
                 proxy.serve(pg_listener).await
             })?;
         }
-        Commands::Metastore { bind } => begin_metastore(&bind)?,
+        Commands::Metastore {
+            bind,
+            bucket,
+            service_account_path,
+        } => {
+            let conf = match (bucket, service_account_path) {
+                (Some(bucket), Some(service_account_path)) => ObjectStoreConfig::Gcs {
+                    bucket,
+                    service_account_path,
+                },
+                (None, None) => ObjectStoreConfig::Memory,
+                _ => {
+                    return Err(anyhow!(
+                    "Invalid arguments, 'service-account-path' and 'bucket' must both be provided."
+                ))
+                }
+            };
+            begin_metastore(&bind, conf)?
+        }
     }
 
     Ok(())
@@ -119,11 +145,41 @@ fn begin_server(pg_bind: &str, metastore_addr: String, local: bool) -> Result<()
     })
 }
 
-fn begin_metastore(bind: &str) -> Result<()> {
+#[derive(Debug)]
+enum ObjectStoreConfig {
+    Memory,
+    Gcs {
+        bucket: String,
+        service_account_path: String,
+    },
+}
+
+impl ObjectStoreConfig {
+    fn into_object_store(self) -> Result<Arc<dyn ObjectStore>> {
+        Ok(match self {
+            ObjectStoreConfig::Memory => Arc::new(InMemory::new()),
+            ObjectStoreConfig::Gcs {
+                bucket,
+                service_account_path,
+            } => Arc::new(
+                GoogleCloudStorageBuilder::new()
+                    .with_bucket_name(bucket)
+                    .with_service_account_path(service_account_path)
+                    .build()?,
+            ),
+        })
+    }
+}
+
+fn begin_metastore(bind: &str, conf: ObjectStoreConfig) -> Result<()> {
     let addr: SocketAddr = bind.parse()?;
     let runtime = build_runtime("metastore")?;
+
+    info!(?conf, "starting Metastore with object store config");
+
     runtime.block_on(async move {
-        let metastore = Metastore::new()?;
+        let store = conf.into_object_store()?;
+        let metastore = Metastore::new(store)?;
         metastore.serve(addr).await
     })
 }

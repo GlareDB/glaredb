@@ -3594,6 +3594,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
+ "object_store",
  "sqllogictest 0.11.1",
  "tokio",
  "tokio-postgres",
