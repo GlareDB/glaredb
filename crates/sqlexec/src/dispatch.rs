@@ -37,7 +37,7 @@ pub enum DispatchError {
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
 
-    #[error("failed to do late planning: {0}")]
+    #[error("Unable to retrieve ssh tunnel connection: {0}")]
     MissingSshTunnel(Box<crate::errors::ExecError>),
 
     #[error("Invalid entry for table dispatch: {0}")]
@@ -304,13 +304,6 @@ impl<'a> SessionDispatcher<'a> {
                             }),
                         ..
                     } => {
-                        let keypair = match keypair.as_slice().try_into() {
-                            Ok(keypair) => keypair,
-                            Err(e) => {
-                                error!("Cannot convert ssh key pair slice (length: {}) into 64 byte array: {e}", keypair.len());
-                                return Err(DispatchError::InvalidSshKeyPair);
-                            }
-                        };
                         let keypair = SshKey::from_bytes(keypair)?;
                         SshTunnelAccess {
                             host: host.to_owned(),

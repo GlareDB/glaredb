@@ -2,7 +2,6 @@ pub mod errors;
 
 use datasource_common::ssh::SshTunnelAccess;
 use errors::{PostgresError, Result};
-
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
