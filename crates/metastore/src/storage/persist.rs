@@ -3,7 +3,6 @@ use crate::storage::lease::{RemoteLease, RemoteLeaser};
 use crate::storage::{
     Result, SingletonStorageObject, StorageError, StorageObject, VersionedStorageObject,
 };
-use crate::types::catalog::CatalogState;
 use crate::types::storage::{CatalogMetadata, PersistedCatalog};
 use bytes::BytesMut;
 use object_store::{Error as ObjectStoreError, ObjectStore};
@@ -238,5 +237,83 @@ impl Storage {
         let proto = storage::CatalogMetadata::decode(bs)?;
 
         Ok(proto.try_into()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object_store::memory::InMemory;
+
+    fn new_storage() -> Storage {
+        let process_id = Uuid::new_v4();
+        let store = Arc::new(InMemory::new());
+        let leaser = RemoteLeaser::new(process_id, store.clone());
+        Storage {
+            process_id,
+            store,
+            leaser,
+        }
+    }
+
+    #[tokio::test]
+    async fn initialize_idempotent() {
+        let storage = new_storage();
+
+        let db_id = Uuid::new_v4();
+        storage.initialize(db_id).await.unwrap();
+        storage.initialize(db_id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn write_simple() {
+        let storage = new_storage();
+
+        let db_id = Uuid::new_v4();
+        storage.initialize(db_id).await.unwrap();
+
+        let mut catalog = storage.read_catalog(db_id).await.unwrap();
+
+        let old_version = catalog.version;
+        catalog.version += 1;
+        storage
+            .write_catalog(db_id, old_version, catalog.clone())
+            .await
+            .unwrap();
+
+        let updated = storage.read_catalog(db_id).await.unwrap();
+        assert_eq!(1, updated.version);
+
+        // Check that we can't write using out of date version.
+        storage.write_catalog(db_id, 0, catalog).await.unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn write_failed_lease() {
+        let storage = new_storage();
+
+        let db_id = Uuid::new_v4();
+        storage.initialize(db_id).await.unwrap();
+
+        // Sneakily get lease for catalog.
+        let lease = storage.leaser.acquire(db_id).await.unwrap();
+
+        // Reads should work.
+        let mut catalog = storage.read_catalog(db_id).await.unwrap();
+
+        let old_version = catalog.version;
+        catalog.version += 1;
+        // Write should fail, can't acquire lease.
+        storage
+            .write_catalog(db_id, old_version, catalog.clone())
+            .await
+            .unwrap_err();
+
+        // Write should work after dropping lease.
+        lease.drop_lease().await.unwrap();
+        storage
+            .write_catalog(db_id, old_version, catalog)
+            .await
+            .unwrap();
     }
 }
