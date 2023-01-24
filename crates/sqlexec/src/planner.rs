@@ -93,24 +93,9 @@ impl<'a> SessionPlanner<'a> {
                 let host = remove_required_opt(m, "host")?;
                 let user = remove_required_opt(m, "user")?;
                 let port: u16 = remove_required_opt(m, "port")?.parse()?;
-                let private_key = remove_optional_opt(m, "private_key");
-                let public_key = remove_optional_opt(m, "public_key");
 
-                let key = match (private_key, public_key) {
-                    //TODO: key creation
-                    (None, None) => return Err(internal!("Automatic key creation coming soon. Please provide both the private and public keys at this time")),
-                    // Use provided keys
-                    (Some(private_key), Some(public_key)) => Some(SshKey {
-                        private_key,
-                        public_key,
-                    }),
-                    (Some(_), None) | (None, Some(_)) => {
-                        return Err(internal!(
-                            "Provide both public and private keys. \
-                             If no keys are provided a pair will be generated"
-                        ))
-                    }
-                };
+                // Generate random ssh keypair
+                let keypair = SshKey::generate_random()?.to_bytes()?;
 
                 CreateConnection {
                     connection_name: stmt.name,
@@ -118,7 +103,7 @@ impl<'a> SessionPlanner<'a> {
                         host,
                         user,
                         port,
-                        key,
+                        keypair,
                     }),
                 }
             }

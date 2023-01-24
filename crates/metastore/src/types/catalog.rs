@@ -2,11 +2,9 @@ use super::{FromOptionalField, ProtoConvError};
 use crate::proto::arrow;
 use crate::proto::catalog;
 use datafusion::arrow::datatypes::DataType;
-use datasource_common::ssh::SshKey;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;
-use tracing::error;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -861,47 +859,28 @@ pub struct ConnectionOptionsSsh {
     pub host: String,
     pub user: String,
     pub port: u16,
-    pub key: Option<SshKey>,
+    pub keypair: Vec<u8>,
 }
 
 impl TryFrom<catalog::ConnectionOptionsSsh> for ConnectionOptionsSsh {
     type Error = ProtoConvError;
     fn try_from(value: catalog::ConnectionOptionsSsh) -> Result<Self, Self::Error> {
-        let key = match (value.private_key, value.public_key) {
-            (Some(private_key), Some(public_key)) => Some(SshKey {
-                private_key,
-                public_key,
-            }),
-            // If anything else but double Some we error. This should not be possible
-            (private, public) => {
-                error!("Private and public keys are not both present in catalog");
-                return Err(crate::types::internal!(
-                    "Invalid combination of private and public keys {private:?} and {public:?}"
-                ));
-            }
-        };
         Ok(ConnectionOptionsSsh {
             host: value.host,
             user: value.user,
             port: value.port.try_into()?,
-            key,
+            keypair: value.keypair,
         })
     }
 }
 
 impl From<ConnectionOptionsSsh> for catalog::ConnectionOptionsSsh {
     fn from(value: ConnectionOptionsSsh) -> Self {
-        let (private_key, public_key) = match value.key {
-            None => (None, None),
-            Some(key) => (Some(key.private_key), Some(key.public_key)),
-        };
-
         catalog::ConnectionOptionsSsh {
             host: value.host,
             user: value.user,
             port: value.port.into(),
-            private_key,
-            public_key,
+            keypair: value.keypair,
         }
     }
 }

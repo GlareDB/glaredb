@@ -6,7 +6,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::ssh::SshTunnelAccess;
+use datasource_common::ssh::{SshKey, SshTunnelAccess};
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -24,6 +24,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
+use tracing::error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DispatchError {
@@ -37,7 +38,7 @@ pub enum DispatchError {
     MissingObjectWithOid(u32),
 
     #[error("failed to do late planning: {0}")]
-    MssingSshTunnel(Box<crate::errors::ExecError>),
+    MissingSshTunnel(Box<crate::errors::ExecError>),
 
     #[error("Invalid entry for table dispatch: {0}")]
     InvalidEntryTypeForDispatch(EntryType),
@@ -47,6 +48,12 @@ pub enum DispatchError {
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::errors::ExecError>),
+
+    #[error("Invalid ssh key pair")]
+    InvalidSshKeyPair,
+
+    #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
+    NonSshConnection,
 
     #[error(
         "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
@@ -66,6 +73,8 @@ pub enum DispatchError {
     BigQueryDatasource(#[from] datasource_bigquery::errors::BigQueryError),
     #[error(transparent)]
     ObjectStoreDatasource(#[from] datasource_object_store::errors::ObjectStoreSourceError),
+    #[error(transparent)]
+    CommonDatasource(#[from] datasource_common::errors::Error),
 }
 
 impl DispatchError {
@@ -282,7 +291,7 @@ impl<'a> SessionDispatcher<'a> {
                 let conn = self
                     .ctx
                     .get_connection(name)
-                    .map_err(|e| DispatchError::MssingSshTunnel(Box::new(e)))?;
+                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
 
                 let access = match conn {
                     ConnectionEntry {
@@ -291,18 +300,27 @@ impl<'a> SessionDispatcher<'a> {
                                 host,
                                 user,
                                 port,
-                                key,
+                                keypair,
                             }),
                         ..
-                    } => SshTunnelAccess {
-                        host: host.to_owned(),
-                        user: user.to_owned(),
-                        port: port.to_owned(),
-                        key: key.to_owned(),
-                    },
-                    _ => unreachable!(
-                        "All connection methods as part of ssh_tunnel should be ssh connections"
-                    ),
+                    } => {
+                        let keypair = match keypair.as_slice().try_into() {
+                            Ok(keypair) => keypair,
+                            Err(e) => {
+                                error!("Cannot convert ssh key pair slice (length: {}) into 64 byte array: {e}", keypair.len());
+                                return Err(DispatchError::InvalidSshKeyPair);
+                            }
+                        };
+                        let keypair = SshKey::from_bytes(keypair)?;
+                        SshTunnelAccess {
+                            host: host.to_owned(),
+                            user: user.to_owned(),
+                            port: port.to_owned(),
+                            keypair,
+                        }
+                    }
+                    // This connection should always be a valid ssh connection")]
+                    _ => return Err(DispatchError::NonSshConnection),
                 };
 
                 Some(access)

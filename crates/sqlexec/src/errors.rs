@@ -89,6 +89,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     DatasourceDebug(#[from] datasource_debug::errors::DebugError),
+
+    #[error(transparent)]
+    DatasourceCommon(#[from] datasource_common::errors::Error),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

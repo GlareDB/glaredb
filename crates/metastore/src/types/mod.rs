@@ -28,18 +28,7 @@ pub enum ProtoConvError {
 
     #[error(transparent)]
     TryFromIntError(#[from] std::num::TryFromIntError),
-
-    #[error("internal: {0}")]
-    Internal(String),
 }
-
-#[allow(unused_macros)]
-macro_rules! internal {
-    ($($arg:tt)*) => {
-        crate::types::ProtoConvError::Internal(std::format!($($arg)*))
-    };
-}
-pub(crate) use internal;
 
 /// An extension trait that adds the methods `optional` and `required` to any
 /// Option containing a type implementing `TryInto<U, Error = ProtoConvError>`

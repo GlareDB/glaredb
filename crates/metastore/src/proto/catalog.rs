@@ -347,8 +347,6 @@ pub struct ConnectionOptionsSsh {
     /// Note the value here should not be larger than uint16 MAX
     #[prost(uint32, tag = "3")]
     pub port: u32,
-    #[prost(string, optional, tag = "4")]
-    pub private_key: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "5")]
-    pub public_key: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bytes = "vec", tag = "4")]
+    pub keypair: ::prost::alloc::vec::Vec<u8>,
 }

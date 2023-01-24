@@ -234,6 +234,5 @@ message ConnectionOptionsSsh {
   string host = 1;
   string user = 2;
   uint32 port = 3; // Note the value here should not be larger than uint16 MAX
-  optional string private_key = 4;
-  optional string public_key = 5;
+  bytes keypair = 4;
 }

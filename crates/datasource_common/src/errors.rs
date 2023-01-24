@@ -1,7 +1,10 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    Ssh(#[from] openssh::Error),
+    OpenSsh(#[from] openssh::Error),
+
+    #[error(transparent)]
+    SshKeyGen(#[from] ssh_key::Error),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
