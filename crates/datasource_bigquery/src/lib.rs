@@ -3,6 +3,7 @@ pub mod errors;
 
 use errors::{BigQueryError, Result};
 
+use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
 use bigquery_storage::yup_oauth2::{
@@ -31,13 +32,13 @@ use datafusion::physical_plan::{
 use futures::{Stream, StreamExt};
 use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::{self, Write};
 use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::task::{Context, Poll};
 
 // Convenience type aliases.
@@ -135,7 +136,7 @@ impl TableProvider for BigQueryTableProvider {
         _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // TODO: Fix duplicated key deserialization.
-        let mut storage = {
+        let storage = {
             let key = serde_json::from_str(&self.access.gcp_service_acccount_key_json)
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
             let sa = ServiceAccountAuthenticator::builder(key).build().await?;
@@ -180,19 +181,44 @@ impl TableProvider for BigQueryTableProvider {
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        let mut streams = Vec::new();
-        while let Some(stream) = sess
-            .next_stream()
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?
-        {
-            streams.push(Mutex::new(Some(stream)));
-        }
+        let num_partitions = sess.len_streams();
+
+        let (send, recv) = async_channel::bounded(num_partitions);
+        tokio::spawn(async move {
+            loop {
+                let stream_opt = {
+                    match sess.next_stream().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::error!(%e, "unable to fetch next stream");
+                            break;
+                        }
+                    }
+                };
+                if let Some(stream) = stream_opt {
+                    match send.send(stream).await {
+                        Ok(_) => {}
+                        Err(_e /* : closed or full channel error */) => {
+                            tracing::error!(
+                                "cannot send stream over the buffered channel [programming error]"
+                            );
+                            break;
+                        }
+                    };
+                } else {
+                    // Received `None`. No more streams to send into the channel.
+                    break;
+                }
+            }
+            // Close the channel once everything's done!
+            send.close();
+        });
 
         Ok(Arc::new(BigQueryExec {
             predicate,
             arrow_schema: projected_schema,
-            streams,
+            receiver: RwLock::new(recv),
+            num_partitions,
         }))
     }
 }
@@ -200,10 +226,8 @@ impl TableProvider for BigQueryTableProvider {
 struct BigQueryExec {
     predicate: String,
     arrow_schema: ArrowSchemaRef,
-    /// Open streams to BigQuery storage.
-    ///
-    /// Note that streams are consumed during execution.
-    streams: Vec<Mutex<Option<BufferedArrowIpcReader>>>,
+    receiver: RwLock<Receiver<BufferedArrowIpcReader>>,
+    num_partitions: usize,
 }
 
 impl ExecutionPlan for BigQueryExec {
@@ -216,7 +240,7 @@ impl ExecutionPlan for BigQueryExec {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(self.streams.len())
+        Partitioning::UnknownPartitioning(self.num_partitions)
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
@@ -241,19 +265,15 @@ impl ExecutionPlan for BigQueryExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let reader = {
-            let reader = self.streams.get(partition).ok_or_else(|| {
-                DataFusionError::Execution(format!("missing stream for partion: {}", partition))
-            })?;
-            let mut reader = reader.lock().unwrap();
-            // Replace the reader, disallowing execution of the same partition.
-            reader.take().ok_or_else(|| {
-                DataFusionError::Execution(format!(
-                    "attempted to read the same partition multiple times: {}",
-                    partition
-                ))
-            })?
+        let recv = {
+            let guard = self.receiver.read();
+            Receiver::clone(&guard)
         };
+        let reader = recv
+            .recv_blocking()
+            .map_err(|_e /* : closed stream error */| {
+                DataFusionError::Execution(format!("missing stream for partition: {}", partition))
+            })?;
 
         Ok(Box::pin(BufferedIpcStream::new(self.schema(), reader)))
     }

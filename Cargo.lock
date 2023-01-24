@@ -344,6 +344,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-channel"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf46fee83e5ccffc220104713af3292ff9bc7c64c7de289f66dae8e38d826833"
+dependencies = [
+ "concurrent-queue",
+ "event-listener",
+ "futures-core",
+]
+
+[[package]]
 name = "async-compression"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -500,7 +511,7 @@ checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 [[package]]
 name = "bigquery-storage"
 version = "0.1.2"
-source = "git+https://github.com/glaredb/bigquery-storage?branch=master#599f0df0fffe12872e6d0b26b35c11c63eb6bcb2"
+source = "git+https://github.com/glaredb/bigquery-storage?branch=master#e9703a6dcaf70b4743bcf169c7e3d42fa1f2aeb8"
 dependencies = [
  "futures",
  "hyper",
@@ -1197,12 +1208,14 @@ dependencies = [
 name = "datasource_bigquery"
 version = "0.1.0"
 dependencies = [
+ "async-channel",
  "async-stream",
  "async-trait",
  "bigquery-storage",
  "datafusion",
  "futures",
  "gcp-bigquery-client",
+ "parking_lot",
  "serde",
  "serde_json",
  "thiserror",
