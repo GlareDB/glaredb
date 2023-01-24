@@ -7,7 +7,7 @@
 //
 // - 'lease' facilitates locking the catalog.
 // - 'catalog' is a blob containing the current database state, as well as some
-//   additional metadata.
+// additional metadata.
 //
 // 'catalog' may be split up into individual entries of groups of entries down
 // the depending on how large catalogs get.
@@ -48,17 +48,32 @@ message LeaseInformation {
   // next: 5
 }
 
-message PersistedCatalog {
-  // The database that this catalog corresponds to.
-  //
-  // This should be a byte-serialized UUID (v4).
-  bytes db_id = 1;
+message CatalogMetadata {
+  // Latest version of the persisted catalog. Used to build the object name for
+  // the catalog blob.
+  uint64 latest_version = 1;
 
-  // Persisted state of the catalog.
-  catalog.CatalogState state = 2;
+  // Byte serialized UUID for the process that last wrote this metadata.
+  bytes last_written_by = 2;
+}
+
+// The catalog as it exists in object storage.
+//
+// Note that this is very similar to `CatalogState`, however this is very likely
+// a candidate of being broken up into separate objects (e.g. by entry type, or
+// dependent entries). A single blob does the job for now, and its unlikely that
+// this blob will get egregiously large.
+message PersistedCatalog {
+  // The version of this catalog.
+  uint64 version = 1;
+
+  // All entries in this catalog.
+  //
+  // ID -> Entry
+  map<uint32, catalog.CatalogEntry> entries = 2;
 
   // Persisted oid counter. Used for oid generation for new database objects.
   uint32 oid_counter = 3;
 
-  // next: 4
+  // next: 3
 }

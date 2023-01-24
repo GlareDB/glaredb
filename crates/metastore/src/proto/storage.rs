@@ -66,15 +66,32 @@ pub mod lease_information {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CatalogMetadata {
+    /// Latest version of the persisted catalog. Used to build the object name for
+    /// the catalog blob.
+    #[prost(uint64, tag = "1")]
+    pub latest_version: u64,
+    /// Byte serialized UUID for the process that last wrote this metadata.
+    #[prost(bytes = "vec", tag = "2")]
+    pub last_written_by: ::prost::alloc::vec::Vec<u8>,
+}
+/// The catalog as it exists in object storage.
+///
+/// Note that this is very similar to `CatalogState`, however this is very likely
+/// a candidate of being broken up into separate objects (e.g. by entry type, or
+/// dependent entries). A single blob does the job for now, and its unlikely that
+/// this blob will get egregiously large.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PersistedCatalog {
-    /// The database that this catalog corresponds to.
+    /// The version of this catalog.
+    #[prost(uint64, tag = "1")]
+    pub version: u64,
+    /// All entries in this catalog.
     ///
-    /// This should be a byte-serialized UUID (v4).
-    #[prost(bytes = "vec", tag = "1")]
-    pub db_id: ::prost::alloc::vec::Vec<u8>,
-    /// Persisted state of the catalog.
-    #[prost(message, optional, tag = "2")]
-    pub state: ::core::option::Option<super::catalog::CatalogState>,
+    /// ID -> Entry
+    #[prost(map = "uint32, message", tag = "2")]
+    pub entries: ::std::collections::HashMap<u32, super::catalog::CatalogEntry>,
     /// Persisted oid counter. Used for oid generation for new database objects.
     #[prost(uint32, tag = "3")]
     pub oid_counter: u32,

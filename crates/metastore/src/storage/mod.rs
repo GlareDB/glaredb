@@ -23,10 +23,10 @@ pub enum StorageError {
     #[error("Missing field on lease for database; db_id: {db_id}, field: {field}")]
     MissingLeaseField { db_id: Uuid, field: &'static str },
 
-    #[error("Lease generation doesn't match expected; expected: {expected}, got: {got}, held_by: {held_by:?}")]
+    #[error("Lease generation doesn't match expected; expected: {expected}, have: {have}, held_by: {held_by:?}")]
     LeaseGenerationMismatch {
         expected: u64,
-        got: u64,
+        have: u64,
         held_by: Option<Uuid>,
     },
 
@@ -38,6 +38,9 @@ pub enum StorageError {
         current: SystemTime,
         expired_at: SystemTime,
     },
+
+    #[error("Attempted to write to the catalog with an out of date version; expected: {expected}, have: {have}")]
+    AttemptedOutOfDataCatalogWrite { expected: u64, have: u64 },
 
     #[error("Lease not valid for database: {db_id}")]
     LeaseNotValid { db_id: Uuid },
@@ -66,11 +69,22 @@ pub enum StorageError {
 
 pub type Result<T, E = StorageError> = std::result::Result<T, E>;
 
-/// Describes a catalog object in object storage at a static path.
-#[derive(Debug, Clone, Copy)]
-pub struct CatalogStorageObject(&'static str);
+pub trait StorageObject<S: AsRef<str>> {
+    /// The name of the storage object.
+    fn object_name(&self) -> S;
 
-impl CatalogStorageObject {
+    /// Get a temporary path to use for this process.
+    ///
+    /// Path format: 'database/<db_id>/tmp/<proc_id>/<object_name>'
+    fn tmp_path(&self, db_id: &Uuid, process_id: &Uuid) -> ObjectPath {
+        ObjectPath::from(format!(
+            "databases/{}/tmp/{}/{}",
+            db_id.to_string(),
+            process_id,
+            self.object_name().as_ref(),
+        ))
+    }
+
     /// Get the visible object path of this file for a database. Objects at this
     /// path will be visible to other processes.
     ///
@@ -79,23 +93,37 @@ impl CatalogStorageObject {
     /// Scanning all visible objects only need to do a prefix scan on
     /// 'database/<db_id>/visible/'. Temporary objects will not be included in
     /// such a scan.
-    fn visible_object_path(&self, db_id: &Uuid) -> ObjectPath {
+    fn visible_path(&self, db_id: &Uuid) -> ObjectPath {
         ObjectPath::from(format!(
             "databases/{}/visible/{}",
             db_id.to_string(),
-            self.0
+            self.object_name().as_ref(),
         ))
     }
+}
 
-    /// Get a temporary path to use for this process.
-    ///
-    /// Path format: 'database/<db_id>/tmp/<proc_id>/<object_name>'
-    fn tmp_object_path(&self, db_id: &Uuid, process_id: &Uuid) -> ObjectPath {
-        ObjectPath::from(format!(
-            "databases/{}/tmp/{}/{}",
-            db_id.to_string(),
-            process_id,
-            self.0,
-        ))
+/// An object that hase only one version for a database.
+#[derive(Debug, Clone, Copy)]
+pub struct SingletonStorageObject(&'static str);
+
+impl StorageObject<&'static str> for SingletonStorageObject {
+    fn object_name(&self) -> &'static str {
+        self.0
+    }
+}
+
+/// An object that has multiple versions.
+#[derive(Debug, Clone, Copy)]
+pub struct VersionedStorageObject(&'static str, u64);
+
+impl VersionedStorageObject {
+    pub fn with_version(&self, version: u64) -> VersionedStorageObject {
+        VersionedStorageObject(self.0, version)
+    }
+}
+
+impl StorageObject<String> for VersionedStorageObject {
+    fn object_name(&self) -> String {
+        format!("{}.{}", self.0, self.1)
     }
 }

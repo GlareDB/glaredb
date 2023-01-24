@@ -16,7 +16,7 @@
 //! only be concerned if it's on the order of tens of seconds.
 
 use crate::proto::storage;
-use crate::storage::{CatalogStorageObject, Result, StorageError};
+use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
 use crate::types::storage::{LeaseInformation, LeaseState};
 use bytes::BytesMut;
 use object_store::{path::Path as ObjectPath, Error as ObjectStoreError, ObjectStore};
@@ -31,7 +31,7 @@ use tracing::{debug, debug_span, error, Instrument};
 use uuid::Uuid;
 
 /// Location of the catalog lock object.
-const LEASE_INFORMATION_OBJECT: CatalogStorageObject = CatalogStorageObject("lock");
+const LEASE_INFORMATION_OBJECT: SingletonStorageObject = SingletonStorageObject("lock");
 
 /// How long the lease is held until it's considered expired.
 const LEASE_DURATION: Duration = Duration::from_secs(30);
@@ -55,7 +55,8 @@ impl RemoteLeaser {
 
     /// Initialize a lease for a database.
     ///
-    /// This should only be called when a database is created.
+    /// Idempotent for a catalog. If a lease already exists, its state is
+    /// unchanged.
     ///
     /// The initial state of the lease is 'UNLOCKED'. An additional call to
     /// `acquire` is need to grab the lease.
@@ -72,22 +73,20 @@ impl RemoteLeaser {
         proto.encode(&mut bs)?;
 
         // Write to temp location first.
-        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_object_path(db_id, &self.process_id);
+        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(db_id, &self.process_id);
         self.store.put(&tmp_path, bs.freeze()).await?;
 
         // Try moving it.
         //
         // NOTE: S3 doesn't support atomic copy/rename if not exists.
-        let visible_path = LEASE_INFORMATION_OBJECT.visible_object_path(db_id);
+        let visible_path = LEASE_INFORMATION_OBJECT.visible_path(db_id);
         match self
             .store
             .rename_if_not_exists(&tmp_path, &visible_path)
             .await
         {
             Ok(_) => (),
-            Err(ObjectStoreError::AlreadyExists { .. }) => {
-                return Err(StorageError::FailedInitializationLockExists)
-            }
+            Err(ObjectStoreError::AlreadyExists { .. }) => return Ok(()),
             Err(e) => return Err(e.into()),
         }
 
@@ -98,8 +97,8 @@ impl RemoteLeaser {
     ///
     /// Errors if some other process holds the lease.
     pub async fn acquire(&self, db_id: Uuid) -> Result<RemoteLease> {
-        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_object_path(&db_id, &self.process_id);
-        let visible_path = LEASE_INFORMATION_OBJECT.visible_object_path(&db_id);
+        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(&db_id, &self.process_id);
+        let visible_path = LEASE_INFORMATION_OBJECT.visible_path(&db_id);
         let renewer = LeaseRenewer {
             db_id,
             process_id: self.process_id,
@@ -334,7 +333,7 @@ impl LeaseRenewer {
             if lease.generation != current_generation {
                 return Err(StorageError::LeaseGenerationMismatch {
                     expected: current_generation,
-                    got: lease.generation,
+                    have: lease.generation,
                     held_by: lease.held_by,
                 });
             }
@@ -415,8 +414,8 @@ mod tests {
                 process_id,
                 db_id,
                 store: Arc::new(TempObjectStore::new().unwrap()),
-                tmp_path: LEASE_INFORMATION_OBJECT.tmp_object_path(&db_id, &process_id),
-                visible_path: LEASE_INFORMATION_OBJECT.visible_object_path(&db_id),
+                tmp_path: LEASE_INFORMATION_OBJECT.tmp_path(&db_id, &process_id),
+                visible_path: LEASE_INFORMATION_OBJECT.visible_path(&db_id),
             }
         }
     }
@@ -510,6 +509,17 @@ mod tests {
         assert_eq!(3, lease.generation);
         assert_eq!(None, lease.expires_at);
         assert_eq!(None, lease.held_by);
+    }
+
+    #[tokio::test]
+    async fn remote_lease_idempotent_initialize() {
+        let store = Arc::new(object_store::memory::InMemory::new());
+        let process_id = Uuid::new_v4();
+        let leaser = RemoteLeaser::new(process_id, store);
+
+        let db_id = Uuid::new_v4();
+        leaser.initialize(&db_id).await.unwrap();
+        leaser.initialize(&db_id).await.unwrap();
     }
 
     #[tokio::test]

@@ -5,6 +5,7 @@ use crate::proto::storage;
 use crate::types::catalog::{CatalogEntry, CatalogState};
 use proptest_derive::Arbitrary;
 use prost_types::Timestamp;
+use std::collections::HashMap;
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -98,18 +99,47 @@ impl From<LeaseInformation> for storage::LeaseInformation {
 }
 
 #[derive(Debug, Clone)]
+pub struct CatalogMetadata {
+    pub latest_version: u64,
+    pub last_written_by: Uuid,
+}
+
+impl TryFrom<storage::CatalogMetadata> for CatalogMetadata {
+    type Error = ProtoConvError;
+    fn try_from(value: storage::CatalogMetadata) -> Result<Self, Self::Error> {
+        Ok(CatalogMetadata {
+            latest_version: value.latest_version,
+            last_written_by: Uuid::from_slice(&value.last_written_by)?,
+        })
+    }
+}
+
+impl From<CatalogMetadata> for storage::CatalogMetadata {
+    fn from(value: CatalogMetadata) -> Self {
+        storage::CatalogMetadata {
+            latest_version: value.latest_version,
+            last_written_by: value.last_written_by.into_bytes().to_vec(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PersistedCatalog {
-    pub db_id: Uuid,
-    pub state: CatalogState,
+    pub version: u64,
+    pub entries: HashMap<u32, CatalogEntry>,
     pub oid_counter: u32,
 }
 
 impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
     type Error = ProtoConvError;
     fn try_from(value: storage::PersistedCatalog) -> Result<Self, Self::Error> {
+        let mut entries = HashMap::with_capacity(value.entries.len());
+        for (id, ent) in value.entries {
+            entries.insert(id, ent.try_into()?);
+        }
         Ok(PersistedCatalog {
-            db_id: Uuid::from_slice(&value.db_id)?,
-            state: value.state.required("state")?,
+            version: value.version,
+            entries,
             oid_counter: value.oid_counter,
         })
     }
@@ -119,8 +149,15 @@ impl TryFrom<PersistedCatalog> for storage::PersistedCatalog {
     type Error = ProtoConvError;
     fn try_from(value: PersistedCatalog) -> Result<Self, Self::Error> {
         Ok(storage::PersistedCatalog {
-            db_id: value.db_id.into_bytes().to_vec(),
-            state: Some(value.state.try_into()?),
+            version: value.version,
+            entries: value
+                .entries
+                .into_iter()
+                .map(|(id, ent)| match ent.try_into() {
+                    Ok(ent) => Ok((id, ent)),
+                    Err(e) => Err(e),
+                })
+                .collect::<Result<_, _>>()?,
             oid_counter: value.oid_counter,
         })
     }

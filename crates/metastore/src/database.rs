@@ -35,7 +35,7 @@ impl DatabaseCatalog {
         let builtins = BUILTIN_CATALOG.clone();
 
         // TODO: Retry.
-        let catalog = storage.read_catalog(db_id).await?;
+        // let catalog = storage.read_catalog(db_id).await?;
 
         Ok(DatabaseCatalog {
             db_id,
