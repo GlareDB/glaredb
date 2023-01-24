@@ -10,29 +10,74 @@ Repository for the core GlareDB database.
 
 ## Running
 
-An in-memory version of GlareDB can be started with the following command:
+An in-memory version of GlareDB can be started with the following two commands:
 
 ``` shell
-cargo run --bin glaredb -- -v server
+cargo run --bin glaredb -- -v metastore
 ```
 
-By default, this will start GlareDB on port 6543. All on-disk files will be
-stored in a temporary directory.
+and
+
+``` shell
+cargo run --bin glaredb -- -v server -l
+```
+
+The first command starts up Metastore, the service responsible for managing the
+database's catalog. The second command starts up the server portion of GlareDB
+that's responsible for executing queries.
+
+Metastore will start up on port 6545 and the GlareDB server will start up on
+port 6543.
 
 To connect, use any Postgres compatible client. E.g. `psql`:
 
 ``` shell
-psql "host=localhost dbname=glaredb port=6543 password=glaredb"
+psql "host=localhost dbname=glaredb port=6543"
 ```
 
 When prompted for a password, any password will do[^1].
+
+## Service Overview
+
+### GlareDB Server
+
+Responsible for query planning and execution for one or more databases. Depends
+on a running Metastore for fetching the database catalog.
+
+Command:
+
+``` shell
+glaredb server -l
+```
+
+### Metastore
+
+Stores and manages the catalog for one or more databases.
+
+Command:
+
+``` shell
+glaredb metastore
+```
+
+### Pgsrv proxy
+
+The postgres protocol proxy. This proxy authenticates user connections with the
+Cloud service. Note that this has a hard dependency on a running Cloud service
+that knows where database are deployed.
+
+Command:
+
+``` shell
+glaredb proxy --api-addr https://qa.glaredb.com
+```
 
 ## Code Overview
 
 ### Binaries
 
 The `glaredb` binary lives in the `glaredb` crate. This one binary is able to
-start either the GlareDB server itself (the actual database), or the proxy[^2].
+start the GlareDB server, Metastore, or Pgsrv proxy.
 
 ### Postgres wire protocol
 
@@ -75,6 +120,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 [^1]: GlareDB currently allows any password. Access restriction is done within
     the `pgsrv` proxy.
-
-[^2]: Eventually the proxy entrypoint will be split out into its own binary. See
-    <https://github.com/GlareDB/glaredb/issues/367>

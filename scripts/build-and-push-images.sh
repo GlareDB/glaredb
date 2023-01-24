@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Build, tag, and push the 'glaredb' and 'pgsrv' docker images.
+# Build, tag, and push the 'glaredb' docker image.
 #
 # Requires that docker be configured with the cloud project.
 #
@@ -62,11 +62,8 @@ check_command() {
 
 # build the container archives
 nix build .#glaredb-image --out-link glaredb_image
-nix build .#pgsrv-image --out-link pgsrv_image
 
 # ensure that the command can be executed inside the containers before pushing
 check_command "glaredb_image" "glaredb --help" "glaredb"
-check_command "pgsrv_image" "glaredb --help" "pgsrv"
 
 push_image "glaredb_image" "glaredb"
-push_image "pgsrv_image" "pgsrv"

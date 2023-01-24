@@ -204,21 +204,6 @@
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 
-          # Pgsrv image.
-          #
-          # Note that this currently uses the same command as the glaredb image. The
-          # pgsrv proxy uses the same root command. Eventually this may be moved to
-          # its own binary.
-          #
-          # Arguments will be provided in the k8s/terraform config. The api addr for
-          # Cloud will be set to some internal uri.
-          # See: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
-          pgsrv-image = mkContainer {
-            name = "pgsrv";
-            contents = [pkgs.cacert packages.glaredb-bin generated-certs];
-            config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
-          };
-
           slt-runner-bin = craneLib.buildPackage ({
             inherit cargoArtifacts;
             pname = "slt-runner";
