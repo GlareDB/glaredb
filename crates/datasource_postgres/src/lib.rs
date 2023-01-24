@@ -25,7 +25,6 @@ use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::arch::aarch64::int32x2_t;
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -33,10 +32,9 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
-use tokio_postgres::config::SslMode;
 use tokio_postgres::types::Type as PostgresType;
 use tokio_postgres::{Config, CopyOutStream, NoTls};
-use tracing::{trace, warn};
+use tracing::warn;
 
 /// Information needed for accessing an external Postgres table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,29 +92,20 @@ impl PostgresAccessor {
     ) -> Result<Self> {
         let config: Config = access.connection_string.parse()?;
 
+        // Accept only singular host and port for postgres access
         let postgres_host = match config.get_hosts() {
             [tokio_postgres::config::Host::Tcp(host)] => host.as_str(),
-            _ => {
-                return Err(PostgresError::UnsupportedPostgresType(
-                    "too many hosts provided".to_string(),
-                ))
-            }
+            hosts => return Err(PostgresError::IncorrectNumberOfHosts(hosts.to_vec())),
         };
         let postgres_port = match config.get_ports() {
             &[port] => port,
-            _ => {
-                return Err(PostgresError::UnsupportedPostgresType(
-                    "too many ports provided".to_string(),
-                ))
-            }
+            &[] => 5432, // default postgres port
+            ports => return Err(PostgresError::TooManyPorts(ports.to_vec())),
         };
-        // let postgres_hosts = config.get_hosts();
-        // let postgres_ports = config.get_ports();
 
         // Open ssh tunnel
         let (session, tunnel_addr) = ssh_tunnel
             .create_tunnel(postgres_host, postgres_port)
-            // .create_tunnel(postgres_hosts, postgres_ports)
             .await?;
 
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
