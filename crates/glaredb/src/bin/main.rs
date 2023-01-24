@@ -76,9 +76,11 @@ enum Commands {
         bind: String,
 
         /// Bucket to use for database catalogs.
+        #[clap(short, long, value_parser)]
         bucket: Option<String>,
 
         /// Path to GCP service account to use when connecting to GCS.
+        #[clap(short, long, value_parser)]
         service_account_path: Option<String>,
     },
 }
