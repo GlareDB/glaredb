@@ -487,12 +487,6 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
-
-[[package]]
-name = "base64"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4a4ddaa51a5bc52a6948f74c06d20aaaddb71924eab79b8c97a8c556e942d6a"
@@ -2696,10 +2690,10 @@ dependencies = [
 [[package]]
 name = "object_store"
 version = "0.5.3"
-source = "git+https://github.com/apache/arrow-rs.git?rev=eae993fd196d0a8df8a90857bc4a7ae8f5a3e845#eae993fd196d0a8df8a90857bc4a7ae8f5a3e845"
+source = "git+https://github.com/glaredb/arrow-rs.git?branch=content-length#cc47f2ee4d034f4994b4b41b27fbf245236c3b58"
 dependencies = [
  "async-trait",
- "base64 0.20.0",
+ "base64 0.21.0",
  "bytes",
  "chrono",
  "futures",
