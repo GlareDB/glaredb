@@ -12,7 +12,7 @@ use tokio::fs::File;
 use tokio::net::TcpListener;
 use tracing::{debug, trace};
 
-use crate::errors::{internal, Result};
+use crate::errors::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct SshKey {
@@ -97,15 +97,13 @@ impl SshTunnelAccess {
                         debug!("port already in use, testing another port");
                     }
                     e => {
-                        return Err(internal!("Cannot establish SSH tunnel: {e}"));
+                        return Err(Error::SshPortForward(e));
                     }
                 },
             };
         }
         // If unable to find a port after 10 attempts
-        Err(internal!(
-            "failed to find an open port to open the SSH tunnel"
-        ))
+        Err(Error::NoOpenPorts)
     }
 
     /// Generate temproary keyfile using the given private_key
@@ -113,7 +111,7 @@ impl SshTunnelAccess {
         let temp_keyfile = tempfile::Builder::new()
             .prefix("ssh_tunnel_key-")
             .tempfile()?;
-        trace!("Temporary keyfile location {:?}", temp_keyfile.path());
+        trace!(temp_keyfile = ?temp_keyfile.path(), "Temporary keyfile location");
 
         let keyfile = File::open(&temp_keyfile.path()).await?;
         // Set keyfile to only owner read and write permissions

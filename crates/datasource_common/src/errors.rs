@@ -9,16 +9,11 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
-    #[error("internal: {0}")]
-    Internal(String),
+    #[error("Cannot establish SSH tunnel: {0}")]
+    SshPortForward(openssh::Error),
+
+    #[error("Failed to find an open port to open the SSH tunnel")]
+    NoOpenPorts,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-#[allow(unused_macros)]
-macro_rules! internal {
-    ($($arg:tt)*) => {
-        crate::errors::Error::Internal(std::format!($($arg)*))
-    };
-}
-pub(crate) use internal;
