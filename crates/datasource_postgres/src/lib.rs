@@ -1,7 +1,5 @@
 pub mod errors;
 
-use datasource_common::ssh::SshTunnelAccess;
-use errors::{PostgresError, Result};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
@@ -21,6 +19,8 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datasource_common::ssh::SshTunnelAccess;
+use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
