@@ -11,9 +11,9 @@ use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
-    ConnectionOptionsLocal, ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh,
-    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsPostgres, TableOptionsS3,
+    ConnectionOptionsLocal, ConnectionOptionsMysql, ConnectionOptionsPostgres, ConnectionOptionsS3,
+    ConnectionOptionsSsh, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsLocal, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
@@ -62,6 +62,17 @@ impl<'a> SessionPlanner<'a> {
                     options: ConnectionOptions::BigQuery(ConnectionOptionsBigQuery {
                         service_account_key,
                         project_id,
+                    }),
+                }
+            }
+            ConnectionOptions::MYSQL => {
+                let connection_string = remove_required_opt(m, "mysql_conn")?;
+                let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
+                CreateConnection {
+                    connection_name: stmt.name,
+                    options: ConnectionOptions::Mysql(ConnectionOptionsMysql {
+                        connection_string,
+                        ssh_tunnel,
                     }),
                 }
             }
@@ -159,6 +170,18 @@ impl<'a> SessionPlanner<'a> {
                     table_options: TableOptions::BigQuery(TableOptionsBigQuery {
                         dataset_id,
                         table_id,
+                    }),
+                }
+            }
+            ConnectionOptions::Mysql(_) => {
+                let source_schema = remove_required_opt(m, "schema")?;
+                let source_table = remove_required_opt(m, "table")?;
+                CreateExternalTable {
+                    table_name: stmt.name,
+                    connection_id: conn.meta.id,
+                    table_options: TableOptions::Mysql(TableOptionsMysql {
+                        schema: source_schema,
+                        table: source_table,
                     }),
                 }
             }
