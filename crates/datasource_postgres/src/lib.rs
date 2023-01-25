@@ -1,7 +1,5 @@
 pub mod errors;
 
-use errors::{PostgresError, Result};
-
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
@@ -21,6 +19,8 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datasource_common::ssh::SshTunnelAccess;
+use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -28,10 +28,11 @@ use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
 use tokio_postgres::types::Type as PostgresType;
-use tokio_postgres::{CopyOutStream, NoTls};
+use tokio_postgres::{Config, CopyOutStream, NoTls};
 use tracing::warn;
 
 /// Information needed for accessing an external Postgres table.
@@ -59,11 +60,62 @@ pub struct PostgresAccessor {
 
 impl PostgresAccessor {
     /// Connect to a postgres instance.
-    pub async fn connect(access: PostgresTableAccess) -> Result<Self> {
+    pub async fn connect(
+        access: PostgresTableAccess,
+        ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<Self> {
+        match ssh_tunnel {
+            None => Self::connect_direct(access).await,
+            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(access, ssh_tunnel).await,
+        }
+    }
+
+    async fn connect_direct(access: PostgresTableAccess) -> Result<Self> {
         let (client, conn) = tokio_postgres::connect(&access.connection_string, NoTls).await?;
         let handle = tokio::spawn(async move {
             if let Err(e) = conn.await {
                 warn!(%e, "postgres connection errored");
+            }
+        });
+
+        Ok(PostgresAccessor {
+            access,
+            client,
+            conn_handle: handle,
+        })
+    }
+
+    async fn connect_with_ssh_tunnel(
+        access: PostgresTableAccess,
+        ssh_tunnel: SshTunnelAccess,
+    ) -> Result<Self> {
+        let config: Config = access.connection_string.parse()?;
+
+        // Accept only singular host and port for postgres access
+        let postgres_host = match config.get_hosts() {
+            [tokio_postgres::config::Host::Tcp(host)] => host.as_str(),
+            hosts => return Err(PostgresError::IncorrectNumberOfHosts(hosts.to_vec())),
+        };
+        let postgres_port = match config.get_ports() {
+            &[port] => port,
+            &[] => 5432, // default postgres port
+            ports => return Err(PostgresError::TooManyPorts(ports.to_vec())),
+        };
+
+        // Open ssh tunnel
+        let (session, tunnel_addr) = ssh_tunnel
+            .create_tunnel(postgres_host, postgres_port)
+            .await?;
+
+        let tcp_stream = TcpStream::connect(tunnel_addr).await?;
+        let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
+        let handle = tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                warn!(%e, "postgres connection errored");
+            }
+            // If postgres connection is complete, close ssh tunnel
+            if let Err(e) = session.close().await {
+                warn!(%e, "closing ssh tunnel errored");
             }
         });
 

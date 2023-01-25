@@ -272,7 +272,7 @@ pub struct ConnectionEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConnectionOptions {
-    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub options: ::core::option::Option<connection_options::Options>,
 }
 /// Nested message and enum types in `ConnectionOptions`.
@@ -292,6 +292,8 @@ pub mod connection_options {
         Gcs(super::ConnectionOptionsGcs),
         #[prost(message, tag = "6")]
         S3(super::ConnectionOptionsS3),
+        #[prost(message, tag = "7")]
+        Ssh(super::ConnectionOptionsSsh),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -302,6 +304,9 @@ pub struct ConnectionOptionsDebug {}
 pub struct ConnectionOptionsPostgres {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
+    /// Connection name for ssh tunnel
+    #[prost(string, optional, tag = "2")]
+    pub ssh_tunnel: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -327,4 +332,17 @@ pub struct ConnectionOptionsS3 {
     pub access_key_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub access_key_secret: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsSsh {
+    #[prost(string, tag = "1")]
+    pub host: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub user: ::prost::alloc::string::String,
+    /// Note the value here should not be larger than uint16 MAX
+    #[prost(uint32, tag = "3")]
+    pub port: u32,
+    #[prost(bytes = "vec", tag = "4")]
+    pub keypair: ::prost::alloc::vec::Vec<u8>,
 }

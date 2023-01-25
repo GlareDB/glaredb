@@ -634,6 +634,7 @@ pub enum ConnectionOptions {
     Local(ConnectionOptionsLocal),
     Gcs(ConnectionOptionsGcs),
     S3(ConnectionOptionsS3),
+    Ssh(ConnectionOptionsSsh),
 }
 
 impl ConnectionOptions {
@@ -643,6 +644,7 @@ impl ConnectionOptions {
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
+    pub const SSH: &str = "ssh";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -652,6 +654,7 @@ impl ConnectionOptions {
             ConnectionOptions::Local(_) => Self::LOCAL,
             ConnectionOptions::Gcs(_) => Self::GCS,
             ConnectionOptions::S3(_) => Self::S3_STORAGE,
+            ConnectionOptions::Ssh(_) => Self::SSH,
         }
     }
 }
@@ -680,6 +683,7 @@ impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
             }
             catalog::connection_options::Options::Gcs(v) => ConnectionOptions::Gcs(v.try_into()?),
             catalog::connection_options::Options::S3(v) => ConnectionOptions::S3(v.try_into()?),
+            catalog::connection_options::Options::Ssh(v) => ConnectionOptions::Ssh(v.try_into()?),
         })
     }
 }
@@ -704,6 +708,7 @@ impl From<ConnectionOptions> for catalog::connection_options::Options {
             ConnectionOptions::Local(v) => catalog::connection_options::Options::Local(v.into()),
             ConnectionOptions::Gcs(v) => catalog::connection_options::Options::Gcs(v.into()),
             ConnectionOptions::S3(v) => catalog::connection_options::Options::S3(v.into()),
+            ConnectionOptions::Ssh(v) => catalog::connection_options::Options::Ssh(v.into()),
         }
     }
 }
@@ -735,6 +740,7 @@ impl From<ConnectionOptionsDebug> for catalog::ConnectionOptionsDebug {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct ConnectionOptionsPostgres {
     pub connection_string: String,
+    pub ssh_tunnel: Option<String>,
 }
 
 impl TryFrom<catalog::ConnectionOptionsPostgres> for ConnectionOptionsPostgres {
@@ -742,6 +748,7 @@ impl TryFrom<catalog::ConnectionOptionsPostgres> for ConnectionOptionsPostgres {
     fn try_from(value: catalog::ConnectionOptionsPostgres) -> Result<Self, Self::Error> {
         Ok(ConnectionOptionsPostgres {
             connection_string: value.connection_string,
+            ssh_tunnel: value.ssh_tunnel,
         })
     }
 }
@@ -750,6 +757,7 @@ impl From<ConnectionOptionsPostgres> for catalog::ConnectionOptionsPostgres {
     fn from(value: ConnectionOptionsPostgres) -> Self {
         catalog::ConnectionOptionsPostgres {
             connection_string: value.connection_string,
+            ssh_tunnel: value.ssh_tunnel,
         }
     }
 }
@@ -838,6 +846,37 @@ impl From<ConnectionOptionsS3> for catalog::ConnectionOptionsS3 {
         catalog::ConnectionOptionsS3 {
             access_key_id: value.access_key_id,
             access_key_secret: value.access_key_secret,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsSsh {
+    pub host: String,
+    pub user: String,
+    pub port: u16,
+    pub keypair: Vec<u8>,
+}
+
+impl TryFrom<catalog::ConnectionOptionsSsh> for ConnectionOptionsSsh {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsSsh) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsSsh {
+            host: value.host,
+            user: value.user,
+            port: value.port.try_into()?,
+            keypair: value.keypair,
+        })
+    }
+}
+
+impl From<ConnectionOptionsSsh> for catalog::ConnectionOptionsSsh {
+    fn from(value: ConnectionOptionsSsh) -> Self {
+        catalog::ConnectionOptionsSsh {
+            host: value.host,
+            user: value.user,
+            port: value.port.into(),
+            keypair: value.keypair,
         }
     }
 }

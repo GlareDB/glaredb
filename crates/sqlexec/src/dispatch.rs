@@ -6,22 +6,26 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasource_common::ssh::{SshKey, SshTunnelAccess};
 use datasource_debug::DebugTableType;
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_TABLES, GLARE_VIEWS,
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_SSH_CONNECTIONS, GLARE_TABLES,
+    GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
-    CatalogEntry, ConnectionOptions, EntryType, ExternalTableEntry, TableOptions, ViewEntry,
+    CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, EntryType,
+    ExternalTableEntry, TableOptions, ViewEntry,
 };
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
+use tracing::error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DispatchError {
@@ -34,6 +38,9 @@ pub enum DispatchError {
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
 
+    #[error("Unable to retrieve ssh tunnel connection: {0}")]
+    MissingSshTunnel(Box<crate::errors::ExecError>),
+
     #[error("Invalid entry for table dispatch: {0}")]
     InvalidEntryTypeForDispatch(EntryType),
 
@@ -42,6 +49,12 @@ pub enum DispatchError {
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::errors::ExecError>),
+
+    #[error("Invalid ssh key pair")]
+    InvalidSshKeyPair,
+
+    #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
+    NonSshConnection,
 
     #[error(
         "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
@@ -61,6 +74,8 @@ pub enum DispatchError {
     BigQueryDatasource(#[from] datasource_bigquery::errors::BigQueryError),
     #[error(transparent)]
     ObjectStoreDatasource(#[from] datasource_object_store::errors::ObjectStoreSourceError),
+    #[error(transparent)]
+    CommonDatasource(#[from] datasource_common::errors::Error),
 }
 
 impl DispatchError {
@@ -166,6 +181,9 @@ impl<'a> SessionDispatcher<'a> {
                     name: table.table.clone(),
                     connection_string: conn.connection_string.clone(),
                 };
+
+                let ssh_tunnel_access = self.get_ssh_tunnel(conn.ssh_tunnel.to_owned())?;
+
                 let predicate_pushdown = *self
                     .ctx
                     .get_session_vars()
@@ -174,7 +192,8 @@ impl<'a> SessionDispatcher<'a> {
                 let result: Result<_, datasource_postgres::errors::PostgresError> =
                     task::block_in_place(move || {
                         Handle::current().block_on(async move {
-                            let accessor = PostgresAccessor::connect(table_access).await?;
+                            let accessor =
+                                PostgresAccessor::connect(table_access, ssh_tunnel_access).await?;
                             let provider = accessor.into_table_provider(predicate_pushdown).await?;
                             Ok(provider)
                         })
@@ -262,6 +281,48 @@ impl<'a> SessionDispatcher<'a> {
             }),
         }
     }
+
+    /// Helper to get ssh tunnel info from connection catalog table
+    fn get_ssh_tunnel(
+        &self,
+        name: Option<String>,
+    ) -> Result<Option<SshTunnelAccess>, DispatchError> {
+        let ssh_tunnel_access = match name {
+            Some(name) => {
+                let conn = self
+                    .ctx
+                    .get_connection(name)
+                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
+
+                let access = match conn {
+                    ConnectionEntry {
+                        options:
+                            ConnectionOptions::Ssh(ConnectionOptionsSsh {
+                                host,
+                                user,
+                                port,
+                                keypair,
+                            }),
+                        ..
+                    } => {
+                        let keypair = SshKey::from_bytes(keypair)?;
+                        SshTunnelAccess {
+                            host: host.to_owned(),
+                            user: user.to_owned(),
+                            port: port.to_owned(),
+                            keypair,
+                        }
+                    }
+                    // This connection should always be a valid ssh connection
+                    _ => return Err(DispatchError::NonSshConnection),
+                };
+
+                Some(access)
+            }
+            None => None,
+        };
+        Ok(ssh_tunnel_access)
+    }
 }
 
 /// Dispatch to builtin system tables.
@@ -285,6 +346,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_schemas())
         } else if GLARE_CONNECTIONS.matches(schema, name) {
             Arc::new(self.build_glare_connections())
+        } else if GLARE_SSH_CONNECTIONS.matches(schema, name) {
+            Arc::new(self.build_glare_ssh_connections())
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -502,6 +565,60 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(schema_names.finish()),
                 Arc::new(connection_names.finish()),
                 Arc::new(connection_types.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_ssh_connections(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_SSH_CONNECTIONS.arrow_schema());
+
+        let mut oids = UInt32Builder::new();
+        let mut builtins = BooleanBuilder::new();
+        let mut schema_names = StringBuilder::new();
+        let mut connection_names = StringBuilder::new();
+        let mut public_key = StringBuilder::new();
+
+        for conn in self
+            .catalog
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Connection)
+        {
+            match conn.entry {
+                CatalogEntry::Connection(ConnectionEntry {
+                    options: ConnectionOptions::Ssh(ConnectionOptionsSsh { keypair, .. }),
+                    ..
+                }) => {
+                    let ssh_public_key = SshKey::from_bytes(keypair)
+                        .expect("Keypair should always be a valid ssh key")
+                        .public_key()
+                        .expect("Always produces a valid OpenSSH public key");
+
+                    oids.append_value(conn.oid);
+                    builtins.append_value(conn.builtin);
+                    schema_names.append_value(
+                        conn.schema_entry
+                            .map(|schema| schema.get_meta().name.as_str())
+                            .unwrap_or("<invalid>"),
+                    );
+                    connection_names.append_value(&conn.entry.get_meta().name);
+                    public_key.append_value(ssh_public_key);
+                }
+                CatalogEntry::Connection(_) => (),
+                other => panic!("unexpected catalog entry: {:?}", other), // Bug
+            };
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oids.finish()),
+                Arc::new(builtins.finish()),
+                Arc::new(schema_names.finish()),
+                Arc::new(connection_names.finish()),
+                Arc::new(public_key.finish()),
             ],
         )
         .unwrap();

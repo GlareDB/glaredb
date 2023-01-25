@@ -29,6 +29,9 @@ pub enum ProtoConvError {
 
     #[error(transparent)]
     Uuid(#[from] uuid::Error),
+
+    #[error(transparent)]
+    TryFromIntError(#[from] std::num::TryFromIntError),
 }
 
 /// An extension trait that adds the methods `optional` and `required` to any
