@@ -313,7 +313,7 @@ impl<'a> SessionDispatcher<'a> {
                             keypair,
                         }
                     }
-                    // This connection should always be a valid ssh connection")]
+                    // This connection should always be a valid ssh connection
                     _ => return Err(DispatchError::NonSshConnection),
                 };
 

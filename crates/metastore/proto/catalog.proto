@@ -209,7 +209,7 @@ message ConnectionOptionsDebug {}
 
 message ConnectionOptionsPostgres {
     string connection_string = 1;
-    optional string ssh_tunnel = 2; // Connection name for ssh tunnel
+   string ssh_tunnel = 2; // Connection name for ssh tunnel
 }
 
 message ConnectionOptionsBigQuery {
