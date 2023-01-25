@@ -484,6 +484,7 @@ mod tests {
     use metastore::proto::service::metastore_service_server::MetastoreServiceServer;
     use metastore::srv::Service;
     use metastore::types::service::{CreateSchema, CreateView, Mutation};
+    use object_store::memory::InMemory;
     use tokio::task::JoinHandle;
     use tonic::transport::{Channel, Endpoint, Server, Uri};
     use tower::service_fn;
@@ -496,8 +497,9 @@ mod tests {
         let (client, server) = tokio::io::duplex(1024);
 
         let handle = tokio::spawn(async move {
+            let store = Arc::new(InMemory::new());
             Server::builder()
-                .add_service(MetastoreServiceServer::new(Service::new()))
+                .add_service(MetastoreServiceServer::new(Service::new(store)))
                 .serve_with_incoming(futures::stream::iter(vec![Ok::<_, &'static str>(server)]))
                 .await
                 .unwrap()

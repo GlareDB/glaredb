@@ -4,9 +4,11 @@ use clap::{Parser, Subcommand};
 use glaredb::metastore::Metastore;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
+use object_store::memory::InMemory;
 use sqllogictest::{AsyncDB, ColumnType, DBOutput, Runner};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
@@ -107,7 +109,8 @@ fn main() -> Result<()> {
                 Some(addr) => addr,
                 None => {
                     let bind: SocketAddr = "0.0.0.0:6545".parse()?;
-                    let metastore = Metastore::new()?;
+                    let store = Arc::new(InMemory::new());
+                    let metastore = Metastore::new(store)?;
                     tokio::spawn(metastore.serve(bind));
                     "http://localhost:6545".to_string()
                 }

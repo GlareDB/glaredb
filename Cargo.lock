@@ -2229,10 +2229,12 @@ name = "metastore"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "datafusion",
  "futures",
  "logutil",
  "object_store",
+ "object_store_util",
  "once_cell",
  "parking_lot",
  "pgrepr",
@@ -3592,6 +3594,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
+ "object_store",
  "sqllogictest 0.11.1",
  "tokio",
  "tokio-postgres",
