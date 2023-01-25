@@ -5,11 +5,9 @@ use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;
-use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct CatalogState {
-    pub db_id: Uuid,
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
 }
@@ -22,7 +20,6 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
             entries.insert(id, ent.try_into()?);
         }
         Ok(CatalogState {
-            db_id: Uuid::from_slice(&value.db_id)?,
             version: value.version,
             entries,
         })
@@ -33,7 +30,6 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
     type Error = ProtoConvError;
     fn try_from(value: CatalogState) -> Result<Self, Self::Error> {
         Ok(catalog::CatalogState {
-            db_id: value.db_id.into_bytes().to_vec(),
             version: value.version,
             entries: value
                 .entries

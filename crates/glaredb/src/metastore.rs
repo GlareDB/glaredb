@@ -1,7 +1,9 @@
 use anyhow::Result;
 use metastore::proto::service::metastore_service_server::MetastoreServiceServer;
 use metastore::srv::Service;
+use object_store::ObjectStore;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tonic::transport::Server;
 use tracing::{debug, debug_span};
 
@@ -10,9 +12,9 @@ pub struct Metastore {
 }
 
 impl Metastore {
-    pub fn new() -> Result<Self> {
+    pub fn new(store: Arc<dyn ObjectStore>) -> Result<Self> {
         Ok(Metastore {
-            service: Service::new(),
+            service: Service::new(store),
         })
     }
 

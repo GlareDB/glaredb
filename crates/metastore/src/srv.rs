@@ -5,29 +5,43 @@ use crate::proto::service::{
     self, FetchCatalogRequest, FetchCatalogResponse, InitializeCatalogRequest,
     InitializeCatalogResponse, MutateRequest, MutateResponse,
 };
+use crate::storage::persist::Storage;
 use crate::types::service::Mutation;
 use async_trait::async_trait;
+use object_store::ObjectStore;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
+use tracing::info;
 use uuid::Uuid;
 
 /// Metastore GRPC service.
 pub struct Service {
-    catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>, // Fancy!
+    /// Reference to underlying object storage.
+    storage: Arc<Storage>,
+    /// Database catalogs that this process knows about.
+    ///
+    /// This is filled on demand. There's currently no method for dropping
+    /// unused catalogs (other than restarts).
+    ///
+    /// Any number of Metastore instances may have references for a single
+    /// database catalog. Catalog mutations are synchronized at the storage
+    /// layer. It is possible for Metastore to serve out of date catalogs, but
+    /// it's not possible to make mutations against an out of date catalog.
+    catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>,
 }
 
 impl Service {
-    pub fn new() -> Service {
+    pub fn new(store: Arc<dyn ObjectStore>) -> Service {
+        let process_id = Uuid::new_v4();
+        info!(%process_id, "creating new Metastore service with process id");
+
+        let storage = Arc::new(Storage::new(process_id, store));
         Service {
+            storage,
             catalogs: RwLock::new(HashMap::new()),
         }
-    }
-}
-
-impl Default for Service {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -49,7 +63,7 @@ impl MetastoreService for Service {
         }
         std::mem::drop(catalogs);
 
-        let catalog = DatabaseCatalog::open(id).await?;
+        let catalog = DatabaseCatalog::open(id, self.storage.clone()).await?;
         let mut catalogs = self.catalogs.write().await;
 
         // We raced, catalog inserted between locks.
@@ -121,9 +135,11 @@ mod tests {
     use super::*;
     use crate::types::catalog::CatalogState;
     use crate::types::service::{CreateSchema, Mutation};
+    use object_store::memory::InMemory;
 
     fn new_service() -> Service {
-        Service::new()
+        let store = Arc::new(InMemory::new());
+        Service::new(store)
     }
 
     #[tokio::test]

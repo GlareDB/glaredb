@@ -7,3 +7,4 @@ pub mod srv;
 pub mod types;
 
 mod database;
+mod storage;

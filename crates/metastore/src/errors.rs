@@ -22,6 +22,9 @@ pub enum MetastoreError {
     InvalidDatabaseId(Vec<u8>),
 
     #[error(transparent)]
+    Storage(#[from] crate::storage::StorageError),
+
+    #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
 }
 

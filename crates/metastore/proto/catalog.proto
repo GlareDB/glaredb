@@ -6,21 +6,17 @@ package metastore.catalog;
 
 import "arrow.proto";
 
+// The state of the catalog at some version.
 message CatalogState {
-  // Database that this catalog is for.
-  //
-  // The bytes should be convertible into a UUID (V4).
-  bytes db_id = 1;
-
   // Version of this catalog. Increments on every mutation.
-  uint64 version = 2;
+  uint64 version = 1;
 
   // All entries in this catalog.
   //
   // ID -> Entry
-  map<uint32, CatalogEntry> entries = 3;
+  map<uint32, CatalogEntry> entries = 2;
 
-  // next: 4
+  // next: 3
 }
 
 // Possible top-level catalog entries.

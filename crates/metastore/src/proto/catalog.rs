@@ -1,18 +1,14 @@
+/// The state of the catalog at some version.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogState {
-    /// Database that this catalog is for.
-    ///
-    /// The bytes should be convertible into a UUID (V4).
-    #[prost(bytes = "vec", tag = "1")]
-    pub db_id: ::prost::alloc::vec::Vec<u8>,
     /// Version of this catalog. Increments on every mutation.
-    #[prost(uint64, tag = "2")]
+    #[prost(uint64, tag = "1")]
     pub version: u64,
     /// All entries in this catalog.
     ///
     /// ID -> Entry
-    #[prost(map = "uint32, message", tag = "3")]
+    #[prost(map = "uint32, message", tag = "2")]
     pub entries: ::std::collections::HashMap<u32, CatalogEntry>,
 }
 /// Possible top-level catalog entries.
