@@ -269,13 +269,12 @@ impl ExecutionPlan for BigQueryExec {
             let guard = self.receiver.read();
             Receiver::clone(&guard)
         };
-        let reader = recv
-            .recv_blocking()
-            .map_err(|_e /* : closed stream error */| {
-                DataFusionError::Execution(format!("missing stream for partition: {}", partition))
-            })?;
 
-        Ok(Box::pin(BufferedIpcStream::new(self.schema(), reader)))
+        Ok(Box::pin(BufferedIpcStream::new(
+            self.schema(),
+            recv,
+            partition,
+        )))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
@@ -309,8 +308,21 @@ struct BufferedIpcStream {
 }
 
 impl BufferedIpcStream {
-    fn new(schema: ArrowSchemaRef, reader: BufferedArrowIpcReader) -> Self {
+    fn new(
+        schema: ArrowSchemaRef,
+        receiver: Receiver<BufferedArrowIpcReader>,
+        partition: usize,
+    ) -> Self {
         let stream = stream! {
+            let reader = match receiver.recv().await {
+                Ok(r) => r,
+                Err(_e /* : closed channel error */) => {
+                    yield Err(ArrowError::ExternalError(Box::new(
+                        DataFusionError::Execution(format!("missing stream for partition: {}", partition))
+                    )));
+                    return;
+                }
+            };
             let buf = match reader.into_vec().await {
                 Ok(buf) => buf,
                 Err(e) => {
