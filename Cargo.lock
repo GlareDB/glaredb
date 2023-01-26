@@ -1282,10 +1282,12 @@ dependencies = [
  "datasource_common",
  "futures",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tokio-postgres",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3175,6 +3177,9 @@ dependencies = [
  "bytes",
  "fallible-iterator",
  "postgres-protocol",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
