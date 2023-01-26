@@ -24,6 +24,7 @@ use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+use std::borrow::{Borrow, Cow};
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -504,24 +505,17 @@ impl RecordBatchStream for ChunkStream {
 
 /// Str is a wrapper to represent multiple datatypes as arrow
 /// `DataType::Utf8`, i.e., a string.
-#[derive(Debug)]
-enum Str<'a> {
-    Owned(String),
-    Borrowed(&'a str),
-}
+struct Str<'a>(Cow<'a, str>);
 
-impl<'a> Str<'a> {
-    fn as_str<'b: 'a>(&'b self) -> &'a str {
-        match self {
-            Self::Owned(s) => s,
-            Self::Borrowed(s) => s,
-        }
+impl<'a> Borrow<str> for Str<'a> {
+    fn borrow(&self) -> &str {
+        self.0.borrow()
     }
 }
 
 impl<'a> From<&'a str> for Str<'a> {
     fn from(value: &'a str) -> Self {
-        Self::Borrowed(value)
+        Self(Cow::from(value))
     }
 }
 
@@ -532,13 +526,13 @@ impl<'a> TryFrom<uuid::Uuid> for Str<'a> {
         let mut buf = [0; 36];
         value.as_hyphenated().encode_lower(&mut buf);
         let s = std::str::from_utf8(&buf)?;
-        Ok(Self::Owned(s.to_owned()))
+        Ok(Self(Cow::from(s.to_owned())))
     }
 }
 
 impl<'a> From<serde_json::Value> for Str<'a> {
     fn from(value: serde_json::Value) -> Self {
-        Self::Owned(format!("{value}"))
+        Self(Cow::from(format!("{value}")))
     }
 }
 
@@ -607,7 +601,8 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
                     let val: Str<'_> = row.try_get(col_idx)?;
-                    arr.append_value(val.as_str());
+                    let val: &str = val.borrow();
+                    arr.append_value(val);
                 }
                 Arc::new(arr.finish())
             }
