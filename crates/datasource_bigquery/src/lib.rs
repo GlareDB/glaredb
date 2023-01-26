@@ -473,6 +473,7 @@ fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
 mod tests {
     use super::*;
     use datafusion::common::Column;
+    use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
 
     #[test]
@@ -522,14 +523,14 @@ mod tests {
             }),
             // BigQuery doesn't support sorting expressions in the row
             // restriction.
-            Expr::Sort {
+            Expr::Sort(Sort {
                 expr: Box::new(Expr::Column(Column {
                     relation: None,
                     name: "a".to_string(),
                 })),
                 asc: true,
                 nulls_first: true,
-            },
+            }),
         ];
 
         let out = exprs_to_predicate_string(&exprs).unwrap();

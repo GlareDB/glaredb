@@ -11,8 +11,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
-use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::ExecutionPlan;
@@ -644,7 +643,7 @@ fn try_create_arrow_schema(names: Vec<String>, types: Vec<String>) -> Result<Arr
         };
 
         // Assume all fields are nullable.
-        let field = Field::new(&name, arrow_typ, true);
+        let field = Field::new(name, arrow_typ, true);
         fields.push(field);
     }
 
@@ -726,6 +725,7 @@ fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
 mod tests {
     use super::*;
     use datafusion::common::Column;
+    use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
 
     #[test]
@@ -774,14 +774,14 @@ mod tests {
                 })),
             }),
             // Not currently supported for our expression writing.
-            Expr::Sort {
+            Expr::Sort(Sort {
                 expr: Box::new(Expr::Column(Column {
                     relation: None,
                     name: "a".to_string(),
                 })),
                 asc: true,
                 nulls_first: true,
-            },
+            }),
         ];
 
         let out = exprs_to_predicate_string(&exprs).unwrap();
