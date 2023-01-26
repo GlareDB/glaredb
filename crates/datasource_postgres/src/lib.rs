@@ -513,7 +513,7 @@ enum Str<'a> {
 impl<'a> Str<'a> {
     fn as_str<'b: 'a>(&'b self) -> &'a str {
         match self {
-            Self::Owned(s) => &s,
+            Self::Owned(s) => s,
             Self::Borrowed(s) => s,
         }
     }
