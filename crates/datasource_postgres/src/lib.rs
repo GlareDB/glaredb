@@ -23,6 +23,7 @@ use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+use std::borrow::{Borrow, Cow};
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -30,7 +31,7 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
-use tokio_postgres::types::Type as PostgresType;
+use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Config, CopyOutStream, NoTls};
 use tracing::warn;
 
@@ -501,6 +502,60 @@ impl RecordBatchStream for ChunkStream {
     }
 }
 
+/// Str is a wrapper to represent multiple datatypes as arrow
+/// `DataType::Utf8`, i.e., a string.
+struct Str<'a>(Cow<'a, str>);
+
+impl<'a> Borrow<str> for Str<'a> {
+    fn borrow(&self) -> &str {
+        self.0.borrow()
+    }
+}
+
+impl<'a> From<&'a str> for Str<'a> {
+    fn from(value: &'a str) -> Self {
+        Self(Cow::from(value))
+    }
+}
+
+impl<'a> TryFrom<uuid::Uuid> for Str<'a> {
+    type Error = std::str::Utf8Error;
+
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        let mut buf = [0; 36];
+        value.as_hyphenated().encode_lower(&mut buf);
+        let s = std::str::from_utf8(&buf)?;
+        Ok(Self(Cow::from(s.to_owned())))
+    }
+}
+
+impl<'a> From<serde_json::Value> for Str<'a> {
+    fn from(value: serde_json::Value) -> Self {
+        Self(Cow::from(format!("{value}")))
+    }
+}
+
+impl<'a> FromSql<'a> for Str<'a> {
+    fn accepts(ty: &PostgresType) -> bool {
+        type S<'a> = &'a str;
+        S::accepts(ty) || ty.name() == "uuid" || ty.name() == "json" || ty.name() == "jsonb"
+    }
+
+    fn from_sql(
+        ty: &PostgresType,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        match ty.name() {
+            "uuid" => Ok(uuid::Uuid::from_sql(ty, raw)?.try_into()?),
+            "json" | "jsonb" => Ok(serde_json::Value::from_sql(ty, raw)?.into()),
+            _ => {
+                type S<'a> = &'a str;
+                Ok(S::from_sql(ty, raw)?.into())
+            }
+        }
+    }
+}
+
 /// Macro for generating the match arms when converting a binary row to a record
 /// batch.
 ///
@@ -544,7 +599,8 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: &str = row.try_get(col_idx)?;
+                    let val: Str<'_> = row.try_get(col_idx)?;
+                    let val: &str = val.borrow();
                     arr.append_value(val);
                 }
                 Arc::new(arr.finish())
@@ -581,7 +637,7 @@ fn try_create_arrow_schema(names: Vec<String>, types: Vec<String>) -> Result<Arr
             "int8" => DataType::Int64,
             "float4" => DataType::Float32,
             "float8" => DataType::Float64,
-            "char" | "bpchar" | "varchar" | "text" | "jsonb" | "json" => DataType::Utf8,
+            "char" | "bpchar" | "varchar" | "text" | "jsonb" | "json" | "uuid" => DataType::Utf8,
             "bytea" => DataType::Binary,
             other => return Err(PostgresError::UnsupportedPostgresType(other.to_string())),
         };
