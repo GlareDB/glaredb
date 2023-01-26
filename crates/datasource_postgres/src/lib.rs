@@ -502,15 +502,15 @@ impl RecordBatchStream for ChunkStream {
     }
 }
 
-/// PostgresString is a wrapper to represent multiple datatypes as arrow
+/// Str is a wrapper to represent multiple datatypes as arrow
 /// `DataType::Utf8`, i.e., a string.
 #[derive(Debug)]
-enum PostgresString<'a> {
+enum Str<'a> {
     Owned(String),
     Borrowed(&'a str),
 }
 
-impl<'a> PostgresString<'a> {
+impl<'a> Str<'a> {
     fn as_str<'b: 'a>(&'b self) -> &'a str {
         match self {
             Self::Owned(s) => &s,
@@ -519,13 +519,13 @@ impl<'a> PostgresString<'a> {
     }
 }
 
-impl<'a> From<&'a str> for PostgresString<'a> {
+impl<'a> From<&'a str> for Str<'a> {
     fn from(value: &'a str) -> Self {
         Self::Borrowed(value)
     }
 }
 
-impl<'a> TryFrom<uuid::Uuid> for PostgresString<'a> {
+impl<'a> TryFrom<uuid::Uuid> for Str<'a> {
     type Error = std::str::Utf8Error;
 
     fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
@@ -536,13 +536,13 @@ impl<'a> TryFrom<uuid::Uuid> for PostgresString<'a> {
     }
 }
 
-impl<'a> From<serde_json::Value> for PostgresString<'a> {
+impl<'a> From<serde_json::Value> for Str<'a> {
     fn from(value: serde_json::Value) -> Self {
         Self::Owned(format!("{value}"))
     }
 }
 
-impl<'a> FromSql<'a> for PostgresString<'a> {
+impl<'a> FromSql<'a> for Str<'a> {
     fn accepts(ty: &PostgresType) -> bool {
         type S<'a> = &'a str;
         S::accepts(ty) || ty.name() == "uuid" || ty.name() == "json" || ty.name() == "jsonb"
@@ -606,7 +606,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: PostgresString<'_> = row.try_get(col_idx)?;
+                    let val: Str<'_> = row.try_get(col_idx)?;
                     arr.append_value(val.as_str());
                 }
                 Arc::new(arr.finish())
