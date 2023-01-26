@@ -5,7 +5,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::arrow::datatypes::{
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -17,13 +19,14 @@ use datafusion::physical_plan::{
 };
 use datasource_common::ssh::SshTunnelAccess;
 use errors::{MysqlError, Result};
+use mysql_async::{prelude::*, Row as MysqlRow};
+use mysql_async::{Conn, IsolationLevel, Opts, TxOpts};
 use serde::{Deserialize, Serialize};
-use tokio::net::TcpStream;
 
 /// Information needed for accessing an external Mysql table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MysqlTableAccess {
-    /// The schema the table belongs to within mysql.
+    /// The database or schema the table belongs to within mysql.
     pub schema: String,
     /// The table or view name inside of mysql.
     pub name: String,
@@ -34,6 +37,7 @@ pub struct MysqlTableAccess {
 #[derive(Debug)]
 pub struct MysqlAccessor {
     access: MysqlTableAccess,
+    conn: mysql_async::Conn,
 }
 
 #[allow(unused)] //TODO Remove
@@ -50,9 +54,18 @@ impl MysqlAccessor {
     }
 
     async fn connect_direct(access: MysqlTableAccess) -> Result<Self> {
-        return Err(MysqlError::Unimplemented);
+        let database_url = &access.connection_string;
 
-        Ok(MysqlAccessor { access })
+        let opts = Opts::from_url(database_url)?;
+        let mut conn = Conn::new(opts).await?;
+
+        tracing::trace!(opts=?conn.opts(), "Successfully connected to mysql db");
+
+        let res = conn.query::<MysqlRow, _>("SELECT * FROM TEST.T1").await?;
+
+        tracing::trace!(res=?res, "Query T1");
+
+        Ok(MysqlAccessor { access, conn })
     }
 
     async fn connect_with_ssh_tunnel(
@@ -61,21 +74,42 @@ impl MysqlAccessor {
     ) -> Result<Self> {
         return Err(MysqlError::Unimplemented);
         // Open ssh tunnel
-        let mysql_host = todo!();
-        let mysql_port = todo!();
-
-        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
-
-        let tcp_stream = TcpStream::connect(tunnel_addr).await?;
-
-        Ok(MysqlAccessor { access })
+        // let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
+        // let tcp_stream = TcpStream::connect(tunnel_addr).await?;
+        // Ok(MysqlAccessor { access })
     }
 
-    pub async fn into_table_provider(self, predicate_pushdown: bool) -> Result<MysqlTableProvider> {
-        return Err(MysqlError::Unimplemented);
+    pub async fn into_table_provider(
+        mut self,
+        predicate_pushdown: bool,
+    ) -> Result<MysqlTableProvider> {
+        let mut tx_opts = TxOpts::new();
+        tx_opts
+            .with_isolation_level(IsolationLevel::RepeatableRead)
+            .with_readonly(true);
 
-        let arrow_schema = todo!();
+        let mut tx = self.conn.start_transaction(tx_opts).await?;
+
+        let desc: Vec<(String, String, String)> = tx
+            .query(format!(
+                "SELECT column_name, data_type, is_nullable
+                     FROM information_schema.columns
+                     WHERE table_schema='{}' and table_name='{}'",
+                self.access.schema, self.access.name
+            ))
+            .await?;
+
+        tracing::warn!(?desc, len = desc.len());
+        // Genrate arrow schema from table schema - should be done now
+        let arrow_schema = try_create_arrow_schema(desc)?;
+
+        tracing::warn!(?arrow_schema, len = arrow_schema.fields().len());
+
+        return Err(MysqlError::Unimplemented);
+        // Genrate mysql types info a from table schema
         let mysql_types = todo!();
+
+        //TODO tx.commit()
 
         Ok(MysqlTableProvider {
             predicate_pushdown,
@@ -95,7 +129,7 @@ pub struct MysqlTableProvider {
     predicate_pushdown: bool,
     accessor: Arc<MysqlAccessor>,
     arrow_schema: ArrowSchemaRef,
-    mysql_types: Arc<Vec<MysqlType>>,
+    mysql_types: Arc<Vec<MysqlType>>, //possibley done at scan time
 }
 
 #[async_trait]
@@ -250,4 +284,38 @@ impl ExecutionPlan for MysqlExec {
     fn statistics(&self) -> Statistics {
         Statistics::default()
     }
+}
+
+/// Create an arrow schema from a list of names and stringified postgres types.
+// TODO: We could probably use postgres oids instead of strings for types.
+fn try_create_arrow_schema(desc: Vec<(String, String, String)>) -> Result<ArrowSchema> {
+    // columns=[Row { Field: Bytes("i1"), Type: Bytes("int"), Null: Bytes("YES"), Key: Bytes(""), Default: Null, Extra: Bytes("") }]
+
+    let mut fields = Vec::with_capacity(desc.len());
+
+    // let iter = names.into_iter().zip(types.into_iter());
+
+    for (name, typ, nullable) in desc.into_iter().map(|col| (col.0, col.1, col.2 == "YES")) {
+        let arrow_typ = match typ.as_str() {
+            "tinyint(1)" => DataType::Boolean,
+            "tinyint" => DataType::Int8,
+            "tinyint unsigned" => DataType::UInt8,
+            "smallint" => DataType::Int16,
+            "smallint unsigned" => DataType::UInt16,
+            "int" => DataType::Int32,
+            "int unsigned" => DataType::UInt32,
+            "bigint" => DataType::Int64,
+            "bigint unsigned" => DataType::UInt64,
+            // TODO: more types
+            // "float4" => DataType::Float32,
+            // "float8" => DataType::Float64,
+            // "char" | "bpchar" | "varchar" | "text" | "jsonb" | "json" => DataType::Utf8,
+            // "bytea" => DataType::Binary,
+            other => return Err(MysqlError::Unimplemented),
+        };
+        let field = Field::new(&name, arrow_typ, nullable);
+        fields.push(field);
+    }
+
+    Ok(ArrowSchema::new(fields))
 }

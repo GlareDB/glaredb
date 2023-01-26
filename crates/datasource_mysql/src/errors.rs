@@ -12,6 +12,12 @@ pub enum MysqlError {
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
 
+    #[error(transparent)]
+    Mysql(#[from] mysql_async::Error),
+
+    #[error(transparent)]
+    ConnectionUrl(#[from] mysql_async::UrlError),
+
     // TODO Remove
     #[error("Coming soon! This feature is unimplemented")]
     Unimplemented,
