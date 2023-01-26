@@ -502,62 +502,47 @@ impl RecordBatchStream for ChunkStream {
     }
 }
 
-/// Str is a wrapper to represent multiple datatypes as arrow `DataType::Utf8`,
-/// i.e., a string.
+/// PostgresString is a wrapper to represent multiple datatypes as arrow
+/// `DataType::Utf8`, i.e., a string.
 #[derive(Debug)]
-struct Str<'a> {
-    owned: Option<String>,
-    borrowed: &'a str,
+enum PostgresString<'a> {
+    Owned(String),
+    Borrowed(&'a str),
 }
 
-impl<'a> Str<'a> {
-    fn new_owned(s: String) -> Self {
-        Self {
-            owned: Some(s),
-            borrowed: "",
-        }
-    }
-
-    fn new_borrowed(s: &'a str) -> Self {
-        Self {
-            owned: None,
-            borrowed: s,
-        }
-    }
-
+impl<'a> PostgresString<'a> {
     fn as_str<'b: 'a>(&'b self) -> &'a str {
-        if let Some(s) = &self.owned {
-            s
-        } else {
-            self.borrowed
+        match self {
+            Self::Owned(s) => &s,
+            Self::Borrowed(s) => s,
         }
     }
 }
 
-impl<'a> From<&'a str> for Str<'a> {
+impl<'a> From<&'a str> for PostgresString<'a> {
     fn from(value: &'a str) -> Self {
-        Self::new_borrowed(value)
+        Self::Borrowed(value)
     }
 }
 
-impl<'a> TryFrom<uuid::Uuid> for Str<'a> {
+impl<'a> TryFrom<uuid::Uuid> for PostgresString<'a> {
     type Error = std::str::Utf8Error;
 
     fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
         let mut buf = [0; 36];
         value.as_hyphenated().encode_lower(&mut buf);
         let s = std::str::from_utf8(&buf)?;
-        Ok(Self::new_owned(s.to_owned()))
+        Ok(Self::Owned(s.to_owned()))
     }
 }
 
-impl<'a> From<serde_json::Value> for Str<'a> {
+impl<'a> From<serde_json::Value> for PostgresString<'a> {
     fn from(value: serde_json::Value) -> Self {
-        Self::new_owned(format!("{value}"))
+        Self::Owned(format!("{value}"))
     }
 }
 
-impl<'a> FromSql<'a> for Str<'a> {
+impl<'a> FromSql<'a> for PostgresString<'a> {
     fn accepts(ty: &PostgresType) -> bool {
         type S<'a> = &'a str;
         S::accepts(ty) || ty.name() == "uuid" || ty.name() == "json" || ty.name() == "jsonb"
@@ -621,7 +606,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: Str<'_> = row.try_get(col_idx)?;
+                    let val: PostgresString<'_> = row.try_get(col_idx)?;
                     arr.append_value(val.as_str());
                 }
                 Arc::new(arr.finish())
