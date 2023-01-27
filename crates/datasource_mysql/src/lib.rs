@@ -19,7 +19,9 @@ use datafusion::physical_plan::{
 };
 use datasource_common::ssh::SshTunnelAccess;
 use errors::{MysqlError, Result};
-use mysql_async::{prelude::*, Row as MysqlRow};
+use mysql_async::consts::ColumnFlags;
+use mysql_async::consts::ColumnType;
+use mysql_async::{prelude::*, Column as MysqlColumn, Row as MysqlRow};
 use mysql_async::{Conn, IsolationLevel, Opts, TxOpts};
 use serde::{Deserialize, Serialize};
 
@@ -90,18 +92,17 @@ impl MysqlAccessor {
 
         let mut tx = self.conn.start_transaction(tx_opts).await?;
 
-        let desc: Vec<(String, String, String)> = tx
-            .query(format!(
-                "SELECT column_name, data_type, is_nullable
-                     FROM information_schema.columns
-                     WHERE table_schema='{}' and table_name='{}'",
+        let cols = tx
+            .query_iter(format!(
+                "SELECT * FROM {}.{} where false",
                 self.access.schema, self.access.name
             ))
             .await?;
+        let cols = cols.columns_ref();
 
-        tracing::warn!(?desc, len = desc.len());
+        tracing::warn!(?cols, len = cols.len());
         // Genrate arrow schema from table schema - should be done now
-        let arrow_schema = try_create_arrow_schema(desc)?;
+        let arrow_schema = try_create_arrow_schema(cols)?;
 
         tracing::warn!(?arrow_schema, len = arrow_schema.fields().len());
 
@@ -288,31 +289,80 @@ impl ExecutionPlan for MysqlExec {
 
 /// Create an arrow schema from a list of names and stringified postgres types.
 // TODO: We could probably use postgres oids instead of strings for types.
-fn try_create_arrow_schema(desc: Vec<(String, String, String)>) -> Result<ArrowSchema> {
-    // columns=[Row { Field: Bytes("i1"), Type: Bytes("int"), Null: Bytes("YES"), Key: Bytes(""), Default: Null, Extra: Bytes("") }]
+fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
+    let mut fields = Vec::with_capacity(cols.len());
 
-    let mut fields = Vec::with_capacity(desc.len());
+    let iter = cols
+        .into_iter()
+        .map(|c| (c, c.name_str(), c.column_type(), c.flags()));
 
-    // let iter = names.into_iter().zip(types.into_iter());
+    for (col, name, typ, flags) in iter {
+        tracing::warn!(?col);
+        tracing::warn!(%name, ?typ, ?flags);
+        use ColumnType::*;
 
-    for (name, typ, nullable) in desc.into_iter().map(|col| (col.0, col.1, col.2 == "YES")) {
-        let arrow_typ = match typ.as_str() {
-            "tinyint(1)" => DataType::Boolean,
-            "tinyint" => DataType::Int8,
-            "tinyint unsigned" => DataType::UInt8,
-            "smallint" => DataType::Int16,
-            "smallint unsigned" => DataType::UInt16,
-            "int" => DataType::Int32,
-            "int unsigned" => DataType::UInt32,
-            "bigint" => DataType::Int64,
-            "bigint unsigned" => DataType::UInt64,
+        // Column definiton flags can be found here: https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
+        let unsigned = flags.contains(ColumnFlags::UNSIGNED_FLAG);
+        let blob = flags.contains(ColumnFlags::BLOB_FLAG);
+        let binary = flags.contains(ColumnFlags::BINARY_FLAG);
+        let timestamp = flags.contains(ColumnFlags::TIMESTAMP_FLAG);
+        let timestamp = flags.contains(ColumnFlags::TIMESTAMP_FLAG);
+        let arrow_typ = match typ {
             // TODO: more types
             // "float4" => DataType::Float32,
             // "float8" => DataType::Float64,
             // "char" | "bpchar" | "varchar" | "text" | "jsonb" | "json" => DataType::Utf8,
             // "bytea" => DataType::Binary,
-            other => return Err(MysqlError::Unimplemented),
+            MYSQL_TYPE_DECIMAL => todo!(),
+            // TINYINT
+            MYSQL_TYPE_TINY if unsigned => DataType::UInt8,
+            MYSQL_TYPE_TINY => DataType::Int8,
+            // SMALLINT
+            MYSQL_TYPE_SHORT if unsigned => DataType::UInt16,
+            MYSQL_TYPE_SHORT => DataType::Int16,
+            // INT
+            MYSQL_TYPE_LONG if unsigned => DataType::UInt32,
+            MYSQL_TYPE_LONG => DataType::Int32,
+            MYSQL_TYPE_FLOAT => DataType::Float32,
+            MYSQL_TYPE_DOUBLE => DataType::Float64,
+            MYSQL_TYPE_NULL => todo!(),
+            MYSQL_TYPE_TIMESTAMP => todo!(),
+            // BIGINT
+            MYSQL_TYPE_LONGLONG if unsigned => DataType::UInt64,
+            MYSQL_TYPE_LONGLONG => DataType::Int64,
+            // MEDIUMINT
+            MYSQL_TYPE_INT24 if unsigned => DataType::UInt32,
+            MYSQL_TYPE_INT24 => DataType::Int32,
+            MYSQL_TYPE_DATE => todo!(),
+            MYSQL_TYPE_TIME => todo!(),
+            MYSQL_TYPE_DATETIME => todo!(),
+            MYSQL_TYPE_YEAR => todo!(),
+            MYSQL_TYPE_NEWDATE => todo!(),
+            MYSQL_TYPE_VARCHAR => todo!(),
+            MYSQL_TYPE_BIT => todo!(),
+            MYSQL_TYPE_TIMESTAMP2 => todo!(),
+            MYSQL_TYPE_DATETIME2 => todo!(),
+            MYSQL_TYPE_TIME2 => todo!(),
+            MYSQL_TYPE_TYPED_ARRAY => todo!(),
+            MYSQL_TYPE_UNKNOWN => todo!(),
+            MYSQL_TYPE_JSON => todo!(),
+            MYSQL_TYPE_NEWDECIMAL => DataType::Decimal128(
+                col.decimals(),
+                i8::try_from(col.column_length() - col.decimals() as u32)?,
+            ),
+            MYSQL_TYPE_ENUM => todo!(),
+            MYSQL_TYPE_SET => todo!(),
+            MYSQL_TYPE_TINY_BLOB => todo!(),
+            MYSQL_TYPE_MEDIUM_BLOB => todo!(),
+            MYSQL_TYPE_LONG_BLOB => todo!(),
+            MYSQL_TYPE_BLOB => todo!(),
+            MYSQL_TYPE_VAR_STRING => DataType::Utf8,
+            MYSQL_TYPE_STRING => todo!(),
+            MYSQL_TYPE_GEOMETRY => todo!(),
+            other @ _ => return Err(MysqlError::UnsupportedMysqlType((other as u8).to_string())),
         };
+
+        let nullable = flags.contains(ColumnFlags::NOT_NULL_FLAG);
         let field = Field::new(&name, arrow_typ, nullable);
         fields.push(field);
     }

@@ -1,5 +1,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum MysqlError {
+    #[error("Unsupported Mysql type: {0}")]
+    UnsupportedMysqlType(String),
+
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
@@ -8,6 +11,9 @@ pub enum MysqlError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    TryFromInt(#[from] std::num::TryFromIntError),
 
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
