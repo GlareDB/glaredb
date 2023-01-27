@@ -627,7 +627,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
 /// Create an arrow schema from a list of names and stringified postgres types.
 fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Result<ArrowSchema> {
     let mut fields = Vec::with_capacity(names.len());
-    let iter = names.into_iter().zip(types.into_iter());
+    let iter = names.into_iter().zip(types);
 
     for (name, typ) in iter {
         let arrow_typ = match typ {
