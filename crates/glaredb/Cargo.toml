@@ -18,11 +18,11 @@ metastore = {path = "../metastore"}
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 tokio = { version = "1", features = ["full"] }
-async-trait = "0.1.62"
+async-trait = "0.1.63"
 futures = "0.3.25"
 rand = "0.8"
 parking_lot = "0.12.1"
-clap = { version = "4.1.1", features = ["derive"] }
+clap = { version = "4.1.4", features = ["derive"] }
 sqlparser = { version = "0.30", features = ["serde"] }
 tokio-util = { version = "0.7.4", features = ["codec"] }
 tokio-serde = { version = "0.8", features = ["bincode"] }
