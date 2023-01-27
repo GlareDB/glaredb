@@ -10,7 +10,7 @@ use crate::ssl::SslConfig;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tracing::{debug, trace};
+use tracing::debug;
 
 /// Param key for setting the database id in startup params. Added by pgsrv
 /// during proxying.
@@ -45,7 +45,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         let mut conn = Connection::new_unencrypted(conn);
         loop {
             let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-            trace!(?startup, "received startup message (proxy)");
+            debug!(?startup, "received startup message (proxy)");
 
             match startup {
                 StartupMessage::StartupRequest { params, .. } => {
@@ -55,14 +55,14 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
                 StartupMessage::SSLRequest { .. } => {
                     conn = match (conn, &self.ssl_conf) {
                         (Connection::Unencrypted(mut conn), Some(conf)) => {
-                            trace!("accepting ssl request");
+                            debug!("accepting ssl request");
                             // SSL supported, send back that we support it and
                             // start encrypting.
                             conn.write_all(&[b'S']).await?;
                             Connection::new_encrypted(conn, conf).await?
                         }
                         (mut conn, _) => {
-                            trace!("rejecting ssl request");
+                            debug!("rejecting ssl request");
                             // SSL not supported (or the connection is already
                             // wrapped). Reject and continue.
                             conn.write_all(&[b'N']).await?;
@@ -175,7 +175,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        trace!("cancel received (proxy)");
+        debug!("cancel received (proxy)");
         Ok(())
     }
 

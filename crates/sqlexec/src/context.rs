@@ -7,12 +7,12 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
+use datafusion::config::{CatalogOptions, ConfigOptions};
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
-use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use metastore::session::SessionCatalog;
@@ -57,9 +57,12 @@ impl SessionContext {
 
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
-        let config = SessionConfig::default()
-            .create_default_catalog_and_schema(false)
-            .with_information_schema(false);
+        let mut catalog_opts = CatalogOptions::default();
+        catalog_opts.create_default_catalog_and_schema = false;
+        catalog_opts.information_schema = false;
+        let mut config_opts = ConfigOptions::new();
+        config_opts.catalog = catalog_opts;
+        let config: SessionConfig = config_opts.into();
 
         let runtime = Arc::new(RuntimeEnv::default());
         let state = SessionState::with_config_rt(config, runtime);
@@ -423,8 +426,8 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         None
     }
 
-    fn get_config_option(&self, _variable: &str) -> Option<ScalarValue> {
-        None
+    fn options(&self) -> &ConfigOptions {
+        self.context.df_state.config_options()
     }
 }
 

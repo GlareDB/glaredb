@@ -111,7 +111,7 @@ impl<'a> CustomParser<'a> {
         let dialect = PostgreSqlDialect {};
         let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
         let mut parser = CustomParser {
-            parser: Parser::new(tokens, &dialect),
+            parser: Parser::new(&dialect).with_tokens(tokens),
         };
 
         let mut stmts = VecDeque::new();
@@ -126,7 +126,7 @@ impl<'a> CustomParser<'a> {
                 break;
             }
             if expecting_statement_delimiter {
-                return parser.expected("end of statement", parser.parser.peek_token());
+                return parser.expected("end of statement", parser.parser.peek_token().token);
             }
 
             let statement = parser.parse_statement()?;
@@ -138,7 +138,7 @@ impl<'a> CustomParser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        match self.parser.peek_token() {
+        match self.parser.peek_token().token {
             Token::Word(w) => match w.keyword {
                 Keyword::CREATE => {
                     self.parser.next_token();
@@ -227,7 +227,7 @@ impl<'a> CustomParser<'a> {
     }
 
     fn parse_datasource(&mut self) -> Result<String, ParserError> {
-        match self.parser.next_token() {
+        match self.parser.next_token().token {
             Token::Word(w) => Ok(w.value),
             other => self.expected("datasource", other),
         }
@@ -258,7 +258,7 @@ impl<'a> CustomParser<'a> {
             } else if !comma {
                 return self.expected(
                     "',' or ')' after option definition",
-                    self.parser.peek_token(),
+                    self.parser.peek_token().token,
                 );
             }
         }

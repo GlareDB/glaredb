@@ -363,7 +363,7 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
         };
 
         let nullable = flags.contains(ColumnFlags::NOT_NULL_FLAG);
-        let field = Field::new(&name, arrow_typ, nullable);
+        let field = Field::new(name, arrow_typ, nullable);
         fields.push(field);
     }
 

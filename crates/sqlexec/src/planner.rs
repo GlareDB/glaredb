@@ -15,7 +15,7 @@ use metastore::types::catalog::{
     ConnectionOptionsSsh, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
     TableOptionsLocal, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use tracing::debug;
 
@@ -235,18 +235,13 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
-            ast::Statement::Query(query) => {
-                let plan = planner.query_to_plan(*query, &mut HashMap::new())?;
+            stmt @ ast::Statement::Query(_) => {
+                let plan = planner.sql_statement_to_plan(stmt)?;
                 Ok(LogicalPlan::Query(plan))
             }
 
-            ast::Statement::Explain {
-                analyze,
-                verbose,
-                statement,
-                ..
-            } => {
-                let plan = planner.explain_statement_to_plan(verbose, analyze, *statement)?;
+            stmt @ ast::Statement::Explain { .. } => {
+                let plan = planner.sql_statement_to_plan(stmt)?;
                 Ok(LogicalPlan::Query(plan))
             }
 
@@ -293,7 +288,7 @@ impl<'a> SessionPlanner<'a> {
                 query: Some(query),
                 ..
             } => {
-                let source = planner.query_to_plan(*query, &mut HashMap::new())?;
+                let source = planner.sql_statement_to_plan(ast::Statement::Query(query))?;
                 Ok(DdlPlan::CreateTableAs(CreateTableAs {
                     table_name: name.to_string(),
                     source,
@@ -309,6 +304,7 @@ impl<'a> SessionPlanner<'a> {
                 columns,
                 query,
                 with_options,
+                ..
             } => {
                 if !columns.is_empty() {
                     return Err(ExecError::UnsupportedFeature("named columns in views"));
@@ -322,7 +318,7 @@ impl<'a> SessionPlanner<'a> {
                 let num_columns = match query.body.as_ref() {
                     ast::SetExpr::Select(select) => select.projection.len(),
                     ast::SetExpr::Values(values) => {
-                        values.0.first().map(|first| first.len()).unwrap_or(0)
+                        values.rows.first().map(|first| first.len()).unwrap_or(0)
                     }
                     _ => {
                         return Err(ExecError::InvalidViewStatement {

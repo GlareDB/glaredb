@@ -6,7 +6,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
-use datafusion::config::ConfigOptions;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::datasource::TableProvider;
@@ -183,7 +182,7 @@ where
             limit,
             table_partition_cols: Vec::new(),
             output_ordering: None,
-            config_options: ConfigOptions::new().into_shareable(),
+            infinite_source: false,
         };
 
         let factory = Arc::new(SimpleParquetFileReaderFactory::new(

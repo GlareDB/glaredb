@@ -18,7 +18,7 @@ use sqlexec::{
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tracing::{debug_span, trace, warn, Instrument};
+use tracing::{debug, debug_span, warn, Instrument};
 use uuid::Uuid;
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
@@ -55,7 +55,7 @@ impl ProtocolHandler {
         let mut conn = Connection::new_unencrypted(conn);
         loop {
             let startup = PgCodec::decode_startup_from_conn(&mut conn).await?;
-            trace!(?startup, "received startup message (local)");
+            debug!(?startup, "received startup message (local)");
 
             match startup {
                 StartupMessage::StartupRequest { params, .. } => {
@@ -65,14 +65,14 @@ impl ProtocolHandler {
                 StartupMessage::SSLRequest { .. } => {
                     conn = match (conn, &self.ssl_conf) {
                         (Connection::Unencrypted(mut conn), Some(conf)) => {
-                            trace!("accepting ssl request");
+                            debug!("accepting ssl request");
                             // SSL supported, send back that we support it and
                             // start encrypting.
                             conn.write_all(&[b'S']).await?;
                             Connection::new_encrypted(conn, conf).await?
                         }
                         (mut conn, _) => {
-                            trace!("rejecting ssl request");
+                            debug!("rejecting ssl request");
                             // SSL not supported (or the connection is already
                             // wrapped). Reject and continue.
                             conn.write_all(&[b'N']).await?;
@@ -98,7 +98,7 @@ impl ProtocolHandler {
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        trace!("starting protocol with params: {:?}", params);
+        debug!("starting protocol with params: {:?}", params);
 
         let mut framed = FramedConn::new(conn);
 
@@ -151,7 +151,7 @@ impl ProtocolHandler {
         let vars = sess.get_session_vars_mut();
         for (key, val) in &params {
             if let Err(e) = vars.set(key, val) {
-                trace!(%e, %key, %val, "unable to set session variable from startup param");
+                debug!(%e, %key, %val, "unable to set session variable from startup param");
             }
         }
 
@@ -180,7 +180,7 @@ impl ProtocolHandler {
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
-        trace!("cancel received (local)");
+        debug!("cancel received (local)");
         Ok(())
     }
 }
@@ -207,7 +207,7 @@ where
                 Some(msg) => msg,
                 None => {
                     // No message received, connection closed.
-                    trace!("connection closed");
+                    debug!("connection closed");
                     return Ok(());
                 }
             };
@@ -252,6 +252,7 @@ where
                 }
                 FrontendMessage::Sync => self.sync().instrument(span).await?,
                 FrontendMessage::Flush => self.flush().instrument(span).await?,
+                FrontendMessage::Terminate => return Ok(()),
                 other => {
                     warn!(?other, "unsupported frontend message");
                     self.conn
