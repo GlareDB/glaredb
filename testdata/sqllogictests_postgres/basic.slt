@@ -1,0 +1,24 @@
+# Basic tests for postgres external tables 
+
+# Create a connection to local postgres test database.
+statement ok
+CREATE CONNECTION testconn
+	FOR postgres
+	OPTIONS (
+		postgres_conn = 'host=localhost port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+	);
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+	FROM testconn
+	OPTIONS (
+		schema = 'public',
+		table = 'datatypes'
+	);
+
+# Check if we can fetch contents of the datatype table.
+#
+# TODO: Change it into a query.
+statement ok
+SELECT * FROM datatypes;
