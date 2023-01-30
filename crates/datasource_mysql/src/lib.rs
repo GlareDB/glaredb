@@ -111,10 +111,6 @@ impl MysqlAccessor {
     }
 }
 
-//TODO update to library copy
-#[derive(Debug, Clone)]
-struct MysqlType {}
-
 pub struct MysqlTableProvider {
     predicate_pushdown: bool,
     accessor: Arc<MysqlAccessor>,
