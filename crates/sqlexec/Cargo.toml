@@ -11,6 +11,7 @@ pgrepr = {path = "../pgrepr"}
 metastore = {path = "../metastore"}
 datasource_bigquery = {path = "../datasource_bigquery"}
 datasource_postgres = {path = "../datasource_postgres"}
+datasource_mysql = {path = "../datasource_mysql"}
 datasource_object_store = {path = "../datasource_object_store"}
 datasource_debug = {path = "../datasource_debug"}
 datasource_common = {path = "../datasource_common"}

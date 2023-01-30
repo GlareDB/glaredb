@@ -406,6 +406,7 @@ pub enum TableOptions {
     Debug(TableOptionsDebug),
     Postgres(TableOptionsPostgres),
     BigQuery(TableOptionsBigQuery),
+    Mysql(TableOptionsMysql),
     Local(TableOptionsLocal),
     Gcs(TableOptionsGcs),
     S3(TableOptionsS3),
@@ -415,6 +416,7 @@ impl TableOptions {
     pub const DEBUG: &str = "debug";
     pub const POSTGRES: &str = "postgres";
     pub const BIGQUERY: &str = "bigquery";
+    pub const MYSQL: &str = "mysql";
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
@@ -424,6 +426,7 @@ impl TableOptions {
             TableOptions::Debug(_) => Self::DEBUG,
             TableOptions::Postgres(_) => Self::POSTGRES,
             TableOptions::BigQuery(_) => Self::BIGQUERY,
+            TableOptions::Mysql(_) => Self::MYSQL,
             TableOptions::Local(_) => Self::LOCAL,
             TableOptions::Gcs(_) => Self::GCS,
             TableOptions::S3(_) => Self::S3_STORAGE,
@@ -444,6 +447,7 @@ impl TryFrom<catalog::table_options::Options> for TableOptions {
             catalog::table_options::Options::Debug(v) => TableOptions::Debug(v.try_into()?),
             catalog::table_options::Options::Postgres(v) => TableOptions::Postgres(v.try_into()?),
             catalog::table_options::Options::Bigquery(v) => TableOptions::BigQuery(v.try_into()?),
+            catalog::table_options::Options::Mysql(v) => TableOptions::Mysql(v.try_into()?),
             catalog::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
             catalog::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
             catalog::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
@@ -464,6 +468,7 @@ impl From<TableOptions> for catalog::table_options::Options {
             TableOptions::Debug(v) => catalog::table_options::Options::Debug(v.into()),
             TableOptions::Postgres(v) => catalog::table_options::Options::Postgres(v.into()),
             TableOptions::BigQuery(v) => catalog::table_options::Options::Bigquery(v.into()),
+            TableOptions::Mysql(v) => catalog::table_options::Options::Mysql(v.into()),
             TableOptions::Local(v) => catalog::table_options::Options::Local(v.into()),
             TableOptions::Gcs(v) => catalog::table_options::Options::Gcs(v.into()),
             TableOptions::S3(v) => catalog::table_options::Options::S3(v.into()),
@@ -552,6 +557,31 @@ impl From<TableOptionsBigQuery> for catalog::TableOptionsBigQuery {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsMysql {
+    pub schema: String,
+    pub table: String,
+}
+
+impl TryFrom<catalog::TableOptionsMysql> for TableOptionsMysql {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsMysql) -> Result<Self, Self::Error> {
+        Ok(TableOptionsMysql {
+            schema: value.schema,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsMysql> for catalog::TableOptionsMysql {
+    fn from(value: TableOptionsMysql) -> Self {
+        catalog::TableOptionsMysql {
+            schema: value.schema,
+            table: value.table,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct TableOptionsLocal {
     pub location: String,
 }
@@ -631,6 +661,7 @@ pub enum ConnectionOptions {
     Debug(ConnectionOptionsDebug),
     Postgres(ConnectionOptionsPostgres),
     BigQuery(ConnectionOptionsBigQuery),
+    Mysql(ConnectionOptionsMysql),
     Local(ConnectionOptionsLocal),
     Gcs(ConnectionOptionsGcs),
     S3(ConnectionOptionsS3),
@@ -641,6 +672,7 @@ impl ConnectionOptions {
     pub const DEBUG: &str = "debug";
     pub const POSTGRES: &str = "postgres";
     pub const BIGQUERY: &str = "bigquery";
+    pub const MYSQL: &str = "mysql";
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
@@ -651,6 +683,7 @@ impl ConnectionOptions {
             ConnectionOptions::Debug(_) => Self::DEBUG,
             ConnectionOptions::Postgres(_) => Self::POSTGRES,
             ConnectionOptions::BigQuery(_) => Self::BIGQUERY,
+            ConnectionOptions::Mysql(_) => Self::MYSQL,
             ConnectionOptions::Local(_) => Self::LOCAL,
             ConnectionOptions::Gcs(_) => Self::GCS,
             ConnectionOptions::S3(_) => Self::S3_STORAGE,
@@ -677,6 +710,9 @@ impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
             }
             catalog::connection_options::Options::Bigquery(v) => {
                 ConnectionOptions::BigQuery(v.try_into()?)
+            }
+            catalog::connection_options::Options::Mysql(v) => {
+                ConnectionOptions::Mysql(v.try_into()?)
             }
             catalog::connection_options::Options::Local(v) => {
                 ConnectionOptions::Local(v.try_into()?)
@@ -705,6 +741,7 @@ impl From<ConnectionOptions> for catalog::connection_options::Options {
             ConnectionOptions::BigQuery(v) => {
                 catalog::connection_options::Options::Bigquery(v.into())
             }
+            ConnectionOptions::Mysql(v) => catalog::connection_options::Options::Mysql(v.into()),
             ConnectionOptions::Local(v) => catalog::connection_options::Options::Local(v.into()),
             ConnectionOptions::Gcs(v) => catalog::connection_options::Options::Gcs(v.into()),
             ConnectionOptions::S3(v) => catalog::connection_options::Options::S3(v.into()),
@@ -783,6 +820,31 @@ impl From<ConnectionOptionsBigQuery> for catalog::ConnectionOptionsBigQuery {
         catalog::ConnectionOptionsBigQuery {
             service_account_key: value.service_account_key,
             project_id: value.project_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsMysql {
+    pub connection_string: String,
+    pub ssh_tunnel: Option<String>,
+}
+
+impl TryFrom<catalog::ConnectionOptionsMysql> for ConnectionOptionsMysql {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsMysql) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsMysql {
+            connection_string: value.connection_string,
+            ssh_tunnel: value.ssh_tunnel,
+        })
+    }
+}
+
+impl From<ConnectionOptionsMysql> for catalog::ConnectionOptionsMysql {
+    fn from(value: ConnectionOptionsMysql) -> Self {
+        catalog::ConnectionOptionsMysql {
+            connection_string: value.connection_string,
+            ssh_tunnel: value.ssh_tunnel,
         }
     }
 }

@@ -8,6 +8,7 @@ use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::{SshKey, SshTunnelAccess};
 use datasource_debug::DebugTableType;
+use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
@@ -72,6 +73,8 @@ pub enum DispatchError {
     PostgresDatasource(#[from] datasource_postgres::errors::PostgresError),
     #[error(transparent)]
     BigQueryDatasource(#[from] datasource_bigquery::errors::BigQueryError),
+    #[error(transparent)]
+    MysqlDatasource(#[from] datasource_mysql::errors::MysqlError),
     #[error(transparent)]
     ObjectStoreDatasource(#[from] datasource_object_store::errors::ObjectStoreSourceError),
     #[error(transparent)]
@@ -217,6 +220,32 @@ impl<'a> SessionDispatcher<'a> {
                     task::block_in_place(move || {
                         Handle::current().block_on(async move {
                             let accessor = BigQueryAccessor::connect(table_access).await?;
+                            let provider = accessor.into_table_provider(predicate_pushdown).await?;
+                            Ok(provider)
+                        })
+                    });
+                let provider = result?;
+                Ok(Arc::new(provider))
+            }
+            (ConnectionOptions::Mysql(conn), TableOptions::Mysql(table)) => {
+                let table_access = MysqlTableAccess {
+                    schema: table.schema.clone(),
+                    name: table.table.clone(),
+                    connection_string: conn.connection_string.clone(),
+                };
+
+                let ssh_tunnel_access = self.get_ssh_tunnel(conn.ssh_tunnel.to_owned())?;
+
+                let predicate_pushdown = *self
+                    .ctx
+                    .get_session_vars()
+                    .postgres_predicate_pushdown
+                    .value();
+                let result: Result<_, datasource_mysql::errors::MysqlError> =
+                    task::block_in_place(move || {
+                        Handle::current().block_on(async move {
+                            let accessor =
+                                MysqlAccessor::connect(table_access, ssh_tunnel_access).await?;
                             let provider = accessor.into_table_provider(predicate_pushdown).await?;
                             Ok(provider)
                         })
