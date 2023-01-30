@@ -1,7 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub enum MysqlError {
-    #[error("Unsupported Mysql type: {0}")]
-    UnsupportedMysqlType(String),
+    #[error("Unsupported Mysql - type: {0}, column: {1}")]
+    UnsupportedMysqlType(u8, String),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
