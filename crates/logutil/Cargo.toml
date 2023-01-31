@@ -6,8 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4.0"
-env_logger = "0.10"
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json"] }
-tracing-log = "0.1.3"

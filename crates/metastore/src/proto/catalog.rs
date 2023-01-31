@@ -155,7 +155,7 @@ pub struct ExternalTableEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptions {
-    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub options: ::core::option::Option<table_options::Options>,
 }
 /// Nested message and enum types in `TableOptions`.
@@ -175,6 +175,8 @@ pub mod table_options {
         Gcs(super::TableOptionsGcs),
         #[prost(message, tag = "6")]
         S3(super::TableOptionsS3),
+        #[prost(message, tag = "7")]
+        Mysql(super::TableOptionsMysql),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -236,6 +238,16 @@ pub struct TableOptionsS3 {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsMysql {
+    /// Source schema to connect to on Mysql.
+    #[prost(string, tag = "1")]
+    pub schema: ::prost::alloc::string::String,
+    /// Source table to connect to.
+    #[prost(string, tag = "2")]
+    pub table: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ColumnDefinition {
     /// Name of the column in the table.
     #[prost(string, tag = "1")]
@@ -272,7 +284,7 @@ pub struct ConnectionEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConnectionOptions {
-    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
     pub options: ::core::option::Option<connection_options::Options>,
 }
 /// Nested message and enum types in `ConnectionOptions`.
@@ -294,6 +306,8 @@ pub mod connection_options {
         S3(super::ConnectionOptionsS3),
         #[prost(message, tag = "7")]
         Ssh(super::ConnectionOptionsSsh),
+        #[prost(message, tag = "8")]
+        Mysql(super::ConnectionOptionsMysql),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -315,6 +329,15 @@ pub struct ConnectionOptionsBigQuery {
     pub service_account_key: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub project_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsMysql {
+    #[prost(string, tag = "1")]
+    pub connection_string: ::prost::alloc::string::String,
+    /// Connection name for ssh tunnel
+    #[prost(string, optional, tag = "2")]
+    pub ssh_tunnel: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

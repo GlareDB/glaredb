@@ -113,6 +113,7 @@ message TableOptions {
     TableOptionsLocal local = 4;
     TableOptionsGcs gcs = 5;
     TableOptionsS3 s3 = 6;
+    TableOptionsMysql mysql = 7;
   }
 }
 
@@ -154,6 +155,13 @@ message TableOptionsS3 {
   string bucket_name = 2;
   // Name of the object.
   string location = 3;
+}
+
+message TableOptionsMysql {
+  // Source schema to connect to on Mysql.
+  string schema = 1;
+  // Source table to connect to.
+  string table = 2;
 }
 
 message ColumnDefinition {
@@ -200,9 +208,10 @@ message ConnectionOptions {
     ConnectionOptionsGcs gcs = 5;
     ConnectionOptionsS3 s3 = 6;
     ConnectionOptionsSsh ssh = 7;
+    ConnectionOptionsMysql mysql = 8;
   }
 
-  // next:8
+  // next:9
 }
 
 message ConnectionOptionsDebug {}
@@ -215,6 +224,11 @@ message ConnectionOptionsPostgres {
 message ConnectionOptionsBigQuery {
   string service_account_key = 1;
   string project_id = 2;
+}
+
+message ConnectionOptionsMysql {
+  string connection_string = 1;
+  optional string ssh_tunnel = 2; // Connection name for ssh tunnel
 }
 
 message ConnectionOptionsLocal {}
