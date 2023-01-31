@@ -1,20 +1,18 @@
 pub mod errors;
 
 use std::any::Any;
-use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Write;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::errors::{MysqlError, Result};
 use async_stream::stream;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
+use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -25,19 +23,17 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
-use datafusion::row::accessor;
 use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
-use futures::Stream;
-use futures::StreamExt;
-use mysql_async::consts::ColumnFlags;
-use mysql_async::consts::ColumnType;
-use mysql_async::{prelude::*, Column as MysqlColumn};
-use mysql_async::{BinaryProtocol, QueryResult, Row as MysqlRow};
-use mysql_async::{Conn, IsolationLevel, Opts, TxOpts};
+use futures::{Stream, StreamExt};
+use mysql_async::consts::{ColumnFlags, ColumnType};
+use mysql_async::prelude::*;
+use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, TxOpts};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::debug;
+
+use crate::errors::{MysqlError, Result};
 
 /// Information needed for accessing an external Mysql table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,7 +52,6 @@ pub struct MysqlAccessor {
     conn: RwLock<Conn>,
 }
 
-#[allow(unused)] //TODO Remove
 impl MysqlAccessor {
     /// Connect to a mysql instance.
     pub async fn connect(
@@ -78,28 +73,19 @@ impl MysqlAccessor {
         Ok(MysqlAccessor { access, conn })
     }
 
+    // TODO: Add ssh tunnel support for MySQL
     async fn connect_with_ssh_tunnel(
-        access: MysqlTableAccess,
-        ssh_tunnel: SshTunnelAccess,
+        _access: MysqlTableAccess,
+        _ssh_tunnel: SshTunnelAccess,
     ) -> Result<Self> {
         tracing::warn!("Unimplemented");
-        return Err(MysqlError::Unimplemented);
-        // Open ssh tunnel
-        // let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
-        // let tcp_stream = TcpStream::connect(tunnel_addr).await?;
-        // Ok(MysqlAccessor { access })
+        Err(MysqlError::Unimplemented)
     }
 
     pub async fn into_table_provider(
         mut self,
         predicate_pushdown: bool,
     ) -> Result<MysqlTableProvider> {
-        let mut tx_opts = TxOpts::new();
-        tx_opts
-            .with_isolation_level(IsolationLevel::RepeatableRead)
-            .with_readonly(true);
-
-        // let tx = self.conn.start_transaction(tx_opts).await?;
         let conn = self.conn.get_mut();
 
         let cols = conn
@@ -113,12 +99,9 @@ impl MysqlAccessor {
             .await?;
         let cols = cols.columns_ref();
 
-        // Genrate arrow schema from table schema - should be done now
+        // Genrate arrow schema from table schema
         let arrow_schema = try_create_arrow_schema(cols)?;
-
-        tracing::warn!(?arrow_schema, len = arrow_schema.fields().len());
-
-        //TODO tx.commit()
+        tracing::trace!(?arrow_schema);
 
         Ok(MysqlTableProvider {
             predicate_pushdown,
@@ -128,19 +111,13 @@ impl MysqlAccessor {
     }
 }
 
-//TODO update to library copy
-#[derive(Debug, Clone)]
-struct MysqlType {}
-
 pub struct MysqlTableProvider {
     predicate_pushdown: bool,
     accessor: Arc<MysqlAccessor>,
     arrow_schema: ArrowSchemaRef,
-    // mysql_types: Arc<Vec<MysqlType>>, //possibley done at scan time
 }
 
 #[async_trait]
-#[allow(unused)] // TODO remove
 impl TableProvider for MysqlTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
@@ -184,7 +161,7 @@ impl TableProvider for MysqlTableProvider {
             .join(",");
 
         let limit_string = match limit {
-            Some(limit) => format!("LIMIT {}", limit),
+            Some(limit) => format!("LIMIT {limit}"),
             None => String::new(),
         };
 
@@ -215,11 +192,10 @@ impl TableProvider for MysqlTableProvider {
             },
             predicate_string.as_str(), // <where-predicate>
             limit_string,              // [LIMIT ..]
-        )
-        .into();
+        );
 
-        //TODO remove
-        tracing::warn!(?query);
+        tracing::trace!(?query);
+
         // Open Mysql Binary stream
         let mut tx_options = TxOpts::new();
         tx_options
@@ -238,10 +214,16 @@ impl TableProvider for MysqlTableProvider {
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        tokio::spawn(async move {
-            query_result;
-            tx.commit();
-        });
+        // TODO: clean up and remove following trace code
+        let rows: Vec<mysql_async::Row> = query_result
+            .collect()
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        tracing::trace!(?rows);
+
+        tx.commit()
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         Ok(Arc::new(MysqlExec {
             predicate: predicate_string,
@@ -255,10 +237,10 @@ impl TableProvider for MysqlTableProvider {
 struct MysqlExec {
     predicate: String,
     accessor: Arc<MysqlAccessor>,
-    query: String,
     arrow_schema: ArrowSchemaRef,
 }
 
+#[allow(unused)] // TODO Remove once ExecutionPlan trait is fully implmented
 impl ExecutionPlan for MysqlExec {
     fn as_any(&self) -> &dyn Any {
         self
@@ -294,6 +276,11 @@ impl ExecutionPlan for MysqlExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
+        tracing::warn!("Unimplemented");
+        return Err(DataFusionError::External(Box::new(
+            MysqlError::Unimplemented,
+        )));
+
         let stream = MysqlQueryStream::new(self.accessor.clone(), self.arrow_schema.clone())
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
@@ -325,12 +312,15 @@ struct MysqlQueryStream {
     inner: Pin<Box<dyn Stream<Item = ArrowResult<RecordBatch>> + Send>>,
 }
 
+#[allow(unused)] // TODO: Remove once support for conversion from MySQL rows to Arrow arrays are
+                 // complete
 impl MysqlQueryStream {
     fn new(accessor: Arc<MysqlAccessor>, arrow_schema: ArrowSchemaRef) -> Result<Self> {
         let stream = stream!(todo!());
         Ok(Self {
             arrow_schema,
-            inner: Box::pin(stream),
+            // inner: Box::pin(stream),
+            inner: todo!(),
         })
     }
 }
@@ -354,14 +344,16 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
     let mut fields = Vec::with_capacity(cols.len());
 
     let iter = cols
-        .into_iter()
+        .iter()
         .map(|c| (c, c.name_str(), c.column_type(), c.flags()));
 
     for (col, name, typ, flags) in iter {
         use ColumnType::*;
 
-        // Column definiton flags can be found here: https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
+        // Column definiton flags can be found here:
+        // https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
         let unsigned = flags.contains(ColumnFlags::UNSIGNED_FLAG);
+
         let arrow_typ = match typ {
             // TINYINT
             MYSQL_TYPE_TINY if unsigned => DataType::UInt8,
@@ -397,15 +389,16 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
             | MYSQL_TYPE_MEDIUM_BLOB
             | MYSQL_TYPE_LONG_BLOB
             | MYSQL_TYPE_BLOB => DataType::Binary,
-            unknown_type @ _ => {
+            unknown_type => {
                 return Err(MysqlError::UnsupportedMysqlType(
                     unknown_type as u8,
                     name.into_owned(),
-                ))
+                ));
             }
         };
 
         let nullable = flags.contains(ColumnFlags::NOT_NULL_FLAG);
+
         let field = Field::new(name, arrow_typ, nullable);
         fields.push(field);
     }
@@ -428,16 +421,16 @@ fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
     Ok(ss.join(" AND "))
 }
 
-//TODO refactor to use match, and create strings as needed, option instead of bool
+// TODO refactor to create strings as needed, option instead of bool
 /// Try to write the expression to the string, returning true if it was written.
 fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
     match expr {
         Expr::Column(col) => {
-            write!(s, "{}", col)?;
+            write!(s, "{col}")?;
         }
         Expr::Literal(val) => match val {
-            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{}'", utf8)?,
-            other => write!(s, "{}", other)?,
+            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{utf8}'")?,
+            other => write!(s, "{other}")?,
         },
         Expr::IsNull(expr) => {
             if write_expr(expr, s)? {
@@ -476,7 +469,7 @@ fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
                 return Ok(false);
             }
         }
-        expr @ _ => {
+        expr => {
             // Unsupported.
             debug!(?expr, "Unsupported filter used");
             return Ok(false);
@@ -488,10 +481,11 @@ fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use datafusion::common::Column;
     use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    use super::*;
 
     #[test]
     fn valid_expr_string() {
@@ -553,22 +547,3 @@ mod tests {
         assert_eq!(out, "a < b")
     }
 }
-
-// // Open Mysql Binary stream
-// let mut tx_options = TxOpts::new();
-// tx_options
-// .with_isolation_level(IsolationLevel::RepeatableRead)
-// .with_readonly(true);
-//
-// let mut conn = self.accessor.conn.write().await;
-//
-// let mut tx = conn
-// .start_transaction(tx_options)
-// .await
-// .map_err(|e| DataFusionError::External(Box::new(e)))?;
-//
-// let mut query_result = tx
-// .exec_iter(&query, ())
-// .await
-// .map_err(|e| DataFusionError::External(Box::new(e)))?;
-//

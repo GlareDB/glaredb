@@ -9,14 +9,11 @@ edition = "2021"
 logutil = {path = "../logutil"}
 object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
-datasource_common = {path = "../datasource_common"}
 tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"
 thiserror = "1.0"
-parking_lot = "0.12.1"
 tokio = { version = "1", features = ["full"] }
-futures = "0.3.25"
 tracing = "0.1"
 async-trait = "0.1.63"
 datafusion = "16.1"
@@ -24,7 +21,6 @@ bytes = "1.3"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
 object_store = "0.5"
 once_cell = "1.17.0"
-rand = "0.8"
 proptest = "1.0"
 proptest-derive = "0.3"
 

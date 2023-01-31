@@ -163,7 +163,6 @@ WHERE nspname=$1 AND relname=$2;
                 "
 SELECT
     attname,
-    pg_type.typname,
     pg_type.oid
 FROM pg_attribute
     INNER JOIN pg_type ON atttypid=pg_type.oid
@@ -174,20 +173,19 @@ ORDER BY attnum;
             )
             .await?;
         let mut names: Vec<String> = Vec::with_capacity(rows.len());
-        let mut types: Vec<String> = Vec::with_capacity(rows.len());
         let mut type_oids: Vec<u32> = Vec::with_capacity(rows.len());
         for row in rows {
             names.push(row.try_get(0)?);
-            types.push(row.try_get(1)?);
-            type_oids.push(row.try_get(2)?);
+            type_oids.push(row.try_get(1)?);
         }
 
-        let arrow_schema = try_create_arrow_schema(names, types)?;
         let pg_types = type_oids
             .iter()
             .map(|oid| PostgresType::from_oid(*oid))
             .collect::<Option<Vec<_>>>()
             .ok_or(PostgresError::UnknownPostgresOids(type_oids))?;
+
+        let arrow_schema = try_create_arrow_schema(names, &pg_types)?;
 
         Ok(PostgresTableProvider {
             predicate_pushdown,
@@ -538,7 +536,10 @@ impl<'a> From<serde_json::Value> for Str<'a> {
 impl<'a> FromSql<'a> for Str<'a> {
     fn accepts(ty: &PostgresType) -> bool {
         type S<'a> = &'a str;
-        S::accepts(ty) || ty.name() == "uuid" || ty.name() == "json" || ty.name() == "jsonb"
+        S::accepts(ty)
+            || ty == &PostgresType::UUID
+            || ty == &PostgresType::JSON
+            || ty == &PostgresType::JSONB
     }
 
     fn from_sql(
@@ -624,22 +625,31 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
 }
 
 /// Create an arrow schema from a list of names and stringified postgres types.
-// TODO: We could probably use postgres oids instead of strings for types.
-fn try_create_arrow_schema(names: Vec<String>, types: Vec<String>) -> Result<ArrowSchema> {
+fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Result<ArrowSchema> {
     let mut fields = Vec::with_capacity(names.len());
-    let iter = names.into_iter().zip(types.into_iter());
+    let iter = names.into_iter().zip(types);
 
     for (name, typ) in iter {
-        let arrow_typ = match typ.as_str() {
-            "bool" => DataType::Boolean,
-            "int2" => DataType::Int16,
-            "int4" => DataType::Int32,
-            "int8" => DataType::Int64,
-            "float4" => DataType::Float32,
-            "float8" => DataType::Float64,
-            "char" | "bpchar" | "varchar" | "text" | "jsonb" | "json" | "uuid" => DataType::Utf8,
-            "bytea" => DataType::Binary,
-            other => return Err(PostgresError::UnsupportedPostgresType(other.to_string())),
+        let arrow_typ = match typ {
+            &PostgresType::BOOL => DataType::Boolean,
+            &PostgresType::INT2 => DataType::Int16,
+            &PostgresType::INT4 => DataType::Int32,
+            &PostgresType::INT8 => DataType::Int64,
+            &PostgresType::FLOAT4 => DataType::Float32,
+            &PostgresType::FLOAT8 => DataType::Float64,
+            &PostgresType::CHAR
+            | &PostgresType::BPCHAR
+            | &PostgresType::VARCHAR
+            | &PostgresType::TEXT
+            | &PostgresType::JSONB
+            | &PostgresType::JSON
+            | &PostgresType::UUID => DataType::Utf8,
+            &PostgresType::BYTEA => DataType::Binary,
+            other => {
+                return Err(PostgresError::UnsupportedPostgresType(
+                    other.name().to_owned(),
+                ))
+            }
         };
 
         // Assume all fields are nullable.

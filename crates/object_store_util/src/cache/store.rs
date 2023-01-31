@@ -670,6 +670,8 @@ mod tests {
             .write_cache_file(&key, &test_data_serialized)
             .await
             .unwrap();
+        let cached_file_path = &*value.path.read().await.clone().unwrap();
+
         cache.cache.insert(key.clone(), value.clone()).await;
         cache.cache.invalidate(&key).await;
 
@@ -678,12 +680,11 @@ mod tests {
 
         // Check if file is asynchronously cleaned up by eviction listener; Timeout after 1 ms
         let mut nano = 0;
-        let path = &*value.path.read().await.clone().unwrap();
-        while path.try_exists().unwrap() && nano < 1_000_000 {
+        while cached_file_path.try_exists().unwrap() && nano < 1_000_000 {
             nano += 1;
             sleep(Duration::from_nanos(1));
         }
-        assert_eq!(path.try_exists().unwrap(), false);
+        assert_eq!(cached_file_path.try_exists().unwrap(), false);
     }
 
     #[tokio::test]
@@ -848,6 +849,7 @@ mod tests {
             offset: test_offset,
         };
         let value = cache.cache.get(&key).unwrap();
+        let cached_file_path = &*value.path.read().await.clone().unwrap();
 
         // 2. Thread 2: Put's a new version of an object at the location in A and adds key A to async
         // invalidation queue
@@ -861,8 +863,7 @@ mod tests {
         // 3. Thread 3: Invalidation handler removes cached files associated with object location in key A
         // Wait for path to not exist to confirm invalidation handler completed
         let mut nano = 0;
-        let path = &*value.path.read().await.clone().unwrap();
-        while path.try_exists().unwrap() && nano < 1_000_000 {
+        while cached_file_path.try_exists().unwrap() && nano < 1_000_000 {
             nano += 1;
             sleep(Duration::from_nanos(1));
         }
