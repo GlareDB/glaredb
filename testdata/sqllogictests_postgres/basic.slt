@@ -18,7 +18,7 @@ CREATE EXTERNAL TABLE datatypes
 	);
 
 # Check if we can fetch contents of the datatype table.
-#
-# TODO: Change it into a query.
-statement ok
+query TIIIRRTTTTTTTT
 SELECT * FROM datatypes;
+----
+t  1  2  3  4.5  6.7  a  b  cde  fghi  {"a":[1,2]}  [{"b":null},{"c":true}]  292a485f-a56a-4938-8f1a-bbbbbbbbbbb1  98,105,110

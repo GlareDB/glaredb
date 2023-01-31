@@ -56,5 +56,11 @@ jobs:
           shopt -s globstar
           nix run .#slt-runner -- -v embedded testdata/sqllogictests/**/*.slt
 
+      - name: SQL Logic Tests (Postgres)
+        run: |
+          shopt -s globstar
+          ./scripts/create-test-postgres-db.sh
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_postgres/**/*.slt
+
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

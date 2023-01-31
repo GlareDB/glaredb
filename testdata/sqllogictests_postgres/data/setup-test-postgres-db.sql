@@ -28,8 +28,8 @@ VALUES (
     'b',
     'cde',
     'fghi',
-    '{"some": ["test", "json"]}',
-    '[{"can": true}, {"have": 123}, {"datatypes": null}]',
+    '{"a": [1, 2]}',
+    '[{"b": null}, {"c": true}]',
     '292a485f-a56a-4938-8f1a-bbbbbbbbbbb1',
-    'example binary data'
+    'bin'
 );

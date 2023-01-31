@@ -19,7 +19,23 @@ CONTAINER_ID=$(docker run -p $DB_PORT:5432 --name "${CONTAINER_NAME}" -e POSTGRE
 CONN_STRING="host=${DB_HOST} port=${DB_PORT} user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} sslmode=disable"
 
 # Let the database server start
-sleep 2
+#
+# This loop basically waits for the database to start by testing the connection
+# through psql. It keeps on retrying until it times out (set to 60s).
+INIT_TIME=$(date +%s)
+CONNECTED="not yet"
+while [[ ! -z "$CONNECTED" ]]; do
+  set +e
+  CONNECTED=$(psql "${CONN_STRING}" -c "select 1" 2>&1 > /dev/null)
+  set -e
+  
+  CURRENT_TIME=$(date +%s)
+  CURRENT_TIME=$(expr $CURRENT_TIME - 60)
+  if [[ "$CURRENT_TIME" -gt "$INIT_TIME" ]]; then
+    echo "Timed out waiting for postgres server to start!"
+    exit 1
+  fi
+done 
 
 # Load data into the test container
 #
