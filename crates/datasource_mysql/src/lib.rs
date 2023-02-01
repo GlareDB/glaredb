@@ -303,15 +303,15 @@ impl MysqlQueryStream {
                 .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
 
             let mut query_stream = tx
-                .exec_stream::<MysqlRow,_, _>(&query, ())
+                .exec_stream::<MysqlRow, _, _>(&query, ())
                 .await
                 .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
 
-
             while let Some(rows) = query_stream.next().await {
                 let rows = rows.map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
-                let rows = vec![rows]; //TODO change this to chunk stream
-                let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone()).map_err(|e| ArrowError::ExternalError(Box::new(e)));
+                let rows = vec![rows]; // TODO change this to chunk stream
+                let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
+                    .map_err(|e| ArrowError::ExternalError(Box::new(e)));
                 yield record_batch
             }
         }
