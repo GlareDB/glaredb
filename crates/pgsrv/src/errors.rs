@@ -26,8 +26,8 @@ pub enum PgSrvError {
     #[error("missing startup parameter: {0}")]
     MissingStartupParameter(&'static str),
 
-    #[error("missing options parameter: {0}")]
-    MissingOptionsParameter(&'static str),
+    #[error("missing org ID: pass it as an option, or subdomain in proxy or in database as '<org>/<db>'")]
+    MissingOrgId,
 
     #[error("Invalid database ID: {0}")]
     InvalidDatabaseId(String),
