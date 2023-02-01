@@ -36,9 +36,3 @@ pub enum MysqlError {
 }
 
 pub type Result<T, E = MysqlError> = std::result::Result<T, E>;
-
-impl From<MysqlError> for datafusion::arrow::error::ArrowError {
-    fn from(value: MysqlError) -> Self {
-        datafusion::arrow::error::ArrowError::ExternalError(Box::new(value))
-    }
-}

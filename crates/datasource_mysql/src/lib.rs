@@ -248,7 +248,7 @@ impl ExecutionPlan for MysqlExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let stream = MysqlQueryStream::new(
+        let stream = MysqlQueryStream::open(
             self.query.clone(),
             self.accessor.clone(),
             self.arrow_schema.clone(),
@@ -283,7 +283,7 @@ struct MysqlQueryStream {
 }
 
 impl MysqlQueryStream {
-    fn new(
+    fn open(
         query: String,
         accessor: Arc<MysqlAccessor>,
         arrow_schema: ArrowSchemaRef,
