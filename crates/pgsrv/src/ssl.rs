@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use openssl::ssl::{Ssl, SslAcceptor, SslContext, SslFiletype, SslMethod};
+use openssl::ssl::{NameType, Ssl, SslAcceptor, SslContext, SslFiletype, SslMethod};
 use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -43,6 +43,16 @@ where
 
     pub fn new_unencrypted(conn: C) -> Self {
         Connection::Unencrypted(conn)
+    }
+
+    pub fn servername(&self) -> Option<String> {
+        match self {
+            Self::Unencrypted(_) => None,
+            Self::Encrypted(stream) => stream
+                .ssl()
+                .servername(NameType::HOST_NAME)
+                .map(|s| s.to_owned()),
+        }
     }
 }
 

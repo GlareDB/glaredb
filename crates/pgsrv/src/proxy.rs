@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::debug;
+use uuid::Uuid;
 
 /// Param key for setting the database id in startup params. Added by pgsrv
 /// during proxying.
@@ -91,6 +92,8 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     where
         C: AsyncRead + AsyncWrite + Unpin,
     {
+        let hostname = conn.servername();
+
         let mut framed = FramedConn::new(conn);
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
@@ -102,7 +105,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
 
         // If we fail to auth, ensure an error response is sent to the
         // connection.
-        let db_details = match self.authenticate_with_msg(msg, &params).await {
+        let db_details = match self.authenticate_with_msg(msg, hostname, &params).await {
             Ok(details) => details,
             Err(e) => {
                 framed
@@ -185,6 +188,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     async fn authenticate_with_msg(
         &self,
         msg: FrontendMessage,
+        hostname: Option<String>,
         params: &HashMap<String, String>,
     ) -> Result<DatabaseDetails> {
         match msg {
@@ -202,12 +206,10 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
                     None => user,
                 };
 
-                // Get org id from the options startup parameter.
-                let options =
-                    parse_options(params).ok_or(PgSrvError::MissingStartupParameter("options"))?;
-                let org_id = options
-                    .get("org")
-                    .ok_or(PgSrvError::MissingOptionsParameter("org"))?;
+                let options = parse_options(params);
+
+                let (org_id, db_name) =
+                    get_org_id_and_db_name(hostname.as_ref(), db_name, options.as_ref())?;
 
                 let details = self
                     .authenticator
@@ -218,6 +220,53 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
             other => Err(PgSrvError::UnexpectedFrontendMessage(other)),
         }
     }
+}
+
+/// Get the org_id and the db_name.
+///
+/// 1. First try to get the org id from startup options parameter.
+/// 2. If there are no options, try from the hostname. This will only be
+///    possible if the connection is encrypted using SNI.
+/// 3. Lastly, fallback to the database name as `<org_id>/<db_name>`.
+fn get_org_id_and_db_name<'a>(
+    hostname: Option<&'a String>,
+    db_name: &'a String,
+    options: Option<&'a HashMap<String, String>>,
+) -> Result<(&'a str, &'a str)> {
+    fn get_org_id_from_options<'b>(
+        options: Option<&'b HashMap<String, String>>,
+    ) -> Option<&'b String> {
+        let options = options?;
+        options.get("org")
+    }
+
+    fn get_org_id_from_hostname<'b>(hostname: Option<&'b String>) -> Option<&'b str> {
+        let hostname = hostname?;
+        let parts = hostname.split_once('.')?;
+        let org_id = parts.0;
+        // Since a subdomain doesn't definitely indicate it's an org id, verify
+        // if this is valid by parsing it as a UUID.
+        let _ = Uuid::try_parse(org_id).ok()?;
+        Some(org_id)
+    }
+
+    fn get_org_id_from_dbname<'b>(db_name: &'b String) -> Option<(&'b str, &'b str)> {
+        db_name.split_once('/')
+    }
+
+    if let Some(org_id) = get_org_id_from_options(options) {
+        return Ok((org_id, db_name));
+    }
+
+    if let Some(org_id) = get_org_id_from_hostname(hostname) {
+        return Ok((org_id, db_name));
+    }
+
+    if let Some(ids) = get_org_id_from_dbname(db_name) {
+        return Ok(ids);
+    }
+
+    Err(PgSrvError::MissingOrgId)
 }
 
 /// Parse the options provided in the startup parameters.
