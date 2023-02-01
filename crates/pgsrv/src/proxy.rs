@@ -233,14 +233,12 @@ fn get_org_id_and_db_name<'a>(
     db_name: &'a String,
     options: Option<&'a HashMap<String, String>>,
 ) -> Result<(&'a str, &'a str)> {
-    fn get_org_id_from_options<'b>(
-        options: Option<&'b HashMap<String, String>>,
-    ) -> Option<&'b String> {
+    fn get_org_id_from_options(options: Option<&HashMap<String, String>>) -> Option<&'_ String> {
         let options = options?;
         options.get("org")
     }
 
-    fn get_org_id_from_hostname<'b>(hostname: Option<&'b String>) -> Option<&'b str> {
+    fn get_org_id_from_hostname(hostname: Option<&String>) -> Option<&'_ str> {
         let hostname = hostname?;
         let parts = hostname.split_once('.')?;
         let org_id = parts.0;
@@ -250,7 +248,7 @@ fn get_org_id_and_db_name<'a>(
         Some(org_id)
     }
 
-    fn get_org_id_from_dbname<'b>(db_name: &'b String) -> Option<(&'b str, &'b str)> {
+    fn get_org_id_from_dbname(db_name: &str) -> Option<(&'_ str, &'_ str)> {
         db_name.split_once('/')
     }
 
