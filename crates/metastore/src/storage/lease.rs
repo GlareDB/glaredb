@@ -31,7 +31,7 @@ use tracing::{debug_span, error, Instrument};
 use uuid::Uuid;
 
 /// Location of the catalog lock object.
-const LEASE_INFORMATION_OBJECT: SingletonStorageObject = SingletonStorageObject("lock");
+const LEASE_INFORMATION_OBJECT: SingletonStorageObject = SingletonStorageObject("lease");
 
 /// How long the lease is held until it's considered expired.
 const LEASE_DURATION: Duration = Duration::from_secs(30);
