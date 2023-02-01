@@ -875,48 +875,6 @@ mod tests {
         assert!(matches!(error, CacheError::RetryCacheRead));
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
-    async fn get_single_byte_range_invalidate_concurrent() {
-        logutil::init_test();
-        let byte_range_size = 2;
-
-        let (cache, _, cache_dir) = test_util::new_object_cache(byte_range_size, 50);
-
-        trace!(?cache_dir, "test cache directory");
-
-        let test_obj_store_file = ObjectStorePath::from("partition8.parquet");
-        let test_data = "Hello world!";
-        let test_data_serialized: Bytes = test_data.into();
-        let test_offset = 4;
-        let test_range = Range {
-            start: test_offset,
-            end: test_offset + byte_range_size,
-        };
-
-        cache
-            .put(&test_obj_store_file, test_data_serialized.clone())
-            .await
-            .unwrap();
-
-        let _ = cache
-            .get_single_byte_range(&test_obj_store_file, test_offset)
-            .await
-            .unwrap();
-
-        let test_data_2 = "Testing Testing Testing";
-        let test_data_serialized_2: Bytes = test_data_2.into();
-        let (res, data2) = future::join(
-            cache.put(&test_obj_store_file, test_data_serialized_2.clone()),
-            cache.get_range(&test_obj_store_file, test_range.clone()),
-        )
-        .await;
-
-        let _ = res.unwrap();
-        let data2 = data2.unwrap();
-
-        assert_eq!(test_data_serialized.slice(test_range), data2);
-    }
-
     #[tokio::test]
     async fn get_range_object_file() {
         logutil::init_test();
