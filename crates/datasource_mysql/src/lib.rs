@@ -28,8 +28,7 @@ use datasource_common::ssh::SshTunnelAccess;
 use futures::{Stream, StreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::*;
-use mysql_async::Row as MysqlRow;
-use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, TxOpts};
+use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, Row as MysqlRow, TxOpts};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, trace, warn};
@@ -304,21 +303,17 @@ impl MysqlQueryStream {
                 .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
 
             let mut query_stream = tx
-                // .exec_stream::<MysqlRow,_, _>(&query, ())
-                .exec_iter(&query, ())
+                .exec_stream::<MysqlRow,_, _>(&query, ())
                 .await
                 .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
 
-            let rows = query_stream
-                .collect::<MysqlRow>()
-                .await
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
-            trace!(?rows);
 
-            let record_batch = mysql_row_to_record_batch(rows, arrow_schema)
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
-
-            yield Ok(record_batch);
+            while let Some(rows) = query_stream.next().await {
+                let rows = rows.map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
+                let rows = vec![rows]; //TODO change this to chunk stream
+                let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone()).map_err(|e| ArrowError::ExternalError(Box::new(e)));
+                yield record_batch
+            }
         }
         .boxed();
 
@@ -343,10 +338,11 @@ impl RecordBatchStream for MysqlQueryStream {
     }
 }
 
-/// Macro for generating the match arms when converting a `MysqlRow` value to a record batch.
+/// Macro for generating the match arms when converting a `MysqlRow` value to a
+/// record batch.
 ///
-/// See the `DataType::Utf8` match arm in `mysql_row_to_record_batch` for an idea of what this
-/// macro produces.
+/// See the `DataType::Utf8` match arm in `mysql_row_to_record_batch` for an
+/// idea of what this macro produces.
 macro_rules! make_column {
     ($builder:ty, $rows:expr, $col_idx:expr) => {{
         let mut arr = <$builder>::with_capacity($rows.len());
@@ -422,7 +418,7 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                     col_idx,
                     field.name().to_owned(),
                     other.clone(),
-                ))
+                ));
             }
         };
         columns.push(col)
