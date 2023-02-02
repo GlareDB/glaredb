@@ -9,6 +9,7 @@ use std::task::{Context, Poll};
 
 use async_stream::stream;
 use async_trait::async_trait;
+use chrono::Timelike;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -356,9 +357,9 @@ macro_rules! make_column {
 /// Convert mysql rows into a single record batch.
 fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Result<RecordBatch> {
     use datafusion::arrow::array::{
-        Array, BinaryBuilder, Date64Builder, Float32Builder, Float64Builder, Int16Builder,
-        Int32Builder, Int64Builder, Int8Builder, StringBuilder, TimestampMicrosecondBuilder,
-        UInt16Builder, UInt32Builder, UInt64Builder, UInt8Builder,
+        Array, BinaryBuilder, Date32Builder, Float32Builder, Float64Builder, Int16Builder,
+        Int32Builder, Int64Builder, Int8Builder, StringBuilder, Time64MicrosecondBuilder,
+        TimestampMicrosecondBuilder, UInt16Builder, UInt32Builder, UInt64Builder, UInt8Builder,
     };
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
@@ -374,23 +375,31 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::UInt64 => make_column!(UInt64Builder, rows, col_idx),
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
             DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
-            // TODO: Add more date related types
-            DataType::Timestamp(TimeUnit::Microsecond, None) => {
+            DataType::Timestamp(TimeUnit::Microsecond, _) => {
                 let mut arr = TimestampMicrosecondBuilder::new();
                 for row in rows.iter() {
                     let val: Option<chrono::NaiveDateTime> = row.get_opt(col_idx).transpose()?;
-                    trace!(?val, timestamp=?val.map(|v| v.timestamp()));
-                    let val = val.map(|v| v.timestamp());
+                    let val = val.map(|v| v.timestamp_micros());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Date64 => {
-                let mut arr = Date64Builder::new();
+            DataType::Date32 => {
+                let mut arr = Date32Builder::new();
                 for row in rows.iter() {
                     let val: Option<chrono::NaiveDateTime> = row.get_opt(col_idx).transpose()?;
-                    trace!(?val, timestamp=?val.map(|v| v.timestamp()));
-                    let val = val.map(|v| v.timestamp());
+                    let val = val.map(|v| v.timestamp() as i32);
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            DataType::Time64(TimeUnit::Microsecond) => {
+                let mut arr = Time64MicrosecondBuilder::new();
+                for row in rows.iter() {
+                    let val: Option<chrono::NaiveTime> = row.get_opt(col_idx).transpose()?;
+                    let val = val.map(|v| {
+                        v.num_seconds_from_midnight() as i64 * 1_000_000_000 + v.nanosecond() as i64
+                    });
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -450,27 +459,25 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
             // SMALLINT
             MYSQL_TYPE_SHORT if unsigned => DataType::UInt16,
             MYSQL_TYPE_SHORT => DataType::Int16,
-            // INT
-            MYSQL_TYPE_LONG if unsigned => DataType::UInt32,
-            MYSQL_TYPE_LONG => DataType::Int32,
+            // INT == LONG and MEDIUMINT == INT24
+            MYSQL_TYPE_LONG | MYSQL_TYPE_INT24 if unsigned => DataType::UInt32,
+            MYSQL_TYPE_LONG | MYSQL_TYPE_INT24 => DataType::Int32,
             MYSQL_TYPE_FLOAT => DataType::Float32,
             MYSQL_TYPE_DOUBLE => DataType::Float64,
             MYSQL_TYPE_NULL => DataType::Null,
             // BIGINT
             MYSQL_TYPE_LONGLONG if unsigned => DataType::UInt64,
             MYSQL_TYPE_LONGLONG => DataType::Int64,
-            // MEDIUMINT
-            MYSQL_TYPE_INT24 if unsigned => DataType::UInt32,
-            MYSQL_TYPE_INT24 => DataType::Int32,
-            MYSQL_TYPE_NEWDECIMAL => DataType::Decimal128(
+            MYSQL_TYPE_DECIMAL | MYSQL_TYPE_NEWDECIMAL => DataType::Decimal128(
                 col.decimals(),
                 i8::try_from(col.column_length() - col.decimals() as u32)?,
             ),
             MYSQL_TYPE_TIMESTAMP => {
                 DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_owned()))
             }
-            MYSQL_TYPE_DATE => DataType::Date64,
-            MYSQL_TYPE_TIME => DataType::Time64(TimeUnit::Nanosecond),
+            MYSQL_TYPE_DATE => DataType::Date32,
+            MYSQL_TYPE_TIME => DataType::Time64(TimeUnit::Microsecond),
+            MYSQL_TYPE_YEAR => DataType::Int16,
             MYSQL_TYPE_DATETIME => DataType::Timestamp(TimeUnit::Microsecond, None),
             MYSQL_TYPE_VARCHAR | MYSQL_TYPE_JSON | MYSQL_TYPE_VAR_STRING | MYSQL_TYPE_STRING => {
                 DataType::Utf8
