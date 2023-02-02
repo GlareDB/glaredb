@@ -26,7 +26,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::*;
 use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, Row as MysqlRow, TxOpts};
@@ -283,12 +283,17 @@ struct MysqlQueryStream {
 }
 
 impl MysqlQueryStream {
+    /// Number of MySQL rows to process into an arrow record batch
+    // TOOD: Allow configuration
+    const MYSQL_RECORD_BATCH_SIZE: usize = 1000;
+
     fn open(
         query: String,
         accessor: Arc<MysqlAccessor>,
         arrow_schema: ArrowSchemaRef,
     ) -> Result<Self> {
         let schema = arrow_schema.clone();
+
         let stream = stream! {
             // Open Mysql Binary stream
             let mut tx_options = TxOpts::new();
@@ -303,24 +308,34 @@ impl MysqlQueryStream {
                 .await
                 .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
 
-            let mut query_stream = tx
-                .exec_stream::<MysqlRow, _, _>(&query, ())
+            let query_stream = tx
+                .exec_stream::<MysqlRow, _, _>(query, ())
                 .await
                 .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
 
-            while let Some(rows) = query_stream.next().await {
-                let rows = rows.map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
-                let rows = vec![rows]; // TODO change this to chunk stream
+            let mut chunks = query_stream.try_chunks(Self::MYSQL_RECORD_BATCH_SIZE).boxed();
+
+            while let Some(rows) = chunks
+                .try_next()
+                .await
+                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?
+            {
                 let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
                     .map_err(|e| ArrowError::ExternalError(Box::new(e)));
-                yield record_batch
+                yield record_batch;
             }
-        }
-        .boxed();
+
+            // Drop the empty stream once all chunks are processed. This allows us to close
+            // the MySQL transaction
+            drop(chunks);
+            tx.commit()
+                .await
+                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
+        };
 
         Ok(Self {
             arrow_schema: schema,
-            inner: stream,
+            inner: stream.boxed(),
         })
     }
 }
