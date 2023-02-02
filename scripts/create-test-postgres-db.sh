@@ -14,7 +14,12 @@ DB_PASSWORD="password"
 DB_HOST="localhost"
 DB_PORT=5432
 
-CONTAINER_ID=$(docker run -p $DB_PORT:5432 --name "${CONTAINER_NAME}" -e POSTGRES_USER="${DB_USER}" -e POSTGRES_DB="${DB_NAME}" -e POSTGRES_PASSWORD="${DB_PASSWORD}" -d $POSTGRES_IMAGE)
+# Remove container if it exists
+if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then
+    docker rm -f $CONTAINER_NAME > /dev/null
+fi
+
+_CONTAINER_ID=$(docker run -p $DB_PORT:5432 --name "${CONTAINER_NAME}" -e POSTGRES_USER="${DB_USER}" -e POSTGRES_DB="${DB_NAME}" -e POSTGRES_PASSWORD="${DB_PASSWORD}" -d $POSTGRES_IMAGE)
 
 CONN_STRING="host=${DB_HOST} port=${DB_PORT} user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} sslmode=disable"
 
@@ -24,13 +29,13 @@ CONN_STRING="host=${DB_HOST} port=${DB_PORT} user=${DB_USER} password=${DB_PASSW
 # through psql. It keeps on retrying until it times out (set to 60s).
 INIT_TIME=$(date +%s)
 CONNECTED="not yet"
-while [[ ! -z "$CONNECTED" ]]; do
+while [[ -n "$CONNECTED" ]]; do
   set +e
   CONNECTED=$(psql "${CONN_STRING}" -c "select 1" 2>&1 > /dev/null)
   set -e
   
   CURRENT_TIME=$(date +%s)
-  CURRENT_TIME=$(expr $CURRENT_TIME - 60)
+  CURRENT_TIME=$((CURRENT_TIME - 60))
   if [[ "$CURRENT_TIME" -gt "$INIT_TIME" ]]; then
     echo "Timed out waiting for postgres server to start!"
     exit 1
@@ -43,7 +48,7 @@ done
 # Conveniently though, it does output it to stderr. So capture it and error.
 SETUP_OUTPUT=$(psql "${CONN_STRING}" -f "testdata/sqllogictests_postgres/data/setup-test-postgres-db.sql" 2>&1 > /dev/null)
 
-if [[ ! -z "$SETUP_OUTPUT" ]]; then
+if [[ -n "$SETUP_OUTPUT" ]]; then
   echo "$SETUP_OUTPUT"
   exit 1
 fi

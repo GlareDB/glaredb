@@ -390,7 +390,9 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::UInt64 => make_column!(UInt64Builder, rows, col_idx),
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
             DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
-            DataType::Timestamp(TimeUnit::Microsecond, _) => {
+            // TODO: Add Timestamp with UTC and Decimal128 once datafusion upgrades to arrow 32
+            // Requires https://github.com/apache/arrow-rs/issues/3435
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 let mut arr = TimestampMicrosecondBuilder::new();
                 for row in rows.iter() {
                     let val: Option<chrono::NaiveDateTime> = row.get_opt(col_idx).transpose()?;
@@ -413,7 +415,9 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 for row in rows.iter() {
                     let val: Option<chrono::NaiveTime> = row.get_opt(col_idx).transpose()?;
                     let val = val.map(|v| {
-                        v.num_seconds_from_midnight() as i64 * 1_000_000_000 + v.nanosecond() as i64
+                        // Calculate number of microseconds(µs) from midnight
+                        v.num_seconds_from_midnight() as i64 * 1_000_000
+                            + v.nanosecond() as i64 / 1000
                     });
                     arr.append_option(val);
                 }
