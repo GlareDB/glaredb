@@ -3,6 +3,17 @@ pub enum MetastoreError {
     #[error("Duplicate name: {0}")]
     DuplicateName(String),
 
+    #[error("Duplicate object names found during load; name {name}, schema: {schema}, first: {first}, second: {second}")]
+    DuplicateNameFoundDuringLoad {
+        name: String,
+        schema: u32,
+        first: u32,
+        second: u32,
+    },
+
+    #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
+    BuiltinObjectPersisted(crate::types::catalog::EntryMeta),
+
     #[error("Missing database catalog: {0}")]
     MissingCatalog(uuid::Uuid),
 

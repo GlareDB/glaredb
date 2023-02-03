@@ -9,6 +9,7 @@ use crate::types::catalog::{
 use crate::types::service::Mutation;
 use crate::types::storage::PersistedCatalog;
 use once_cell::sync::Lazy;
+use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -203,6 +204,16 @@ impl State {
             schema_objects: HashMap::new(),
         };
 
+        // Sanity check to ensure we didn't accidentally persist builtin
+        // objects.
+        for (oid, ent) in &state.entries {
+            if *oid < FIRST_AVAILABLE_ID || ent.get_meta().builtin {
+                return Err(MetastoreError::BuiltinObjectPersisted(
+                    ent.get_meta().clone(),
+                ));
+            }
+        }
+
         // Extend with builtin objects.
         let builtin = BUILTIN_CATALOG.clone();
         state.entries.extend(builtin.entries);
@@ -239,7 +250,15 @@ impl State {
                 let schema_id = entry.get_meta().parent;
 
                 let objects = state.schema_objects.entry(schema_id).or_default();
-                let _existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
+                let existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
+                if let Some(existing) = existing {
+                    return Err(MetastoreError::DuplicateNameFoundDuringLoad {
+                        name: entry.get_meta().name.clone(),
+                        schema: schema_id,
+                        first: *oid,
+                        second: existing,
+                    });
+                }
             }
         }
 
@@ -257,7 +276,7 @@ impl State {
                 .entries
                 .clone()
                 .into_iter()
-                // .filter(|(_, ent)| !ent.get_meta().builtin)
+                .filter(|(_, ent)| !ent.get_meta().builtin)
                 .collect(),
             oid_counter: self.oid_counter,
         }
