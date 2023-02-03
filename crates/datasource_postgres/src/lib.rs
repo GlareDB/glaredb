@@ -566,7 +566,7 @@ macro_rules! make_column {
     ($builder:ty, $rows:expr, $col_idx:expr) => {{
         let mut arr = <$builder>::with_capacity($rows.len());
         for row in $rows.iter() {
-            arr.append_value(row.try_get($col_idx)?);
+            arr.append_option(row.try_get($col_idx)?);
         }
         Arc::new(arr.finish())
     }};
@@ -600,9 +600,13 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: Str<'_> = row.try_get(col_idx)?;
-                    let val: &str = val.borrow();
-                    arr.append_value(val);
+                    let val: Option<Str<'_>> = row.try_get(col_idx)?;
+                    if let Some(v) = val {
+                        let s: &str = v.borrow();
+                        arr.append_value(s);
+                    } else {
+                        arr.append_null();
+                    }
                 }
                 Arc::new(arr.finish())
             }
@@ -610,8 +614,8 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 // Assumes an average of 16 bytes per item.
                 let mut arr = BinaryBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: &[u8] = row.try_get(col_idx)?;
-                    arr.append_value(val);
+                    let val: Option<&[u8]> = row.try_get(col_idx)?;
+                    arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
