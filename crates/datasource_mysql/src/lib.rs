@@ -396,9 +396,7 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 for row in rows.iter() {
                     let val: Option<rust_decimal::Decimal> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    warn!(?val);
                     let val = val.map(|v| v.mantissa());
-                    warn!(?val);
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
