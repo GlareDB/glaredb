@@ -13,5 +13,5 @@ async-trait = "0.1.64"
 datafusion = "17.0"
 serde = { version = "1.0", features = ["derive"] }
 object_store = { version = "0.5", features = ["gcp", "aws"] }
-parquet = "31.0.0"
 bytes = "1.4.0"
+parquet = "32.0.0"
