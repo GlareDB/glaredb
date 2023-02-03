@@ -15,7 +15,7 @@ prost-types = "0.11"
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
-async-trait = "0.1.63"
+async-trait = "0.1.64"
 datafusion = "16.1"
 bytes = "1.3"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }

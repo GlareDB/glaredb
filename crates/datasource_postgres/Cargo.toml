@@ -9,7 +9,7 @@ edition = "2021"
 datasource_common = {path = "../datasource_common"}
 thiserror = "1.0"
 tracing = "0.1"
-async-trait = "0.1.63"
+async-trait = "0.1.64"
 futures = "0.3.25"
 tokio = { version = "1", features = ["full"] }
 datafusion = "16.1"
