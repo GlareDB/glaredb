@@ -11,8 +11,13 @@
 //
 // - 'lease' facilitates locking the catalog.
 // - 'metadata' stores catalog metadata.
-// - 'catalog.version' is a blob containing the current database state at some
-// version.
+// - 'catalog.<version>' is a blob containing the current database state at some
+//   version.
+//
+// **Persisted catalogs should only contain user data.** Builtins are placed
+// into database catalogs when it gets loaded into memory. This allows us to
+// make arbitrary changes to builtin objects (within reason). See `builtins.rs`
+// for current definition of builtin objects.
 //
 // Catalog initialization:
 //

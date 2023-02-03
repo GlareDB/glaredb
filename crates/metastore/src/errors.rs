@@ -21,6 +21,12 @@ pub enum MetastoreError {
     #[error("Invalid database id: {0:?}")]
     InvalidDatabaseId(Vec<u8>),
 
+    #[error("Schema {schema} has non-zero parent: {parent}")]
+    SchemaHasNonZeroParent { schema: u32, parent: u32 },
+
+    #[error("Object {object} has invalid parent id: {parent}")]
+    ObjectHasInvalidParentId { object: u32, parent: u32 },
+
     #[error(transparent)]
     Storage(#[from] crate::storage::StorageError),
 
