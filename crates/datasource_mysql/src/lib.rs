@@ -9,7 +9,7 @@ use std::task::{Context, Poll};
 
 use async_stream::stream;
 use async_trait::async_trait;
-use chrono::Timelike;
+use chrono::{NaiveDateTime, NaiveTime, Timelike};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -363,7 +363,7 @@ macro_rules! make_column {
     ($builder:ty, $rows:expr, $col_idx:expr) => {{
         let mut arr = <$builder>::with_capacity($rows.len());
         for row in $rows.iter() {
-            arr.append_option(row.get_opt($col_idx).transpose()?);
+            arr.append_option(row.get_opt($col_idx).expect("row value should exist")?);
         }
         Arc::new(arr.finish())
     }};
@@ -395,7 +395,8 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 let mut arr = TimestampMicrosecondBuilder::new();
                 for row in rows.iter() {
-                    let val: Option<chrono::NaiveDateTime> = row.get_opt(col_idx).transpose()?;
+                    let val: Option<NaiveDateTime> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
                     let val = val.map(|v| v.timestamp_micros());
                     arr.append_option(val);
                 }
@@ -404,7 +405,8 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::Date32 => {
                 let mut arr = Date32Builder::new();
                 for row in rows.iter() {
-                    let val: Option<chrono::NaiveDateTime> = row.get_opt(col_idx).transpose()?;
+                    let val: Option<NaiveDateTime> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
                     let val = val.map(|v| v.timestamp() as i32);
                     arr.append_option(val);
                 }
@@ -413,7 +415,8 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::Time64(TimeUnit::Microsecond) => {
                 let mut arr = Time64MicrosecondBuilder::new();
                 for row in rows.iter() {
-                    let val: Option<chrono::NaiveTime> = row.get_opt(col_idx).transpose()?;
+                    let val: Option<NaiveTime> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
                     let val = val.map(|v| {
                         // Calculate number of microseconds(µs) from midnight
                         v.num_seconds_from_midnight() as i64 * 1_000_000
@@ -427,8 +430,9 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: String = row.get_opt(col_idx).unwrap()?;
-                    arr.append_value(val);
+                    let val: Option<String> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
+                    arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
@@ -436,8 +440,9 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 // Assumes an average of 16 bytes per item.
                 let mut arr = BinaryBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
-                    let val: Vec<u8> = row.get_opt(col_idx).unwrap()?;
-                    arr.append_value(val);
+                    let val: Option<Vec<u8>> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
+                    arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
@@ -513,7 +518,7 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
             }
         };
 
-        let nullable = flags.contains(ColumnFlags::NOT_NULL_FLAG);
+        let nullable = !flags.contains(ColumnFlags::NOT_NULL_FLAG);
 
         let field = Field::new(name, arrow_typ, nullable);
         fields.push(field);

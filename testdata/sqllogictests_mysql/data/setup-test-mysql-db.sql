@@ -32,6 +32,22 @@ VALUES (
     5000000000,
     4.5,
     6.7
+),
+(
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL
 );
 
 CREATE TABLE IF NOT EXISTS glaredb_test.string_datatypes (
@@ -49,6 +65,13 @@ VALUES (
     'def',
     '{"a": [1, 2]}',
     'bin'
+),
+(
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL
 );
 
 CREATE TABLE IF NOT EXISTS glaredb_test.date_time_datatypes (
@@ -64,4 +87,23 @@ VALUES (
     '2023-01-02 12:12:12.123456',
     '14:14:14',
     '2023'
+),
+(
+    NULL,
+    NULL,
+    NULL,
+    NULL
+);
+
+CREATE TABLE IF NOT EXISTS glaredb_test.column_attributes (
+    C1 INT NULL,
+    C2 INT NOT NULL,
+    C3 VARCHAR(100) DEFAULT "default"
+);
+
+INSERT INTO glaredb_test.column_attributes
+VALUES (
+    NULL,
+    1,
+    DEFAULT
 );
