@@ -43,10 +43,7 @@ while [[ -n "$CONNECTED" ]]; do
 done
 
 # Load data into the test container
-if ! $CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql'
-then
-  exit 1
-fi
+$CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql'
 
 echo "$CONN_STRING"
 echo "mysql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
