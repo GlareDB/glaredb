@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-datafusion = "16.1"
+datafusion = "17.0"
 arrow = {version = "*", features = ["serde"]}
