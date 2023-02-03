@@ -25,7 +25,7 @@ CONN_STRING="mysql -u $DB_USER -h $DB_HOST --port=$DB_PORT -D $DB_NAME"
 # Let the database server start
 #
 # This loop basically waits for the database to start by testing the connection
-# through psql. It keeps on retrying until it times out (set to 60s).
+# through mysql. It keeps on retrying until it times out (set to 60s).
 INIT_TIME=$(date +%s)
 CONNECTED="not yet"
 while [[ -n "$CONNECTED" ]]; do
