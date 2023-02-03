@@ -12,7 +12,7 @@ futures = "0.3.26"
 async-trait = "0.1.64"
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3.3"
-datafusion = "16.1"
+datafusion = "17.0"
 serde_json = "1.0.91"
 serde = { version = "1.0", features = ["derive"] }
 gcp-bigquery-client = "0.16.3"
