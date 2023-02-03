@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS glaredb_test.numeric_datatypes (
     c11 BIGINT,
     c12 BIGINT UNSIGNED,
     c13 FLOAT,
-    c14 DOUBLE
+    c14 DOUBLE,
+    c15 DECIMAL(5,2)
 );
 
 INSERT INTO glaredb_test.numeric_datatypes
@@ -31,9 +32,11 @@ VALUES (
     -300000000,
     5000000000,
     4.5,
-    6.7
+    6.7,
+    123.45
 ),
 (
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -78,7 +81,8 @@ CREATE TABLE IF NOT EXISTS glaredb_test.date_time_datatypes (
     c1 DATE,
     c2 DATETIME(6),
     c3 TIME,
-    c4 YEAR
+    c4 YEAR,
+    c5 TIMESTAMP(3)
 );
 
 INSERT INTO glaredb_test.date_time_datatypes
@@ -86,9 +90,11 @@ VALUES (
     '2023-01-01',
     '2023-01-02 12:12:12.123456',
     '14:14:14',
-    '2023'
+    '2023',
+    '2023-12-31 13:13:13.789'
 ),
 (
+    NULL,
     NULL,
     NULL,
     NULL,

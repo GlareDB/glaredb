@@ -372,9 +372,10 @@ macro_rules! make_column {
 /// Convert mysql rows into a single record batch.
 fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Result<RecordBatch> {
     use datafusion::arrow::array::{
-        Array, BinaryBuilder, Date32Builder, Float32Builder, Float64Builder, Int16Builder,
-        Int32Builder, Int64Builder, Int8Builder, StringBuilder, Time64MicrosecondBuilder,
-        TimestampMicrosecondBuilder, UInt16Builder, UInt32Builder, UInt64Builder, UInt8Builder,
+        Array, BinaryBuilder, Date32Builder, Decimal128Builder, Float32Builder, Float64Builder,
+        Int16Builder, Int32Builder, Int64Builder, Int8Builder, StringBuilder,
+        Time64MicrosecondBuilder, TimestampMicrosecondBuilder, UInt16Builder, UInt32Builder,
+        UInt64Builder, UInt8Builder,
     };
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
@@ -390,10 +391,30 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::UInt64 => make_column!(UInt64Builder, rows, col_idx),
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
             DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
-            // TODO: Add Timestamp with UTC and Decimal128 once datafusion upgrades to arrow 32
-            // Requires https://github.com/apache/arrow-rs/issues/3435
+            dt @ DataType::Decimal128(..) => {
+                let mut arr = Decimal128Builder::new().with_data_type(dt.to_owned());
+                for row in rows.iter() {
+                    let val: Option<rust_decimal::Decimal> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
+                    warn!(?val);
+                    let val = val.map(|v| v.mantissa());
+                    warn!(?val);
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
             DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 let mut arr = TimestampMicrosecondBuilder::new();
+                for row in rows.iter() {
+                    let val: Option<NaiveDateTime> =
+                        row.get_opt(col_idx).expect("row value should exist")?;
+                    let val = val.map(|v| v.timestamp_micros());
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            dt @ DataType::Timestamp(TimeUnit::Microsecond, Some(_)) => {
+                let mut arr = TimestampMicrosecondBuilder::new().with_data_type(dt.to_owned());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;

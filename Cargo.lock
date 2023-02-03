@@ -1483,6 +1483,7 @@ dependencies = [
  "futures",
  "mysql_async",
  "mysql_common",
+ "rust_decimal",
  "serde",
  "thiserror",
  "tokio",
