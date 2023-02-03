@@ -14,7 +14,7 @@ DB_HOST="127.0.0.1"
 DB_PORT=3307
 
 # Remove container if it exists
-if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then
+if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
     docker rm -f $CONTAINER_NAME > /dev/null
 fi
 
@@ -43,13 +43,8 @@ while [[ -n "$CONNECTED" ]]; do
 done
 
 # Load data into the test container
-#
-# The mysql command does not error if there is an error while running the SQL.
-# Conveniently though, it does output it to stderr. So capture it and error.
-SETUP_OUTPUT=$($CONN_STRING -e "source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql" 2>&1 > /dev/null)
-
-if [[ -n "$SETUP_OUTPUT" ]]; then
-  echo "$SETUP_OUTPUT"
+if ! $CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql'
+then
   exit 1
 fi
 

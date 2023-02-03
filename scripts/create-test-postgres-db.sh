@@ -15,7 +15,7 @@ DB_HOST="localhost"
 DB_PORT=5432
 
 # Remove container if it exists
-if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then
+if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
     docker rm -f $CONTAINER_NAME > /dev/null
 fi
 
@@ -53,4 +53,4 @@ if [[ -n "$SETUP_OUTPUT" ]]; then
   exit 1
 fi
 
-echo $CONN_STRING
+echo "$CONN_STRING"

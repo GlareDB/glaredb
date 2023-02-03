@@ -53,9 +53,9 @@ VALUES (
 
 CREATE TABLE IF NOT EXISTS glaredb_test.date_time_datatypes (
     c1 DATE,
-    c2 DATETIME,
-    c4 TIME,
-    c5 YEAR
+    c2 DATETIME(6),
+    c3 TIME,
+    c4 YEAR
 );
 
 INSERT INTO glaredb_test.date_time_datatypes
