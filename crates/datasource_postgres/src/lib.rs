@@ -31,6 +31,7 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
+use tokio_postgres::config::Host;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Config, CopyOutStream, NoTls};
 use tracing::warn;
@@ -59,6 +60,15 @@ pub struct PostgresAccessor {
 }
 
 impl PostgresAccessor {
+    /// Validate postgres connection
+    pub async fn validate(
+        _access: PostgresTableAccess,
+        _ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<()> {
+        warn!("unimplemented");
+        return Err(PostgresError::UnsupportedPostgresType(String::new()));
+    }
+
     /// Connect to a postgres instance.
     pub async fn connect(
         access: PostgresTableAccess,
@@ -93,7 +103,7 @@ impl PostgresAccessor {
 
         // Accept only singular host and port for postgres access
         let postgres_host = match config.get_hosts() {
-            [tokio_postgres::config::Host::Tcp(host)] => host.as_str(),
+            [Host::Tcp(host)] => host.as_str(),
             hosts => return Err(PostgresError::IncorrectNumberOfHosts(hosts.to_vec())),
         };
         let postgres_port = match config.get_ports() {

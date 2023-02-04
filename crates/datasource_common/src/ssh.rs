@@ -57,6 +57,8 @@ pub struct SshTunnelAccess {
 }
 
 impl SshTunnelAccess {
+    /// Create an ssh tunnel using port fowarding from a random local port to the host specified in
+    /// `SshTunnelAccess`
     pub async fn create_tunnel(
         &self,
         remote_host: &str,

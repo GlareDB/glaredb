@@ -46,12 +46,21 @@ impl<'a> SessionPlanner<'a> {
             ConnectionOptions::POSTGRES => {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
+
+                let options = ConnectionOptionsPostgres {
+                    connection_string,
+                    ssh_tunnel,
+                };
+
+                options
+                    .validate()
+                    .map_err(|e| ExecError::InvalidConnection {
+                        source: Box::new(e),
+                    })?;
+
                 CreateConnection {
                     connection_name: stmt.name,
-                    options: ConnectionOptions::Postgres(ConnectionOptionsPostgres {
-                        connection_string,
-                        ssh_tunnel,
-                    }),
+                    options: ConnectionOptions::Postgres(options),
                 }
             }
             ConnectionOptions::BIGQUERY => {
