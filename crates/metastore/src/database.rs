@@ -9,6 +9,7 @@ use crate::types::catalog::{
 use crate::types::service::Mutation;
 use crate::types::storage::PersistedCatalog;
 use once_cell::sync::Lazy;
+use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -46,7 +47,7 @@ impl DatabaseCatalog {
         storage.initialize(db_id).await?;
 
         let persisted = storage.read_catalog(db_id).await?;
-        let state = State::from_persisted(persisted);
+        let state = State::from_persisted(persisted)?;
 
         Ok(DatabaseCatalog {
             db_id,
@@ -73,6 +74,8 @@ impl DatabaseCatalog {
     /// On success, a full copy of the updated catalog state will be returned.
     // TODO: All or none.
     pub async fn try_mutate(&self, version: u64, mutations: Vec<Mutation>) -> Result<CatalogState> {
+        debug!(db_id = %self.db_id, %version, ?mutations, "mutating catalog");
+
         // TODO: Reduce locking.
         self.load_latest().await?;
 
@@ -88,14 +91,20 @@ impl DatabaseCatalog {
 
         // State's version number updated, but we still need to use the old
         // version number when making a request to storage.
-        state.mutate(mutations)?;
         let old_version = version;
 
-        let persist = PersistedCatalog {
-            version: state.version,
-            oid_counter: state.oid_counter,
-            entries: state.entries.clone(),
-        };
+        // TODO: Rollback on failed mutate.
+        //
+        // Currently don't have guarantees about what the state looks like on
+        // failed mutates. Force a reload.
+        //
+        // Fixed with <https://github.com/GlareDB/glaredb/issues/547>.
+        if let Err(e) = state.mutate(mutations) {
+            self.require_full_load.store(true, Ordering::Relaxed);
+            return Err(e);
+        }
+
+        let persist = state.to_persisted();
         let updated = self.serializable_state(state);
 
         // TODO: Rollback on failed flush.
@@ -142,11 +151,12 @@ impl DatabaseCatalog {
         if current_version == latest_version && !self.require_full_load.load(Ordering::Relaxed) {
             return Ok(());
         }
+        debug!(db_id = %self.db_id, %current_version, %latest_version, "loading latest catalog for database");
 
         // Otherwise rebuild the state from object storage...
 
         let persisted = self.storage.read_catalog(self.db_id).await?;
-        let state = State::from_persisted(persisted);
+        let state = State::from_persisted(persisted)?;
 
         let mut cached = self.cached.lock().await;
         if cached.version != current_version {
@@ -165,6 +175,7 @@ impl DatabaseCatalog {
 }
 
 /// Inner state of the catalog.
+#[derive(Debug)]
 struct State {
     /// Version incremented on every update.
     version: u64,
@@ -184,31 +195,24 @@ impl State {
     /// The state will be combined with a predefinend builtin catalog objects.
     ///
     /// This will build the schema names and objects maps.
-    fn from_persisted(persisted: PersistedCatalog) -> State {
-        let mut schema_names: HashMap<String, u32> = HashMap::new();
-        let mut schema_objects: HashMap<u32, SchemaObjects> = HashMap::new();
-
-        for (oid, entry) in &persisted.entries {
-            if entry.is_schema() {
-                schema_names.insert(entry.get_meta().name.clone(), *oid);
-            } else {
-                let schema_id = entry.get_meta().parent;
-                // Only schemas may have a parent with ID 0. All other objects
-                // must have non-zero parent IDs.
-                assert_ne!(0, schema_id, "Schema ID must not be zero");
-
-                let objects = schema_objects.entry(schema_id).or_default();
-                objects.objects.insert(entry.get_meta().name.clone(), *oid);
-            }
-        }
-
+    fn from_persisted(persisted: PersistedCatalog) -> Result<State> {
         let mut state = State {
             version: persisted.version,
             oid_counter: persisted.oid_counter,
             entries: persisted.entries,
-            schema_names,
-            schema_objects,
+            schema_names: HashMap::new(),
+            schema_objects: HashMap::new(),
         };
+
+        // Sanity check to ensure we didn't accidentally persist builtin
+        // objects.
+        for (oid, ent) in &state.entries {
+            if *oid < FIRST_AVAILABLE_ID || ent.get_meta().builtin {
+                return Err(MetastoreError::BuiltinObjectPersisted(
+                    ent.get_meta().clone(),
+                ));
+            }
+        }
 
         // Extend with builtin objects.
         let builtin = BUILTIN_CATALOG.clone();
@@ -216,7 +220,66 @@ impl State {
         state.schema_names.extend(builtin.schema_names);
         state.schema_objects.extend(builtin.schema_objects);
 
-        state
+        // Rebuild name maps for user objects.
+        for (oid, entry) in state
+            .entries
+            .iter()
+            .filter(|(_, ent)| !ent.get_meta().builtin)
+        {
+            if entry.is_schema() {
+                if entry.get_meta().parent != SCHEMA_PARENT_ID {
+                    return Err(MetastoreError::SchemaHasNonZeroParent {
+                        schema: *oid,
+                        parent: entry.get_meta().parent,
+                    });
+                }
+
+                state
+                    .schema_names
+                    .insert(entry.get_meta().name.clone(), *oid);
+            } else {
+                // Only schemas may have a parent with ID 0. All other objects
+                // must have non-zero parent IDs.
+                if entry.get_meta().parent == SCHEMA_PARENT_ID {
+                    return Err(MetastoreError::ObjectHasInvalidParentId {
+                        object: *oid,
+                        parent: entry.get_meta().parent,
+                    });
+                }
+
+                let schema_id = entry.get_meta().parent;
+
+                let objects = state.schema_objects.entry(schema_id).or_default();
+                let existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
+                if let Some(existing) = existing {
+                    return Err(MetastoreError::DuplicateNameFoundDuringLoad {
+                        name: entry.get_meta().name.clone(),
+                        schema: schema_id,
+                        first: *oid,
+                        second: existing,
+                    });
+                }
+            }
+        }
+
+        Ok(state)
+    }
+
+    /// Create a persisted catalog containing only user objects.
+    ///
+    /// Builtins are added to the catalog when converting from a persisted
+    /// catalog.
+    fn to_persisted(&self) -> PersistedCatalog {
+        PersistedCatalog {
+            version: self.version,
+            entries: self
+                .entries
+                .clone()
+                .into_iter()
+                .filter(|(_, ent)| !ent.get_meta().builtin)
+                .collect(),
+            oid_counter: self.oid_counter,
+        }
     }
 
     /// Get the next oid to use for a catalog entry.
@@ -373,6 +436,7 @@ impl State {
         // Insert new entry for schema. Checks if there exists an
         // object with the same name.
         let objs = self.schema_objects.entry(schema_id).or_default();
+
         if objs.objects.contains_key(&ent.get_meta().name) {
             return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
         }
@@ -502,7 +566,8 @@ impl BuiltinCatalog {
 mod tests {
     use super::*;
     use crate::storage::persist::Storage;
-    use crate::types::service::{CreateSchema, CreateView, DropSchema};
+    use crate::types::catalog::{ConnectionOptions, ConnectionOptionsDebug};
+    use crate::types::service::{CreateConnection, CreateSchema, CreateView, DropSchema};
     use object_store::memory::InMemory;
     use std::collections::HashSet;
 
@@ -659,5 +724,74 @@ mod tests {
         )
         .await
         .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn duplicate_names_no_persist_failures() {
+        // <https://github.com/GlareDB/glaredb/issues/577>
+
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        // Note that this test uses the resulting state of the mutation for
+        // providing the version for followup mutations. This mimics the
+        // client-server interaction.
+        //
+        // Also note that we're using the 'public' schema. This ensures that
+        // we're properly handling objects dependent on a builtin.
+
+        // Add connection.
+        let state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::CreateConnection(CreateConnection {
+                    schema: "public".to_string(),
+                    name: "bowser".to_string(),
+                    options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Duplicate connection, expect failure.
+        let _ = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateConnection(CreateConnection {
+                    schema: "public".to_string(),
+                    name: "bowser".to_string(),
+                    options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                })],
+            )
+            .await
+            .unwrap_err();
+
+        // Should also fail.
+        let _ = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateConnection(CreateConnection {
+                    schema: "public".to_string(),
+                    name: "bowser".to_string(),
+                    options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                })],
+            )
+            .await
+            .unwrap_err();
+
+        // Check that the duplicate connection we tried to create is not in the
+        // state.
+        let state = db.get_state().await.unwrap();
+        let ents: Vec<_> = state
+            .entries
+            .iter()
+            .filter(|(_, ent)| ent.get_meta().name == "bowser")
+            .collect();
+        assert!(
+            ents.len() == 1,
+            "found more than one 'bowser' entry (found {}): {:?}",
+            ents.len(),
+            ents
+        );
     }
 }
