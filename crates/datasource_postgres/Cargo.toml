@@ -15,5 +15,6 @@ tokio = { version = "1", features = ["full"] }
 datafusion = "17.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.91"
-tokio-postgres = { version = "0.7.7", features = ["with-uuid-1", "with-serde_json-1"] }
+tokio-postgres = { version = "0.7.7", features = ["with-uuid-1", "with-serde_json-1", "with-chrono-0_4"] }
 uuid = "1.3.0"
+chrono = "0.4.23"

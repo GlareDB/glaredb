@@ -1,8 +1,10 @@
 pub mod errors;
 
 use async_trait::async_trait;
+use chrono::naive::{NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, Utc};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -588,14 +590,18 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
     schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
     use datafusion::arrow::array::{
-        Array, BinaryBuilder, BooleanBuilder, Float32Builder, Float64Builder, Int16Builder,
-        Int32Builder, Int64Builder, StringBuilder,
+        Array, BinaryBuilder, BooleanBuilder, Date32Builder, Float32Builder, Float64Builder,
+        Int16Builder, Int32Builder, Int64Builder, StringBuilder, Time64MicrosecondBuilder,
+        TimestampMicrosecondBuilder,
     };
 
     let rows = rows
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.into())?;
+
+    let day_start = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+    let epoch_date = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
     for (col_idx, field) in schema.fields.iter().enumerate() {
@@ -625,6 +631,47 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 let mut arr = BinaryBuilder::with_capacity(rows.len(), rows.len() * 16);
                 for row in rows.iter() {
                     let val: Option<&[u8]> = row.try_get(col_idx)?;
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
+                    let val = val.map(|v| v.timestamp_micros());
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            dt @ DataType::Timestamp(TimeUnit::Microsecond, Some(_)) => {
+                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len())
+                    .with_data_type(dt.clone());
+                for row in rows.iter() {
+                    let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
+                    let val = val.map(|v| v.timestamp_micros());
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            DataType::Time64(TimeUnit::Microsecond) => {
+                let mut arr = Time64MicrosecondBuilder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<NaiveTime> = row.try_get(col_idx)?;
+                    let val = val.map(|v| {
+                        v.signed_duration_since(day_start)
+                            .num_microseconds()
+                            .unwrap()
+                    });
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            DataType::Date32 => {
+                let mut arr = Date32Builder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<NaiveDate> = row.try_get(col_idx)?;
+                    let val = val.map(|v| v.signed_duration_since(epoch_date).num_days() as i32);
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -659,6 +706,20 @@ fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Res
             | &PostgresType::JSON
             | &PostgresType::UUID => DataType::Utf8,
             &PostgresType::BYTEA => DataType::Binary,
+            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Microsecond, None),
+            &PostgresType::TIMESTAMPTZ => {
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_string()))
+            }
+            &PostgresType::TIME => DataType::Time64(TimeUnit::Microsecond),
+            &PostgresType::DATE => DataType::Date32,
+            // TODO: Time with timezone and interval data types in postgres are
+            // of 12 and 16 bytes respectively. This kind of size is not
+            // supported by datafusion. Moreover, these datatypes are not
+            // supported by the tokio-postgres library as well. What we need to
+            // do is implement a data type that can support it and cast it to
+            // datafusion `FixedSizeBinary` or something similar OR even cast
+            // it to existing datafusion types (which would be reasonable but
+            // might cause some data loss).
             other => {
                 return Err(PostgresError::UnsupportedPostgresType(
                     other.name().to_owned(),
