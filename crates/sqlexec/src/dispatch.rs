@@ -39,14 +39,14 @@ pub enum DispatchError {
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
 
+    #[error("Unable to retrieve ssh tunnel connection: {0}")]
+    MissingSshTunnel(Box<crate::errors::ExecError>),
+
     #[error("Invalid entry for table dispatch: {0}")]
     InvalidEntryTypeForDispatch(EntryType),
 
     #[error("Unhandled entry for table dispatch: {0}")]
     UnhandledEntryType(EntryType),
-
-    #[error("Unable to retrieve ssh tunnel connection: {0}")]
-    MissingSshTunnel(Box<crate::errors::ExecError>),
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::errors::ExecError>),

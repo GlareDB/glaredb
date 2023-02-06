@@ -185,7 +185,8 @@ impl SessionContext {
     }
 
     /// Get an ssh tunnel access info from the catalog
-    pub(crate) fn get_ssh_tunnel_access(
+    // pub(crate) fn get_ssh_tunnel_access(
+    pub fn get_ssh_tunnel_access(
         &self,
         name: Option<String>,
     ) -> Result<Option<SshTunnelAccess>, ExecError> {

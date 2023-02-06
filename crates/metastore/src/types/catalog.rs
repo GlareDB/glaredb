@@ -780,20 +780,6 @@ pub struct ConnectionOptionsPostgres {
     pub ssh_tunnel: Option<String>,
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum PostgresValidationError {
-    #[error("Coming soon! This feature is unimplemented")]
-    Unimplemented,
-}
-
-impl ConnectionOptionsPostgres {
-    /// Validate postgres connection
-    pub fn validate(&self) -> Result<(), PostgresValidationError> {
-        tracing::warn!("unimplemented");
-        return Err(PostgresValidationError::Unimplemented);
-    }
-}
-
 impl TryFrom<catalog::ConnectionOptionsPostgres> for ConnectionOptionsPostgres {
     type Error = ProtoConvError;
     fn try_from(value: catalog::ConnectionOptionsPostgres) -> Result<Self, Self::Error> {

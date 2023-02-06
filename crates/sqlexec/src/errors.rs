@@ -1,5 +1,3 @@
-use metastore::types::catalog::PostgresValidationError;
-
 use crate::parser::StatementWithExtensions;
 
 #[derive(Debug, thiserror::Error)]
@@ -25,7 +23,12 @@ pub enum ExecError {
     #[error("Connection validation failed: {source}")]
     // InvalidConnection { source: Box<dyn Error> },
     InvalidConnection {
-        source: Box<PostgresValidationError>,
+        source: Box<datasource_postgres::errors::PostgresError>,
+    },
+
+    #[error("External table validation failed: {source}")]
+    InvalidDataSource {
+        source: Box<datasource_postgres::errors::PostgresError>,
     },
 
     #[error("Unknown prepared statement with name: {0}")]
