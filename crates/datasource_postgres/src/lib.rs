@@ -591,7 +591,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
         .map_err(|e| e.into())?;
 
     let day_start = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
-    let epoch_date = NaiveDate::from_ymd_opt(1970, 01, 01).unwrap();
+    let epoch_date = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
     for (col_idx, field) in schema.fields.iter().enumerate() {
