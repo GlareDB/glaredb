@@ -625,7 +625,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Timestamp(_, None) => {
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
@@ -634,7 +634,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            dt @ DataType::Timestamp(_, Some(_)) => {
+            dt @ DataType::Timestamp(TimeUnit::Microsecond, Some(_)) => {
                 let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len())
                     .with_data_type(dt.clone());
                 for row in rows.iter() {
@@ -644,7 +644,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Time64(_) => {
+            DataType::Time64(TimeUnit::Microsecond) => {
                 let mut arr = Time64MicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveTime> = row.try_get(col_idx)?;
