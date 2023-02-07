@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 datafusion = "17.0"
-arrow = {version = "*", features = ["serde"]}
+arrow = "*"

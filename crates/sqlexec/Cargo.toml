@@ -19,7 +19,7 @@ thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 sqlparser = "0.30.0"
 datafusion = "17.0"
-arrow = { version = "*", default-features = false, features = ["serde"] }
+arrow = "*"
 futures = "0.3.26"
 tracing = "0.1"
 uuid = { version = "1.3.0", features = ["v4", "fast-rng", "macro-diagnostics"] }

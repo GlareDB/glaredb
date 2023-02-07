@@ -85,31 +85,6 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
 name = "arrow"
-version = "23.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fedc767fbaa36ea50f086215f54f1a007d22046fc4754b0448c657bcbe9f8413"
-dependencies = [
- "ahash 0.8.2",
- "arrow-buffer 23.0.0",
- "bitflags",
- "chrono",
- "csv",
- "flatbuffers 2.1.2",
- "half",
- "hashbrown 0.12.3",
- "indexmap",
- "lazy_static",
- "lexical-core",
- "multiversion",
- "num",
- "regex",
- "regex-syntax",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "arrow"
 version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b556d39f9d19e363833a0fe65d591cd0e2ecc0977589a78179b592bea8dc945"
@@ -175,16 +150,6 @@ dependencies = [
  "chrono",
  "half",
  "hashbrown 0.13.1",
- "num",
-]
-
-[[package]]
-name = "arrow-buffer"
-version = "23.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d290050c6e12a81a24ad08525cef2203c4156a6350f75508d49885d677e88ea9"
-dependencies = [
- "half",
  "num",
 ]
 
@@ -1288,7 +1253,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6d90cae91414aaeda37ae8022a23ef1124ca8efc08ac7d7770274249f7cf148"
 dependencies = [
  "ahash 0.8.2",
- "arrow 31.0.0",
+ "arrow",
  "async-compression",
  "async-trait",
  "bytes",
@@ -1334,7 +1299,7 @@ version = "17.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b21c4b8e8b7815e86d79d25da16854fee6d4d1b386572e802a248b7d43188e86"
 dependencies = [
- "arrow 31.0.0",
+ "arrow",
  "chrono",
  "num_cpus",
  "object_store",
@@ -1349,7 +1314,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db8c07b051fbaf01657a3eb910a76b042ecfed0350a40412f70cf6b949bd5328"
 dependencies = [
  "ahash 0.8.2",
- "arrow 31.0.0",
+ "arrow",
  "datafusion-common",
  "log",
  "sqlparser",
@@ -1361,7 +1326,7 @@ version = "17.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2ce4d34a808cd2e4c4864cdc759dd1bd22dcac2b8af38aa570e30fd54577c4d"
 dependencies = [
- "arrow 31.0.0",
+ "arrow",
  "async-trait",
  "chrono",
  "datafusion-common",
@@ -1379,7 +1344,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a38afa11a09505c24bd7e595039d7914ec39329ba490209413ef2d37895c8220"
 dependencies = [
  "ahash 0.8.2",
- "arrow 31.0.0",
+ "arrow",
  "arrow-buffer 31.0.0",
  "arrow-schema 31.0.0",
  "blake2",
@@ -1409,7 +1374,7 @@ version = "17.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9172411b25ff4aa97f8e99884898595a581636d93cc96c12f96dbe3bf51cd7e5"
 dependencies = [
- "arrow 31.0.0",
+ "arrow",
  "datafusion-common",
  "paste",
  "rand 0.8.5",
@@ -1549,7 +1514,7 @@ dependencies = [
 name = "dfutil"
 version = "0.1.0"
 dependencies = [
- "arrow 23.0.0",
+ "arrow",
  "datafusion",
 ]
 
@@ -1747,17 +1712,6 @@ name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
-
-[[package]]
-name = "flatbuffers"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86b428b715fdbdd1c364b84573b5fdc0f84f8e423661b9f398735278bc7f2b6a"
-dependencies = [
- "bitflags",
- "smallvec",
- "thiserror",
-]
 
 [[package]]
 name = "flatbuffers"
@@ -2764,26 +2718,6 @@ name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
-
-[[package]]
-name = "multiversion"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "025c962a3dd3cc5e0e520aa9c612201d127dcdf28616974961a649dca64f5373"
-dependencies = [
- "multiversion-macros",
-]
-
-[[package]]
-name = "multiversion-macros"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8a3e2bde382ebf960c1f3e79689fa5941625fe9bf694a1cb64af3e85faff3af"
-dependencies = [
- "proc-macro2 1.0.49",
- "quote 1.0.23",
- "syn 1.0.107",
-]
 
 [[package]]
 name = "mysql_async"
@@ -4487,7 +4421,7 @@ dependencies = [
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
- "arrow 23.0.0",
+ "arrow",
  "buildenv",
  "datafusion",
  "datasource_bigquery",
