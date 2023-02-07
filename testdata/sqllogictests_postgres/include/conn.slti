@@ -1,0 +1,8 @@
+# Include file to create postgres connection
+
+statement ok
+CREATE CONNECTION IF NOT EXISTS testconn
+	FOR postgres
+	OPTIONS (
+		postgres_conn = 'host=localhost port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+	);

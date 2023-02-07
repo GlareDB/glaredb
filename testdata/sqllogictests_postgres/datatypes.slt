@@ -1,0 +1,19 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+include ./include/conn.slti
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+	FROM testconn
+	OPTIONS (
+		schema = 'public',
+		table = 'datatypes'
+	);
+
+# Check if we can fetch contents of the datatype table.
+query TIIIRRTTTTTTTTTTTT
+SELECT * FROM datatypes;
+----
+t     1     2     3     4.5   6.7   a     b     cde   fghi  {"a":[1,2]}  [{"b":null},{"c":true}]  292a485f-a56a-4938-8f1a-bbbbbbbbbbb1  98,105,110  938709154000000   59554000000  10864  1098196354000000
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL         NULL                     NULL                                  NULL        NULL              NULL         NULL   NULL
