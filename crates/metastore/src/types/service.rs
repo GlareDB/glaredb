@@ -161,6 +161,7 @@ pub struct CreateConnection {
     pub schema: String,
     pub name: String,
     pub options: ConnectionOptions,
+    pub if_not_exists: bool,
 }
 
 impl TryFrom<service::CreateConnection> for CreateConnection {
@@ -170,6 +171,7 @@ impl TryFrom<service::CreateConnection> for CreateConnection {
             schema: value.schema,
             name: value.name,
             options: value.options.required("options")?,
+            if_not_exists: value.if_not_exists,
         })
     }
 }
@@ -180,6 +182,7 @@ impl From<CreateConnection> for service::CreateConnection {
             schema: value.schema,
             name: value.name,
             options: Some(value.options.into()),
+            if_not_exists: value.if_not_exists,
         }
     }
 }
@@ -190,6 +193,7 @@ pub struct CreateExternalTable {
     pub name: String,
     pub connection_id: u32,
     pub options: TableOptions,
+    pub if_not_exists: bool,
 }
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
@@ -201,6 +205,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             name: value.name,
             connection_id: value.connection_id,
             options: value.options.required("options")?,
+            if_not_exists: value.if_not_exists,
         })
     }
 }
@@ -212,6 +217,7 @@ impl From<CreateExternalTable> for service::CreateExternalTable {
             name: value.name,
             connection_id: value.connection_id,
             options: Some(value.options.into()),
+            if_not_exists: value.if_not_exists,
         }
     }
 }
