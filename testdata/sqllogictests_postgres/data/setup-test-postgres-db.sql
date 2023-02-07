@@ -13,7 +13,11 @@ CREATE TABLE IF NOT EXISTS datatypes (
     c11 JSON,
     c12 JSONB,
     c13 UUID,
-    c14 BYTEA
+    c14 BYTEA,
+    c15 TIMESTAMP,
+    c16 TIME,
+    c17 DATE,
+    c18 TIMESTAMPTZ
 );
 
 INSERT INTO datatypes
@@ -31,5 +35,11 @@ VALUES (
     '{"a": [1, 2]}',
     '[{"b": null}, {"c": true}]',
     '292a485f-a56a-4938-8f1a-bbbbbbbbbbb1',
-    'bin'
+    'bin',
+    '1999-09-30 16:32:34',
+    '04:32:34 PM',
+    '1999-09-30',
+    '2004-10-19 16:32:34 IST'
 );
+
+INSERT INTO datatypes(c1) VALUES (NULL); -- inserts nulls

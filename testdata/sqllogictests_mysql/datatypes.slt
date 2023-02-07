@@ -1,0 +1,60 @@
+# Basic tests for postgres external tables 
+
+# Create an external table that connects to the datatypes tables
+statement ok
+CREATE EXTERNAL TABLE numeric_datatypes
+    FROM testconn
+    OPTIONS (
+        schema = 'glaredb_test',
+        table = 'numeric_datatypes'
+    );
+
+statement ok
+CREATE EXTERNAL TABLE string_datatypes
+    FROM testconn
+    OPTIONS (
+        schema = 'glaredb_test',
+        table = 'string_datatypes'
+    );
+
+statement ok
+CREATE EXTERNAL TABLE date_time_datatypes
+    FROM testconn
+    OPTIONS (
+        schema = 'glaredb_test',
+        table = 'date_time_datatypes'
+    );
+
+statement ok
+CREATE EXTERNAL TABLE column_attributes
+    FROM testconn
+    OPTIONS (
+        schema = 'glaredb_test',
+        table = 'column_attributes'
+    );
+
+# Check if we can fetch contents of the datatype tables
+query TTIIIIIIIIIIRRR
+SELECT * FROM numeric_datatypes;
+----
+1 0 -128 255 -32768 65535 -8388608 16777215 -2147483648 4294967295 -300000000 5000000000 4.5 6.7 Some(12345),2,5
+NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL
+
+query TTTTT
+SELECT * FROM string_datatypes;
+----
+a bc 100,101,102 {"a": [1, 2]} 98,105,110
+NULL NULL NULL NULL NULL
+
+# Currently we are not formatting dates other than outputing epoch time with
+# either seconds or microseconds.
+query TTTTT
+SELECT * FROM date_time_datatypes;
+----
+1672531200 1672661532123456 51254000000 2023 1704028393789000
+NULL NULL NULL NULL NULL
+
+query IIT
+SELECT * FROM column_attributes;
+----
+NULL 1 default
