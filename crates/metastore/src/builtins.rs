@@ -75,6 +75,8 @@ pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("schema_oid", DataType::UInt32, false),
         ("schema_name", DataType::Utf8, false),
         ("table_name", DataType::Utf8, false),
+        ("external", DataType::Boolean, false),
+        ("connection_oid", DataType::UInt32, true),
     ]),
 });
 
