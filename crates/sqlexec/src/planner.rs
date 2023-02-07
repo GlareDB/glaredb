@@ -118,8 +118,8 @@ impl<'a> SessionPlanner<'a> {
     fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
-        let datasource_or_connection = stmt.datasource_or_connection.to_lowercase();
-        let conn = self.ctx.get_connection(datasource_or_connection)?;
+        let conn = stmt.connection.to_lowercase();
+        let conn = self.ctx.get_connection(conn)?;
 
         let external_table_options = match conn.options {
             ConnectionOptions::Debug(_) => {
