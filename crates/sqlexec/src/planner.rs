@@ -18,6 +18,8 @@ use metastore::types::catalog::{
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use tokio::runtime::Handle;
+use tokio::task;
 use tracing::debug;
 
 /// Plan SQL statements for a session.
@@ -51,8 +53,13 @@ impl<'a> SessionPlanner<'a> {
 
                 let ssh_tunnel_access = self.ctx.get_ssh_tunnel_access(ssh_tunnel.clone())?;
 
-                PostgresAccessor::validate_connection(&connection_string, ssh_tunnel_access)
-                    .map_err(|e| ExecError::InvalidConnection { source: e })?;
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        PostgresAccessor::validate_connection(&connection_string, ssh_tunnel_access)
+                            .await
+                            .map_err(|e| ExecError::InvalidConnection { source: e })
+                    })
+                })?;
 
                 ConnectionOptions::Postgres(ConnectionOptionsPostgres {
                     connection_string,
@@ -148,8 +155,13 @@ impl<'a> SessionPlanner<'a> {
                 let ssh_tunnel_access =
                     self.ctx.get_ssh_tunnel_access(options.ssh_tunnel.clone())?;
 
-                PostgresAccessor::validate_table_access(&access, ssh_tunnel_access)
-                    .map_err(|e| ExecError::InvalidDataSource { source: e })?;
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        PostgresAccessor::validate_table_access(&access, ssh_tunnel_access)
+                            .await
+                            .map_err(|e| ExecError::InvalidDataSource { source: e })
+                    })
+                })?;
 
                 TableOptions::Postgres(TableOptionsPostgres {
                     schema: access.schema,

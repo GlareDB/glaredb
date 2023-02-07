@@ -31,8 +31,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::net::TcpStream;
-use tokio::runtime::Handle;
-use tokio::task::{self, JoinHandle};
+use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
 use tokio_postgres::config::Host;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
@@ -130,49 +129,39 @@ impl PostgresAccessor {
     }
 
     /// Validate postgres connection
-    pub fn validate_connection(
+    pub async fn validate_connection(
         connection_string: &str,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<()> {
-        let result: Result<_, PostgresError> = task::block_in_place(move || {
-            Handle::current().block_on(async move {
-                let (client, _) = match ssh_tunnel {
-                    None => Self::connect_direct(connection_string).await?,
-                    Some(ssh_tunnel) => {
-                        Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
-                    }
-                };
+        let (client, _) = match ssh_tunnel {
+            None => Self::connect_direct(connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
+            }
+        };
 
-                client.execute("SELECT 1", &[]).await?;
-                Ok(())
-            })
-        });
-        result
+        client.execute("SELECT 1", &[]).await?;
+        Ok(())
     }
 
     /// Validate postgres connection and access to table
-    pub fn validate_table_access(
+    pub async fn validate_table_access(
         access: &PostgresTableAccess,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<()> {
-        let result: Result<_, PostgresError> = task::block_in_place(move || {
-            Handle::current().block_on(async move {
-                let (client, _) = match ssh_tunnel {
-                    None => Self::connect_direct(&access.connection_string).await?,
-                    Some(ssh_tunnel) => {
-                        Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
-                    }
-                };
+        let (client, _) = match ssh_tunnel {
+            None => Self::connect_direct(&access.connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+            }
+        };
 
-                let query = format!(
-                    "SELECT * FROM {}.{} where false",
-                    access.schema, access.name
-                );
-                client.execute(query.as_str(), &[]).await?;
-                Ok(())
-            })
-        });
-        result
+        let query = format!(
+            "SELECT * FROM {}.{} where false",
+            access.schema, access.name
+        );
+        client.execute(query.as_str(), &[]).await?;
+        Ok(())
     }
 
     pub async fn into_table_provider(
