@@ -154,8 +154,8 @@ pub fn from_upstream_datatype(upstream: DataType) -> DfDataType {
             Box::new(from_upstream_datatype(*a)),
             Box::new(from_upstream_datatype(*b)),
         ),
-        DataType::Decimal128(a, b) => DfDataType::Decimal128(a, b as i8),
-        DataType::Decimal256(a, b) => DfDataType::Decimal256(a, b as i8),
+        DataType::Decimal128(a, b) => DfDataType::Decimal128(a, b),
+        DataType::Decimal256(a, b) => DfDataType::Decimal256(a, b),
         DataType::Map(a, b) => DfDataType::Map(Box::new(from_upstream_field(*a)), b),
     }
 }
