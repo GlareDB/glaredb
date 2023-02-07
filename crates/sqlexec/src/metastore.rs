@@ -67,6 +67,24 @@ impl SupervisorClient {
         }
     }
 
+    /// Get the cache the latest state of the catalog.
+    pub async fn refresh_cached_state(&self) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .send
+            .send(WorkerRequest::RefreshCachedState {
+                conn_id: self.conn_id,
+                response: tx,
+            })
+            .await
+            .is_err()
+        {
+            return Err(ExecError::MetastoreDatabaseWorkerOverload);
+        }
+        rx.await
+            .map_err(|_| ExecError::MetastoreDatabaseWorkerOverload)
+    }
+
     /// Get the current cached state of the catalog.
     pub async fn get_cached_state(&self) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
@@ -140,6 +158,12 @@ enum WorkerRequest {
         /// Response channel to await for result.
         response: oneshot::Sender<Result<Arc<CatalogState>>>,
     },
+
+    /// Refresh the cached catalog state from persistence for some database
+    RefreshCachedState {
+        conn_id: Uuid,
+        response: oneshot::Sender<()>,
+    },
 }
 
 impl WorkerRequest {
@@ -148,6 +172,7 @@ impl WorkerRequest {
             WorkerRequest::Ping { conn_id, .. } => conn_id,
             WorkerRequest::GetCachedState { conn_id, .. } => conn_id,
             WorkerRequest::ExecMutations { conn_id, .. } => conn_id,
+            WorkerRequest::RefreshCachedState { conn_id, .. } => conn_id,
         }
     }
 }
@@ -415,6 +440,12 @@ impl DatabaseWorker {
 
                 if response.send(result).is_err() {
                     error!("failed to send result of mutate");
+                }
+            }
+            WorkerRequest::RefreshCachedState { response, .. } => {
+                self.fetch().await;
+                if response.send(()).is_err() {
+                    error!("failed to send refreshed state");
                 }
             }
         }
