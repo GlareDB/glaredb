@@ -134,7 +134,6 @@ impl PostgresAccessor {
         connection_string: &str,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<()> {
-        warn!("unimplemented");
         let result: Result<_, PostgresError> = task::block_in_place(move || {
             Handle::current().block_on(async move {
                 let (client, _) = match ssh_tunnel {
@@ -156,7 +155,6 @@ impl PostgresAccessor {
         access: &PostgresTableAccess,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<()> {
-        warn!("unimplemented");
         let result: Result<_, PostgresError> = task::block_in_place(move || {
             Handle::current().block_on(async move {
                 let (client, _) = match ssh_tunnel {
