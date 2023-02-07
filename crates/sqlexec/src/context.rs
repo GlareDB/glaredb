@@ -249,6 +249,7 @@ impl SessionContext {
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
         if *self.get_session_vars().force_catalog_refresh.value() {
+            debug!("refreshed cached catalog state as per force_catalog_refresh");
             self.metastore.refresh_cached_state().await?;
         }
 
