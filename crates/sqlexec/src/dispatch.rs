@@ -379,6 +379,8 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut schema_oids = UInt32Builder::new();
         let mut schema_names = StringBuilder::new();
         let mut table_names = StringBuilder::new();
+        let mut externals = BooleanBuilder::new();
+        let mut connection_oids = UInt32Builder::new();
 
         for table in self.catalog.iter_entries().filter(|ent| {
             ent.entry_type() == EntryType::Table || ent.entry_type() == EntryType::ExternalTable
@@ -398,6 +400,12 @@ impl<'a> SystemTableDispatcher<'a> {
                     .unwrap_or("<invalid>"),
             );
             table_names.append_value(&table.entry.get_meta().name);
+            externals.append_value(table.entry_type() == EntryType::ExternalTable);
+
+            match table.entry {
+                CatalogEntry::ExternalTable(ent) => connection_oids.append_value(ent.connection_id),
+                _ => connection_oids.append_null(),
+            }
         }
 
         let batch = RecordBatch::try_new(
@@ -408,6 +416,8 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(schema_oids.finish()),
                 Arc::new(schema_names.finish()),
                 Arc::new(table_names.finish()),
+                Arc::new(externals.finish()),
+                Arc::new(connection_oids.finish()),
             ],
         )
         .unwrap();
