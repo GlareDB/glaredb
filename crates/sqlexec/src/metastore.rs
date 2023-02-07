@@ -445,14 +445,13 @@ impl DatabaseWorker {
             WorkerRequest::RefreshCachedState { response, .. } => {
                 self.fetch().await;
                 if response.send(()).is_err() {
-                    error!("failed to send refreshed state");
+                    error!("failed to respond to refresh cached catalog state request");
                 }
             }
         }
     }
 
-    /// Fetch the latest catalog from Metastore, updating this local catalog
-    /// cache.
+    /// Fetch the latest catalog from Metastore, updating this local catalog cache.
     async fn fetch(&mut self) {
         match self
             .client
