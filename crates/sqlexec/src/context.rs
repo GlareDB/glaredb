@@ -15,8 +15,9 @@ use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
+use datasource_common::ssh::{SshKey, SshTunnelAccess};
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{self, ConnectionEntry};
+use metastore::types::catalog::{self, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh};
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use std::collections::HashMap;
@@ -183,6 +184,45 @@ impl SessionContext {
                 want: catalog::EntryType::Connection,
             }),
         }
+    }
+
+    /// Get an ssh tunnel access info from the catalog
+    pub fn get_ssh_tunnel_access(
+        &self,
+        name: Option<String>,
+    ) -> Result<Option<SshTunnelAccess>, ExecError> {
+        let ssh_tunnel_access = match name {
+            Some(name) => {
+                let conn = self.get_connection(name)?;
+
+                let access = match conn {
+                    ConnectionEntry {
+                        options:
+                            ConnectionOptions::Ssh(ConnectionOptionsSsh {
+                                host,
+                                user,
+                                port,
+                                keypair,
+                            }),
+                        ..
+                    } => {
+                        let keypair = SshKey::from_bytes(keypair)?;
+                        SshTunnelAccess {
+                            host: host.to_owned(),
+                            user: user.to_owned(),
+                            port: port.to_owned(),
+                            keypair,
+                        }
+                    }
+                    // This connection should always be a valid ssh connection
+                    _ => return Err(ExecError::NonSshConnection),
+                };
+
+                Some(access)
+            }
+            None => None,
+        };
+        Ok(ssh_tunnel_access)
     }
 
     /// Get a reference to the session variables.

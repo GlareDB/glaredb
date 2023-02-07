@@ -6,7 +6,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::ssh::{SshKey, SshTunnelAccess};
+use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -50,12 +50,6 @@ pub enum DispatchError {
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::errors::ExecError>),
-
-    #[error("Invalid ssh key pair")]
-    InvalidSshKeyPair,
-
-    #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
-    NonSshConnection,
 
     #[error(
         "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
@@ -185,7 +179,10 @@ impl<'a> SessionDispatcher<'a> {
                     connection_string: conn.connection_string.clone(),
                 };
 
-                let ssh_tunnel_access = self.get_ssh_tunnel(conn.ssh_tunnel.to_owned())?;
+                let ssh_tunnel_access = self
+                    .ctx
+                    .get_ssh_tunnel_access(conn.ssh_tunnel.to_owned())
+                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
 
                 let predicate_pushdown = *self
                     .ctx
@@ -234,7 +231,10 @@ impl<'a> SessionDispatcher<'a> {
                     connection_string: conn.connection_string.clone(),
                 };
 
-                let ssh_tunnel_access = self.get_ssh_tunnel(conn.ssh_tunnel.to_owned())?;
+                let ssh_tunnel_access = self
+                    .ctx
+                    .get_ssh_tunnel_access(conn.ssh_tunnel.to_owned())
+                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
 
                 let predicate_pushdown = *self
                     .ctx
@@ -309,48 +309,6 @@ impl<'a> SessionDispatcher<'a> {
                 connection_type: conn.to_string(),
             }),
         }
-    }
-
-    /// Helper to get ssh tunnel info from connection catalog table
-    fn get_ssh_tunnel(
-        &self,
-        name: Option<String>,
-    ) -> Result<Option<SshTunnelAccess>, DispatchError> {
-        let ssh_tunnel_access = match name {
-            Some(name) => {
-                let conn = self
-                    .ctx
-                    .get_connection(name)
-                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
-
-                let access = match conn {
-                    ConnectionEntry {
-                        options:
-                            ConnectionOptions::Ssh(ConnectionOptionsSsh {
-                                host,
-                                user,
-                                port,
-                                keypair,
-                            }),
-                        ..
-                    } => {
-                        let keypair = SshKey::from_bytes(keypair)?;
-                        SshTunnelAccess {
-                            host: host.to_owned(),
-                            user: user.to_owned(),
-                            port: port.to_owned(),
-                            keypair,
-                        }
-                    }
-                    // This connection should always be a valid ssh connection
-                    _ => return Err(DispatchError::NonSshConnection),
-                };
-
-                Some(access)
-            }
-            None => None,
-        };
-        Ok(ssh_tunnel_access)
     }
 }
 

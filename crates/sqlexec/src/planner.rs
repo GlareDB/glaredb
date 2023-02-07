@@ -9,6 +9,7 @@ use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
+use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
     ConnectionOptionsLocal, ConnectionOptionsMysql, ConnectionOptionsPostgres, ConnectionOptionsS3,
@@ -17,6 +18,8 @@ use metastore::types::catalog::{
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use tokio::runtime::Handle;
+use tokio::task;
 use tracing::debug;
 
 /// Plan SQL statements for a session.
@@ -47,6 +50,17 @@ impl<'a> SessionPlanner<'a> {
             ConnectionOptions::POSTGRES => {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
+
+                let ssh_tunnel_access = self.ctx.get_ssh_tunnel_access(ssh_tunnel.clone())?;
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        PostgresAccessor::validate_connection(&connection_string, ssh_tunnel_access)
+                            .await
+                            .map_err(|e| ExecError::InvalidConnection { source: e })
+                    })
+                })?;
+
                 ConnectionOptions::Postgres(ConnectionOptionsPostgres {
                     connection_string,
                     ssh_tunnel,
@@ -129,12 +143,29 @@ impl<'a> SessionPlanner<'a> {
                     table_type: typ.to_string(),
                 })
             }
-            ConnectionOptions::Postgres(_) => {
+            ConnectionOptions::Postgres(ref options) => {
                 let source_schema = remove_required_opt(m, "schema")?;
                 let source_table = remove_required_opt(m, "table")?;
-                TableOptions::Postgres(TableOptionsPostgres {
+
+                let access = PostgresTableAccess {
                     schema: source_schema,
-                    table: source_table,
+                    name: source_table,
+                    connection_string: options.connection_string.clone(),
+                };
+                let ssh_tunnel_access =
+                    self.ctx.get_ssh_tunnel_access(options.ssh_tunnel.clone())?;
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        PostgresAccessor::validate_table_access(&access, ssh_tunnel_access)
+                            .await
+                            .map_err(|e| ExecError::InvalidDataSource { source: e })
+                    })
+                })?;
+
+                TableOptions::Postgres(TableOptionsPostgres {
+                    schema: access.schema,
+                    table: access.name,
                 })
             }
             ConnectionOptions::BigQuery(_) => {
