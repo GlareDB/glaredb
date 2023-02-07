@@ -62,7 +62,8 @@ message CreateConnection {
   string schema = 1;
   string name = 2;
   catalog.ConnectionOptions options = 3;
-  // next: 4
+  bool if_not_exists = 4;
+  // next: 5
 }
 
 message CreateExternalTable {
@@ -70,7 +71,8 @@ message CreateExternalTable {
   string name = 2;
   uint32 connection_id = 3;
   catalog.TableOptions options = 4;
-  // next: 5
+  bool if_not_exists = 5;
+  // next: 6
 }
 
 message MutateRequest {

@@ -103,6 +103,7 @@ impl SessionContext {
                 name,
                 connection_id: plan.connection_id,
                 options: plan.table_options,
+                if_not_exists: plan.if_not_exists,
             },
         )])
         .await?;
@@ -124,6 +125,7 @@ impl SessionContext {
             schema,
             name,
             options: plan.options,
+            if_not_exists: plan.if_not_exists,
         })])
         .await?;
 

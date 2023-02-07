@@ -21,8 +21,8 @@ pub struct CreateExternalTableStmt {
     pub name: String,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
-    /// The data source or connection name for the table.
-    pub datasource_or_connection: String,
+    /// The connection name for the table.
+    pub connection: String,
     /// Datasource specific options.
     pub options: BTreeMap<String, String>,
 }
@@ -33,7 +33,7 @@ impl fmt::Display for CreateExternalTableStmt {
         if self.if_not_exists {
             write!(f, "IF NOT EXISTS")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.datasource_or_connection)?;
+        write!(f, "{} FROM {} ", self.name, self.connection)?;
 
         let opts = self
             .options
@@ -220,7 +220,7 @@ impl<'a> CustomParser<'a> {
             CreateExternalTableStmt {
                 name: name.to_string(),
                 if_not_exists,
-                datasource_or_connection: datasource,
+                connection: datasource,
                 options,
             },
         ))
@@ -293,7 +293,7 @@ mod tests {
         let stmt = CreateExternalTableStmt {
             name: "test".to_string(),
             if_not_exists: false,
-            datasource_or_connection: "postgres".to_string(),
+            connection: "postgres".to_string(),
             options,
         };
 
@@ -318,7 +318,7 @@ mod tests {
             StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
                 name: "test".to_string(),
                 if_not_exists: false,
-                datasource_or_connection: "postgres".to_string(),
+                connection: "postgres".to_string(),
                 options,
             }),
             stmt

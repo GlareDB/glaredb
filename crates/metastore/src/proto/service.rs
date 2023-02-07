@@ -131,9 +131,11 @@ pub struct CreateConnection {
     pub schema: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub name: ::prost::alloc::string::String,
-    /// next: 4
     #[prost(message, optional, tag = "3")]
     pub options: ::core::option::Option<super::catalog::ConnectionOptions>,
+    /// next: 5
+    #[prost(bool, tag = "4")]
+    pub if_not_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -144,9 +146,11 @@ pub struct CreateExternalTable {
     pub name: ::prost::alloc::string::String,
     #[prost(uint32, tag = "3")]
     pub connection_id: u32,
-    /// next: 5
     #[prost(message, optional, tag = "4")]
     pub options: ::core::option::Option<super::catalog::TableOptions>,
+    /// next: 6
+    #[prost(bool, tag = "5")]
+    pub if_not_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
