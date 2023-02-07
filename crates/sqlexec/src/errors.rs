@@ -20,6 +20,16 @@ pub enum ExecError {
     #[error("Invalid view statement: {msg}")]
     InvalidViewStatement { msg: &'static str },
 
+    #[error("Connection validation failed: {source}")]
+    InvalidConnection {
+        source: datasource_postgres::errors::PostgresError,
+    },
+
+    #[error("External table validation failed: {source}")]
+    InvalidDataSource {
+        source: datasource_postgres::errors::PostgresError,
+    },
+
     #[error("Unknown prepared statement with name: {0}")]
     UnknownPreparedStatement(String),
 
@@ -83,6 +93,12 @@ pub enum ExecError {
 
     #[error(transparent)]
     VarError(#[from] std::env::VarError),
+
+    #[error("Unable to retrieve ssh tunnel connection: {0}")]
+    MissingSshTunnel(Box<crate::errors::ExecError>),
+
+    #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
+    NonSshConnection,
 
     #[error("internal error: {0}")]
     Internal(String),

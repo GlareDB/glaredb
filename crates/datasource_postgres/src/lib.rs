@@ -33,8 +33,9 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
+use tokio_postgres::config::Host;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
-use tokio_postgres::{Config, CopyOutStream, NoTls};
+use tokio_postgres::{Client, Config, CopyOutStream, NoTls};
 use tracing::warn;
 
 /// Information needed for accessing an external Postgres table.
@@ -66,36 +67,39 @@ impl PostgresAccessor {
         access: PostgresTableAccess,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<Self> {
-        match ssh_tunnel {
-            None => Self::connect_direct(access).await,
-            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(access, ssh_tunnel).await,
-        }
+        let (client, conn_handle) = match ssh_tunnel {
+            None => Self::connect_direct(&access.connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+            }
+        };
+
+        Ok(PostgresAccessor {
+            access,
+            client,
+            conn_handle,
+        })
     }
 
-    async fn connect_direct(access: PostgresTableAccess) -> Result<Self> {
-        let (client, conn) = tokio_postgres::connect(&access.connection_string, NoTls).await?;
+    async fn connect_direct(connection_string: &str) -> Result<(Client, JoinHandle<()>)> {
+        let (client, conn) = tokio_postgres::connect(connection_string, NoTls).await?;
         let handle = tokio::spawn(async move {
             if let Err(e) = conn.await {
                 warn!(%e, "postgres connection errored");
             }
         });
-
-        Ok(PostgresAccessor {
-            access,
-            client,
-            conn_handle: handle,
-        })
+        Ok((client, handle))
     }
 
     async fn connect_with_ssh_tunnel(
-        access: PostgresTableAccess,
+        connection_string: &str,
         ssh_tunnel: SshTunnelAccess,
-    ) -> Result<Self> {
-        let config: Config = access.connection_string.parse()?;
+    ) -> Result<(Client, JoinHandle<()>)> {
+        let config: Config = connection_string.parse()?;
 
         // Accept only singular host and port for postgres access
         let postgres_host = match config.get_hosts() {
-            [tokio_postgres::config::Host::Tcp(host)] => host.as_str(),
+            [Host::Tcp(host)] => host.as_str(),
             hosts => return Err(PostgresError::IncorrectNumberOfHosts(hosts.to_vec())),
         };
         let postgres_port = match config.get_ports() {
@@ -121,11 +125,43 @@ impl PostgresAccessor {
             }
         });
 
-        Ok(PostgresAccessor {
-            access,
-            client,
-            conn_handle: handle,
-        })
+        Ok((client, handle))
+    }
+
+    /// Validate postgres connection
+    pub async fn validate_connection(
+        connection_string: &str,
+        ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<()> {
+        let (client, _) = match ssh_tunnel {
+            None => Self::connect_direct(connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
+            }
+        };
+
+        client.execute("SELECT 1", &[]).await?;
+        Ok(())
+    }
+
+    /// Validate postgres connection and access to table
+    pub async fn validate_table_access(
+        access: &PostgresTableAccess,
+        ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<()> {
+        let (client, _) = match ssh_tunnel {
+            None => Self::connect_direct(&access.connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+            }
+        };
+
+        let query = format!(
+            "SELECT * FROM {}.{} where false",
+            access.schema, access.name
+        );
+        client.execute(query.as_str(), &[]).await?;
+        Ok(())
     }
 
     pub async fn into_table_provider(
