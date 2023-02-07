@@ -21,14 +21,13 @@ pub enum ExecError {
     InvalidViewStatement { msg: &'static str },
 
     #[error("Connection validation failed: {source}")]
-    // InvalidConnection { source: Box<dyn Error> },
     InvalidConnection {
-        source: Box<datasource_postgres::errors::PostgresError>,
+        source: datasource_postgres::errors::PostgresError,
     },
 
     #[error("External table validation failed: {source}")]
     InvalidDataSource {
-        source: Box<datasource_postgres::errors::PostgresError>,
+        source: datasource_postgres::errors::PostgresError,
     },
 
     #[error("Unknown prepared statement with name: {0}")]

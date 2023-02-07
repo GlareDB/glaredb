@@ -51,9 +51,7 @@ impl<'a> SessionPlanner<'a> {
                 let ssh_tunnel_access = self.ctx.get_ssh_tunnel_access(ssh_tunnel.clone())?;
 
                 PostgresAccessor::validate_connection(&connection_string, ssh_tunnel_access)
-                    .map_err(|e| ExecError::InvalidConnection {
-                        source: Box::new(e),
-                    })?;
+                    .map_err(|e| ExecError::InvalidConnection { source: e })?;
 
                 CreateConnection {
                     connection_name: stmt.name,
@@ -170,11 +168,8 @@ impl<'a> SessionPlanner<'a> {
                 let ssh_tunnel_access =
                     self.ctx.get_ssh_tunnel_access(options.ssh_tunnel.clone())?;
 
-                PostgresAccessor::validate_table_access(&access, ssh_tunnel_access).map_err(
-                    |e| ExecError::InvalidDataSource {
-                        source: Box::new(e),
-                    },
-                )?;
+                PostgresAccessor::validate_table_access(&access, ssh_tunnel_access)
+                    .map_err(|e| ExecError::InvalidDataSource { source: e })?;
 
                 CreateExternalTable {
                     table_name: stmt.name,
