@@ -42,63 +42,46 @@ impl<'a> SessionPlanner<'a> {
 
     fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
-        let plan = match stmt.datasource.to_lowercase().as_str() {
+
+        let connection_options = match stmt.datasource.to_lowercase().as_str() {
             ConnectionOptions::POSTGRES => {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::Postgres(ConnectionOptionsPostgres {
-                        connection_string,
-                        ssh_tunnel,
-                    }),
-                }
+                ConnectionOptions::Postgres(ConnectionOptionsPostgres {
+                    connection_string,
+                    ssh_tunnel,
+                })
             }
             ConnectionOptions::BIGQUERY => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
                 let project_id = remove_required_opt(m, "project_id")?;
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::BigQuery(ConnectionOptionsBigQuery {
-                        service_account_key,
-                        project_id,
-                    }),
-                }
+                ConnectionOptions::BigQuery(ConnectionOptionsBigQuery {
+                    service_account_key,
+                    project_id,
+                })
             }
             ConnectionOptions::MYSQL => {
                 let connection_string = remove_required_opt(m, "mysql_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::Mysql(ConnectionOptionsMysql {
-                        connection_string,
-                        ssh_tunnel,
-                    }),
-                }
+                ConnectionOptions::Mysql(ConnectionOptionsMysql {
+                    connection_string,
+                    ssh_tunnel,
+                })
             }
-            ConnectionOptions::LOCAL => CreateConnection {
-                connection_name: stmt.name,
-                options: ConnectionOptions::Local(ConnectionOptionsLocal {}),
-            },
+            ConnectionOptions::LOCAL => ConnectionOptions::Local(ConnectionOptionsLocal {}),
             ConnectionOptions::GCS => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::Gcs(ConnectionOptionsGcs {
-                        service_account_key,
-                    }),
-                }
+                ConnectionOptions::Gcs(ConnectionOptionsGcs {
+                    service_account_key,
+                })
             }
             ConnectionOptions::S3_STORAGE => {
                 let access_key_id = remove_required_opt(m, "access_key_id")?;
                 let access_key_secret = remove_required_opt(m, "access_key_secret")?;
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::S3(ConnectionOptionsS3 {
-                        access_key_id,
-                        access_key_secret,
-                    }),
-                }
+                ConnectionOptions::S3(ConnectionOptionsS3 {
+                    access_key_id,
+                    access_key_secret,
+                })
             }
             ConnectionOptions::SSH => {
                 let host = remove_required_opt(m, "host")?;
@@ -108,120 +91,100 @@ impl<'a> SessionPlanner<'a> {
                 // Generate random ssh keypair
                 let keypair = SshKey::generate_random()?.to_bytes()?;
 
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::Ssh(ConnectionOptionsSsh {
-                        host,
-                        user,
-                        port,
-                        keypair,
-                    }),
-                }
+                ConnectionOptions::Ssh(ConnectionOptionsSsh {
+                    host,
+                    user,
+                    port,
+                    keypair,
+                })
             }
             ConnectionOptions::DEBUG
                 if *self.ctx.get_session_vars().enable_debug_datasources.value() =>
             {
-                CreateConnection {
-                    connection_name: stmt.name,
-                    options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
-                }
+                ConnectionOptions::Debug(ConnectionOptionsDebug {})
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
+        };
+
+        let plan = CreateConnection {
+            connection_name: stmt.name,
+            if_not_exists: stmt.if_not_exists,
+            options: connection_options,
         };
 
         Ok(LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)))
     }
 
     fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
-        let datasource_or_connection = stmt.datasource_or_connection.to_lowercase();
         let m = &mut stmt.options;
 
+        let datasource_or_connection = stmt.datasource_or_connection.to_lowercase();
         let conn = self.ctx.get_connection(datasource_or_connection)?;
-        let plan = match conn.options {
+
+        let external_table_options = match conn.options {
             ConnectionOptions::Debug(_) => {
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::Debug(TableOptionsDebug {
-                        table_type: typ.to_string(),
-                    }),
-                }
+                TableOptions::Debug(TableOptionsDebug {
+                    table_type: typ.to_string(),
+                })
             }
             ConnectionOptions::Postgres(_) => {
                 let source_schema = remove_required_opt(m, "schema")?;
                 let source_table = remove_required_opt(m, "table")?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::Postgres(TableOptionsPostgres {
-                        schema: source_schema,
-                        table: source_table,
-                    }),
-                }
+                TableOptions::Postgres(TableOptionsPostgres {
+                    schema: source_schema,
+                    table: source_table,
+                })
             }
             ConnectionOptions::BigQuery(_) => {
                 let dataset_id = remove_required_opt(m, "dataset_id")?;
                 let table_id = remove_required_opt(m, "table_id")?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::BigQuery(TableOptionsBigQuery {
-                        dataset_id,
-                        table_id,
-                    }),
-                }
+                TableOptions::BigQuery(TableOptionsBigQuery {
+                    dataset_id,
+                    table_id,
+                })
             }
             ConnectionOptions::Mysql(_) => {
                 let source_schema = remove_required_opt(m, "schema")?;
                 let source_table = remove_required_opt(m, "table")?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::Mysql(TableOptionsMysql {
-                        schema: source_schema,
-                        table: source_table,
-                    }),
-                }
+                TableOptions::Mysql(TableOptionsMysql {
+                    schema: source_schema,
+                    table: source_table,
+                })
             }
             ConnectionOptions::Local(_) => {
                 let location = remove_required_opt(m, "location")?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::Local(TableOptionsLocal { location }),
-                }
+                TableOptions::Local(TableOptionsLocal { location })
             }
             ConnectionOptions::Gcs(_) => {
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let location = remove_required_opt(m, "location")?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::Gcs(TableOptionsGcs {
-                        bucket_name,
-                        location,
-                    }),
-                }
+                TableOptions::Gcs(TableOptionsGcs {
+                    bucket_name,
+                    location,
+                })
             }
             ConnectionOptions::S3(_) => {
                 let region = remove_required_opt(m, "region")?;
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let location = remove_required_opt(m, "location")?;
-                CreateExternalTable {
-                    table_name: stmt.name,
-                    connection_id: conn.meta.id,
-                    table_options: TableOptions::S3(TableOptionsS3 {
-                        region,
-                        bucket_name,
-                        location,
-                    }),
-                }
+                TableOptions::S3(TableOptionsS3 {
+                    region,
+                    bucket_name,
+                    location,
+                })
             }
             ConnectionOptions::Ssh(_) => {
                 return Err(ExecError::ExternalTableWithSsh);
             }
+        };
+
+        let plan = CreateExternalTable {
+            table_name: stmt.name,
+            if_not_exists: stmt.if_not_exists,
+            connection_id: conn.meta.id,
+            table_options: external_table_options,
         };
 
         Ok(DdlPlan::CreateExternalTable(plan).into())

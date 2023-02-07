@@ -360,11 +360,14 @@ impl State {
                         sql: create_view.sql,
                     };
 
-                    self.try_insert_entry_for_schema(CatalogEntry::View(ent), schema_id, oid)?;
+                    self.try_insert_entry_for_schema(
+                        CatalogEntry::View(ent),
+                        schema_id,
+                        oid,
+                        /* if_not_exists = */ false,
+                    )?;
                 }
                 Mutation::CreateConnection(create_conn) => {
-                    // TODO: If not exists.
-
                     let schema_id = self.get_schema_id(&create_conn.schema)?;
 
                     // Create new entry.
@@ -384,11 +387,10 @@ impl State {
                         CatalogEntry::Connection(ent),
                         schema_id,
                         oid,
+                        create_conn.if_not_exists,
                     )?;
                 }
                 Mutation::CreateExternalTable(create_ext) => {
-                    // TODO: If not exists.
-
                     let schema_id = self.get_schema_id(&create_ext.schema)?;
 
                     if !self.entries.contains_key(&create_ext.connection_id) {
@@ -413,6 +415,7 @@ impl State {
                         CatalogEntry::ExternalTable(ent),
                         schema_id,
                         oid,
+                        create_ext.if_not_exists,
                     )?;
                 }
             }
@@ -432,12 +435,18 @@ impl State {
         ent: CatalogEntry,
         schema_id: u32,
         oid: u32,
+        if_not_exists: bool,
     ) -> Result<()> {
         // Insert new entry for schema. Checks if there exists an
         // object with the same name.
         let objs = self.schema_objects.entry(schema_id).or_default();
 
         if objs.objects.contains_key(&ent.get_meta().name) {
+            if if_not_exists {
+                // Entry already exists so return early with success when the
+                // "IF NOT EXISTS" clause used.
+                return Ok(());
+            }
             return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
         }
         objs.objects.insert(ent.get_meta().name.clone(), oid);
@@ -748,6 +757,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                    if_not_exists: false,
                 })],
             )
             .await
@@ -761,6 +771,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                    if_not_exists: false,
                 })],
             )
             .await
@@ -774,10 +785,60 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                    if_not_exists: false,
                 })],
             )
             .await
             .unwrap_err();
+
+        // Check that the duplicate connection we tried to create is not in the
+        // state.
+        let state = db.get_state().await.unwrap();
+        let ents: Vec<_> = state
+            .entries
+            .iter()
+            .filter(|(_, ent)| ent.get_meta().name == "bowser")
+            .collect();
+        assert!(
+            ents.len() == 1,
+            "found more than one 'bowser' entry (found {}): {:?}",
+            ents.len(),
+            ents
+        );
+    }
+
+    #[tokio::test]
+    async fn duplicate_names_if_not_exists() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        // Add connection.
+        let state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::CreateConnection(CreateConnection {
+                    schema: "public".to_string(),
+                    name: "bowser".to_string(),
+                    options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Duplicate connection, no failure.
+        let _ = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateConnection(CreateConnection {
+                    schema: "public".to_string(),
+                    name: "bowser".to_string(),
+                    options: ConnectionOptions::Debug(ConnectionOptionsDebug {}),
+                    if_not_exists: true,
+                })],
+            )
+            .await
+            .unwrap();
 
         // Check that the duplicate connection we tried to create is not in the
         // state.

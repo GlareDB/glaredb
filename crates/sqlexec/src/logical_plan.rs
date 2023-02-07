@@ -106,6 +106,7 @@ pub struct CreateTable {
 #[derive(Clone, Debug)]
 pub struct CreateExternalTable {
     pub table_name: String,
+    pub if_not_exists: bool,
     pub connection_id: u32,
     pub table_options: TableOptions,
 }
@@ -119,6 +120,7 @@ pub struct CreateTableAs {
 #[derive(Clone, Debug)]
 pub struct CreateConnection {
     pub connection_name: String,
+    pub if_not_exists: bool,
     pub options: ConnectionOptions,
 }
 
