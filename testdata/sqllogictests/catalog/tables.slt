@@ -1,0 +1,29 @@
+# Test the builtin 'tables' table.
+
+statement ok
+create schema builtin_tables_test;
+
+statement ok
+set search_path = builtin_tables_test;
+
+statement ok
+set enable_debug_datasources to t;
+
+# Builtin table should never be external, nor have a connection associated with
+# it.
+query TT
+select external, connection_oid from glare_catalog.tables where schema_name = 'glare_catalog' and table_name = 'tables';
+----
+f   NULL
+
+statement ok
+create connection c1 for debug;
+
+statement ok
+create external table t1 from c1 options (table_type = 'never_ending');
+
+# External tables should be marked as such, and have a not null connection oid.
+query TT
+select external, connection_oid is not null from glare_catalog.tables where schema_name = 'builtin_tables_test' and table_name = 't1';
+----
+t  t
