@@ -494,6 +494,7 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
         // Column definiton flags can be found here:
         // https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
         let unsigned = flags.contains(ColumnFlags::UNSIGNED_FLAG);
+        let binary = flags.contains(ColumnFlags::BINARY_FLAG);
 
         let arrow_typ = match typ {
             // TINYINT
@@ -525,10 +526,20 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
             MYSQL_TYPE_VARCHAR | MYSQL_TYPE_JSON | MYSQL_TYPE_VAR_STRING | MYSQL_TYPE_STRING => {
                 DataType::Utf8
             }
+            // BLOB types
             MYSQL_TYPE_TINY_BLOB
             | MYSQL_TYPE_MEDIUM_BLOB
             | MYSQL_TYPE_LONG_BLOB
-            | MYSQL_TYPE_BLOB => DataType::Binary,
+            | MYSQL_TYPE_BLOB
+                if binary =>
+            {
+                DataType::Binary
+            }
+            // TEXT types
+            MYSQL_TYPE_TINY_BLOB
+            | MYSQL_TYPE_MEDIUM_BLOB
+            | MYSQL_TYPE_LONG_BLOB
+            | MYSQL_TYPE_BLOB => DataType::Utf8,
             unknown_type => {
                 return Err(MysqlError::UnsupportedMysqlType(
                     unknown_type as u8,
