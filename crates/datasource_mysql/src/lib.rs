@@ -1,11 +1,12 @@
 pub mod errors;
 
 use std::any::Any;
-use std::fmt;
 use std::fmt::Write;
+use std::fmt::{self, Display};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::thread::sleep;
 
 use async_stream::stream;
 use async_trait::async_trait;
@@ -28,7 +29,7 @@ use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
-use mysql_async::prelude::*;
+use mysql_async::{prelude::*, OptsBuilder};
 use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, Row as MysqlRow, TxOpts};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -76,11 +77,49 @@ impl MysqlAccessor {
 
     // TODO: Add ssh tunnel support for MySQL
     async fn connect_with_ssh_tunnel(
-        _access: MysqlTableAccess,
-        _ssh_tunnel: SshTunnelAccess,
+        access: MysqlTableAccess,
+        ssh_tunnel: SshTunnelAccess,
     ) -> Result<Self> {
-        warn!("Unimplemented");
-        Err(MysqlError::Unimplemented)
+        let database_url = &access.connection_string;
+        let opts = Opts::from_url(database_url)?;
+
+        let mysql_host = opts.ip_or_hostname();
+        let mysql_port = opts.tcp_port();
+
+        warn!(?mysql_host, ?mysql_port, "r1234");
+
+        // Open ssh tunnel
+        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
+
+        warn!(?tunnel_addr, "rustom try now r1234");
+
+        let tcp_stream = tokio::net::TcpStream::connect(tunnel_addr).await?;
+
+        warn!(?tcp_stream, "r1234");
+
+        sleep(std::time::Duration::from_secs(300));
+
+        let opts: Opts = OptsBuilder::from_opts(opts)
+            // .ip_or_hostname(tunnel_addr.ip().to_string())
+            .ip_or_hostname("127.0.0.1")
+            .tcp_port(tunnel_addr.port())
+            .prefer_socket(false)
+            .into();
+
+        warn!(?tunnel_addr, ?opts, "r1234");
+
+        let conn = Conn::new(opts).await;
+        warn!(?conn);
+
+        let conn = conn?;
+        let conn = RwLock::new(conn);
+        warn!(?conn);
+
+        // let conn = RwLock::new(Conn::new(opts).await?);
+
+        warn!(?conn, "r1234");
+
+        Ok(MysqlAccessor { access, conn })
     }
 
     pub async fn into_table_provider(

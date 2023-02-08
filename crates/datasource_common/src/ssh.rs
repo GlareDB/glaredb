@@ -10,7 +10,7 @@ use tempfile::NamedTempFile;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::net::TcpListener;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use crate::errors::{Error, Result};
 
@@ -67,6 +67,9 @@ impl SshTunnelAccess {
         let temp_keyfile =
             Self::generate_temp_keyfile(self.keypair.private_key()?.as_ref()).await?;
 
+        warn!(?remote_host, ?remote_port, "r1234");
+        warn!(?self);
+
         let tunnel = SessionBuilder::default()
             .known_hosts_check(KnownHosts::Accept)
             .user(self.user.clone())
@@ -75,16 +78,23 @@ impl SshTunnelAccess {
             .connect(self.host.as_str())
             .await?;
 
+        warn!(?tunnel, "r1234");
+
         tunnel.check().await?;
+
+        warn!(?tunnel, "r1234");
 
         // Find open local port and attempt to create tunnel
         // Retry generating a port up to 10 times
         for _ in 0..10 {
             let local_addr = Self::generate_random_port().await?;
             let remote_addr = (remote_host, remote_port);
+            warn!(?local_addr, ?remote_addr, "r1234");
 
             let local = openssh::Socket::new(&local_addr)?;
             let remote = openssh::Socket::new(&remote_addr)?;
+
+            warn!(?local, ?remote, "r1234");
 
             match tunnel
                 .request_port_forward(ForwardType::Local, local, remote)
