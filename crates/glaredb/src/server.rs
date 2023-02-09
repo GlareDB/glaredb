@@ -7,7 +7,7 @@ use std::fs;
 use std::sync::Arc;
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
-use tracing::{debug, debug_span, info, trace, Instrument};
+use tracing::{debug, debug_span, info, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
@@ -34,15 +34,21 @@ impl Server {
         //
         // This also happens in the `TempObjectStore`.
         let env_tmp = env::temp_dir();
-        trace!(?env_tmp, "ensuring temp dir for cache directory");
+        info!(?env_tmp, "ensuring temp dir for cache directory");
         fs::create_dir_all(&env_tmp)?;
 
         // Connect to Metstore.
         let metastore = MetastoreServiceClient::connect(metastore_addr).await?;
 
         let tracker = match segment_key {
-            Some(key) => SegmentTracker::new(key).into(),
-            None => Tracker::Nop,
+            Some(key) => {
+                info!("initializing segment telemeetry tracker");
+                SegmentTracker::new(key).into()
+            }
+            None => {
+                info!("skipping telementry initialization");
+                Tracker::Nop
+            }
         };
 
         let engine = Engine::new(metastore, Arc::new(tracker)).await?;

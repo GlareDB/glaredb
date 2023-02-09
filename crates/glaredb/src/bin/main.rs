@@ -51,6 +51,7 @@ enum Commands {
         local: bool,
 
         /// API key for segment.
+        #[clap(long, value_parser)]
         segment_key: Option<String>,
     },
 
@@ -100,8 +101,11 @@ fn main() -> Result<()> {
             bind,
             metastore_addr,
             local,
-            segment_key,
+            mut segment_key,
         } => {
+            // Map an empty string to None. Makes writing the terraform easier.
+            segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
+
             begin_server(&bind, metastore_addr, segment_key, local)?;
         }
         Commands::Proxy {
