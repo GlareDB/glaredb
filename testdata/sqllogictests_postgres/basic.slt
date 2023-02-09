@@ -2,4 +2,12 @@
 
 include ./include/conn.slti
 
-# TODO: Create external table and include basic tests
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM testconn
+	OPTIONS (
+		schema = 'public',
+		table = 'bikeshare_stations'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti

@@ -113,3 +113,52 @@ VALUES (
     1,
     DEFAULT
 );
+
+-- Enable loading local data onto server.
+SET @@GLOBAL.local_infile = 1;
+
+-- bikeshare_stations table for testing datasources.
+CREATE TABLE IF NOT EXISTS glaredb_test.bikeshare_stations (
+    station_id        INT,
+    name              TEXT, 
+    status            TEXT,
+    address           TEXT,
+    alternate_name    TEXT,
+    city_asset_number INT,
+    property_type     TEXT,
+    number_of_docks   INT,
+    power_type        TEXT,
+    footprint_length  INT,
+    footprint_width   FLOAT,
+    notes             TEXT,
+    council_district  INT,
+    modified_date     DATETIME
+);
+
+LOAD DATA LOCAL INFILE './testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+    INTO TABLE `bikeshare_stations`
+    FIELDS TERMINATED BY ','
+    LINES TERMINATED BY '\n'
+    IGNORE 1 ROWS
+    -- Workaround to insert date into mysql from csv since csv has a different format
+    -- and nulls (for empty values).
+    (
+        @station_id, @name, @status, @address, @alternate_name, @city_asset_number,
+        @property_type, @number_of_docks, @power_type, @footprint_length, @footprint_width,
+        @notes, @council_district, @modified_date
+    )
+        SET 
+            station_id = NULLIF(@station_id, ''),
+            name = NULLIF(@name, ''),
+            status = NULLIF(@status, ''),
+            address = NULLIF(@address, ''),
+            alternate_name = NULLIF(@alternate_name, ''),
+            city_asset_number = NULLIF(@city_asset_number, ''),
+            property_type = NULLIF(@property_type, ''),
+            number_of_docks = NULLIF(@number_of_docks, ''),
+            power_type = NULLIF(@power_type, ''),
+            footprint_length = NULLIF(@footprint_length, ''),
+            footprint_width = NULLIF(@footprint_width, ''),
+            notes = NULLIF(@notes, ''),
+            council_district = NULLIF(@council_district, ''),
+            modified_date = STR_TO_DATE(@modified_date, '%c/%e/%Y %T');

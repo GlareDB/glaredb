@@ -43,3 +43,24 @@ VALUES (
 );
 
 INSERT INTO datatypes(c1) VALUES (NULL); -- inserts nulls
+
+-- bikeshare_stations table for testing datasources.
+CREATE TABLE IF NOT EXISTS bikeshare_stations (
+    station_id        INT,
+    name              TEXT, 
+    status            TEXT,
+    address           TEXT,
+    alternate_name    TEXT,
+    city_asset_number INT,
+    property_type     TEXT,
+    number_of_docks   INT,
+    power_type        TEXT,
+    footprint_length  INT,
+    footprint_width   FLOAT,
+    notes             TEXT,
+    council_district  INT,
+    modified_date     TIMESTAMP
+);
+
+-- Copy data from csv file into the postgres table.
+\copy bikeshare_stations FROM './testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv' CSV HEADER;
