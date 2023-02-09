@@ -1,5 +1,7 @@
 # Basic tests for postgres external tables 
 
+include ./include/conn.slti
+
 # Create an external table that connects to the datatypes tables
 statement ok
 CREATE EXTERNAL TABLE numeric_datatypes
@@ -43,7 +45,7 @@ NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL
 query TTTTT
 SELECT * FROM string_datatypes;
 ----
-a bc 100,101,102 {"a": [1, 2]} 98,105,110
+a bc def {"a": [1, 2]} 98,105,110
 NULL NULL NULL NULL NULL
 
 # Currently we are not formatting dates other than outputing epoch time with

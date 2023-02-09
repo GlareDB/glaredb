@@ -62,6 +62,12 @@ const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
     value: &false,
 };
 
+// GlareDB specific.
+const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
+    name: "force_catalog_refresh",
+    value: &false,
+};
+
 /// Variables for a session.
 ///
 /// Variables that can be changed are of the `SessionVar` type, and default to
@@ -77,6 +83,7 @@ pub struct SessionVars {
     pub bigquery_predicate_pushdown: SessionVar<bool>,
     pub postgres_predicate_pushdown: SessionVar<bool>,
     pub enable_debug_datasources: SessionVar<bool>,
+    pub force_catalog_refresh: SessionVar<bool>,
 }
 
 impl SessionVars {
@@ -107,6 +114,8 @@ impl SessionVars {
             Ok(&self.postgres_predicate_pushdown)
         } else if name == ENABLE_DEBUG_DATASOURCES.name {
             Ok(&self.enable_debug_datasources)
+        } else if name == FORCE_CATALOG_REFRESH.name {
+            Ok(&self.force_catalog_refresh)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -134,6 +143,8 @@ impl SessionVars {
             self.postgres_predicate_pushdown.set(val)
         } else if name == ENABLE_DEBUG_DATASOURCES.name {
             self.enable_debug_datasources.set(val)
+        } else if name == FORCE_CATALOG_REFRESH.name {
+            self.force_catalog_refresh.set(val)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -152,6 +163,7 @@ impl Default for SessionVars {
             bigquery_predicate_pushdown: SessionVar::new(&BIGQUERY_PREDICATE_PUSHDOWN),
             postgres_predicate_pushdown: SessionVar::new(&POSTGRES_PREDICATE_PUSHDOWN),
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
+            force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
         }
     }
 }

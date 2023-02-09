@@ -1,0 +1,103 @@
+station_id,name,status,address,alternate_name,city_asset_number,property_type,number_of_docks,power_type,footprint_length,footprint_width,notes,council_district,modified_date
+2538,Bullock Museum @ Congress & MLK,closed,1881 Congress Ave.,,,,,,,,,1,1/4/2021 12:00:00
+2541,State Capitol @ 14th & Colorado,closed,206 W. 14th St.,,,,,,,,,1,1/4/2021 12:00:00
+2545,ACC - Rio Grande & 12th,closed,700 W. 12th St.,,,,,,,,,9,1/4/2021 12:00:00
+2546,ACC - West & 12th Street,closed,1231 West Ave.,,,,,,,,,9,1/4/2021 12:00:00
+2564,5th & San Marcos,closed,991 East 5th,,,,,,,,,3,1/4/2021 12:00:00
+2576,Rainey @ River St,closed,64 Rainey St,,,,,,,,,9,1/4/2021 12:00:00
+2712,Toomey Rd @ South Lamar,closed,1301 Toomey Road,,,,,,,,,5,1/4/2021 12:00:00
+3381,East 7th & Pleasant Valley,closed,2772 E 7th,,,,,,,,,3,1/4/2021 12:00:00
+1002,6th & Navasota St.,closed,1308 W. 6th St.,,,,,,,,,3,1/4/2021 12:00:00
+1003,8th & Guadalupe,closed,800 Guadalupe St.,,,,,,,,,9,1/4/2021 12:00:00
+1004,Red River & LBJ Library,closed,2322 Red River Street,,,,,,,,,1,1/4/2021 12:00:00
+1005,State Parking Garage @ Brazos & 18th,closed,1789 Brazos St.,,,,,,,,,1,1/4/2021 12:00:00
+1006,Zilker Park West,closed,Barton Springs Rd,,,,,,,,,8,1/4/2021 12:00:00
+1007,Lavaca & 6th,closed,601 Lavaca St.,,,,,,,,,9,1/4/2021 12:00:00
+1008,Nueces @ 3rd,closed,311 Nueces,,,,,,,,,9,1/4/2021 12:00:00
+2500,Republic Square,closed,425 W 4th Street,,,,,,,,,9,1/4/2021 12:00:00
+2536,Waller & 6th St.,closed,602 Waller St.,,,,,,,,,3,1/4/2021 12:00:00
+3464,Pease Park,closed,1155 Kingsbury St,,,,,,,,,9,1/4/2021 12:00:00
+2502,Barton Springs & Riverside,closed,400 Barton Springs Rd.,,, ,, ,,,moved to Pedernales/2nd. Original city ID: 16729,9,1/4/2021 12:00:00
+1001,OFFICE/Main/Shop/Repair,closed,1000 Brazos,,, ,, ,,,"This is the testing dock/station located at BSA's offices.  It is working, but unavailable to public access.",1,3/4/2022 9:58:00
+3687,Boardwalk West,active,300 E. Riverside Dr.,,16683,parkland,9,solar,30,5,,9,1/4/2021 12:00:00
+3684,Congress & Cesar Chavez,active,124 W Cesar Chavez St,,32594,parkland,11,solar,35,5,parkland at ROW/easement,9,1/4/2021 12:00:00
+2572,Barton Springs Pool,active,2200 William Barton Dr.,,16758,parkland,13,solar,40,5,,8,1/4/2021 12:00:00
+2575,Riverside @ S. Lamar,active,Presented by Austin Parks Foundation,,16736,parkland,15,solar,45,5,parkland at ROW/easement,5,1/4/2021 12:00:00
+2574,Zilker Park,active,Barton Springs Rd,Zilker Park at Barton Springs and William Burton Drive,16759,parkland,17,solar,50,5,parkland at ROW/easement,8,1/4/2021 12:00:00
+2707,Rainey St @ Cummings,active,1 Rainey St,,16597,parkland,17,solar,50,5,parkland at ROW/easement,9,3/4/2022 10:38:00
+1111,13th & Trinity,active,910 Trinity Street,,,sidewalk,13,solar,,,The Kiosk ID and footprint length & width still need to be revised.,1,11/4/2021 2:12:00
+11,22nd 1/2 & Rio Grande,active,710 W. 22 1/2 St,,,sidewalk,4,solar,,,Kiosk ID & footprint length and width to be revised. These are 4 3.0 docks.,9,11/4/2021 2:24:00
+4699,East 5th/Shady @ Eastside Bus Plaza,active,5104 East 5th. Street,,32522,sidewalk,10,solar,15,10,,3,7/27/2021 8:25:00
+2570,South Congress & Academy,active,1199 S. Congress Ave.,,16752,sidewalk,10,solar,20,7.5,on bulb-out,9,1/4/2021 12:00:00
+2496,8th & Congress,active,111 E. 8th St.,,16725,sidewalk,14,solar,20,7.5,double sided,9,1/4/2021 12:00:00
+3294,Lavaca & 6th,active,601 Lavaca St.,,32515,sidewalk,12,solar,25,8,"double sided, remeasure",9,3/4/2022 10:21:00
+2497,Capitol Station / Congress & 11th,active,1090 Congress Ave.,,16735,sidewalk,18,solar,25,7.5,double sided,1,1/4/2021 12:00:00
+4047,8th & Lavaca,active,750 Lavaca Street,,32710,sidewalk,9,solar,25,5,,9,1/4/2021 12:00:00
+2503,South Congress & James,active,Presented by The Austin Chronicle,,16730,sidewalk,9,solar,26,7.5,on bulb-out,9,1/4/2021 12:00:00
+3798,21st & Speedway @PCL,active,E. 21st St.,,32675,sidewalk,22,solar,30,7.5,On UT property-2 sided,9,1/4/2021 12:00:00
+2550,4th/Guadalupe @ Republic Square,active,,,,sidewalk,17,solar,30,5,,9,3/4/2022 10:28:00
+2565,Trinity & 6th Street,active,606 Trinity Street,,16763,sidewalk,11,solar,30,5,,9,1/4/2021 12:00:00
+2711,Barton Springs @ Kinney Ave,active,1530 Barton Springs Road,,16599,sidewalk,16,solar,30,7.5,2-sided station on pad adjacent to sidewalk in ROW/easement,5,1/4/2021 12:00:00
+3619,6th & Congress,active,600 Congress Ave.,Congress & 6th Street,16743,sidewalk,11,solar,30,5,remeasure,9,1/4/2021 12:00:00
+3799,23rd & San Jacinto @ DKR Stadium,active,E. 23rd St.,,32676,sidewalk,22,solar,30,7.5,On UT property-2 sided,1,1/4/2021 12:00:00
+3291,11th & San Jacinto,active,310 E. 11th St.,,32503,sidewalk,11,solar,35,5,,1,1/4/2021 12:00:00
+2539,Convention Center / 3rd & Trinity,active,212 Trinity,,16747,sidewalk,12,solar,35,5,,9,1/4/2021 12:00:00
+3455,Republic Square @ 5th & Guadalupe,closed,Federal Courthouse Plaza,,16741,sidewalk,13,non-metered,40,5,Moved back to 4th/Guadalupe,9,3/4/2022 10:24:00
+3513,South Congress & Barton Springs at the Austin American-Statesman,active,305 S. Congress Ave.,,16745,sidewalk,13,solar,40,5,,9,1/4/2021 12:00:00
+4060,Red River/Cesar Chavez @ The Fairmont,active,101 Red River St.,,32691,sidewalk,13,solar,40,5,,9,1/4/2021 12:00:00
+2561,State Capitol Visitors Garage @ San Jacinto & 12th,active,1201 San Jacinto Blvd.,,16764,sidewalk,13,solar,40,5,state property?,1,1/4/2021 12:00:00
+2571,Red River & 8th Street,active,761 Red River St.,,16760,sidewalk,13,solar,40,5,on pad built in ROW/easement,9,1/4/2021 12:00:00
+2542,Plaza Saltillo,active,1501 E. 5th St.,,16746,sidewalk,12,solar,40,5,on station plaza,3,1/4/2021 12:00:00
+2549,Long Center @ South 1st & Riverside,active,Presented by Austin Energy,,16750,sidewalk,13,solar,40,5,,9,1/4/2021 12:00:00
+3790,Lake Austin Blvd @ Deep Eddy,active,2401 Lake Austin Blvd,,32673,sidewalk,13,solar,40,5,,10,1/4/2021 12:00:00
+2567,Palmer Auditorium,active,900 Barton Springs Rd.,,16753,sidewalk,15,solar,45,5,adjacent to parkland,9,1/4/2021 12:00:00
+2498,4th/Sabine,active,702 E 4th St,,16734,sidewalk,17,non-metered,50,5,moved from 4th and Neches,9,3/4/2022 8:12:00
+2566,Pfluger Bridge @ W 2nd Street,active,Presented by Austin Parks Foundation,,16762,sidewalk,19,solar,55,5,adjacent to parkland,9,1/4/2021 12:00:00
+2499,City Hall / Lavaca & 2nd,active,Presented by Graves Dougherty Hearon & Moody,,16732,sidewalk,19,solar,55,5,check dock #-18?,9,1/4/2021 12:00:00
+111,23rd & San Gabriel,active,915 W 23rd St,,,paid_parking,13,solar,,,Kiosk ID and Footprint length & width to be revised.,9,11/4/2021 2:15:00
+3621,Nueces & 3rd,active,311 Nueces St.,,16742,paid_parking,11,solar,35,5,,9,1/4/2021 12:00:00
+3685,Henderson & 9th,active,672 Henderson Street,,32593,paid_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+4057,6th & Chalmers,active,639 Chalmers Avenue,,32690,paid_parking,13,solar,40,5,,3,1/4/2021 12:00:00
+2562,San Jacinto & 8th Street,active,782 San Jacinto Blvd.,,16755,paid_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+2540,17th & Guadalupe,closed,411 W. 17th St.,,16739,paid_parking,12,solar,40,5,,9,3/12/2021 1:02:00
+2547,Guadalupe & 21st,active,2100 Guadalupe St.,,16749,paid_parking,13,solar,40,5,in buffer area parking,9,1/4/2021 12:00:00
+2552,3rd & West,active,652 W. 3rd St,,16727,paid_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+3635,13th & San Antonio,closed,1285 San Antonio St.,,32522,paid_parking,13,solar,40,5,,9,3/12/2021 12:49:00
+3793,Rio Grande & 28th,active,2717 Rio Grande St.,,32668,paid_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+3390,Brazos & 6th,active,585 Brazos St.,,16754,paid_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+4050,5th & Campbell,active,1611 W 5th St,,32745,paid_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+4051,10th & Red River,active,699 East 10th Street,,32686,paid_parking,13,solar,40,5,,1,1/4/2021 12:00:00
+4879,16th/San Antonio,active,1601 San Antonio Street,,16739,paid_parking,12,solar,40,5,,9,3/12/2021 1:15:00
+2563,Rainey/Driskill,active,698 Davis St,,16751,paid_parking,12,non-metered,40,5,,9,3/4/2022 8:26:00
+2494,2nd & Congress,active,151 E. 2nd St,,16733,paid_parking,15,solar,45,5,,9,1/4/2021 12:00:00
+2495,4th & Congress,active,120 W. 4th St.,,16726,paid_parking,15,solar,45,5,,9,1/4/2021 12:00:00
+2501,5th & Bowie,active,Presented by Whole Foods Market,,16728,paid_parking,15,solar,45,5,,9,1/4/2021 12:00:00
+2548,UT West Mall @ Guadalupe,active,2242 Guadalupe St.,,16748,paid_parking,15,solar,45,5,"in buffer area parking, check dock #",9,1/4/2021 12:00:00
+3293,East 2nd & Pedernales,active,2414 E 2nd St,,16729,nonmetered_parking,10,solar,20,15,Kiosk replaced by Barton Sp/Riverside.  Old city ID: 32517,3,1/4/2021 12:00:00
+4058,Hollow Creek & Barton Hills,active,1106 Hollow Creek Dr,,32685,nonmetered_parking,13,solar,40,5,,5,1/4/2021 12:00:00
+4059,Nash Hernandez @ RBJ South,active,1316 Festival Beach Rd,,32693,nonmetered_parking,13,solar,40,5,,3,1/4/2021 12:00:00
+4052,Rosewood & Angelina,active,1153 Angelina Street,,32687,nonmetered_parking,13,solar,40,5,,1,1/4/2021 12:00:00
+4054,Rosewood & Chicon,active,1909 Rosewood Avenue,,32688,nonmetered_parking,13,solar,40,5,,1,1/4/2021 12:00:00
+4055,11th & Salina,active,1705 E 11th St,,32689,nonmetered_parking,13,solar,40,5,,1,1/4/2021 12:00:00
+4061,Lakeshore @ Austin Hostel,active,2200 S Lakeshore Blvd,,32692,nonmetered_parking,15,solar,45,5,,3,1/4/2021 12:00:00
+4062,Lakeshore & Pleasant Valley,active,2525 South Lakeshore Boulevard,,32711,nonmetered_parking,18,solar,55,5,,3,1/4/2021 12:00:00
+3292,East 4th & Chicon,active,1819 East 4th St.,,32516,undetermined_parking,9,solar,30,5,,3,1/4/2021 12:00:00
+3660,Medina & East 6th,active,590 Medina St.,,16761,undetermined_parking,11,solar,35,5,,3,1/4/2021 12:00:00
+2568,East 11th St. at Victory Grill,active,1106 E. 11th St.,,16757,undetermined_parking,11,solar,35,5,,1,1/4/2021 12:00:00
+2569,East 11th St. & San Marcos,active,1001 E. 11th St.,,16756,undetermined_parking,11,solar,35,5,,1,1/4/2021 12:00:00
+2544,East 6th & Pedernales St.,active,2498 E. 6th St.,,16738,undetermined_parking,11,solar,35,5,,3,1/4/2021 12:00:00
+2823,Capital Metro HQ - East 5th at Broadway,active,2910 E 5th St,,16684,undetermined_parking,13,solar,40,5,,3,1/4/2021 12:00:00
+3686,Sterzing at Barton Springs,active,1825 Barton Springs Rd,,32592,undetermined_parking,13,solar,40,5,,5,1/4/2021 12:00:00
+2822,East 6th at Robert Martinez,active,2120 East 6th St,,16674,undetermined_parking,13,solar,40,5,,3,1/4/2021 12:00:00
+2504,South Congress & Elizabeth,active,101 Elizabeth St. W,,16731,undetermined_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+2537,West & 6th St.,active,603 West Ave.,,16737,undetermined_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+3791,Lake Austin & Enfield,active,3825 Lake Austin Blvd,,32672,undetermined_parking,13,solar,40,5,,10,1/4/2021 12:00:00
+3792,22nd & Pearl,active,900 W. 22nd,,32669,undetermined_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+3838,Nueces & 26th,active,600 W. 26th St.,,16744,undetermined_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+3841,23rd & Rio Grande,closed,2308 Rio Grande St.,,16740,undetermined_parking,13,solar,40,5,,9,11/4/2021 2:07:00
+4048,South Congress @ Bouldin Creek,active,799 South Congress Avenue,,32746,undetermined_parking,13,solar,40,5,,9,1/4/2021 12:00:00
+0,South Congress/Mary,active,1901 South Congress Ave.,,,undetermined_parking,11,solar,40,10,In the gutter,9,3/4/2022 9:01:00
+3377,MoPac Pedestrian Bridge @ Veterans Drive,active,2105 Veterans Dr.,,16598,undetermined_parking,19,solar,55,5,parkland in ROW/eastment,9,1/4/2021 12:00:00
+3794,Dean Keeton & Speedway,active,180 E. Dean Keeton St.,,32670,undetermined_parking,19,solar,55,5,,9,1/4/2021 12:00:00
+3795,Dean Keeton & Whitis,active,300 W. Dean Keeton St.,,32671,undetermined_parking,19,solar,55,5,,9,1/4/2021 12:00:00
+3797,21st & University,active,2007 University Ave.,,32674,undetermined_parking,19,solar,55,5,ROW might belong to UT,9,1/4/2021 12:00:00

@@ -247,6 +247,12 @@ impl SessionContext {
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>,
     ) -> Result<()> {
+        // Refresh the cached catalog state if necessary
+        if *self.get_session_vars().force_catalog_refresh.value() {
+            debug!("refreshed cached catalog state as per force_catalog_refresh");
+            self.metastore.refresh_cached_state().await?;
+        }
+
         // Swap out cached catalog if a newer one was fetched.
         //
         // Note that when we have transactions, we should move this to only
