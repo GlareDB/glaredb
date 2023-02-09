@@ -11,8 +11,10 @@ use datafusion::physical_plan::{
 };
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
+use serde_json::json;
 use std::fmt;
 use std::sync::Arc;
+use telemetry::Tracker;
 use uuid::Uuid;
 
 /// Results from a sql statement execution.
@@ -45,6 +47,27 @@ pub enum ExecutionResult {
     DropSchemas,
 }
 
+impl ExecutionResult {
+    /// Tag for use when sending telemetry about the execution result.
+    const fn telemetry_tag(&self) -> &'static str {
+        match self {
+            ExecutionResult::Query { .. } => "query",
+            ExecutionResult::EmptyQuery => "empty_query",
+            ExecutionResult::Begin => "begin",
+            ExecutionResult::Commit => "commit",
+            ExecutionResult::Rollback => "rollback",
+            ExecutionResult::WriteSuccess => "write_success",
+            ExecutionResult::CreateTable => "create_table",
+            ExecutionResult::CreateSchema => "create_schema",
+            ExecutionResult::CreateView => "create_view",
+            ExecutionResult::CreateConnection => "create_connection",
+            ExecutionResult::SetLocal => "set_local",
+            ExecutionResult::DropTables => "drop_tables",
+            ExecutionResult::DropSchemas => "drop_schemas",
+        }
+    }
+}
+
 impl fmt::Debug for ExecutionResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -72,6 +95,7 @@ impl fmt::Debug for ExecutionResult {
 /// in the future (e.g. consensus).
 pub struct Session {
     pub(crate) ctx: SessionContext,
+    tracker: Arc<Tracker>,
 }
 
 impl Session {
@@ -83,9 +107,10 @@ impl Session {
         conn_id: Uuid,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        tracker: Arc<Tracker>,
     ) -> Result<Session> {
         let ctx = SessionContext::new(conn_id, catalog, metastore);
-        Ok(Session { ctx })
+        Ok(Session { ctx, tracker })
     }
 
     /// Create a physical plan for a given datafusion logical plan.
@@ -243,57 +268,68 @@ impl Session {
             None => return Ok(ExecutionResult::EmptyQuery),
         };
 
-        match plan {
+        let result = match plan {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
                 self.create_table(plan).await?;
-                Ok(ExecutionResult::CreateTable)
+                ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
                 self.create_external_table(plan).await?;
-                Ok(ExecutionResult::CreateTable)
+                ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
                 self.create_table_as(plan).await?;
-                Ok(ExecutionResult::CreateTable)
+                ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;
-                Ok(ExecutionResult::CreateSchema)
+                ExecutionResult::CreateSchema
             }
             LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)) => {
                 self.create_connection(plan).await?;
-                Ok(ExecutionResult::CreateConnection)
+                ExecutionResult::CreateConnection
             }
             LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
                 self.create_view(plan).await?;
-                Ok(ExecutionResult::CreateView)
+                ExecutionResult::CreateView
             }
             LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
                 self.drop_tables(plan).await?;
-                Ok(ExecutionResult::DropTables)
+                ExecutionResult::DropTables
             }
             LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
                 self.drop_schemas(plan).await?;
-                Ok(ExecutionResult::DropSchemas)
+                ExecutionResult::DropSchemas
             }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert(plan).await?;
-                Ok(ExecutionResult::WriteSuccess)
+                ExecutionResult::WriteSuccess
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
                 let stream = self.execute_physical(physical)?;
-                Ok(ExecutionResult::Query { stream })
+                ExecutionResult::Query { stream }
             }
             LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
                 self.set_variable(plan)?;
-                Ok(ExecutionResult::SetLocal)
+                ExecutionResult::SetLocal
             }
             LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
                 let stream = self.show_variable(plan)?;
-                Ok(ExecutionResult::Query { stream })
+                ExecutionResult::Query { stream }
             }
-            other => Err(internal!("unimplemented logical plan: {:?}", other)),
-        }
+            other => return Err(internal!("unimplemented logical plan: {:?}", other)),
+        };
+
+        // TODO: Use user id.
+        self.tracker.track(
+            "Execution complete",
+            Uuid::nil(),
+            json!({
+                "tag": result.telemetry_tag(),
+            }),
+        );
+
+        Ok(result)
     }
 }

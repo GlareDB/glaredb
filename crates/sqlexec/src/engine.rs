@@ -3,19 +3,26 @@ use crate::metastore::Supervisor;
 use crate::session::Session;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
+use std::sync::Arc;
+use telemetry::Tracker;
 use tonic::transport::Channel;
 use uuid::Uuid;
 
 /// Wrapper around the database catalog.
 pub struct Engine {
     supervisor: Supervisor,
+    tracker: Arc<Tracker>,
 }
 
 impl Engine {
     /// Create a new engine using the provided access runtime.
-    pub async fn new(metastore: MetastoreServiceClient<Channel>) -> Result<Engine> {
+    pub async fn new(
+        metastore: MetastoreServiceClient<Channel>,
+        tracker: Arc<Tracker>,
+    ) -> Result<Engine> {
         Ok(Engine {
             supervisor: Supervisor::new(metastore),
+            tracker,
         })
     }
 
@@ -26,7 +33,7 @@ impl Engine {
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
-        let session = Session::new(conn_id, catalog, metastore)?;
+        let session = Session::new(conn_id, catalog, metastore, self.tracker.clone())?;
         Ok(session)
     }
 }
