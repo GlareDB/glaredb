@@ -22,6 +22,7 @@ use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use std::collections::HashMap;
 use std::sync::Arc;
+use telemetry::Tracker;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -30,6 +31,11 @@ use uuid::Uuid;
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
+    /// Telemetry tracker.
+    tracker: Arc<Tracker>,
+    /// ID of the user who initiated the connection.
+    user_id: Uuid,
+    /// Unique connection id.
     conn_id: Uuid,
     /// Database catalog.
     metastore_catalog: SessionCatalog,
@@ -50,9 +56,11 @@ pub struct SessionContext {
 impl SessionContext {
     /// Create a new session context with the given catalog.
     pub fn new(
+        user_id: Uuid,
         conn_id: Uuid,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        tracker: Arc<Tracker>,
     ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
@@ -75,6 +83,8 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
+            user_id,
+            tracker,
             conn_id,
             metastore_catalog: catalog,
             metastore,
@@ -85,9 +95,19 @@ impl SessionContext {
         }
     }
 
+    /// Get the user id associated with this connectin.
+    pub fn user_id(&self) -> Uuid {
+        self.user_id
+    }
+
     /// Get the connection id for this session.
     pub fn conn_id(&self) -> Uuid {
         self.conn_id
+    }
+
+    /// Get the telemetry tracker.
+    pub fn tracker(&self) -> &Tracker {
+        self.tracker.as_ref()
     }
 
     /// Create a table.

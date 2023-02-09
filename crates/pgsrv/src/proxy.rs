@@ -13,9 +13,68 @@ use tokio::net::TcpStream;
 use tracing::debug;
 use uuid::Uuid;
 
+/// Constant id for a database if running locally.
+pub const LOCAL_DATABASE_ID: Uuid = Uuid::nil();
+
+/// Constant id for a user if running locally.
+pub const LOCAL_USER_ID: Uuid = Uuid::nil();
+
+/// Defines a key that's set on the connection by pgsrv.
+pub trait ProxyKey<R> {
+    /// Get a value from params.
+    ///
+    /// `local` indicates that the database is not running behind a pgsrv, and
+    /// failing to find a key in `params` shouldn't result in an error. Instead
+    /// a well-defined value should be returned. This is useful for local
+    /// development.
+    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<R>;
+}
+
+/// A proxy key who's value should be parsed as a uuid.
+#[derive(Debug)]
+pub struct UuidProxyKey {
+    /// Key to look for in params.
+    key: &'static str,
+    /// Default to use if key not found _and_ db is running locally.
+    local_default: Uuid,
+}
+
+impl ProxyKey<Uuid> for UuidProxyKey {
+    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<Uuid> {
+        let id = match params.get(self.key) {
+            Some(val) => match Uuid::parse_str(val.as_str()) {
+                Ok(uuid) => uuid,
+                Err(_) => {
+                    return Err(PgSrvError::InvalidValueForProxyKey {
+                        key: self.key,
+                        value: val.clone(),
+                    })
+                }
+            },
+            None => {
+                if !local {
+                    return Err(PgSrvError::MissingProxyKey(self.key));
+                }
+                self.local_default
+            }
+        };
+        Ok(id)
+    }
+}
+
 /// Param key for setting the database id in startup params. Added by pgsrv
 /// during proxying.
-pub const GLAREDB_DATABASE_ID_KEY: &str = "glaredb_database_id";
+pub const GLAREDB_DATABASE_ID_KEY: UuidProxyKey = UuidProxyKey {
+    key: "glaredb_database_id",
+    local_default: Uuid::nil(),
+};
+
+/// Param key for setting the user id in startup params. Added by pgsrv
+/// during proxying.
+pub const GLAREDB_USER_ID_KEY: UuidProxyKey = UuidProxyKey {
+    key: "glaredb_user_id",
+    local_default: Uuid::nil(),
+};
 
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.
@@ -125,7 +184,13 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         let mut db_framed = FramedClientConn::new(Connection::Unencrypted(db_conn));
 
         // Add addition params to the startup message.
-        params.insert(GLAREDB_DATABASE_ID_KEY.to_string(), db_details.database_id);
+        params.insert(
+            GLAREDB_DATABASE_ID_KEY.key.to_string(),
+            db_details.database_id,
+        );
+        params.insert(GLAREDB_USER_ID_KEY.key.to_string(), db_details.user_id);
+
+        // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
 
         let startup = StartupMessage::StartupRequest {
             version: VERSION_V3,
@@ -308,5 +373,35 @@ mod tests {
 
         let options = parse_options(&params).unwrap();
         assert_eq!(None, options.get("test-key"));
+    }
+
+    #[test]
+    fn proxy_key_db_id_provided() {
+        let mut params = HashMap::new();
+        let expected = Uuid::new_v4();
+        params.insert(
+            GLAREDB_DATABASE_ID_KEY.key.to_string(),
+            expected.to_string(),
+        );
+
+        let got = GLAREDB_DATABASE_ID_KEY
+            .value_from_params(&params, false)
+            .unwrap();
+        assert_eq!(expected, got)
+    }
+
+    #[test]
+    fn proxy_key_db_id_missing_not_local() {
+        let _ = GLAREDB_DATABASE_ID_KEY
+            .value_from_params(&HashMap::new(), false)
+            .unwrap_err();
+    }
+
+    #[test]
+    fn proxy_key_db_id_missing_and_local() {
+        let id = GLAREDB_DATABASE_ID_KEY
+            .value_from_params(&HashMap::new(), true)
+            .unwrap();
+        assert_eq!(LOCAL_DATABASE_ID, id);
     }
 }
