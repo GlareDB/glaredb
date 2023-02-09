@@ -95,7 +95,6 @@ impl fmt::Debug for ExecutionResult {
 /// in the future (e.g. consensus).
 pub struct Session {
     pub(crate) ctx: SessionContext,
-    tracker: Arc<Tracker>,
 }
 
 impl Session {
@@ -104,13 +103,14 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
+        user_id: Uuid,
         conn_id: Uuid,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         tracker: Arc<Tracker>,
     ) -> Result<Session> {
-        let ctx = SessionContext::new(conn_id, catalog, metastore);
-        Ok(Session { ctx, tracker })
+        let ctx = SessionContext::new(user_id, conn_id, catalog, metastore, tracker);
+        Ok(Session { ctx })
     }
 
     /// Create a physical plan for a given datafusion logical plan.
@@ -322,10 +322,11 @@ impl Session {
         };
 
         // TODO: Use user id.
-        self.tracker.track(
+        self.ctx.tracker().track(
             "Execution complete",
-            Uuid::nil(),
+            self.ctx.user_id(),
             json!({
+                "connection_id": self.ctx.conn_id().to_string(),
                 "tag": result.telemetry_tag(),
             }),
         );

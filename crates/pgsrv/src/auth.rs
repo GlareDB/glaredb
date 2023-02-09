@@ -13,6 +13,8 @@ pub struct DatabaseDetails {
     pub port: String,
     /// ID of the database we're connecting to (UUID).
     pub database_id: String,
+    /// ID of the user initiating the connection (UUID).
+    pub user_id: String,
 }
 
 #[async_trait]
