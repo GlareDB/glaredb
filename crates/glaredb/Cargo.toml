@@ -11,6 +11,7 @@ path = "src/bin/main.rs"
 logutil = {path = "../logutil"}
 buildenv = {path = "../buildenv"}
 sqlexec = {path = "../sqlexec"}
+telemetry = {path = "../telemetry"}
 pgsrv = {path = "../pgsrv"}
 object_store = {version = "0.5", features = ["gcp"]}
 metastore = {path = "../metastore"}

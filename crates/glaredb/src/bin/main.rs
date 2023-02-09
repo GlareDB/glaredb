@@ -49,6 +49,9 @@ enum Commands {
         /// When set to true, these additional params are not expected.
         #[clap(short, long, value_parser)]
         local: bool,
+
+        /// API key for segment.
+        segment_key: Option<String>,
     },
 
     /// Starts an instance of the pgsrv proxy.
@@ -97,8 +100,9 @@ fn main() -> Result<()> {
             bind,
             metastore_addr,
             local,
+            segment_key,
         } => {
-            begin_server(&bind, metastore_addr, local)?;
+            begin_server(&bind, metastore_addr, segment_key, local)?;
         }
         Commands::Proxy {
             bind,
@@ -137,12 +141,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn begin_server(pg_bind: &str, metastore_addr: String, local: bool) -> Result<()> {
+fn begin_server(
+    pg_bind: &str,
+    metastore_addr: String,
+    segment_key: Option<String>,
+    local: bool,
+) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(metastore_addr, local).await?;
+        let server = Server::connect(metastore_addr, segment_key, local).await?;
         server.serve(conf).await
     })
 }

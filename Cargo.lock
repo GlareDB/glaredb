@@ -2021,6 +2021,7 @@ dependencies = [
  "object_store",
  "pgsrv",
  "sqlexec",
+ "telemetry",
  "tokio",
  "tonic",
  "tracing",
@@ -4179,6 +4180,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "segment"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bb93f3f738322ce8f33c4e80c251fb1560ca81f3a241355271fcb912eeb48e3"
+dependencies = [
+ "async-trait",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "time 0.3.17",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4215,9 +4230,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.91"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
+checksum = "cad406b69c91885b5107daf2c29572f6c8cdb3c66826821e286c533490c0bc76"
 dependencies = [
  "itoa 1.0.5",
  "ryu",
@@ -4436,7 +4451,9 @@ dependencies = [
  "object_store",
  "pgrepr",
  "regex",
+ "serde_json",
  "sqlparser",
+ "telemetry",
  "tempfile",
  "thiserror",
  "tokio",
@@ -4627,6 +4644,19 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "telemetry"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "segment",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "tempfile"
