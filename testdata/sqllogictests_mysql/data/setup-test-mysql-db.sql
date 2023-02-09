@@ -161,4 +161,36 @@ LOAD DATA LOCAL INFILE './testdata/sqllogictests_datasources_common/data/bikesha
             footprint_width = NULLIF(@footprint_width, ''),
             notes = NULLIF(@notes, ''),
             council_district = NULLIF(@council_district, ''),
-            modified_date = STR_TO_DATE(@modified_date, '%c/%e/%Y %T');
+            modified_date = STR_TO_DATE(@modified_date, '%Y-%m-%d %T');
+
+CREATE TABLE IF NOT EXISTS glaredb_test.bikeshare_trips (
+    trip_id            BIGINT,
+    subscriber_type    TEXT,
+    bikeid             VARCHAR(8),
+    start_time         DATETIME,
+    start_station_id   INT,
+    start_station_name TEXT,
+    end_station_id     INT,
+    end_station_name   TEXT,
+    duration_minutes   INT
+);
+
+LOAD DATA LOCAL INFILE './testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv'
+    INTO TABLE `bikeshare_trips`
+    FIELDS TERMINATED BY ','
+    LINES TERMINATED BY '\n'
+    IGNORE 1 ROWS
+    (
+        @trip_id, @subscriber_type, @bikeid, @start_time, @start_station_id, @start_station_name,
+        @end_station_id, @end_station_name, @duration_minutes
+    )
+        SET
+            trip_id = NULLIF(@trip_id, ''),
+            subscriber_type = NULLIF(@subscriber_type, ''),
+            bikeid = NULLIF(@bikeid, ''),
+            start_time = STR_TO_DATE(@start_time, '%Y-%m-%d %T'),
+            start_station_id = NULLIF(@start_station_id, ''),
+            start_station_name = NULLIF(@start_station_name, ''),
+            end_station_id = NULLIF(@end_station_id, ''),
+            end_station_name = NULLIF(@end_station_name, ''),
+            duration_minutes = NULLIF(@duration_minutes, '');

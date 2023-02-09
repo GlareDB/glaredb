@@ -31,6 +31,9 @@ jobs:
       group: ci-${{ github.ref }}
       cancel-in-progress: true
 
+    env:
+      GCP_PROJECT_ID: glaredb-artifacts
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -49,6 +52,17 @@ jobs:
 
       - name: run checks
         run: nix flake check -L
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Download testdata from GCS
+        run: ./scripts/prepare-testdata.sh
 
       - name: SQL Logic Tests
         # Use globstar to ensure that all subdirectories are expanded.
