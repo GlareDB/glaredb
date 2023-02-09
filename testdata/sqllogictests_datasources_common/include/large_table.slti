@@ -1,0 +1,13 @@
+# These are some basic tests ran against a table named "large_table".
+# This table is imported from:
+#
+# `testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv`
+
+# Try loading this large table.
+statement ok
+SELECT * FROM large_table;
+
+query I
+SELECT count(*) FROM large_table;
+----
+1847746

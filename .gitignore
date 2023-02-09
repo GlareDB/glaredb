@@ -4,3 +4,5 @@
 /result
 glaredb_image
 pgsrv_image
+# Downloaded artifacts from GCS
+gcs-artifacts/
