@@ -21,7 +21,7 @@ fi
 # Create new container for mysql
 _CONTAINER_ID=$(docker run -p $DB_PORT:3306 --name "${CONTAINER_NAME}" -e MYSQL_DATABASE="${DB_NAME}" -e MYSQL_ALLOW_EMPTY_PASSWORD=YES -d $MYSQL_IMAGE)
 
-CONN_STRING="mysql -u $DB_USER -h $DB_HOST --port=$DB_PORT -D $DB_NAME"
+CONN_STRING="mysql --local-infile=1 -u $DB_USER -h $DB_HOST --port=$DB_PORT -D $DB_NAME"
 # Let the database server start
 #
 # This loop basically waits for the database to start by testing the connection

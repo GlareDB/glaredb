@@ -1,0 +1,99 @@
+# These are some basic tests ran against a table named "basic". This table is
+# imported from:
+#
+# `testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv`.
+
+statement ok
+SELECT * FROM basic;
+
+query I
+SELECT count(*) FROM basic;
+----
+102
+
+query I
+SELECT station_id FROM basic WHERE power_type = 'non-metered';
+----
+3455
+2498
+2563
+
+query IT
+SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
+----
+2574  Zilker Park
+3619  6th & Congress
+
+query I
+SELECT footprint_length FROM basic WHERE city_asset_number IS NULL AND status = 'active';
+----
+NULL
+NULL
+30
+NULL
+40
+
+statement ok
+CREATE VIEW basic_active_or_not AS
+	SELECT number_of_docks,
+		CASE WHEN status = 'active' then TRUE
+		     ELSE FALSE
+		END as bool_status
+	FROM basic;
+
+query I
+SELECT sum(number_of_docks) FROM basic_active_or_not WHERE bool_status IS TRUE;
+----
+1053
+
+query II
+SELECT min(number_of_docks), max(number_of_docks) FROM basic_active_or_not WHERE bool_status IS FALSE;
+----
+12  13
+
+# TODO: The following query doesn't work. Posgres returns an error:
+#   ERROR: operator does not exist: timestamp without time zone > bigint
+# Somewhere the timestamp is cast to a bigint and sent to external PG server.
+# This is probably related to the filters and how we pass them to postgres.
+# See `write_expr` function in `crates/datasource_postgres/src/lib.rs`.
+#
+# Also tried creating the column as a timestamptz but there are issues while
+# casting. Arrow doesn't allow casting a `Utf8` to `Timestamp(_, Some(Tz))`.
+# See: https://github.com/apache/arrow-rs/blob/9b48f3478320f7df666c0f075b578a059203ff16/arrow-cast/src/cast.rs#L64-L297
+#
+# On mysql, the query doesn't error but returns empty. Something to look into.
+#
+# PS: Write some views on top of the table to test more datatypes with filters.
+#
+# query I
+# SELECT station_id FROM basic 
+# 	WHERE modified_date > '2021-11-04 02:07:00'::timestamp
+# 		AND modified_date <= '2021-11-04 02:24:00'::timestamp
+# 	ORDER BY station_id;
+# ----
+# 11
+# 111
+# 1111
+
+query I nosort
+SELECT station_id FROM basic
+	WHERE council_district > 3
+	    AND council_district <= 5
+	ORDER BY station_id;
+----
+2575
+2711
+2712
+3686
+4058
+
+query I nosort
+SELECT station_id FROM basic
+	WHERE footprint_length < 25
+	ORDER BY footprint_length
+	LIMIT 2;
+----
+4699
+2570
+
+# TODO: Joins...
