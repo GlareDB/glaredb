@@ -29,7 +29,7 @@ impl Server {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
         let env_tmp = env::temp_dir();
-        info!(?env_tmp, "ensuring temp dir for cache directory");
+        info!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
         // Connect to Metstore.
