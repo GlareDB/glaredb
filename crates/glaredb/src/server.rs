@@ -2,8 +2,6 @@ use anyhow::Result;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
-use std::env;
-use std::fs;
 use std::sync::Arc;
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
@@ -26,17 +24,6 @@ impl Server {
         segment_key: Option<String>,
         local: bool,
     ) -> Result<Self> {
-        // Our bare container image doesn't have a '/tmp' dir on startup (nor
-        // does it specify an alternate dir to use via `TMPDIR`).
-        //
-        // The `TempDir` call below will not attempt to create that directory
-        // for us.
-        //
-        // This also happens in the `TempObjectStore`.
-        let env_tmp = env::temp_dir();
-        info!(?env_tmp, "ensuring temp dir for cache directory");
-        fs::create_dir_all(&env_tmp)?;
-
         // Connect to Metstore.
         let metastore = MetastoreServiceClient::connect(metastore_addr).await?;
 
