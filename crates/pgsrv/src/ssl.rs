@@ -5,6 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio_openssl::SslStream;
+use tracing::debug;
 
 /// Configuration for creating encrypted connections using SSL/TLS.
 pub struct SslConfig {
@@ -19,6 +20,11 @@ impl SslConfig {
         builder.set_certificate_chain_file(cert)?;
         builder.set_private_key_file(key, SslFiletype::PEM)?;
         builder.check_private_key()?;
+        // SNI related.
+        builder.set_servername_callback(|ssl, _alert| {
+            debug!(servername = ?ssl.servername(NameType::HOST_NAME), "client sent sni");
+            Ok(())
+        });
 
         let context = builder.build().into_context();
         Ok(SslConfig { context })
