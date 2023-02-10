@@ -5,7 +5,7 @@ use glaredb::metastore::Metastore;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use object_store::memory::InMemory;
-use sqllogictest::{AsyncDB, ColumnType, DBOutput, Runner};
+use sqllogictest::{AsyncDB, DBOutput, DefaultColumnType, Runner};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -213,8 +213,9 @@ struct TestClient {
 #[async_trait]
 impl AsyncDB for TestClient {
     type Error = tokio_postgres::Error;
+    type ColumnType = DefaultColumnType;
 
-    async fn run(&mut self, sql: &str) -> Result<DBOutput, Self::Error> {
+    async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
         let rows = self.client.simple_query(sql).await?;
@@ -242,7 +243,7 @@ impl AsyncDB for TestClient {
             }
         }
         Ok(DBOutput::Rows {
-            types: vec![ColumnType::Text; num_columns],
+            types: vec![DefaultColumnType::Text; num_columns],
             rows: output,
         })
     }
