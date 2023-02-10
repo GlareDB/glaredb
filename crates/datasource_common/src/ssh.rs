@@ -72,17 +72,16 @@ impl SshTunnelAccess {
 
         let tunnel = SessionBuilder::default()
             .known_hosts_check(KnownHosts::Accept)
+            // .user_known_hosts_file("/dev/null")
             .user(self.user.clone())
             .port(self.port)
             .keyfile(temp_keyfile.path())
-            .connect(self.host.as_str())
+            .connect_mux(self.host.as_str())
             .await?;
 
         warn!(?tunnel, "r1234");
 
         tunnel.check().await?;
-
-        warn!(?tunnel, "r1234");
 
         // Find open local port and attempt to create tunnel
         // Retry generating a port up to 10 times
@@ -101,7 +100,11 @@ impl SshTunnelAccess {
                 .await
             {
                 // Tunnel successfully created
-                Ok(()) => return Ok((tunnel, local_addr)),
+                Ok(()) => {
+                    warn!(keyfile=?temp_keyfile.path(), port=?local_addr.port(), "r1234");
+                    // std::thread::sleep(std::time::Duration::from_secs(120));
+                    return Ok((tunnel, local_addr));
+                }
                 Err(err) => match err {
                     openssh::Error::Ssh(err)
                         if err.to_string().contains("forwarding request failed") =>

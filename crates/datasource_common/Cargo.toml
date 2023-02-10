@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-openssh = "0.9.9"
+openssh = { version = "0.9.9", features = ["native-mux"] }
 rand = "0.8.5"
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
 tempfile = "3.3.0"

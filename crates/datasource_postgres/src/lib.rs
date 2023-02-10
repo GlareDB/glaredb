@@ -113,6 +113,8 @@ impl PostgresAccessor {
             .create_tunnel(postgres_host, postgres_port)
             .await?;
 
+        // std::thread::sleep(std::time::Duration::from_secs(60));
+
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
         let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
         let handle = tokio::spawn(async move {

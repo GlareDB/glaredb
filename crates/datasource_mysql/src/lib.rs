@@ -1,12 +1,10 @@
 pub mod errors;
 
 use std::any::Any;
-use std::fmt::Write;
-use std::fmt::{self, Display};
+use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::thread::sleep;
 
 use async_stream::stream;
 use async_trait::async_trait;
@@ -89,24 +87,25 @@ impl MysqlAccessor {
         warn!(?mysql_host, ?mysql_port, "r1234");
 
         // Open ssh tunnel
-        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
+        let (_session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
 
         warn!(?tunnel_addr, "rustom try now r1234");
 
-        let tcp_stream = tokio::net::TcpStream::connect(tunnel_addr).await?;
+        // std::thread::sleep(std::time::Duration::from_secs(120));
 
-        warn!(?tcp_stream, "r1234");
+        // let tcp_stream = tokio::net::TcpStream::connect(tunnel_addr).await?;
 
-        sleep(std::time::Duration::from_secs(300));
+        // warn!(?tcp_stream, "r1234");
 
         let opts: Opts = OptsBuilder::from_opts(opts)
-            // .ip_or_hostname(tunnel_addr.ip().to_string())
-            .ip_or_hostname("127.0.0.1")
+            .ip_or_hostname(tunnel_addr.ip().to_string())
             .tcp_port(tunnel_addr.port())
+            // .ip_or_hostname("127.0.0.1")
+            // .tcp_port(50655)
             .prefer_socket(false)
             .into();
 
-        warn!(?tunnel_addr, ?opts, "r1234");
+        // warn!(?tunnel_addr, ?opts, "r1234");
 
         let conn = Conn::new(opts).await;
         warn!(?conn);
