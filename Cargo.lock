@@ -555,7 +555,7 @@ dependencies = [
 [[package]]
 name = "bigquery-storage"
 version = "0.1.2"
-source = "git+https://github.com/glaredb/bigquery-storage?branch=master#e9703a6dcaf70b4743bcf169c7e3d42fa1f2aeb8"
+source = "git+https://github.com/glaredb/bigquery-storage?branch=master#2c8650019b48a82cfd8385a9c4ecd8196621f1ab"
 dependencies = [
  "futures",
  "hyper",
@@ -5147,7 +5147,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
