@@ -1500,29 +1500,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "derivative"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2 1.0.49",
- "quote 1.0.23",
- "syn 1.0.107",
-]
-
-[[package]]
 name = "dfutil"
 version = "0.1.0"
 dependencies = [
  "arrow",
  "datafusion",
 ]
-
-[[package]]
-name = "difference"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
 
 [[package]]
 name = "digest"
@@ -1613,6 +1596,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "educe"
+version = "0.4.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb0188e3c3ba8df5753894d54461f0e39bc91741dc5b22e1c46999ec2c71f4e4"
+dependencies = [
+ "enum-ordinalize",
+ "proc-macro2 1.0.49",
+ "quote 1.0.23",
+ "syn 1.0.107",
+]
+
+[[package]]
 name = "either"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1644,6 +1639,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9852635589dc9f9ea1b6fe9f05b50ef208c85c834a562f0c6abb1c475736ec2b"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "enum-ordinalize"
+version = "3.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a62bb1df8b45ecb7ffa78dca1c17a438fb193eb083db0b1b494d2a61bcb5096a"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "proc-macro2 1.0.49",
+ "quote 1.0.23",
+ "rustc_version",
+ "syn 1.0.107",
 ]
 
 [[package]]
@@ -2609,12 +2618,6 @@ checksum = "6365506850d44bff6e2fbcb5176cf63650e48bd45ef2fe2665ae1570e0f4b9ca"
 dependencies = [
  "digest 0.10.6",
 ]
-
-[[package]]
-name = "md5"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
@@ -4327,6 +4330,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "similar"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "420acb44afdae038210c99e69aae24109f32f15500aa708e81d46c9f29d55fcf"
+
+[[package]]
 name = "siphasher"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4465,22 +4474,22 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b2f781e2de5df40f526b3d7c93cb972f87425771a27cc8882a4178794b2ad11"
+checksum = "9dfa0b8b0b7919bb479bca7b6ced207bf1070c8d35998d44983bcaab0639d9f9"
 dependencies = [
  "async-trait",
- "derivative",
- "difference",
+ "educe",
  "fs-err",
  "futures",
  "glob",
  "humantime",
  "itertools",
  "libtest-mimic",
- "md5",
+ "md-5",
  "owo-colors",
  "regex",
+ "similar",
  "tempfile",
  "thiserror",
  "tracing",
