@@ -196,6 +196,7 @@
             name = "glaredb";
             contents = [
               pkgs.cacert
+              pkgs.openssh
               packages.glaredb-bin
               # Generated certs used for SSL connections in pgsrv. GlareDB
               # proper does not currently use certs.
