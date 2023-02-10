@@ -118,12 +118,19 @@
         # Function for creating container images with common arguments. The
         # resulting container will include the provided contents as well as the
         # debug package specified in `containerDebugPackages`.
+        #
+        # http://ryantm.github.io/nixpkgs/builders/images/dockertools/
         mkContainer = { name, contents, config, ... }:
-          pkgs.dockerTools.buildLayeredImage {
+          pkgs.dockerTools.buildImage {
             inherit name config;
             tag = self.rev or "dirty";
-            contents = contents ++ containerDebugPackages;
             created = "now";
+            copyToRoot = with pkgs.dockerTools; [
+              usrBinEnv
+              binSh
+              caCertificates
+              fakeNss
+            ] ++ containerDebugPackages ++ contents;
           };
 
         # Packages included in the 'ci' shell.
@@ -195,7 +202,6 @@
           glaredb-image = mkContainer {
             name = "glaredb";
             contents = [
-              pkgs.cacert
               pkgs.openssh
               packages.glaredb-bin
               # Generated certs used for SSL connections in pgsrv. GlareDB
