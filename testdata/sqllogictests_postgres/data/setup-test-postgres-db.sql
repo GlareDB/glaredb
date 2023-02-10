@@ -64,3 +64,18 @@ CREATE TABLE IF NOT EXISTS bikeshare_stations (
 
 -- Copy data from csv file into the postgres table.
 \copy bikeshare_stations FROM './testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv' CSV HEADER;
+
+-- bikeshare_trips table (quite big).
+CREATE TABLE IF NOT EXISTS bikeshare_trips (
+    trip_id            BIGINT,
+    subscriber_type    TEXT,
+    bikeid             VARCHAR(8),
+    start_time         TIMESTAMP,
+    start_station_id   INT,
+    start_station_name TEXT,
+    end_station_id     INT,
+    end_station_name   TEXT,
+    duration_minutes   INT
+);
+
+\copy bikeshare_trips FROM './testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv' CSV HEADER;

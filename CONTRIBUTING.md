@@ -42,6 +42,8 @@ use any cli tools needed.
 
 ### Additional tooling
 
+#### Docker
+
 While not strictly required for development, having Docker installed and running
 can be helpful in certain scenarios. For example, spinning up a scratch Postgres
 instance in Docker can be done via:
@@ -98,6 +100,30 @@ is running on. You can then connect to it via `psql`, for example:
 
 ``` shell
 psql "host=localhost dbname=glaredb port=<port> user=glaredb"
+```
+
+##### Test data on the cloud
+
+Some testdata lives in the cloud in GCS bucket `glaredb-testdata` (in the
+`glaredb-artifacts` project). This test data is mostly too huge to store in the
+repository. To pull the data run:
+
+```shell
+./scripts/prepare-testdata.sh
+```
+
+While developing you might need to add more testdata to the cloud. In order to
+do so, get permissions to push to the project, push the testdata and add it to
+the script as `<local path>:<object name>`. Object will be downloaded as
+`<local path>/gcs-artifacts/<object name>`.
+
+While running the `prepare-testdata.sh` you can specify the index number of the
+object you want to download (in case you don't want to download everything).
+Make sure to add a comment with index number when adding new objects to script.
+
+```shell
+# Downloads the object at index 13 in the array
+./scripts/prepare-testdata.sh 13
 ```
 
 ##### Writing Tests
