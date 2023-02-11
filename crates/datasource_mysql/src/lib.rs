@@ -27,8 +27,10 @@ use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
-use mysql_async::{prelude::*, OptsBuilder};
-use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, Row as MysqlRow, TxOpts};
+use mysql_async::prelude::*;
+use mysql_async::{
+    Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
+};
 use openssh::Session;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -54,7 +56,7 @@ pub struct MysqlAccessor {
     /// `Session` for the underlying ssh tunnel
     ///
     /// Kept on struct to avoid dropping ssh tunnel
-    _session: Option<Session>,
+    _ssh_tunnel: Option<Session>,
 }
 
 impl MysqlAccessor {
@@ -78,7 +80,7 @@ impl MysqlAccessor {
         Ok(MysqlAccessor {
             access,
             conn,
-            _session: None,
+            _ssh_tunnel: None,
         })
     }
 
@@ -107,7 +109,7 @@ impl MysqlAccessor {
         Ok(MysqlAccessor {
             access,
             conn,
-            _session: Some(session),
+            _ssh_tunnel: Some(session),
         })
     }
 
