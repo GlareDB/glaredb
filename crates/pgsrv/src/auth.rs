@@ -11,6 +11,8 @@ pub struct DatabaseDetails {
     pub ip: String,
     /// Port to connect to.
     pub port: String,
+    /// If this connection is a connection by the system on behalf of a user.
+    pub is_system: bool,
     /// ID of the database we're connecting to (UUID).
     pub database_id: String,
     /// ID of the user initiating the connection (UUID).
