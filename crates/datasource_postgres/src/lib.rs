@@ -55,8 +55,9 @@ pub struct PostgresAccessor {
     /// The Postgres client.
     client: tokio_postgres::Client,
     /// Handle for the underlying Postgres connection.
+    /// Also contains the `Session` for the underlying ssh tunnel
     ///
-    /// Kept on struct to avoid dropping future.
+    /// Kept on struct to avoid dropping the postgres connection future and ssh tunnel.
     #[allow(dead_code)]
     conn_handle: JoinHandle<()>,
 }
@@ -112,8 +113,6 @@ impl PostgresAccessor {
         let (session, tunnel_addr) = ssh_tunnel
             .create_tunnel(postgres_host, postgres_port)
             .await?;
-
-        // std::thread::sleep(std::time::Duration::from_secs(60));
 
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
         let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;

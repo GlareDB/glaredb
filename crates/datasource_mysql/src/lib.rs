@@ -29,9 +29,10 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::{prelude::*, OptsBuilder};
 use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, Row as MysqlRow, TxOpts};
+use openssh::Session;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use crate::errors::{MysqlError, Result};
 
@@ -50,6 +51,10 @@ pub struct MysqlTableAccess {
 pub struct MysqlAccessor {
     access: MysqlTableAccess,
     conn: RwLock<Conn>,
+    /// `Session` for the underlying ssh tunnel
+    ///
+    /// Kept on struct to avoid dropping ssh tunnel
+    _session: Option<Session>,
 }
 
 impl MysqlAccessor {
@@ -70,7 +75,11 @@ impl MysqlAccessor {
         let opts = Opts::from_url(database_url)?;
         let conn = RwLock::new(Conn::new(opts).await?);
 
-        Ok(MysqlAccessor { access, conn })
+        Ok(MysqlAccessor {
+            access,
+            conn,
+            _session: None,
+        })
     }
 
     // TODO: Add ssh tunnel support for MySQL
@@ -84,41 +93,22 @@ impl MysqlAccessor {
         let mysql_host = opts.ip_or_hostname();
         let mysql_port = opts.tcp_port();
 
-        warn!(?mysql_host, ?mysql_port, "r1234");
-
         // Open ssh tunnel
-        let (_session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
-
-        warn!(?tunnel_addr, "rustom try now r1234");
-
-        // std::thread::sleep(std::time::Duration::from_secs(120));
-
-        // let tcp_stream = tokio::net::TcpStream::connect(tunnel_addr).await?;
-
-        // warn!(?tcp_stream, "r1234");
+        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
 
         let opts: Opts = OptsBuilder::from_opts(opts)
             .ip_or_hostname(tunnel_addr.ip().to_string())
             .tcp_port(tunnel_addr.port())
-            // .ip_or_hostname("127.0.0.1")
-            // .tcp_port(50655)
             .prefer_socket(false)
             .into();
 
-        // warn!(?tunnel_addr, ?opts, "r1234");
+        let conn = RwLock::new(Conn::new(opts).await?);
 
-        let conn = Conn::new(opts).await;
-        warn!(?conn);
-
-        let conn = conn?;
-        let conn = RwLock::new(conn);
-        warn!(?conn);
-
-        // let conn = RwLock::new(Conn::new(opts).await?);
-
-        warn!(?conn, "r1234");
-
-        Ok(MysqlAccessor { access, conn })
+        Ok(MysqlAccessor {
+            access,
+            conn,
+            _session: Some(session),
+        })
     }
 
     pub async fn into_table_provider(

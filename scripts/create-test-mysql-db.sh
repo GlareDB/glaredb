@@ -8,12 +8,10 @@ set -e
 MYSQL_IMAGE="mysql:8"
 CONTAINER_NAME="glaredb_mysql_test"
 
-DB_ROOT_USER="root"
-DB_USER="glaredb"
-DB_PASSWORD="password"
+DB_USER="root"
 DB_NAME="glaredb_test"
 DB_HOST="127.0.0.1"
-DB_PORT=5432
+DB_PORT=3307
 
 # Remove container if it exists
 if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
@@ -21,9 +19,9 @@ if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
 fi
 
 # Create new container for mysql
-_CONTAINER_ID=$(docker run -p $DB_PORT:3306 --name "${CONTAINER_NAME}" -e MYSQL_DATABASE="${DB_NAME}" -e MYSQL_ALLOW_EMPTY_PASSWORD=YES -e MYSQL_USER=${DB_USER} -e MYSQL_PASSWORD=${DB_PASSWORD} -d $MYSQL_IMAGE)
+_CONTAINER_ID=$(docker run -p $DB_PORT:3306 --name "${CONTAINER_NAME}" -e MYSQL_DATABASE="${DB_NAME}" -e MYSQL_ALLOW_EMPTY_PASSWORD=YES -d $MYSQL_IMAGE)
 
-CONN_STRING="mysql --local-infile=1 -u $DB_ROOT_USER -h $DB_HOST --port=$DB_PORT -D $DB_NAME"
+CONN_STRING="mysql --local-infile=1 -u $DB_USER -h $DB_HOST --port=$DB_PORT -D $DB_NAME"
 # Let the database server start
 #
 # This loop basically waits for the database to start by testing the connection
@@ -48,4 +46,4 @@ done
 $CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql'
 
 echo "$CONN_STRING"
-echo "mysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+echo "mysql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"

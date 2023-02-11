@@ -93,10 +93,8 @@ impl PgCodec {
 
         let mut params = HashMap::new();
         while buf.remaining() > 0 && !buf.peek_next_is_null() {
-            tracing::warn!(?buf, "r1234");
             let key = buf.read_cstring()?.to_string();
             let val = buf.read_cstring()?.to_string();
-            tracing::warn!(?key, ?val, "r1234");
             params.insert(key, val);
         }
 
