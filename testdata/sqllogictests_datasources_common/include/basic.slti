@@ -1,7 +1,7 @@
-# These are some basic tests ran against a table named "basic". This table is
-# imported from:
+# These are some basic tests ran against a table named "basic".
+# This table is imported from:
 #
-# `testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv`.
+# `testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv`
 
 statement ok
 SELECT * FROM basic;
@@ -95,5 +95,3 @@ SELECT station_id FROM basic
 ----
 4699
 2570
-
-# TODO: Joins...

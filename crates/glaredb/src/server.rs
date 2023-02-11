@@ -1,12 +1,13 @@
+use std::sync::Arc;
+use std::{env, fs};
+
 use anyhow::Result;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
-use std::env;
-use std::fs;
-use std::sync::Arc;
+use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
-use tracing::{debug, debug_span, info, trace, Instrument};
+use tracing::{debug, debug_span, info, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
@@ -20,22 +21,32 @@ pub struct Server {
 impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
-    pub async fn connect(metastore_addr: String, local: bool) -> Result<Self> {
+    pub async fn connect(
+        metastore_addr: String,
+        segment_key: Option<String>,
+        local: bool,
+    ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
-        //
-        // The `TempDir` call below will not attempt to create that directory
-        // for us.
-        //
-        // This also happens in the `TempObjectStore`.
         let env_tmp = env::temp_dir();
-        trace!(?env_tmp, "ensuring temp dir for cache directory");
+        info!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
         // Connect to Metstore.
         let metastore = MetastoreServiceClient::connect(metastore_addr).await?;
 
-        let engine = Engine::new(metastore).await?;
+        let tracker = match segment_key {
+            Some(key) => {
+                info!("initializing segment telemeetry tracker");
+                SegmentTracker::new(key).into()
+            }
+            None => {
+                info!("skipping telementry initialization");
+                Tracker::Nop
+            }
+        };
+
+        let engine = Engine::new(metastore, Arc::new(tracker)).await?;
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(engine, local)),
         })

@@ -4,7 +4,7 @@ use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage, SqlState,
     StartupMessage, TransactionStatus,
 };
-use crate::proxy::GLAREDB_DATABASE_ID_KEY;
+use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -25,22 +25,21 @@ use uuid::Uuid;
 /// protocol.
 pub struct ProtocolHandler {
     engine: Engine,
-    /// If we should allow a nil database id.
+    /// If we should consider this database running locally.
     ///
-    /// During proxying, pgsrv will append the database id to the startup
-    /// options. if this is set to false, we'll return an error. Otherwise we'll
-    /// pass down a nil UUID as the database id. The nil ID is useful when
-    /// running GlareDB locally and connecting directly instead of through the
-    /// proxy.
-    allow_nil_database_id: bool,
+    /// During proxying by pgsrv, additional parameters are added to the startup
+    /// message containing things like database id and user id. However, if
+    /// we're running locally, these params will be missing. This flag indicates
+    /// that that's ok and to use a set of predefined values instead.
+    local: bool,
     ssl_conf: Option<SslConfig>,
 }
 
 impl ProtocolHandler {
-    pub fn new(engine: Engine, allow_nil_database_id: bool) -> ProtocolHandler {
+    pub fn new(engine: Engine, local: bool) -> ProtocolHandler {
         ProtocolHandler {
             engine,
-            allow_nil_database_id,
+            local,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
             // want to hold off on doing that until we have a shared config
             // between the proxy and GlareDB.
@@ -88,6 +87,32 @@ impl ProtocolHandler {
         }
     }
 
+    /// Read a value from the startup params that's been placed by pgsrv.
+    ///
+    /// This will also write any errors to the connection.
+    async fn read_proxy_key_val<C, V, K>(
+        &self,
+        framed: &mut FramedConn<C>,
+        key: &K,
+        params: &HashMap<String, String>,
+    ) -> Result<V>
+    where
+        C: AsyncRead + AsyncWrite + Unpin,
+        K: ProxyKey<V>,
+    {
+        match key.value_from_params(params, self.local) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                let resp = ErrorResponse::from(&e);
+                framed.send(resp.into()).await?;
+                // Technicall a client error, but the most likely cause is
+                // misconfiguration on our end, go ahead and return the error so
+                // it gets logged.
+                Err(e)
+            }
+        }
+    }
+
     /// Runs the postgres protocol for a connection to completion.
     async fn begin<C>(
         &self,
@@ -102,19 +127,15 @@ impl ProtocolHandler {
 
         let mut framed = FramedConn::new(conn);
 
-        // Get database id from params.
-        let db_id = match db_id_from_params(&params, !self.allow_nil_database_id) {
-            Ok(id) => id,
-            Err(e) => {
-                let resp = ErrorResponse::from(&e);
-                framed.send(resp.into()).await?;
-                // Technicall a client error, but the most likely cause is
-                // misconfiguration on our end, go ahead and return the error so
-                // it gets logged.
-                return Err(e);
-            }
-        };
+        // Get database id and user id from params.
+        let db_id = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_DATABASE_ID_KEY, &params)
+            .await?;
+        let user_id = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_USER_ID_KEY, &params)
+            .await?;
 
+        // Handle password
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
             .await?;
@@ -128,7 +149,7 @@ impl ProtocolHandler {
             None => return Ok(()),
         }
 
-        let mut sess = match self.engine.new_session(conn_id, db_id).await {
+        let mut sess = match self.engine.new_session(user_id, conn_id, db_id).await {
             Ok(sess) => sess,
             Err(e) => {
                 framed
@@ -599,51 +620,4 @@ fn extend_formats(formats: Vec<Format>, num: usize) -> Result<Vec<Format>, Error
             )))
         }
     })
-}
-
-/// Get the database id from the startup params.
-///
-/// If we do not require a database id, and one isn't found in the params, a nil
-/// UUID is returned.
-fn db_id_from_params(params: &HashMap<String, String>, is_required: bool) -> Result<Uuid> {
-    let id = match params.get(GLAREDB_DATABASE_ID_KEY) {
-        Some(val) => match Uuid::parse_str(val.as_str()) {
-            Ok(id) => id,
-            Err(_) => return Err(PgSrvError::InvalidDatabaseId(val.clone())),
-        },
-        None => {
-            if is_required {
-                return Err(PgSrvError::MissingDatabaseIdParam);
-            }
-            Uuid::nil()
-        }
-    };
-
-    Ok(id)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn db_id_provided_and_required() {
-        let mut params = HashMap::new();
-        let expected = Uuid::new_v4();
-        params.insert(GLAREDB_DATABASE_ID_KEY.to_string(), expected.to_string());
-
-        let got = db_id_from_params(&params, true).unwrap();
-        assert_eq!(expected, got)
-    }
-
-    #[test]
-    fn db_id_missing_and_required() {
-        let _ = db_id_from_params(&HashMap::new(), true).unwrap_err();
-    }
-
-    #[test]
-    fn db_id_missing_and_not_required() {
-        let got = db_id_from_params(&HashMap::new(), false).unwrap();
-        assert_eq!(Uuid::nil(), got);
-    }
 }

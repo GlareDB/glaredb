@@ -29,11 +29,11 @@ pub enum PgSrvError {
     #[error("missing org ID: pass it as an option, or subdomain in proxy or in database as '<org>/<db>'")]
     MissingOrgId,
 
-    #[error("Invalid database ID: {0}")]
-    InvalidDatabaseId(String),
+    #[error("Missing key '{0}' in startup params.")]
+    MissingProxyKey(&'static str),
 
-    #[error("Missing database ID param.")]
-    MissingDatabaseIdParam,
+    #[error("Invalid value for key '{key}': {value}")]
+    InvalidValueForProxyKey { key: &'static str, value: String },
 
     /// A stringified error from cloud.
     #[error("cloud: {0}")]
