@@ -1448,6 +1448,7 @@ dependencies = [
  "futures",
  "mysql_async",
  "mysql_common",
+ "openssh",
  "rust_decimal",
  "serde",
  "thiserror",

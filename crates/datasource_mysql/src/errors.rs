@@ -29,10 +29,6 @@ pub enum MysqlError {
 
     #[error(transparent)]
     ConnectionUrl(#[from] mysql_async::UrlError),
-
-    // TODO Remove
-    #[error("Coming soon! This feature is unimplemented")]
-    Unimplemented,
 }
 
 pub type Result<T, E = MysqlError> = std::result::Result<T, E>;
