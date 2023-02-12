@@ -318,9 +318,9 @@ pub struct ConnectionOptionsDebug {}
 pub struct ConnectionOptionsPostgres {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
-    /// Connection name for ssh tunnel
-    #[prost(string, optional, tag = "2")]
-    pub ssh_tunnel: ::core::option::Option<::prost::alloc::string::String>,
+    /// Connection id for ssh tunnel
+    #[prost(uint32, optional, tag = "3")]
+    pub ssh_tunnel: ::core::option::Option<u32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -335,9 +335,9 @@ pub struct ConnectionOptionsBigQuery {
 pub struct ConnectionOptionsMysql {
     #[prost(string, tag = "1")]
     pub connection_string: ::prost::alloc::string::String,
-    /// Connection name for ssh tunnel
-    #[prost(string, optional, tag = "2")]
-    pub ssh_tunnel: ::core::option::Option<::prost::alloc::string::String>,
+    /// Connection id for ssh tunnel
+    #[prost(uint32, optional, tag = "3")]
+    pub ssh_tunnel: ::core::option::Option<u32>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

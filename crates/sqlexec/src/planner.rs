@@ -51,11 +51,14 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
 
-                let ssh_tunnel_access = self.ctx.get_ssh_tunnel_access(ssh_tunnel.clone())?;
+                let (tunn_id, access) = match ssh_tunnel {
+                    Some(name) => Some(self.ctx.get_ssh_tunnel_access_by_name(&name)?).unzip(),
+                    None => None.unzip(),
+                };
 
                 task::block_in_place(|| {
                     Handle::current().block_on(async {
-                        PostgresAccessor::validate_connection(&connection_string, ssh_tunnel_access)
+                        PostgresAccessor::validate_connection(&connection_string, access)
                             .await
                             .map_err(|e| ExecError::InvalidConnection { source: e })
                     })
@@ -63,7 +66,7 @@ impl<'a> SessionPlanner<'a> {
 
                 ConnectionOptions::Postgres(ConnectionOptionsPostgres {
                     connection_string,
-                    ssh_tunnel,
+                    ssh_tunnel: tunn_id,
                 })
             }
             ConnectionOptions::BIGQUERY => {
@@ -77,9 +80,15 @@ impl<'a> SessionPlanner<'a> {
             ConnectionOptions::MYSQL => {
                 let connection_string = remove_required_opt(m, "mysql_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
+
+                let (tunn_id, _access) = match ssh_tunnel {
+                    Some(name) => Some(self.ctx.get_ssh_tunnel_access_by_name(&name)?).unzip(),
+                    None => None.unzip(),
+                };
+
                 ConnectionOptions::Mysql(ConnectionOptionsMysql {
                     connection_string,
-                    ssh_tunnel,
+                    ssh_tunnel: tunn_id,
                 })
             }
             ConnectionOptions::LOCAL => ConnectionOptions::Local(ConnectionOptionsLocal {}),
@@ -133,7 +142,7 @@ impl<'a> SessionPlanner<'a> {
         let m = &mut stmt.options;
 
         let conn = stmt.connection.to_lowercase();
-        let conn = self.ctx.get_connection(conn)?;
+        let conn = self.ctx.get_connection_by_name(&conn)?;
 
         let external_table_options = match conn.options {
             ConnectionOptions::Debug(_) => {
@@ -152,12 +161,14 @@ impl<'a> SessionPlanner<'a> {
                     name: source_table,
                     connection_string: options.connection_string.clone(),
                 };
-                let ssh_tunnel_access =
-                    self.ctx.get_ssh_tunnel_access(options.ssh_tunnel.clone())?;
+                let tunn_access = options
+                    .ssh_tunnel
+                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
+                    .transpose()?;
 
                 task::block_in_place(|| {
                     Handle::current().block_on(async {
-                        PostgresAccessor::validate_table_access(&access, ssh_tunnel_access)
+                        PostgresAccessor::validate_table_access(&access, tunn_access)
                             .await
                             .map_err(|e| ExecError::InvalidDataSource { source: e })
                     })

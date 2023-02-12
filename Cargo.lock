@@ -1416,6 +1416,7 @@ dependencies = [
 name = "datasource_common"
 version = "0.1.0"
 dependencies = [
+ "metastore",
  "openssh",
  "rand 0.8.5",
  "ssh-key",
