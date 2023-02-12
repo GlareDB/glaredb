@@ -1,5 +1,6 @@
 //! Module for handling the catalog for a single database.
 use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA_ID};
+use crate::dependencies::DependencyManager;
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::types::catalog::{
@@ -135,6 +136,7 @@ impl DatabaseCatalog {
         CatalogState {
             version: guard.version,
             entries: guard.entries.clone(),
+            dependency_lists: guard.deps.get_dependants().clone(),
         }
     }
 
@@ -187,6 +189,8 @@ struct State {
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
     schema_objects: HashMap<u32, SchemaObjects>,
+    /// Dependencies for this state.
+    deps: DependencyManager,
 }
 
 impl State {
@@ -202,6 +206,7 @@ impl State {
             entries: persisted.entries,
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
+            deps: DependencyManager::new(persisted.dependency_lists),
         };
 
         // Sanity check to ensure we didn't accidentally persist builtin
@@ -267,8 +272,8 @@ impl State {
 
     /// Create a persisted catalog containing only user objects.
     ///
-    /// Builtins are added to the catalog when converting from a persisted
-    /// catalog.
+    /// Builtins are not includeded in the persistent catalog, are instead added
+    /// to the catalog when converting from the persisted catalog.
     fn to_persisted(&self) -> PersistedCatalog {
         PersistedCatalog {
             version: self.version,
@@ -279,6 +284,7 @@ impl State {
                 .filter(|(_, ent)| !ent.get_meta().builtin)
                 .collect(),
             oid_counter: self.oid_counter,
+            dependency_lists: self.deps.get_dependants().clone(),
         }
     }
 

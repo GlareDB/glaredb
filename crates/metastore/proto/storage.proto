@@ -120,5 +120,14 @@ message PersistedCatalog {
   // Persisted oid counter. Used for oid generation for new database objects.
   uint32 oid_counter = 3;
 
-  // next: 3
+  // Dependencies for objects in the catalog.
+  //
+  // The key in this map is the "dependant". Every object in a dependency list
+  // is a "reference". A "dependant" depends on a "reference". A "reference"
+  // cannot be dropped without first all "dependants" beging dropped.
+  //
+  // An object may only be dropped if there are no dependants that reference it.
+  map<uint32, catalog.DependencyList> dependency_lists = 4;
+
+  // next: 4
 }

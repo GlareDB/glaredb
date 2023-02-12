@@ -1,6 +1,6 @@
 use super::ProtoConvError;
 use crate::proto::storage;
-use crate::types::catalog::CatalogEntry;
+use crate::types::catalog::{CatalogEntry, DependencyList};
 use std::collections::HashMap;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -124,6 +124,7 @@ pub struct PersistedCatalog {
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
     pub oid_counter: u32,
+    pub dependency_lists: HashMap<u32, DependencyList>,
 }
 
 impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
@@ -133,10 +134,17 @@ impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
         for (id, ent) in value.entries {
             entries.insert(id, ent.try_into()?);
         }
+
+        let mut dependency_lists = HashMap::with_capacity(value.dependency_lists.len());
+        for (id, deps) in value.dependency_lists {
+            dependency_lists.insert(id, deps.try_into()?);
+        }
+
         Ok(PersistedCatalog {
             version: value.version,
             entries,
             oid_counter: value.oid_counter,
+            dependency_lists,
         })
     }
 }
@@ -155,6 +163,11 @@ impl TryFrom<PersistedCatalog> for storage::PersistedCatalog {
                 })
                 .collect::<Result<_, _>>()?,
             oid_counter: value.oid_counter,
+            dependency_lists: value
+                .dependency_lists
+                .into_iter()
+                .map(|(id, deps)| (id, deps.into()))
+                .collect(),
         })
     }
 }

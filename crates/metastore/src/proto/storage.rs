@@ -95,4 +95,16 @@ pub struct PersistedCatalog {
     /// Persisted oid counter. Used for oid generation for new database objects.
     #[prost(uint32, tag = "3")]
     pub oid_counter: u32,
+    /// Dependencies for objects in the catalog.
+    ///
+    /// The key in this map is the "dependant". Every object in a dependency list
+    /// is a "reference". A "dependant" depends on a "reference". A "reference"
+    /// cannot be dropped without first all "dependants" beging dropped.
+    ///
+    /// An object may only be dropped if there are no dependants that reference it.
+    #[prost(map = "uint32, message", tag = "4")]
+    pub dependency_lists: ::std::collections::HashMap<
+        u32,
+        super::catalog::DependencyList,
+    >,
 }

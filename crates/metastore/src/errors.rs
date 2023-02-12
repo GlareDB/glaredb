@@ -43,6 +43,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
+
+    #[error(transparent)]
+    Dependencies(#[from] crate::dependencies::DependencyError),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;

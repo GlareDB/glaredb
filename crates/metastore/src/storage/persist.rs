@@ -67,6 +67,7 @@ impl Storage {
             version: 0,
             entries: HashMap::new(),
             oid_counter: FIRST_AVAILABLE_ID,
+            dependency_lists: HashMap::new(),
         }
         .try_into()?;
         let mut bs = BytesMut::new();

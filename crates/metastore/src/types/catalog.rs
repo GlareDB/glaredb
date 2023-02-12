@@ -56,7 +56,7 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DependencyList {
     pub dependencies: HashSet<Dependency>,
 }
@@ -86,7 +86,7 @@ impl From<DependencyList> for catalog::DependencyList {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DependencyType {
     Normal,
     Auto,
