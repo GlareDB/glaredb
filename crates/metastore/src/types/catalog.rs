@@ -3,13 +3,14 @@ use crate::proto::arrow;
 use crate::proto::catalog;
 use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct CatalogState {
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
+    pub dependency_lists: HashMap<u32, DependencyList>,
 }
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
@@ -19,9 +20,16 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
         for (id, ent) in value.entries {
             entries.insert(id, ent.try_into()?);
         }
+
+        let mut dependency_lists = HashMap::with_capacity(value.dependency_lists.len());
+        for (id, deps) in value.dependency_lists {
+            dependency_lists.insert(id, deps.try_into()?);
+        }
+
         Ok(CatalogState {
             version: value.version,
             entries,
+            dependency_lists,
         })
     }
 }
@@ -39,7 +47,105 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
                     Err(e) => Err(e),
                 })
                 .collect::<Result<_, _>>()?,
+            dependency_lists: value
+                .dependency_lists
+                .into_iter()
+                .map(|(id, deps)| (id, deps.into()))
+                .collect(),
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DependencyList {
+    pub dependencies: HashSet<Dependency>,
+}
+
+impl TryFrom<catalog::DependencyList> for DependencyList {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DependencyList) -> Result<Self, Self::Error> {
+        Ok(DependencyList {
+            dependencies: value
+                .dependencies
+                .into_iter()
+                .map(|dep| dep.try_into())
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl From<DependencyList> for catalog::DependencyList {
+    fn from(value: DependencyList) -> Self {
+        catalog::DependencyList {
+            dependencies: value
+                .dependencies
+                .into_iter()
+                .map(|dep| dep.into())
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DependencyType {
+    Normal,
+    Auto,
+}
+
+impl TryFrom<i32> for DependencyType {
+    type Error = ProtoConvError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        catalog::dependency::DependencyType::from_i32(value)
+            .ok_or(ProtoConvError::UnknownEnumVariant("DependencyType", value))
+            .and_then(|t| t.try_into())
+    }
+}
+
+impl TryFrom<catalog::dependency::DependencyType> for DependencyType {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::dependency::DependencyType) -> Result<Self, Self::Error> {
+        Ok(match value {
+            catalog::dependency::DependencyType::Unknown => {
+                return Err(ProtoConvError::ZeroValueEnumVariant("DependencyType"))
+            }
+            catalog::dependency::DependencyType::Normal => DependencyType::Normal,
+            catalog::dependency::DependencyType::Auto => DependencyType::Auto,
+        })
+    }
+}
+
+impl From<DependencyType> for catalog::dependency::DependencyType {
+    fn from(value: DependencyType) -> Self {
+        match value {
+            DependencyType::Normal => catalog::dependency::DependencyType::Normal,
+            DependencyType::Auto => catalog::dependency::DependencyType::Auto,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Dependency {
+    pub reference: u32,
+    pub dep_type: DependencyType,
+}
+
+impl TryFrom<catalog::Dependency> for Dependency {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::Dependency) -> Result<Self, Self::Error> {
+        Ok(Dependency {
+            reference: value.reference,
+            dep_type: value.dep_type.try_into()?,
+        })
+    }
+}
+
+impl From<Dependency> for catalog::Dependency {
+    fn from(value: Dependency) -> Self {
+        let dep_type: catalog::dependency::DependencyType = value.dep_type.into();
+        catalog::Dependency {
+            reference: value.reference,
+            dep_type: dep_type as i32,
+        }
     }
 }
 

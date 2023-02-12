@@ -16,8 +16,44 @@ message CatalogState {
   // ID -> Entry
   map<uint32, CatalogEntry> entries = 2;
 
+  // Dependencies for objects in the catalog.
+  //
+  // The key in this map is the "dependant". Every object in a dependency list
+  // is a "reference". A "dependant" depends on a "reference".
+  //
+  // An object may only be dropped if there are no dependants that reference it.
+  map<uint32, DependencyList> dependency_lists = 3;
+
+  // next: 4
+}
+
+// A single reference to some other object.
+message Dependency {
+  // Possible dependency types. These map closely to Postgres dependencies.
+  enum DependencyType {
+    // Unused, error if encountered.
+    UNKNOWN = 0;
+    // A normal dependency. A "dependant" can be dropped regardless of
+    // references. A "reference" cannot be dropped untill all its dependants are
+    // dropped.
+    NORMAL = 1;
+    // Generated dependencies that should be automatically dropped when
+    // reference is dropped, e.g. constraints. (Note not currently used)
+    AUTO = 2;
+    // TODO: There's likely more types we want to add.
+  }
+
+  // The oid of the reference that this dependency is pointing to.
+  uint32 reference = 1;
+
+  // The type of dependency.
+  DependencyType dep_type = 2;
+
   // next: 3
 }
+
+// A list of dependencies.
+message DependencyList { repeated Dependency dependencies = 1; }
 
 // Possible top-level catalog entries.
 message CatalogEntry {

@@ -10,6 +10,83 @@ pub struct CatalogState {
     /// ID -> Entry
     #[prost(map = "uint32, message", tag = "2")]
     pub entries: ::std::collections::HashMap<u32, CatalogEntry>,
+    /// Dependencies for objects in the catalog.
+    ///
+    /// The key in this map is the "dependant". Every object in a dependency list
+    /// is a "reference". A "dependant" depends on a "reference".
+    ///
+    /// An object may only be dropped if there are no dependants that reference it.
+    #[prost(map = "uint32, message", tag = "3")]
+    pub dependency_lists: ::std::collections::HashMap<u32, DependencyList>,
+}
+/// A single reference to some other object.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Dependency {
+    /// The oid of the reference that this dependency is pointing to.
+    #[prost(uint32, tag = "1")]
+    pub reference: u32,
+    /// The type of dependency.
+    #[prost(enumeration = "dependency::DependencyType", tag = "2")]
+    pub dep_type: i32,
+}
+/// Nested message and enum types in `Dependency`.
+pub mod dependency {
+    /// Possible dependency types. These map closely to Postgres dependencies.
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum DependencyType {
+        /// Unused, error if encountered.
+        Unknown = 0,
+        /// A normal dependency. A "dependant" can be dropped regardless of
+        /// references. A "reference" cannot be dropped untill all its dependants are
+        /// dropped.
+        Normal = 1,
+        /// Generated dependencies that should be automatically dropped when
+        /// reference is dropped, e.g. constraints. (Note not currently used)
+        ///
+        /// TODO: There's likely more types we want to add.
+        Auto = 2,
+    }
+    impl DependencyType {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                DependencyType::Unknown => "UNKNOWN",
+                DependencyType::Normal => "NORMAL",
+                DependencyType::Auto => "AUTO",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "UNKNOWN" => Some(Self::Unknown),
+                "NORMAL" => Some(Self::Normal),
+                "AUTO" => Some(Self::Auto),
+                _ => None,
+            }
+        }
+    }
+}
+/// A list of dependencies.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DependencyList {
+    #[prost(message, repeated, tag = "1")]
+    pub dependencies: ::prost::alloc::vec::Vec<Dependency>,
 }
 /// Possible top-level catalog entries.
 #[allow(clippy::derive_partial_eq_without_eq)]
