@@ -55,8 +55,9 @@ pub struct PostgresAccessor {
     /// The Postgres client.
     client: tokio_postgres::Client,
     /// Handle for the underlying Postgres connection.
+    /// Also contains the `Session` for the underlying ssh tunnel
     ///
-    /// Kept on struct to avoid dropping future.
+    /// Kept on struct to avoid dropping the postgres connection future and ssh tunnel.
     #[allow(dead_code)]
     conn_handle: JoinHandle<()>,
 }
