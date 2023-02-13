@@ -3,6 +3,6 @@
 statement ok
 CREATE CONNECTION IF NOT EXISTS testconn
     FOR mysql OPTIONS (
-        mysql_conn = 'mysql://root@127.0.0.1:3307/glaredb_test',
+        mysql_conn = '${MYSQL_CONN_STRING}',
     );
 

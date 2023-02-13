@@ -5,7 +5,10 @@ use glaredb::metastore::Metastore;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use object_store::memory::InMemory;
-use sqllogictest::{AsyncDB, DBOutput, DefaultColumnType, Runner};
+use regex::{Captures, Regex};
+use sqllogictest::{
+    parse, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
+};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -184,17 +187,22 @@ impl TestRunner {
         })
     }
 
+    const ENV_REGEX: &str = r"\$\{\s*(\w+)\s*\}";
+
     /// Execute all test files, returning after the first error.
     ///
     /// All tests are ran sequentially.
     async fn exec_tests(mut self, files: &[PathBuf]) -> Result<Duration> {
+        let regx = Regex::new(Self::ENV_REGEX).unwrap();
         let start = Instant::now();
         let mut runner = Runner::new(self.client);
         for file in files {
+            let records = parse_file(&regx, file)?;
             runner
-                .run_file_async(file)
+                .run_multi_async(records)
                 .await
                 .map_err(|e| anyhow!("test fail: {}", e))?;
+
             if let Ok(result) = self.conn_err.try_recv() {
                 match result {
                     Ok(()) => return Err(anyhow!("client connection unexpectedly closed")),
@@ -204,6 +212,67 @@ impl TestRunner {
         }
         Ok(Instant::now().duration_since(start))
     }
+}
+
+fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<T>>> {
+    let script = std::fs::read_to_string(path)
+        .map_err(|e| anyhow!("error while opening '{}': {}", path.to_string_lossy(), e))?;
+
+    // Replace all occurances of ${some_env_var} with actual values
+    // from the environment.
+    let script = regx.replace_all(&script, |caps: &Captures| {
+        let env_var = &caps[1];
+        match std::env::var(env_var) {
+            Ok(v) => v,
+            Err(error) => {
+                tracing::error!(%error, %env_var, "error fetching env variable");
+                format!("<error fetching env variable '{}': {}>", env_var, error)
+            }
+        }
+    });
+
+    let mut records = vec![];
+
+    let parsed_records = parse(&script).map_err(|e| {
+        anyhow!(
+            "error while parsing '{}': {}",
+            path.to_string_lossy(),
+            e.kind()
+        )
+    })?;
+
+    for rec in parsed_records {
+        records.push(rec.clone());
+
+        // Includes are not actually processed by the runner. It's more of a
+        // pre-processor, so we process them during the parse stage.
+        //
+        // This code was borrowed from `parse_file` function since the inner
+        // function is private.
+
+        if let Record::Include { filename, .. } = rec {
+            let complete_filename = {
+                let mut path_buf = path.to_path_buf();
+                path_buf.pop();
+                path_buf.push(filename.clone());
+                path_buf.as_os_str().to_string_lossy().to_string()
+            };
+
+            for included_file in glob::glob(&complete_filename)
+                .map_err(|e| anyhow!("Invalid include file at {}: {}", path.to_string_lossy(), e))?
+                .filter_map(Result::ok)
+            {
+                let included_file = included_file.as_os_str().to_string_lossy().to_string();
+
+                records.push(Record::Injected(Injected::BeginInclude(
+                    included_file.clone(),
+                )));
+                records.extend(parse_file(regx, &PathBuf::from(&included_file))?);
+                records.push(Record::Injected(Injected::EndInclude(included_file)));
+            }
+        }
+    }
+    Ok(records)
 }
 
 struct TestClient {
