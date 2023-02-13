@@ -53,4 +53,5 @@ if [[ -n "$SETUP_OUTPUT" ]]; then
   exit 1
 fi
 
+# This URI is expected by sqllogictests_postgres.
 echo "$CONN_STRING"

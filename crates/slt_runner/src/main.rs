@@ -225,8 +225,8 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<
         match std::env::var(env_var) {
             Ok(v) => v,
             Err(error) => {
-                tracing::warn!(%error, %env_var, "unable to find env variable");
-                format!("<error fetching env {}: {}>", env_var, error)
+                tracing::error!(%error, %env_var, "error fetching env variable");
+                format!("<error fetching env variable '{}': {}>", env_var, error)
             }
         }
     });

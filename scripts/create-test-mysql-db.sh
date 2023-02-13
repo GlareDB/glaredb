@@ -45,4 +45,5 @@ done
 # Load data into the test container
 $CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql'
 
+# This URI is expected by sqllogictests_mysql.
 echo "mysql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
