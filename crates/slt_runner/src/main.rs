@@ -221,10 +221,13 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<
     // Replace all occurances of ${some_env_var} with actual values
     // from the environment.
     let script = regx.replace_all(&script, |caps: &Captures| {
-        let var = &caps[1];
-        match std::env::var(&caps[1]) {
+        let env_var = &caps[1];
+        match std::env::var(env_var) {
             Ok(v) => v,
-            Err(e) => format!("<error fetching env {}: {}>", var, e),
+            Err(error) => {
+                tracing::warn!(%error, %env_var, "unable to find env variable");
+                format!("<error fetching env {}: {}>", env_var, error)
+            }
         }
     });
 

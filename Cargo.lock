@@ -4373,6 +4373,7 @@ dependencies = [
  "sqllogictest",
  "tokio",
  "tokio-postgres",
+ "tracing",
 ]
 
 [[package]]
