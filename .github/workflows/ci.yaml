@@ -79,7 +79,7 @@ jobs:
       - name: SQL Logic Tests (MySQL)
         run: |
           shopt -s globstar
-          export MYSQL_CONN_STRING=(./scripts/create-test-mysql-db.sh)
+          export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
           nix run .#slt-runner -- -v embedded testdata/sqllogictests_mysql/**/*.slt
 
       - name: Protocol Tests
