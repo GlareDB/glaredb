@@ -1,8 +1,7 @@
 pub mod errors;
 
 use std::any::Any;
-use std::fmt;
-use std::fmt::Write;
+use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -29,10 +28,13 @@ use datasource_common::ssh::SshTunnelAccess;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::*;
-use mysql_async::{Column as MysqlColumn, Conn, IsolationLevel, Opts, Row as MysqlRow, TxOpts};
+use mysql_async::{
+    Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
+};
+use openssh::Session;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use crate::errors::{MysqlError, Result};
 
@@ -51,6 +53,10 @@ pub struct MysqlTableAccess {
 pub struct MysqlAccessor {
     access: MysqlTableAccess,
     conn: RwLock<Conn>,
+    /// `Session` for the underlying ssh tunnel
+    ///
+    /// Kept on struct to avoid dropping ssh tunnel
+    _ssh_tunnel: Option<Session>,
 }
 
 impl MysqlAccessor {
@@ -71,16 +77,40 @@ impl MysqlAccessor {
         let opts = Opts::from_url(database_url)?;
         let conn = RwLock::new(Conn::new(opts).await?);
 
-        Ok(MysqlAccessor { access, conn })
+        Ok(MysqlAccessor {
+            access,
+            conn,
+            _ssh_tunnel: None,
+        })
     }
 
     // TODO: Add ssh tunnel support for MySQL
     async fn connect_with_ssh_tunnel(
-        _access: MysqlTableAccess,
-        _ssh_tunnel: SshTunnelAccess,
+        access: MysqlTableAccess,
+        ssh_tunnel: SshTunnelAccess,
     ) -> Result<Self> {
-        warn!("Unimplemented");
-        Err(MysqlError::Unimplemented)
+        let database_url = &access.connection_string;
+        let opts = Opts::from_url(database_url)?;
+
+        let mysql_host = opts.ip_or_hostname();
+        let mysql_port = opts.tcp_port();
+
+        // Open ssh tunnel
+        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
+
+        let opts: Opts = OptsBuilder::from_opts(opts)
+            .ip_or_hostname(tunnel_addr.ip().to_string())
+            .tcp_port(tunnel_addr.port())
+            .prefer_socket(false)
+            .into();
+
+        let conn = RwLock::new(Conn::new(opts).await?);
+
+        Ok(MysqlAccessor {
+            access,
+            conn,
+            _ssh_tunnel: Some(session),
+        })
     }
 
     pub async fn into_table_provider(
