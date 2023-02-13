@@ -50,59 +50,41 @@ impl SupervisorClient {
     /// Ping the worker.
     pub async fn ping(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
-        if self
-            .send
-            .send(WorkerRequest::Ping {
+        self.send(
+            WorkerRequest::Ping {
                 conn_id: self.conn_id,
                 response: tx,
-            })
-            .await
-            .is_err()
-        {
-            return Err(ExecError::MetastoreDatabaseWorkerOverload);
-        }
-        match rx.await {
-            Ok(_) => Ok(()),
-            Err(_) => Err(ExecError::MetastoreDatabaseWorkerOverload),
-        }
+            },
+            rx,
+        )
+        .await
     }
 
     /// Get the cache the latest state of the catalog.
     pub async fn refresh_cached_state(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
-        if self
-            .send
-            .send(WorkerRequest::RefreshCachedState {
+        self.send(
+            WorkerRequest::RefreshCachedState {
                 conn_id: self.conn_id,
                 response: tx,
-            })
-            .await
-            .is_err()
-        {
-            return Err(ExecError::MetastoreDatabaseWorkerOverload);
-        }
-        rx.await
-            .map_err(|_| ExecError::MetastoreDatabaseWorkerOverload)
+            },
+            rx,
+        )
+        .await
     }
 
     /// Get the current cached state of the catalog.
     pub async fn get_cached_state(&self) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
-        if self
-            .send
-            .send(WorkerRequest::GetCachedState {
+        self.send(
+            WorkerRequest::GetCachedState {
                 conn_id: self.conn_id,
                 response: tx,
-            })
-            .await
-            .is_err()
-        {
-            return Err(ExecError::MetastoreDatabaseWorkerOverload);
-        }
-        match rx.await {
-            Ok(result) => result,
-            Err(_) => Err(ExecError::MetastoreDatabaseWorkerOverload),
-        }
+            },
+            rx,
+        )
+        .await
+        .and_then(std::convert::identity) // Flatten
     }
 
     /// Try to run mutations against the Metastore catalog.
@@ -115,23 +97,51 @@ impl SupervisorClient {
         mutations: Vec<Mutation>,
     ) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
-        if self
-            .send
-            .send(WorkerRequest::ExecMutations {
+        self.send(
+            WorkerRequest::ExecMutations {
                 conn_id: self.conn_id,
                 version: current_version,
                 mutations,
                 response: tx,
-            })
-            .await
-            .is_err()
-        {
-            return Err(ExecError::MetastoreDatabaseWorkerOverload);
+            },
+            rx,
+        )
+        .await
+        .and_then(std::convert::identity) // Flatten
+    }
+
+    async fn send<R>(&self, req: WorkerRequest, rx: oneshot::Receiver<R>) -> Result<R> {
+        let tag = req.tag();
+        let result = match self.send.try_send(req) {
+            Ok(_) => match rx.await {
+                Ok(result) => Ok(result),
+                Err(_) => Err(ExecError::MetastoreResponseChannelClosed {
+                    request_type_tag: tag,
+                    conn_id: self.conn_id,
+                }),
+            },
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                Err(ExecError::MetastoreDatabaseWorkerOverload {
+                    request_type_tag: tag,
+                    conn_id: self.conn_id,
+                })
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                Err(ExecError::MetastoreRequestChannelClosed {
+                    request_type_tag: tag,
+                    conn_id: self.conn_id,
+                })
+            }
+        };
+
+        // We should be notified in all cases when an error occurs here. These
+        // errors indicate our logic for dropping workers is incorrect, or
+        // messages are getting stuck somewhere.
+        if let Err(e) = &result {
+            error!(%e, "failed to make metastore worker request");
         }
-        match rx.await {
-            Ok(result) => result,
-            Err(_) => Err(ExecError::MetastoreDatabaseWorkerOverload),
-        }
+
+        result
     }
 }
 
@@ -167,6 +177,15 @@ enum WorkerRequest {
 }
 
 impl WorkerRequest {
+    fn tag(&self) -> &'static str {
+        match self {
+            WorkerRequest::Ping { .. } => "ping",
+            WorkerRequest::GetCachedState { .. } => "get_cached_state",
+            WorkerRequest::ExecMutations { .. } => "exec_mutations",
+            WorkerRequest::RefreshCachedState { .. } => "refresh_cached_state",
+        }
+    }
+
     fn conn_id(&self) -> &Uuid {
         match self {
             WorkerRequest::Ping { conn_id, .. } => conn_id,

@@ -67,8 +67,27 @@ pub enum ExecError {
     #[error("Failed Metastore request: {0}")]
     MetastoreTonic(#[from] tonic::Status),
 
-    #[error("Metastore database worker overloaded.")]
-    MetastoreDatabaseWorkerOverload,
+    #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
+    MetastoreDatabaseWorkerOverload {
+        request_type_tag: &'static str,
+        conn_id: uuid::Uuid,
+    },
+
+    #[error(
+        "Metastore request channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
+    )]
+    MetastoreRequestChannelClosed {
+        request_type_tag: &'static str,
+        conn_id: uuid::Uuid,
+    },
+
+    #[error(
+        "Metastore response channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
+    )]
+    MetastoreResponseChannelClosed {
+        request_type_tag: &'static str,
+        conn_id: uuid::Uuid,
+    },
 
     #[error(transparent)]
     Dispatch(#[from] crate::dispatch::DispatchError),
