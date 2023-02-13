@@ -244,6 +244,12 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<
     for rec in parsed_records {
         records.push(rec.clone());
 
+        // Includes are not actually processed by the runner. It's more of a
+        // pre-processor, so we process them during the parse stage.
+        //
+        // This code was borrowed from `parse_file` function since the inner
+        // function is private.
+
         if let Record::Include { filename, .. } = rec {
             let complete_filename = {
                 let mut path_buf = path.to_path_buf();
