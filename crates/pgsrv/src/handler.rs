@@ -4,7 +4,7 @@ use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage, SqlState,
     StartupMessage, TransactionStatus,
 };
-use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
+use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_IS_SYSTEM_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -133,6 +133,10 @@ impl ProtocolHandler {
             .await?;
         let user_id = self
             .read_proxy_key_val(&mut framed, &GLAREDB_USER_ID_KEY, &params)
+            .await?;
+        // TODO: Thread this around.
+        let _is_system = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_IS_SYSTEM_KEY, &params)
             .await?;
 
         // Handle password

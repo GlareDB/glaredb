@@ -61,6 +61,31 @@ impl ProxyKey<Uuid> for UuidProxyKey {
         Ok(id)
     }
 }
+/// A proxy key who's value should be parsed as a bool.
+#[derive(Debug)]
+pub struct BoolProxyKey {
+    /// Key to look for in params.
+    key: &'static str,
+    /// Default to use if key not found _and_ db is running locally.
+    local_default: bool,
+}
+
+impl ProxyKey<bool> for BoolProxyKey {
+    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<bool> {
+        match params.get(self.key) {
+            Some(val) => match val.as_str() {
+                "true" | "t" => Ok(true),
+                "false" | "f" => Ok(false),
+                _ => Err(PgSrvError::InvalidValueForProxyKey {
+                    key: self.key,
+                    value: val.clone(),
+                }),
+            },
+            None if local => Ok(self.local_default),
+            None => Err(PgSrvError::MissingProxyKey(self.key)),
+        }
+    }
+}
 
 /// Param key for setting the database id in startup params. Added by pgsrv
 /// during proxying.
@@ -74,6 +99,13 @@ pub const GLAREDB_DATABASE_ID_KEY: UuidProxyKey = UuidProxyKey {
 pub const GLAREDB_USER_ID_KEY: UuidProxyKey = UuidProxyKey {
     key: "glaredb_user_id",
     local_default: Uuid::nil(),
+};
+
+/// Param key for setting if the connection was initiated by the system and not
+/// the user. Added by pgsrv during proxying.
+pub const GLAREDB_IS_SYSTEM_KEY: BoolProxyKey = BoolProxyKey {
+    key: "glaredb_is_system",
+    local_default: false,
 };
 
 /// ProxyHandler proxies connections to some database instance. Connections are
@@ -189,6 +221,14 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
             db_details.database_id,
         );
         params.insert(GLAREDB_USER_ID_KEY.key.to_string(), db_details.user_id);
+        params.insert(
+            GLAREDB_IS_SYSTEM_KEY.key.to_string(),
+            if db_details.is_system {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            },
+        );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
 
@@ -403,5 +443,55 @@ mod tests {
             .value_from_params(&HashMap::new(), true)
             .unwrap();
         assert_eq!(LOCAL_DATABASE_ID, id);
+    }
+
+    #[test]
+    fn proxy_key_is_system() {
+        struct TestCase {
+            to_insert: Option<&'static str>,
+            is_local: bool,
+            expected_val: Option<bool>, // None indicates we expect an error to be returned.
+        }
+
+        let test_cases = vec![
+            TestCase {
+                to_insert: None,
+                is_local: true,
+                expected_val: Some(false),
+            },
+            TestCase {
+                to_insert: None,
+                is_local: false,
+                expected_val: None,
+            },
+            TestCase {
+                to_insert: Some("true"),
+                is_local: false,
+                expected_val: Some(true),
+            },
+            TestCase {
+                to_insert: Some("not_bool"),
+                is_local: false,
+                expected_val: None,
+            },
+        ];
+
+        for tc in test_cases {
+            let mut params = HashMap::new();
+            if let Some(val) = tc.to_insert {
+                params.insert(GLAREDB_IS_SYSTEM_KEY.key.to_string(), val.to_string());
+            }
+
+            let result = GLAREDB_IS_SYSTEM_KEY.value_from_params(&params, tc.is_local);
+            match (tc.expected_val, result) {
+                (Some(expected), Ok(got)) => assert_eq!(expected, got),
+                (None, Err(_)) => (), // We expected an error.
+                (None, Ok(got)) => panic!("unexpectedly got value: {}", got),
+                (Some(expected), Err(e)) => panic!(
+                    "unexpectedly got error: {}, expected value: {}",
+                    e, expected
+                ),
+            }
+        }
     }
 }
