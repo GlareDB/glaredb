@@ -126,6 +126,24 @@ Make sure to add a comment with index number when adding new objects to script.
 ./scripts/prepare-testdata.sh 13
 ```
 
+##### Test Environment variables
+
+Some SQL Logic Tests depend on setting a few environment variables:
+
+1. **`POSTGRES_CONN_STRING`**: To run postgres datasource tests. Use the string
+   returned from setting up the local database:
+
+   ```sh
+   export POSTGRES_CONN_STRING=$(./scripts/create-test-postgres-db.sh)
+   ```
+
+2. **`MYSQL_CONN_STRING`**: To run the mysql datasource tests. Use the string
+   returned from setting up the local database:
+
+   ```sh
+   export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
+   ```
+
 ##### Writing Tests
 
 Each test file should start with a short comment describing what the file is
@@ -164,6 +182,27 @@ cases to allow for accurate comparisons with expected results). Everything after
 the `----` is the expected results for the query.
 
 More details on the [sqllogictest wiki page](https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
+
+###### Environment variables
+
+In addition to the above mentioned document, we run a modified version of the
+SQL Logic Tests runner. We support environment variables which can be used
+anywhere in the script using the notation: `${ MY_ENV_VARIABLE }`.
+
+For example:
+
+```
+statement ok
+select * from ${MY_TABLE_NAME};
+```
+
+Setting the environment variable `export MY_TABLE_NAME=cool_table`, the script
+will be translated to:
+
+```
+statement ok
+select * from cool_table; 
+```
 
 ##### Interpreting Test Output
 
