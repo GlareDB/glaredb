@@ -4369,6 +4369,7 @@ dependencies = [
  "glob",
  "logutil",
  "object_store",
+ "regex",
  "sqllogictest",
  "tokio",
  "tokio-postgres",

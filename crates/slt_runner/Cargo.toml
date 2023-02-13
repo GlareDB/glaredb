@@ -16,3 +16,4 @@ anyhow = "1.0"
 async-trait = "0.1.64"
 clap = { version = "4.1.4", features = ["derive"] }
 glob = "0.3.1"
+regex = "1.7.1"

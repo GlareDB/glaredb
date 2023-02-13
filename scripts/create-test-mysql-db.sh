@@ -45,5 +45,4 @@ done
 # Load data into the test container
 $CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sql'
 
-echo "$CONN_STRING"
 echo "mysql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
