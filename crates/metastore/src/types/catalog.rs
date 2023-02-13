@@ -372,6 +372,16 @@ impl From<ConnectionEntry> for catalog::ConnectionEntry {
     }
 }
 
+impl ConnectionEntry {
+    /// Try to get ssh options if this connection is an ssh connection.
+    pub fn try_get_ssh_options(&self) -> Option<&ConnectionOptionsSsh> {
+        match &self.options {
+            ConnectionOptions::Ssh(ssh) => Some(ssh),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary)]
 pub struct ExternalTableEntry {
     pub meta: EntryMeta,
@@ -777,7 +787,7 @@ impl From<ConnectionOptionsDebug> for catalog::ConnectionOptionsDebug {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct ConnectionOptionsPostgres {
     pub connection_string: String,
-    pub ssh_tunnel: Option<String>,
+    pub ssh_tunnel: Option<u32>,
 }
 
 impl TryFrom<catalog::ConnectionOptionsPostgres> for ConnectionOptionsPostgres {
@@ -827,7 +837,7 @@ impl From<ConnectionOptionsBigQuery> for catalog::ConnectionOptionsBigQuery {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct ConnectionOptionsMysql {
     pub connection_string: String,
-    pub ssh_tunnel: Option<String>,
+    pub ssh_tunnel: Option<u32>,
 }
 
 impl TryFrom<catalog::ConnectionOptionsMysql> for ConnectionOptionsMysql {

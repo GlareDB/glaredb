@@ -48,8 +48,17 @@ pub enum ExecError {
         want: metastore::types::catalog::EntryType,
     },
 
-    #[error("Missing connection; schema: {schema}, name: {name}")]
-    MissingConnection { schema: String, name: String },
+    #[error("Missing connection by name; schema: {schema}, name: {name}")]
+    MissingConnectionByName { schema: String, name: String },
+
+    #[error("Missing connection by oid: {oid}")]
+    MissingConnectionByOid { oid: u32 },
+
+    #[error("Invalid connection type; expected: {expected}, got: {got}")]
+    InvalidConnectionType {
+        expected: &'static str,
+        got: &'static str,
+    },
 
     #[error("An ssh connection is not supported datasource for CREATE EXTERNAL TABLE. An ssh connection must be provided as an optional ssh_tunnel with another connection type")]
     ExternalTableWithSsh,
