@@ -179,9 +179,10 @@ impl<'a> SessionDispatcher<'a> {
                     connection_string: conn.connection_string.clone(),
                 };
 
-                let ssh_tunnel_access = self
-                    .ctx
-                    .get_ssh_tunnel_access(conn.ssh_tunnel.to_owned())
+                let tunn_access = conn
+                    .ssh_tunnel
+                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
+                    .transpose()
                     .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
 
                 let predicate_pushdown = *self
@@ -193,7 +194,7 @@ impl<'a> SessionDispatcher<'a> {
                     task::block_in_place(move || {
                         Handle::current().block_on(async move {
                             let accessor =
-                                PostgresAccessor::connect(table_access, ssh_tunnel_access).await?;
+                                PostgresAccessor::connect(table_access, tunn_access).await?;
                             let provider = accessor.into_table_provider(predicate_pushdown).await?;
                             Ok(provider)
                         })
@@ -231,9 +232,10 @@ impl<'a> SessionDispatcher<'a> {
                     connection_string: conn.connection_string.clone(),
                 };
 
-                let ssh_tunnel_access = self
-                    .ctx
-                    .get_ssh_tunnel_access(conn.ssh_tunnel.to_owned())
+                let tunn_access = conn
+                    .ssh_tunnel
+                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
+                    .transpose()
                     .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
 
                 let predicate_pushdown = *self
@@ -245,7 +247,7 @@ impl<'a> SessionDispatcher<'a> {
                     task::block_in_place(move || {
                         Handle::current().block_on(async move {
                             let accessor =
-                                MysqlAccessor::connect(table_access, ssh_tunnel_access).await?;
+                                MysqlAccessor::connect(table_access, tunn_access).await?;
                             let provider = accessor.into_table_provider(predicate_pushdown).await?;
                             Ok(provider)
                         })
