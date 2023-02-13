@@ -1,0 +1,27 @@
+# Test drop objects
+
+statement ok
+create schema drop;
+
+statement ok
+set search_path = drop;
+
+statement ok
+set enable_debug_datasources to true;
+
+statement ok
+create connection debug_conn for debug;
+
+statement ok
+create external table test from debug_conn options (table_type = 'never_ending');
+
+query T
+select * from test limit 1;
+----
+1 2 3
+
+statement ok
+drop table test;
+
+statement error
+select * from test limit 1;
