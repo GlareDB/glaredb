@@ -305,10 +305,21 @@ impl State {
                         .remove(&drop_schema.name)
                         .ok_or(MetastoreError::MissingNamedSchema(drop_schema.name))?;
 
-                    // TODO: Dependency checking (for child objects like tables, connections,
-                    // views, etc.)
-                    let _ = self.schema_objects.remove(&schema_id).unwrap(); // Bug if doesn't exist.
-                    let _ = self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
+                    // Check if any child objects exist for this schema
+                    match self.schema_objects.get(&schema_id) {
+                        Some(so) if so.objects.is_empty() => {
+                            self.schema_objects.remove(&schema_id).unwrap();
+                        }
+                        None => (), // Empty schema that never had any child objects
+                        Some(so) => {
+                            return Err(MetastoreError::SchemaHasChildren {
+                                schema: schema_id,
+                                num_objects: so.objects.len(),
+                            });
+                        }
+                    }
+
+                    self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::DropObject(drop_object) => {
                     // TODO: Dependency checking (for child objects like views, etc.)

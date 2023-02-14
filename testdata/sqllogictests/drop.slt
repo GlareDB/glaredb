@@ -1,4 +1,19 @@
-# Test drop objects
+# Tests drop schema and drop objects
+
+# Test dropping  empty schema
+
+statement ok
+create schema drop_schema;
+
+statement ok
+drop schema drop_schema;
+
+query T
+select schema_name from glare_catalog.schemas where schema_name='drop_table';
+----
+
+
+# Test drop schema with objects and drop table
 
 statement ok
 create schema drop_table;
@@ -15,32 +30,42 @@ create connection debug_conn for debug;
 statement ok
 create external table test from debug_conn options (table_type = 'never_ending');
 
-query T
+query III
 select * from test limit 1;
 ----
 1 2 3
 
+# We cannot drop a schema before removing the table and connection (child
+# objects on schema)
+statement error
+drop schema drop_table;
+
+query T
+select schema_name from glare_catalog.schemas where schema_name='drop_table';
+----
+drop_table
+
 # Drop table and connection (child objects on schema)
 statement ok
 drop table test;
+
+query TT
+select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
+----
 
 # TODO this is currently reusing the drop object code for drop table, this
 # needs to be updated once drop connection is added (see GlareDB/glaredb#576)
 statement ok
 drop table debug_conn;
 
-# Now that all dependent objects have been dropped we can drop the schema
-statement ok
-drop schema drop_table;
-
-query TT
-select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
-----
-
 query TT
 select schema_name, connection_name from glare_catalog.connections where schema_name='drop_table' and connection_name='debug_conn';
 ----
 
-query TT
+# Now that all dependent objects have been dropped we can drop the schema
+statement ok
+drop schema drop_table;
+
+query T
 select schema_name from glare_catalog.schemas where schema_name='drop_table';
 ----
