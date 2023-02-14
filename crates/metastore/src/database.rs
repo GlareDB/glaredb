@@ -300,16 +300,19 @@ impl State {
         for mutation in mutations {
             match mutation {
                 Mutation::DropSchema(drop_schema) => {
-                    // TODO: Dependency checking.
                     let schema_id = self
                         .schema_names
                         .remove(&drop_schema.name)
                         .ok_or(MetastoreError::MissingNamedSchema(drop_schema.name))?;
-                    _ = schema_id
+
+                    // TODO: Dependency checking (for child objects like tables, connections,
+                    // views, etc.)
+                    let _ = self.schema_objects.remove(&schema_id).unwrap(); // Bug if doesn't exist.
+                    let _ = self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::DropObject(drop_object) => {
-                    // TODO: Dependency checking.
-                    let schema_id = self.get_schema_id(&drop_object.name)?;
+                    // TODO: Dependency checking (for child objects like views, etc.)
+                    let schema_id = self.get_schema_id(&drop_object.schema)?;
 
                     let objs = self.schema_objects.get_mut(&schema_id).unwrap(); // Bug if doesn't exist.
                     let ent_id = objs.objects.remove(&drop_object.name).ok_or(

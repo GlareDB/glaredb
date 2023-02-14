@@ -1,10 +1,10 @@
 # Test drop objects
 
 statement ok
-create schema drop;
+create schema drop_table;
 
 statement ok
-set search_path = drop;
+set search_path = drop_table;
 
 statement ok
 set enable_debug_datasources to true;
@@ -20,8 +20,27 @@ select * from test limit 1;
 ----
 1 2 3
 
+# Drop table and connection (child objects on schema)
 statement ok
 drop table test;
 
-statement error
-select * from test limit 1;
+# TODO this is currently reusing the drop object code for drop table, this
+# needs to be updated once drop connection is added (see GlareDB/glaredb#576)
+statement ok
+drop table debug_conn;
+
+# Now that all dependent objects have been dropped we can drop the schema
+statement ok
+drop schema drop_table;
+
+query TT
+select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
+----
+
+query TT
+select schema_name, connection_name from glare_catalog.connections where schema_name='drop_table' and connection_name='debug_conn';
+----
+
+query TT
+select schema_name from glare_catalog.schemas where schema_name='drop_table';
+----
