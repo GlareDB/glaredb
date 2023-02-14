@@ -43,6 +43,8 @@ pub enum ExecutionResult {
     SetLocal,
     /// Tables dropped.
     DropTables,
+    /// Connections dropped.
+    DropConnections,
     /// Schemas dropped.
     DropSchemas,
 }
@@ -63,6 +65,7 @@ impl ExecutionResult {
             ExecutionResult::CreateConnection => "create_connection",
             ExecutionResult::SetLocal => "set_local",
             ExecutionResult::DropTables => "drop_tables",
+            ExecutionResult::DropConnections => "drop_connections",
             ExecutionResult::DropSchemas => "drop_schemas",
         }
     }
@@ -83,6 +86,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateConnection => write!(f, "create connection"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
+            ExecutionResult::DropConnections => write!(f, "drop connections"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
         }
     }
@@ -170,6 +174,11 @@ impl Session {
 
     pub(crate) async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         self.ctx.drop_tables(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn drop_connections(&mut self, plan: DropConnections) -> Result<()> {
+        self.ctx.drop_connections(plan).await?;
         Ok(())
     }
 
@@ -296,6 +305,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
                 self.drop_tables(plan).await?;
                 ExecutionResult::DropTables
+            }
+            LogicalPlan::Ddl(DdlPlan::DropConnections(plan)) => {
+                self.drop_connections(plan).await?;
+                ExecutionResult::DropConnections
             }
             LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
                 self.drop_schemas(plan).await?;

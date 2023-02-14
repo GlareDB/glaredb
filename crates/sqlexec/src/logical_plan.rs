@@ -81,6 +81,7 @@ pub enum DdlPlan {
     CreateConnection(CreateConnection),
     CreateView(CreateView),
     DropTables(DropTables),
+    DropConnections(DropConnections),
     DropSchemas(DropSchemas),
 }
 
@@ -133,6 +134,12 @@ pub struct CreateView {
 
 #[derive(Clone, Debug)]
 pub struct DropTables {
+    pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DropConnections {
     pub names: Vec<String>,
     pub if_exists: bool,
 }

@@ -81,6 +81,32 @@ impl fmt::Display for CreateConnectionStmt {
     }
 }
 
+/// DDL extension for GlareDB's drop connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropConnectionStmt {
+    /// Name of the connections
+    pub names: Vec<String>,
+    /// Optionally don't error if table does not exists.
+    pub if_exists: bool,
+}
+
+impl fmt::Display for DropConnectionStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DROP CONNECTION ")?;
+        if self.if_exists {
+            write!(f, "IF EXISTS ")?;
+        }
+
+        let (first_name, rest) = self.names.split_first().unwrap();
+        write!(f, "{} ", first_name)?;
+        for name in rest {
+            write!(f, ", {}", name)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
@@ -89,6 +115,8 @@ pub enum StatementWithExtensions {
     CreateExternalTable(CreateExternalTableStmt),
     /// Create connection extension.
     CreateConnection(CreateConnectionStmt),
+    /// Drop connection extension.
+    DropConnection(DropConnectionStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -97,6 +125,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::Statement(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateConnection(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::DropConnection(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -143,6 +172,10 @@ impl<'a> CustomParser<'a> {
                 Keyword::CREATE => {
                     self.parser.next_token();
                     self.parse_create()
+                }
+                Keyword::DROP => {
+                    self.parser.next_token();
+                    self.parse_drop()
                 }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
@@ -276,6 +309,33 @@ impl<'a> CustomParser<'a> {
         } else {
             false
         }
+    }
+
+    /// Parse a SQL DROP statement
+    fn parse_drop(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        if self.parser.parse_keyword(Keyword::CONNECTION) {
+            // DROP CONNECTION ...
+            self.parse_drop_connection()
+        } else {
+            // Fall back to underlying parser.
+            Ok(StatementWithExtensions::Statement(
+                self.parser.parse_drop()?,
+            ))
+        }
+    }
+
+    fn parse_drop_connection(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+        let names = self
+            .parser
+            .parse_comma_separated(Parser::parse_object_name)?
+            .into_iter()
+            .map(|n| n.to_string())
+            .collect();
+
+        Ok(StatementWithExtensions::DropConnection(
+            DropConnectionStmt { names, if_exists },
+        ))
     }
 }
 

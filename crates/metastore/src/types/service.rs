@@ -66,19 +66,26 @@ impl From<Mutation> for service::Mutation {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct DropSchema {
     pub name: String,
+    pub if_exists: bool,
 }
 
 impl TryFrom<service::DropSchema> for DropSchema {
     type Error = ProtoConvError;
     fn try_from(value: service::DropSchema) -> Result<Self, Self::Error> {
         // TODO: Check if string is zero value.
-        Ok(DropSchema { name: value.name })
+        Ok(DropSchema {
+            name: value.name,
+            if_exists: value.if_exists,
+        })
     }
 }
 
 impl From<DropSchema> for service::DropSchema {
     fn from(value: DropSchema) -> Self {
-        service::DropSchema { name: value.name }
+        service::DropSchema {
+            name: value.name,
+            if_exists: value.if_exists,
+        }
     }
 }
 
@@ -86,6 +93,7 @@ impl From<DropSchema> for service::DropSchema {
 pub struct DropObject {
     pub schema: String,
     pub name: String,
+    pub if_exists: bool,
 }
 
 impl TryFrom<service::DropObject> for DropObject {
@@ -95,6 +103,7 @@ impl TryFrom<service::DropObject> for DropObject {
         Ok(DropObject {
             schema: value.schema,
             name: value.name,
+            if_exists: value.if_exists,
         })
     }
 }
@@ -104,6 +113,7 @@ impl From<DropObject> for service::DropObject {
         service::DropObject {
             schema: value.schema,
             name: value.name,
+            if_exists: value.if_exists,
         }
     }
 }

@@ -300,10 +300,12 @@ impl State {
         for mutation in mutations {
             match mutation {
                 Mutation::DropSchema(drop_schema) => {
-                    let schema_id = self
-                        .schema_names
-                        .remove(&drop_schema.name)
-                        .ok_or(MetastoreError::MissingNamedSchema(drop_schema.name))?;
+                    let if_exists = drop_schema.if_exists;
+                    let schema_id = match self.schema_names.remove(&drop_schema.name) {
+                        None if if_exists => return Ok(()),
+                        None => return Err(MetastoreError::MissingNamedSchema(drop_schema.name)),
+                        Some(id) => id,
+                    };
 
                     // Check if any child objects exist for this schema
                     match self.schema_objects.get(&schema_id) {
@@ -321,18 +323,40 @@ impl State {
 
                     self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
                 }
+                // Can drop db objects like tables and connections
                 Mutation::DropObject(drop_object) => {
-                    // TODO: Dependency checking (for child objects like views, etc.)
-                    let schema_id = self.get_schema_id(&drop_object.schema)?;
+                    // TODO: Dependency checking (for child objects like tables, views, etc.)
+                    let if_exists = drop_object.if_exists;
 
-                    let objs = self.schema_objects.get_mut(&schema_id).unwrap(); // Bug if doesn't exist.
-                    let ent_id = objs.objects.remove(&drop_object.name).ok_or(
-                        MetastoreError::MissingNamedObject {
-                            schema: drop_object.schema,
-                            name: drop_object.name,
-                        },
-                    )?;
-                    let _ = self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
+                    let schema_id = match self.schema_names.get(&drop_object.schema) {
+                        None if if_exists => return Ok(()),
+                        None => return Err(MetastoreError::MissingNamedSchema(drop_object.schema)),
+                        Some(id) => *id,
+                    };
+
+                    let objs = match self.schema_objects.get_mut(&schema_id) {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: drop_object.schema,
+                                name: drop_object.name,
+                            })
+                        }
+                        Some(objs) => objs,
+                    };
+
+                    let ent_id = match objs.objects.remove(&drop_object.name) {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: drop_object.schema,
+                                name: drop_object.name,
+                            })
+                        }
+                        Some(id) => id,
+                    };
+
+                    self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::CreateSchema(create_schema) => {
                     // TODO: If not exists.
@@ -620,10 +644,26 @@ mod tests {
             version(&db).await,
             vec![Mutation::DropSchema(DropSchema {
                 name: "yoshi".to_string(),
+                if_exists: false,
             })],
         )
         .await
         .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn drop_missing_schema_if_exists() {
+        let db = new_catalog().await;
+
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::DropSchema(DropSchema {
+                name: "yoshi".to_string(),
+                if_exists: true,
+            })],
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -694,6 +734,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::DropSchema(DropSchema {
                 name: "mario".to_string(),
+                if_exists: false,
             })],
         )
         .await

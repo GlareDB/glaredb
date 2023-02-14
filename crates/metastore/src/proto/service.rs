@@ -99,6 +99,8 @@ pub mod mutation {
 pub struct DropSchema {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -107,6 +109,8 @@ pub struct DropObject {
     pub schema: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub name: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
