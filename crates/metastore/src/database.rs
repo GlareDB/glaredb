@@ -308,7 +308,7 @@ impl State {
                     // Check if any child objects exist for this schema
                     match self.schema_objects.get(&schema_id) {
                         Some(so) if so.objects.is_empty() => {
-                            self.schema_objects.remove(&schema_id).unwrap();
+                            self.schema_objects.remove(&schema_id);
                         }
                         None => (), // Empty schema that never had any child objects
                         Some(so) => {
