@@ -300,16 +300,30 @@ impl State {
         for mutation in mutations {
             match mutation {
                 Mutation::DropSchema(drop_schema) => {
-                    // TODO: Dependency checking.
                     let schema_id = self
                         .schema_names
                         .remove(&drop_schema.name)
                         .ok_or(MetastoreError::MissingNamedSchema(drop_schema.name))?;
-                    _ = schema_id
+
+                    // Check if any child objects exist for this schema
+                    match self.schema_objects.get(&schema_id) {
+                        Some(so) if so.objects.is_empty() => {
+                            self.schema_objects.remove(&schema_id);
+                        }
+                        None => (), // Empty schema that never had any child objects
+                        Some(so) => {
+                            return Err(MetastoreError::SchemaHasChildren {
+                                schema: schema_id,
+                                num_objects: so.objects.len(),
+                            });
+                        }
+                    }
+
+                    self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::DropObject(drop_object) => {
-                    // TODO: Dependency checking.
-                    let schema_id = self.get_schema_id(&drop_object.name)?;
+                    // TODO: Dependency checking (for child objects like views, etc.)
+                    let schema_id = self.get_schema_id(&drop_object.schema)?;
 
                     let objs = self.schema_objects.get_mut(&schema_id).unwrap(); // Bug if doesn't exist.
                     let ent_id = objs.objects.remove(&drop_object.name).ok_or(
