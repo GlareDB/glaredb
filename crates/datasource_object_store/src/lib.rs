@@ -1,13 +1,35 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
+use errors::ObjectStoreSourceError;
 use object_store::{ObjectMeta, ObjectStore};
+use serde::{Deserialize, Serialize};
 
 pub mod errors;
 pub mod gcs;
 pub mod local;
 pub mod s3;
 
+mod csv;
 mod parquet;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FileType {
+    Csv,
+    Parquet,
+}
+
+impl FromStr for FileType {
+    type Err = ObjectStoreSourceError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+        match s.as_str() {
+            "parquet" => Ok(Self::Parquet),
+            "csv" => Ok(Self::Csv),
+            _ => Err(Self::Err::NotSupportFileType(s)),
+        }
+    }
+}
 
 pub trait TableAccessor: Send + Sync {
     fn store(&self) -> &Arc<dyn ObjectStore>;

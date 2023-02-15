@@ -10,6 +10,19 @@ pub enum ObjectStoreSourceError {
 
     #[error(transparent)]
     Parquet(#[from] datafusion::parquet::errors::ParquetError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error("No file extension provided")]
+    NoFileExtension,
+
+    #[error("This file type is not supported: {0}")]
+    NotSupportFileType(String),
+
+    // TODO Remove
+    #[error("Coming soon! This feature is unimplemented")]
+    Unimplemented,
 }
 
 pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;

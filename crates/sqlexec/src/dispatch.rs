@@ -258,6 +258,7 @@ impl<'a> SessionDispatcher<'a> {
             (ConnectionOptions::Local(_), TableOptions::Local(table)) => {
                 let table_access = LocalTableAccess {
                     location: table.location.clone(),
+                    file_type: None,
                 };
                 let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
                     task::block_in_place(move || {
@@ -268,7 +269,7 @@ impl<'a> SessionDispatcher<'a> {
                         })
                     });
                 let provider = result?;
-                Ok(Arc::new(provider))
+                Ok(provider)
             }
             (ConnectionOptions::Gcs(conn), TableOptions::Gcs(table)) => {
                 let table_access = GcsTableAccess {
