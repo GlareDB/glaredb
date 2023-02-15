@@ -170,7 +170,28 @@ impl SessionContext {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
             let (schema, name) = self.resolve_object_reference(name.into())?;
-            drops.push(Mutation::DropObject(service::DropObject { schema, name }));
+            drops.push(Mutation::DropObject(service::DropObject {
+                schema,
+                name,
+                if_exists: plan.if_exists,
+            }));
+        }
+
+        self.mutate_catalog(drops).await?;
+
+        Ok(())
+    }
+
+    /// Drop one or more connections.
+    pub async fn drop_connections(&mut self, plan: DropConnections) -> Result<()> {
+        let mut drops = Vec::with_capacity(plan.names.len());
+        for name in plan.names {
+            let (schema, name) = self.resolve_object_reference(name.into())?;
+            drops.push(Mutation::DropObject(service::DropObject {
+                schema,
+                name,
+                if_exists: plan.if_exists,
+            }));
         }
 
         self.mutate_catalog(drops).await?;
@@ -182,7 +203,10 @@ impl SessionContext {
     pub async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            drops.push(Mutation::DropSchema(service::DropSchema { name }));
+            drops.push(Mutation::DropSchema(service::DropSchema {
+                name,
+                if_exists: plan.if_exists,
+            }));
         }
 
         self.mutate_catalog(drops).await?;

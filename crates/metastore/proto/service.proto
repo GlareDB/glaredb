@@ -43,11 +43,15 @@ message Mutation {
   // next: 7
 }
 
-message DropSchema { string name = 1; }
+message DropSchema {
+  string name = 1;
+  bool if_exists = 2;
+}
 
 message DropObject {
   string schema = 1;
   string name = 2;
+  bool if_exists = 3;
 }
 
 message CreateSchema { string name = 1; }

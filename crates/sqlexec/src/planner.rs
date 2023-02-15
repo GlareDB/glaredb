@@ -1,7 +1,9 @@
 use crate::context::{ContextProviderAdapter, SessionContext};
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
-use crate::parser::{CreateConnectionStmt, CreateExternalTableStmt, StatementWithExtensions};
+use crate::parser::{
+    CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
+};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -40,6 +42,7 @@ impl<'a> SessionPlanner<'a> {
                 self.plan_create_external_table(stmt)
             }
             StatementWithExtensions::CreateConnection(stmt) => self.plan_create_connection(stmt),
+            StatementWithExtensions::DropConnection(stmt) => self.plan_drop_connection(stmt),
         }
     }
 
@@ -417,6 +420,14 @@ impl<'a> SessionPlanner<'a> {
 
             stmt => Err(ExecError::UnsupportedSQLStatement(stmt.to_string())),
         }
+    }
+
+    fn plan_drop_connection(&self, stmt: DropConnectionStmt) -> Result<LogicalPlan> {
+        Ok(DdlPlan::DropConnections(DropConnections {
+            if_exists: stmt.if_exists,
+            names: stmt.names,
+        })
+        .into())
     }
 }
 
