@@ -6,12 +6,12 @@ use crate::messages::{
 use crate::ssl::Connection;
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
-use datafusion::scalar::ScalarValue;
 use futures::{sink::Buffer, SinkExt, TryStreamExt};
-use ioutil::write::InfallibleWrite;
 use pgrepr::format::Format;
+use pgrepr::types::encode_array_value;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use tokio_postgres::types::Type as PgType;
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::{debug, trace};
 
@@ -27,7 +27,7 @@ where
     /// Create a new framed connection.
     pub fn new(conn: Connection<C>) -> Self {
         FramedConn {
-            conn: Framed::new(conn, PgCodec).buffer(16),
+            conn: Framed::new(conn, PgCodec::new()).buffer(16),
         }
     }
 
@@ -62,11 +62,24 @@ where
     pub fn into_inner(self) -> Framed<Connection<C>, PgCodec> {
         self.conn.into_inner()
     }
+
+    /// Sets the encoding state for current connection.
+    pub fn set_encoding_state(&mut self, s: Vec<(PgType, Format)>) {
+        self.conn.get_mut().codec_mut().encoding_state = s;
+    }
 }
 
-pub struct PgCodec;
+pub struct PgCodec {
+    encoding_state: Vec<(PgType, Format)>,
+}
 
 impl PgCodec {
+    fn new() -> Self {
+        Self {
+            encoding_state: Vec::new(),
+        }
+    }
+
     /// Decode a startup message from some underlying connection.
     ///
     /// Note that this falls outside the typical flow for decoding frontend
@@ -208,29 +221,6 @@ impl PgCodec {
     fn decode_terminate(_buf: &mut Cursor<'_>) -> Result<FrontendMessage> {
         Ok(FrontendMessage::Terminate)
     }
-
-    fn encode_scalar_as_text(scalar: ScalarValue, buf: &mut BytesMut) -> Result<()> {
-        if scalar.is_null() {
-            buf.put_i32(-1);
-            return Ok(());
-        }
-
-        // Write placeholder length.
-        let len_idx = buf.len();
-        buf.put_i32(0);
-
-        match scalar {
-            ScalarValue::Boolean(Some(v)) => write!(buf, "{}", if v { "t" } else { "f" }),
-            scalar => write!(buf, "{}", scalar), // Note this won't write null, that's checked above.
-        }
-
-        // Note the value of length does not include itself.
-        let val_len = buf.len() - len_idx - 4;
-        let val_len = i32::try_from(val_len).map_err(|_| PgSrvError::MsgTooLarge(val_len))?;
-        buf[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(val_len));
-
-        Ok(())
-    }
 }
 
 impl Encoder<BackendMessage> for PgCodec {
@@ -245,7 +235,7 @@ impl Encoder<BackendMessage> for PgCodec {
             BackendMessage::ReadyForQuery(_) => b'Z',
             BackendMessage::CommandComplete { .. } => b'C',
             BackendMessage::RowDescription(_) => b'T',
-            BackendMessage::DataRow(_, _) => b'D',
+            BackendMessage::DataRow(..) => b'D',
             BackendMessage::ErrorResponse(_) => b'E',
             BackendMessage::NoticeResponse(_) => b'N',
             BackendMessage::ParseComplete => b'1',
@@ -284,7 +274,7 @@ impl Encoder<BackendMessage> for PgCodec {
                     dst.put_cstring(&desc.name);
                     dst.put_i32(desc.table_id);
                     dst.put_i16(desc.col_id);
-                    dst.put_i32(desc.obj_id);
+                    dst.put_i32(desc.type_oid);
                     dst.put_i16(desc.type_size);
                     dst.put_i32(desc.type_mod);
                     dst.put_i16(desc.format);
@@ -292,9 +282,10 @@ impl Encoder<BackendMessage> for PgCodec {
             }
             BackendMessage::DataRow(batch, row_idx) => {
                 dst.put_i16(batch.num_columns() as i16); // TODO: Check.
-                for col in batch.columns().iter() {
-                    let scalar = ScalarValue::try_from_array(col, row_idx)?;
-                    Self::encode_scalar_as_text(scalar, dst)?;
+                for (col, (pg_type, format)) in
+                    batch.columns().iter().zip(self.encoding_state.iter())
+                {
+                    encode_array_value(dst, *format, col, row_idx, pg_type)?;
                 }
             }
             BackendMessage::ErrorResponse(error) => {
