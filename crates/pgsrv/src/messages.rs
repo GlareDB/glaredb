@@ -139,7 +139,7 @@ pub enum BackendMessage {
     ReadyForQuery(TransactionStatus),
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
-    DataRow(RecordBatch, usize, Arc<Vec<(PgType, Format)>>),
+    DataRow(RecordBatch, usize),
     ParseComplete,
     BindComplete,
     CloseComplete,

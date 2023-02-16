@@ -405,13 +405,13 @@ where
             Self::send_result(
                 conn,
                 result,
-                Arc::new(session_do!(
+                session_do!(
                     self,
                     session,
                     get_portal,
                     &UNNAMED,
                     get_output_desc_for_execution
-                )),
+                ),
             )
             .await?;
         }
@@ -545,13 +545,13 @@ where
         Self::send_result(
             conn,
             result,
-            Arc::new(session_do!(
+            session_do!(
                 self,
                 session,
                 get_portal,
                 &portal,
                 get_output_desc_for_execution
-            )),
+            ),
         )
         .await
     }
@@ -576,11 +576,11 @@ where
     async fn send_result(
         conn: &mut FramedConn<C>,
         result: ExecutionResult,
-        output_desc: Arc<Vec<(PgType, Format)>>,
+        encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
         match result {
             ExecutionResult::Query { stream } => {
-                let num_rows = Self::stream_batch(conn, stream, output_desc).await?;
+                let num_rows = Self::stream_batch(conn, stream, encoding_state).await?;
                 Self::command_complete(conn, format!("SELECT {}", num_rows)).await?
             }
             ExecutionResult::EmptyQuery => conn.send(BackendMessage::EmptyQueryResponse).await?,
@@ -627,8 +627,9 @@ where
     async fn stream_batch(
         conn: &mut FramedConn<C>,
         mut stream: SendableRecordBatchStream,
-        output_desc: Arc<Vec<(PgType, Format)>>,
+        encoding_state: Vec<(PgType, Format)>,
     ) -> Result<usize> {
+        conn.set_encoding_state(encoding_state);
         let mut num_rows = 0;
         while let Some(result) = stream.next().await {
             let batch = match result {
@@ -641,12 +642,9 @@ where
             };
             num_rows += batch.num_rows();
             for row_idx in 0..batch.num_rows() {
-                conn.send(BackendMessage::DataRow(
-                    batch.clone(),
-                    row_idx,
-                    Arc::clone(&output_desc),
-                ))
-                .await?;
+                // Clone is cheapish here, all columns behind an arc.
+                conn.send(BackendMessage::DataRow(batch.clone(), row_idx))
+                    .await?;
             }
         }
         Ok(num_rows)

@@ -11,6 +11,7 @@ use pgrepr::format::Format;
 use pgrepr::types::encode_as_pg_type;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use tokio_postgres::types::Type as PgType;
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::{debug, trace};
 
@@ -26,7 +27,7 @@ where
     /// Create a new framed connection.
     pub fn new(conn: Connection<C>) -> Self {
         FramedConn {
-            conn: Framed::new(conn, PgCodec).buffer(16),
+            conn: Framed::new(conn, PgCodec::new()).buffer(16),
         }
     }
 
@@ -61,11 +62,24 @@ where
     pub fn into_inner(self) -> Framed<Connection<C>, PgCodec> {
         self.conn.into_inner()
     }
+
+    /// Sets the encoding state for current connection.
+    pub fn set_encoding_state(&mut self, s: Vec<(PgType, Format)>) {
+        self.conn.get_mut().codec_mut().encoding_state = s;
+    }
 }
 
-pub struct PgCodec;
+pub struct PgCodec {
+    encoding_state: Vec<(PgType, Format)>,
+}
 
 impl PgCodec {
+    fn new() -> Self {
+        Self {
+            encoding_state: Vec::new(),
+        }
+    }
+
     /// Decode a startup message from some underlying connection.
     ///
     /// Note that this falls outside the typical flow for decoding frontend
@@ -266,10 +280,11 @@ impl Encoder<BackendMessage> for PgCodec {
                     dst.put_i16(desc.format);
                 }
             }
-            BackendMessage::DataRow(batch, row_idx, output_desc) => {
-                // TODO: Get formats and send data accordingly.
+            BackendMessage::DataRow(batch, row_idx) => {
                 dst.put_i16(batch.num_columns() as i16); // TODO: Check.
-                for (col, (pg_type, format)) in batch.columns().iter().zip(output_desc.iter()) {
+                for (col, (pg_type, format)) in
+                    batch.columns().iter().zip(self.encoding_state.iter())
+                {
                     encode_as_pg_type(dst, *format, col, row_idx, pg_type)?;
                 }
             }
