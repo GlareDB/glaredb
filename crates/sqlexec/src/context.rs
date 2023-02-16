@@ -591,11 +591,13 @@ impl PreparedStatement {
         }
     }
 
-    pub fn output_fields(&self) -> Option<Fields<'_>> {
-        self.output_schema.as_ref().map(|s| Fields {
+    /// Returns an iterator over the fields of output schema (if any).
+    pub fn output_fields(&self) -> Option<OutputFields<'_>> {
+        self.output_schema.as_ref().map(|s| OutputFields {
             len: s.fields.len(),
             arrow_fields: s.fields.iter(),
             pg_types: self.output_pg_types.iter(),
+            result_formats: None,
         })
     }
 }
@@ -610,46 +612,54 @@ pub struct Portal {
 }
 
 impl Portal {
-    pub fn output_fields(&self) -> Option<Fields<'_>> {
+    /// Returns an iterator over the fields of output schema (if any).
+    pub fn output_fields(&self) -> Option<OutputFields<'_>> {
         self.stmt.output_fields()
-    }
-
-    pub fn result_formats(&self) -> &Vec<Format> {
-        &self.result_formats
-    }
-
-    pub fn take_result_formats(self) -> Vec<Format> {
-        self.result_formats
     }
 }
 
-pub struct Fields<'a> {
+/// Iterator over the various fields of output schema.
+pub struct OutputFields<'a> {
     len: usize,
     arrow_fields: slice::Iter<'a, ArrowField>,
     pg_types: slice::Iter<'a, PgType>,
+    result_formats: Option<slice::Iter<'a, Format>>,
 }
 
-impl<'a> Fields<'a> {
+impl<'a> OutputFields<'a> {
+    /// Number of fields in the output.
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Returns true if there are no fields in output.
+    // This method was required by clippy. Not really useful since we already
+    // return an `Option` from the `output_fields` method.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 }
 
-pub struct Field<'a> {
+/// Structure to hold information about the output field.
+pub struct OutputField<'a> {
     pub name: &'a String,
     pub arrow_type: &'a DataType,
     pub pg_type: &'a PgType,
+    pub format: &'a Format,
 }
 
-impl<'a> Iterator for Fields<'a> {
-    type Item = Field<'a>;
+impl<'a> Iterator for OutputFields<'a> {
+    type Item = OutputField<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let field = self.arrow_fields.next()?;
+        let format = if let Some(formats) = self.result_formats.as_mut() {
+            formats
+                .next()
+                .expect("result_formats should have the same length as fields")
+        } else {
+            &Format::Text
+        };
         Some(Self::Item {
             name: field.name(),
             arrow_type: field.data_type(),
@@ -657,6 +667,7 @@ impl<'a> Iterator for Fields<'a> {
                 .pg_types
                 .next()
                 .expect("pg_types should have the same length as fields"),
+            format,
         })
     }
 }

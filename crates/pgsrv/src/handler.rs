@@ -9,7 +9,7 @@ use crate::ssl::{Connection, SslConfig};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use sqlexec::context::{Fields, Portal, PreparedStatement};
+use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -378,18 +378,10 @@ where
             //
             // Only send back a row description if the statement produces
             // output.
-            fn get_output_fields_and_formats(p: &Portal) -> (Option<Fields<'_>>, &'_ Vec<Format>) {
-                (p.output_fields(), p.result_formats())
-            }
-            let (output_fields, result_formats) = session_do!(
-                self,
-                session,
-                get_portal,
-                &UNNAMED,
-                get_output_fields_and_formats
-            );
+            let output_fields =
+                session_do!(self, session, get_portal, &UNNAMED, Portal::output_fields);
             if let Some(fields) = output_fields {
-                Self::send_row_descriptor(conn, fields, result_formats).await?;
+                Self::send_row_descriptor(conn, fields).await?;
             }
 
             // Execute...
@@ -404,13 +396,7 @@ where
             Self::send_result(
                 conn,
                 result,
-                session_do!(
-                    self,
-                    session,
-                    get_portal,
-                    &UNNAMED,
-                    get_output_desc_for_execution
-                ),
+                session_do!(self, session, get_portal, &UNNAMED, get_encoding_state),
             )
             .await?;
         }
@@ -508,9 +494,17 @@ where
                     // Send back row description.
                     match stmt.output_fields() {
                         Some(fields) => {
-                            let num_fields = fields.len();
-                            Self::send_row_descriptor(conn, fields, &all_text_formats(num_fields))
-                                .await?
+                            // When fields are extracted from a prepared
+                            // statement, default format is applied, i.e., Text
+                            // which is exactly what the protocol dictates.
+                            //
+                            // See: https://www.postgresql.org/docs/15/protocol-flow.html
+                            // > Note that since Bind has not yet been issued,
+                            // > the formats to be used for returned columns
+                            // > are not yet known to the backend; the format
+                            // > code fields in the RowDescription message will
+                            // > be zeroes in this case.
+                            Self::send_row_descriptor(conn, fields).await?
                         }
                         None => self.conn.send(BackendMessage::NoData).await?,
                     }
@@ -523,9 +517,7 @@ where
                 Ok(portal) => {
                     // Send back row description.
                     match portal.output_fields() {
-                        Some(fields) => {
-                            Self::send_row_descriptor(conn, fields, portal.result_formats()).await?
-                        }
+                        Some(fields) => Self::send_row_descriptor(conn, fields).await?,
                         None => self.conn.send(BackendMessage::NoData).await?,
                     }
                     Ok(())
@@ -544,13 +536,7 @@ where
         Self::send_result(
             conn,
             result,
-            session_do!(
-                self,
-                session,
-                get_portal,
-                &portal,
-                get_output_desc_for_execution
-            ),
+            session_do!(self, session, get_portal, &portal, get_encoding_state),
         )
         .await
     }
@@ -604,16 +590,12 @@ where
     }
 
     /// Convert an arrow schema into a row descriptor and send it to the client.
-    async fn send_row_descriptor(
-        conn: &mut FramedConn<C>,
-        fields: Fields<'_>,
-        formats: &[Format],
-    ) -> Result<()> {
+    async fn send_row_descriptor(conn: &mut FramedConn<C>, fields: OutputFields<'_>) -> Result<()> {
         let mut row_description = Vec::with_capacity(fields.len());
-        for (i, f) in fields.enumerate() {
+        for f in fields {
             let desc = FieldDescriptionBuilder::new(f.name)
                 .with_type(f.pg_type)
-                .with_format(formats[i])
+                .with_format(*f.format)
                 .build()?;
             row_description.push(desc);
         }
@@ -682,12 +664,11 @@ fn extend_formats(formats: Vec<Format>, num: usize) -> Result<Vec<Format>, Error
     })
 }
 
-fn get_output_desc_for_execution(portal: &Portal) -> Vec<(PgType, Format)> {
+fn get_encoding_state(portal: &Portal) -> Vec<(PgType, Format)> {
     match portal.output_fields() {
         None => Vec::new(),
         Some(fields) => fields
-            .zip(portal.result_formats().iter())
-            .map(|(field, format)| (field.pg_type.to_owned(), format.to_owned()))
+            .map(|field| (field.pg_type.to_owned(), field.format.to_owned()))
             .collect(),
     }
 }
