@@ -1,4 +1,6 @@
-use std::{str::FromStr, sync::Arc};
+use std::fmt::Debug;
+use std::str::FromStr;
+use std::sync::Arc;
 
 use errors::ObjectStoreSourceError;
 use object_store::{ObjectMeta, ObjectStore};

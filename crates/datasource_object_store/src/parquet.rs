@@ -149,7 +149,7 @@ where
     }
 
     fn table_type(&self) -> TableType {
-        TableType::View
+        TableType::Base
     }
 
     async fn scan(

@@ -12,6 +12,9 @@ pub enum ObjectStoreSourceError {
     Parquet(#[from] datafusion::parquet::errors::ParquetError),
 
     #[error(transparent)]
+    DataFusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error("No file extension provided")]
