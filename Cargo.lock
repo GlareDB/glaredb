@@ -3269,7 +3269,6 @@ dependencies = [
  "bytesutil",
  "datafusion",
  "futures",
- "ioutil",
  "openssl",
  "pgrepr",
  "reqwest",
@@ -4651,9 +4650,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 name = "telemetry"
 version = "0.1.0"
 dependencies = [
- "lazy_static",
  "segment",
- "serde",
  "serde_json",
  "tokio",
  "tracing",
