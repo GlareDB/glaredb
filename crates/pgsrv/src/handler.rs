@@ -212,6 +212,11 @@ struct ClientSession<C> {
     session: Session,
 }
 
+/// This helper macro is used so we can call some get_* methods on the session
+/// and maybe do some processing over it.
+///
+/// The motivation to write this macro is that during a query, we don't want to
+/// return `Err(...)` in case of non-connection errors.
 macro_rules! session_do {
     ($client:ident, $sess:ident, $get_fn:ident, $name:expr, $do:expr) => {
         match $sess.$get_fn($name) {
@@ -354,6 +359,7 @@ where
                 return self.ready_for_query().await;
             };
 
+            // Describe statement and get number of fields...
             let num_fields = session_do!(
                 self,
                 session,
@@ -374,7 +380,7 @@ where
                 return self.ready_for_query().await;
             }
 
-            // Maybe row description...
+            // Describe portal and maybe row description...
             //
             // Only send back a row description if the statement produces
             // output.
@@ -664,6 +670,7 @@ fn extend_formats(formats: Vec<Format>, num: usize) -> Result<Vec<Format>, Error
     })
 }
 
+/// Returns the encoding state, i.e., postgres type and format from the portal.
 fn get_encoding_state(portal: &Portal) -> Vec<(PgType, Format)> {
     match portal.output_fields() {
         None => Vec::new(),

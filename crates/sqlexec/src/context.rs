@@ -372,6 +372,11 @@ impl SessionContext {
             None => return Err(ExecError::UnknownPreparedStatement(stmt_name.to_string())),
         };
 
+        assert_eq!(
+            result_formats.len(),
+            stmt.output_fields().map(|f| f.len()).unwrap_or(0)
+        );
+
         let portal = Portal {
             stmt,
             result_formats,
