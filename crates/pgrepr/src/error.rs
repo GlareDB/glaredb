@@ -9,6 +9,9 @@ pub enum PgReprError {
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
 
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
     #[error("arrow type '{0}' not supported")]
     UnsupportedArrowType(datafusion::arrow::datatypes::DataType),
 

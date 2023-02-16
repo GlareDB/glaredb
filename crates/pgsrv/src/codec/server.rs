@@ -8,7 +8,7 @@ use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use futures::{sink::Buffer, SinkExt, TryStreamExt};
 use pgrepr::format::Format;
-use pgrepr::types::encode_as_pg_type;
+use pgrepr::types::encode_array_value;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_postgres::types::Type as PgType;
@@ -285,7 +285,7 @@ impl Encoder<BackendMessage> for PgCodec {
                 for (col, (pg_type, format)) in
                     batch.columns().iter().zip(self.encoding_state.iter())
                 {
-                    encode_as_pg_type(dst, *format, col, row_idx, pg_type)?;
+                    encode_array_value(dst, *format, col, row_idx, pg_type)?;
                 }
             }
             BackendMessage::ErrorResponse(error) => {

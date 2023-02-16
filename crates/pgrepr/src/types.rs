@@ -21,6 +21,7 @@ pub fn arrow_to_pg_type(df_type: &ArrowType, type_hint: Option<PgType>) -> PgTyp
         &ArrowType::Int64 => PgType::INT8,
         &ArrowType::Float16 | &ArrowType::Float32 => PgType::FLOAT4,
         &ArrowType::Float64 => PgType::FLOAT8,
+        &ArrowType::Utf8 => PgType::TEXT,
         // When there's a type we aren't really familiar with, we want to
         // return text in that case (literally!). We just want to send a
         // text representation of the datatype.
@@ -28,7 +29,9 @@ pub fn arrow_to_pg_type(df_type: &ArrowType, type_hint: Option<PgType>) -> PgTyp
     })
 }
 
-pub fn encode_as_pg_type(
+/// Encodes the array value as a postgres compatible value according to the
+/// given format ("text" or "binary").
+pub fn encode_array_value(
     buf: &mut BytesMut,
     format: Format,
     array: &Arc<dyn Array>,
@@ -44,13 +47,25 @@ pub fn encode_as_pg_type(
 
     let (from, to) = (array.data_type(), pg_type);
 
+    // Write a placeholder length.
+    let len_idx = buf.len();
+    buf.put_i32(0);
+
     match format {
-        Format::Text => encode_as_pg_type_not_null::<TextWriter>(buf, scalar, from, to),
-        Format::Binary => encode_as_pg_type_not_null::<BinaryWriter>(buf, scalar, from, to),
-    }
+        Format::Text => encode_array_not_null_value::<TextWriter>(buf, scalar, from, to),
+        Format::Binary => encode_array_not_null_value::<BinaryWriter>(buf, scalar, from, to),
+    }?;
+
+    // Note the value of length does not include itself.
+    let val_len = buf.len() - len_idx - 4;
+    let val_len = i32::try_from(val_len).map_err(|_| PgReprError::MessageTooLarge(val_len))?;
+    buf[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(val_len));
+
+    Ok(())
 }
 
-fn encode_as_pg_type_not_null<W: Writer>(
+/// Per writer implementation for encoding non-null array values.
+fn encode_array_not_null_value<W: Writer>(
     buf: &mut BytesMut,
     scalar: ScalarValue,
     from: &ArrowType,
@@ -75,11 +90,12 @@ fn encode_as_pg_type_not_null<W: Writer>(
         (&ArrowType::Float64, &PgType::FLOAT8, ScalarValue::Float64(Some(v))) => {
             W::write_float8(buf, v)
         }
+        (&ArrowType::Utf8, &PgType::TEXT, ScalarValue::Utf8(Some(v))) => W::write_text(buf, v),
         (_, &PgType::TEXT, scalar) => {
             // Here we don't know how to process the arrow data-type. In these
             // cases it's recommended that we return the string representation
             // (along-with telling postgres that we're returning a TEXT).
-            W::write_any(buf, scalar)
+            W::write_text(buf, format!("{scalar}"))
         }
         (from, to, _) => {
             // This should be unreachable. We definitely never want to convert
@@ -94,6 +110,7 @@ fn encode_as_pg_type_not_null<W: Writer>(
     }
 }
 
+/// Returns the most suitable scalar value for the array value.
 fn try_scalar_from_array(array: &Arc<dyn Array>, row_idx: usize) -> Result<ScalarValue> {
     match ScalarValue::try_from_array(array, row_idx) {
         Ok(scalar) => Ok(scalar),

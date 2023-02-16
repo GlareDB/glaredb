@@ -212,8 +212,8 @@ struct ClientSession<C> {
     session: Session,
 }
 
-/// This helper macro is used so we can call some get_* methods on the session
-/// and maybe do some processing over it.
+/// This helper macro is used so we can call some `get_*` methods on the
+/// session and maybe do some processing over it.
 ///
 /// The motivation to write this macro is that during a query, we don't want to
 /// return `Err(...)` in case of non-connection errors.
