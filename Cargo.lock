@@ -1502,14 +1502,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dfutil"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "datafusion",
-]
-
-[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2940,8 +2932,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.5.3"
-source = "git+https://github.com/glaredb/arrow-rs.git?branch=content-length#cc47f2ee4d034f4994b4b41b27fbf245236c3b58"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f344e51ec9584d2f51199c0c29c6f73dddd04ade986497875bf8fa2f178caf0"
 dependencies = [
  "async-trait",
  "base64 0.21.0",
@@ -3277,7 +3270,6 @@ dependencies = [
  "bytesutil",
  "datafusion",
  "futures",
- "ioutil",
  "openssl",
  "pgrepr",
  "reqwest",
@@ -4446,7 +4438,6 @@ dependencies = [
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "buildenv",
  "datafusion",
  "datasource_bigquery",
@@ -4660,9 +4651,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 name = "telemetry"
 version = "0.1.0"
 dependencies = [
- "lazy_static",
  "segment",
- "serde",
  "serde_json",
  "tokio",
  "tracing",

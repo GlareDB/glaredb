@@ -27,7 +27,7 @@ use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
-use mysql_async::prelude::*;
+use mysql_async::prelude::Queryable;
 use mysql_async::{
     Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
 };
