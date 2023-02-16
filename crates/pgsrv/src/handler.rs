@@ -17,7 +17,6 @@ use sqlexec::{
 };
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
@@ -608,7 +607,7 @@ where
     async fn send_row_descriptor(
         conn: &mut FramedConn<C>,
         fields: Fields<'_>,
-        formats: &Vec<Format>,
+        formats: &[Format],
     ) -> Result<()> {
         let mut row_description = Vec::with_capacity(fields.len());
         for (i, f) in fields.enumerate() {
