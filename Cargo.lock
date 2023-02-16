@@ -1502,14 +1502,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dfutil"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "datafusion",
-]
-
-[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4446,7 +4438,6 @@ dependencies = [
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "buildenv",
  "datafusion",
  "datasource_bigquery",
