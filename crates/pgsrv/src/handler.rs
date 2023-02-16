@@ -538,7 +538,10 @@ where
 
         let conn = &mut self.conn;
         let session = &mut self.session;
-        let result = session.execute_portal(&portal, max_rows).await?;
+        let result = match session.execute_portal(&portal, max_rows).await {
+            Ok(r) => r,
+            Err(e) => return self.send_error(e.into()).await,
+        };
         Self::send_result(
             conn,
             result,
@@ -571,8 +574,9 @@ where
     ) -> Result<()> {
         match result {
             ExecutionResult::Query { stream } => {
-                let num_rows = Self::stream_batch(conn, stream, encoding_state).await?;
-                Self::command_complete(conn, format!("SELECT {}", num_rows)).await?
+                if let Some(num_rows) = Self::stream_batch(conn, stream, encoding_state).await? {
+                    Self::command_complete(conn, format!("SELECT {}", num_rows)).await?;
+                }
             }
             ExecutionResult::EmptyQuery => conn.send(BackendMessage::EmptyQueryResponse).await?,
             ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
@@ -591,7 +595,7 @@ where
                 Self::command_complete(conn, "DROP CONNECTION").await?
             }
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
-        }
+        };
         Ok(())
     }
 
@@ -610,12 +614,13 @@ where
         Ok(())
     }
 
-    /// Streams the batch to the client, returned the total number of rows sent.
+    /// Streams the batch to the client, returns an optional total number of
+    /// rows sent. `None` rows sent means that an error response was sent.
     async fn stream_batch(
         conn: &mut FramedConn<C>,
         mut stream: SendableRecordBatchStream,
         encoding_state: Vec<(PgType, Format)>,
-    ) -> Result<usize> {
+    ) -> Result<Option<usize>> {
         conn.set_encoding_state(encoding_state);
         let mut num_rows = 0;
         while let Some(result) = stream.next().await {
@@ -624,7 +629,7 @@ where
                 Err(e) => {
                     conn.send(ErrorResponse::error(SqlState::InternalError, e.to_string()).into())
                         .await?;
-                    return Ok(num_rows);
+                    return Ok(None);
                 }
             };
             num_rows += batch.num_rows();
@@ -634,7 +639,7 @@ where
                     .await?;
             }
         }
-        Ok(num_rows)
+        Ok(Some(num_rows))
     }
 
     async fn command_complete(conn: &mut FramedConn<C>, tag: impl Into<String>) -> Result<()> {
