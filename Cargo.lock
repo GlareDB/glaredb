@@ -3261,7 +3261,11 @@ dependencies = [
 name = "pgrepr"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "datafusion",
+ "num-traits",
  "thiserror",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -3282,6 +3286,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-openssl",
+ "tokio-postgres",
  "tokio-util",
  "tracing",
  "uuid",
@@ -4462,6 +4467,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-postgres",
  "tonic",
  "tower",
  "tracing",

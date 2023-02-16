@@ -1,15 +1,15 @@
 use crate::codec::server::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
-    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescription, FrontendMessage, SqlState,
-    StartupMessage, TransactionStatus,
+    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescriptionBuilder, FrontendMessage,
+    SqlState, StartupMessage, TransactionStatus,
 };
 use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
-use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use sqlexec::context::{Fields, Portal, PreparedStatement};
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -17,7 +17,9 @@ use sqlexec::{
 };
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
 use uuid::Uuid;
 
@@ -211,6 +213,18 @@ struct ClientSession<C> {
     session: Session,
 }
 
+macro_rules! session_do {
+    ($client:ident, $sess:ident, $get_fn:ident, $name:expr, $do:expr) => {
+        match $sess.$get_fn($name) {
+            Ok(v) => $do(v),
+            Err(e) => {
+                $client.send_error(e.into()).await?;
+                return $client.ready_for_query().await;
+            }
+        }
+    };
+}
+
 impl<C> ClientSession<C>
 where
     C: AsyncRead + AsyncWrite + Unpin,
@@ -341,31 +355,22 @@ where
                 return self.ready_for_query().await;
             };
 
-            // Describe...
-            let stmt = match session.get_prepared_statement(&UNNAMED) {
-                Ok(stmt) => stmt.clone(),
-                Err(e) => {
-                    self.send_error(e.into()).await?;
-                    return self.ready_for_query().await;
-                }
-            };
+            let num_fields = session_do!(
+                self,
+                session,
+                get_prepared_statement,
+                &UNNAMED,
+                |s: &PreparedStatement| s.output_fields().map(|f| f.len()).unwrap_or(0)
+            );
 
             // Bind...
-            let result_formats = match extend_formats(
+            if let Err(e) = session.bind_statement(
+                UNNAMED,
+                &UNNAMED,
                 Vec::new(),
-                stmt.output_schema()
-                    .map(|schema| schema.fields().len())
-                    .unwrap_or(0),
+                Vec::new(),
+                all_text_formats(num_fields),
             ) {
-                Ok(v) => v,
-                Err(e) => {
-                    self.send_error(e).await?;
-                    return self.ready_for_query().await;
-                }
-            };
-            if let Err(e) =
-                session.bind_statement(UNNAMED, &UNNAMED, Vec::new(), Vec::new(), result_formats)
-            {
                 self.send_error(e.into()).await?;
                 return self.ready_for_query().await;
             }
@@ -374,8 +379,18 @@ where
             //
             // Only send back a row description if the statement produces
             // output.
-            if let Some(schema) = stmt.output_schema() {
-                Self::send_row_descriptor(conn, schema).await?;
+            fn get_output_fields_and_formats(p: &Portal) -> (Option<Fields<'_>>, &'_ Vec<Format>) {
+                (p.output_fields(), p.result_formats())
+            }
+            let (output_fields, result_formats) = session_do!(
+                self,
+                session,
+                get_portal,
+                &UNNAMED,
+                get_output_fields_and_formats
+            );
+            if let Some(fields) = output_fields {
+                Self::send_row_descriptor(conn, fields, result_formats).await?;
             }
 
             // Execute...
@@ -387,7 +402,18 @@ where
                 }
             };
 
-            Self::send_result(conn, result).await?;
+            Self::send_result(
+                conn,
+                result,
+                Arc::new(session_do!(
+                    self,
+                    session,
+                    get_portal,
+                    &UNNAMED,
+                    get_output_desc_for_execution
+                )),
+            )
+            .await?;
         }
 
         if num_statements == 0 {
@@ -450,9 +476,7 @@ where
         // Extend out the result formats.
         let result_formats = match extend_formats(
             result_formats,
-            stmt.output_schema()
-                .map(|schema| schema.fields().len())
-                .unwrap_or(0),
+            stmt.output_fields().map(|fields| fields.len()).unwrap_or(0),
         ) {
             Ok(formats) => formats,
             Err(e) => return self.send_error(e).await,
@@ -483,8 +507,12 @@ where
                         .await?;
 
                     // Send back row description.
-                    match stmt.output_schema() {
-                        Some(schema) => Self::send_row_descriptor(conn, schema).await?,
+                    match stmt.output_fields() {
+                        Some(fields) => {
+                            let num_fields = fields.len();
+                            Self::send_row_descriptor(conn, fields, &all_text_formats(num_fields))
+                                .await?
+                        }
                         None => self.conn.send(BackendMessage::NoData).await?,
                     }
 
@@ -495,8 +523,10 @@ where
             DescribeObjectType::Portal => match self.session.get_portal(&name) {
                 Ok(portal) => {
                     // Send back row description.
-                    match portal.output_schema() {
-                        Some(schema) => Self::send_row_descriptor(conn, schema).await?,
+                    match portal.output_fields() {
+                        Some(fields) => {
+                            Self::send_row_descriptor(conn, fields, portal.result_formats()).await?
+                        }
                         None => self.conn.send(BackendMessage::NoData).await?,
                     }
                     Ok(())
@@ -510,10 +540,20 @@ where
         // TODO: Ensure in transaction.
 
         let conn = &mut self.conn;
-        let result = self.session.execute_portal(&portal, max_rows).await?;
-        Self::send_result(conn, result).await?;
-
-        Ok(())
+        let session = &mut self.session;
+        let result = session.execute_portal(&portal, max_rows).await?;
+        Self::send_result(
+            conn,
+            result,
+            Arc::new(session_do!(
+                self,
+                session,
+                get_portal,
+                &portal,
+                get_output_desc_for_execution
+            )),
+        )
+        .await
     }
 
     async fn close_object(&mut self, object_type: DescribeObjectType, name: String) -> Result<()> {
@@ -533,10 +573,14 @@ where
         Ok(())
     }
 
-    async fn send_result(conn: &mut FramedConn<C>, result: ExecutionResult) -> Result<()> {
+    async fn send_result(
+        conn: &mut FramedConn<C>,
+        result: ExecutionResult,
+        output_desc: Arc<Vec<(PgType, Format)>>,
+    ) -> Result<()> {
         match result {
             ExecutionResult::Query { stream } => {
-                let num_rows = Self::stream_batch(conn, stream).await?;
+                let num_rows = Self::stream_batch(conn, stream, output_desc).await?;
                 Self::command_complete(conn, format!("SELECT {}", num_rows)).await?
             }
             ExecutionResult::EmptyQuery => conn.send(BackendMessage::EmptyQueryResponse).await?,
@@ -561,14 +605,21 @@ where
     }
 
     /// Convert an arrow schema into a row descriptor and send it to the client.
-    // TODO: Provide formats too.
-    async fn send_row_descriptor(conn: &mut FramedConn<C>, schema: &ArrowSchema) -> Result<()> {
-        let fields: Vec<_> = schema
-            .fields
-            .iter()
-            .map(|field| FieldDescription::new_named(field.name()))
-            .collect();
-        conn.send(BackendMessage::RowDescription(fields)).await?;
+    async fn send_row_descriptor(
+        conn: &mut FramedConn<C>,
+        fields: Fields<'_>,
+        formats: &Vec<Format>,
+    ) -> Result<()> {
+        let mut row_description = Vec::with_capacity(fields.len());
+        for (i, f) in fields.enumerate() {
+            let desc = FieldDescriptionBuilder::new(f.name)
+                .with_type(f.pg_type)
+                .with_format(formats[i])
+                .build()?;
+            row_description.push(desc);
+        }
+        conn.send(BackendMessage::RowDescription(row_description))
+            .await?;
         Ok(())
     }
 
@@ -576,6 +627,7 @@ where
     async fn stream_batch(
         conn: &mut FramedConn<C>,
         mut stream: SendableRecordBatchStream,
+        output_desc: Arc<Vec<(PgType, Format)>>,
     ) -> Result<usize> {
         let mut num_rows = 0;
         while let Some(result) = stream.next().await {
@@ -589,9 +641,12 @@ where
             };
             num_rows += batch.num_rows();
             for row_idx in 0..batch.num_rows() {
-                // Clone is cheapish here, all columns behind an arc.
-                conn.send(BackendMessage::DataRow(batch.clone(), row_idx))
-                    .await?;
+                conn.send(BackendMessage::DataRow(
+                    batch.clone(),
+                    row_idx,
+                    Arc::clone(&output_desc),
+                ))
+                .await?;
             }
         }
         Ok(num_rows)
@@ -606,6 +661,11 @@ where
 /// Parse a sql string, returning an error response if failed to parse.
 fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ErrorResponse> {
     parser::parse_sql(sql).map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
+}
+
+/// Returns a vector with all the formats extended to the default "text".
+fn all_text_formats(num: usize) -> Vec<Format> {
+    extend_formats(Vec::new(), num).unwrap()
 }
 
 /// Extend a vector of format codes to the desired size.
@@ -623,4 +683,14 @@ fn extend_formats(formats: Vec<Format>, num: usize) -> Result<Vec<Format>, Error
             )))
         }
     })
+}
+
+fn get_output_desc_for_execution(portal: &Portal) -> Vec<(PgType, Format)> {
+    match portal.output_fields() {
+        None => Vec::new(),
+        Some(fields) => fields
+            .zip(portal.result_formats().iter())
+            .map(|(field, format)| (field.pg_type.to_owned(), format.to_owned()))
+            .collect(),
+    }
 }

@@ -6,7 +6,7 @@ use crate::metastore::SupervisorClient;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
-use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
+use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::config::{CatalogOptions, ConfigOptions};
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -20,10 +20,13 @@ use metastore::session::SessionCatalog;
 use metastore::types::catalog::{self, ConnectionEntry, ConnectionOptions};
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
+use pgrepr::types::arrow_to_pg_type;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::slice;
 use std::sync::Arc;
 use telemetry::Tracker;
+use tokio_postgres::types::Type as PgType;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -547,6 +550,8 @@ pub struct PreparedStatement {
     pub(crate) plan: Option<LogicalPlan>,
     /// The output schema of the statement if it produces an output.
     pub(crate) output_schema: Option<ArrowSchema>,
+    /// Output postgres types.
+    pub(crate) output_pg_types: Vec<PgType>,
 }
 
 impl PreparedStatement {
@@ -558,11 +563,22 @@ impl PreparedStatement {
             let planner = SessionPlanner::new(ctx);
             let plan = planner.plan_ast(inner.clone())?;
             let schema = plan.output_schema();
+            let pg_types = match &schema {
+                Some(s) => {
+                    // TODO: Type hints.
+                    s.fields
+                        .iter()
+                        .map(|f| arrow_to_pg_type(f.data_type(), None))
+                        .collect()
+                }
+                None => Vec::new(),
+            };
 
             Ok(PreparedStatement {
                 stmt: Some(inner),
                 plan: Some(plan),
                 output_schema: schema,
+                output_pg_types: pg_types,
             })
         } else {
             // No statement to plan.
@@ -570,13 +586,17 @@ impl PreparedStatement {
                 stmt: None,
                 plan: None,
                 output_schema: None,
+                output_pg_types: Vec::new(),
             })
         }
     }
 
-    /// Get the ouput schema for this statement.
-    pub fn output_schema(&self) -> Option<&ArrowSchema> {
-        self.output_schema.as_ref()
+    pub fn output_fields(&self) -> Option<Fields<'_>> {
+        self.output_schema.as_ref().map(|s| Fields {
+            len: s.fields.len(),
+            arrow_fields: s.fields.iter(),
+            pg_types: self.output_pg_types.iter(),
+        })
     }
 }
 
@@ -590,8 +610,49 @@ pub struct Portal {
 }
 
 impl Portal {
-    /// Get the output schema for this portal.
-    pub fn output_schema(&self) -> Option<&ArrowSchema> {
-        self.stmt.output_schema()
+    pub fn output_fields(&self) -> Option<Fields<'_>> {
+        self.stmt.output_fields()
+    }
+
+    pub fn result_formats(&self) -> &Vec<Format> {
+        &self.result_formats
+    }
+
+    pub fn take_result_formats(self) -> Vec<Format> {
+        self.result_formats
+    }
+}
+
+pub struct Fields<'a> {
+    len: usize,
+    arrow_fields: slice::Iter<'a, ArrowField>,
+    pg_types: slice::Iter<'a, PgType>,
+}
+
+impl<'a> Fields<'a> {
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+pub struct Field<'a> {
+    pub name: &'a String,
+    pub arrow_type: &'a DataType,
+    pub pg_type: &'a PgType,
+}
+
+impl<'a> Iterator for Fields<'a> {
+    type Item = Field<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let field = self.arrow_fields.next()?;
+        Some(Self::Item {
+            name: field.name(),
+            arrow_type: field.data_type(),
+            pg_type: self
+                .pg_types
+                .next()
+                .expect("pg_types should have the same length as fields"),
+        })
     }
 }

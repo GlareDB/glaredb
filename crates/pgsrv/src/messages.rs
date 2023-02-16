@@ -1,9 +1,10 @@
 use datafusion::arrow::record_batch::RecordBatch;
 use pgrepr::format::Format;
 use sqlexec::errors::ExecError;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+use tokio_postgres::types::Type as PgType;
 
-use crate::errors::PgSrvError;
+use crate::errors::{PgSrvError, Result};
 
 /// Version number (v3.0) used during normal frontend startup.
 pub const VERSION_V3: i32 = 0x30000;
@@ -138,7 +139,7 @@ pub enum BackendMessage {
     ReadyForQuery(TransactionStatus),
     CommandComplete { tag: String },
     RowDescription(Vec<FieldDescription>),
-    DataRow(RecordBatch, usize),
+    DataRow(RecordBatch, usize, Arc<Vec<(PgType, Format)>>),
     ParseComplete,
     BindComplete,
     CloseComplete,
@@ -294,28 +295,63 @@ impl NoticeResponse {
 }
 
 #[derive(Debug)]
+pub struct FieldDescriptionBuilder<'a> {
+    name: String,
+    pg_type: Option<&'a PgType>,
+    format: Format,
+}
+
+impl<'a> FieldDescriptionBuilder<'a> {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            pg_type: None,
+            format: Format::Text,
+        }
+    }
+
+    pub fn with_format(mut self, format: Format) -> Self {
+        self.format = format;
+        self
+    }
+
+    pub fn with_type<'b: 'a>(mut self, pg_type: &'b PgType) -> Self {
+        self.pg_type = Some(pg_type);
+        self
+    }
+
+    pub fn build(self) -> Result<FieldDescription> {
+        if self.name.is_empty() {
+            return Err(PgSrvError::InternalError(
+                "name of the field in field description cannot be empty".to_string(),
+            ));
+        }
+
+        let pg_type = self.pg_type.ok_or(PgSrvError::InternalError(
+            "type cannot be `None` in field description".to_string(),
+        ))?;
+
+        Ok(FieldDescription {
+            name: self.name,
+            table_id: 0, // TODO
+            col_id: 0,   // TODO
+            type_oid: pg_type.oid() as i32,
+            type_size: 0, // TODO
+            type_mod: 0,  // TODO
+            format: self.format.into(),
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct FieldDescription {
     pub name: String,
     pub table_id: i32,
     pub col_id: i16,
-    pub obj_id: i32,
+    pub type_oid: i32,
     pub type_size: i16,
     pub type_mod: i32,
     pub format: i16,
-}
-
-impl FieldDescription {
-    pub fn new_named(name: impl Into<String>) -> FieldDescription {
-        FieldDescription {
-            name: name.into(),
-            table_id: 0,
-            col_id: 0,
-            obj_id: 0,
-            type_size: 0,
-            type_mod: 0,
-            format: 0, // Text
-        }
-    }
 }
 
 #[derive(Debug)]

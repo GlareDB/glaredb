@@ -39,6 +39,9 @@ pub enum PgSrvError {
     #[error("cloud: {0}")]
     CloudResponse(String),
 
+    #[error("internal error: {0}")]
+    InternalError(String),
+
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
     /// with the Postgres message format documentation.
