@@ -221,14 +221,6 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
             db_details.database_id,
         );
         params.insert(GLAREDB_USER_ID_KEY.key.to_string(), db_details.user_id);
-        params.insert(
-            GLAREDB_IS_SYSTEM_KEY.key.to_string(),
-            if db_details.is_system {
-                "true".to_string()
-            } else {
-                "false".to_string()
-            },
-        );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
 
