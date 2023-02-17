@@ -3,13 +3,10 @@
 mod csv_helper;
 
 use std::any::Any;
-use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
-use datafusion::arrow::csv;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_type::FileCompressionType;
@@ -20,17 +17,15 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::TableType;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::file_format::{
-    FileMeta, FileOpenFuture, FileOpener, FileScanConfig, FileStream,
-};
+use datafusion::physical_plan::file_format::{FileScanConfig, FileStream};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::{
     DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
 };
 use datafusion::prelude::{Expr, SessionContext};
-use futures::{Stream, StreamExt, TryStreamExt};
-use object_store::{GetResult, ObjectStore};
+use object_store::ObjectStore;
 
+use crate::csv::csv_helper::{CsvConfig, CsvOpener};
 use crate::errors::Result;
 use crate::TableAccessor;
 
@@ -204,14 +199,6 @@ impl ExecutionPlan for CsvExec {
             delimiter: self.delimiter,
             object_store: self.store.clone(),
         };
-        // let config = Arc::new(CsvConfig {
-        // batch_size: 8192,
-        // file_schema: self.arrow_schema.clone(),
-        // file_projection: self.projection.clone(),
-        // has_header: self.has_header,
-        // delimiter: self.delimiter,
-        // object_store: self.store.clone(),
-        // });
 
         let opener = CsvOpener {
             config,

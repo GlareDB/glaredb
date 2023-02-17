@@ -1,13 +1,25 @@
 //! Helpers for handling csv files from datafusion.
 
+use std::collections::VecDeque;
+use std::sync::Arc;
+
+use bytes::{Buf, Bytes};
+use datafusion::arrow::csv;
+use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::datasource::file_format::file_type::FileCompressionType;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::physical_plan::file_format::{FileMeta, FileOpenFuture, FileOpener};
+use futures::{Stream, StreamExt, TryStreamExt};
+use object_store::{GetResult, ObjectStore};
+
 #[derive(Debug, Clone)]
-struct CsvConfig {
-    batch_size: usize,
-    file_schema: ArrowSchemaRef,
-    file_projection: Option<Vec<usize>>,
-    has_header: bool,
-    delimiter: u8,
-    object_store: Arc<dyn ObjectStore>,
+pub struct CsvConfig {
+    pub batch_size: usize,
+    pub file_schema: ArrowSchemaRef,
+    pub file_projection: Option<Vec<usize>>,
+    pub has_header: bool,
+    pub delimiter: u8,
+    pub object_store: Arc<dyn ObjectStore>,
 }
 
 impl CsvConfig {
@@ -26,9 +38,9 @@ impl CsvConfig {
     }
 }
 
-struct CsvOpener {
-    config: CsvConfig,
-    file_compression_type: FileCompressionType,
+pub struct CsvOpener {
+    pub config: CsvConfig,
+    pub file_compression_type: FileCompressionType,
 }
 
 impl FileOpener for CsvOpener {
