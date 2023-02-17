@@ -92,7 +92,7 @@ where
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        let predicate = if self.predicate_pushdown {
+        let _predicate = if self.predicate_pushdown {
             filters
                 .iter()
                 .cloned()
@@ -119,15 +119,22 @@ where
         let has_header = true;
         let delimiter = b',';
 
-        let exec = CsvExec::new(
+        // Project the schema.
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
+            None => self.arrow_schema.clone(),
+        };
+
+        let exec = CsvExec {
+            base_config,
             has_header,
             delimiter,
-            FileCompressionType::UNCOMPRESSED,
-            self.arrow_schema.clone(),
-            projection.cloned(),
-            self.accessor.store().clone(),
-            base_config,
-        );
+            file_compression_type: FileCompressionType::UNCOMPRESSED,
+            arrow_schema: self.arrow_schema.clone(),
+            projection: projection.cloned(),
+            projected_schema,
+            store: self.accessor.store().clone(),
+        };
 
         Ok(Arc::new(exec))
     }
@@ -135,48 +142,15 @@ where
 
 // /// Execution plan for scanning a CSV file
 #[derive(Debug, Clone)]
-pub struct CsvExec {
-    store: Arc<dyn ObjectStore>,
-    arrow_schema: ArrowSchemaRef,
-    has_header: bool,
-    delimiter: u8,
-    projection: Option<Vec<usize>>,
-    file_compression_type: FileCompressionType,
+struct CsvExec {
     base_config: FileScanConfig,
-}
-
-impl CsvExec {
-    /// Create a new CSV reader execution plan provided base and specific
-    /// configurations
-    pub fn new(
-        has_header: bool,
-        delimiter: u8,
-        file_compression_type: FileCompressionType,
-        arrow_schema: ArrowSchemaRef,
-        projection: Option<Vec<usize>>,
-        store: Arc<dyn ObjectStore>,
-        base_config: FileScanConfig,
-    ) -> Self {
-        Self {
-            arrow_schema,
-            has_header,
-            delimiter,
-            file_compression_type,
-            projection,
-            store,
-            base_config,
-        }
-    }
-
-    /// true if the first line of each file is a header
-    pub fn has_header(&self) -> bool {
-        self.has_header
-    }
-
-    /// A column delimiter
-    pub fn delimiter(&self) -> u8 {
-        self.delimiter
-    }
+    delimiter: u8,
+    has_header: bool,
+    file_compression_type: FileCompressionType,
+    arrow_schema: ArrowSchemaRef,
+    projection: Option<Vec<usize>>,
+    projected_schema: ArrowSchemaRef,
+    store: Arc<dyn ObjectStore>,
 }
 
 impl ExecutionPlan for CsvExec {
@@ -187,7 +161,7 @@ impl ExecutionPlan for CsvExec {
 
     /// Get the schema for this execution plan
     fn schema(&self) -> ArrowSchemaRef {
-        self.arrow_schema.clone()
+        self.projected_schema.clone()
     }
 
     /// Get the output partitioning of this plan
@@ -219,14 +193,22 @@ impl ExecutionPlan for CsvExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let config = Arc::new(CsvConfig {
+        let config = CsvConfig {
             batch_size: 8192,
             file_schema: self.arrow_schema.clone(),
             file_projection: self.projection.clone(),
             has_header: self.has_header,
             delimiter: self.delimiter,
             object_store: self.store.clone(),
-        });
+        };
+        // let config = Arc::new(CsvConfig {
+        // batch_size: 8192,
+        // file_schema: self.arrow_schema.clone(),
+        // file_projection: self.projection.clone(),
+        // has_header: self.has_header,
+        // delimiter: self.delimiter,
+        // object_store: self.store.clone(),
+        // });
 
         let opener = CsvOpener {
             config,
@@ -280,7 +262,7 @@ impl CsvConfig {
 }
 
 struct CsvOpener {
-    config: Arc<CsvConfig>,
+    config: CsvConfig,
     file_compression_type: FileCompressionType,
 }
 
