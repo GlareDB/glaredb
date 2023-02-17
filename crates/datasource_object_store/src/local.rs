@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 use crate::csv::CsvTableProvider;
-use crate::errors::{ObjectStoreSourceError, Result};
+use crate::errors::Result;
+use crate::file_type_from_path;
 use crate::parquet::ParquetTableProvider;
 use crate::{FileType, TableAccessor};
 
@@ -48,16 +49,8 @@ impl LocalAccessor {
 
         let meta = Arc::new(store.head(&location).await?);
 
-        // Use provided file type or infer  from location
-        let file_type = match access.file_type {
-            Some(t) => t,
-            None => {
-                let extension = location
-                    .extension()
-                    .ok_or(ObjectStoreSourceError::NoFileExtension)?;
-                extension.parse()?
-            }
-        };
+        // Use provided file type or infer from location
+        let file_type = access.file_type.unwrap_or(file_type_from_path(location)?);
 
         Ok(Self {
             store,
@@ -74,9 +67,7 @@ impl LocalAccessor {
             FileType::Parquet => {
                 Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
             }
-            FileType::Csv => {
-                Arc::new(CsvTableProvider::from_table_accessor(self, predicate_pushdown).await?)
-            }
+            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
         };
         Ok(table_provider)
     }

@@ -34,7 +34,6 @@ pub struct CsvTableProvider<T>
 where
     T: TableAccessor,
 {
-    pub(crate) predicate_pushdown: bool,
     pub(crate) accessor: T,
     /// Schema for csv file
     pub(crate) arrow_schema: ArrowSchemaRef,
@@ -44,10 +43,7 @@ impl<T> CsvTableProvider<T>
 where
     T: TableAccessor,
 {
-    pub async fn from_table_accessor(
-        accessor: T,
-        predicate_pushdown: bool,
-    ) -> Result<CsvTableProvider<T>> {
+    pub async fn from_table_accessor(accessor: T) -> Result<CsvTableProvider<T>> {
         let store = accessor.store();
         let location = [accessor.object_meta().as_ref().clone()];
 
@@ -59,7 +55,6 @@ where
         let arrow_schema = csv_format.infer_schema(&state, store, &location).await?;
 
         Ok(CsvTableProvider {
-            predicate_pushdown,
             accessor,
             arrow_schema,
         })
@@ -87,22 +82,14 @@ where
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        let _predicate = if self.predicate_pushdown {
-            filters
-                .iter()
-                .cloned()
-                .reduce(|accum, expr| accum.and(expr))
-        } else {
-            None
-        };
-
         let file = self.accessor.object_meta().as_ref().clone().into();
 
+        // This config is setup to make use of `FileStream` to stream from csv files in datafusion
         let base_config = FileScanConfig {
-            // `store` to `CsvExec` to use instead of the datafusion object store registry.
+            // `store` in `CsvExec` will be used instead of the datafusion object store registry.
             object_store_url: ObjectStoreUrl::local_filesystem(),
             file_schema: self.arrow_schema.clone(),
             file_groups: vec![vec![file]],
@@ -114,8 +101,8 @@ where
             infinite_source: false,
         };
 
+        // Assume csv has a header
         let has_header = true;
-        let delimiter = b',';
 
         // Project the schema.
         let projected_schema = match projection {
@@ -126,8 +113,8 @@ where
         let exec = CsvExec {
             base_config,
             has_header,
-            delimiter,
-            file_compression_type: FileCompressionType::UNCOMPRESSED,
+            delimiter: CsvExec::DEFAULT_DELIMITER,
+            file_compression_type: CsvExec::DEFAULT_FILE_COMPRESSION_TYPE,
             arrow_schema: self.arrow_schema.clone(),
             projection: projection.cloned(),
             projected_schema,
@@ -149,6 +136,12 @@ struct CsvExec {
     projection: Option<Vec<usize>>,
     projected_schema: ArrowSchemaRef,
     store: Arc<dyn ObjectStore>,
+}
+
+impl CsvExec {
+    const DEFAULT_DELIMITER: u8 = b',';
+    const DEFAULT_BATCH_SIZE: usize = 8192;
+    const DEFAULT_FILE_COMPRESSION_TYPE: FileCompressionType = FileCompressionType::UNCOMPRESSED;
 }
 
 impl ExecutionPlan for CsvExec {
@@ -192,7 +185,7 @@ impl ExecutionPlan for CsvExec {
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let config = CsvConfig {
-            batch_size: 8192,
+            batch_size: Self::DEFAULT_BATCH_SIZE,
             file_schema: self.arrow_schema.clone(),
             file_projection: self.projection.clone(),
             has_header: self.has_header,

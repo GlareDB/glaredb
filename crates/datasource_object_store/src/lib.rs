@@ -3,8 +3,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use errors::ObjectStoreSourceError;
+use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
+
+use crate::errors::Result;
 
 pub mod errors;
 pub mod gcs;
@@ -37,4 +40,10 @@ pub trait TableAccessor: Send + Sync {
     fn store(&self) -> &Arc<dyn ObjectStore>;
 
     fn object_meta(&self) -> &Arc<ObjectMeta>;
+}
+
+pub fn file_type_from_path(path: ObjectStorePath) -> Result<FileType> {
+    path.extension()
+        .ok_or(ObjectStoreSourceError::NoFileExtension)?
+        .parse()
 }
