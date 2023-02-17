@@ -20,7 +20,7 @@ datafusion = "17.0"
 uuid = { version = "1.3.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 bytes = "1.4"
 object_store = "0.5"
-once_cell = "1.17.0"
+once_cell = "1.17.1"
 proptest = "1.1"
 proptest-derive = "0.3"
 
