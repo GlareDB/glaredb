@@ -354,7 +354,7 @@ pub struct ConnectionOptionsS3 {
     #[prost(string, tag = "1")]
     pub access_key_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
-    pub access_key_secret: ::prost::alloc::string::String,
+    pub secret_access_key: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

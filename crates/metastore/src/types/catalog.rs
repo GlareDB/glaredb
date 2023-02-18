@@ -900,7 +900,7 @@ impl From<ConnectionOptionsGcs> for catalog::ConnectionOptionsGcs {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct ConnectionOptionsS3 {
     pub access_key_id: String,
-    pub access_key_secret: String,
+    pub secret_access_key: String,
 }
 
 impl TryFrom<catalog::ConnectionOptionsS3> for ConnectionOptionsS3 {
@@ -908,7 +908,7 @@ impl TryFrom<catalog::ConnectionOptionsS3> for ConnectionOptionsS3 {
     fn try_from(value: catalog::ConnectionOptionsS3) -> Result<Self, Self::Error> {
         Ok(ConnectionOptionsS3 {
             access_key_id: value.access_key_id,
-            access_key_secret: value.access_key_secret,
+            secret_access_key: value.secret_access_key,
         })
     }
 }
@@ -917,7 +917,7 @@ impl From<ConnectionOptionsS3> for catalog::ConnectionOptionsS3 {
     fn from(value: ConnectionOptionsS3) -> Self {
         catalog::ConnectionOptionsS3 {
             access_key_id: value.access_key_id,
-            access_key_secret: value.access_key_secret,
+            secret_access_key: value.secret_access_key,
         }
     }
 }
