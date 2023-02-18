@@ -502,7 +502,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         match name {
             TableReference::Bare { table } => {
                 for schema in self.context.search_path_iter() {
-                    match dispatcher.dispatch_access(schema, table) {
+                    match dispatcher.dispatch_access(schema, &table) {
                         Ok(table) => return Ok(Arc::new(DefaultTableSource::new(table))),
                         Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
                         Err(e) => {
@@ -520,7 +520,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
             }
             TableReference::Full { schema, table, .. }
             | TableReference::Partial { schema, table } => {
-                let table = dispatcher.dispatch_access(schema, table).map_err(|e| {
+                let table = dispatcher.dispatch_access(&schema, &table).map_err(|e| {
                     DataFusionError::Plan(format!("failed dispatch for qualified table: {}", e))
                 })?;
                 Ok(Arc::new(DefaultTableSource::new(table)))

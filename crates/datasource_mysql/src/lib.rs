@@ -12,7 +12,6 @@ use chrono::{NaiveDateTime, NaiveTime, Timelike};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -309,7 +308,7 @@ impl ExecutionPlan for MysqlExec {
 
 struct MysqlQueryStream {
     arrow_schema: ArrowSchemaRef,
-    inner: Pin<Box<dyn Stream<Item = ArrowResult<RecordBatch>> + Send>>,
+    inner: Pin<Box<dyn Stream<Item = DatafusionResult<RecordBatch>> + Send>>,
 }
 
 impl MysqlQueryStream {
@@ -336,22 +335,22 @@ impl MysqlQueryStream {
             let mut tx = conn
                 .start_transaction(tx_options)
                 .await
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
             let query_stream = tx
                 .exec_stream::<MysqlRow, _, _>(query, ())
                 .await
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
             let mut chunks = query_stream.try_chunks(Self::MYSQL_RECORD_BATCH_SIZE).boxed();
 
             while let Some(rows) = chunks
                 .try_next()
                 .await
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
             {
                 let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
-                    .map_err(|e| ArrowError::ExternalError(Box::new(e)));
+                    .map_err(|e| DataFusionError::External(Box::new(e)));
                 yield record_batch;
             }
 
@@ -360,7 +359,7 @@ impl MysqlQueryStream {
             drop(chunks);
             tx.commit()
                 .await
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?;
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
         };
 
         Ok(Self {
@@ -371,7 +370,7 @@ impl MysqlQueryStream {
 }
 
 impl Stream for MysqlQueryStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = DatafusionResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
