@@ -6,7 +6,7 @@ use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
+use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -243,9 +243,9 @@ struct AlwaysErrorStream {
 }
 
 impl Stream for AlwaysErrorStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = DatafusionResult<RecordBatch>;
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Ready(Some(Err(ArrowError::ExternalError(Box::new(
+        Poll::Ready(Some(Err(DataFusionError::External(Box::new(
             DebugError::ExecutionError("always error"),
         )))))
     }
@@ -265,7 +265,7 @@ struct NeverEndingStream {
 }
 
 impl Stream for NeverEndingStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = DatafusionResult<RecordBatch>;
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(limit) = self.limit {
             if self.curr_count > limit {

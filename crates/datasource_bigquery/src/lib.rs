@@ -14,7 +14,6 @@ use bigquery_storage::{BufferedArrowIpcReader, Client};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
@@ -304,7 +303,7 @@ impl fmt::Debug for BigQueryExec {
 
 struct BufferedIpcStream {
     schema: ArrowSchemaRef,
-    inner: Pin<Box<dyn Stream<Item = ArrowResult<RecordBatch>> + Send>>,
+    inner: Pin<Box<dyn Stream<Item = DatafusionResult<RecordBatch>> + Send>>,
 }
 
 impl BufferedIpcStream {
@@ -317,16 +316,14 @@ impl BufferedIpcStream {
             let reader = match receiver.recv().await {
                 Ok(r) => r,
                 Err(_e /* : closed channel error */) => {
-                    yield Err(ArrowError::ExternalError(Box::new(
-                        DataFusionError::Execution(format!("missing stream for partition: {}", partition))
-                    )));
+                    yield Err(DataFusionError::Execution(format!("missing stream for partition: {}", partition)));
                     return;
                 }
             };
             let buf = match reader.into_vec().await {
                 Ok(buf) => buf,
                 Err(e) => {
-                    yield Err(ArrowError::ExternalError(Box::new(e)));
+                    yield Err(DataFusionError::External(Box::new(e)));
                     return;
                 },
             };
@@ -345,7 +342,7 @@ impl BufferedIpcStream {
 }
 
 impl Stream for BufferedIpcStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = DatafusionResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)

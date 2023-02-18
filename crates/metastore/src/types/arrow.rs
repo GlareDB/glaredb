@@ -211,6 +211,9 @@ impl TryFrom<&DataType> for arrow::arrow_type::ArrowTypeEnum {
                 return Err(ProtoConvError::UnsupportedSerialization("Decimal256"))
             }
             DataType::Map(_, _) => return Err(ProtoConvError::UnsupportedSerialization("Map")),
+            DataType::RunEndEncoded(_, _) => {
+                return Err(ProtoConvError::UnsupportedSerialization("RunEndEncoded"))
+            }
         };
 
         Ok(res)
