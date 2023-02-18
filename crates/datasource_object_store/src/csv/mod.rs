@@ -87,7 +87,8 @@ where
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let file = self.accessor.object_meta().as_ref().clone().into();
 
-        // This config is setup to make use of `FileStream` to stream from csv files in datafusion
+        // This config is setup to make use of `FileStream` to stream from csv files in
+        // datafusion
         let base_config = FileScanConfig {
             // `store` in `CsvExec` will be used instead of the datafusion object store registry.
             object_store_url: ObjectStoreUrl::local_filesystem(),

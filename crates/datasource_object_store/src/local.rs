@@ -9,9 +9,8 @@ use tracing::trace;
 
 use crate::csv::CsvTableProvider;
 use crate::errors::Result;
-use crate::file_type_from_path;
 use crate::parquet::ParquetTableProvider;
-use crate::{FileType, TableAccessor};
+use crate::{file_type_from_path, FileType, TableAccessor};
 
 /// Information needed for accessing an Parquet file on local file system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
