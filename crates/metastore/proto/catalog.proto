@@ -239,7 +239,7 @@ message ConnectionOptionsGcs { string service_account_key = 1; }
 
 message ConnectionOptionsS3 {
   string access_key_id = 1;
-  string access_key_secret = 2;
+  string secret_access_key = 2;
 }
 
 message ConnectionOptionsSsh {

@@ -42,7 +42,7 @@ pub trait TableAccessor: Send + Sync {
     fn object_meta(&self) -> &Arc<ObjectMeta>;
 }
 
-pub fn file_type_from_path(path: ObjectStorePath) -> Result<FileType> {
+pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
     path.extension()
         .ok_or(ObjectStoreSourceError::NoFileExtension)?
         .parse()

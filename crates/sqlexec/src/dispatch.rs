@@ -276,6 +276,7 @@ impl<'a> SessionDispatcher<'a> {
                     service_acccount_key_json: conn.service_account_key.clone(),
                     bucket_name: table.bucket_name.clone(),
                     location: table.location.clone(),
+                    file_type: None,
                 };
                 let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
                     task::block_in_place(move || {
@@ -286,7 +287,7 @@ impl<'a> SessionDispatcher<'a> {
                         })
                     });
                 let provider = result?;
-                Ok(Arc::new(provider))
+                Ok(provider)
             }
             (ConnectionOptions::S3(conn), TableOptions::S3(table)) => {
                 let table_access = S3TableAccess {
@@ -294,7 +295,8 @@ impl<'a> SessionDispatcher<'a> {
                     bucket_name: table.bucket_name.clone(),
                     location: table.location.clone(),
                     access_key_id: conn.access_key_id.clone(),
-                    secret_access_key: conn.access_key_secret.clone(),
+                    secret_access_key: conn.secret_access_key.clone(),
+                    file_type: None,
                 };
                 let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
                     task::block_in_place(move || {
@@ -305,7 +307,7 @@ impl<'a> SessionDispatcher<'a> {
                         })
                     });
                 let provider = result?;
-                Ok(Arc::new(provider))
+                Ok(provider)
             }
             (conn, table) => Err(DispatchError::UnhandledExternalDispatch {
                 table_type: table.to_string(),

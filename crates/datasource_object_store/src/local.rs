@@ -24,9 +24,9 @@ pub struct LocalTableAccess {
 pub struct LocalAccessor {
     /// Local filesystem  object store access info
     pub store: Arc<dyn ObjectStore>,
-    pub file_type: FileType,
     /// Meta information for location/object
     pub meta: Arc<ObjectMeta>,
+    pub file_type: FileType,
 }
 
 impl TableAccessor for LocalAccessor {
@@ -45,12 +45,11 @@ impl LocalAccessor {
         let store = Arc::new(LocalFileSystem::new());
 
         let location = ObjectStorePath::from(access.location);
-        trace!(?location, "location");
+        // Use provided file type or infer from location
+        let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
+        trace!(?location, ?file_type, "location and file type");
 
         let meta = Arc::new(store.head(&location).await?);
-
-        // Use provided file type or infer from location
-        let file_type = access.file_type.unwrap_or(file_type_from_path(location)?);
 
         Ok(Self {
             store,

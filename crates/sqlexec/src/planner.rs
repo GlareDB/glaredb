@@ -102,11 +102,13 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             ConnectionOptions::S3_STORAGE => {
+                // Require `access_key_id` and `secret_access_key` as per access key generated on
+                // AWS IAM
                 let access_key_id = remove_required_opt(m, "access_key_id")?;
-                let access_key_secret = remove_required_opt(m, "access_key_secret")?;
+                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
                 ConnectionOptions::S3(ConnectionOptionsS3 {
                     access_key_id,
-                    access_key_secret,
+                    secret_access_key,
                 })
             }
             ConnectionOptions::SSH => {
