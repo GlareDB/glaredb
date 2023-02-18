@@ -12,7 +12,7 @@ tracing = "0.1"
 futures = "0.3.26"
 async-trait = "0.1.64"
 tokio = { version = "1", features = ["full"] }
-datafusion = "17.0"
+datafusion = "18.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.91"
 tokio-postgres = { version = "0.7.7", features = ["with-uuid-1", "with-serde_json-1", "with-chrono-0_4"] }

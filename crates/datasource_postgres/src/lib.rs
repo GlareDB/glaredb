@@ -6,7 +6,6 @@ use chrono::{DateTime, NaiveDate, Utc};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
@@ -484,7 +483,7 @@ struct ChunkStream {
 }
 
 impl Stream for ChunkStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = DatafusionResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
@@ -506,7 +505,7 @@ impl Stream for ChunkStream {
                     }
                     Err(e) => {
                         self.state = StreamState::Error;
-                        return Poll::Ready(Some(Err(ArrowError::ExternalError(Box::new(e)))));
+                        return Poll::Ready(Some(Err(DataFusionError::External(Box::new(e)))));
                     }
                 },
                 StreamState::Scan { stream } => match ready!(stream.poll_next_unpin(cx)) {
@@ -517,7 +516,7 @@ impl Stream for ChunkStream {
                             }
                             Err(e) => {
                                 self.state = StreamState::Error;
-                                return Poll::Ready(Some(Err(ArrowError::ExternalError(
+                                return Poll::Ready(Some(Err(DataFusionError::External(
                                     Box::new(e),
                                 ))));
                             }
