@@ -1,11 +1,16 @@
 # Creating external tables with parquet files.
 
-# Support for external tables backed by local parquet files have been removed
-# for the time being.
-halt
+statement ok
+create schema parquet;
 
 statement ok
-create external table userdata1 stored as parquet location 'testdata/parquet/userdata1.parquet';
+set search_path = parquet;
+
+statement ok
+create connection if not exists local_filesystem_conn for local;
+
+statement ok
+create external table userdata1 from local_filesystem_conn options(location='${PWD}/testdata/parquet/userdata1.parquet');
 
 query I
 select count(*) from userdata1;

@@ -1,0 +1,24 @@
+# Creating external tables with csv files.
+
+statement ok
+create schema csv;
+
+statement ok
+set search_path = csv;
+
+statement ok
+create connection local_filesystem_conn for local;
+
+statement ok
+create external table bikeshare_stations from local_filesystem_conn options(location='${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
+
+query I
+select count(*) from bikeshare_stations;
+----
+102
+
+query IT
+select count(*), status from bikeshare_stations group by status order by status;
+----
+78 active
+24 closed
