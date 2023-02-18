@@ -22,10 +22,6 @@ pub enum ObjectStoreSourceError {
 
     #[error("This file type is not supported: {0}")]
     NotSupportFileType(String),
-
-    // TODO Remove
-    #[error("Coming soon! This feature is unimplemented")]
-    Unimplemented,
 }
 
 pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;
