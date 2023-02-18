@@ -47,11 +47,10 @@ where
         let store = accessor.store();
         let location = [accessor.object_meta().as_ref().clone()];
 
+        // TODO infer schema without generating unused session context/state
         let csv_format = CsvFormat::default();
         let session_ctx = SessionContext::new();
         let state = session_ctx.state();
-
-        // TODO get schema another way
         let arrow_schema = csv_format.infer_schema(&state, store, &location).await?;
 
         Ok(CsvTableProvider {
@@ -209,9 +208,16 @@ impl ExecutionPlan for CsvExec {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: need proper display for CsvExec
-        tracing::warn!("No display format for CsvExec");
-        write!(f, "CsvExec: file=")
+        let files = self
+            .base_config
+            .file_groups
+            .iter()
+            .flatten()
+            .map(|f| f.object_meta.location.as_ref())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        write!(f, "CsvExec: files={files}")
     }
 
     fn statistics(&self) -> Statistics {
