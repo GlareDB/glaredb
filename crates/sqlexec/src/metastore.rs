@@ -511,6 +511,7 @@ impl DatabaseWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use metastore::local::start_inprocess;
     use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
     use metastore::proto::service::metastore_service_server::MetastoreServiceServer;
     use metastore::srv::Service;
@@ -520,44 +521,17 @@ mod tests {
     use tonic::transport::{Channel, Endpoint, Server, Uri};
     use tower::service_fn;
 
-    /// Creates a new local Metastore, returning a thread handle to the server,
-    /// and a client connected to that server.
+    /// Creates a new local Metastore, returning a client connected to that
+    /// server.
     ///
     /// The newly created Metastore will have no database data to begin with.
-    async fn new_local_metastore() -> (JoinHandle<()>, MetastoreServiceClient<Channel>) {
-        let (client, server) = tokio::io::duplex(1024);
-
-        let handle = tokio::spawn(async move {
-            let store = Arc::new(InMemory::new());
-            Server::builder()
-                .add_service(MetastoreServiceServer::new(Service::new(store)))
-                .serve_with_incoming(futures::stream::iter(vec![Ok::<_, &'static str>(server)]))
-                .await
-                .unwrap()
-        });
-
-        let mut client = Some(client);
-        let channel = Endpoint::try_from("http://[::]/6545") // Note that we're not using this uri for the server.
-            .unwrap()
-            .connect_with_connector(service_fn(move |_: Uri| {
-                let client = client.take();
-                async move {
-                    match client {
-                        Some(client) => Ok(client),
-                        None => Err("client already taken"),
-                    }
-                }
-            }))
-            .await
-            .unwrap();
-
-        let client = MetastoreServiceClient::new(channel);
-        (handle, client)
+    async fn new_local_metastore() -> MetastoreServiceClient<Channel> {
+        start_inprocess(Arc::new(InMemory::new())).await.unwrap()
     }
 
     #[tokio::test]
     async fn simple_mutate() {
-        let (_srv, client) = new_local_metastore().await;
+        let client = new_local_metastore().await;
 
         let supervisor = Supervisor::new(client);
 
@@ -583,7 +557,7 @@ mod tests {
 
     #[tokio::test]
     async fn out_of_date_mutate() {
-        let (_srv, client) = new_local_metastore().await;
+        let client = new_local_metastore().await;
 
         let supervisor = Supervisor::new(client);
 
@@ -639,7 +613,7 @@ mod tests {
 
     #[tokio::test]
     async fn restart_worker() {
-        let (_srv, client) = new_local_metastore().await;
+        let client = new_local_metastore().await;
 
         let supervisor = Supervisor::new(client);
 

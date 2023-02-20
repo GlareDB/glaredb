@@ -37,8 +37,11 @@ enum Commands {
         bind: String,
 
         /// Address to the Metastore.
-        #[clap(short, long, value_parser, default_value_t = String::from("http://localhost:6545"))]
-        metastore_addr: String,
+        ///
+        /// If not provided and `local` is set to a true, an in-process
+        /// metastore will be started.
+        #[clap(short, long, value_parser)]
+        metastore_addr: Option<String>,
 
         /// Whether or not this instance is running locally.
         ///
@@ -147,7 +150,7 @@ fn main() -> Result<()> {
 
 fn begin_server(
     pg_bind: &str,
-    metastore_addr: String,
+    metastore_addr: Option<String>,
     segment_key: Option<String>,
     local: bool,
 ) -> Result<()> {

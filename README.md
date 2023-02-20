@@ -10,24 +10,11 @@ Repository for the core GlareDB database.
 
 ## Running
 
-An in-memory version of GlareDB can be started with the following two commands:
-
-``` shell
-cargo run --bin glaredb -- -v metastore
-```
-
-and
+An in-memory version of GlareDB can be started with the following command:
 
 ``` shell
 cargo run --bin glaredb -- -v server -l
 ```
-
-The first command starts up Metastore, the service responsible for managing the
-database's catalog. The second command starts up the server portion of GlareDB
-that's responsible for executing queries.
-
-Metastore will start up on port 6545 and the GlareDB server will start up on
-port 6543.
 
 To connect, use any Postgres compatible client. E.g. `psql`:
 
@@ -36,6 +23,26 @@ psql "host=localhost dbname=glaredb port=6543"
 ```
 
 When prompted for a password, any password will do[^1].
+
+### Running Metastore Separately
+
+By default, when the glaredb command is provided the `-l` flag, an in-process
+Metastore will be spun up. Metastore is the service responsible for managing
+catalogs for databases. But it may also be ran seperately (which is done in
+production).
+
+The following two commands may be used to spin up the server and metastore
+components seperately:
+
+``` shell
+cargo run --bin glaredb -- -v metastore
+```
+
+and
+
+``` shell
+cargo run --bin glaredb -- -v server -l -m http://localhost:6545
+```
 
 ## Service Overview
 

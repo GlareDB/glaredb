@@ -41,6 +41,9 @@ pub enum MetastoreError {
     #[error("Object {object} has invalid parent id: {parent}")]
     ObjectHasInvalidParentId { object: u32, parent: u32 },
 
+    #[error("Failed in-process startup: {0}")]
+    FailedInProcessStartup(String),
+
     #[error(transparent)]
     Storage(#[from] crate::storage::StorageError),
 

@@ -1,17 +1,14 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use glaredb::metastore::Metastore;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
-use object_store::memory::InMemory;
 use regex::{Captures, Regex};
 use sqllogictest::{
     parse, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
@@ -104,20 +101,6 @@ fn main() -> Result<()> {
                 TcpListener::bind(bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
             let pg_addr = pg_listener.local_addr()?;
             let server_conf = ServerConfig { pg_listener };
-
-            // Start up metastore if address isn't provided.
-            //
-            // Defaults to starting up on port 6545.
-            let metastore_addr = match metastore_addr {
-                Some(addr) => addr,
-                None => {
-                    let bind: SocketAddr = "0.0.0.0:6545".parse()?;
-                    let store = Arc::new(InMemory::new());
-                    let metastore = Metastore::new(store)?;
-                    tokio::spawn(metastore.serve(bind));
-                    "http://localhost:6545".to_string()
-                }
-            };
 
             let server = Server::connect(metastore_addr, None, true).await?;
             tokio::spawn(server.serve(server_conf));
