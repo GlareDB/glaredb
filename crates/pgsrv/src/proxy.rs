@@ -314,7 +314,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
                     .await?;
                 Ok(details)
             }
-            other => Err(PgSrvError::UnexpectedFrontendMessage(other)),
+            other => Err(PgSrvError::UnexpectedFrontendMessage(Box::new(other))),
         }
     }
 }

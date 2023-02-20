@@ -120,7 +120,7 @@ fn main() -> Result<()> {
             };
 
             let server = Server::connect(metastore_addr, None, true).await?;
-            let _ = tokio::spawn(server.serve(server_conf));
+            tokio::spawn(server.serve(server_conf));
 
             let runner = TestRunner::connect_embedded(pg_addr).await?;
             match runner.exec_tests(&files).await {
