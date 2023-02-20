@@ -9,7 +9,7 @@ pub enum PgSrvError {
     InvalidProtocolVersion(i32),
 
     #[error("unexpected frontend message: {0:?}")]
-    UnexpectedFrontendMessage(FrontendMessage),
+    UnexpectedFrontendMessage(Box<FrontendMessage>), // Boxed since frontend message has a large variant.
 
     #[error("unexpected backend message: {0:?}")]
     UnexpectedBackendMessage(BackendMessage),

@@ -146,7 +146,7 @@ impl ProtocolHandler {
                 // TODO: Do something with password.
                 framed.send(BackendMessage::AuthenticationOk).await?;
             }
-            Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(other)), // TODO: Send error.
+            Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(Box::new(other))), // TODO: Send error.
             None => return Ok(()),
         }
 
