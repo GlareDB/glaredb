@@ -1,0 +1,17 @@
+# Tests for builtin 'views' table.
+
+statement ok
+create schema builtin_views_test;
+
+statement ok
+set search_path = builtin_views_test;
+
+statement ok
+create view hello as select 1;
+
+# Simple sanity check.
+
+query TT
+select oid is not null, schema_oid is not null from glare_catalog.views where schema_name = 'builtin_views_test';
+----
+t  t

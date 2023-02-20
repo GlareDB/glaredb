@@ -50,6 +50,7 @@ pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     columns: ColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("builtin", DataType::Boolean, false),
+        ("schema_oid", DataType::UInt32, false),
         ("schema_name", DataType::Utf8, false),
         ("view_name", DataType::Utf8, false),
         ("sql", DataType::Utf8, false),

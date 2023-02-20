@@ -392,12 +392,7 @@ impl<'a> SystemTableDispatcher<'a> {
         }) {
             oids.append_value(table.oid);
             builtins.append_value(table.builtin);
-            schema_oids.append_value(
-                table
-                    .schema_entry
-                    .map(|schema| schema.get_meta().id)
-                    .unwrap_or(0),
-            );
+            schema_oids.append_value(table.entry.get_meta().parent);
             schema_names.append_value(
                 table
                     .schema_entry
@@ -489,6 +484,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         let mut oids = UInt32Builder::new();
         let mut builtins = BooleanBuilder::new();
+        let mut schema_oids = UInt32Builder::new();
         let mut schema_names = StringBuilder::new();
         let mut view_names = StringBuilder::new();
         let mut sqls = StringBuilder::new();
@@ -505,6 +501,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
             oids.append_value(view.oid);
             builtins.append_value(view.builtin);
+            schema_oids.append_value(view.entry.get_meta().parent);
             schema_names.append_value(
                 view.schema_entry
                     .map(|schema| schema.get_meta().name.as_str())
@@ -519,6 +516,7 @@ impl<'a> SystemTableDispatcher<'a> {
             vec![
                 Arc::new(oids.finish()),
                 Arc::new(builtins.finish()),
+                Arc::new(schema_oids.finish()),
                 Arc::new(schema_names.finish()),
                 Arc::new(view_names.finish()),
                 Arc::new(sqls.finish()),
