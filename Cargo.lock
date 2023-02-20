@@ -2529,6 +2529,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "datafusion",
+ "futures",
  "logutil",
  "object_store",
  "object_store_util",
@@ -2542,6 +2543,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "tower",
  "tracing",
  "uuid",
 ]
@@ -4238,6 +4240,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
+ "metastore",
  "object_store",
  "regex",
  "sqllogictest",
