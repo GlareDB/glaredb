@@ -6,8 +6,8 @@ use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
-    ExecutionPlan, SendableRecordBatchStream,
+    coalesce_partitions::CoalescePartitionsExec, execute_stream, memory::MemoryStream,
+    EmptyRecordBatchStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
@@ -132,14 +132,8 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        match plan.output_partitioning().partition_count() {
-            0 => Ok(Box::pin(EmptyRecordBatchStream::new(plan.schema()))),
-            1 => Ok(plan.execute(0, context)?),
-            _ => {
-                let plan = CoalescePartitionsExec::new(plan);
-                Ok(plan.execute(0, context)?)
-            }
-        }
+        let stream = execute_stream(plan, context)?;
+        Ok(stream)
     }
 
     pub(crate) async fn create_table(&self, _plan: CreateTable) -> Result<()> {
@@ -320,8 +314,15 @@ impl Session {
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
-                let stream = self.execute_physical(physical)?;
-                ExecutionResult::Query { stream }
+                let stream = self.execute_physical(physical.clone())?;
+                let results = ExecutionResult::Query { stream };
+                tokio::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    let metrics = physical.metrics().unwrap();
+                    println!("metrics: {:#?}", metrics);
+                    println!("elapsed: {:?}", metrics.elapsed_compute());
+                });
+                results
             }
             LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
                 self.set_variable(plan)?;
