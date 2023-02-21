@@ -17,6 +17,10 @@ pub enum BigQueryError {
 
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
+
+    // TODO Remove
+    #[error("Coming soon! This feature is unimplemented")]
+    Unimplemented,
 }
 
 pub type Result<T, E = BigQueryError> = std::result::Result<T, E>;

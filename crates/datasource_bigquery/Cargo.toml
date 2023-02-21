@@ -19,3 +19,4 @@ gcp-bigquery-client = "0.16.5"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
 parking_lot = "0.12.1"
 async-channel = "1.8.0"
+metastore = { path = "../metastore" }

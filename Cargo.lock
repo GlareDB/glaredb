@@ -1318,6 +1318,7 @@ dependencies = [
  "datafusion",
  "futures",
  "gcp-bigquery-client",
+ "metastore",
  "parking_lot",
  "serde",
  "serde_json",

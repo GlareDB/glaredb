@@ -30,6 +30,11 @@ pub enum ExecError {
         source: datasource_postgres::errors::PostgresError,
     },
 
+    #[error("External table validation failed: {source}")]
+    InvalidDataSource2 {
+        source: datasource_bigquery::errors::BigQueryError,
+    },
+
     #[error("Unknown prepared statement with name: {0}")]
     UnknownPreparedStatement(String),
 

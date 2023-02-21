@@ -9,6 +9,7 @@ use datafusion::arrow::datatypes::{
 };
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
+use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
@@ -75,10 +76,21 @@ impl<'a> SessionPlanner<'a> {
             ConnectionOptions::BIGQUERY => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
                 let project_id = remove_required_opt(m, "project_id")?;
-                ConnectionOptions::BigQuery(ConnectionOptionsBigQuery {
+
+                let options = ConnectionOptionsBigQuery {
                     service_account_key,
                     project_id,
-                })
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        BigQueryAccessor::validate_connection(&options)
+                            .await
+                            .map_err(|e| ExecError::InvalidDataSource2 { source: e })
+                    })
+                })?;
+
+                ConnectionOptions::BigQuery(options)
             }
             ConnectionOptions::MYSQL => {
                 let connection_string = remove_required_opt(m, "mysql_conn")?;
@@ -184,12 +196,28 @@ impl<'a> SessionPlanner<'a> {
                     table: access.name,
                 })
             }
-            ConnectionOptions::BigQuery(_) => {
+            ConnectionOptions::BigQuery(ref options) => {
                 let dataset_id = remove_required_opt(m, "dataset_id")?;
                 let table_id = remove_required_opt(m, "table_id")?;
-                TableOptions::BigQuery(TableOptionsBigQuery {
+
+                let access = BigQueryTableAccess {
+                    gcp_service_acccount_key_json: options.service_account_key.clone(),
+                    gcp_project_id: options.project_id.clone(),
                     dataset_id,
                     table_id,
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        BigQueryAccessor::validate_table_access(&access)
+                            .await
+                            .map_err(|e| ExecError::InvalidDataSource2 { source: e })
+                    })
+                })?;
+
+                TableOptions::BigQuery(TableOptionsBigQuery {
+                    dataset_id: access.dataset_id,
+                    table_id: access.table_id,
                 })
             }
             ConnectionOptions::Mysql(_) => {

@@ -1,8 +1,7 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use errors::{BigQueryError, Result};
-
+use crate::errors::{BigQueryError, Result};
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -31,6 +30,7 @@ use datafusion::physical_plan::{
 use futures::{Stream, StreamExt};
 use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
+use metastore::types::catalog::ConnectionOptionsBigQuery;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -74,6 +74,22 @@ impl BigQueryAccessor {
         };
 
         Ok(BigQueryAccessor { access, metadata })
+    }
+
+    /// Validate big query connection
+    pub async fn validate_connection(options: &ConnectionOptionsBigQuery) -> Result<()> {
+        tracing::warn!("Unimplemented");
+        return Err(BigQueryError::Unimplemented);
+
+        Ok(())
+    }
+
+    /// Validate big query connection and access to table
+    pub async fn validate_table_access(access: &BigQueryTableAccess) -> Result<()> {
+        tracing::warn!("Unimplemented");
+        return Err(BigQueryError::Unimplemented);
+
+        Ok(())
     }
 
     pub async fn into_table_provider(
