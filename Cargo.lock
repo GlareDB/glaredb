@@ -1462,6 +1462,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
+name = "dtoa"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c00704156a7de8df8da0911424e30c2049957b0a714542a44e05fe693dd85313"
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3129,7 +3135,9 @@ name = "pgrepr"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "chrono",
  "datafusion",
+ "dtoa",
  "num-traits",
  "thiserror",
  "tokio-postgres",
