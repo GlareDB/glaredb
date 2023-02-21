@@ -1,23 +1,17 @@
 use crate::engine::SessionInfo;
-use crate::errors::Result;
-use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::MemTable;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::physical_plan::{ExecutionPlan, RecordBatchStream, SendableRecordBatchStream};
 use futures::stream::{Stream, StreamExt};
-use metastore::builtins::GLARE_SESSION_QUERY_METRICS;
 use serde_json::json;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::{any::Any, pin::Pin};
 use telemetry::Tracker;
 use tokio::sync::mpsc;
 use tracing::error;
-use uuid::Uuid;
 
 /// Number of query metrics to hold in-memory. Once exceeded, the oldest metric
 /// gets dropped.
@@ -61,7 +55,7 @@ impl SessionMetrics {
     /// This should be called prior to execution of any statements.
     pub fn flush_completed(&mut self) {
         if let Ok(m) = self.completed_rx.try_recv() {
-            self.push_metric(m);
+            self.push_metric(m)
         }
     }
 
@@ -70,6 +64,24 @@ impl SessionMetrics {
     /// This will also push the metric out to Segment.
     pub fn push_metric(&mut self, metric: QueryMetrics) {
         // TODO: Segment
+        self.tracker.track(
+            "Execution metric",
+            self.info.user_id,
+            json!({
+                // Additional info.
+                "database_id": self.info.database_id_string,
+                "connection_id": self.info.conn_id_string,
+
+                // Metric fields.
+                "query_text": metric.query_text,
+                "telemetry_tag": metric.result_type,
+                "execution_status": metric.execution_status.as_str(),
+                "error_message": metric.error_message,
+                "elapsed_compute_ns": metric.elapsed_compute_ns,
+                "output_rows": metric.output_rows,
+            }),
+        );
+
         self.metrics.push_front(metric);
         if self.metrics.len() > MAX_METRICS_HISTORY {
             self.metrics.pop_back();
@@ -110,22 +122,15 @@ impl ExecutionStatus {
 #[derive(Debug)]
 pub struct QueryMetrics {
     pub query_text: String,
+    pub result_type: &'static str,
     pub execution_status: ExecutionStatus,
+    /// Error message if the query failed.
     pub error_message: Option<String>,
-    pub elapsed_compute: u64,
-    pub output_rows: Option<u32>,
-}
-
-impl QueryMetrics {
-    pub fn to_json_value(&self) -> serde_json::Value {
-        json!({
-            "query_text": self.query_text,
-            "execution_status": self.execution_status.as_str(),
-            "error_message": self.error_message.clone().unwrap_or_default(),
-            "elapsed_compute": self.elapsed_compute,
-            "output_rows": self.output_rows.unwrap_or(0),
-        })
-    }
+    /// Elapsed compute in nanoseconds for the query. Currently only set for
+    /// SELECT queries.
+    pub elapsed_compute_ns: Option<u64>,
+    /// Number of output rows. Currently only set for SELECT queries.
+    pub output_rows: Option<u64>,
 }
 
 /// A wrapper around a batch stream that will send a completed query metric onto
@@ -176,9 +181,9 @@ impl Stream for BatchStreamWithMetricSender {
                     metrics.execution_status = ExecutionStatus::Success;
 
                     if let Some(exec_metrics) = self.plan.metrics() {
-                        metrics.elapsed_compute =
-                            exec_metrics.elapsed_compute().unwrap_or(0) as u64;
-                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u32);
+                        metrics.elapsed_compute_ns =
+                            exec_metrics.elapsed_compute().map(|v| v as u64);
+                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
                     }
 
                     if let Err(e) = self.sender.try_send(metrics) {
@@ -201,9 +206,9 @@ impl Stream for BatchStreamWithMetricSender {
                     // The query may have failed, but having these execution
                     // stats may be useful anyways.
                     if let Some(exec_metrics) = self.plan.metrics() {
-                        metrics.elapsed_compute =
-                            exec_metrics.elapsed_compute().unwrap_or(0) as u64;
-                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u32);
+                        metrics.elapsed_compute_ns =
+                            exec_metrics.elapsed_compute().map(|v| v as u64);
+                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
                     }
 
                     if let Err(e) = self.sender.try_send(metrics) {

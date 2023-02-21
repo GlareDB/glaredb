@@ -8,16 +8,13 @@ use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, execute_stream, memory::MemoryStream,
-    EmptyRecordBatchStream, ExecutionPlan, SendableRecordBatchStream,
+    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
-use serde_json::json;
 use std::fmt;
 use std::sync::Arc;
 use telemetry::Tracker;
-use uuid::Uuid;
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
@@ -59,8 +56,7 @@ pub enum ExecutionResult {
 }
 
 impl ExecutionResult {
-    /// Tag for use when sending telemetry about the execution result.
-    const fn telemetry_tag(&self) -> &'static str {
+    const fn result_type_str(&self) -> &'static str {
         match self {
             ExecutionResult::Query { .. } => "query",
             ExecutionResult::ShowVariable { .. } => "show_variable",
@@ -233,6 +229,15 @@ impl Session {
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
+        // Flush any completed metrics prior to planning. This is mostly
+        // beneficial when planning successive calls to the
+        // `session_query_history` table since the mem table is created during
+        // planning.
+        //
+        // In all other cases, it's correct to only need to flush immediately
+        // prior to execute (which we also do).
+        self.ctx.get_metrics_mut().flush_completed();
+
         self.ctx.prepare_statement(name, stmt, params).await
     }
 
@@ -364,9 +369,10 @@ impl Session {
                 .clone()
                 .map(|stmt| stmt.to_string())
                 .unwrap_or("<empty>".to_string()),
+            result_type: "unknown",
             execution_status: ExecutionStatus::Unknown,
             error_message: None,
-            elapsed_compute: 0,
+            elapsed_compute_ns: None,
             output_rows: None,
         };
 
@@ -374,6 +380,7 @@ impl Session {
         let result = match result {
             Ok(result) => {
                 metrics.execution_status = ExecutionStatus::Success;
+                metrics.result_type = result.result_type_str();
                 result
             }
             Err(e) => {
