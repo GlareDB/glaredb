@@ -97,13 +97,7 @@ impl fmt::Display for DropConnectionStmt {
             write!(f, "IF EXISTS ")?;
         }
 
-        let (first_name, rest) = self.names.split_first().unwrap();
-        write!(f, "{} ", first_name)?;
-        for name in rest {
-            write!(f, ", {}", name)?;
-        }
-
-        Ok(())
+        write!(f, "{} ", self.names.join(", "))
     }
 }
 
