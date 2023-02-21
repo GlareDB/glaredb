@@ -14,8 +14,8 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_SSH_CONNECTIONS, GLARE_TABLES,
-    GLARE_VIEWS,
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
+    GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -128,7 +128,7 @@ impl<'a> SessionDispatcher<'a> {
 
         // Dispatch to system tables if builtin...
         if ent.get_meta().builtin && ent.entry_type() == EntryType::Table {
-            let table = SystemTableDispatcher::new(catalog).dispatch(schema, name)?;
+            let table = SystemTableDispatcher::new(self.ctx).dispatch(schema, name)?;
             return Ok(table);
         }
 
@@ -319,12 +319,16 @@ impl<'a> SessionDispatcher<'a> {
 
 /// Dispatch to builtin system tables.
 struct SystemTableDispatcher<'a> {
-    catalog: &'a SessionCatalog,
+    ctx: &'a SessionContext,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    fn new(catalog: &'a SessionCatalog) -> Self {
-        SystemTableDispatcher { catalog }
+    fn new(ctx: &'a SessionContext) -> Self {
+        SystemTableDispatcher { ctx }
+    }
+
+    fn catalog(&self) -> &SessionCatalog {
+        self.ctx.get_session_catalog()
     }
 
     fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
@@ -340,6 +344,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_connections())
         } else if GLARE_SSH_CONNECTIONS.matches(schema, name) {
             Arc::new(self.build_glare_ssh_connections())
+        } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
+            Arc::new(self.build_session_query_metrics())
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -356,7 +362,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut schema_names = StringBuilder::new();
 
         for schema in self
-            .catalog
+            .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Schema)
         {
@@ -387,7 +393,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut externals = BooleanBuilder::new();
         let mut connection_oids = UInt32Builder::new();
 
-        for table in self.catalog.iter_entries().filter(|ent| {
+        for table in self.catalog().iter_entries().filter(|ent| {
             ent.entry_type() == EntryType::Table || ent.entry_type() == EntryType::ExternalTable
         }) {
             oids.append_value(table.oid);
@@ -437,7 +443,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut is_nullables = BooleanBuilder::new();
 
         for table in self
-            .catalog
+            .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Table)
         {
@@ -490,7 +496,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut sqls = StringBuilder::new();
 
         for view in self
-            .catalog
+            .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::View)
         {
@@ -537,7 +543,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut connection_types = StringBuilder::new();
 
         for conn in self
-            .catalog
+            .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Connection)
         {
@@ -582,7 +588,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut public_key = StringBuilder::new();
 
         for conn in self
-            .catalog
+            .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Connection)
         {
@@ -623,6 +629,22 @@ impl<'a> SystemTableDispatcher<'a> {
         )
         .unwrap();
 
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_session_query_metrics(&self) -> MemTable {
+        let num_metrics = self.ctx.get_session_metrics().num_metrics();
+
+        let mut query_texts = StringBuilder::new();
+
+        for m in self.ctx.get_session_metrics().iter() {
+            query_texts.append_value(&m.query_text);
+        }
+
+        let arrow_schema = Arc::new(GLARE_SESSION_QUERY_METRICS.arrow_schema());
+        let batch =
+            RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(query_texts.finish())])
+                .unwrap();
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 }

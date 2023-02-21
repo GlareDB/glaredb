@@ -573,7 +573,7 @@ where
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
         match result {
-            ExecutionResult::Query { stream } => {
+            ExecutionResult::Query { stream, .. } | ExecutionResult::ShowVariable { stream } => {
                 if let Some(num_rows) = Self::stream_batch(conn, stream, encoding_state).await? {
                     Self::command_complete(conn, format!("SELECT {}", num_rows)).await?;
                 }

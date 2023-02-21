@@ -3,6 +3,7 @@ use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
+use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
@@ -35,8 +36,8 @@ use uuid::Uuid;
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
-    /// Telemetry tracker.
-    tracker: Arc<Tracker>,
+    /// Database id that this session is connected to.
+    database_id: Uuid,
     /// ID of the user who initiated the connection.
     user_id: Uuid,
     /// Unique connection id.
@@ -60,11 +61,11 @@ pub struct SessionContext {
 impl SessionContext {
     /// Create a new session context with the given catalog.
     pub fn new(
+        database_id: Uuid,
         user_id: Uuid,
         conn_id: Uuid,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
-        tracker: Arc<Tracker>,
     ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
@@ -87,8 +88,8 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
+            database_id,
             user_id,
-            tracker,
             conn_id,
             metastore_catalog: catalog,
             metastore,
@@ -99,19 +100,18 @@ impl SessionContext {
         }
     }
 
-    /// Get the user id associated with this connectin.
-    pub fn user_id(&self) -> Uuid {
-        self.user_id
+    pub fn database_id(&self) -> &Uuid {
+        &self.database_id
+    }
+
+    /// Get the user id associated with this connection.
+    pub fn user_id(&self) -> &Uuid {
+        &self.user_id
     }
 
     /// Get the connection id for this session.
-    pub fn conn_id(&self) -> Uuid {
-        self.conn_id
-    }
-
-    /// Get the telemetry tracker.
-    pub fn tracker(&self) -> &Tracker {
-        self.tracker.as_ref()
+    pub fn conn_id(&self) -> &Uuid {
+        &self.conn_id
     }
 
     /// Create a table.

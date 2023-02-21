@@ -33,7 +33,14 @@ impl Engine {
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
-        let session = Session::new(user_id, conn_id, catalog, metastore, self.tracker.clone())?;
+        let session = Session::new(
+            db_id,
+            user_id,
+            conn_id,
+            catalog,
+            metastore,
+            self.tracker.clone(),
+        )?;
         Ok(session)
     }
 }
