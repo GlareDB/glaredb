@@ -1,4 +1,5 @@
 use crate::dispatch::SessionDispatcher;
+use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
@@ -36,12 +37,7 @@ use uuid::Uuid;
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
-    /// Database id that this session is connected to.
-    database_id: Uuid,
-    /// ID of the user who initiated the connection.
-    user_id: Uuid,
-    /// Unique connection id.
-    conn_id: Uuid,
+    info: Arc<SessionInfo>,
     /// Database catalog.
     metastore_catalog: SessionCatalog,
     metastore: SupervisorClient,
@@ -51,6 +47,8 @@ pub struct SessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
+    /// Track query metrics for this session.
+    metrics: SessionMetrics,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -61,11 +59,10 @@ pub struct SessionContext {
 impl SessionContext {
     /// Create a new session context with the given catalog.
     pub fn new(
-        database_id: Uuid,
-        user_id: Uuid,
-        conn_id: Uuid,
+        info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        metrics: SessionMetrics,
     ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
@@ -88,30 +85,27 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
-            database_id,
-            user_id,
-            conn_id,
+            info,
             metastore_catalog: catalog,
             metastore,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
+            metrics,
             df_state: state,
         }
     }
 
-    pub fn database_id(&self) -> &Uuid {
-        &self.database_id
+    pub fn get_info(&self) -> &SessionInfo {
+        self.info.as_ref()
     }
 
-    /// Get the user id associated with this connection.
-    pub fn user_id(&self) -> &Uuid {
-        &self.user_id
+    pub fn get_metrics(&self) -> &SessionMetrics {
+        &self.metrics
     }
 
-    /// Get the connection id for this session.
-    pub fn conn_id(&self) -> &Uuid {
-        &self.conn_id
+    pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
+        &mut self.metrics
     }
 
     /// Create a table.

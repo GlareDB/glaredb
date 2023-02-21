@@ -633,11 +633,11 @@ impl<'a> SystemTableDispatcher<'a> {
     }
 
     fn build_session_query_metrics(&self) -> MemTable {
-        let num_metrics = self.ctx.get_session_metrics().num_metrics();
+        let num_metrics = self.ctx.get_metrics().num_metrics();
 
         let mut query_texts = StringBuilder::new();
 
-        for m in self.ctx.get_session_metrics().iter() {
+        for m in self.ctx.get_metrics().iter() {
             query_texts.append_value(&m.query_text);
         }
 

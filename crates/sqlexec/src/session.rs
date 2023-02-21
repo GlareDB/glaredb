@@ -1,4 +1,5 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
+use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
@@ -112,10 +113,8 @@ impl fmt::Debug for ExecutionResult {
 /// pgsrv and actual execution against the catalog allows for easy extensibility
 /// in the future (e.g. consensus).
 pub struct Session {
+    pub(crate) info: Arc<SessionInfo>,
     pub(crate) ctx: SessionContext,
-    pub(crate) metrics: SessionMetrics,
-    /// Telemetry tracker.
-    pub(crate) tracker: Arc<Tracker>,
 }
 
 impl Session {
@@ -124,19 +123,14 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
-        database_id: Uuid,
-        user_id: Uuid,
-        conn_id: Uuid,
+        info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         tracker: Arc<Tracker>,
     ) -> Result<Session> {
-        let ctx = SessionContext::new(database_id, user_id, conn_id, catalog, metastore);
-        Ok(Session {
-            ctx,
-            metrics: SessionMetrics::default(),
-            tracker,
-        })
+        let metrics = SessionMetrics::new(info.clone(), tracker);
+        let ctx = SessionContext::new(info.clone(), catalog, metastore, metrics);
+        Ok(Session { info, ctx })
     }
 
     /// Create a physical plan for a given datafusion logical plan.
@@ -345,6 +339,8 @@ impl Session {
     }
 
     /// Execute a portal.
+    ///
+    /// This will handle metrics tracking for query executions.
     // TODO: Handle max rows.
     pub async fn execute_portal(
         &mut self,
@@ -352,7 +348,7 @@ impl Session {
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
         // Flush any completed metrics.
-        self.metrics.flush_completed();
+        self.ctx.get_metrics_mut().flush_completed();
 
         let portal = self.ctx.get_portal(portal_name)?;
         let plan = match &portal.stmt.plan {
@@ -387,7 +383,7 @@ impl Session {
                 // Ensure we push the metrics for this failed query even though
                 // we're returning an error. This allows for querying for and
                 // reporting failed executions.
-                self.metrics.push_metric(metrics);
+                self.ctx.get_metrics_mut().push_metric(metrics);
                 return Err(e);
             }
         };
@@ -396,7 +392,7 @@ impl Session {
         // that will send metrics at the completions of the stream.
         match result {
             ExecutionResult::Query { stream, plan } => {
-                let sender = self.metrics.get_sender();
+                let sender = self.ctx.get_metrics().get_sender();
                 Ok(ExecutionResult::Query {
                     stream: Box::pin(BatchStreamWithMetricSender::new(
                         stream,
@@ -407,7 +403,12 @@ impl Session {
                     plan,
                 })
             }
-            result => Ok(result),
+            result => {
+                // Query not async (already completed), we're good to go ahead
+                // and push this metric.
+                self.ctx.get_metrics_mut().push_metric(metrics);
+                Ok(result)
+            }
         }
     }
 }

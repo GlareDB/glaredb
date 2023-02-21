@@ -109,7 +109,7 @@ impl BuiltinScalarFunction {
                 Arc::new(move |_| Ok(ColumnarValue::Scalar(val.clone()))) // TODO: Figure out how not to clone here.
             }
             BuiltinScalarFunction::ConnectionId => {
-                let id = *sess.conn_id();
+                let id = sess.get_info().conn_id;
                 Arc::new(move |_| {
                     Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
                         id.to_string(),
