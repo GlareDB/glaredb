@@ -63,7 +63,6 @@ impl SessionMetrics {
     ///
     /// This will also push the metric out to Segment.
     pub fn push_metric(&mut self, metric: QueryMetrics) {
-        // TODO: Segment
         self.tracker.track(
             "Execution metric",
             self.info.user_id,
