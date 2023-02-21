@@ -109,7 +109,6 @@ impl fmt::Debug for ExecutionResult {
 /// pgsrv and actual execution against the catalog allows for easy extensibility
 /// in the future (e.g. consensus).
 pub struct Session {
-    pub(crate) info: Arc<SessionInfo>,
     pub(crate) ctx: SessionContext,
 }
 
@@ -125,8 +124,8 @@ impl Session {
         tracker: Arc<Tracker>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info.clone(), catalog, metastore, metrics);
-        Ok(Session { info, ctx })
+        let ctx = SessionContext::new(info, catalog, metastore, metrics);
+        Ok(Session { ctx })
     }
 
     /// Create a physical plan for a given datafusion logical plan.

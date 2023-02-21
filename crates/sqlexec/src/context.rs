@@ -27,10 +27,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::slice;
 use std::sync::Arc;
-use telemetry::Tracker;
 use tokio_postgres::types::Type as PgType;
 use tracing::debug;
-use uuid::Uuid;
 
 /// Context for a session used during execution.
 ///
