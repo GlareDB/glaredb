@@ -1,6 +1,7 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use metastore::types::catalog::{ConnectionOptions, TableOptions};
 use std::collections::HashMap;
@@ -54,6 +55,14 @@ impl LogicalPlan {
             LogicalPlan::Query(plan) => plan.get_parameter_types()?,
             _ => HashMap::new(),
         })
+    }
+
+    pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
+        if let LogicalPlan::Query(plan) = self {
+            *plan = plan.replace_params_with_values(&scalars)?;
+        }
+
+        Ok(())
     }
 }
 

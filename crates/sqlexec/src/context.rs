@@ -13,6 +13,7 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
@@ -356,6 +357,7 @@ impl SessionContext {
         &mut self,
         portal_name: String,
         stmt_name: &str,
+        params: Vec<ScalarValue>,
         result_formats: Vec<Format>,
     ) -> Result<()> {
         // Unnamed portals can be overwritten, named portals need to be
@@ -367,7 +369,7 @@ impl SessionContext {
             ));
         }
 
-        let stmt = match self.prepared.get(stmt_name) {
+        let mut stmt = match self.prepared.get(stmt_name) {
             Some(prepared) => prepared.clone(),
             None => return Err(ExecError::UnknownPreparedStatement(stmt_name.to_string())),
         };
@@ -376,6 +378,10 @@ impl SessionContext {
             result_formats.len(),
             stmt.output_fields().map(|f| f.len()).unwrap_or(0)
         );
+
+        if let Some(plan) = &mut stmt.plan {
+            plan.replace_placeholders(params)?;
+        }
 
         let portal = Portal {
             stmt,

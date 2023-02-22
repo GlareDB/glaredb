@@ -261,7 +261,7 @@ impl Session {
         // assert_eq!(0, param_values.len());
 
         self.ctx
-            .bind_statement(portal_name, stmt_name, result_formats)
+            .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
     /// Execute a portal.
