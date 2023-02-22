@@ -606,7 +606,7 @@ impl PreparedStatement {
     }
 
     /// Returns the type of the input parameters. Input paramets are keyed as
-    /// "$n" started at "$1".
+    /// "$n" starting at "$1".
     pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<DataType>>> {
         self.parameter_types.as_ref()
     }
