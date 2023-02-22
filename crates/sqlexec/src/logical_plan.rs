@@ -3,6 +3,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::sql::sqlparser::ast;
 use metastore::types::catalog::{ConnectionOptions, TableOptions};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -41,6 +42,18 @@ impl LogicalPlan {
             )),
             _ => None,
         }
+    }
+
+    /// Get parameter types for the logical plan.
+    ///
+    /// Note this will only try to get the parameters if the plan is a
+    /// datafusion logical plan. Possible support for other plans may come
+    /// later.
+    pub fn get_parameter_types(&self) -> Result<HashMap<String, Option<DataType>>> {
+        Ok(match self {
+            LogicalPlan::Query(plan) => plan.get_parameter_types()?,
+            _ => HashMap::new(),
+        })
     }
 }
 

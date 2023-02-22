@@ -257,8 +257,8 @@ impl Session {
         // We don't currently support parameters. We're already erroring on
         // attempting to prepare statements with parameters, so this is just
         // ensuring that we're not missing anything right now.
-        assert_eq!(0, param_formats.len());
-        assert_eq!(0, param_values.len());
+        // assert_eq!(0, param_formats.len());
+        // assert_eq!(0, param_values.len());
 
         self.ctx
             .bind_statement(portal_name, stmt_name, result_formats)

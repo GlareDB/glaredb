@@ -325,11 +325,11 @@ impl SessionContext {
             self.metastore_catalog.swap_state(new_state);
         }
 
-        if !params.is_empty() {
-            return Err(ExecError::UnsupportedFeature(
-                "prepared statements with parameters",
-            ));
-        }
+        // if !params.is_empty() {
+        //     return Err(ExecError::UnsupportedFeature(
+        //         "prepared statements with parameters",
+        //     ));
+        // }
 
         // Unnamed (empty string) prepared statements can be overwritten
         // whenever. Named prepared statements must be explicitly removed before
@@ -553,6 +553,8 @@ pub struct PreparedStatement {
     /// The logical plan for the statement. Is `Some` if the statement is
     /// `Some`.
     pub(crate) plan: Option<LogicalPlan>,
+    /// Parameter data types.
+    pub(crate) parameter_types: Option<HashMap<String, Option<DataType>>>,
     /// The output schema of the statement if it produces an output.
     pub(crate) output_schema: Option<ArrowSchema>,
     /// Output postgres types.
@@ -579,9 +581,12 @@ impl PreparedStatement {
                 None => Vec::new(),
             };
 
+            let parameter_types = plan.get_parameter_types()?;
+
             Ok(PreparedStatement {
                 stmt: Some(inner),
                 plan: Some(plan),
+                parameter_types: Some(parameter_types),
                 output_schema: schema,
                 output_pg_types: pg_types,
             })
@@ -590,6 +595,7 @@ impl PreparedStatement {
             Ok(PreparedStatement {
                 stmt: None,
                 plan: None,
+                parameter_types: None,
                 output_schema: None,
                 output_pg_types: Vec::new(),
             })
@@ -604,6 +610,11 @@ impl PreparedStatement {
             pg_types: self.output_pg_types.iter(),
             result_formats: None,
         })
+    }
+
+    /// Return the number of input parameters expected by this statement.
+    pub fn num_parameters(&self) -> usize {
+        0
     }
 }
 
