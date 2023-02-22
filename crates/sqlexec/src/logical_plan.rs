@@ -57,6 +57,9 @@ impl LogicalPlan {
         })
     }
 
+    /// Replace placeholders in this plan with the provided scalars.
+    ///
+    /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
         if let LogicalPlan::Query(plan) = self {
             *plan = plan.replace_params_with_values(&scalars)?;

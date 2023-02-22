@@ -300,7 +300,7 @@ impl SessionContext {
         &mut self,
         name: String,
         stmt: Option<StatementWithExtensions>,
-        params: Vec<i32>,
+        _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
         if *self.get_session_vars().force_catalog_refresh.value() {
@@ -317,12 +317,6 @@ impl SessionContext {
             let new_state = self.metastore.get_cached_state().await?;
             self.metastore_catalog.swap_state(new_state);
         }
-
-        // if !params.is_empty() {
-        //     return Err(ExecError::UnsupportedFeature(
-        //         "prepared statements with parameters",
-        //     ));
-        // }
 
         // Unnamed (empty string) prepared statements can be overwritten
         // whenever. Named prepared statements must be explicitly removed before
@@ -366,14 +360,15 @@ impl SessionContext {
             None => return Err(ExecError::UnknownPreparedStatement(stmt_name.to_string())),
         };
 
+        // Replace placeholders if necessary.
+        if let Some(plan) = &mut stmt.plan {
+            plan.replace_placeholders(params)?;
+        }
+
         assert_eq!(
             result_formats.len(),
             stmt.output_fields().map(|f| f.len()).unwrap_or(0)
         );
-
-        if let Some(plan) = &mut stmt.plan {
-            plan.replace_placeholders(params)?;
-        }
 
         let portal = Portal {
             stmt,
@@ -610,6 +605,8 @@ impl PreparedStatement {
         })
     }
 
+    /// Returns the type of the input parameters. Input paramets are keyed as
+    /// "$n" started at "$1".
     pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<DataType>>> {
         self.parameter_types.as_ref()
     }

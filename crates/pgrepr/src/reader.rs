@@ -1,10 +1,5 @@
 use crate::error::{PgReprError, Result};
-use bytes::Bytes;
-use num_traits::Float as FloatTrait;
-use std::fmt;
-use std::fmt::{Display, Write};
 use std::str::FromStr;
-use tokio_postgres::types::{IsNull, ToSql, Type as PgType};
 
 /// Reader defines the interface for the different kinds of values that can be
 /// decoded as a postgres type.
@@ -27,9 +22,9 @@ impl TextReader {
     fn parse<E: std::error::Error + Sync + Send + 'static, F: FromStr<Err = E>>(
         buf: &[u8],
     ) -> Result<F> {
-        Ok(std::str::from_utf8(buf)?
+        std::str::from_utf8(buf)?
             .parse::<F>()
-            .map_err(|e| PgReprError::ParseError(Box::new(e)))?)
+            .map_err(|e| PgReprError::ParseError(Box::new(e)))
     }
 }
 
@@ -59,7 +54,7 @@ impl Reader for TextReader {
     }
 
     fn read_text(buf: &[u8]) -> Result<String> {
-        TextReader::parse(buf) // TODO: Cstring?
+        TextReader::parse(buf)
     }
 }
 
@@ -77,5 +72,27 @@ impl FromStr for SqlBool {
             "false" | "f" => Ok(SqlBool(false)),
             _ => Err(ParseSqlBoolError),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_sql_bool() {
+        let v = TextReader::read_bool("t".as_bytes()).unwrap();
+        assert!(v);
+
+        let v = TextReader::read_bool("true".as_bytes()).unwrap();
+        assert!(v);
+
+        let v = TextReader::read_bool("f".as_bytes()).unwrap();
+        assert!(!v);
+
+        let v = TextReader::read_bool("false".as_bytes()).unwrap();
+        assert!(!v);
+
+        let _ = TextReader::read_bool("none".as_bytes()).unwrap_err();
     }
 }

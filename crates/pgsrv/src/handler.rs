@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
-use tracing::{debug, debug_span, error, warn, Instrument};
+use tracing::{debug, debug_span, warn, Instrument};
 use uuid::Uuid;
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
@@ -455,21 +455,19 @@ where
     ) -> Result<()> {
         // TODO: Ensure in transaction.
 
-        error!(?param_values, "values");
-
         // Check for the statement.
         let stmt = match self.session.get_prepared_statement(&statement) {
             Ok(stmt) => stmt,
             Err(e) => return self.send_error(e.into()).await,
         };
 
-        // TODO: Check and parse param formats and values.
+        // Read scalars for query parameters.
         let scalars = match stmt.input_paramaters() {
-            Some(types) => match param_scalars(param_formats, param_values, types) {
+            Some(types) => match decode_param_scalars(param_formats, param_values, types) {
                 Ok(scalars) => scalars,
                 Err(e) => return self.send_error(e).await,
             },
-            None => unimplemented!(),
+            None => Vec::new(), // Would only happen with an empty query.
         };
 
         // Extend out the result formats.
@@ -653,13 +651,21 @@ where
     }
 }
 
-/// Converts inputs for a prepared query into the appropriate scalar values.
-fn param_scalars(
+/// Decodes inputs for a prepared query into the appropriate scalar values.
+fn decode_param_scalars(
     param_formats: Vec<Format>,
     param_values: Vec<Option<Vec<u8>>>,
     types: &HashMap<String, Option<DataType>>,
 ) -> Result<Vec<ScalarValue>, ErrorResponse> {
     let param_formats = extend_formats(param_formats, param_values.len())?;
+
+    if param_values.len() != types.len() {
+        return Err(ErrorResponse::error_internal(format!(
+            "Invalid number of values provided. Expected: {}, got: {}",
+            types.len(),
+            param_values.len(),
+        )));
+    }
 
     let mut scalars = Vec::with_capacity(param_values.len());
     for (idx, (val, format)) in param_values
@@ -667,10 +673,12 @@ fn param_scalars(
         .zip(param_formats.into_iter())
         .enumerate()
     {
+        // Parameter types keyed by '$n'.
         let str_id = format!("${}", idx + 1);
+
         let typ = types.get(&str_id).ok_or_else(|| {
             ErrorResponse::error_internal(format!(
-                "missing type for param value at index {}, input types: {:?}",
+                "Missing type for param value at index {}, input types: {:?}",
                 idx, types
             ))
         })?;
@@ -682,7 +690,7 @@ fn param_scalars(
             }
             None => {
                 return Err(ErrorResponse::error_internal(format!(
-                    "unknown type at index {}, input types: {:?}",
+                    "Unknown type at index {}, input types: {:?}",
                     idx, types
                 )))
             }
@@ -726,5 +734,90 @@ fn get_encoding_state(portal: &Portal) -> Vec<(PgType, Format)> {
         Some(fields) => fields
             .map(|field| (field.pg_type.to_owned(), field.format.to_owned()))
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_params_success() {
+        // Success test cases for decoding params.
+
+        struct TestCase {
+            values: Vec<Option<Vec<u8>>>,
+            types: Vec<(&'static str, Option<DataType>)>,
+            expected: Vec<ScalarValue>,
+        }
+
+        let test_cases = vec![
+            // No params.
+            TestCase {
+                values: Vec::new(),
+                types: Vec::new(),
+                expected: Vec::new(),
+            },
+            // One param of type int64.
+            TestCase {
+                values: vec![Some(vec![49])],
+                types: vec![("$1", Some(DataType::Int64))],
+                expected: vec![ScalarValue::Int64(Some(1))],
+            },
+            // Two params param of type string.
+            TestCase {
+                values: vec![Some(vec![49, 48]), Some(vec![50, 48])],
+                types: vec![("$1", Some(DataType::Utf8)), ("$2", Some(DataType::Utf8))],
+                expected: vec![
+                    ScalarValue::Utf8(Some("10".to_string())),
+                    ScalarValue::Utf8(Some("20".to_string())),
+                ],
+            },
+        ];
+
+        for test_case in test_cases {
+            let types: HashMap<_, _> = test_case
+                .types
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
+
+            let scalars = decode_param_scalars(Vec::new(), test_case.values, &types).unwrap();
+            assert_eq!(test_case.expected, scalars);
+        }
+    }
+
+    #[test]
+    fn decode_params_fail() {
+        // Failure test cases for decoding params (all cases should result in an
+        // error).
+
+        struct TestCase {
+            values: Vec<Option<Vec<u8>>>,
+            types: Vec<(&'static str, Option<DataType>)>,
+        }
+
+        let test_cases = vec![
+            // Params provided, none expected.
+            TestCase {
+                values: vec![Some(vec![49])],
+                types: Vec::new(),
+            },
+            // No params provided, one expected.
+            TestCase {
+                values: Vec::new(),
+                types: vec![("$1", Some(DataType::Int64))],
+            },
+        ];
+
+        for test_case in test_cases {
+            let types: HashMap<_, _> = test_case
+                .types
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
+
+            decode_param_scalars(Vec::new(), test_case.values, &types).unwrap_err();
+        }
     }
 }

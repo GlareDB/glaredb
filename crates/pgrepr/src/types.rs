@@ -65,6 +65,7 @@ pub fn encode_array_value(
     Ok(())
 }
 
+/// Decodes a scalar value using the provided format and arrow type.
 pub fn decode_scalar_value(
     buf: Option<&[u8]>,
     format: Format,
@@ -73,7 +74,7 @@ pub fn decode_scalar_value(
     match buf {
         Some(buf) => match format {
             Format::Text => decode_not_null_value::<TextReader>(buf, arrow_type),
-            Format::Binary => unimplemented!(),
+            Format::Binary => Err(PgReprError::BinaryReadUnimplemented),
         },
         None => Ok(ScalarValue::Null),
     }
@@ -86,8 +87,11 @@ fn decode_not_null_value<R: Reader>(buf: &[u8], arrow_type: &ArrowType) -> Resul
         &ArrowType::Int16 => R::read_int2(buf)?.into(),
         &ArrowType::Int32 => R::read_int4(buf)?.into(),
         &ArrowType::Int64 => R::read_int8(buf)?.into(),
+        &ArrowType::Float16 => R::read_float4(buf)?.into(),
+        &ArrowType::Float32 => R::read_float4(buf)?.into(),
+        &ArrowType::Float64 => R::read_float8(buf)?.into(),
         &ArrowType::Utf8 => ScalarValue::Utf8(Some(R::read_text(buf)?)),
-        _ => unimplemented!(),
+        other => return Err(PgReprError::UnsupportedArrowType(other.clone())),
     })
 }
 

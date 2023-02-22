@@ -15,6 +15,9 @@ pub enum PgReprError {
     #[error(transparent)]
     Utf8Error(#[from] std::str::Utf8Error),
 
+    #[error("Binary read unimplemented.")]
+    BinaryReadUnimplemented,
+
     #[error("Failed to parse: {0}")]
     ParseError(Box<dyn std::error::Error + Sync + Send>),
 
