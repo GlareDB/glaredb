@@ -32,3 +32,20 @@ select result_type,
  where query_text = 'SELECT * FROM t1 LIMIT 18';
 ----
 query  success  18
+
+# Now check the errors get recorded for execution errors.
+
+statement ok
+create external table t2 from d1 options (table_type = 'error_during_execution');
+
+statement error
+select * from t2;
+
+query TTT
+select result_type,
+       execution_status,
+       error_message is not null
+  from glare_catalog.session_query_metrics
+ where query_text = 'SELECT * FROM t2';
+----
+query  fail  t
