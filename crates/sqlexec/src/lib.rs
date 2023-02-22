@@ -9,5 +9,6 @@ pub mod session;
 
 mod dispatch;
 mod functions;
+mod metrics;
 mod planner;
 mod vars;
