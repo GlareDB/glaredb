@@ -12,6 +12,12 @@ pub enum PgReprError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
+    #[error(transparent)]
+    Utf8Error(#[from] std::str::Utf8Error),
+
+    #[error("Failed to parse: {0}")]
+    ParseError(Box<dyn std::error::Error + Sync + Send>),
+
     #[error("arrow type '{0}' not supported")]
     UnsupportedArrowType(datafusion::arrow::datatypes::DataType),
 

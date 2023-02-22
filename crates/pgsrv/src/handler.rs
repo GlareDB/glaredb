@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
-use tracing::{debug, debug_span, warn, Instrument};
+use tracing::{debug, debug_span, error, warn, Instrument};
 use uuid::Uuid;
 
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
@@ -455,6 +455,8 @@ where
         result_formats: Vec<Format>,
     ) -> Result<()> {
         // TODO: Ensure in transaction.
+
+        error!(?param_values, "values");
 
         // Check for the statement.
         let stmt = match self.session.get_prepared_statement(&statement) {
