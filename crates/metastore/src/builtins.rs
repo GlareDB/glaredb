@@ -119,6 +119,19 @@ pub static GLARE_SSH_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable
     ]),
 });
 
+pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "session_query_metrics",
+    columns: ColumnDefinition::from_tuples([
+        ("query_text", DataType::Utf8, false),
+        ("result_type", DataType::Utf8, false),
+        ("execution_status", DataType::Utf8, false),
+        ("error_message", DataType::Utf8, true),
+        ("elapsed_compute_ns", DataType::UInt64, true),
+        ("output_rows", DataType::UInt64, true),
+    ]),
+});
+
 impl BuiltinTable {
     /// Check if this table matches the provided schema and name.
     pub fn matches(&self, schema: &str, name: &str) -> bool {
@@ -144,6 +157,7 @@ impl BuiltinTable {
             &GLARE_COLUMNS,
             &GLARE_CONNECTIONS,
             &GLARE_SSH_CONNECTIONS,
+            &GLARE_SESSION_QUERY_METRICS,
         ]
     }
 }

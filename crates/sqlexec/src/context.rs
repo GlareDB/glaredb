@@ -1,8 +1,10 @@
 use crate::dispatch::SessionDispatcher;
+use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
+use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
@@ -26,22 +28,15 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::slice;
 use std::sync::Arc;
-use telemetry::Tracker;
 use tokio_postgres::types::Type as PgType;
 use tracing::debug;
-use uuid::Uuid;
 
 /// Context for a session used during execution.
 ///
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
-    /// Telemetry tracker.
-    tracker: Arc<Tracker>,
-    /// ID of the user who initiated the connection.
-    user_id: Uuid,
-    /// Unique connection id.
-    conn_id: Uuid,
+    info: Arc<SessionInfo>,
     /// Database catalog.
     metastore_catalog: SessionCatalog,
     metastore: SupervisorClient,
@@ -51,6 +46,8 @@ pub struct SessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
+    /// Track query metrics for this session.
+    metrics: SessionMetrics,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -61,11 +58,10 @@ pub struct SessionContext {
 impl SessionContext {
     /// Create a new session context with the given catalog.
     pub fn new(
-        user_id: Uuid,
-        conn_id: Uuid,
+        info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
-        tracker: Arc<Tracker>,
+        metrics: SessionMetrics,
     ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
@@ -88,31 +84,27 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
-            user_id,
-            tracker,
-            conn_id,
+            info,
             metastore_catalog: catalog,
             metastore,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
+            metrics,
             df_state: state,
         }
     }
 
-    /// Get the user id associated with this connectin.
-    pub fn user_id(&self) -> Uuid {
-        self.user_id
+    pub fn get_info(&self) -> &SessionInfo {
+        self.info.as_ref()
     }
 
-    /// Get the connection id for this session.
-    pub fn conn_id(&self) -> Uuid {
-        self.conn_id
+    pub fn get_metrics(&self) -> &SessionMetrics {
+        &self.metrics
     }
 
-    /// Get the telemetry tracker.
-    pub fn tracker(&self) -> &Tracker {
-        self.tracker.as_ref()
+    pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
+        &mut self.metrics
     }
 
     /// Create a table.
