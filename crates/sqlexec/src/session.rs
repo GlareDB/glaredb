@@ -23,6 +23,12 @@ pub enum ExecutionResult {
         stream: SendableRecordBatchStream,
         /// Plan used to create the stream. Used for getting metrics after the
         /// stream completes.
+        ///
+        /// TODO: I would like to remove this. Putting the plan on the result
+        /// was the easiest way of providing everything needed to construct a
+        /// `BatchStreamWithMetricSender` without a bit more refactoring. This
+        /// stream requires physical plan and a starting set of execution
+        /// metrics, which are created separately.
         plan: Arc<dyn ExecutionPlan>,
     },
     /// Showing a variable.
@@ -361,19 +367,7 @@ impl Session {
         };
 
         // Create "base" metrics.
-        let mut metrics = QueryMetrics {
-            query_text: portal
-                .stmt
-                .stmt
-                .clone()
-                .map(|stmt| stmt.to_string())
-                .unwrap_or("<empty>".to_string()),
-            result_type: "unknown",
-            execution_status: ExecutionStatus::Unknown,
-            error_message: None,
-            elapsed_compute_ns: None,
-            output_rows: None,
-        };
+        let mut metrics = QueryMetrics::new_for_portal(portal);
 
         let result = self.execute_inner(plan).await;
         let result = match result {

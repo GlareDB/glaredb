@@ -1,3 +1,4 @@
+use crate::context::Portal;
 use crate::engine::SessionInfo;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -12,10 +13,14 @@ use std::task::{Context, Poll};
 use telemetry::Tracker;
 use tokio::sync::mpsc;
 use tracing::error;
+use uuid::Uuid;
 
 /// Number of query metrics to hold in-memory. Once exceeded, the oldest metric
 /// gets dropped.
 const MAX_METRICS_HISTORY: usize = 100;
+
+/// Result type used when we don't know the result of a query yet.
+const UNKNOWN_RESULT_TYPE: &str = "unknown";
 
 /// Holds some number of query metrics for a session.
 ///
@@ -68,8 +73,8 @@ impl SessionMetrics {
             self.info.user_id,
             json!({
                 // Additional info.
-                "database_id": self.info.database_id_string,
-                "connection_id": self.info.conn_id_string,
+                "database_id": self.info.database_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
+                "connection_id": self.info.conn_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
 
                 // Metric fields.
                 "query_text": metric.query_text,
@@ -130,6 +135,27 @@ pub struct QueryMetrics {
     pub elapsed_compute_ns: Option<u64>,
     /// Number of output rows. Currently only set for SELECT queries.
     pub output_rows: Option<u64>,
+}
+
+impl QueryMetrics {
+    /// Create a new set of metrics for a portal.
+    ///
+    /// The returned set of metrics should be updated during query execution.
+    pub fn new_for_portal(portal: &Portal) -> QueryMetrics {
+        QueryMetrics {
+            query_text: portal
+                .stmt
+                .stmt
+                .clone()
+                .map(|stmt| stmt.to_string())
+                .unwrap_or("<empty>".to_string()),
+            result_type: UNKNOWN_RESULT_TYPE,
+            execution_status: ExecutionStatus::Unknown,
+            error_message: None,
+            elapsed_compute_ns: None,
+            output_rows: None,
+        }
+    }
 }
 
 /// A wrapper around a batch stream that will send a completed query metric onto
