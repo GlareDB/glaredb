@@ -6,9 +6,12 @@ use crate::messages::{
 };
 use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
+use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use pgrepr::types::decode_scalar_value;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::{
     engine::Engine,
@@ -369,13 +372,9 @@ where
             );
 
             // Bind...
-            if let Err(e) = session.bind_statement(
-                UNNAMED,
-                &UNNAMED,
-                Vec::new(),
-                Vec::new(),
-                all_text_formats(num_fields),
-            ) {
+            if let Err(e) =
+                session.bind_statement(UNNAMED, &UNNAMED, Vec::new(), all_text_formats(num_fields))
+            {
                 self.send_error(e.into()).await?;
                 return self.ready_for_query().await;
             }
@@ -465,6 +464,13 @@ where
         };
 
         // TODO: Check and parse param formats and values.
+        let scalars = match stmt.input_paramaters() {
+            Some(types) => match param_scalars(param_formats, param_values, types) {
+                Ok(scalars) => scalars,
+                Err(e) => return self.send_error(e).await,
+            },
+            None => unimplemented!(),
+        };
 
         // Extend out the result formats.
         let result_formats = match extend_formats(
@@ -475,13 +481,10 @@ where
             Err(e) => return self.send_error(e).await,
         };
 
-        match self.session.bind_statement(
-            portal,
-            &statement,
-            param_formats,
-            param_values,
-            result_formats,
-        ) {
+        match self
+            .session
+            .bind_statement(portal, &statement, scalars, result_formats)
+        {
             Ok(_) => self.conn.send(BackendMessage::BindComplete).await,
             Err(e) => self.send_error(e.into()).await,
         }
@@ -648,6 +651,45 @@ where
         conn.send(BackendMessage::CommandComplete { tag: tag.into() })
             .await
     }
+}
+
+/// Converts inputs for a prepared query into the appropriate scalar values.
+fn param_scalars(
+    param_formats: Vec<Format>,
+    param_values: Vec<Option<Vec<u8>>>,
+    types: &HashMap<String, Option<DataType>>,
+) -> Result<Vec<ScalarValue>, ErrorResponse> {
+    let param_formats = extend_formats(param_formats, param_values.len())?;
+
+    let mut scalars = Vec::with_capacity(param_values.len());
+    for (idx, (val, format)) in param_values
+        .into_iter()
+        .zip(param_formats.into_iter())
+        .enumerate()
+    {
+        let str_id = format!("${}", idx + 1);
+        let typ = types.get(&str_id).ok_or_else(|| {
+            ErrorResponse::error_internal(format!(
+                "missing type for param value at index {}, input types: {:?}",
+                idx, types
+            ))
+        })?;
+
+        match typ {
+            Some(typ) => {
+                let scalar = decode_scalar_value(val.as_deref(), format, typ)?;
+                scalars.push(scalar);
+            }
+            None => {
+                return Err(ErrorResponse::error_internal(format!(
+                    "unknown type at index {}, input types: {:?}",
+                    idx, types
+                )))
+            }
+        }
+    }
+
+    Ok(scalars)
 }
 
 /// Parse a sql string, returning an error response if failed to parse.

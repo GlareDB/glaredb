@@ -63,6 +63,9 @@ pub enum ExecError {
     #[error("An ssh connection is not supported datasource for CREATE EXTERNAL TABLE. An ssh connection must be provided as an optional ssh_tunnel with another connection type")]
     ExternalTableWithSsh,
 
+    #[error("Failed to parse placeholder id: {0}")]
+    FailedToParsePlaceholderId(String),
+
     // TODO: Need to be more granular about errors from Metastore.
     #[error("Failed Metastore request: {0}")]
     MetastoreTonic(#[from] tonic::Status),

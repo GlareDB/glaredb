@@ -8,6 +8,7 @@ use tokio_postgres::types::Type as PgType;
 
 use crate::error::{PgReprError, Result};
 use crate::format::Format;
+use crate::reader::{Reader, TextReader};
 use crate::writer::{BinaryWriter, TextWriter, Writer};
 
 /// Returns a compatible postgres type for the arrow datatype.
@@ -62,6 +63,32 @@ pub fn encode_array_value(
     buf[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(val_len));
 
     Ok(())
+}
+
+pub fn decode_scalar_value(
+    buf: Option<&[u8]>,
+    format: Format,
+    arrow_type: &ArrowType,
+) -> Result<ScalarValue> {
+    match buf {
+        Some(buf) => match format {
+            Format::Text => decode_not_null_value::<TextReader>(buf, arrow_type),
+            Format::Binary => unimplemented!(),
+        },
+        None => Ok(ScalarValue::Null),
+    }
+}
+
+fn decode_not_null_value<R: Reader>(buf: &[u8], arrow_type: &ArrowType) -> Result<ScalarValue> {
+    Ok(match arrow_type {
+        &ArrowType::Boolean => R::read_bool(buf)?.into(),
+        &ArrowType::Int8 => R::read_int2(buf)?.into(),
+        &ArrowType::Int16 => R::read_int2(buf)?.into(),
+        &ArrowType::Int32 => R::read_int4(buf)?.into(),
+        &ArrowType::Int64 => R::read_int8(buf)?.into(),
+        &ArrowType::Utf8 => ScalarValue::Utf8(Some(R::read_text(buf)?)),
+        _ => unimplemented!(),
+    })
 }
 
 /// Per writer implementation for encoding non-null array values.

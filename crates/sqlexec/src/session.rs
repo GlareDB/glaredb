@@ -9,6 +9,7 @@ use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
     ExecutionPlan, SendableRecordBatchStream,
 };
+use datafusion::scalar::ScalarValue;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use serde_json::json;
@@ -250,8 +251,7 @@ impl Session {
         &mut self,
         portal_name: String,
         stmt_name: &str,
-        param_formats: Vec<Format>,
-        param_values: Vec<Option<Vec<u8>>>,
+        params: Vec<ScalarValue>,
         result_formats: Vec<Format>,
     ) -> Result<()> {
         // We don't currently support parameters. We're already erroring on

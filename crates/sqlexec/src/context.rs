@@ -612,9 +612,8 @@ impl PreparedStatement {
         })
     }
 
-    /// Return the number of input parameters expected by this statement.
-    pub fn num_parameters(&self) -> usize {
-        0
+    pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<DataType>>> {
+        self.parameter_types.as_ref()
     }
 }
 
