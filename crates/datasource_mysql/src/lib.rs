@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 
 use async_stream::stream;
 use async_trait::async_trait;
-use chrono::{NaiveDateTime, NaiveTime, Timelike};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -407,6 +407,8 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
         UInt64Builder, UInt8Builder,
     };
 
+    let epoch_date = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
     for (col_idx, field) in schema.fields.iter().enumerate() {
         let col: Arc<dyn Array> = match field.data_type() {
@@ -453,9 +455,9 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::Date32 => {
                 let mut arr = Date32Builder::new();
                 for row in rows.iter() {
-                    let val: Option<NaiveDateTime> =
+                    let val: Option<NaiveDate> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    let val = val.map(|v| v.timestamp() as i32);
+                    let val = val.map(|v| v.signed_duration_since(epoch_date).num_days() as i32);
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -466,9 +468,11 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                     let val: Option<NaiveTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
                     let val = val.map(|v| {
-                        // Calculate number of microseconds(µs) from midnight
-                        v.num_seconds_from_midnight() as i64 * 1_000_000
-                            + v.nanosecond() as i64 / 1000
+                        let nanos = v.nanosecond() as i64;
+                        // Add 500 ns to let flooring integer division round the time to nearest microsecond
+                        let nanos = nanos + 500;
+                        let secs_since_midnight = v.num_seconds_from_midnight() as i64;
+                        (secs_since_midnight * 1_000_000) + (nanos / 1_000)
                     });
                     arr.append_option(val);
                 }

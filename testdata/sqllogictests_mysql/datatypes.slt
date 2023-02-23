@@ -45,7 +45,7 @@ NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL
 query TTTTT
 SELECT * FROM string_datatypes;
 ----
-a bc def {"a": [1, 2]} 98,105,110
+a bc def {"a": [1, 2]} \x62696e
 NULL NULL NULL NULL NULL
 
 # Currently we are not formatting dates other than outputing epoch time with
@@ -53,7 +53,7 @@ NULL NULL NULL NULL NULL
 query TTTTT
 SELECT * FROM date_time_datatypes;
 ----
-1672531200 1672661532123456 51254000000 2023 1704028393789000
+1999-09-30 1999-09-30 16:32:04 16:32:04 1999 1999-09-30 16:32:04+00
 NULL NULL NULL NULL NULL
 
 query IIT
