@@ -94,6 +94,14 @@ pub fn decode_scalar_value(
     }
 }
 
+/// Decodes a non-null value from the buffer of the given pg type.
+// TODO: We currently get the pg type from the inferred arrow type during
+// parameter type resolution. This can lead to a loss of type information or may
+// result in an inexact conversion (e.g. arrow doesn't have a JSON type, but
+// postgres does).
+//
+// We may be able to work around this by inferring pg types directly instead of
+// needing to infer arrow types, then convert those into postgres types.
 fn decode_not_null_value<R: Reader>(buf: &[u8], pg_type: &PgType) -> Result<ScalarValue> {
     Ok(match pg_type {
         &PgType::BOOL => R::read_bool(buf)?.into(),
