@@ -30,31 +30,31 @@ impl TextReader {
 
 impl Reader for TextReader {
     fn read_bool(buf: &[u8]) -> Result<bool> {
-        TextReader::parse::<_, SqlBool>(buf).map(|b| b.0)
+        Self::parse::<_, SqlBool>(buf).map(|b| b.0)
     }
 
     fn read_int2(buf: &[u8]) -> Result<i16> {
-        TextReader::parse(buf)
+        Self::parse(buf)
     }
 
     fn read_int4(buf: &[u8]) -> Result<i32> {
-        TextReader::parse(buf)
+        Self::parse(buf)
     }
 
     fn read_int8(buf: &[u8]) -> Result<i64> {
-        TextReader::parse(buf)
+        Self::parse(buf)
     }
 
     fn read_float4(buf: &[u8]) -> Result<f32> {
-        TextReader::parse(buf)
+        Self::parse(buf)
     }
 
     fn read_float8(buf: &[u8]) -> Result<f64> {
-        TextReader::parse(buf)
+        Self::parse(buf)
     }
 
     fn read_text(buf: &[u8]) -> Result<String> {
-        TextReader::parse(buf)
+        Self::parse(buf)
     }
 }
 

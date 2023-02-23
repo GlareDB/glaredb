@@ -547,7 +547,7 @@ pub struct PreparedStatement {
     /// `Some`.
     pub(crate) plan: Option<LogicalPlan>,
     /// Parameter data types.
-    pub(crate) parameter_types: Option<HashMap<String, Option<DataType>>>,
+    pub(crate) parameter_types: Option<HashMap<String, Option<PgType>>>,
     /// The output schema of the statement if it produces an output.
     pub(crate) output_schema: Option<ArrowSchema>,
     /// Output postgres types.
@@ -574,7 +574,16 @@ impl PreparedStatement {
                 None => Vec::new(),
             };
 
-            let parameter_types = plan.get_parameter_types()?;
+            // Convert inferred arrow types for parameters into their associated
+            // pg type.
+            let parameter_types: HashMap<_, _> = plan
+                .get_parameter_types()?
+                .into_iter()
+                .map(|(id, arrow_type)| {
+                    let typ = arrow_type.map(|typ| arrow_to_pg_type(&typ, None));
+                    (id, typ)
+                })
+                .collect();
 
             Ok(PreparedStatement {
                 stmt: Some(inner),
@@ -607,7 +616,7 @@ impl PreparedStatement {
 
     /// Returns the type of the input parameters. Input paramets are keyed as
     /// "$n" starting at "$1".
-    pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<DataType>>> {
+    pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<PgType>>> {
         self.parameter_types.as_ref()
     }
 }

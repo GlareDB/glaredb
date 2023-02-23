@@ -6,7 +6,6 @@ use crate::messages::{
 };
 use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
-use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
@@ -655,7 +654,7 @@ where
 fn decode_param_scalars(
     param_formats: Vec<Format>,
     param_values: Vec<Option<Vec<u8>>>,
-    types: &HashMap<String, Option<DataType>>,
+    types: &HashMap<String, Option<PgType>>,
 ) -> Result<Vec<ScalarValue>, ErrorResponse> {
     let param_formats = extend_formats(param_formats, param_values.len())?;
 
@@ -747,7 +746,7 @@ mod tests {
 
         struct TestCase {
             values: Vec<Option<Vec<u8>>>,
-            types: Vec<(&'static str, Option<DataType>)>,
+            types: Vec<(&'static str, Option<PgType>)>,
             expected: Vec<ScalarValue>,
         }
 
@@ -761,13 +760,13 @@ mod tests {
             // One param of type int64.
             TestCase {
                 values: vec![Some(vec![49])],
-                types: vec![("$1", Some(DataType::Int64))],
+                types: vec![("$1", Some(PgType::INT8))],
                 expected: vec![ScalarValue::Int64(Some(1))],
             },
             // Two params param of type string.
             TestCase {
                 values: vec![Some(vec![49, 48]), Some(vec![50, 48])],
-                types: vec![("$1", Some(DataType::Utf8)), ("$2", Some(DataType::Utf8))],
+                types: vec![("$1", Some(PgType::TEXT)), ("$2", Some(PgType::TEXT))],
                 expected: vec![
                     ScalarValue::Utf8(Some("10".to_string())),
                     ScalarValue::Utf8(Some("20".to_string())),
@@ -794,7 +793,7 @@ mod tests {
 
         struct TestCase {
             values: Vec<Option<Vec<u8>>>,
-            types: Vec<(&'static str, Option<DataType>)>,
+            types: Vec<(&'static str, Option<PgType>)>,
         }
 
         let test_cases = vec![
@@ -806,7 +805,7 @@ mod tests {
             // No params provided, one expected.
             TestCase {
                 values: Vec::new(),
-                types: vec![("$1", Some(DataType::Int64))],
+                types: vec![("$1", Some(PgType::INT8))],
             },
         ];
 

@@ -21,6 +21,9 @@ pub enum PgReprError {
     #[error("Failed to parse: {0}")]
     ParseError(Box<dyn std::error::Error + Sync + Send>),
 
+    #[error("Unsuported pg type for decoding: {0}")]
+    UnsupportedPgTypeForDecode(tokio_postgres::types::Type),
+
     #[error("arrow type '{0}' not supported")]
     UnsupportedArrowType(datafusion::arrow::datatypes::DataType),
 
