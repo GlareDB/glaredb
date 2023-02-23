@@ -2,7 +2,7 @@ pub mod errors;
 
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Timelike, Utc};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -626,7 +626,6 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.into())?;
 
-    let day_start = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let epoch_date = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
@@ -685,9 +684,11 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 for row in rows.iter() {
                     let val: Option<NaiveTime> = row.try_get(col_idx)?;
                     let val = val.map(|v| {
-                        v.signed_duration_since(day_start)
-                            .num_microseconds()
-                            .unwrap()
+                        let nanos = v.nanosecond() as i64;
+                        // Add 500ns to let flooring integer division round the time to nearest microsecond
+                        let nanos = nanos + 500;
+                        let secs_since_midnight = v.num_seconds_from_midnight() as i64;
+                        (secs_since_midnight * 1_000_000) + (nanos / 1_000)
                     });
                     arr.append_option(val);
                 }

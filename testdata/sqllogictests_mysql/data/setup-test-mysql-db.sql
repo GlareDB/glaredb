@@ -87,11 +87,11 @@ CREATE TABLE IF NOT EXISTS glaredb_test.date_time_datatypes (
 
 INSERT INTO glaredb_test.date_time_datatypes
 VALUES (
-    '2023-01-01',
-    '2023-01-02 12:12:12.123456',
-    '14:14:14',
-    '2023',
-    '2023-12-31 13:13:13.789'
+    '1999-09-30',
+    '1999-09-30 16:32:04',
+    '16:32:04',
+    '1999',
+    '1999-09-30 16:32:04'
 ),
 (
     NULL,
