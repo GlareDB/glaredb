@@ -124,11 +124,12 @@ fn encode_array_not_null_value<W: Writer>(
         (
             &ArrowType::Timestamp(TimeUnit::Microsecond, Some(_)),
             &PgType::TIMESTAMPTZ,
-            ScalarValue::TimestampMicrosecond(Some(v), Some(_)),
+            ScalarValue::TimestampMicrosecond(Some(v), Some(tz)),
         ) => {
             // Since timestamp is always relative to UTC epoch, we can directly
             // use that. Postgres never cares about the original timezone and
             // always returns the result in UTC.
+            tracing::trace!(%tz, "encoding arrow timestamp into TIMESTAMPTZ with timezone");
             let seconds_since_epoch = v / 1_000_000;
             let micro_seconds = (v % 1_000_000).unsigned_abs() as u32;
             let utc_dt =
@@ -156,10 +157,12 @@ fn encode_array_not_null_value<W: Writer>(
             let epoch_date =
                 NaiveDate::from_ymd_opt(1970, 1, 1).expect("epoch date should be a valid date");
             let days_since_epoch = Days::new(v.unsigned_abs() as u64);
-            let this_date = if v > 0 {
+            let this_date = if v.is_positive() {
                 epoch_date + days_since_epoch
-            } else {
+            } else if v.is_negative() {
                 epoch_date - days_since_epoch
+            } else {
+                epoch_date
             };
             W::write_date(buf, this_date)
         }

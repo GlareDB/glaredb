@@ -184,56 +184,56 @@ where
         return put_fmt!(buf, "-0");
     }
 
+    // We don't use the standard library to get the formatting for floats.
+    // Postgres uses the C style "%g" formatting, which states that:
+    //
+    //     The double argument is converted in style f or e (or F or E
+    //     for G conversions).  The precision specifies the number of
+    //     significant digits.  If the precision is missing, 6 digits are
+    //     given; if the precision is zero, it is treated as 1.  Style e
+    //     is used if the exponent from its conversion is less than -4 or
+    //     greater than or equal to the precision.  Trailing zeros are
+    //     removed from the fractional part of the result; a decimal
+    //     point appears only if it is followed by at least one digit.
+    //
+    // Dtoa is the closest we have to this in Rust. Maybe in future we can look
+    // at using the libc bindings to get it working exactly!
+
     // Creating this buffer is very cheap, nothing to worry.
     let mut dtoa_buf = DtoaBuffer::new();
-    let mut v = dtoa_buf.format_finite(v);
-    if let Some(s) = v.strip_suffix(".0") {
-        v = s;
-    }
+
+    let v = dtoa_buf
+        .format_finite(v)
+        // Remove any trailing ".0" so as to get whole numbers in case of when
+        // fractional part is 0.
+        .trim_end_matches(".0");
+
     let mut iter = v.chars().peekable();
     while let Some(c) = iter.next() {
         buf.put_u8(c as u8);
-        if c == 'e' && iter.peek() != Some(&'-') {
-            buf.put_u8(b'+');
-        }
-    }
-    Ok(())
-}
-
-trait TimeLike: Timelike {
-    fn timestamp_subsec_micros(&self) -> u32;
-}
-
-macro_rules! impl_datetimelike_for {
-    ($t:ty) => {
-        impl TimeLike for $t {
-            fn timestamp_subsec_micros(&self) -> u32 {
-                self.timestamp_subsec_micros()
+        if c == 'e' {
+            // Postgres represents exponential values as "1e+9" and "1e-9".
+            // Adding a '+' sign in the case of positive exponent since the
+            // library doesn't (it returns "1e9").
+            if iter.peek() != Some(&'-') {
+                buf.put_u8(b'+');
             }
         }
-    };
-}
-
-impl_datetimelike_for! {NaiveDateTime}
-impl_datetimelike_for! {DateTime<Utc>}
-
-impl TimeLike for NaiveTime {
-    fn timestamp_subsec_micros(&self) -> u32 {
-        self.nanosecond() / 1_000
     }
+
+    Ok(())
 }
 
 fn put_micros_text<T>(buf: &mut BytesMut, v: &T) -> Result<()>
 where
     T: Timelike,
 {
-    // Remove the trailing zeros from microseconds.
-    let nanos = v.nanosecond();
+    let nanos = v.nanosecond() as i64;
+    // Add 500 ns to let flooring integer division round the time to nearest microsecond
+    let nanos = nanos + 500;
     let mut micros = nanos / 1_000;
-    if nanos % 1_000 >= 500 {
-        micros += 1;
-    }
     if micros > 0 {
+        // Remove the trailing zeros from microseconds.
         let mut width = 6;
         while micros % 10 == 0 {
             width -= 1;
@@ -264,7 +264,7 @@ where
 
 fn put_time_text<T>(buf: &mut BytesMut, v: &T, tz: bool) -> Result<()>
 where
-    T: TimeLike,
+    T: Timelike,
 {
     let (hour, minute, second) = (v.hour(), v.minute(), v.second());
     put_fmt!(buf, "{hour:02}:{minute:02}:{second:02}")?;
@@ -277,7 +277,7 @@ where
 
 fn put_utc_timestamp_text<T>(buf: &mut BytesMut, v: T, tz: bool) -> Result<()>
 where
-    T: TimeLike + Datelike,
+    T: Timelike + Datelike,
 {
     let is_ad = put_only_date_text(buf, &v)?;
     // Add a space between date and time.
@@ -449,6 +449,14 @@ mod tests {
         );
 
         buf.clear();
+        let nt = NaiveDateTime::from_timestamp_opt(-197199051, 0).unwrap();
+        Writer::write_timestamp(buf, nt).unwrap();
+        assert_buf(
+            buf,
+            format!("{}", nt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
+        );
+
+        buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(-62143593684, 0).unwrap();
         Writer::write_timestamp(buf, nt).unwrap();
         assert_buf(
@@ -491,6 +499,17 @@ mod tests {
 
         buf.clear();
         let dt = DateTime::<Utc>::from_utc(
+            NaiveDateTime::from_timestamp_opt(-197199051, 0).unwrap(),
+            Utc,
+        );
+        Writer::write_timestamptz(buf, dt).unwrap();
+        assert_buf(
+            buf,
+            format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
+        );
+
+        buf.clear();
+        let dt = DateTime::<Utc>::from_utc(
             NaiveDateTime::from_timestamp_opt(-62143593684, 0).unwrap(),
             Utc,
         );
@@ -519,6 +538,11 @@ mod tests {
         let nd = NaiveDate::from_ymd_opt(1999, 9, 30).unwrap();
         Writer::write_date(buf, nd).unwrap();
         assert_buf(buf, b"1999-09-30");
+
+        buf.clear();
+        let nd = NaiveDate::from_ymd_opt(1963, 10, 2).unwrap();
+        Writer::write_date(buf, nd).unwrap();
+        assert_buf(buf, b"1963-10-02");
 
         buf.clear();
         let nd = NaiveDate::from_ymd_opt(0, 9, 30).unwrap();

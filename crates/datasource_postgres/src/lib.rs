@@ -685,12 +685,10 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                     let val: Option<NaiveTime> = row.try_get(col_idx)?;
                     let val = val.map(|v| {
                         let nanos = v.nanosecond() as i64;
+                        // Add 500ns to let flooring integer division round the time to nearest microsecond
+                        let nanos = nanos + 500;
                         let secs_since_midnight = v.num_seconds_from_midnight() as i64;
-                        let mut micros = (secs_since_midnight * 1_000_000) + (nanos / 1_000);
-                        if nanos > 500 {
-                            micros += 1;
-                        }
-                        micros
+                        (secs_since_midnight * 1_000_000) + (nanos / 1_000)
                     });
                     arr.append_option(val);
                 }

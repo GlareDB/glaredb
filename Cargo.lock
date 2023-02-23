@@ -3141,6 +3141,7 @@ dependencies = [
  "num-traits",
  "thiserror",
  "tokio-postgres",
+ "tracing",
 ]
 
 [[package]]

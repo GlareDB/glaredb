@@ -468,14 +468,11 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                     let val: Option<NaiveTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
                     let val = val.map(|v| {
-                        // Calculate number of microseconds(µs) from midnight
                         let nanos = v.nanosecond() as i64;
+                        // Add 500 ns to let flooring integer division round the time to nearest microsecond
+                        let nanos = nanos + 500;
                         let secs_since_midnight = v.num_seconds_from_midnight() as i64;
-                        let mut micros = (secs_since_midnight * 1_000_000) + (nanos / 1_000);
-                        if nanos > 500 {
-                            micros += 1;
-                        }
-                        micros
+                        (secs_since_midnight * 1_000_000) + (nanos / 1_000)
                     });
                     arr.append_option(val);
                 }
