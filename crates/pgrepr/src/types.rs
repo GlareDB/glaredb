@@ -10,6 +10,7 @@ use tokio_postgres::types::Type as PgType;
 
 use crate::error::{PgReprError, Result};
 use crate::format::Format;
+use crate::reader::{Reader, TextReader};
 use crate::writer::{BinaryWriter, TextWriter, Writer};
 
 /// Returns a compatible postgres type for the arrow datatype.
@@ -76,6 +77,42 @@ pub fn encode_array_value(
     buf[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(val_len));
 
     Ok(())
+}
+
+/// Decodes a scalar value using the provided format and pg type.
+pub fn decode_scalar_value(
+    buf: Option<&[u8]>,
+    format: Format,
+    pg_type: &PgType,
+) -> Result<ScalarValue> {
+    match buf {
+        Some(buf) => match format {
+            Format::Text => decode_not_null_value::<TextReader>(buf, pg_type),
+            Format::Binary => Err(PgReprError::BinaryReadUnimplemented),
+        },
+        None => Ok(ScalarValue::Null),
+    }
+}
+
+/// Decodes a non-null value from the buffer of the given pg type.
+// TODO: We currently get the pg type from the inferred arrow type during
+// parameter type resolution. This can lead to a loss of type information or may
+// result in an inexact conversion (e.g. arrow doesn't have a JSON type, but
+// postgres does).
+//
+// We may be able to work around this by inferring pg types directly instead of
+// needing to infer arrow types, then convert those into postgres types.
+fn decode_not_null_value<R: Reader>(buf: &[u8], pg_type: &PgType) -> Result<ScalarValue> {
+    Ok(match pg_type {
+        &PgType::BOOL => R::read_bool(buf)?.into(),
+        &PgType::INT2 => R::read_int2(buf)?.into(),
+        &PgType::INT4 => R::read_int4(buf)?.into(),
+        &PgType::INT8 => R::read_int8(buf)?.into(),
+        &PgType::FLOAT4 => R::read_float4(buf)?.into(),
+        &PgType::FLOAT8 => R::read_float8(buf)?.into(),
+        &PgType::TEXT => ScalarValue::Utf8(Some(R::read_text(buf)?)),
+        other => return Err(PgReprError::UnsupportedPgTypeForDecode(other.clone())),
+    })
 }
 
 /// Per writer implementation for encoding non-null array values.

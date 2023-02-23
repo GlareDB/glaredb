@@ -1,0 +1,176 @@
+# Extended query protocol with paramaters.
+
+
+# No context for type. Note that this fails with datafusion planning.
+# -> ErrorResponse {"fields":["ERROR","ERROR","XX000","Error during planning: Placeholder type could not be resolved"]}
+
+# send
+# Parse {"query": "select $1"}
+# Bind {"values": ["4"]}
+# Execute
+# Sync
+# ----
+
+# until
+# ReadyForQuery
+# ----
+# ParseComplete 
+# BindComplete 
+# DataRow {"fields":["4"]}
+# CommandComplete {"tag":"SELECT 1"}
+# ReadyForQuery {"status":"I"}
+
+
+# Type provided. Fails for us, missing type.
+# -> ErrorResponse {"fields":["ERROR","ERROR","XX000","missing type for param value at index 0, input types: {}"]}
+
+# send
+# Parse {"query": "select $1::text"}
+# Bind {"values": ["5"]}
+# Execute
+# Sync
+# ----
+# 
+# until
+# ReadyForQuery
+# ----
+# ParseComplete 
+# BindComplete 
+# DataRow {"fields":["5"]}
+# CommandComplete {"tag":"SELECT 1"}
+# ReadyForQuery {"status":"I"}
+
+
+# In binary expression (add).
+
+send
+Parse {"query": "select $1 + 1"}
+Bind {"values": ["1"]}
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["2"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+
+# In where clause.
+
+send
+Parse {"query": "select * from (select * from (values (1, 2), (3, 4)) as _) as sub(a, b) where a > $1"}
+Bind {"values": ["2"]}
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["3","4"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+
+# String in where clause.
+
+send
+Parse {"query": "select * from (select * from (values ('10', '20'), ('30', '40')) as _) as sub(a, b) where a = $1"}
+Bind {"values": ["10"]}
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["10","20"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+
+# String parameter in scalar function. Fails for us (datafusion).
+# -> ErrorResponse {"fields":["ERROR","ERROR","XX000","Error during planning: Placeholder type could not be resolved"]}
+
+# send
+# Parse {"query": "select reverse($1)"}
+# Bind {"values": ["hello"]}
+# Execute
+# Sync
+# ----
+# 
+# until
+# ReadyForQuery
+# ----
+# ParseComplete 
+# BindComplete 
+# DataRow {"fields":["olleh"]}
+# CommandComplete {"tag":"SELECT 1"}
+# ReadyForQuery {"status":"I"}
+
+
+# Multiple parameters.
+
+send
+Parse {"query": "select ($1 + 1) >= $2"}
+Bind {"values": ["1", "2"]}
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["t"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}
+
+
+# Fails for us.
+# -> ErrorResponse {"fields":["ERROR","ERROR","XX000","missing type for param value at index 0, input types: {}"]}
+
+# send
+# Parse {"query": "select $1 is true, $2 is true, $3 is false, $4 is false"}
+# Bind {"values": ["t", "true", "f", "false"]}
+# Execute
+# Sync
+# ----
+# 
+# until
+# ReadyForQuery
+# ----
+# ParseComplete 
+# BindComplete 
+# DataRow {"fields":["t","t","t","t"]}
+# CommandComplete {"tag":"SELECT 1"}
+# ReadyForQuery {"status":"I"}
+
+
+# Float sanity check.
+
+send
+Parse {"query": "select $1 > 0.1"}
+Bind {"values": ["0.2"]}
+Execute
+Sync
+----
+
+until
+ReadyForQuery
+----
+ParseComplete 
+BindComplete 
+DataRow {"fields":["t"]}
+CommandComplete {"tag":"SELECT 1"}
+ReadyForQuery {"status":"I"}

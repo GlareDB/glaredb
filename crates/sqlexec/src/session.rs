@@ -10,6 +10,7 @@ use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
+use datafusion::scalar::ScalarValue;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use std::fmt;
@@ -270,18 +271,11 @@ impl Session {
         &mut self,
         portal_name: String,
         stmt_name: &str,
-        param_formats: Vec<Format>,
-        param_values: Vec<Option<Vec<u8>>>,
+        params: Vec<ScalarValue>,
         result_formats: Vec<Format>,
     ) -> Result<()> {
-        // We don't currently support parameters. We're already erroring on
-        // attempting to prepare statements with parameters, so this is just
-        // ensuring that we're not missing anything right now.
-        assert_eq!(0, param_formats.len());
-        assert_eq!(0, param_values.len());
-
         self.ctx
-            .bind_statement(portal_name, stmt_name, result_formats)
+            .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
     async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {

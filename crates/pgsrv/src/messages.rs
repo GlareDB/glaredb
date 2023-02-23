@@ -1,4 +1,5 @@
 use datafusion::arrow::record_batch::RecordBatch;
+use pgrepr::error::PgReprError;
 use pgrepr::format::Format;
 use sqlexec::errors::ExecError;
 use std::collections::HashMap;
@@ -251,6 +252,13 @@ impl From<ExecError> for ErrorResponse {
 
 impl From<&PgSrvError> for ErrorResponse {
     fn from(e: &PgSrvError) -> Self {
+        // TODO: Actually set appropriate codes.
+        ErrorResponse::error_internal(e.to_string())
+    }
+}
+
+impl From<PgReprError> for ErrorResponse {
+    fn from(e: PgReprError) -> Self {
         // TODO: Actually set appropriate codes.
         ErrorResponse::error_internal(e.to_string())
     }
