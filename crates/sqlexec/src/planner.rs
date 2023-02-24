@@ -12,6 +12,9 @@ use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
+use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
+use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
@@ -113,19 +116,45 @@ impl<'a> SessionPlanner<'a> {
             ConnectionOptions::LOCAL => ConnectionOptions::Local(ConnectionOptionsLocal {}),
             ConnectionOptions::GCS => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
-                ConnectionOptions::Gcs(ConnectionOptionsGcs {
+
+                let options = ConnectionOptionsGcs {
                     service_account_key,
-                })
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        GcsAccessor::validate_connection(&options)
+                            .await
+                            .map_err(|e| ExecError::InvalidConnection {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
+
+                ConnectionOptions::Gcs(options)
             }
             ConnectionOptions::S3_STORAGE => {
                 // Require `access_key_id` and `secret_access_key` as per access key generated on
                 // AWS IAM
                 let access_key_id = remove_required_opt(m, "access_key_id")?;
                 let secret_access_key = remove_required_opt(m, "secret_access_key")?;
-                ConnectionOptions::S3(ConnectionOptionsS3 {
+
+                let options = ConnectionOptionsS3 {
                     access_key_id,
                     secret_access_key,
-                })
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        S3Accessor::validate_connection(&options)
+                            .await
+                            .map_err(|e| ExecError::InvalidConnection {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
+
+                ConnectionOptions::S3(options)
             }
             ConnectionOptions::SSH => {
                 let host = remove_required_opt(m, "host")?;
@@ -180,7 +209,7 @@ impl<'a> SessionPlanner<'a> {
                 let access = PostgresTableAccess {
                     schema: source_schema,
                     name: source_table,
-                    connection_string: options.connection_string.clone(),
+                    connection_string: options.connection_string.to_owned(),
                 };
                 let tunn_access = options
                     .ssh_tunnel
@@ -207,8 +236,8 @@ impl<'a> SessionPlanner<'a> {
                 let table_id = remove_required_opt(m, "table_id")?;
 
                 let access = BigQueryTableAccess {
-                    gcp_service_acccount_key_json: options.service_account_key.clone(),
-                    gcp_project_id: options.project_id.clone(),
+                    gcp_service_acccount_key_json: options.service_account_key.to_owned(),
+                    gcp_project_id: options.project_id.to_owned(),
                     dataset_id,
                     table_id,
                 };
@@ -238,24 +267,80 @@ impl<'a> SessionPlanner<'a> {
             }
             ConnectionOptions::Local(_) => {
                 let location = remove_required_opt(m, "location")?;
-                TableOptions::Local(TableOptionsLocal { location })
-            }
-            ConnectionOptions::Gcs(_) => {
-                let bucket_name = remove_required_opt(m, "bucket_name")?;
-                let location = remove_required_opt(m, "location")?;
-                TableOptions::Gcs(TableOptionsGcs {
-                    bucket_name,
+
+                let access = LocalTableAccess {
                     location,
+                    file_type: None,
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        LocalAccessor::validate_table_access(&access)
+                            .await
+                            .map_err(|e| ExecError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
+
+                TableOptions::Local(TableOptionsLocal {
+                    location: access.location,
                 })
             }
-            ConnectionOptions::S3(_) => {
+            ConnectionOptions::Gcs(ref options) => {
+                let bucket_name = remove_required_opt(m, "bucket_name")?;
+                let location = remove_required_opt(m, "location")?;
+
+                let access = GcsTableAccess {
+                    service_acccount_key_json: options.service_account_key.to_owned(),
+                    bucket_name,
+                    location,
+                    file_type: None,
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        GcsAccessor::validate_table_access(&access)
+                            .await
+                            .map_err(|e| ExecError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
+
+                TableOptions::Gcs(TableOptionsGcs {
+                    bucket_name: access.bucket_name,
+                    location: access.location,
+                })
+            }
+            ConnectionOptions::S3(ref options) => {
                 let region = remove_required_opt(m, "region")?;
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let location = remove_required_opt(m, "location")?;
-                TableOptions::S3(TableOptionsS3 {
+
+                let access = S3TableAccess {
+                    access_key_id: options.access_key_id.to_owned(),
+                    secret_access_key: options.secret_access_key.to_owned(),
                     region,
                     bucket_name,
                     location,
+                    file_type: None,
+                };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        S3Accessor::validate_table_access(&access)
+                            .await
+                            .map_err(|e| ExecError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
+
+                TableOptions::S3(TableOptionsS3 {
+                    region: access.region,
+                    bucket_name: access.bucket_name,
+                    location: access.location,
                 })
             }
             ConnectionOptions::Ssh(_) => {

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
+use metastore::types::catalog::ConnectionOptionsS3;
 use object_store::aws::AmazonS3Builder;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -71,6 +72,26 @@ impl S3Accessor {
             meta,
             file_type,
         })
+    }
+
+    pub async fn validate_connection(options: &ConnectionOptionsS3) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn validate_table_access(access: &S3TableAccess) -> Result<()> {
+        let access = access.to_owned();
+        let store = Arc::new(
+            AmazonS3Builder::new()
+                .with_region(access.region)
+                .with_bucket_name(access.bucket_name)
+                .with_access_key_id(access.access_key_id)
+                .with_secret_access_key(access.secret_access_key)
+                .build()?,
+        );
+
+        let location = ObjectStorePath::from(access.location);
+        store.head(&location).await?;
+        Ok(())
     }
 
     pub async fn into_table_provider(

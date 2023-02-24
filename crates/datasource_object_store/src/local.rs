@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
+use metastore::types::catalog::ConnectionOptionsLocal;
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -55,6 +56,14 @@ impl LocalAccessor {
             meta,
             file_type,
         })
+    }
+
+    pub async fn validate_table_access(access: &LocalTableAccess) -> Result<()> {
+        let store = Arc::new(LocalFileSystem::new());
+
+        let location = ObjectStorePath::from(access.location.to_owned());
+        store.head(&location).await?;
+        Ok(())
     }
 
     pub async fn into_table_provider(

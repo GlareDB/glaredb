@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
+use metastore::types::catalog::ConnectionOptionsGcs;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -47,12 +48,7 @@ impl TableAccessor for GcsAccessor {
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let store = Arc::new(
-            GoogleCloudStorageBuilder::new()
-                .with_service_account_key(access.service_acccount_key_json)
-                .with_bucket_name(access.bucket_name)
-                .build()?,
-        );
+        let store = Self::create_store(access.service_acccount_key_json, access.bucket_name)?;
 
         let location = ObjectStorePath::from(access.location);
         // Use provided file type or infer from location
@@ -66,6 +62,33 @@ impl GcsAccessor {
             meta,
             file_type,
         })
+    }
+
+    fn create_store(
+        service_acccount_key_json: String,
+        bucket_name: String,
+    ) -> Result<Arc<dyn ObjectStore>> {
+        Ok(Arc::new(
+            GoogleCloudStorageBuilder::new()
+                .with_service_account_key(service_acccount_key_json)
+                .with_bucket_name(bucket_name)
+                .build()?,
+        ))
+    }
+
+    pub async fn validate_connection(options: &ConnectionOptionsGcs) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn validate_table_access(access: &GcsTableAccess) -> Result<()> {
+        let store = Self::create_store(
+            access.service_acccount_key_json.to_owned(),
+            access.bucket_name.to_owned(),
+        )?;
+
+        let location = ObjectStorePath::from(access.location.to_owned());
+        store.head(&location).await?;
+        Ok(())
     }
 
     pub async fn into_table_provider(
