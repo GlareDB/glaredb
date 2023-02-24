@@ -31,7 +31,7 @@ impl fmt::Display for CreateExternalTableStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CREATE EXTERNAL TABLE ")?;
         if self.if_not_exists {
-            write!(f, "IF NOT EXISTS")?;
+            write!(f, "IF NOT EXISTS ")?;
         }
         write!(f, "{} FROM {} ", self.name, self.connection)?;
 
@@ -63,7 +63,7 @@ impl fmt::Display for CreateConnectionStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CREATE CONNECTION ")?;
         if self.if_not_exists {
-            write!(f, "IF NOT EXISTS")?;
+            write!(f, "IF NOT EXISTS ")?;
         }
         write!(f, "{} FOR {} ", self.name, self.datasource)?;
 
@@ -97,7 +97,7 @@ impl fmt::Display for DropConnectionStmt {
             write!(f, "IF EXISTS ")?;
         }
 
-        write!(f, "{} ", self.names.join(", "))
+        write!(f, "{}", self.names.join(", "))
     }
 }
 
@@ -380,27 +380,52 @@ mod tests {
     }
 
     #[test]
-    fn connection_roundtrip() {
-        // Display the create string...
+    fn create_external_table_roundtrips() {
+        let test_cases = [
+            "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+        ];
 
-        let mut options = BTreeMap::new();
-        for (k, v) in [("host", "localhost"), ("user", "postgres")] {
-            options.insert(k.to_string(), v.to_string());
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
         }
-        let conn_stmt = CreateConnectionStmt {
-            name: "my_conn".to_string(),
-            if_not_exists: false,
-            datasource: "postgres".to_string(),
-            options,
-        };
+    }
 
-        let out = conn_stmt.to_string();
-        assert_eq!("CREATE CONNECTION my_conn FOR postgres OPTIONS (host = 'localhost', user = 'postgres')", out);
+    #[test]
+    fn create_connection_roundtrips() {
+        let test_cases = [
+            "CREATE CONNECTION my_conn FOR postgres OPTIONS (host = 'localhost', user = 'postgres')",
+            "CREATE CONNECTION IF NOT EXISTS my_conn FOR postgres OPTIONS (host = 'localhost', user = 'postgres')",
+        ];
 
-        // Parse the string we go back.
-        let mut stmts = CustomParser::parse_sql(&out).unwrap();
-        assert_eq!(1, stmts.len());
-        let parsed = stmts.pop_front().unwrap();
-        assert_eq!(StatementWithExtensions::CreateConnection(conn_stmt), parsed);
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn drop_connection_roundtrips() {
+        let test_cases = [
+            "DROP CONNECTION my_conn",
+            "DROP CONNECTION IF EXISTS my_conn",
+            "DROP CONNECTION my_conn1, my_conn2, my_conn3",
+            "DROP CONNECTION IF EXISTS my_conn1, my_conn2, my_conn3",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
     }
 }
