@@ -64,7 +64,9 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         PostgresAccessor::validate_connection(&connection_string, access)
                             .await
-                            .map_err(|e| ExecError::InvalidConnection { source: e })
+                            .map_err(|e| ExecError::InvalidConnection {
+                                source: Box::new(e),
+                            })
                     })
                 })?;
 
@@ -86,7 +88,9 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         BigQueryAccessor::validate_connection(&options)
                             .await
-                            .map_err(|e| ExecError::InvalidDataSource2 { source: e })
+                            .map_err(|e| ExecError::InvalidConnection {
+                                source: Box::new(e),
+                            })
                     })
                 })?;
 
@@ -187,7 +191,9 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         PostgresAccessor::validate_table_access(&access, tunn_access)
                             .await
-                            .map_err(|e| ExecError::InvalidDataSource { source: e })
+                            .map_err(|e| ExecError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })
                     })
                 })?;
 
@@ -211,7 +217,9 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         BigQueryAccessor::validate_table_access(&access)
                             .await
-                            .map_err(|e| ExecError::InvalidDataSource2 { source: e })
+                            .map_err(|e| ExecError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })
                     })
                 })?;
 
