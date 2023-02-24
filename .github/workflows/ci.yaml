@@ -32,6 +32,7 @@ jobs:
       cancel-in-progress: true
 
     env:
+      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
       GCP_PROJECT_ID: glaredb-artifacts
 
     steps:
@@ -69,6 +70,12 @@ jobs:
         run: |
           shopt -s globstar
           nix run .#slt-runner -- -v embedded testdata/sqllogictests/**/*.slt
+
+      - name: SQL Logic Tests (BigQuery)
+        run: |
+          shopt -s globstar
+          export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_bigquery/**/*.slt
 
       - name: SQL Logic Tests (Postgres)
         run: |

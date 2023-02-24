@@ -1,0 +1,47 @@
+[
+	{
+    "mode": "NULLABLE",
+    "name": "trip_id",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "subscriber_type",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "bike_id",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "start_time",
+    "type": "TIMESTAMP"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "start_station_id",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "start_station_name",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "end_station_id",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "end_station_name",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "duration_minutes",
+    "type": "INTEGER"
+  }
+]
