@@ -66,28 +66,50 @@ pub struct BigQueryAccessor {
 impl BigQueryAccessor {
     /// Connect to the bigquery instance.
     pub async fn connect(access: BigQueryTableAccess) -> Result<Self> {
+        let metadata = Self::connect_with_key(&access.gcp_service_acccount_key_json).await?;
+        Ok(BigQueryAccessor { access, metadata })
+    }
+
+    async fn connect_with_key(service_account_key: &str) -> Result<BigQueryClient> {
         // TODO: We end up deserializing the key twice. Once for this client,
         // and again for the storage client during query execution.
-        let metadata = {
-            let key = serde_json::from_str(&access.gcp_service_acccount_key_json)?;
-            BigQueryClient::from_service_account_key(key, true).await?
-        };
-
-        Ok(BigQueryAccessor { access, metadata })
+        let key = serde_json::from_str(service_account_key)?;
+        let client = BigQueryClient::from_service_account_key(key, true).await?;
+        Ok(client)
     }
 
     /// Validate big query connection
     pub async fn validate_connection(options: &ConnectionOptionsBigQuery) -> Result<()> {
-        tracing::warn!("Unimplemented");
-        return Err(BigQueryError::Unimplemented);
-
+        let key = serde_json::from_str(&options.service_account_key)?;
+        ServiceAccountAuthenticator::builder(key)
+            .build()
+            .await
+            .map_err(BigQueryError::AuthKey)?;
         Ok(())
     }
 
     /// Validate big query connection and access to table
     pub async fn validate_table_access(access: &BigQueryTableAccess) -> Result<()> {
-        tracing::warn!("Unimplemented");
-        return Err(BigQueryError::Unimplemented);
+        let client = {
+            let key = serde_json::from_str(&access.gcp_service_acccount_key_json)?;
+            let sa = ServiceAccountAuthenticator::builder(key)
+                .build()
+                .await
+                .map_err(BigQueryError::AuthKey)?;
+            BigQueryStorage::new(sa).await?
+        };
+
+        let table = bigquery_storage::Table::new(
+            &access.gcp_project_id,
+            &access.dataset_id,
+            &access.table_id,
+        );
+
+        client
+            .read_session_builder(table)
+            .row_restriction("false".to_string())
+            .build()
+            .await?;
 
         Ok(())
     }
