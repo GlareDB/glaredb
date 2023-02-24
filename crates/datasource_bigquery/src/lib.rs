@@ -378,8 +378,8 @@ impl BufferedIpcStream {
                     return;
                 },
             };
-            let mut reader = ArrowStreamReader::try_new(Cursor::new(buf), None)?;
-            while let Some(batch) = reader.next() {
+            let reader = ArrowStreamReader::try_new(Cursor::new(buf), None)?;
+            for batch in reader {
                 let batch = batch?;
                 yield Ok(batch);
             }
