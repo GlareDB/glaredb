@@ -7,8 +7,10 @@ use crate::messages::{
 use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use pgrepr::types::decode_scalar_value;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::{
     engine::Engine,
@@ -369,13 +371,9 @@ where
             );
 
             // Bind...
-            if let Err(e) = session.bind_statement(
-                UNNAMED,
-                &UNNAMED,
-                Vec::new(),
-                Vec::new(),
-                all_text_formats(num_fields),
-            ) {
+            if let Err(e) =
+                session.bind_statement(UNNAMED, &UNNAMED, Vec::new(), all_text_formats(num_fields))
+            {
                 self.send_error(e.into()).await?;
                 return self.ready_for_query().await;
             }
@@ -462,7 +460,14 @@ where
             Err(e) => return self.send_error(e.into()).await,
         };
 
-        // TODO: Check and parse param formats and values.
+        // Read scalars for query parameters.
+        let scalars = match stmt.input_paramaters() {
+            Some(types) => match decode_param_scalars(param_formats, param_values, types) {
+                Ok(scalars) => scalars,
+                Err(e) => return self.send_error(e).await,
+            },
+            None => Vec::new(), // Would only happen with an empty query.
+        };
 
         // Extend out the result formats.
         let result_formats = match extend_formats(
@@ -473,13 +478,10 @@ where
             Err(e) => return self.send_error(e).await,
         };
 
-        match self.session.bind_statement(
-            portal,
-            &statement,
-            param_formats,
-            param_values,
-            result_formats,
-        ) {
+        match self
+            .session
+            .bind_statement(portal, &statement, scalars, result_formats)
+        {
             Ok(_) => self.conn.send(BackendMessage::BindComplete).await,
             Err(e) => self.send_error(e.into()).await,
         }
@@ -573,7 +575,7 @@ where
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
         match result {
-            ExecutionResult::Query { stream } => {
+            ExecutionResult::Query { stream, .. } | ExecutionResult::ShowVariable { stream } => {
                 if let Some(num_rows) = Self::stream_batch(conn, stream, encoding_state).await? {
                     Self::command_complete(conn, format!("SELECT {}", num_rows)).await?;
                 }
@@ -648,6 +650,55 @@ where
     }
 }
 
+/// Decodes inputs for a prepared query into the appropriate scalar values.
+fn decode_param_scalars(
+    param_formats: Vec<Format>,
+    param_values: Vec<Option<Vec<u8>>>,
+    types: &HashMap<String, Option<PgType>>,
+) -> Result<Vec<ScalarValue>, ErrorResponse> {
+    let param_formats = extend_formats(param_formats, param_values.len())?;
+
+    if param_values.len() != types.len() {
+        return Err(ErrorResponse::error_internal(format!(
+            "Invalid number of values provided. Expected: {}, got: {}",
+            types.len(),
+            param_values.len(),
+        )));
+    }
+
+    let mut scalars = Vec::with_capacity(param_values.len());
+    for (idx, (val, format)) in param_values
+        .into_iter()
+        .zip(param_formats.into_iter())
+        .enumerate()
+    {
+        // Parameter types keyed by '$n'.
+        let str_id = format!("${}", idx + 1);
+
+        let typ = types.get(&str_id).ok_or_else(|| {
+            ErrorResponse::error_internal(format!(
+                "Missing type for param value at index {}, input types: {:?}",
+                idx, types
+            ))
+        })?;
+
+        match typ {
+            Some(typ) => {
+                let scalar = decode_scalar_value(val.as_deref(), format, typ)?;
+                scalars.push(scalar);
+            }
+            None => {
+                return Err(ErrorResponse::error_internal(format!(
+                    "Unknown type at index {}, input types: {:?}",
+                    idx, types
+                )))
+            }
+        }
+    }
+
+    Ok(scalars)
+}
+
 /// Parse a sql string, returning an error response if failed to parse.
 fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ErrorResponse> {
     parser::parse_sql(sql).map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
@@ -682,5 +733,90 @@ fn get_encoding_state(portal: &Portal) -> Vec<(PgType, Format)> {
         Some(fields) => fields
             .map(|field| (field.pg_type.to_owned(), field.format.to_owned()))
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_params_success() {
+        // Success test cases for decoding params.
+
+        struct TestCase {
+            values: Vec<Option<Vec<u8>>>,
+            types: Vec<(&'static str, Option<PgType>)>,
+            expected: Vec<ScalarValue>,
+        }
+
+        let test_cases = vec![
+            // No params.
+            TestCase {
+                values: Vec::new(),
+                types: Vec::new(),
+                expected: Vec::new(),
+            },
+            // One param of type int64.
+            TestCase {
+                values: vec![Some(vec![49])],
+                types: vec![("$1", Some(PgType::INT8))],
+                expected: vec![ScalarValue::Int64(Some(1))],
+            },
+            // Two params param of type string.
+            TestCase {
+                values: vec![Some(vec![49, 48]), Some(vec![50, 48])],
+                types: vec![("$1", Some(PgType::TEXT)), ("$2", Some(PgType::TEXT))],
+                expected: vec![
+                    ScalarValue::Utf8(Some("10".to_string())),
+                    ScalarValue::Utf8(Some("20".to_string())),
+                ],
+            },
+        ];
+
+        for test_case in test_cases {
+            let types: HashMap<_, _> = test_case
+                .types
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
+
+            let scalars = decode_param_scalars(Vec::new(), test_case.values, &types).unwrap();
+            assert_eq!(test_case.expected, scalars);
+        }
+    }
+
+    #[test]
+    fn decode_params_fail() {
+        // Failure test cases for decoding params (all cases should result in an
+        // error).
+
+        struct TestCase {
+            values: Vec<Option<Vec<u8>>>,
+            types: Vec<(&'static str, Option<PgType>)>,
+        }
+
+        let test_cases = vec![
+            // Params provided, none expected.
+            TestCase {
+                values: vec![Some(vec![49])],
+                types: Vec::new(),
+            },
+            // No params provided, one expected.
+            TestCase {
+                values: Vec::new(),
+                types: vec![("$1", Some(PgType::INT8))],
+            },
+        ];
+
+        for test_case in test_cases {
+            let types: HashMap<_, _> = test_case
+                .types
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
+
+            decode_param_scalars(Vec::new(), test_case.values, &types).unwrap_err();
+        }
     }
 }

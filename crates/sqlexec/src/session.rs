@@ -1,26 +1,39 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
+use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
+use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, memory::MemoryStream, EmptyRecordBatchStream,
-    ExecutionPlan, SendableRecordBatchStream,
+    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
+use datafusion::scalar::ScalarValue;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
-use serde_json::json;
 use std::fmt;
 use std::sync::Arc;
 use telemetry::Tracker;
-use uuid::Uuid;
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
     /// The stream for the output of a query.
-    Query { stream: SendableRecordBatchStream },
+    Query {
+        stream: SendableRecordBatchStream,
+        /// Plan used to create the stream. Used for getting metrics after the
+        /// stream completes.
+        ///
+        /// TODO: I would like to remove this. Putting the plan on the result
+        /// was the easiest way of providing everything needed to construct a
+        /// `BatchStreamWithMetricSender` without a bit more refactoring. This
+        /// stream requires physical plan and a starting set of execution
+        /// metrics, which are created separately.
+        plan: Arc<dyn ExecutionPlan>,
+    },
+    /// Showing a variable.
+    ShowVariable { stream: SendableRecordBatchStream }, // TODO: We don't need to make a stream for this.
     /// No statement provided.
     EmptyQuery,
     /// Transaction started.
@@ -50,10 +63,10 @@ pub enum ExecutionResult {
 }
 
 impl ExecutionResult {
-    /// Tag for use when sending telemetry about the execution result.
-    const fn telemetry_tag(&self) -> &'static str {
+    const fn result_type_str(&self) -> &'static str {
         match self {
             ExecutionResult::Query { .. } => "query",
+            ExecutionResult::ShowVariable { .. } => "show_variable",
             ExecutionResult::EmptyQuery => "empty_query",
             ExecutionResult::Begin => "begin",
             ExecutionResult::Commit => "commit",
@@ -74,7 +87,12 @@ impl ExecutionResult {
 impl fmt::Debug for ExecutionResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExecutionResult::Query { stream } => write!(f, "query (schema: {:?})", stream.schema()),
+            ExecutionResult::Query { stream, .. } => {
+                write!(f, "query (schema: {:?})", stream.schema())
+            }
+            ExecutionResult::ShowVariable { stream } => {
+                write!(f, "show variable (schema: {:?})", stream.schema())
+            }
             ExecutionResult::EmptyQuery => write!(f, "empty query"),
             ExecutionResult::Begin => write!(f, "begin"),
             ExecutionResult::Commit => write!(f, "commit"),
@@ -107,13 +125,13 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
-        user_id: Uuid,
-        conn_id: Uuid,
+        info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         tracker: Arc<Tracker>,
     ) -> Result<Session> {
-        let ctx = SessionContext::new(user_id, conn_id, catalog, metastore, tracker);
+        let metrics = SessionMetrics::new(info.clone(), tracker);
+        let ctx = SessionContext::new(info, catalog, metastore, metrics);
         Ok(Session { ctx })
     }
 
@@ -132,14 +150,8 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        match plan.output_partitioning().partition_count() {
-            0 => Ok(Box::pin(EmptyRecordBatchStream::new(plan.schema()))),
-            1 => Ok(plan.execute(0, context)?),
-            _ => {
-                let plan = CoalescePartitionsExec::new(plan);
-                Ok(plan.execute(0, context)?)
-            }
-        }
+        let stream = execute_stream(plan, context)?;
+        Ok(stream)
     }
 
     pub(crate) async fn create_table(&self, _plan: CreateTable) -> Result<()> {
@@ -223,6 +235,15 @@ impl Session {
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
+        // Flush any completed metrics prior to planning. This is mostly
+        // beneficial when planning successive calls to the
+        // `session_query_history` table since the mem table is created during
+        // planning.
+        //
+        // In all other cases, it's correct to only need to flush immediately
+        // prior to execute (which we also do).
+        self.ctx.get_metrics_mut().flush_completed();
+
         self.ctx.prepare_statement(name, stmt, params).await
     }
 
@@ -250,33 +271,14 @@ impl Session {
         &mut self,
         portal_name: String,
         stmt_name: &str,
-        param_formats: Vec<Format>,
-        param_values: Vec<Option<Vec<u8>>>,
+        params: Vec<ScalarValue>,
         result_formats: Vec<Format>,
     ) -> Result<()> {
-        // We don't currently support parameters. We're already erroring on
-        // attempting to prepare statements with parameters, so this is just
-        // ensuring that we're not missing anything right now.
-        assert_eq!(0, param_formats.len());
-        assert_eq!(0, param_values.len());
-
         self.ctx
-            .bind_statement(portal_name, stmt_name, result_formats)
+            .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    /// Execute a portal.
-    // TODO: Handle max rows.
-    pub async fn execute_portal(
-        &mut self,
-        portal_name: &str,
-        _max_rows: i32,
-    ) -> Result<ExecutionResult> {
-        let portal = self.ctx.get_portal(portal_name)?;
-        let plan = match &portal.stmt.plan {
-            Some(plan) => plan.clone(),
-            None => return Ok(ExecutionResult::EmptyQuery),
-        };
-
+    async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
         let result = match plan {
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
                 self.create_table(plan).await?;
@@ -320,8 +322,11 @@ impl Session {
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
-                let stream = self.execute_physical(physical)?;
-                ExecutionResult::Query { stream }
+                let stream = self.execute_physical(physical.clone())?;
+                ExecutionResult::Query {
+                    stream,
+                    plan: physical,
+                }
             }
             LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
                 self.set_variable(plan)?;
@@ -329,21 +334,75 @@ impl Session {
             }
             LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
                 let stream = self.show_variable(plan)?;
-                ExecutionResult::Query { stream }
+                ExecutionResult::ShowVariable { stream }
             }
             other => return Err(internal!("unimplemented logical plan: {:?}", other)),
         };
 
-        // TODO: Use user id.
-        self.ctx.tracker().track(
-            "Execution complete",
-            self.ctx.user_id(),
-            json!({
-                "connection_id": self.ctx.conn_id().to_string(),
-                "tag": result.telemetry_tag(),
-            }),
-        );
-
         Ok(result)
+    }
+
+    /// Execute a portal.
+    ///
+    /// This will handle metrics tracking for query executions.
+    // TODO: Handle max rows.
+    pub async fn execute_portal(
+        &mut self,
+        portal_name: &str,
+        _max_rows: i32,
+    ) -> Result<ExecutionResult> {
+        // Flush any completed metrics.
+        self.ctx.get_metrics_mut().flush_completed();
+
+        let portal = self.ctx.get_portal(portal_name)?;
+        let plan = match &portal.stmt.plan {
+            Some(plan) => plan.clone(),
+            None => return Ok(ExecutionResult::EmptyQuery),
+        };
+
+        // Create "base" metrics.
+        let mut metrics = QueryMetrics::new_for_portal(portal);
+
+        let result = self.execute_inner(plan).await;
+        let result = match result {
+            Ok(result) => {
+                metrics.execution_status = ExecutionStatus::Success;
+                metrics.result_type = result.result_type_str();
+                result
+            }
+            Err(e) => {
+                metrics.execution_status = ExecutionStatus::Fail;
+                metrics.error_message = Some(e.to_string());
+
+                // Ensure we push the metrics for this failed query even though
+                // we're returning an error. This allows for querying for and
+                // reporting failed executions.
+                self.ctx.get_metrics_mut().push_metric(metrics);
+                return Err(e);
+            }
+        };
+
+        // If we're running a query, then swap out the batch stream with one
+        // that will send metrics at the completions of the stream.
+        match result {
+            ExecutionResult::Query { stream, plan } => {
+                let sender = self.ctx.get_metrics().get_sender();
+                Ok(ExecutionResult::Query {
+                    stream: Box::pin(BatchStreamWithMetricSender::new(
+                        stream,
+                        plan.clone(),
+                        metrics,
+                        sender,
+                    )),
+                    plan,
+                })
+            }
+            result => {
+                // Query not async (already completed), we're good to go ahead
+                // and push this metric.
+                self.ctx.get_metrics_mut().push_metric(metrics);
+                Ok(result)
+            }
+        }
     }
 }

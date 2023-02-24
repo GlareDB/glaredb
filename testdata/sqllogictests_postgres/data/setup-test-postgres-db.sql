@@ -36,10 +36,10 @@ VALUES (
     '[{"b": null}, {"c": true}]',
     '292a485f-a56a-4938-8f1a-bbbbbbbbbbb1',
     'bin',
-    '1999-09-30 16:32:34',
-    '04:32:34 PM',
+    '1999-09-30 16:32:04',
+    '04:32:04 PM',
     '1999-09-30',
-    '2004-10-19 16:32:34 IST'
+    '1999-09-30 16:32:04 IST'
 );
 
 INSERT INTO datatypes(c1) VALUES (NULL); -- inserts nulls

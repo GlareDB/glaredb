@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 const MESSAGE_BUF_SIZE: usize = 256;
 
+#[derive(Debug)]
 pub enum Tracker {
     Segment(SegmentTracker),
     Nop,
@@ -34,6 +35,7 @@ impl Default for Tracker {
     }
 }
 
+#[derive(Debug)]
 pub struct SegmentTracker {
     tx: mpsc::Sender<BatchMessage>,
     /// Handle for background task responsible for sending segment events.

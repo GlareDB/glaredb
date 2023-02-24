@@ -1,8 +1,10 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use metastore::types::catalog::{ConnectionOptions, TableOptions};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -41,6 +43,29 @@ impl LogicalPlan {
             )),
             _ => None,
         }
+    }
+
+    /// Get parameter types for the logical plan.
+    ///
+    /// Note this will only try to get the parameters if the plan is a
+    /// datafusion logical plan. Possible support for other plans may come
+    /// later.
+    pub fn get_parameter_types(&self) -> Result<HashMap<String, Option<DataType>>> {
+        Ok(match self {
+            LogicalPlan::Query(plan) => plan.get_parameter_types()?,
+            _ => HashMap::new(),
+        })
+    }
+
+    /// Replace placeholders in this plan with the provided scalars.
+    ///
+    /// Note this currently only replaces placeholders for datafusion plans.
+    pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
+        if let LogicalPlan::Query(plan) = self {
+            *plan = plan.replace_params_with_values(&scalars)?;
+        }
+
+        Ok(())
     }
 }
 

@@ -1,8 +1,10 @@
 use crate::dispatch::SessionDispatcher;
+use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
 use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
+use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::SessionPlanner;
 use crate::vars::SessionVars;
@@ -13,6 +15,7 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
@@ -25,22 +28,15 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::slice;
 use std::sync::Arc;
-use telemetry::Tracker;
 use tokio_postgres::types::Type as PgType;
 use tracing::debug;
-use uuid::Uuid;
 
 /// Context for a session used during execution.
 ///
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
 pub struct SessionContext {
-    /// Telemetry tracker.
-    tracker: Arc<Tracker>,
-    /// ID of the user who initiated the connection.
-    user_id: Uuid,
-    /// Unique connection id.
-    conn_id: Uuid,
+    info: Arc<SessionInfo>,
     /// Database catalog.
     metastore_catalog: SessionCatalog,
     metastore: SupervisorClient,
@@ -50,6 +46,8 @@ pub struct SessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
+    /// Track query metrics for this session.
+    metrics: SessionMetrics,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -60,11 +58,10 @@ pub struct SessionContext {
 impl SessionContext {
     /// Create a new session context with the given catalog.
     pub fn new(
-        user_id: Uuid,
-        conn_id: Uuid,
+        info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
-        tracker: Arc<Tracker>,
+        metrics: SessionMetrics,
     ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
@@ -87,31 +84,27 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
-            user_id,
-            tracker,
-            conn_id,
+            info,
             metastore_catalog: catalog,
             metastore,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
+            metrics,
             df_state: state,
         }
     }
 
-    /// Get the user id associated with this connectin.
-    pub fn user_id(&self) -> Uuid {
-        self.user_id
+    pub fn get_info(&self) -> &SessionInfo {
+        self.info.as_ref()
     }
 
-    /// Get the connection id for this session.
-    pub fn conn_id(&self) -> Uuid {
-        self.conn_id
+    pub fn get_metrics(&self) -> &SessionMetrics {
+        &self.metrics
     }
 
-    /// Get the telemetry tracker.
-    pub fn tracker(&self) -> &Tracker {
-        self.tracker.as_ref()
+    pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
+        &mut self.metrics
     }
 
     /// Create a table.
@@ -307,7 +300,7 @@ impl SessionContext {
         &mut self,
         name: String,
         stmt: Option<StatementWithExtensions>,
-        params: Vec<i32>,
+        _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
         if *self.get_session_vars().force_catalog_refresh.value() {
@@ -323,12 +316,6 @@ impl SessionContext {
             debug!(version = %self.metastore_catalog.version(), "swapping catalog state for session");
             let new_state = self.metastore.get_cached_state().await?;
             self.metastore_catalog.swap_state(new_state);
-        }
-
-        if !params.is_empty() {
-            return Err(ExecError::UnsupportedFeature(
-                "prepared statements with parameters",
-            ));
         }
 
         // Unnamed (empty string) prepared statements can be overwritten
@@ -356,6 +343,7 @@ impl SessionContext {
         &mut self,
         portal_name: String,
         stmt_name: &str,
+        params: Vec<ScalarValue>,
         result_formats: Vec<Format>,
     ) -> Result<()> {
         // Unnamed portals can be overwritten, named portals need to be
@@ -367,10 +355,15 @@ impl SessionContext {
             ));
         }
 
-        let stmt = match self.prepared.get(stmt_name) {
+        let mut stmt = match self.prepared.get(stmt_name) {
             Some(prepared) => prepared.clone(),
             None => return Err(ExecError::UnknownPreparedStatement(stmt_name.to_string())),
         };
+
+        // Replace placeholders if necessary.
+        if let Some(plan) = &mut stmt.plan {
+            plan.replace_placeholders(params)?;
+        }
 
         assert_eq!(
             result_formats.len(),
@@ -553,6 +546,8 @@ pub struct PreparedStatement {
     /// The logical plan for the statement. Is `Some` if the statement is
     /// `Some`.
     pub(crate) plan: Option<LogicalPlan>,
+    /// Parameter data types.
+    pub(crate) parameter_types: Option<HashMap<String, Option<PgType>>>,
     /// The output schema of the statement if it produces an output.
     pub(crate) output_schema: Option<ArrowSchema>,
     /// Output postgres types.
@@ -579,9 +574,21 @@ impl PreparedStatement {
                 None => Vec::new(),
             };
 
+            // Convert inferred arrow types for parameters into their associated
+            // pg type.
+            let parameter_types: HashMap<_, _> = plan
+                .get_parameter_types()?
+                .into_iter()
+                .map(|(id, arrow_type)| {
+                    let typ = arrow_type.map(|typ| arrow_to_pg_type(&typ, None));
+                    (id, typ)
+                })
+                .collect();
+
             Ok(PreparedStatement {
                 stmt: Some(inner),
                 plan: Some(plan),
+                parameter_types: Some(parameter_types),
                 output_schema: schema,
                 output_pg_types: pg_types,
             })
@@ -590,6 +597,7 @@ impl PreparedStatement {
             Ok(PreparedStatement {
                 stmt: None,
                 plan: None,
+                parameter_types: None,
                 output_schema: None,
                 output_pg_types: Vec::new(),
             })
@@ -604,6 +612,12 @@ impl PreparedStatement {
             pg_types: self.output_pg_types.iter(),
             result_formats: None,
         })
+    }
+
+    /// Returns the type of the input parameters. Input paramets are keyed as
+    /// "$n" starting at "$1".
+    pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<PgType>>> {
+        self.parameter_types.as_ref()
     }
 }
 
