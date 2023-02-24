@@ -513,13 +513,9 @@ mod tests {
     use super::*;
     use metastore::local::start_inprocess;
     use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
-    use metastore::proto::service::metastore_service_server::MetastoreServiceServer;
-    use metastore::srv::Service;
     use metastore::types::service::{CreateSchema, CreateView, Mutation};
     use object_store::memory::InMemory;
-    use tokio::task::JoinHandle;
-    use tonic::transport::{Channel, Endpoint, Server, Uri};
-    use tower::service_fn;
+    use tonic::transport::Channel;
 
     /// Creates a new local Metastore, returning a client connected to that
     /// server.
