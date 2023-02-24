@@ -12,6 +12,7 @@ use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
+use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
@@ -100,10 +101,20 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string = remove_required_opt(m, "mysql_conn")?;
                 let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
 
-                let (tunn_id, _access) = match ssh_tunnel {
+                let (tunn_id, access) = match ssh_tunnel {
                     Some(name) => Some(self.ctx.get_ssh_tunnel_access_by_name(&name)?).unzip(),
                     None => None.unzip(),
                 };
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        MysqlAccessor::validate_connection(&connection_string, access)
+                            .await
+                            .map_err(|e| ExecError::InvalidConnection {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
 
                 ConnectionOptions::Mysql(ConnectionOptionsMysql {
                     connection_string,
@@ -228,12 +239,33 @@ impl<'a> SessionPlanner<'a> {
                     table_id: access.table_id,
                 })
             }
-            ConnectionOptions::Mysql(_) => {
+            ConnectionOptions::Mysql(ref options) => {
                 let source_schema = remove_required_opt(m, "schema")?;
                 let source_table = remove_required_opt(m, "table")?;
-                TableOptions::Mysql(TableOptionsMysql {
+
+                let access = MysqlTableAccess {
                     schema: source_schema,
-                    table: source_table,
+                    name: source_table,
+                    connection_string: options.connection_string.clone(),
+                };
+                let tunn_access = options
+                    .ssh_tunnel
+                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
+                    .transpose()?;
+
+                task::block_in_place(|| {
+                    Handle::current().block_on(async {
+                        MysqlAccessor::validate_table_access(&access, tunn_access)
+                            .await
+                            .map_err(|e| ExecError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })
+                    })
+                })?;
+
+                TableOptions::Mysql(TableOptionsMysql {
+                    schema: access.schema,
+                    table: access.name,
                 })
             }
             ConnectionOptions::Local(_) => {

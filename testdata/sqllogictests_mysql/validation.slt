@@ -1,0 +1,44 @@
+# Validation tests for mysql connections and external tables
+
+include ./include/conn.slti
+
+# Validation test error with the wrong password
+statement error
+CREATE CONNECTION wrong_password
+    FOR mysql
+    OPTIONS (
+        mysql_conn = 'mysql://root:wrong_password@127.0.0.1:3307/glaredb_test',
+    );
+
+statement error
+CREATE CONNECTION non_existant_user
+    FOR mysql
+    OPTIONS (
+        mysql_conn = 'mysql://missing@127.0.0.1:3307/glaredb_test',
+    );
+
+# Validation test error with the wrong host
+statement error
+CREATE CONNECTION wrong_host
+    FOR mysql
+    OPTIONS (
+        mysql_conn = 'mysql://root@non-existant:3307/glaredb_test',
+    );
+
+# Validation test error with the wrong table name
+statement error
+CREATE EXTERNAL TABLE missing_table
+    FROM testconn
+    OPTIONS (
+        schema = 'glaredb_test',
+        table = 'missing_table'
+    );
+
+# Validation test error with the wrong schema name
+statement error
+CREATE EXTERNAL TABLE missing_schema
+    FROM testconn
+    OPTIONS (
+        schema = 'missing_schema',
+        table = 'numeric_datatypes'
+    );
