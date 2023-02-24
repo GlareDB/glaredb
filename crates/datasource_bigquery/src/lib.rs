@@ -28,8 +28,11 @@ use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
-use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
+use gcp_bigquery_client::{
+    model::{field_type::FieldType, table::Table},
+    project::GetOptions,
+};
 use metastore::types::catalog::ConnectionOptionsBigQuery;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -66,25 +69,35 @@ pub struct BigQueryAccessor {
 impl BigQueryAccessor {
     /// Connect to the bigquery instance.
     pub async fn connect(access: BigQueryTableAccess) -> Result<Self> {
-        let metadata = Self::connect_with_key(&access.gcp_service_acccount_key_json).await?;
-        Ok(BigQueryAccessor { access, metadata })
-    }
-
-    async fn connect_with_key(service_account_key: &str) -> Result<BigQueryClient> {
         // TODO: We end up deserializing the key twice. Once for this client,
         // and again for the storage client during query execution.
-        let key = serde_json::from_str(service_account_key)?;
-        let client = BigQueryClient::from_service_account_key(key, true).await?;
-        Ok(client)
+        let metadata = {
+            let key = serde_json::from_str(&access.gcp_service_acccount_key_json)?;
+            BigQueryClient::from_service_account_key(key, true).await?
+        };
+
+        Ok(BigQueryAccessor { access, metadata })
     }
 
     /// Validate big query connection
     pub async fn validate_connection(options: &ConnectionOptionsBigQuery) -> Result<()> {
-        let key = serde_json::from_str(&options.service_account_key)?;
-        ServiceAccountAuthenticator::builder(key)
-            .build()
-            .await
-            .map_err(BigQueryError::AuthKey)?;
+        let client = {
+            let key = serde_json::from_str(&options.service_account_key)?;
+            BigQueryClient::from_service_account_key(key, true).await?
+        };
+
+        let project_list = client.project().list(GetOptions::default()).await?;
+
+        project_list
+            .projects
+            .iter()
+            .flatten()
+            .flat_map(|p| &p.id)
+            .find(|p| p.as_str() == options.project_id.as_str())
+            .ok_or(BigQueryError::ProjectReadPerm(
+                options.project_id.to_owned(),
+            ))?;
+
         Ok(())
     }
 
