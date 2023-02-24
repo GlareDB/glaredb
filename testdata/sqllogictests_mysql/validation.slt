@@ -34,7 +34,7 @@ CREATE EXTERNAL TABLE missing_table
         table = 'missing_table'
     );
 
-# Validation test error with the wrong table name
+# Validation test error with the wrong schema name
 statement error
 CREATE EXTERNAL TABLE missing_schema
     FROM testconn
