@@ -1,8 +1,7 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use errors::{BigQueryError, Result};
-
+use crate::errors::{BigQueryError, Result};
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -29,8 +28,12 @@ use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
-use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
+use gcp_bigquery_client::{
+    model::{field_type::FieldType, table::Table},
+    project::GetOptions,
+};
+use metastore::types::catalog::ConnectionOptionsBigQuery;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -74,6 +77,54 @@ impl BigQueryAccessor {
         };
 
         Ok(BigQueryAccessor { access, metadata })
+    }
+
+    /// Validate big query connection
+    pub async fn validate_connection(options: &ConnectionOptionsBigQuery) -> Result<()> {
+        let client = {
+            let key = serde_json::from_str(&options.service_account_key)?;
+            BigQueryClient::from_service_account_key(key, true).await?
+        };
+
+        let project_list = client.project().list(GetOptions::default()).await?;
+
+        project_list
+            .projects
+            .iter()
+            .flatten()
+            .flat_map(|p| &p.id)
+            .find(|p| p.as_str() == options.project_id.as_str())
+            .ok_or(BigQueryError::ProjectReadPerm(
+                options.project_id.to_owned(),
+            ))?;
+
+        Ok(())
+    }
+
+    /// Validate big query connection and access to table
+    pub async fn validate_table_access(access: &BigQueryTableAccess) -> Result<()> {
+        let client = {
+            let key = serde_json::from_str(&access.gcp_service_acccount_key_json)?;
+            let sa = ServiceAccountAuthenticator::builder(key)
+                .build()
+                .await
+                .map_err(BigQueryError::AuthKey)?;
+            BigQueryStorage::new(sa).await?
+        };
+
+        let table = bigquery_storage::Table::new(
+            &access.gcp_project_id,
+            &access.dataset_id,
+            &access.table_id,
+        );
+
+        client
+            .read_session_builder(table)
+            .row_restriction("false".to_string())
+            .build()
+            .await?;
+
+        Ok(())
     }
 
     pub async fn into_table_provider(

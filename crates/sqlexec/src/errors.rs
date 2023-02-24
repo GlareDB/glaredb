@@ -22,12 +22,12 @@ pub enum ExecError {
 
     #[error("Connection validation failed: {source}")]
     InvalidConnection {
-        source: datasource_postgres::errors::PostgresError,
+        source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[error("External table validation failed: {source}")]
-    InvalidDataSource {
-        source: datasource_postgres::errors::PostgresError,
+    InvalidExternalTable {
+        source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[error("Unknown prepared statement with name: {0}")]

@@ -12,6 +12,12 @@ pub enum BigQueryError {
     #[error(transparent)]
     BigQueryClient(#[from] gcp_bigquery_client::error::BQError),
 
+    #[error("Failed to use provided service account key: {0}")]
+    AuthKey(#[from] std::io::Error),
+
+    #[error("Unknown or no read permissions for project_id {0}")]
+    ProjectReadPerm(String),
+
     #[error("Failed to decode json: {0}")]
     SerdeJson(#[from] serde_json::Error),
 
