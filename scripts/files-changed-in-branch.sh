@@ -2,6 +2,8 @@
 
 # Util for detecting changes compared to the main branch.
 
+git fetch origin
+
 FILES_CHANGED=$(git diff --name-only origin/main -- "$@")
 
 # If there are no files changed exit with error
