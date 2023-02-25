@@ -9,12 +9,10 @@ use sqllogictest::{
 };
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
 use tokio::sync::oneshot;
-use tokio::task::JoinSet;
 use tokio_postgres::{Client, Config as ClientConfig, NoTls, SimpleQueryMessage};
 
 #[derive(Parser)]
@@ -156,9 +154,7 @@ impl TestRunner {
         tokio::spawn(async move { conn_err_tx.send(conn.await) });
 
         Ok(TestRunner {
-            client: TestClient {
-                client: Arc::new(client),
-            },
+            client: TestClient { client },
             conn_err: conn_err_rx,
         })
     }
@@ -169,9 +165,7 @@ impl TestRunner {
         tokio::spawn(async move { conn_err_tx.send(conn.await) });
 
         Ok(TestRunner {
-            client: TestClient {
-                client: Arc::new(client),
-            },
+            client: TestClient { client },
             conn_err: conn_err_rx,
         })
     }
@@ -184,31 +178,13 @@ impl TestRunner {
     async fn exec_tests(mut self, files: &[PathBuf]) -> Result<Duration> {
         let regx = Regex::new(Self::ENV_REGEX).unwrap();
         let start = Instant::now();
-        let mut test_runs = JoinSet::new();
+        let mut runner = Runner::new(self.client);
         for file in files {
             let records = parse_file(&regx, file)?;
-            let client = self.client.clone();
-            let file = file.to_string_lossy().to_string();
-            test_runs.spawn(async move {
-                tracing::info!(%file, "running test");
-                let mut runner = Runner::new(client);
-                // Return test result and corresponding file
-                (runner.run_multi_async(records).await, file)
-            });
-        }
-        // Await all the tests
-        let mut errors = Vec::new();
-        while let Some(res) = test_runs.join_next().await {
-            let (res, file) = match res {
-                Ok(r) => r,
-                Err(e) => return Err(anyhow!("unexpected join error: {e}")),
-            };
-
-            tracing::info!(%file, "test completed");
-            if let Err(e) = res {
-                errors.push(format!("test fail in '{file}': {e}"));
-                continue;
-            }
+            runner
+                .run_multi_async(records)
+                .await
+                .map_err(|e| anyhow!("test fail: {}", e))?;
 
             if let Ok(result) = self.conn_err.try_recv() {
                 match result {
@@ -217,12 +193,7 @@ impl TestRunner {
                 }
             }
         }
-
-        if errors.is_empty() {
-            Ok(Instant::now().duration_since(start))
-        } else {
-            Err(anyhow!("failures:\n{}", errors.join("\n")))
-        }
+        Ok(Instant::now().duration_since(start))
     }
 }
 
@@ -287,9 +258,8 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<
     Ok(records)
 }
 
-#[derive(Clone, Debug)]
 struct TestClient {
-    client: Arc<Client>,
+    client: Client,
 }
 
 #[async_trait]
