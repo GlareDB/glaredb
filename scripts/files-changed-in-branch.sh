@@ -2,13 +2,10 @@
 
 # Util for detecting changes compared to the main branch.
 
-FILES_CHANGED=$(git diff --name-only origin/main)
+FILES_CHANGED=$(git diff --name-only origin/main -- "$@")
 
-ARGUMENTS="$@"
+# If there are no files changed exit with error
+[[ -z "$FILES_CHANGED" ]] && exit 1
 
-for ARG in "$ARGUMENTS"; do
-	# This will echo the first file changed it finds and exit
-	echo "$FILES_CHANGED" | grep "$ARG" && exit 0
-done
-
-exit 1
+echo "Files changed:"
+echo "$FILES_CHANGED"

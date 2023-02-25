@@ -9,14 +9,12 @@ set -e
 if [ -z "$BIGQUERY_DATASET_ID" ]; then
 	BQ_DATASET=$(git branch --show-current | base64)
 	BQ_DATASET="glaredb_test_$BQ_DATASET"
-	# Use the dev playground to create this temporary dataset
-	GCP_PROJECT_ID="glaredb-dev-playground"
 else
 	BQ_DATASET="$BIGQUERY_DATASET_ID"
 fi
 
 LOCATION="US"
-BQ="bq --location=${LOCATION}"
+BQ="bq --location=${LOCATION} --project_id=${GCP_PROJECT_ID}"
 
 # Create the dataset (force if it already exists)
 $BQ mk --force --dataset "$BQ_DATASET" 1>&2
