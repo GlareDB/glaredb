@@ -23,25 +23,29 @@ $BQ mk --force --dataset "$BQ_DATASET" 1>&2
 #
 # We can do this in SQL but since we need custom dataset names, doing this
 # with command-line makes more sense.
+#
+# Entries of the format:
+#     <table name>:<csv file path>:<json schema path>
 TABLES_TO_LOAD=(
-	datatypes:testdata/sqllogictests_bigquery/data/datatypes-data.csv
-	bikeshare_stations:testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv
-	bikeshare_trips:testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv
+	datatypes:testdata/sqllogictests_bigquery/data/datatypes-data.csv:testdata/sqllogictests_bigquery/data/datatypes-schema.json
+	bikeshare_stations:testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv:testdata/sqllogictests_datasources_common/data/bikeshare_stations-bq-schema.json
+	bikeshare_trips:testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv:testdata/sqllogictests_datasources_common/data/bikeshare_trips-bq-schema.json
 )
 for TABLE_INFO in "${TABLES_TO_LOAD[@]}"; do
 	# Create all the tables from their schema represented as JSON.
 
 	TABLE=$(echo "$TABLE_INFO" | cut -d ':' -f1)
 	DATA_FILE=$(echo "$TABLE_INFO" | cut -d ':' -f2)
+	SCHEMA_FILE=$(echo "$TABLE_INFO" | cut -d ':' -f3)
 
-	echo "Uploading table '$TABLE' from '$DATA_FILE'" 1>&2
+	echo "Uploading table '$TABLE' from '$DATA_FILE' using schema from '$SCHEMA_FILE'" 1>&2
 
 	$BQ load --replace \
 	  --source_format=CSV \
 	  --skip_leading_rows=1 \
 		"${BQ_DATASET}.${TABLE}" \
 		"$DATA_FILE" \
-		"testdata/sqllogictests_bigquery/data/${TABLE}-schema.json" 1>&2
+		"$SCHEMA_FILE" 1>&2
 done
 
 echo "$BQ_DATASET"
