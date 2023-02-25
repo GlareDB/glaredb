@@ -32,6 +32,7 @@ jobs:
       cancel-in-progress: true
 
     env:
+      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
       GCP_PROJECT_ID: glaredb-artifacts
 
     steps:
@@ -69,6 +70,21 @@ jobs:
         run: |
           shopt -s globstar
           nix run .#slt-runner -- -v embedded testdata/sqllogictests/**/*.slt
+
+      - name: SQL Logic Tests (BigQuery)
+        run: |
+          shopt -s globstar
+          if ./scripts/files-changed-in-branch.sh \
+            "scripts/prepare-testdata.sh" \
+            "testdata/sqllogictests_datasources_common/data" \
+            "testdata/sqllogictests_bigquery/data"
+          then
+            export GCP_PROJECT_ID=glaredb-dev-playground
+            export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
+          else
+            export BIGQUERY_DATASET_ID=glaredb_test
+          fi
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_bigquery/**/*.slt
 
       - name: SQL Logic Tests (Postgres)
         run: |

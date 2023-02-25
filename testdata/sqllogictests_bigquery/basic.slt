@@ -1,0 +1,13 @@
+# Basic tests for bigquery external tables
+
+include ./include/conn.slti
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM testconn
+	OPTIONS (
+		dataset_id = '${BIGQUERY_DATASET_ID}',
+		table_id = 'bikeshare_stations'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti

@@ -144,6 +144,29 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
    ```
 
+3. **`GCP_PROJECT_ID`**: To run the bigquery and GCS tests. For development
+   set it to `glaredb-dev-playground`. A custom dataset will be created as a
+   part of this project.
+
+   ```sh
+   export GCP_PROJECT_ID=glaredb-dev-playground
+   ```
+
+4. **`GCP_SERVICE_ACCOUNT_KEY`**: To run the bigquery and GCS tests. Download
+   the JSON service account key from cloud dashboard and set the environment
+   variable to the contents of the file.
+
+   ```sh
+   export GCP_SERVICE_ACCOUNT_KEY=$(cat /path/to/glaredb-dev-playground-key.json)
+   ``` 
+
+5. **`BIGQUERY_DATASET_ID`**: To run the bigquery tests. Use the string
+   returned from setting up a custom dataset in `glaredb-dev-playground`.
+
+   ```sh
+   export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
+   ```
+
 ##### Writing Tests
 
 Each test file should start with a short comment describing what the file is
