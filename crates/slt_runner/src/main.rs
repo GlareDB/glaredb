@@ -305,6 +305,6 @@ impl AsyncDB for TestClient {
     }
 
     async fn sleep(dur: Duration) {
-        tokio::time::sleep(dur);
+        tokio::time::sleep(dur).await;
     }
 }
