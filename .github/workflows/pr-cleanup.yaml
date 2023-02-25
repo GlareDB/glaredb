@@ -26,7 +26,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Cleanup (BigQuery)
-        run: ./scripts/cleanup-bigquery-dataset.sh
+        run: ./scripts/cleanup-bigquery-dataset.sh ${{ github.event.pull_request.head.ref }}
 
   update_main_datasets:
     name: 'Update main datasets'
