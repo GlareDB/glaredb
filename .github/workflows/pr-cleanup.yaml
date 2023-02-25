@@ -38,7 +38,8 @@ jobs:
     env:
       GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
       GCP_PROJECT_ID: glaredb-artifacts
-      BIGQUERY_DATASET_ID: glaredb_test
+      # Set this so the main BigQuery dataset is updated.
+      BIGQUERY_USE_MAIN_DATASET: true
 
     steps:
       - name: Checkout

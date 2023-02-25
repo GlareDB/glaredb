@@ -4,13 +4,12 @@
 
 set -e
 
-# BIGQUERY_DATASET_ID is later used to run the tests.
-# Override exists for CI, not recommended to be used by dev.
-if [ -z "$BIGQUERY_DATASET_ID" ]; then
+# If override is set, use the main dataset instead (only for CI).
+if [ -z "$BIGQUERY_USE_MAIN_DATASET" ]; then
 	BQ_DATASET=$(git branch --show-current | base64)
 	BQ_DATASET="glaredb_test_$BQ_DATASET"
 else
-	BQ_DATASET="$BIGQUERY_DATASET_ID"
+	BQ_DATASET="glaredb_test"
 fi
 
 LOCATION="US"
