@@ -27,3 +27,33 @@ jobs:
 
       - name: Cleanup (BigQuery)
         run: ./scripts/cleanup-bigquery-dataset.sh
+
+  update_main_datasets:
+    name: 'Update main datasets'
+    runs-on: ubuntu-latest
+
+    # Only update if PR is actually merged
+    if: github.event.pull_request.merged == true
+
+    env:
+      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      GCP_PROJECT_ID: glaredb-artifacts
+      BIGQUERY_DATASET_ID: glaredb_test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Download testdata from GCS
+        run: ./scripts/prepare-testdata.sh
+
+      - name: Update main dataset (BigQuery)
+        run: ./scripts/create-test-bigquery-db.sh
