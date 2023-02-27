@@ -1381,7 +1381,6 @@ dependencies = [
  "bytes",
  "datafusion",
  "futures",
- "metastore",
  "object_store",
  "serde",
  "thiserror",
