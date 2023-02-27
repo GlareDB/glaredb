@@ -50,6 +50,25 @@ select schema_name from glare_catalog.schemas where schema_name='drop_table';
 ----
 drop_table
 
+# Drop view
+
+statement ok
+create view test_view as select 1;
+
+statement ok
+drop view test_view;
+
+statement error
+drop view test_view;
+
+# TODO change this to statement ok
+statement error
+drop view if exists test_view;
+
+query TT
+select schema_name, connection_name from glare_catalog.views where schema_name='drop_table' and view_name='test_view';
+----
+
 # Drop table and connection (child objects on schema)
 statement ok
 drop table test;
@@ -57,7 +76,7 @@ drop table test;
 statement error
 drop table test;
 
-statement error
+statement ok
 drop table if exists test;
 
 query TT
