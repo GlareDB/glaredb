@@ -1,0 +1,13 @@
+# Test if large amount of data loads successfully.
+
+include ./include/conn.slti
+
+statement ok
+CREATE EXTERNAL TABLE large_table
+	FROM testconn
+	OPTIONS (
+		dataset_id = '${BIGQUERY_DATASET_ID}',
+		table_id = 'bikeshare_trips'
+	);
+
+include ../sqllogictests_datasources_common/include/large_table.slti

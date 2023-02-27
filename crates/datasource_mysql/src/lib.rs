@@ -64,31 +64,36 @@ impl MysqlAccessor {
         access: MysqlTableAccess,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<Self> {
-        match ssh_tunnel {
-            None => Self::connect_direct(access).await,
-            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(access, ssh_tunnel).await,
-        }
-    }
+        let (conn, _ssh_tunnel) = match ssh_tunnel {
+            None => Self::connect_direct(&access.connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+            }
+        };
+        let conn = RwLock::new(conn);
 
-    async fn connect_direct(access: MysqlTableAccess) -> Result<Self> {
-        let database_url = &access.connection_string;
-
-        let opts = Opts::from_url(database_url)?;
-        let conn = RwLock::new(Conn::new(opts).await?);
-
-        Ok(MysqlAccessor {
+        Ok(Self {
             access,
             conn,
-            _ssh_tunnel: None,
+            _ssh_tunnel,
         })
+    }
+
+    async fn connect_direct(connection_string: &str) -> Result<(Conn, Option<Session>)> {
+        let database_url = connection_string;
+
+        let opts = Opts::from_url(database_url)?;
+        let conn = Conn::new(opts).await?;
+
+        Ok((conn, None))
     }
 
     // TODO: Add ssh tunnel support for MySQL
     async fn connect_with_ssh_tunnel(
-        access: MysqlTableAccess,
+        connection_string: &str,
         ssh_tunnel: SshTunnelAccess,
-    ) -> Result<Self> {
-        let database_url = &access.connection_string;
+    ) -> Result<(Conn, Option<Session>)> {
+        let database_url = connection_string;
         let opts = Opts::from_url(database_url)?;
 
         let mysql_host = opts.ip_or_hostname();
@@ -103,13 +108,45 @@ impl MysqlAccessor {
             .prefer_socket(false)
             .into();
 
-        let conn = RwLock::new(Conn::new(opts).await?);
+        let conn = Conn::new(opts).await?;
 
-        Ok(MysqlAccessor {
-            access,
-            conn,
-            _ssh_tunnel: Some(session),
-        })
+        Ok((conn, Some(session)))
+    }
+
+    /// Validate mysql connection
+    pub async fn validate_connection(
+        connection_string: &str,
+        ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<()> {
+        let (mut conn, _ssh_tunnel) = match ssh_tunnel {
+            None => Self::connect_direct(connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
+            }
+        };
+
+        conn.query_drop("SELECT 1").await?;
+        Ok(())
+    }
+
+    /// Validate mysql connection and access to table
+    pub async fn validate_table_access(
+        access: &MysqlTableAccess,
+        ssh_tunnel: Option<SshTunnelAccess>,
+    ) -> Result<()> {
+        let (mut conn, _ssh_tunnel) = match ssh_tunnel {
+            None => Self::connect_direct(&access.connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+            }
+        };
+
+        let query = format!(
+            "SELECT * FROM {}.{} where false",
+            access.schema, access.name
+        );
+        conn.query_drop(query).await?;
+        Ok(())
     }
 
     pub async fn into_table_provider(

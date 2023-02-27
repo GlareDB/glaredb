@@ -303,4 +303,8 @@ impl AsyncDB for TestClient {
     fn engine_name(&self) -> &str {
         "glaredb"
     }
+
+    async fn sleep(dur: Duration) {
+        tokio::time::sleep(dur).await;
+    }
 }

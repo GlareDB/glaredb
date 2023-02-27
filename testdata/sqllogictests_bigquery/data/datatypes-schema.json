@@ -1,0 +1,57 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "c1",
+    "type": "BOOLEAN"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c2",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c3",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c4",
+    "type": "FLOAT"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c5",
+    "type": "BYTES"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c6",
+    "type": "DATE"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c7",
+    "type": "TIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c8",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c9",
+    "type": "TIMESTAMP"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c10",
+    "type": "NUMERIC"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "c11",
+    "type": "GEOGRAPHY"
+  }
+]

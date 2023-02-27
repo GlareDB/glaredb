@@ -378,8 +378,8 @@ impl BufferedIpcStream {
                     return;
                 },
             };
-            let mut reader = ArrowStreamReader::try_new(Cursor::new(buf), None)?;
-            while let Some(batch) = reader.next() {
+            let reader = ArrowStreamReader::try_new(Cursor::new(buf), None)?;
+            for batch in reader {
                 let batch = batch?;
                 yield Ok(batch);
             }
@@ -421,10 +421,8 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
         let arrow_typ = match &field.r#type {
             FieldType::Bool | FieldType::Boolean => DataType::Boolean,
             FieldType::String => DataType::Utf8,
-            FieldType::Integer => DataType::Int64,
-            FieldType::Int64 => DataType::Int64,
-            FieldType::Float => DataType::Float64,
-            FieldType::Float64 => DataType::Float64,
+            FieldType::Integer | FieldType::Int64 => DataType::Int64,
+            FieldType::Float | FieldType::Float64 => DataType::Float64,
             FieldType::Bytes => DataType::Binary,
             FieldType::Date => DataType::Date32,
             FieldType::Datetime => DataType::Timestamp(TimeUnit::Microsecond, None),

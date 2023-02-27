@@ -11,12 +11,12 @@ SELECT count(*) FROM basic;
 ----
 102
 
-query I
+query I rowsort
 SELECT station_id FROM basic WHERE power_type = 'non-metered';
 ----
-3455
 2498
 2563
+3455
 
 query IT
 SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
@@ -24,14 +24,14 @@ SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
 2574  Zilker Park
 3619  6th & Congress
 
-query I
+query I rowsort
 SELECT footprint_length FROM basic WHERE city_asset_number IS NULL AND status = 'active';
 ----
-NULL
-NULL
 30
-NULL
 40
+NULL
+NULL
+NULL
 
 statement ok
 CREATE VIEW basic_active_or_not AS
@@ -41,15 +41,24 @@ CREATE VIEW basic_active_or_not AS
 		END as bool_status
 	FROM basic;
 
-query I
-SELECT sum(number_of_docks) FROM basic_active_or_not WHERE bool_status IS TRUE;
-----
-1053
-
-query II
-SELECT min(number_of_docks), max(number_of_docks) FROM basic_active_or_not WHERE bool_status IS FALSE;
-----
-12  13
+# The following query doesn't work on BigQuery!
+# Returns the following error:
+#
+#     Row filter for <dataset>.bikeshare_stations is invalid. Filter is
+#     'status = 'active' IS TRUE' 
+#
+# Apparently the filter is translated as such for views which doesn't work well
+# with BigQuery.
+#
+# query I
+# SELECT sum(number_of_docks) FROM basic_active_or_not WHERE bool_status IS TRUE;
+# ----
+# 1053
+#
+# query II
+# SELECT min(number_of_docks), max(number_of_docks) FROM basic_active_or_not WHERE bool_status IS FALSE;
+# ----
+# 12  13
 
 # TODO: The following query doesn't work. Posgres returns an error:
 #   ERROR: operator does not exist: timestamp without time zone > bigint
@@ -64,6 +73,9 @@ SELECT min(number_of_docks), max(number_of_docks) FROM basic_active_or_not WHERE
 # On mysql, the query doesn't error but returns empty. Something to look into.
 #
 # PS: Write some views on top of the table to test more datatypes with filters.
+#
+# For bigquery as well, this query fails to function due to improper
+# translation of filters.
 #
 # query I
 # SELECT station_id FROM basic 

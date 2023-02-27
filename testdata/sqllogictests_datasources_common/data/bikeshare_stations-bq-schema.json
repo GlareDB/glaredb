@@ -1,0 +1,72 @@
+[
+	{
+    "mode": "NULLABLE",
+    "name": "station_id",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "name",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "status",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "address",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "alternate_name",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "city_asset_number",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "property_type",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "number_of_docks",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "power_type",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "footprint_length",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "footprint_width",
+    "type": "FLOAT"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "notes",
+    "type": "STRING"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "council_district",
+    "type": "INTEGER"
+  },
+	{
+    "mode": "NULLABLE",
+    "name": "modified_date",
+    "type": "TIMESTAMP"
+  }
+]
