@@ -57,10 +57,10 @@ impl LocalAccessor {
         })
     }
 
-    pub async fn validate_table_access(access: &LocalTableAccess) -> Result<()> {
+    pub async fn validate_table_access(access: LocalTableAccess) -> Result<()> {
         let store = Arc::new(LocalFileSystem::new());
 
-        let location = ObjectStorePath::from(access.location.to_owned());
+        let location = ObjectStorePath::from(access.location);
         store.head(&location).await?;
         Ok(())
     }

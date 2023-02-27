@@ -47,7 +47,12 @@ impl TableAccessor for GcsAccessor {
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let store = Self::create_store(access.service_acccount_key_json, access.bucket_name)?;
+        let store = Arc::new(
+            GoogleCloudStorageBuilder::new()
+                .with_service_account_key(access.service_acccount_key_json)
+                .with_bucket_name(access.bucket_name)
+                .build()?,
+        );
 
         let location = ObjectStorePath::from(access.location);
         // Use provided file type or infer from location
@@ -63,25 +68,15 @@ impl GcsAccessor {
         })
     }
 
-    fn create_store(
-        service_acccount_key_json: String,
-        bucket_name: String,
-    ) -> Result<Arc<dyn ObjectStore>> {
-        Ok(Arc::new(
+    pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
+        let store = Arc::new(
             GoogleCloudStorageBuilder::new()
-                .with_service_account_key(service_acccount_key_json)
-                .with_bucket_name(bucket_name)
+                .with_service_account_key(access.service_acccount_key_json)
+                .with_bucket_name(access.bucket_name)
                 .build()?,
-        ))
-    }
+        );
 
-    pub async fn validate_table_access(access: &GcsTableAccess) -> Result<()> {
-        let store = Self::create_store(
-            access.service_acccount_key_json.to_owned(),
-            access.bucket_name.to_owned(),
-        )?;
-
-        let location = ObjectStorePath::from(access.location.to_owned());
+        let location = ObjectStorePath::from(access.location);
         store.head(&location).await?;
         Ok(())
     }

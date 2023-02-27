@@ -128,12 +128,9 @@ impl<'a> SessionPlanner<'a> {
             // TODO: create connection validation
             ConnectionOptions::GCS => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
-
-                let options = ConnectionOptionsGcs {
+                ConnectionOptions::Gcs(ConnectionOptionsGcs {
                     service_account_key,
-                };
-
-                ConnectionOptions::Gcs(options)
+                })
             }
             // TODO: create connection validation
             ConnectionOptions::S3_STORAGE => {
@@ -141,13 +138,10 @@ impl<'a> SessionPlanner<'a> {
                 // AWS IAM
                 let access_key_id = remove_required_opt(m, "access_key_id")?;
                 let secret_access_key = remove_required_opt(m, "secret_access_key")?;
-
-                let options = ConnectionOptionsS3 {
+                ConnectionOptions::S3(ConnectionOptionsS3 {
                     access_key_id,
                     secret_access_key,
-                };
-
-                ConnectionOptions::S3(options)
+                })
             }
             ConnectionOptions::SSH => {
                 let host = remove_required_opt(m, "host")?;
@@ -283,13 +277,13 @@ impl<'a> SessionPlanner<'a> {
                 let location = remove_required_opt(m, "location")?;
 
                 let access = LocalTableAccess {
-                    location,
+                    location: location.clone(),
                     file_type: None,
                 };
 
                 task::block_in_place(|| {
                     Handle::current().block_on(async {
-                        LocalAccessor::validate_table_access(&access)
+                        LocalAccessor::validate_table_access(access)
                             .await
                             .map_err(|e| ExecError::InvalidExternalTable {
                                 source: Box::new(e),
@@ -297,24 +291,22 @@ impl<'a> SessionPlanner<'a> {
                     })
                 })?;
 
-                TableOptions::Local(TableOptionsLocal {
-                    location: access.location,
-                })
+                TableOptions::Local(TableOptionsLocal { location })
             }
             ConnectionOptions::Gcs(ref options) => {
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let location = remove_required_opt(m, "location")?;
 
                 let access = GcsTableAccess {
+                    bucket_name: bucket_name.clone(),
                     service_acccount_key_json: options.service_account_key.to_owned(),
-                    bucket_name,
-                    location,
+                    location: location.clone(),
                     file_type: None,
                 };
 
                 task::block_in_place(|| {
                     Handle::current().block_on(async {
-                        GcsAccessor::validate_table_access(&access)
+                        GcsAccessor::validate_table_access(access)
                             .await
                             .map_err(|e| ExecError::InvalidExternalTable {
                                 source: Box::new(e),
@@ -323,8 +315,8 @@ impl<'a> SessionPlanner<'a> {
                 })?;
 
                 TableOptions::Gcs(TableOptionsGcs {
-                    bucket_name: access.bucket_name,
-                    location: access.location,
+                    bucket_name,
+                    location,
                 })
             }
             ConnectionOptions::S3(ref options) => {
@@ -333,17 +325,17 @@ impl<'a> SessionPlanner<'a> {
                 let location = remove_required_opt(m, "location")?;
 
                 let access = S3TableAccess {
+                    region: region.clone(),
+                    bucket_name: bucket_name.clone(),
                     access_key_id: options.access_key_id.to_owned(),
                     secret_access_key: options.secret_access_key.to_owned(),
-                    region,
-                    bucket_name,
-                    location,
+                    location: location.clone(),
                     file_type: None,
                 };
 
                 task::block_in_place(|| {
                     Handle::current().block_on(async {
-                        S3Accessor::validate_table_access(&access)
+                        S3Accessor::validate_table_access(access)
                             .await
                             .map_err(|e| ExecError::InvalidExternalTable {
                                 source: Box::new(e),
@@ -352,9 +344,9 @@ impl<'a> SessionPlanner<'a> {
                 })?;
 
                 TableOptions::S3(TableOptionsS3 {
-                    region: access.region,
-                    bucket_name: access.bucket_name,
-                    location: access.location,
+                    region,
+                    bucket_name,
+                    location,
                 })
             }
             ConnectionOptions::Ssh(_) => {
