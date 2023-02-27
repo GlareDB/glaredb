@@ -6,7 +6,8 @@ set -e
 
 # If override is set, use the main dataset instead (only for CI).
 if [ -z "$BIGQUERY_USE_MAIN_DATASET" ]; then
-	BQ_DATASET=$(git branch --show-current | base64)
+	GIT_BRANCH=$(git branch --show-current)
+	BQ_DATASET=$(./scripts/get-sanitized-name.sh "$GIT_BRANCH")
 	BQ_DATASET="glaredb_test_$BQ_DATASET"
 else
 	BQ_DATASET="glaredb_test"

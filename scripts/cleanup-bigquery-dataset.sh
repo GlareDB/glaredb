@@ -4,9 +4,9 @@
 
 set -e
 
-GIT_BRANCH=$1
+GIT_BRANCH="$1"
 
-BQ_DATASET=$(echo "$GIT_BRANCH" | base64)
+BQ_DATASET=$(./scripts/get-sanitized-name.sh "$GIT_BRANCH")
 BQ_DATASET="glaredb_test_$BQ_DATASET"
 
 LOCATION="US"
