@@ -73,6 +73,21 @@ impl S3Accessor {
         })
     }
 
+    pub async fn validate_table_access(access: S3TableAccess) -> Result<()> {
+        let store = Arc::new(
+            AmazonS3Builder::new()
+                .with_region(access.region)
+                .with_bucket_name(access.bucket_name)
+                .with_access_key_id(access.access_key_id)
+                .with_secret_access_key(access.secret_access_key)
+                .build()?,
+        );
+
+        let location = ObjectStorePath::from(access.location);
+        store.head(&location).await?;
+        Ok(())
+    }
+
     pub async fn into_table_provider(
         self,
         predicate_pushdown: bool,

@@ -68,6 +68,19 @@ impl GcsAccessor {
         })
     }
 
+    pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
+        let store = Arc::new(
+            GoogleCloudStorageBuilder::new()
+                .with_service_account_key(access.service_acccount_key_json)
+                .with_bucket_name(access.bucket_name)
+                .build()?,
+        );
+
+        let location = ObjectStorePath::from(access.location);
+        store.head(&location).await?;
+        Ok(())
+    }
+
     pub async fn into_table_provider(
         self,
         predicate_pushdown: bool,

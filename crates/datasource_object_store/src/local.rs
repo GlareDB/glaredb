@@ -57,6 +57,14 @@ impl LocalAccessor {
         })
     }
 
+    pub async fn validate_table_access(access: LocalTableAccess) -> Result<()> {
+        let store = Arc::new(LocalFileSystem::new());
+
+        let location = ObjectStorePath::from(access.location);
+        store.head(&location).await?;
+        Ok(())
+    }
+
     pub async fn into_table_provider(
         self,
         predicate_pushdown: bool,

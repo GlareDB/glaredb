@@ -1,0 +1,13 @@
+# Validation testing for create external table on the local file system
+
+statement ok
+create schema local_conn_validation;
+
+statement ok
+set search_path = local_conn_validation;
+
+statement ok
+create connection local_filesystem_conn for local;
+
+statement error
+create external table test from local_filesystem_conn options(location='/bad-path/no-filename');
