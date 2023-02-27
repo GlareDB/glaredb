@@ -76,6 +76,7 @@ jobs:
           shopt -s globstar
           if ./scripts/files-changed-in-branch.sh \
             "scripts/prepare-testdata.sh" \
+            "scripts/create-test-bigquery-db.sh" \
             "testdata/sqllogictests_datasources_common/data" \
             "testdata/sqllogictests_bigquery/data"
           then
