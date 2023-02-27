@@ -74,10 +74,6 @@ impl S3Accessor {
         })
     }
 
-    pub async fn validate_connection(options: &ConnectionOptionsS3) -> Result<()> {
-        Ok(())
-    }
-
     pub async fn validate_table_access(access: &S3TableAccess) -> Result<()> {
         let access = access.to_owned();
         let store = Arc::new(

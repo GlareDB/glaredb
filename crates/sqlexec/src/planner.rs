@@ -114,6 +114,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             ConnectionOptions::LOCAL => ConnectionOptions::Local(ConnectionOptionsLocal {}),
+            // TODO: create connection validation
             ConnectionOptions::GCS => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
 
@@ -121,18 +122,9 @@ impl<'a> SessionPlanner<'a> {
                     service_account_key,
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        GcsAccessor::validate_connection(&options)
-                            .await
-                            .map_err(|e| ExecError::InvalidConnection {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
-
                 ConnectionOptions::Gcs(options)
             }
+            // TODO: create connection validation
             ConnectionOptions::S3_STORAGE => {
                 // Require `access_key_id` and `secret_access_key` as per access key generated on
                 // AWS IAM
@@ -143,16 +135,6 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id,
                     secret_access_key,
                 };
-
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        S3Accessor::validate_connection(&options)
-                            .await
-                            .map_err(|e| ExecError::InvalidConnection {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
 
                 ConnectionOptions::S3(options)
             }

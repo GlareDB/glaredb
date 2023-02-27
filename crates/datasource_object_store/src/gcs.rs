@@ -76,10 +76,6 @@ impl GcsAccessor {
         ))
     }
 
-    pub async fn validate_connection(options: &ConnectionOptionsGcs) -> Result<()> {
-        Ok(())
-    }
-
     pub async fn validate_table_access(access: &GcsTableAccess) -> Result<()> {
         let store = Self::create_store(
             access.service_acccount_key_json.to_owned(),

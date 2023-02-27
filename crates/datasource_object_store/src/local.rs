@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
-use metastore::types::catalog::ConnectionOptionsLocal;
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
