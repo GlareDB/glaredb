@@ -2,6 +2,7 @@ use std::fs::Permissions;
 use std::io;
 use std::net::SocketAddr;
 use std::os::unix::prelude::PermissionsExt;
+use std::time::Duration;
 
 use metastore::types::catalog::ConnectionOptionsSsh;
 use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
@@ -73,6 +74,8 @@ impl SshTunnelAccess {
             .user(self.user.clone())
             .port(self.port)
             .keyfile(temp_keyfile.path())
+            // Wait only 1 second before timing out ssh connection
+            .connect_timeout(Duration::from_secs(15))
             .connect(self.host.as_str())
             .await?;
 
