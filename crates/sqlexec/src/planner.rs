@@ -490,6 +490,20 @@ impl<'a> SessionPlanner<'a> {
 
                 Ok(DdlPlan::DropTables(DropTables { if_exists, names }).into())
             }
+            // Drop tables
+            ast::Statement::Drop {
+                object_type: ObjectType::View,
+                if_exists,
+                names,
+                ..
+            } => {
+                let names = names
+                    .into_iter()
+                    .map(|name| name.to_string())
+                    .collect::<Vec<_>>();
+
+                Ok(DdlPlan::DropViews(DropViews { if_exists, names }).into())
+            }
 
             // Drop schemas
             ast::Statement::Drop {

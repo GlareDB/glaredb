@@ -297,10 +297,15 @@ impl AsyncDB for TestClient {
                 _ => unreachable!(),
             }
         }
-        Ok(DBOutput::Rows {
-            types: vec![DefaultColumnType::Text; num_columns],
-            rows: output,
-        })
+
+        if output.is_empty() && num_columns == 0 {
+            Ok(DBOutput::StatementComplete(0))
+        } else {
+            Ok(DBOutput::Rows {
+                types: vec![DefaultColumnType::Text; num_columns],
+                rows: output,
+            })
+        }
     }
 
     fn engine_name(&self) -> &str {

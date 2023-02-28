@@ -61,12 +61,11 @@ drop view test_view;
 statement error
 drop view test_view;
 
-# TODO change this to statement ok
-statement error
+statement ok
 drop view if exists test_view;
 
 query TT
-select schema_name, connection_name from glare_catalog.views where schema_name='drop_table' and view_name='test_view';
+select schema_name, view_name from glare_catalog.views where schema_name='drop_table' and view_name='test_view';
 ----
 
 # Drop table and connection (child objects on schema)
