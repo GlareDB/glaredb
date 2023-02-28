@@ -90,7 +90,7 @@ impl PgCodec {
     {
         let msg_len = conn.read_i32().await? as usize;
         let mut buf = BytesMut::new();
-        debug!(?buf, "startup connection message");
+        debug!(?msg_len, ?buf, "startup connection message");
         buf.resize(msg_len - 4, 0);
         conn.read_exact(&mut buf).await?;
 
