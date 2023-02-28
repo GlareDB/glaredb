@@ -41,6 +41,7 @@ jobs:
 
       - name: Install nix
         uses: cachix/install-nix-action@v19
+        continue-on-error: true
         with:
           extra_nix_config: |
             access-tokens = github=${{ github.token }}
