@@ -1,0 +1,41 @@
+# Validation tests for mysql connections and external tables
+
+include ./include/conn.slti
+
+# Validation tests for create connection
+
+# Validation test with empty key
+statement error
+CREATE CONNECTION empty_key
+    FOR bigquery OPTIONS (
+        service_account_key = '',
+        project_id = '${GCP_PROJECT_ID}',
+    );
+
+# Validation test with non-existent project
+statement error
+CREATE CONNECTION non_existant_project
+    FOR bigquery OPTIONS (
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+        project_id = '${GCP_PROJECT_ID}-bad-project',
+    );
+
+# Validation test for create external table
+
+# Validation test with the wrong table_id
+statement error
+CREATE EXTERNAL TABLE missing_table
+    FROM testconn
+    OPTIONS (
+        dataset_id = '${BIGQUERY_DATASET_ID}',
+        table_id = 'missing_table'
+    );
+
+# Validation test with the wrong dataset_id
+statement error
+CREATE EXTERNAL TABLE missing_schema
+    FROM testconn
+    OPTIONS (
+        dataset_id = 'missing_schema',
+        table_id = 'datatypes'
+    );
