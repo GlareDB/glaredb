@@ -8,27 +8,51 @@ use datafusion::logical_expr::{
 };
 use std::sync::Arc;
 
+/// Whether or not we make the `pg_catalog` schema implicit in regards to
+/// resolving builtin functions.
+const ENABLE_IMPLICIT_PG_CATALOG: bool = true;
+
 /// Additional built-in scalar functions.
 #[derive(Debug, Copy, Clone)]
 pub enum BuiltinScalarFunction {
     /// 'version' -> String
     /// Get the version of this db instance.
     Version,
-    /// 'current_schemas' -> [String]
-    /// Get a list of schemas in the current search path.
-    CurrentSchemas,
+
     /// 'connection_id' -> String
     /// Get the connection id that this session was started with.
     ConnectionId,
+
+    /// current_schemas (include_implicit boolean) -> String[]
+    /// current_schemas () -> String[]
+    ///
+    /// (Postgres)
+    /// Get a list of schemas in the current search path.
+    CurrentSchemas,
 }
 
 impl BuiltinScalarFunction {
     /// Try to get the built-in scalar function from the name.
     pub fn try_from_name(name: &str) -> Option<BuiltinScalarFunction> {
+        // TODO: We can probably move to some fancier function resolution in the
+        // future.
         Some(match name {
             "version" => BuiltinScalarFunction::Version,
-            "current_schemas" => BuiltinScalarFunction::CurrentSchemas,
             "connection_id" => BuiltinScalarFunction::ConnectionId,
+
+            // Postgres system functions.
+            "pg_catalog.current_schemas" => BuiltinScalarFunction::CurrentSchemas,
+
+            _ if ENABLE_IMPLICIT_PG_CATALOG => {
+                return Self::try_from_name_implicit_pg_catalog(name)
+            }
+            _ => return None,
+        })
+    }
+
+    fn try_from_name_implicit_pg_catalog(name: &str) -> Option<BuiltinScalarFunction> {
+        Some(match name {
+            "current_schemas" => BuiltinScalarFunction::CurrentSchemas,
             _ => return None,
         })
     }
@@ -48,8 +72,8 @@ impl BuiltinScalarFunction {
     fn name(&self) -> &'static str {
         match self {
             BuiltinScalarFunction::Version => "version",
-            BuiltinScalarFunction::CurrentSchemas => "current_schemas",
             BuiltinScalarFunction::ConnectionId => "connection_id",
+            BuiltinScalarFunction::CurrentSchemas => "current_schemas",
         }
     }
 
@@ -59,12 +83,16 @@ impl BuiltinScalarFunction {
             BuiltinScalarFunction::Version => {
                 Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
             }
-            BuiltinScalarFunction::CurrentSchemas => {
-                Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Stable)
-            }
             BuiltinScalarFunction::ConnectionId => {
                 Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
             }
+            BuiltinScalarFunction::CurrentSchemas => Signature::new(
+                TypeSignature::OneOf(vec![
+                    TypeSignature::Any(0),
+                    TypeSignature::Exact(vec![DataType::Boolean]), // TODO: This isn't exact? I can supply more than one arg.
+                ]),
+                Volatility::Stable,
+            ),
         }
     }
 
@@ -102,11 +130,18 @@ impl BuiltinScalarFunction {
                     .iter()
                     .map(|path| ScalarValue::Utf8(Some(path.to_string())))
                     .collect();
-                let val = ScalarValue::List(
-                    Some(schemas),
-                    Box::new(Field::new("", DataType::Utf8, false)),
-                );
-                Arc::new(move |_| Ok(ColumnarValue::Scalar(val.clone()))) // TODO: Figure out how not to clone here.
+                Arc::new(move |_| {
+                    // TODO: Actually look at argument.
+                    //
+                    // When 'true', we'll want to include implicit schemas as
+                    // well (namely `pg_catalog`).
+
+                    let schemas = schemas.clone();
+                    Ok(ColumnarValue::Scalar(ScalarValue::List(
+                        Some(schemas),
+                        Box::new(Field::new("", DataType::Utf8, false)),
+                    )))
+                })
             }
             BuiltinScalarFunction::ConnectionId => {
                 let id = sess.get_info().conn_id;
