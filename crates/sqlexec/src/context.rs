@@ -468,7 +468,7 @@ impl SessionContext {
     }
 
     /// Iterate over all values in the search path.
-    fn search_path_iter(&self) -> impl Iterator<Item = &str> {
+    pub(crate) fn search_path_iter(&self) -> impl Iterator<Item = &str> {
         self.vars.search_path.value().iter().map(|s| s.as_str())
     }
 

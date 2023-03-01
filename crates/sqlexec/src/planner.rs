@@ -4,6 +4,7 @@ use crate::logical_plan::*;
 use crate::parser::{
     CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
 };
+use crate::preprocess::{preprocess, CastRegclassReplacer};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -39,8 +40,14 @@ impl<'a> SessionPlanner<'a> {
         SessionPlanner { ctx }
     }
 
-    pub fn plan_ast(&self, statement: StatementWithExtensions) -> Result<LogicalPlan> {
+    pub fn plan_ast(&self, mut statement: StatementWithExtensions) -> Result<LogicalPlan> {
         debug!(%statement, "planning sql statement");
+
+        // Run replacers as needed.
+        if let StatementWithExtensions::Statement(inner) = &mut statement {
+            preprocess(inner, &mut CastRegclassReplacer { ctx: self.ctx })?;
+        }
+
         match statement {
             StatementWithExtensions::Statement(stmt) => self.plan_statement(stmt),
             StatementWithExtensions::CreateExternalTable(stmt) => {
