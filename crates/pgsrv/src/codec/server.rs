@@ -88,7 +88,9 @@ impl PgCodec {
     where
         C: AsyncRead + Unpin,
     {
-        let msg_len = conn.read_i32().await? as usize;
+        let msg_len = conn.read_i32().await?;
+        debug!(?msg_len, msg_len = (msg_len as usize), "record msg_len"); // logging for #347
+        let msg_len = msg_len as usize;
         let mut buf = BytesMut::new();
         debug!(?msg_len, ?buf, "startup connection message");
         buf.resize(msg_len - 4, 0);
