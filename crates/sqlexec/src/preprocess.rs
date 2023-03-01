@@ -70,3 +70,20 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
         ControlFlow::Continue(())
     }
 }
+
+/// Replace `E'my_string'` with `"my_string"`.
+///
+/// TODO: Datafusion should be updated to properly handle escaped strings. This
+/// is just a quick hack.
+pub struct EscapedStringToDoubleQuoted;
+
+impl ast::VisitorMut for EscapedStringToDoubleQuoted {
+    type Break = PreprocessError;
+
+    fn post_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
+        if let ast::Expr::Value(ast::Value::EscapedStringLiteral(s)) = expr {
+            *expr = ast::Expr::Value(ast::Value::DoubleQuotedString(std::mem::take(s)));
+        }
+        ControlFlow::Continue(())
+    }
+}

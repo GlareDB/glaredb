@@ -4,7 +4,7 @@ use crate::logical_plan::*;
 use crate::parser::{
     CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
 };
-use crate::preprocess::{preprocess, CastRegclassReplacer};
+use crate::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -46,6 +46,7 @@ impl<'a> SessionPlanner<'a> {
         // Run replacers as needed.
         if let StatementWithExtensions::Statement(inner) = &mut statement {
             preprocess(inner, &mut CastRegclassReplacer { ctx: self.ctx })?;
+            preprocess(inner, &mut EscapedStringToDoubleQuoted)?;
         }
 
         match statement {
