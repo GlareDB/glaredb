@@ -35,7 +35,7 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
         fn find_oid(ctx: &SessionContext, rel: &str) -> Option<u32> {
             let catalog = ctx.get_session_catalog();
             for schema in ctx.implicit_search_path_iter() {
-                if let Some(ent) = catalog.resolve_entry(schema, &rel) {
+                if let Some(ent) = catalog.resolve_entry(schema, rel) {
                     // Table found.
                     return Some(ent.get_meta().id);
                 }
@@ -49,7 +49,7 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
                 data_type: ast::DataType::Regclass,
             } => {
                 if let ast::Expr::Value(ast::Value::SingleQuotedString(relation)) = &**inner_expr {
-                    match find_oid(self.ctx, &relation) {
+                    match find_oid(self.ctx, relation) {
                         Some(oid) => ast::Expr::Value(ast::Value::Number(oid.to_string(), false)),
                         None => {
                             return ControlFlow::Break(PreprocessError::MissingRelation(
