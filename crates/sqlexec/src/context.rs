@@ -19,6 +19,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
+use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{self, ConnectionEntry, ConnectionOptions};
 use metastore::types::service::{self, Mutation};
@@ -30,6 +31,11 @@ use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 use tracing::debug;
+
+/// Implicity schemas that are consulted during object resolution.
+///
+/// Note that these are not normally shown in the search path.
+const IMPLICIT_SCHEMAS: [&str; 1] = [POSTGRES_SCHEMA];
 
 /// Context for a session used during execution.
 ///
@@ -457,7 +463,7 @@ impl SessionContext {
         let reference = TableReference::from(name.as_ref());
         match reference {
             TableReference::Bare { .. } => {
-                let schema = self.first_schema()?.to_string();
+                let schema = self.first_nonimplicit_schema()?.to_string();
                 Ok((schema, name.to_string()))
             }
             TableReference::Partial { schema, table }
@@ -472,7 +478,18 @@ impl SessionContext {
         self.vars.search_path.value().iter().map(|s| s.as_str())
     }
 
-    fn first_schema(&self) -> Result<&str> {
+    /// Iterate over the implicit search path. This will have all implicit
+    /// schemas prepended to the iterator.
+    ///
+    /// This should be used when trying to resolve existing items.
+    pub(crate) fn implicit_search_path_iter(&self) -> impl Iterator<Item = &str> {
+        IMPLICIT_SCHEMAS
+            .into_iter()
+            .chain(self.vars.search_path.value().iter().map(|s| s.as_str()))
+    }
+
+    /// Get the first non-implicit schema.
+    fn first_nonimplicit_schema(&self) -> Result<&str> {
         self.search_path_iter()
             .next()
             .ok_or(ExecError::EmptySearchPath)
@@ -494,7 +511,7 @@ impl<'a> ContextProvider for ContextProviderAdapter<'a> {
         let dispatcher = SessionDispatcher::new(self.context);
         match name {
             TableReference::Bare { table } => {
-                for schema in self.context.search_path_iter() {
+                for schema in self.context.implicit_search_path_iter() {
                     match dispatcher.dispatch_access(schema, &table) {
                         Ok(table) => return Ok(Arc::new(DefaultTableSource::new(table))),
                         Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.

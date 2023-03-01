@@ -34,7 +34,7 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
     fn post_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
         fn find_oid(ctx: &SessionContext, rel: &str) -> Option<u32> {
             let catalog = ctx.get_session_catalog();
-            for schema in ctx.search_path_iter() {
+            for schema in ctx.implicit_search_path_iter() {
                 if let Some(ent) = catalog.resolve_entry(schema, &rel) {
                     // Table found.
                     return Some(ent.get_meta().id);

@@ -8,10 +8,6 @@ use datafusion::logical_expr::{
 };
 use std::sync::Arc;
 
-/// Whether or not we make the `pg_catalog` schema implicit in regards to
-/// resolving builtin functions.
-const ENABLE_IMPLICIT_PG_CATALOG: bool = true;
-
 /// Additional built-in scalar functions.
 #[derive(Debug, Copy, Clone)]
 pub enum BuiltinScalarFunction {
@@ -43,10 +39,10 @@ impl BuiltinScalarFunction {
             // Postgres system functions.
             "pg_catalog.current_schemas" => BuiltinScalarFunction::CurrentSchemas,
 
-            _ if ENABLE_IMPLICIT_PG_CATALOG => {
-                return Self::try_from_name_implicit_pg_catalog(name)
-            }
-            _ => return None,
+            // Always fall back to trying to bare pg functions. Longer term will
+            // want to ensure functions are scoped to schemas and do proper
+            // search path resolution.
+            _ => return Self::try_from_name_implicit_pg_catalog(name),
         })
     }
 
