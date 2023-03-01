@@ -225,7 +225,10 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<
     })?;
 
     for rec in parsed_records {
-        records.push(rec.clone());
+        records.push(rec);
+
+        // What we just pushed
+        let rec = records.last().unwrap();
 
         // Includes are not actually processed by the runner. It's more of a
         // pre-processor, so we process them during the parse stage.
@@ -294,10 +297,15 @@ impl AsyncDB for TestClient {
                 _ => unreachable!(),
             }
         }
-        Ok(DBOutput::Rows {
-            types: vec![DefaultColumnType::Text; num_columns],
-            rows: output,
-        })
+
+        if output.is_empty() && num_columns == 0 {
+            Ok(DBOutput::StatementComplete(0))
+        } else {
+            Ok(DBOutput::Rows {
+                types: vec![DefaultColumnType::Text; num_columns],
+                rows: output,
+            })
+        }
     }
 
     fn engine_name(&self) -> &str {
