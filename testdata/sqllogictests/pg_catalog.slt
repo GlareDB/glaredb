@@ -14,3 +14,6 @@ select * from pg_catalog.pg_namespace;
 statement ok
 select * from pg_catalog.pg_class;
 
+statement ok
+select * from pg_catalog.pg_description;
+
