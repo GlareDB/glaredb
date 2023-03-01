@@ -490,7 +490,7 @@ impl<'a> SessionPlanner<'a> {
 
                 Ok(DdlPlan::DropTables(DropTables { if_exists, names }).into())
             }
-            // Drop tables
+            // Drop views
             ast::Statement::Drop {
                 object_type: ObjectType::View,
                 if_exists,
