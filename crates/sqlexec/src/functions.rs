@@ -47,10 +47,10 @@ impl BuiltinScalarFunction {
     }
 
     fn try_from_name_implicit_pg_catalog(name: &str) -> Option<BuiltinScalarFunction> {
-        Some(match name {
-            "current_schemas" => BuiltinScalarFunction::CurrentSchemas,
-            _ => return None,
-        })
+        match name {
+            "current_schemas" => Some(BuiltinScalarFunction::CurrentSchemas),
+            _ => None,
+        }
     }
 
     /// Build the scalar function. The session context is used for functions
