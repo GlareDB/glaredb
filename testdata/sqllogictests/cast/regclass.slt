@@ -1,0 +1,34 @@
+# Regclass casting tests.
+#
+# See <https://www.postgresql.org/docs/8.1/datatype-oid.html> for more info
+# about regclass casting. In short, it just gets the oid for the relation
+# (class) that's being referenced by the expression.
+
+statement ok
+create schema regclass_test;
+
+statement ok
+set search_path to regclass_test;
+
+statement error
+select 'my_table'::regclass;
+
+statement ok
+set enable_debug_datasources to t;
+
+statement ok
+create connection c1 for debug;
+
+statement ok
+create external table my_table from c1 options(table_type = 'never_ending');
+
+query T
+select 'my_table'::regclass > 2000;
+----
+t
+
+# We don't support expressions other than strings right now.
+
+statement error
+select cast(1 + 1 as regclass);
+
