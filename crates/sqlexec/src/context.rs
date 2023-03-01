@@ -184,6 +184,23 @@ impl SessionContext {
         Ok(())
     }
 
+    /// Drop one or more views.
+    pub async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
+        let mut drops = Vec::with_capacity(plan.names.len());
+        for name in plan.names {
+            let (schema, name) = self.resolve_object_reference(name.into())?;
+            drops.push(Mutation::DropObject(service::DropObject {
+                schema,
+                name,
+                if_exists: plan.if_exists,
+            }));
+        }
+
+        self.mutate_catalog(drops).await?;
+
+        Ok(())
+    }
+
     /// Drop one or more connections.
     pub async fn drop_connections(&mut self, plan: DropConnections) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
