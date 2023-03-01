@@ -418,6 +418,18 @@ SELECT
 FROM glare_catalog.schemas s",
 });
 
+pub static PG_DESCRIPTION: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_description",
+    sql: "
+SELECT
+    1 AS objoid,
+    2 AS classoid,
+    3 AS objsubid,
+    4 AS description
+FROM (VALUES (NULL, NULL, NULL, NULL)) WHERE false", // Create empty table for now.
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -428,6 +440,7 @@ impl BuiltinView {
             &PG_ATTRIBUTE,
             &PG_CLASS,
             &PG_NAMESPACE,
+            &PG_DESCRIPTION,
         ]
     }
 }

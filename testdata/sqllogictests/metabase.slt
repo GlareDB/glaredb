@@ -1,0 +1,24 @@
+# Metabase queries.
+
+statement ok
+SELECT NULL AS TABLE_CAT,
+       n.nspname AS TABLE_SCHEM,
+       c.relname AS TABLE_NAME,
+       CASE n.nspname ~ '^pg_' OR n.nspname = 'information_schema' WHEN true THEN CASE WHEN n.nspname = 'pg_catalog' OR n.nspname = 'information_schema' THEN CASE c.relkind WHEN 'r' THEN 'SYSTEM TABLE' WHEN 'v' THEN 'SYSTEM VIEW' WHEN 'i' THEN 'SYSTEM INDEX' ELSE NULL END WHEN n.nspname = 'pg_toast' THEN CASE c.relkind WHEN 'r' THEN 'SYSTEM TOAST TABLE' WHEN 'i' THEN 'SYSTEM TOAST INDEX' ELSE NULL END ELSE CASE c.relkind WHEN 'r' THEN 'TEMPORARY TABLE' WHEN 'p' THEN 'TEMPORARY TABLE' WHEN 'i' THEN 'TEMPORARY INDEX' WHEN 'S' THEN 'TEMPORARY SEQUENCE' WHEN 'v' THEN 'TEMPORARY VIEW' ELSE NULL END END WHEN false THEN CASE c.relkind WHEN 'r' THEN 'TABLE' WHEN 'p' THEN 'PARTITIONED TABLE' WHEN 'i' THEN 'INDEX' WHEN 'P' THEN 'PARTITIONED INDEX' WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'c' THEN 'TYPE' WHEN 'f' THEN 'FOREIGN TABLE' WHEN 'm' THEN 'MATERIALIZED VIEW' ELSE NULL END ELSE NULL END AS TABLE_TYPE, d.description AS REMARKS,
+       '' AS TYPE_CAT,
+       '' AS TYPE_SCHEM,
+       '' AS TYPE_NAME,
+       '' AS SELF_REFERENCING_COL_NAME,
+       '' AS REF_GENERATION
+  FROM pg_catalog.pg_namespace AS n,
+       pg_catalog.pg_class AS c
+       LEFT JOIN pg_catalog.pg_description AS d ON (c.oid = d.objoid AND d.objsubid = 0 AND d.classoid = CAST('pg_class' AS REGCLASS))
+ WHERE c.relnamespace = n.oid AND n.nspname LIKE E'glare_catalog' AND c.relname LIKE E'%' AND (false OR (c.relkind = 'r' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema') OR (c.relkind = 'p' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema') OR (c.relkind = 'v' AND n.nspname <> 'pg_catalog' AND n.nspname <> 'information_schema') OR (c.relkind = 'f') OR (c.relkind = 'm'))
+ ORDER BY TABLE_TYPE, TABLE_SCHEM, TABLE_NAME;
+
+statement ok
+SELECT nspname AS TABLE_SCHEM,
+       NULL AS TABLE_CATALOG
+  FROM pg_catalog.pg_namespace
+ WHERE nspname <> 'pg_toast' AND (nspname !~ '^pg_temp_' OR nspname = (pg_catalog.current_schemas(true))[1]) AND (nspname !~ '^pg_toast_temp_' OR nspname = replace((pg_catalog.current_schemas(true))[1], 'pg_temp_', 'pg_toast_temp_'))
+ ORDER BY TABLE_SCHEM;
