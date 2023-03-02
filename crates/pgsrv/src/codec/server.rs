@@ -109,7 +109,7 @@ impl PgCodec {
             Err(_) => Err(PgSrvError::InvalidMsgLength(msg_len)),
         }?;
         let remaning_msg_len = msg_len - min_buf_len;
-        let mut buf = BytesMut::with_capacity(remaning_msg_len);
+        let mut buf = BytesMut::zeroed(remaning_msg_len);
         conn.read_exact(&mut buf).await?;
         debug!(?buf, "startup connection message");
 
