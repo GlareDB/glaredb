@@ -132,6 +132,9 @@ pub enum ExecError {
     Internal(String),
 
     #[error(transparent)]
+    Preprocess(#[from] crate::preprocess::PreprocessError),
+
+    #[error(transparent)]
     DatasourceDebug(#[from] datasource_debug::errors::DebugError),
 
     #[error(transparent)]

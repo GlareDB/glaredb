@@ -14,3 +14,54 @@ select * from pg_catalog.pg_namespace;
 statement ok
 select * from pg_catalog.pg_class;
 
+statement ok
+select * from pg_catalog.pg_description;
+
+# We also implicitly include `pg_catalog` in the search path, so each of the
+# above tables can also be reference with the bare table name.
+
+statement ok
+select * from pg_am;
+
+statement ok
+select * from pg_attribute;
+
+statement ok
+select * from pg_namespace;
+
+statement ok
+select * from pg_class;
+
+statement ok
+select * from pg_description;
+
+# Note that this doesn't stop us from creating tables with the same name
+# (matches postgres behavior).
+
+statement ok
+set enable_debug_datasources to t;
+
+statement ok
+create schema pg_catalog_test;
+
+statement ok
+set search_path to pg_catalog_test;
+
+statement ok
+create connection c1 for debug;
+
+statement ok
+create external table pg_description from c1 options (table_type = 'never_ending');
+
+# Selecting from `pg_description` will select from the builtin table, not the
+# table we just created.
+
+statement ok
+select objoid from pg_description;
+
+# But our table will still be in the catalog.
+
+query TT
+select schema_name, table_name from glare_catalog.tables where table_name = 'pg_description' and schema_name = 'pg_catalog_test';
+----
+pg_catalog_test  pg_description
