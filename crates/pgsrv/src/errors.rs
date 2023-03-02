@@ -8,6 +8,9 @@ pub enum PgSrvError {
     #[error("invalid protocol version: {0}")]
     InvalidProtocolVersion(i32),
 
+    #[error("invalid protocol message length: {0}")]
+    InvalidMsgLength(i32),
+
     #[error("unexpected frontend message: {0:?}")]
     UnexpectedFrontendMessage(Box<FrontendMessage>), // Boxed since frontend message has a large variant.
 

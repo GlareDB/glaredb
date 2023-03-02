@@ -10,6 +10,7 @@ use futures::{sink::Buffer, SinkExt, TryStreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::encode_array_value;
 use std::collections::HashMap;
+use std::mem::size_of_val;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_postgres::types::Type as PgType;
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -89,15 +90,8 @@ impl PgCodec {
         C: AsyncRead + Unpin,
     {
         let msg_len = conn.read_i32().await?;
-        debug!(?msg_len, msg_len = (msg_len as usize), "record msg_len"); // logging for #347
-        let msg_len = msg_len as usize;
-        let mut buf = BytesMut::new();
-        debug!(?msg_len, ?buf, "startup connection message");
-        buf.resize(msg_len - 4, 0);
-        conn.read_exact(&mut buf).await?;
-
-        let mut buf = Cursor::new(&buf);
-        let version = buf.get_i32();
+        let version = conn.read_i32().await?;
+        debug!(msg_len, version, "startup connection version");
 
         match version {
             VERSION_V3 => (), // Continue with normal startup flow.
@@ -106,13 +100,26 @@ impl PgCodec {
             other => return Err(PgSrvError::InvalidProtocolVersion(other)),
         }
 
+        // Read the rest of the message's params
+        let min_buf_len = size_of_val(&msg_len) + size_of_val(&version);
+        let len: Result<usize, _> = msg_len.try_into();
+        let remaning_msg_len = match len {
+            Ok(len) if len < min_buf_len => Err(PgSrvError::InvalidMsgLength(msg_len)),
+            Ok(len) => Ok(len - min_buf_len),
+            Err(_) => Err(PgSrvError::InvalidMsgLength(msg_len)),
+        }?;
+        let mut buf = BytesMut::with_capacity(remaning_msg_len);
+        conn.read_exact(&mut buf).await?;
+        debug!(?buf, "startup connection message");
+
+        // Generate map of parameters
+        let mut buf = Cursor::new(&buf);
         let mut params = HashMap::new();
         while buf.remaining() > 0 && !buf.peek_next_is_null() {
             let key = buf.read_cstring()?.to_string();
             let val = buf.read_cstring()?.to_string();
             params.insert(key, val);
         }
-
         debug!(?params, "startup connection params");
 
         Ok(StartupMessage::StartupRequest { version, params })
