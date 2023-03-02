@@ -100,14 +100,15 @@ impl PgCodec {
             other => return Err(PgSrvError::InvalidProtocolVersion(other)),
         }
 
-        // Read the rest of the message's params
         let min_buf_len = size_of_val(&msg_len) + size_of_val(&version);
-        let len: Result<usize, _> = msg_len.try_into();
-        let remaning_msg_len = match len {
+        // In the case the message `version` matches VERSION_V3 however is not a startup message
+        // and the `msg_len` could be either an invalid conversion or less than `min_buf_len`
+        let msg_len: usize = match msg_len.try_into() {
             Ok(len) if len < min_buf_len => Err(PgSrvError::InvalidMsgLength(msg_len)),
-            Ok(len) => Ok(len - min_buf_len),
+            Ok(len) => Ok(len),
             Err(_) => Err(PgSrvError::InvalidMsgLength(msg_len)),
         }?;
+        let remaning_msg_len = msg_len - min_buf_len;
         let mut buf = BytesMut::with_capacity(remaning_msg_len);
         conn.read_exact(&mut buf).await?;
         debug!(?buf, "startup connection message");
