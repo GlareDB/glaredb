@@ -74,7 +74,7 @@ impl SshTunnelAccess {
             .user(self.user.clone())
             .port(self.port)
             .keyfile(temp_keyfile.path())
-            // Wait only 1 second before timing out ssh connection
+            // Wait 15 seconds before timing out ssh connection attempt
             .connect_timeout(Duration::from_secs(15))
             .connect(self.host.as_str())
             .await?;
