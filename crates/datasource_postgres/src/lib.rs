@@ -7,7 +7,6 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -19,7 +18,9 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
+use datasource_common::util;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -617,8 +618,8 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
 ) -> Result<RecordBatch> {
     use datafusion::arrow::array::{
         Array, BinaryBuilder, BooleanBuilder, Date32Builder, Float32Builder, Float64Builder,
-        Int16Builder, Int32Builder, Int64Builder, StringBuilder, Time64MicrosecondBuilder,
-        TimestampMicrosecondBuilder,
+        Int16Builder, Int32Builder, Int64Builder, StringBuilder, Time64NanosecondBuilder,
+        TimestampNanosecondBuilder,
     };
 
     let rows = rows
@@ -660,35 +661,33 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Timestamp(TimeUnit::Microsecond, None) => {
-                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len());
+            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_micros());
+                    let val = val.map(|v| v.timestamp_nanos());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            dt @ DataType::Timestamp(TimeUnit::Microsecond, Some(_)) => {
-                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len())
+            dt @ DataType::Timestamp(TimeUnit::Nanosecond, Some(_)) => {
+                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
                     .with_data_type(dt.clone());
                 for row in rows.iter() {
                     let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_micros());
+                    let val = val.map(|v| v.timestamp_nanos());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Time64(TimeUnit::Microsecond) => {
-                let mut arr = Time64MicrosecondBuilder::with_capacity(rows.len());
+            DataType::Time64(TimeUnit::Nanosecond) => {
+                let mut arr = Time64NanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveTime> = row.try_get(col_idx)?;
                     let val = val.map(|v| {
                         let nanos = v.nanosecond() as i64;
-                        // Add 500ns to let flooring integer division round the time to nearest microsecond
-                        let nanos = nanos + 500;
                         let secs_since_midnight = v.num_seconds_from_midnight() as i64;
-                        (secs_since_midnight * 1_000_000) + (nanos / 1_000)
+                        (secs_since_midnight * 1_000_000_000) + nanos
                     });
                     arr.append_option(val);
                 }
@@ -733,11 +732,11 @@ fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Res
             | &PostgresType::JSON
             | &PostgresType::UUID => DataType::Utf8,
             &PostgresType::BYTEA => DataType::Binary,
-            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Microsecond, None),
+            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Nanosecond, None),
             &PostgresType::TIMESTAMPTZ => {
-                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_string()))
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string()))
             }
-            &PostgresType::TIME => DataType::Time64(TimeUnit::Microsecond),
+            &PostgresType::TIME => DataType::Time64(TimeUnit::Nanosecond),
             &PostgresType::DATE => DataType::Date32,
             // TODO: Time with timezone and interval data types in postgres are
             // of 12 and 16 bytes respectively. This kind of size is not
@@ -778,49 +777,53 @@ fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
 }
 
 /// Try to write the expression to the string, returning true if it was written.
-fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
+fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
     match expr {
         Expr::Column(col) => {
-            write!(s, "{}", col)?;
+            write!(buf, "{}", col)?;
         }
-        Expr::Literal(val) => match val {
-            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{}'", utf8)?,
-            other => write!(s, "{}", other)?,
-        },
+        Expr::Literal(val) => {
+            // Handled by "IS NULL" ...
+            assert!(!val.is_null());
+            // Handled by "IS TRUE" ...
+            assert!(!matches!(val, ScalarValue::Boolean(_)));
+
+            util::encode_literal_to_text(util::Datasource::Postgres, buf, val)?;
+        }
         Expr::IsNull(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS NULL")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsNotNull(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS NOT NULL")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsTrue(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS TRUE")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS FALSE")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::BinaryExpr(binary) => {
-            if !write_expr(binary.left.as_ref(), s)? {
+            if !write_expr(binary.left.as_ref(), buf)? {
                 return Ok(false);
             }
-            write!(s, " {} ", binary.op)?;
-            if !write_expr(binary.right.as_ref(), s)? {
+            write!(buf, " {} ", binary.op)?;
+            if !write_expr(binary.right.as_ref(), buf)? {
                 return Ok(false);
             }
         }

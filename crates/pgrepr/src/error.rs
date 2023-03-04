@@ -3,9 +3,6 @@ pub enum PgReprError {
     #[error("Invalid format code: {0}")]
     InvalidFormatCode(i16),
 
-    #[error("message length '{0}' exceeds the limit of i32 max")]
-    MessageTooLarge(usize),
-
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
 
@@ -14,6 +11,9 @@ pub enum PgReprError {
 
     #[error(transparent)]
     Utf8Error(#[from] std::str::Utf8Error),
+
+    #[error(transparent)]
+    ReprError(#[from] repr::error::ReprError),
 
     #[error("Binary read unimplemented.")]
     BinaryReadUnimplemented,

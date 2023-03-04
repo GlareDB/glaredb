@@ -8,7 +8,7 @@ use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use futures::{sink::Buffer, SinkExt, TryStreamExt};
 use pgrepr::format::Format;
-use pgrepr::types::encode_array_value;
+use pgrepr::scalar::Scalar;
 use std::collections::HashMap;
 use std::mem::size_of_val;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
@@ -295,7 +295,23 @@ impl Encoder<BackendMessage> for PgCodec {
                 for (col, (pg_type, format)) in
                     batch.columns().iter().zip(self.encoding_state.iter())
                 {
-                    encode_array_value(dst, *format, col, row_idx, pg_type)?;
+                    let scalar = Scalar::try_from_array(col, row_idx, pg_type)?;
+
+                    if scalar.is_null() {
+                        dst.put_i32(-1);
+                    } else {
+                        // Write a placeholder length.
+                        let len_idx = dst.len();
+                        dst.put_i32(0);
+
+                        scalar.encode_with_format(*format, dst)?;
+
+                        // Note the value of length does not include itself.
+                        let val_len = dst.len() - len_idx - 4;
+                        let val_len = i32::try_from(val_len)
+                            .map_err(|_| PgSrvError::MessageTooLarge(val_len))?;
+                        dst[len_idx..len_idx + 4].copy_from_slice(&i32::to_be_bytes(val_len));
+                    }
                 }
             }
             BackendMessage::ErrorResponse(error) => {

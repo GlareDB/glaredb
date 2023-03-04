@@ -24,6 +24,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
+use datasource_common::util;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
@@ -440,11 +441,9 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
     use datafusion::arrow::array::{
         Array, BinaryBuilder, Date32Builder, Decimal128Builder, Float32Builder, Float64Builder,
         Int16Builder, Int32Builder, Int64Builder, Int8Builder, StringBuilder,
-        Time64MicrosecondBuilder, TimestampMicrosecondBuilder, UInt16Builder, UInt32Builder,
+        Time64NanosecondBuilder, TimestampNanosecondBuilder, UInt16Builder, UInt32Builder,
         UInt64Builder, UInt8Builder,
     };
-
-    let epoch_date = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());
     for (col_idx, field) in schema.fields.iter().enumerate() {
@@ -469,22 +468,22 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Timestamp(TimeUnit::Microsecond, None) => {
-                let mut arr = TimestampMicrosecondBuilder::new();
+            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                let mut arr = TimestampNanosecondBuilder::new();
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    let val = val.map(|v| v.timestamp_micros());
+                    let val = val.map(|v| v.timestamp_nanos());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            dt @ DataType::Timestamp(TimeUnit::Microsecond, Some(_)) => {
-                let mut arr = TimestampMicrosecondBuilder::new().with_data_type(dt.to_owned());
+            dt @ DataType::Timestamp(TimeUnit::Nanosecond, Some(_)) => {
+                let mut arr = TimestampNanosecondBuilder::new().with_data_type(dt.to_owned());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    let val = val.map(|v| v.timestamp_micros());
+                    let val = val.map(|v| v.timestamp_nanos());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -494,22 +493,21 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 for row in rows.iter() {
                     let val: Option<NaiveDate> =
                         row.get_opt(col_idx).expect("row value should exist")?;
+                    let epoch_date = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                     let val = val.map(|v| v.signed_duration_since(epoch_date).num_days() as i32);
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Time64(TimeUnit::Microsecond) => {
-                let mut arr = Time64MicrosecondBuilder::new();
+            DataType::Time64(TimeUnit::Nanosecond) => {
+                let mut arr = Time64NanosecondBuilder::new();
                 for row in rows.iter() {
                     let val: Option<NaiveTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
                     let val = val.map(|v| {
                         let nanos = v.nanosecond() as i64;
-                        // Add 500 ns to let flooring integer division round the time to nearest microsecond
-                        let nanos = nanos + 500;
                         let secs_since_midnight = v.num_seconds_from_midnight() as i64;
-                        (secs_since_midnight * 1_000_000) + (nanos / 1_000)
+                        (secs_since_midnight * 1_000_000_000) + nanos
                     });
                     arr.append_option(val);
                 }
@@ -587,12 +585,12 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
                 i8::try_from(col.column_length() - col.decimals() as u32)?,
             ),
             MYSQL_TYPE_TIMESTAMP => {
-                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_owned()))
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_owned()))
             }
             MYSQL_TYPE_DATE => DataType::Date32,
-            MYSQL_TYPE_TIME => DataType::Time64(TimeUnit::Microsecond),
+            MYSQL_TYPE_TIME => DataType::Time64(TimeUnit::Nanosecond),
             MYSQL_TYPE_YEAR => DataType::Int16,
-            MYSQL_TYPE_DATETIME => DataType::Timestamp(TimeUnit::Microsecond, None),
+            MYSQL_TYPE_DATETIME => DataType::Timestamp(TimeUnit::Nanosecond, None),
             MYSQL_TYPE_VARCHAR | MYSQL_TYPE_JSON | MYSQL_TYPE_VAR_STRING | MYSQL_TYPE_STRING => {
                 DataType::Utf8
             }
@@ -638,55 +636,58 @@ fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
             buf = String::new();
         }
     }
-
     Ok(ss.join(" AND "))
 }
 
 // TODO refactor to create strings as needed, option instead of bool
 /// Try to write the expression to the string, returning true if it was written.
-fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
+fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
     match expr {
         Expr::Column(col) => {
-            write!(s, "{col}")?;
+            write!(buf, "{col}")?;
         }
-        Expr::Literal(val) => match val {
-            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{utf8}'")?,
-            other => write!(s, "{other}")?,
-        },
+        Expr::Literal(val) => {
+            // Handled by "IS NULL" ...
+            assert!(!val.is_null());
+            // Handled by "IS TRUE" ...
+            assert!(!matches!(val, ScalarValue::Boolean(_)));
+
+            util::encode_literal_to_text(util::Datasource::MySql, buf, val)?;
+        }
         Expr::IsNull(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS NULL")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsNotNull(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS NOT NULL")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsTrue(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS TRUE")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS FALSE")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::BinaryExpr(binary) => {
-            if !write_expr(binary.left.as_ref(), s)? {
+            if !write_expr(binary.left.as_ref(), buf)? {
                 return Ok(false);
             }
-            write!(s, " {} ", binary.op)?;
-            if !write_expr(binary.right.as_ref(), s)? {
+            write!(buf, " {} ", binary.op)?;
+            if !write_expr(binary.right.as_ref(), buf)? {
                 return Ok(false);
             }
         }

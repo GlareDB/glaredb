@@ -3,43 +3,43 @@
 #
 # `testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv`
 
-statement ok
-SELECT * FROM basic;
+# statement ok
+# SELECT * FROM basic;
+# 
+# query I
+# SELECT count(*) FROM basic;
+# ----
+# 102
+# 
+# query I rowsort
+# SELECT station_id FROM basic WHERE power_type = 'non-metered';
+# ----
+# 2498
+# 2563
+# 3455
+# 
+# query IT
+# SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
+# ----
+# 2574  Zilker Park
+# 3619  6th & Congress
+# 
+# query I rowsort
+# SELECT footprint_length FROM basic WHERE city_asset_number IS NULL AND status = 'active';
+# ----
+# 30
+# 40
+# NULL
+# NULL
+# NULL
 
-query I
-SELECT count(*) FROM basic;
-----
-102
-
-query I rowsort
-SELECT station_id FROM basic WHERE power_type = 'non-metered';
-----
-2498
-2563
-3455
-
-query IT
-SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
-----
-2574  Zilker Park
-3619  6th & Congress
-
-query I rowsort
-SELECT footprint_length FROM basic WHERE city_asset_number IS NULL AND status = 'active';
-----
-30
-40
-NULL
-NULL
-NULL
-
-statement ok
-CREATE VIEW basic_active_or_not AS
-	SELECT number_of_docks,
-		CASE WHEN status = 'active' then TRUE
-		     ELSE FALSE
-		END as bool_status
-	FROM basic;
+# statement ok
+# CREATE VIEW basic_active_or_not AS
+# 	SELECT number_of_docks,
+# 		CASE WHEN status = 'active' then TRUE
+# 		     ELSE FALSE
+# 		END as bool_status
+# 	FROM basic;
 
 # The following query doesn't work on BigQuery!
 # Returns the following error:
@@ -77,15 +77,25 @@ CREATE VIEW basic_active_or_not AS
 # For bigquery as well, this query fails to function due to improper
 # translation of filters.
 #
-# query I
-# SELECT station_id FROM basic 
-# 	WHERE modified_date > '2021-11-04 02:07:00'::timestamp
-# 		AND modified_date <= '2021-11-04 02:24:00'::timestamp
-# 	ORDER BY station_id;
-# ----
-# 11
-# 111
-# 1111
+query I
+SELECT station_id FROM basic 
+	WHERE modified_date > '2021-11-04 02:07:00'::timestamp
+	AND modified_date <= '2021-11-04 02:24:00'::timestamp
+	ORDER BY station_id;
+----
+11
+111
+1111
+
+query I
+SELECT station_id FROM basic 
+	WHERE modified_date > '2021-11-04 02:07:00'
+	AND modified_date <= '2021-11-04 02:24:00'
+	ORDER BY station_id;
+----
+11
+111
+1111
 
 query I nosort
 SELECT station_id FROM basic

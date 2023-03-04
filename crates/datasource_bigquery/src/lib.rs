@@ -14,7 +14,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -27,6 +27,7 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
+use datasource_common::util;
 use futures::{Stream, StreamExt};
 use gcp_bigquery_client::Client as BigQueryClient;
 use gcp_bigquery_client::{
@@ -381,6 +382,7 @@ impl BufferedIpcStream {
             let reader = ArrowStreamReader::try_new(Cursor::new(buf), None)?;
             for batch in reader {
                 let batch = batch?;
+                let batch = util::normalize_batch(&batch)?;
                 yield Ok(batch);
             }
         };
@@ -425,11 +427,11 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
             FieldType::Float | FieldType::Float64 => DataType::Float64,
             FieldType::Bytes => DataType::Binary,
             FieldType::Date => DataType::Date32,
-            FieldType::Datetime => DataType::Timestamp(TimeUnit::Microsecond, None),
+            FieldType::Datetime => DataType::Timestamp(TimeUnit::Nanosecond, None),
             FieldType::Timestamp => {
-                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_owned()))
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_owned()))
             }
-            FieldType::Time => DataType::Time64(TimeUnit::Microsecond),
+            FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),
             FieldType::Numeric => DataType::Decimal128(38, 9),
             // TODO: Bignumeric throws an error which terminates the connection abruptly.
             // FieldType::Bignumeric => DataType::Decimal256(76, 38),
@@ -460,49 +462,53 @@ fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
 }
 
 /// Try to write the expression to the string, returning true if it was written.
-fn write_expr(expr: &Expr, s: &mut String) -> Result<bool> {
+fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
     match expr {
         Expr::Column(col) => {
-            write!(s, "{}", col)?;
+            write!(buf, "{}", col)?;
         }
-        Expr::Literal(val) => match val {
-            ScalarValue::Utf8(Some(utf8)) => write!(s, "'{}'", utf8)?,
-            other => write!(s, "{}", other)?,
-        },
+        Expr::Literal(val) => {
+            // Handled by "IS NULL" ...
+            assert!(!val.is_null());
+            // Handled by "IS TRUE" ...
+            assert!(!matches!(val, ScalarValue::Boolean(_)));
+
+            util::encode_literal_to_text(util::Datasource::BigQuery, buf, val)?;
+        }
         Expr::IsNull(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS NULL")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsNotNull(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS NOT NULL")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsTrue(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS TRUE")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
-            if write_expr(expr, s)? {
-                write!(s, " IS FALSE")?;
+            if write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::BinaryExpr(binary) => {
-            if !write_expr(binary.left.as_ref(), s)? {
+            if !write_expr(binary.left.as_ref(), buf)? {
                 return Ok(false);
             }
-            write!(s, " {} ", binary.op)?;
-            if !write_expr(binary.right.as_ref(), s)? {
+            write!(buf, " {} ", binary.op)?;
+            if !write_expr(binary.right.as_ref(), buf)? {
                 return Ok(false);
             }
         }

@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 /// Reader defines the interface for the different kinds of values that can be
 /// decoded as a postgres type.
-pub(crate) trait Reader {
+pub trait Reader {
     fn read_bool(buf: &[u8]) -> Result<bool>;
 
     fn read_int2(buf: &[u8]) -> Result<i16>;
@@ -16,7 +16,7 @@ pub(crate) trait Reader {
 }
 
 #[derive(Debug)]
-pub(crate) struct TextReader;
+pub struct TextReader;
 
 impl TextReader {
     fn parse<E: std::error::Error + Sync + Send + 'static, F: FromStr<Err = E>>(

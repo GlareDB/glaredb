@@ -6,11 +6,12 @@ use crate::messages::{
 };
 use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
 use crate::ssl::{Connection, SslConfig};
+use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use pgrepr::types::decode_scalar_value;
+use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::{
     engine::Engine,
@@ -655,7 +656,7 @@ where
 fn decode_param_scalars(
     param_formats: Vec<Format>,
     param_values: Vec<Option<Vec<u8>>>,
-    types: &HashMap<String, Option<PgType>>,
+    types: &HashMap<String, Option<(PgType, DataType)>>,
 ) -> Result<Vec<ScalarValue>, ErrorResponse> {
     let param_formats = extend_formats(param_formats, param_values.len())?;
 
@@ -685,7 +686,13 @@ fn decode_param_scalars(
 
         match typ {
             Some(typ) => {
-                let scalar = decode_scalar_value(val.as_deref(), format, typ)?;
+                let scalar = {
+                    match val.as_deref() {
+                        None => ScalarValue::Null,
+                        Some(v) => Scalar::decode_with_format(format, v, &typ.0)?
+                            .into_datafusion(&typ.1)?,
+                    }
+                };
                 scalars.push(scalar);
             }
             None => {
