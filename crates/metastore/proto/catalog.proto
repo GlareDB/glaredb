@@ -106,6 +106,11 @@ message ExternalTableEntry {
 }
 
 message TableOptions {
+  // Reserved just to keep table options/ connection options the same id for
+  // each type. SSH connections (field id 8 in ConnectionOptions) are special
+  // and don't provide any tables.
+  reserved 8;
+
   oneof options {
     TableOptionsDebug debug = 1;
     TableOptionsPostgres postgres = 2;
@@ -114,6 +119,7 @@ message TableOptions {
     TableOptionsGcs gcs = 5;
     TableOptionsS3 s3 = 6;
     TableOptionsMysql mysql = 7;
+    TableOptionsMongo mongo = 9;
   }
 }
 
@@ -164,6 +170,13 @@ message TableOptionsMysql {
   string table = 2;
 }
 
+message TableOptionsMongo {
+  // Database containing the collection.
+  string database = 1;
+  // The collection (table).
+  string collection = 2;
+}
+
 message ColumnDefinition {
   // Name of the column in the table.
   string name = 1;
@@ -209,6 +222,7 @@ message ConnectionOptions {
     ConnectionOptionsS3 s3 = 6;
     ConnectionOptionsSsh ssh = 7;
     ConnectionOptionsMysql mysql = 8;
+    ConnectionOptionsMongo mongo = 9;
   }
 
   // next:9
@@ -248,3 +262,5 @@ message ConnectionOptionsSsh {
   uint32 port = 3; // Note the value here should not be larger than uint16 MAX
   bytes keypair = 4;
 }
+
+message ConnectionOptionsMongo { string connection_string = 1; }

@@ -155,7 +155,7 @@ pub struct ExternalTableEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptions {
-    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 9")]
     pub options: ::core::option::Option<table_options::Options>,
 }
 /// Nested message and enum types in `TableOptions`.
@@ -177,6 +177,8 @@ pub mod table_options {
         S3(super::TableOptionsS3),
         #[prost(message, tag = "7")]
         Mysql(super::TableOptionsMysql),
+        #[prost(message, tag = "9")]
+        Mongo(super::TableOptionsMongo),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -248,6 +250,16 @@ pub struct TableOptionsMysql {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsMongo {
+    /// Database containing the collection.
+    #[prost(string, tag = "1")]
+    pub database: ::prost::alloc::string::String,
+    /// The collection (table).
+    #[prost(string, tag = "2")]
+    pub collection: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ColumnDefinition {
     /// Name of the column in the table.
     #[prost(string, tag = "1")]
@@ -284,7 +296,7 @@ pub struct ConnectionEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConnectionOptions {
-    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
+    #[prost(oneof = "connection_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
     pub options: ::core::option::Option<connection_options::Options>,
 }
 /// Nested message and enum types in `ConnectionOptions`.
@@ -308,6 +320,8 @@ pub mod connection_options {
         Ssh(super::ConnectionOptionsSsh),
         #[prost(message, tag = "8")]
         Mysql(super::ConnectionOptionsMysql),
+        #[prost(message, tag = "9")]
+        Mongo(super::ConnectionOptionsMongo),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -368,4 +382,10 @@ pub struct ConnectionOptionsSsh {
     pub port: u32,
     #[prost(bytes = "vec", tag = "4")]
     pub keypair: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectionOptionsMongo {
+    #[prost(string, tag = "1")]
+    pub connection_string: ::prost::alloc::string::String,
 }

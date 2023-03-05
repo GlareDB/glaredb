@@ -20,9 +20,10 @@ use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
-    ConnectionOptionsLocal, ConnectionOptionsMysql, ConnectionOptionsPostgres, ConnectionOptionsS3,
-    ConnectionOptionsSsh, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    ConnectionOptionsLocal, ConnectionOptionsMongo, ConnectionOptionsMysql,
+    ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh, TableOptions,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -165,6 +166,9 @@ impl<'a> SessionPlanner<'a> {
                     port,
                     keypair,
                 })
+            }
+            ConnectionOptions::MONGO => {
+                unimplemented!()
             }
             ConnectionOptions::DEBUG
                 if *self.ctx.get_session_vars().enable_debug_datasources.value() =>
@@ -359,6 +363,9 @@ impl<'a> SessionPlanner<'a> {
             }
             ConnectionOptions::Ssh(_) => {
                 return Err(ExecError::ExternalTableWithSsh);
+            }
+            ConnectionOptions::Mongo(_) => {
+                unimplemented!()
             }
         };
 
