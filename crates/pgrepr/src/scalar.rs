@@ -77,10 +77,7 @@ impl Scalar {
 
     /// Returns true if the underlaying value is null.
     pub fn is_null(&self) -> bool {
-        match self {
-            &Self::Null => true,
-            _ => false,
-        }
+        matches!(self, &Self::Null)
     }
 
     pub fn encode_with_format(&self, format: Format, buf: &mut BytesMut) -> Result<()> {
@@ -117,9 +114,7 @@ impl Scalar {
     pub fn decode_with_format(format: Format, buf: &[u8], as_type: &PgType) -> Result<Self> {
         match format {
             Format::Text => Self::decode::<TextReader>(buf, as_type),
-            Format::Binary => {
-                return Err(PgReprError::UnsupportedPgTypeForDecode(as_type.to_owned()))
-            }
+            Format::Binary => Err(PgReprError::UnsupportedPgTypeForDecode(as_type.to_owned())),
         }
     }
 
@@ -127,14 +122,14 @@ impl Scalar {
     where
         R: crate::reader::Reader,
     {
-        let scalar = match as_type {
-            &PgType::BOOL => Self::Bool(R::read_bool(buf)?),
-            &PgType::INT2 => Self::Int2(R::read_int2(buf)?),
-            &PgType::INT4 => Self::Int4(R::read_int4(buf)?),
-            &PgType::INT8 => Self::Int8(R::read_int8(buf)?),
-            &PgType::FLOAT4 => Self::Float4(R::read_float4(buf)?),
-            &PgType::FLOAT8 => Self::Float8(R::read_float8(buf)?),
-            &PgType::TEXT => Self::Text(R::read_text(buf)?),
+        let scalar = match *as_type {
+            PgType::BOOL => Self::Bool(R::read_bool(buf)?),
+            PgType::INT2 => Self::Int2(R::read_int2(buf)?),
+            PgType::INT4 => Self::Int4(R::read_int4(buf)?),
+            PgType::INT8 => Self::Int8(R::read_int8(buf)?),
+            PgType::FLOAT4 => Self::Float4(R::read_float4(buf)?),
+            PgType::FLOAT8 => Self::Float8(R::read_float8(buf)?),
+            PgType::TEXT => Self::Text(R::read_text(buf)?),
             _ => return Err(PgReprError::UnsupportedPgTypeForDecode(as_type.clone())),
         };
         Ok(scalar)
@@ -254,11 +249,10 @@ fn get_naive_date_time_nano(nanos: i64) -> NaiveDateTime {
 
 fn get_timezone(tz: &str) -> Tz {
     // TODO: Make a map at compile time to use (to speed this up).
-    TZ_VARIANTS
+    *TZ_VARIANTS
         .iter()
         .find(|&v| v.name() == tz)
-        .expect(&format!("invalid timezone in scalar value: {tz}"))
-        .clone()
+        .unwrap_or_else(|| panic!("invalid timezone in scalar value: {tz}"))
 }
 
 fn get_date_time_nano(nanos: i64, tz: &str) -> DateTime<Tz> {

@@ -1,5 +1,4 @@
-use core::fmt;
-use std::{borrow::Cow, fmt::Write, sync::Arc};
+use std::{fmt::Write, sync::Arc};
 
 use arrow_cast::CastOptions;
 use chrono::{Duration, TimeZone, Utc};
@@ -8,7 +7,7 @@ use datafusion::{
         array::{Array, ArrayRef},
         datatypes::{DataType, Field, Schema, TimeUnit},
         error::ArrowError,
-        record_batch::{RecordBatch, RecordBatchOptions},
+        record_batch::RecordBatch,
     },
     scalar::ScalarValue,
 };
@@ -16,37 +15,21 @@ use repr::str::encode::*;
 
 use crate::errors::{Error, Result};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Datasource {
-    Postgres,
-    MySql,
-    BigQuery,
-}
-
-impl fmt::Display for Datasource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-fn is_literal_quotable(_datasource: Datasource, lit: &ScalarValue) -> bool {
-    match lit {
+fn is_literal_quotable(lit: &ScalarValue) -> bool {
+    let not_quotable = matches!(
+        lit,
         ScalarValue::Int8(_)
-        | ScalarValue::Int16(_)
-        | ScalarValue::Int32(_)
-        | ScalarValue::Int64(_)
-        | ScalarValue::Float32(_)
-        | ScalarValue::Float64(_) => false,
-        _ => true,
-    }
+            | ScalarValue::Int16(_)
+            | ScalarValue::Int32(_)
+            | ScalarValue::Int64(_)
+            | ScalarValue::Float32(_)
+            | ScalarValue::Float64(_)
+    );
+    !not_quotable
 }
 
-pub fn encode_literal_to_text(
-    datasource: Datasource,
-    buf: &mut String,
-    lit: &ScalarValue,
-) -> Result<()> {
-    if is_literal_quotable(datasource, lit) {
+pub fn encode_literal_to_text(buf: &mut String, lit: &ScalarValue) -> Result<()> {
+    if is_literal_quotable(lit) {
         buf.write_str("'")?;
     }
     match lit {
@@ -83,7 +66,7 @@ pub fn encode_literal_to_text(
         }
         s => return Err(Error::UnsupportedDatafusionScalar(s.get_datatype())),
     };
-    if is_literal_quotable(datasource, lit) {
+    if is_literal_quotable(lit) {
         buf.write_str("'")?;
     }
     Ok(())
@@ -95,7 +78,7 @@ fn normalize_column(column: &ArrayRef) -> Result<ArrayRef, ArrowError> {
             DataType::Timestamp(TimeUnit::Nanosecond, tz.clone())
         }
         DataType::Time64(TimeUnit::Microsecond) => DataType::Time64(TimeUnit::Nanosecond),
-        dt => return Ok(Arc::clone(column)), // No need of any conversion
+        _ => return Ok(Arc::clone(column)), // No need of any conversion
     };
 
     let options = CastOptions {

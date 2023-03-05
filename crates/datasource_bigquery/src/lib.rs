@@ -14,7 +14,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
-use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -473,7 +473,7 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             // Handled by "IS TRUE" ...
             assert!(!matches!(val, ScalarValue::Boolean(_)));
 
-            util::encode_literal_to_text(util::Datasource::BigQuery, buf, val)?;
+            util::encode_literal_to_text(buf, val)?;
         }
         Expr::IsNull(expr) => {
             if write_expr(expr, buf)? {
