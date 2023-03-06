@@ -15,6 +15,12 @@ pub enum MongoError {
     #[error("Unexpected datatype for builder {0:?}")]
     UnexpectedDataTypeForBuilder(datafusion::arrow::datatypes::DataType),
 
+    #[error("Recursion limit exceeded for schema inferrence: {0}")]
+    RecursionLimitExceeded(usize),
+
+    #[error("Invalid args for record struct builder")]
+    InvalidArgsForRecordStructBuilder,
+
     #[error(transparent)]
     Mongo(#[from] mongodb::error::Error),
 
