@@ -5,6 +5,7 @@ mod exec;
 mod infer;
 
 use crate::errors::{MongoError, Result};
+use crate::exec::MongoBsonExec;
 use crate::infer::TableSampler;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
@@ -21,7 +22,8 @@ use datafusion::physical_plan::{
     display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
-use mongodb::bson::{doc, Document};
+use mongodb::bson::{doc, Document, RawDocumentBuf};
+use mongodb::Collection;
 use mongodb::{options::ClientOptions, Client};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -97,12 +99,17 @@ impl MongoTableAccessor {
 
         Ok(MongoTableProvider {
             schema: Arc::new(schema),
+            collection: self
+                .client
+                .database(&self.info.database)
+                .collection(&self.info.collection),
         })
     }
 }
 
 pub struct MongoTableProvider {
     schema: Arc<ArrowSchema>,
+    collection: Collection<RawDocumentBuf>,
 }
 
 #[async_trait]
@@ -129,10 +136,17 @@ impl TableProvider for MongoTableProvider {
     async fn scan(
         &self,
         _ctx: &SessionState,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
+        // TODO: Projection.
+        // TODO: Filters.
+
+        Ok(Arc::new(MongoBsonExec::new(
+            self.schema.clone(),
+            self.collection.clone(),
+            limit,
+        )))
     }
 }

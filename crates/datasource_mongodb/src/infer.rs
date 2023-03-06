@@ -62,7 +62,7 @@ fn schema_from_document(doc: &Document) -> Result<ArrowSchema> {
             Bson::Int32(_) => DataType::Int32,
             Bson::Int64(_) => DataType::Int64,
             Bson::Timestamp(_) => DataType::Timestamp(TimeUnit::Second, None),
-            Bson::Binary(_) => DataType::Binary,
+            Bson::Binary(_) => DataType::Binary, // TODO: Subtype?
             Bson::ObjectId(_) => return Err(MongoError::UnsupportedBsonType("ObjectId")),
             Bson::DateTime(_) => {
                 DataType::Timestamp(TimeUnit::Millisecond, Some("UTC".to_string()))
