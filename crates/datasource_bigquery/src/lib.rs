@@ -473,7 +473,7 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             // Handled by "IS TRUE" ...
             assert!(!matches!(val, ScalarValue::Boolean(_)));
 
-            util::encode_literal_to_text(buf, val)?;
+            util::encode_literal_to_text(util::Datasource::BigQuery, buf, val)?;
         }
         Expr::IsNull(expr) => {
             if write_expr(expr, buf)? {

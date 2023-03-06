@@ -15,21 +15,36 @@ use repr::str::encode::*;
 
 use crate::errors::{Error, Result};
 
-fn is_literal_quotable(lit: &ScalarValue) -> bool {
-    let not_quotable = matches!(
-        lit,
-        ScalarValue::Int8(_)
-            | ScalarValue::Int16(_)
-            | ScalarValue::Int32(_)
-            | ScalarValue::Int64(_)
-            | ScalarValue::Float32(_)
-            | ScalarValue::Float64(_)
-    );
-    !not_quotable
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Datasource {
+    Postgres,
+    MySql,
+    BigQuery,
 }
 
-pub fn encode_literal_to_text(buf: &mut String, lit: &ScalarValue) -> Result<()> {
-    if is_literal_quotable(lit) {
+/// Returns true if the literal expression encoding should be wrapped inside
+/// quotes.
+fn is_literal_quotable(datasource: Datasource, lit: &ScalarValue) -> bool {
+    match lit {
+        ScalarValue::Int8(_)
+        | ScalarValue::Int16(_)
+        | ScalarValue::Int32(_)
+        | ScalarValue::Int64(_)
+        | ScalarValue::Float32(_)
+        | ScalarValue::Float64(_) => false,
+        ScalarValue::Binary(_) if datasource == Datasource::MySql => false,
+        _ => true,
+    }
+}
+
+/// Encodes the literal expression as a string in the buffer. This is used to
+/// translate the query's where clause.
+pub fn encode_literal_to_text(
+    datasource: Datasource,
+    buf: &mut String,
+    lit: &ScalarValue,
+) -> Result<()> {
+    if is_literal_quotable(datasource, lit) {
         buf.write_str("'")?;
     }
     match lit {
@@ -40,6 +55,9 @@ pub fn encode_literal_to_text(buf: &mut String, lit: &ScalarValue) -> Result<()>
         ScalarValue::Float32(Some(v)) => encode_float(buf, *v)?,
         ScalarValue::Float64(Some(v)) => encode_float(buf, *v)?,
         ScalarValue::Utf8(Some(v)) => encode_string(buf, v)?,
+        ScalarValue::Binary(Some(v)) if datasource == Datasource::MySql => {
+            encode_binary_mysql(buf, v)?
+        }
         ScalarValue::Binary(Some(v)) => encode_binary(buf, v)?,
         ScalarValue::TimestampNanosecond(Some(v), tz) => {
             let naive = Utc.timestamp_nanos(*v).naive_utc();
@@ -66,7 +84,7 @@ pub fn encode_literal_to_text(buf: &mut String, lit: &ScalarValue) -> Result<()>
         }
         s => return Err(Error::UnsupportedDatafusionScalar(s.get_datatype())),
     };
-    if is_literal_quotable(lit) {
+    if is_literal_quotable(datasource, lit) {
         buf.write_str("'")?;
     }
     Ok(())
@@ -91,6 +109,10 @@ fn normalize_column(column: &ArrayRef) -> Result<ArrayRef, ArrowError> {
     Ok(array)
 }
 
+/// Creates a new batch of records from the current batch by casting some
+/// unsupported types to the ones we support.
+///
+/// For conversion mapping look at `normalize_column` function.
 pub fn normalize_batch(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
     let mut columns = Vec::with_capacity(batch.num_columns());
     let mut fields = Vec::with_capacity(batch.num_columns());
@@ -103,4 +125,133 @@ pub fn normalize_batch(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
     let schema = Arc::new(Schema::new(fields));
     let batch = RecordBatch::try_new(schema, columns)?;
     Ok(batch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_literal_encode() {
+        struct TestCase {
+            datasource: Datasource,
+            literal: ScalarValue,
+            expected: Option<&'static str>,
+        }
+
+        use Datasource::*;
+
+        let cases = vec![
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Boolean(Some(true)),
+                expected: None,
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Int8(Some(12)),
+                expected: Some("12"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Int16(Some(123)),
+                expected: Some("123"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Int32(Some(1234)),
+                expected: Some("1234"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Int64(Some(12345)),
+                expected: Some("12345"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Float32(Some(123.45)),
+                expected: Some("123.45"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Float64(Some(12345.6789)),
+                expected: Some("12345.6789"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Utf8(Some("abc".to_string())),
+                expected: Some("'abc'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Binary(Some(b"abc".to_vec())),
+                expected: Some("'\\x616263'"),
+            },
+            TestCase {
+                datasource: MySql,
+                literal: ScalarValue::Binary(Some(b"abc".to_vec())),
+                expected: Some("0x616263"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::TimestampNanosecond(Some(938709124 * 1_000_000_000), None),
+                expected: Some("'1999-09-30 16:32:04'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::TimestampNanosecond(
+                    Some(938709124 * 1_000_000_000),
+                    Some("UTC".to_string()),
+                ),
+                expected: Some("'1999-09-30 16:32:04+00'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::TimestampMicrosecond(Some(938709124 * 1_000_000), None),
+                expected: Some("'1999-09-30 16:32:04'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::TimestampMicrosecond(
+                    Some(938709124 * 1_000_000),
+                    Some("UTC".to_string()),
+                ),
+                expected: Some("'1999-09-30 16:32:04+00'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Time64Nanosecond(Some(59524 * 1_000_000_000)),
+                expected: Some("'16:32:04'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Time64Microsecond(Some(59524 * 1_000_000)),
+                expected: Some("'16:32:04'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Date32(Some(10_864)),
+                expected: Some("'1999-09-30'"),
+            },
+        ];
+
+        cases.into_iter().for_each(|case| {
+            let mut buf = String::new();
+            let res = encode_literal_to_text(case.datasource, &mut buf, &case.literal);
+            match (res, case.expected) {
+                (Ok(_), Some(s)) => assert_eq!(&buf, s),
+                (Ok(_), None) => assert!(false, "expected error, got result: {}", buf),
+                (Err(e1), None) => {
+                    let dt = case.literal.get_datatype();
+                    assert!(matches!(e1, Error::UnsupportedDatafusionScalar(ty) if ty == dt));
+                }
+                (Err(e), Some(s)) => assert!(false, "expected result: {}, got error: {}", s, e),
+            };
+        });
+    }
+
+    #[test]
+    fn test_batch_normalization() {
+        todo!()
+    }
 }

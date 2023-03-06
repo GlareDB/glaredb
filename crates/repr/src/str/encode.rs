@@ -103,7 +103,23 @@ where
     V: AsRef<[u8]>,
 {
     put_fmt!(buf, "\\x")?;
-    for i in v.as_ref().iter() {
+    put_binary(buf, v.as_ref())
+}
+
+pub fn encode_binary_mysql<B, V>(buf: &mut B, v: V) -> Result<()>
+where
+    B: Write,
+    V: AsRef<[u8]>,
+{
+    put_fmt!(buf, "0x")?;
+    put_binary(buf, v.as_ref())
+}
+
+fn put_binary<B>(buf: &mut B, v: &[u8]) -> Result<()>
+where
+    B: Write,
+{
+    for i in v.iter() {
         // Pad buffer with a '0' to represent single digits (04, 0a...)
         if i < &16 {
             buf.write_char('0')?;
