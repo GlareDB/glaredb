@@ -92,7 +92,7 @@ pub fn encode_literal_to_text(
 
 const DEFAULT_CAST_OPTIONS: CastOptions = CastOptions {
     // If a cast fails we should rather report the error and fix it instead
-    // of returning NULLs.
+    // of returning NULLs. This is a programming error.
     safe: false,
 };
 
@@ -129,6 +129,14 @@ pub fn normalize_batch(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
 
 #[cfg(test)]
 mod tests {
+    use datafusion::arrow::{
+        array::{
+            Int32Builder, Time64MicrosecondBuilder, Time64NanosecondBuilder,
+            TimestampMicrosecondBuilder, TimestampNanosecondBuilder,
+        },
+        datatypes::Schema,
+    };
+
     use super::*;
 
     #[test]
@@ -252,6 +260,110 @@ mod tests {
 
     #[test]
     fn test_batch_normalization() {
-        todo!()
+        let orig_fields = vec![
+            Field::new("c1", DataType::Int32, true),
+            Field::new(
+                "c2",
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_string())),
+                true,
+            ),
+            Field::new(
+                "c3",
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                true,
+            ),
+            Field::new("c4", DataType::Time64(TimeUnit::Microsecond), true),
+            Field::new("c5", DataType::Time64(TimeUnit::Nanosecond), true),
+        ];
+
+        let expected_fields = vec![
+            Field::new("c1", DataType::Int32, true),
+            Field::new(
+                "c2",
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                true,
+            ),
+            Field::new(
+                "c3",
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                true,
+            ),
+            Field::new("c4", DataType::Time64(TimeUnit::Nanosecond), true),
+            Field::new("c5", DataType::Time64(TimeUnit::Nanosecond), true),
+        ];
+
+        let orig_arrays: Vec<ArrayRef> = vec![
+            {
+                let mut c1 = Int32Builder::new();
+                c1.append_value(1);
+                Arc::new(c1.finish())
+            },
+            {
+                let mut c2 = TimestampMicrosecondBuilder::new().with_data_type(
+                    DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_string())),
+                );
+                c2.append_value(1);
+                Arc::new(c2.finish())
+            },
+            {
+                let mut c3 = TimestampNanosecondBuilder::new().with_data_type(DataType::Timestamp(
+                    TimeUnit::Nanosecond,
+                    Some("UTC".to_string()),
+                ));
+                c3.append_value(1);
+                Arc::new(c3.finish())
+            },
+            {
+                let mut c4 = Time64MicrosecondBuilder::new();
+                c4.append_value(1);
+                Arc::new(c4.finish())
+            },
+            {
+                let mut c5 = Time64NanosecondBuilder::new();
+                c5.append_value(1);
+                Arc::new(c5.finish())
+            },
+        ];
+
+        let expected_arrays: Vec<ArrayRef> =
+            vec![
+                {
+                    let mut c1 = Int32Builder::new();
+                    c1.append_value(1);
+                    Arc::new(c1.finish())
+                },
+                {
+                    let mut c2 = TimestampNanosecondBuilder::new().with_data_type(
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                    );
+                    c2.append_value(1_000);
+                    Arc::new(c2.finish())
+                },
+                {
+                    let mut c3 = TimestampNanosecondBuilder::new().with_data_type(
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                    );
+                    c3.append_value(1);
+                    Arc::new(c3.finish())
+                },
+                {
+                    let mut c4 = Time64NanosecondBuilder::new();
+                    c4.append_value(1_000);
+                    Arc::new(c4.finish())
+                },
+                {
+                    let mut c5 = Time64NanosecondBuilder::new();
+                    c5.append_value(1);
+                    Arc::new(c5.finish())
+                },
+            ];
+
+        let orig_schema = Schema::new(orig_fields);
+        let orig_batch = RecordBatch::try_new(Arc::new(orig_schema), orig_arrays).unwrap();
+
+        let res_batch = normalize_batch(&orig_batch).unwrap();
+
+        assert_eq!(res_batch.schema().fields(), &expected_fields);
+        assert_eq!(res_batch.columns(), &expected_arrays);
     }
 }

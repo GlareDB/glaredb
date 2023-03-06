@@ -11,6 +11,7 @@ macro_rules! put_fmt {
     };
 }
 
+/// Encode bool as a string.
 pub fn encode_bool<B: Write>(buf: &mut B, v: bool) -> Result<()> {
     if v {
         put_fmt!(buf, "t")
@@ -19,6 +20,7 @@ pub fn encode_bool<B: Write>(buf: &mut B, v: bool) -> Result<()> {
     }
 }
 
+/// Encode integral value as a string.
 pub fn encode_int<B, I>(buf: &mut B, v: I) -> Result<()>
 where
     B: Write,
@@ -27,6 +29,7 @@ where
     put_fmt!(buf, "{v}")
 }
 
+/// Encode floating point value as a string.
 pub fn encode_float<B, F>(buf: &mut B, v: F) -> Result<()>
 where
     B: Write,
@@ -89,6 +92,7 @@ where
     Ok(())
 }
 
+/// Encode a string value.
 pub fn encode_string<B, S>(buf: &mut B, v: S) -> Result<()>
 where
     B: Write,
@@ -97,6 +101,7 @@ where
     put_fmt!(buf, "{}", v)
 }
 
+/// Encode a binary value as a hex string prefixed by "\x".
 pub fn encode_binary<B, V>(buf: &mut B, v: V) -> Result<()>
 where
     B: Write,
@@ -106,6 +111,7 @@ where
     put_binary(buf, v.as_ref())
 }
 
+/// Encode a binary value as a hex string prefixed by "0x".
 pub fn encode_binary_mysql<B, V>(buf: &mut B, v: V) -> Result<()>
 where
     B: Write,
@@ -169,6 +175,7 @@ where
     Ok(is_ad)
 }
 
+/// Encode a time value as a string.
 pub fn encode_time<B, T>(buf: &mut B, v: &T, tz: bool) -> Result<()>
 where
     B: Write,
@@ -183,6 +190,7 @@ where
     Ok(())
 }
 
+/// Encode a date value as a string.
 pub fn encode_date<B, T>(buf: &mut B, v: &T) -> Result<()>
 where
     B: Write,
@@ -192,6 +200,8 @@ where
     put_year_ce(buf, is_ad)
 }
 
+/// Encode a UTC timestamp as a string. Setting tz = true will print the
+/// timezone information as offset (+00).
 pub fn encode_utc_timestamp<B, T>(buf: &mut B, v: &T, tz: bool) -> Result<()>
 where
     B: Write,
@@ -203,4 +213,235 @@ where
     encode_time(buf, v, tz)?;
     put_year_ce(buf, is_ad)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+
+    use super::*;
+
+    #[test]
+    fn test_encode() {
+        let mut s = String::new();
+
+        s.clear();
+        encode_bool(&mut s, true).unwrap();
+        assert_eq!(&s, "t");
+
+        s.clear();
+        encode_bool(&mut s, false).unwrap();
+        assert_eq!(&s, "f");
+
+        s.clear();
+        encode_int(&mut s, 123_i8).unwrap();
+        assert_eq!(&s, "123");
+
+        s.clear();
+        encode_int(&mut s, -123_i8).unwrap();
+        assert_eq!(&s, "-123");
+
+        s.clear();
+        encode_int(&mut s, 1234_i16).unwrap();
+        assert_eq!(&s, "1234");
+
+        s.clear();
+        encode_int(&mut s, -1234_i16).unwrap();
+        assert_eq!(&s, "-1234");
+
+        s.clear();
+        encode_int(&mut s, 654321_i32).unwrap();
+        assert_eq!(&s, "654321");
+
+        s.clear();
+        encode_int(&mut s, -654321_i32).unwrap();
+        assert_eq!(&s, "-654321");
+
+        s.clear();
+        encode_int(&mut s, 1234567890_i64).unwrap();
+        assert_eq!(&s, "1234567890");
+
+        s.clear();
+        encode_int(&mut s, -1234567890_i64).unwrap();
+        assert_eq!(&s, "-1234567890");
+
+        s.clear();
+        encode_float(&mut s, 123.456_f32).unwrap();
+        assert_eq!(&s, "123.456");
+
+        s.clear();
+        encode_float(&mut s, -123.456_f32).unwrap();
+        assert_eq!(&s, "-123.456");
+
+        s.clear();
+        encode_float(&mut s, 0.000000001_f32).unwrap();
+        assert_eq!(&s, "1e-9");
+
+        s.clear();
+        encode_float(&mut s, 1234000000000000000000.0_f32).unwrap();
+        assert_eq!(&s, "1.234e+21");
+
+        s.clear();
+        encode_float(&mut s, f32::NAN).unwrap();
+        assert_eq!(&s, "NaN");
+
+        s.clear();
+        encode_float(&mut s, f32::INFINITY).unwrap();
+        assert_eq!(&s, "Infinity");
+
+        s.clear();
+        encode_float(&mut s, f32::NEG_INFINITY).unwrap();
+        assert_eq!(&s, "-Infinity");
+
+        s.clear();
+        encode_float(&mut s, -0.0_f32).unwrap();
+        assert_eq!(&s, "-0");
+
+        s.clear();
+        encode_float(&mut s, 0.0_f32).unwrap();
+        assert_eq!(&s, "0");
+
+        s.clear();
+        encode_float(&mut s, 123.0456789_f64).unwrap();
+        assert_eq!(&s, "123.0456789");
+
+        s.clear();
+        encode_float(&mut s, 0.000000001_f64).unwrap();
+        assert_eq!(&s, "1e-9");
+
+        s.clear();
+        encode_float(&mut s, 1234000000000000000000.0_f64).unwrap();
+        assert_eq!(&s, "1.234e+21");
+
+        s.clear();
+        encode_float(&mut s, -123.0456789_f64).unwrap();
+        assert_eq!(&s, "-123.0456789");
+
+        s.clear();
+        encode_float(&mut s, f64::NAN).unwrap();
+        assert_eq!(&s, "NaN");
+
+        s.clear();
+        encode_float(&mut s, f64::INFINITY).unwrap();
+        assert_eq!(&s, "Infinity");
+
+        s.clear();
+        encode_float(&mut s, f64::NEG_INFINITY).unwrap();
+        assert_eq!(&s, "-Infinity");
+
+        s.clear();
+        encode_float(&mut s, -0.0_f64).unwrap();
+        assert_eq!(&s, "-0");
+
+        s.clear();
+        encode_float(&mut s, 0.0_f64).unwrap();
+        assert_eq!(&s, "0");
+
+        s.clear();
+        encode_string(&mut s, "abcdefghij").unwrap();
+        assert_eq!(&s, "abcdefghij");
+
+        s.clear();
+        encode_binary(&mut s, &[23, 13, 255, 0, 130]).unwrap();
+        assert_eq!(&s, "\\x170dff0082");
+
+        s.clear();
+        encode_binary_mysql(&mut s, &[23, 13, 255, 0, 130]).unwrap();
+        assert_eq!(&s, "0x170dff0082");
+
+        s.clear();
+        let nt = NaiveDateTime::from_timestamp_opt(938689324, 0).unwrap();
+        encode_utc_timestamp(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, &format!("{}", nt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let nt = NaiveDateTime::from_timestamp_opt(938689324, 123567).unwrap();
+        encode_utc_timestamp(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, &format!("{}.000124", nt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let nt = NaiveDateTime::from_timestamp_opt(938689324, 123_400_000).unwrap();
+        encode_utc_timestamp(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, &format!("{}.1234", nt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let nt = NaiveDateTime::from_timestamp_opt(-197199051, 0).unwrap();
+        encode_utc_timestamp(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, &format!("{}", nt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let nt = NaiveDateTime::from_timestamp_opt(-62143593684, 0).unwrap();
+        encode_utc_timestamp(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, &format!("1-{} BC", nt.format("%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let dt = Utc.timestamp_opt(938689324, 0).unwrap();
+        encode_utc_timestamp(&mut s, &dt, true).unwrap();
+        assert_eq!(&s, &format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let dt = Utc.timestamp_opt(938689324, 123567).unwrap();
+        encode_utc_timestamp(&mut s, &dt, true).unwrap();
+        assert_eq!(&s, &format!("{}.000124+00", dt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let dt = Utc.timestamp_opt(938689324, 123_400_000).unwrap();
+        encode_utc_timestamp(&mut s, &dt, true).unwrap();
+        assert_eq!(&s, &format!("{}.1234+00", dt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let dt = Utc.timestamp_opt(-197199051, 0).unwrap();
+        encode_utc_timestamp(&mut s, &dt, true).unwrap();
+        assert_eq!(&s, &format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let dt = Utc.timestamp_opt(-62143593684, 0).unwrap();
+        encode_utc_timestamp(&mut s, &dt, true).unwrap();
+        assert_eq!(&s, &format!("1-{}+00 BC", dt.format("%m-%d %H:%M:%S")),);
+
+        s.clear();
+        let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 0).unwrap();
+        encode_time(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, "16:32:04");
+
+        s.clear();
+        let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123567).unwrap();
+        encode_time(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, "16:32:04.000124");
+
+        s.clear();
+        let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123_400_000).unwrap();
+        encode_time(&mut s, &nt, false).unwrap();
+        assert_eq!(&s, "16:32:04.1234");
+
+        s.clear();
+        let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 0).unwrap();
+        encode_time(&mut s, &nt, true).unwrap();
+        assert_eq!(&s, "16:32:04+00");
+
+        s.clear();
+        let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123567).unwrap();
+        encode_time(&mut s, &nt, true).unwrap();
+        assert_eq!(&s, "16:32:04.000124+00");
+
+        s.clear();
+        let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123_400_000).unwrap();
+        encode_time(&mut s, &nt, true).unwrap();
+        assert_eq!(&s, "16:32:04.1234+00");
+
+        s.clear();
+        let nd = NaiveDate::from_ymd_opt(1999, 9, 30).unwrap();
+        encode_date(&mut s, &nd).unwrap();
+        assert_eq!(&s, "1999-09-30");
+
+        s.clear();
+        let nd = NaiveDate::from_ymd_opt(1963, 10, 2).unwrap();
+        encode_date(&mut s, &nd).unwrap();
+        assert_eq!(&s, "1963-10-02");
+
+        s.clear();
+        let nd = NaiveDate::from_ymd_opt(0, 9, 30).unwrap();
+        encode_date(&mut s, &nd).unwrap();
+        assert_eq!(&s, "1-09-30 BC");
+    }
 }
