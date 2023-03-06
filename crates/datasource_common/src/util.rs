@@ -1,10 +1,10 @@
 use std::{fmt::Write, sync::Arc};
 
-use arrow_cast::CastOptions;
 use chrono::{Duration, TimeZone, Utc};
 use datafusion::{
     arrow::{
         array::{Array, ArrayRef},
+        compute::{cast_with_options, CastOptions},
         datatypes::{DataType, Field, Schema, TimeUnit},
         error::ArrowError,
         record_batch::RecordBatch,
@@ -72,6 +72,12 @@ pub fn encode_literal_to_text(buf: &mut String, lit: &ScalarValue) -> Result<()>
     Ok(())
 }
 
+const DEFAULT_CAST_OPTIONS: CastOptions = CastOptions {
+    // If a cast fails we should rather report the error and fix it instead
+    // of returning NULLs.
+    safe: false,
+};
+
 fn normalize_column(column: &ArrayRef) -> Result<ArrayRef, ArrowError> {
     let dt = match column.data_type() {
         DataType::Timestamp(TimeUnit::Microsecond, tz) => {
@@ -81,12 +87,7 @@ fn normalize_column(column: &ArrayRef) -> Result<ArrayRef, ArrowError> {
         _ => return Ok(Arc::clone(column)), // No need of any conversion
     };
 
-    let options = CastOptions {
-        // If a cast fails we should rather report the error and fix it instead
-        // of returning NULLs.
-        safe: false,
-    };
-    let array = arrow_cast::cast_with_options(column, &dt, &options)?;
+    let array = cast_with_options(column, &dt, &DEFAULT_CAST_OPTIONS)?;
     Ok(array)
 }
 
