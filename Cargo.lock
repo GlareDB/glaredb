@@ -1425,6 +1425,7 @@ version = "0.1.0"
 dependencies = [
  "async-stream",
  "async-trait",
+ "bitvec",
  "chrono",
  "datafusion",
  "datasource_common",
@@ -4655,6 +4656,7 @@ dependencies = [
  "datasource_bigquery",
  "datasource_common",
  "datasource_debug",
+ "datasource_mongodb",
  "datasource_mysql",
  "datasource_object_store",
  "datasource_postgres",

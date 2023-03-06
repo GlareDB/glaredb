@@ -1,7 +1,11 @@
 //! MongoDB as a data source.
 pub mod errors;
 
+mod exec;
+mod infer;
+
 use crate::errors::{MongoError, Result};
+use crate::infer::TableSampler;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
@@ -17,6 +21,7 @@ use datafusion::physical_plan::{
     display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use mongodb::bson::{doc, Document};
 use mongodb::{options::ClientOptions, Client};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -69,12 +74,36 @@ pub struct MongoTableAccessor {
 }
 
 impl MongoTableAccessor {
+    /// Validate that we can access the table.
+    pub async fn validate(&self) -> Result<()> {
+        let _ = self
+            .client
+            .database(&self.info.database)
+            .collection::<Document>(&self.info.collection)
+            .estimated_document_count(None)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn into_table_provider(self) -> Result<MongoTableProvider> {
-        unimplemented!()
+        let collection = self
+            .client
+            .database(&self.info.database)
+            .collection(&self.info.collection);
+        let sampler = TableSampler::new(collection);
+
+        let schema = sampler.infer_schema_from_sample().await?;
+
+        Ok(MongoTableProvider {
+            schema: Arc::new(schema),
+        })
     }
 }
 
-pub struct MongoTableProvider {}
+pub struct MongoTableProvider {
+    schema: Arc<ArrowSchema>,
+}
 
 #[async_trait]
 impl TableProvider for MongoTableProvider {
@@ -83,7 +112,7 @@ impl TableProvider for MongoTableProvider {
     }
 
     fn schema(&self) -> ArrowSchemaRef {
-        unimplemented!()
+        self.schema.clone()
     }
 
     fn table_type(&self) -> TableType {

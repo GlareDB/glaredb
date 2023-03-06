@@ -13,6 +13,7 @@ use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
+use datasource_mongodb::MongoTableAccessInfo;
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -22,8 +23,8 @@ use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
     ConnectionOptionsLocal, ConnectionOptionsMongo, ConnectionOptionsMysql,
     ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMysql,
-    TableOptionsPostgres, TableOptionsS3,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
+    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -168,7 +169,13 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             ConnectionOptions::MONGO => {
-                unimplemented!()
+                let conn_str = remove_required_opt(m, "mongo_conn")?;
+
+                // TODO: Validate
+
+                ConnectionOptions::Mongo(ConnectionOptionsMongo {
+                    connection_string: conn_str,
+                })
             }
             ConnectionOptions::DEBUG
                 if *self.ctx.get_session_vars().enable_debug_datasources.value() =>
@@ -193,7 +200,7 @@ impl<'a> SessionPlanner<'a> {
         let conn = stmt.connection.to_lowercase();
         let conn = self.ctx.get_connection_by_name(&conn)?;
 
-        let external_table_options = match conn.options {
+        let external_table_options = match &conn.options {
             ConnectionOptions::Debug(_) => {
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
@@ -201,7 +208,7 @@ impl<'a> SessionPlanner<'a> {
                     table_type: typ.to_string(),
                 })
             }
-            ConnectionOptions::Postgres(ref options) => {
+            ConnectionOptions::Postgres(options) => {
                 let source_schema = remove_required_opt(m, "schema")?;
                 let source_table = remove_required_opt(m, "table")?;
 
@@ -230,7 +237,7 @@ impl<'a> SessionPlanner<'a> {
                     table: access.name,
                 })
             }
-            ConnectionOptions::BigQuery(ref options) => {
+            ConnectionOptions::BigQuery(options) => {
                 let dataset_id = remove_required_opt(m, "dataset_id")?;
                 let table_id = remove_required_opt(m, "table_id")?;
 
@@ -256,7 +263,7 @@ impl<'a> SessionPlanner<'a> {
                     table_id: access.table_id,
                 })
             }
-            ConnectionOptions::Mysql(ref options) => {
+            ConnectionOptions::Mysql(options) => {
                 let source_schema = remove_required_opt(m, "schema")?;
                 let source_table = remove_required_opt(m, "table")?;
 
@@ -305,7 +312,7 @@ impl<'a> SessionPlanner<'a> {
 
                 TableOptions::Local(TableOptionsLocal { location })
             }
-            ConnectionOptions::Gcs(ref options) => {
+            ConnectionOptions::Gcs(options) => {
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let location = remove_required_opt(m, "location")?;
 
@@ -331,7 +338,7 @@ impl<'a> SessionPlanner<'a> {
                     location,
                 })
             }
-            ConnectionOptions::S3(ref options) => {
+            ConnectionOptions::S3(options) => {
                 let region = remove_required_opt(m, "region")?;
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
                 let location = remove_required_opt(m, "location")?;
@@ -364,8 +371,16 @@ impl<'a> SessionPlanner<'a> {
             ConnectionOptions::Ssh(_) => {
                 return Err(ExecError::ExternalTableWithSsh);
             }
-            ConnectionOptions::Mongo(_) => {
-                unimplemented!()
+            ConnectionOptions::Mongo(_options) => {
+                let database = remove_required_opt(m, "database")?;
+                let collection = remove_required_opt(m, "collection")?;
+
+                // TODO: Validate.
+
+                TableOptions::Mongo(TableOptionsMongo {
+                    database,
+                    collection,
+                })
             }
         };
 

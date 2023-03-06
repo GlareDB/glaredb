@@ -1,7 +1,25 @@
 #[derive(Debug, thiserror::Error)]
 pub enum MongoError {
+    #[error("Unsupported bson type: {0}")]
+    UnsupportedBsonType(&'static str),
+
+    #[error("Failed to merge schemas: {0}")]
+    FailedSchemaMerge(datafusion::arrow::error::ArrowError),
+
+    #[error("Failed to read raw bson document")]
+    FailedToReadRawBsonDocument,
+
+    #[error("Column not in inferred schema")]
+    ColumnNotInInferredSchema(String),
+
+    #[error("Unexpected datatype for builder {0:?}")]
+    UnexpectedDataTypeForBuilder(datafusion::arrow::datatypes::DataType),
+
     #[error(transparent)]
     Mongo(#[from] mongodb::error::Error),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
 }
 
 pub type Result<T, E = MongoError> = std::result::Result<T, E>;
