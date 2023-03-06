@@ -1,0 +1,8 @@
+# Include file to create bigquery connection
+
+statement ok
+CREATE CONNECTION IF NOT EXISTS testconn
+    FOR bigquery OPTIONS (
+		service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+		project_id = '${GCP_PROJECT_ID}',
+    );

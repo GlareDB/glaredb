@@ -1,0 +1,35 @@
+# Basic tests for s3 external tables
+
+statement ok
+create schema s3;
+
+statement ok
+set search_path = s3;
+
+include ./include/conn.slti
+
+# Basic test for csv format
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM testconn
+	OPTIONS (
+		region = '${AWS_S3_REGION}',
+		bucket_name = '${AWS_S3_BUCKET_NAME}',
+		location = 'bikeshare_stations.csv'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti
+
+# Basic test for parquet format
+# TODO reenable once bikeshare_stations has a parquet format
+halt
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM testconn
+	OPTIONS (
+		region = '${AWS_S3_REGION}',
+		bucket_name = '${AWS_S3_BUCKET_NAME}',
+		location = 'bikeshare_stations.csv'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti

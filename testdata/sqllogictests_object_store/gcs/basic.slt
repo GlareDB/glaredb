@@ -1,0 +1,32 @@
+# Basic tests for gcs external tables
+
+statement ok
+create schema gcs;
+
+statement ok
+set search_path = gcs;
+
+include ./include/conn.slti
+
+# Test CSV format
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM testconn
+	OPTIONS (
+		bucket_name = '${GCS_BUCKET_NAME}',
+		location = 'bikeshare_stations.csv'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti
+
+# TODO renable once bikeshare_stations has a parquet format
+halt
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM testconn
+	OPTIONS (
+		bucket_name = '${GCS_BUCKET_NAME}',
+		location = 'bikeshare_stations.parquet'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti
