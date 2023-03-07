@@ -8,6 +8,7 @@ use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
+use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -71,6 +72,8 @@ pub enum DispatchError {
     MysqlDatasource(#[from] datasource_mysql::errors::MysqlError),
     #[error(transparent)]
     ObjectStoreDatasource(#[from] datasource_object_store::errors::ObjectStoreSourceError),
+    #[error(transparent)]
+    MongoDatasource(#[from] datasource_mongodb::errors::MongoError),
     #[error(transparent)]
     CommonDatasource(#[from] datasource_common::errors::Error),
 }
@@ -308,6 +311,26 @@ impl<'a> SessionDispatcher<'a> {
                     });
                 let provider = result?;
                 Ok(provider)
+            }
+            (ConnectionOptions::Mongo(conn), TableOptions::Mongo(table)) => {
+                let access_info = MongoAccessInfo {
+                    connection_string: conn.connection_string.clone(),
+                };
+                let table_info = MongoTableAccessInfo {
+                    database: table.database.clone(),
+                    collection: table.collection.clone(),
+                };
+                let result: Result<_, datasource_mongodb::errors::MongoError> =
+                    task::block_in_place(move || {
+                        Handle::current().block_on(async move {
+                            let accessor = MongoAccessor::connect(access_info).await?;
+                            let table_accessor = accessor.into_table_accessor(table_info);
+                            let provider = table_accessor.into_table_provider().await?;
+                            Ok(provider)
+                        })
+                    });
+                let provider = result?;
+                Ok(Arc::new(provider))
             }
             (conn, table) => Err(DispatchError::UnhandledExternalDispatch {
                 table_type: table.to_string(),
