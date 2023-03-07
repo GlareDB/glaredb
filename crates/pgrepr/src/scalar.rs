@@ -176,7 +176,7 @@ impl Scalar {
             }
 
             other => {
-                assert_ne!(other, DfScalar::Null);
+                debug_assert!(!other.is_null());
                 Scalar::Other(other)
             }
         }
@@ -206,14 +206,30 @@ impl Scalar {
                 let nanos = v.timestamp_nanos();
                 DfScalar::TimestampNanosecond(Some(nanos), None)
             }
-            (Self::TimestampTz(v), ArrowType::Timestamp(TimeUnit::Microsecond, Some(tz))) => {
-                assert_eq!(tz, v.timezone().name());
+            (
+                Self::TimestampTz(v),
+                arrow_type @ ArrowType::Timestamp(TimeUnit::Microsecond, Some(tz)),
+            ) => {
+                if tz != v.timezone().name() {
+                    return Err(PgReprError::InternalError(format!(
+                        "cannot convert from {:?} to arrow type {:?}",
+                        v, arrow_type
+                    )));
+                }
                 let nanos = v.timestamp_nanos();
                 let micros = nanos_to_micros(nanos);
                 DfScalar::TimestampMicrosecond(Some(micros), Some(tz.clone()))
             }
-            (Self::TimestampTz(v), ArrowType::Timestamp(TimeUnit::Nanosecond, Some(tz))) => {
-                assert_eq!(tz, v.timezone().name());
+            (
+                Self::TimestampTz(v),
+                arrow_type @ ArrowType::Timestamp(TimeUnit::Nanosecond, Some(tz)),
+            ) => {
+                if tz != v.timezone().name() {
+                    return Err(PgReprError::InternalError(format!(
+                        "cannot convert from {:?} to arrow type {:?}",
+                        v, arrow_type
+                    )));
+                }
                 let nanos = v.timestamp_nanos();
                 DfScalar::TimestampNanosecond(Some(nanos), Some(tz.clone()))
             }

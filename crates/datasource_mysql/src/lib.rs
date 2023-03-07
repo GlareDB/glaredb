@@ -22,7 +22,6 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
-use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
 use datasource_common::util;
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -647,11 +646,6 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             write!(buf, "{col}")?;
         }
         Expr::Literal(val) => {
-            // Handled by "IS NULL" ...
-            assert!(!val.is_null());
-            // Handled by "IS TRUE" ...
-            assert!(!matches!(val, ScalarValue::Boolean(_)));
-
             util::encode_literal_to_text(util::Datasource::MySql, buf, val)?;
         }
         Expr::IsNull(expr) => {

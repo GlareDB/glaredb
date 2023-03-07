@@ -18,7 +18,6 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use datafusion::scalar::ScalarValue;
 use datasource_common::ssh::SshTunnelAccess;
 use datasource_common::util;
 use errors::{PostgresError, Result};
@@ -783,11 +782,6 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             write!(buf, "{}", col)?;
         }
         Expr::Literal(val) => {
-            // Handled by "IS NULL" ...
-            assert!(!val.is_null());
-            // Handled by "IS TRUE" ...
-            assert!(!matches!(val, ScalarValue::Boolean(_)));
-
             util::encode_literal_to_text(util::Datasource::Postgres, buf, val)?;
         }
         Expr::IsNull(expr) => {

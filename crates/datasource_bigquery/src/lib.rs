@@ -15,7 +15,6 @@ use datafusion::arrow::datatypes::{
 };
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::ScalarValue;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -468,11 +467,6 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             write!(buf, "{}", col)?;
         }
         Expr::Literal(val) => {
-            // Handled by "IS NULL" ...
-            assert!(!val.is_null());
-            // Handled by "IS TRUE" ...
-            assert!(!matches!(val, ScalarValue::Boolean(_)));
-
             util::encode_literal_to_text(util::Datasource::BigQuery, buf, val)?;
         }
         Expr::IsNull(expr) => {
