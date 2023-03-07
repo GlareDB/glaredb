@@ -18,8 +18,18 @@ SELECT station_id FROM basic WHERE power_type = 'non-metered';
 2563
 3455
 
+# TODO: investigate if datafusion can configure string columns CSVs
+# The following query doesn't work on CSVs since columns are inferred as
+# strings use empty string for both NULL and true empty strings
+# query IT
+# SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
+# ----
+# 2574  Zilker Park
+# 3619  6th & Congress
+
+# The following is a workaround for the above query for CSVs
 query IT
-SELECT station_id, name FROM basic WHERE alternate_name IS NOT NULL;
+SELECT station_id, name FROM basic WHERE NULLIF(alternate_name, '') IS NOT NULL;
 ----
 2574  Zilker Park
 3619  6th & Congress

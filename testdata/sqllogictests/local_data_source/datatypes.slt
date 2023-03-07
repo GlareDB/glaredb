@@ -7,8 +7,11 @@ statement ok
 CREATE EXTERNAL TABLE datatypes
     FROM testconn
     OPTIONS (
-        location = 'testdata/sqllogictests_local/data/datatypes-data.csv',
+        location = 'testdata/sqllogictests/local_data_source/data/datatypes-data.csv',
     );
 
-statement ok
-select * from error;
+query TTIRTTTTTTT
+SELECT * FROM datatypes;
+----
+t abc 123 123.456 Ymlu 938709124000
+NULL (empty) NULL NULL (empty) NULL

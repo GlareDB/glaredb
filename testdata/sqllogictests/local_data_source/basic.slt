@@ -1,0 +1,12 @@
+# Basic tests for local object store data source external tables
+
+include ./include/conn.slti
+
+statement ok
+CREATE EXTERNAL TABLE basic
+    FROM testconn
+    OPTIONS (
+        location = 'testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+    );
+
+include ../../sqllogictests_datasources_common/include/basic.slti
