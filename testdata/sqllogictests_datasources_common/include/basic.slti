@@ -44,11 +44,8 @@ CREATE VIEW basic_active_or_not AS
 # The following query doesn't work on BigQuery!
 # Returns the following error:
 #
-#     Row filter for <dataset>.bikeshare_stations is invalid. Filter is
-#     'status = 'active' IS TRUE' 
-#
-# Apparently the filter is translated as such for views which doesn't work well
-# with BigQuery.
+#   Row filter for <dataset>.bikeshare_stations is invalid. Filter is
+#   'status = 'active' IS TRUE' 
 #
 # query I
 # SELECT sum(number_of_docks) FROM basic_active_or_not WHERE bool_status IS TRUE;
@@ -60,32 +57,27 @@ CREATE VIEW basic_active_or_not AS
 # ----
 # 12  13
 
-# TODO: The following query doesn't work. Posgres returns an error:
-#   ERROR: operator does not exist: timestamp without time zone > bigint
-# Somewhere the timestamp is cast to a bigint and sent to external PG server.
-# This is probably related to the filters and how we pass them to postgres.
-# See `write_expr` function in `crates/datasource_postgres/src/lib.rs`.
-#
-# Also tried creating the column as a timestamptz but there are issues while
-# casting. Arrow doesn't allow casting a `Utf8` to `Timestamp(_, Some(Tz))`.
-# See: https://github.com/apache/arrow-rs/blob/9b48f3478320f7df666c0f075b578a059203ff16/arrow-cast/src/cast.rs#L64-L297
-#
-# On mysql, the query doesn't error but returns empty. Something to look into.
-#
-# PS: Write some views on top of the table to test more datatypes with filters.
-#
-# For bigquery as well, this query fails to function due to improper
-# translation of filters.
-#
-# query I
-# SELECT station_id FROM basic 
-# 	WHERE modified_date > '2021-11-04 02:07:00'::timestamp
-# 		AND modified_date <= '2021-11-04 02:24:00'::timestamp
-# 	ORDER BY station_id;
-# ----
-# 11
-# 111
-# 1111
+# TODO: Write some views on top of the table to test more datatypes with filters
+
+query I
+SELECT station_id FROM basic 
+	WHERE modified_date > '2021-11-04 02:07:00'::timestamp
+	AND modified_date <= '2021-11-04 02:24:00'::timestamp
+	ORDER BY station_id;
+----
+11
+111
+1111
+
+query I
+SELECT station_id FROM basic 
+	WHERE modified_date > '2021-11-04 02:07:00'
+	AND modified_date <= '2021-11-04 02:24:00'
+	ORDER BY station_id;
+----
+11
+111
+1111
 
 query I nosort
 SELECT station_id FROM basic
