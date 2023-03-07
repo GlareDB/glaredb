@@ -5,10 +5,10 @@ include ./include/conn.slti
 # Create an external table that connects to the datatypes table.
 statement ok
 CREATE EXTERNAL TABLE datatypes
-	FROM testconn
-	OPTIONS (
-		location = './testdata/sqllogictests_local/data/datatypes-data.csv',
-	);
+    FROM testconn
+    OPTIONS (
+        location = 'testdata/sqllogictests_local/data/datatypes-data.csv',
+    );
 
 statement ok
 select * from error;
