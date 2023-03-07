@@ -14,6 +14,15 @@ pub enum Error {
 
     #[error("Failed to find an open port to open the SSH tunnel")]
     NoOpenPorts,
+
+    #[error("Scalar of type '{0}' not supported")]
+    UnsupportedDatafusionScalar(datafusion::arrow::datatypes::DataType),
+
+    #[error(transparent)]
+    ReprError(#[from] repr::error::ReprError),
+
+    #[error(transparent)]
+    FmtError(#[from] core::fmt::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

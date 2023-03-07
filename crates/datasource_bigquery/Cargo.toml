@@ -20,3 +20,4 @@ bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch
 parking_lot = "0.12.1"
 async-channel = "1.8.0"
 metastore = { path = "../metastore" }
+datasource_common = { path = "../datasource_common" }

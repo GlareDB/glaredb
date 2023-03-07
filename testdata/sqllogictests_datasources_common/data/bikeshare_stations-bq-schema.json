@@ -67,6 +67,6 @@
 	{
     "mode": "NULLABLE",
     "name": "modified_date",
-    "type": "TIMESTAMP"
+    "type": "DATETIME"
   }
 ]

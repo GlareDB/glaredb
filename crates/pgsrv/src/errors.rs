@@ -54,6 +54,9 @@ pub enum PgSrvError {
     #[error("unexpected describe object type: {0}")]
     UnexpectedDescribeObjectType(u8),
 
+    #[error("message length '{0}' exceeds the limit of i32 max")]
+    MessageTooLarge(usize),
+
     #[error(transparent)]
     OpenSsl(#[from] openssl::ssl::Error),
 
