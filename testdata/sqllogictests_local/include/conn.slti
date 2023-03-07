@@ -1,0 +1,5 @@
+# Include file to create local connection
+
+statement ok
+CREATE CONNECTION IF NOT EXISTS testconn
+	FOR local;

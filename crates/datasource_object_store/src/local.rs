@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
@@ -43,7 +44,9 @@ impl LocalAccessor {
     pub async fn new(access: LocalTableAccess) -> Result<Self> {
         let store = Arc::new(LocalFileSystem::new());
 
-        let location = ObjectStorePath::from(access.location);
+        let location = Path::new(&access.location).canonicalize()?;
+        let location: &str = &location.to_string_lossy();
+        let location = ObjectStorePath::from(location);
         // Use provided file type or infer from location
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");

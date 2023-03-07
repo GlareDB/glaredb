@@ -17,6 +17,9 @@ pub enum ObjectStoreSourceError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
     #[error("No file extension provided")]
     NoFileExtension,
 
