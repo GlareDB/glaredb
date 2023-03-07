@@ -221,165 +221,173 @@ mod tests {
 
     use super::*;
 
+    /// Used to assert if the str encoding is correct.
+    ///
+    /// This macro takes a minimum of 3 arguments:
+    ///
+    /// 1. The expected output (should have `to_string` method)
+    /// 2. Encoding function (`encode_bool`, `encode_int`, etc.)
+    /// 3. Value that needs to be encoded
+    ///
+    /// If the encoding function takes extra arguments they can be passed on
+    /// in the end (comma seperated like other arguments).
     macro_rules! assert_encode {
-        ($fn:ident, $val:expr, $str:expr) => {{
+        ($str:expr, $fn:ident, $val:expr $(,$args:expr)*) => {{
             let mut s = String::new();
-            $fn(&mut s, $val).unwrap();
-            let e: &str = $str.as_ref();
-            assert_eq!(&s, e);
+            $fn(&mut s, $val $(,$args)*).unwrap();
+            assert_eq!($str.to_string(), s);
         }};
 
-        ($fn:ident, $val:expr, $opt:expr, $str:expr) => {{
-            let mut s = String::new();
-            $fn(&mut s, $val, $opt).unwrap();
-            assert_eq!(s, $str.to_string());
-        }};
+        // To handle trailing comma
+        ($str:expr, $fn:ident, $val:expr $(,$args:expr)*,) => {
+            assert_encode!($str, $fn, $val $(,$args)*)
+        };
     }
 
     #[test]
     fn test_encode() {
-        assert_encode!(encode_bool, true, "t");
-        assert_encode!(encode_bool, false, "f");
+        assert_encode!("t", encode_bool, true);
+        assert_encode!("f", encode_bool, false);
 
-        assert_encode!(encode_int, 123_i8, "123");
-        assert_encode!(encode_int, -123_i8, "-123");
-        assert_encode!(encode_int, 1234_i16, "1234");
-        assert_encode!(encode_int, -1234_i16, "-1234");
-        assert_encode!(encode_int, 654321_i32, "654321");
-        assert_encode!(encode_int, -654321_i32, "-654321");
-        assert_encode!(encode_int, 1234567890_i64, "1234567890");
-        assert_encode!(encode_int, -1234567890_i64, "-1234567890");
+        assert_encode!("123", encode_int, 123_i8);
+        assert_encode!("-123", encode_int, -123_i8);
+        assert_encode!("1234", encode_int, 1234_i16);
+        assert_encode!("-1234", encode_int, -1234_i16);
+        assert_encode!("654321", encode_int, 654321_i32);
+        assert_encode!("-654321", encode_int, -654321_i32);
+        assert_encode!("1234567890", encode_int, 1234567890_i64);
+        assert_encode!("-1234567890", encode_int, -1234567890_i64);
 
-        assert_encode!(encode_float, 123.456_f32, "123.456");
-        assert_encode!(encode_float, -123.456_f32, "-123.456");
-        assert_encode!(encode_float, 0.000000001_f32, "1e-9");
-        assert_encode!(encode_float, 1234000000000000000000.0_f32, "1.234e+21");
-        assert_encode!(encode_float, f32::NAN, "NaN");
-        assert_encode!(encode_float, f32::INFINITY, "Infinity");
-        assert_encode!(encode_float, f32::NEG_INFINITY, "-Infinity");
-        assert_encode!(encode_float, -0.0_f32, "-0");
-        assert_encode!(encode_float, 0.0_f32, "0");
-        assert_encode!(encode_float, 123.0456789_f64, "123.0456789");
-        assert_encode!(encode_float, 0.000000001_f64, "1e-9");
-        assert_encode!(encode_float, 1234000000000000000000.0_f64, "1.234e+21");
-        assert_encode!(encode_float, -123.0456789_f64, "-123.0456789");
-        assert_encode!(encode_float, f64::NAN, "NaN");
-        assert_encode!(encode_float, f64::INFINITY, "Infinity");
-        assert_encode!(encode_float, f64::NEG_INFINITY, "-Infinity");
-        assert_encode!(encode_float, -0.0_f64, "-0");
-        assert_encode!(encode_float, 0.0_f64, "0");
+        assert_encode!("123.456", encode_float, 123.456_f32);
+        assert_encode!("-123.456", encode_float, -123.456_f32);
+        assert_encode!("1e-9", encode_float, 0.000000001_f32);
+        assert_encode!("1.234e+21", encode_float, 1234000000000000000000.0_f32);
+        assert_encode!("NaN", encode_float, f32::NAN);
+        assert_encode!("Infinity", encode_float, f32::INFINITY);
+        assert_encode!("-Infinity", encode_float, f32::NEG_INFINITY);
+        assert_encode!("-0", encode_float, -0.0_f32);
+        assert_encode!("0", encode_float, 0.0_f32);
+        assert_encode!("123.0456789", encode_float, 123.0456789_f64);
+        assert_encode!("1e-9", encode_float, 0.000000001_f64);
+        assert_encode!("1.234e+21", encode_float, 1234000000000000000000.0_f64);
+        assert_encode!("-123.0456789", encode_float, -123.0456789_f64);
+        assert_encode!("NaN", encode_float, f64::NAN);
+        assert_encode!("Infinity", encode_float, f64::INFINITY);
+        assert_encode!("-Infinity", encode_float, f64::NEG_INFINITY);
+        assert_encode!("-0", encode_float, -0.0_f64);
+        assert_encode!("0", encode_float, 0.0_f64);
 
-        assert_encode!(encode_string, "abcdefghij", "abcdefghij");
+        assert_encode!("abcdefghij", encode_string, "abcdefghij");
 
-        assert_encode!(encode_binary, &[23, 13, 255, 0, 130], "\\x170dff0082");
+        assert_encode!("\\x170dff0082", encode_binary, &[23, 13, 255, 0, 130]);
 
-        assert_encode!(encode_binary_mysql, &[23, 13, 255, 0, 130], "0x170dff0082");
+        assert_encode!("0x170dff0082", encode_binary_mysql, &[23, 13, 255, 0, 130]);
 
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 0).unwrap();
         assert_encode!(
+            nt.format("%Y-%m-%d %H:%M:%S"),
             encode_utc_timestamp,
             &nt,
             false,
-            nt.format("%Y-%m-%d %H:%M:%S")
         );
 
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 123567).unwrap();
         assert_encode!(
+            format!("{}.000124", nt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &nt,
             false,
-            format!("{}.000124", nt.format("%Y-%m-%d %H:%M:%S"))
         );
 
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 123_400_000).unwrap();
         assert_encode!(
+            format!("{}.1234", nt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &nt,
             false,
-            format!("{}.1234", nt.format("%Y-%m-%d %H:%M:%S"))
         );
 
         let nt = NaiveDateTime::from_timestamp_opt(-197199051, 0).unwrap();
         assert_encode!(
+            nt.format("%Y-%m-%d %H:%M:%S"),
             encode_utc_timestamp,
             &nt,
             false,
-            nt.format("%Y-%m-%d %H:%M:%S")
         );
 
         let nt = NaiveDateTime::from_timestamp_opt(-62143593684, 0).unwrap();
         assert_encode!(
+            format!("1-{} BC", nt.format("%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &nt,
             false,
-            format!("1-{} BC", nt.format("%m-%d %H:%M:%S"))
         );
 
         let dt = Utc.timestamp_opt(938689324, 0).unwrap();
         assert_encode!(
+            format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &dt,
             true,
-            format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S"))
         );
 
         let dt = Utc.timestamp_opt(938689324, 123567).unwrap();
         assert_encode!(
+            format!("{}.000124+00", dt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &dt,
             true,
-            format!("{}.000124+00", dt.format("%Y-%m-%d %H:%M:%S"))
         );
 
         let dt = Utc.timestamp_opt(938689324, 123_400_000).unwrap();
         assert_encode!(
+            format!("{}.1234+00", dt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &dt,
             true,
-            format!("{}.1234+00", dt.format("%Y-%m-%d %H:%M:%S"))
         );
 
         let dt = Utc.timestamp_opt(-197199051, 0).unwrap();
         assert_encode!(
+            format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &dt,
             true,
-            format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S"))
         );
 
         let dt = Utc.timestamp_opt(-62143593684, 0).unwrap();
         assert_encode!(
+            format!("1-{}+00 BC", dt.format("%m-%d %H:%M:%S")),
             encode_utc_timestamp,
             &dt,
             true,
-            format!("1-{}+00 BC", dt.format("%m-%d %H:%M:%S"))
         );
 
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 0).unwrap();
-        assert_encode!(encode_time, &nt, false, "16:32:04");
+        assert_encode!("16:32:04", encode_time, &nt, false);
 
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123567).unwrap();
-        assert_encode!(encode_time, &nt, false, "16:32:04.000124");
+        assert_encode!("16:32:04.000124", encode_time, &nt, false);
 
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123_400_000).unwrap();
-        assert_encode!(encode_time, &nt, false, "16:32:04.1234");
+        assert_encode!("16:32:04.1234", encode_time, &nt, false);
 
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 0).unwrap();
-        assert_encode!(encode_time, &nt, true, "16:32:04+00");
+        assert_encode!("16:32:04+00", encode_time, &nt, true);
 
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123567).unwrap();
-        assert_encode!(encode_time, &nt, true, "16:32:04.000124+00");
+        assert_encode!("16:32:04.000124+00", encode_time, &nt, true);
 
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123_400_000).unwrap();
-        assert_encode!(encode_time, &nt, true, "16:32:04.1234+00");
+        assert_encode!("16:32:04.1234+00", encode_time, &nt, true);
 
         let nd = NaiveDate::from_ymd_opt(1999, 9, 30).unwrap();
-        assert_encode!(encode_date, &nd, "1999-09-30");
+        assert_encode!("1999-09-30", encode_date, &nd);
 
         let nd = NaiveDate::from_ymd_opt(1963, 10, 2).unwrap();
-        assert_encode!(encode_date, &nd, "1963-10-02");
+        assert_encode!("1963-10-02", encode_date, &nd);
 
         let nd = NaiveDate::from_ymd_opt(0, 9, 30).unwrap();
-        assert_encode!(encode_date, &nd, "1-09-30 BC");
+        assert_encode!("1-09-30 BC", encode_date, &nd);
     }
 }
