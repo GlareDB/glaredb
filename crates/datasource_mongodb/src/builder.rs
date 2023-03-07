@@ -1,21 +1,14 @@
 use crate::errors::{MongoError, Result};
-use async_stream::stream;
 use bitvec::{order::Lsb0, vec::BitVec};
 use datafusion::arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Decimal128Builder,
-    Float32Builder, Float64Builder, Int16Builder, Int32Builder, Int64Builder, Int8Builder,
-    ListBuilder, StringBuilder, StructArray, StructBuilder, Time64MicrosecondBuilder,
+    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Decimal128Builder,
+    Float64Builder, Int32Builder, Int64Builder, StringBuilder, StructArray,
     TimestampMicrosecondBuilder, TimestampMillisecondBuilder,
 };
-use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
-use futures::{Stream, StreamExt};
-use mongodb::bson::{doc, Document, RawBsonRef, RawDocument, RawDocumentBuf};
-use mongodb::{options::ClientOptions, Client, Collection};
+use datafusion::arrow::datatypes::{DataType, Field, TimeUnit};
+use mongodb::bson::{RawBsonRef, RawDocument};
 use std::any::Any;
 use std::collections::HashMap;
-use std::fmt;
 use std::sync::Arc;
 
 /// Similar to arrow's `StructBuilder`, but specific for "shredding" bson
@@ -42,7 +35,7 @@ impl RecordStructBuilder {
         if fields.len() != builders.len() {
             return Err(MongoError::InvalidArgsForRecordStructBuilder);
         }
-        if builders.len() == 0 {
+        if builders.is_empty() {
             return Err(MongoError::InvalidArgsForRecordStructBuilder);
         }
 
@@ -172,7 +165,7 @@ macro_rules! append_scalar {
 ///
 /// Panics if the array builder is not the expected type. This would indicated a
 /// programmer error.
-fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
+fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
     // So robust
     match (val, typ) {
         // Boolean
@@ -192,7 +185,7 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
         }
 
         // Int32
-        (RawBsonRef::Int32(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
+        (RawBsonRef::Int32(v), DataType::Int32) => append_scalar!(Int32Builder, col, v),
         (RawBsonRef::Int32(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
         (RawBsonRef::Int32(v), DataType::Float64) => append_scalar!(Float64Builder, col, v as f64),
         (RawBsonRef::Int32(v), DataType::Utf8) => {
@@ -201,7 +194,7 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
 
         // Int64
         (RawBsonRef::Int64(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
-        (RawBsonRef::Int64(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Int64(v), DataType::Int64) => append_scalar!(Int64Builder, col, v),
         (RawBsonRef::Int64(v), DataType::Float64) => append_scalar!(Float64Builder, col, v as f64),
         (RawBsonRef::Int64(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
@@ -242,7 +235,7 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
             append_scalar!(
                 TimestampMicrosecondBuilder, // TODO: Possibly change to nanosecond.
                 col,
-                v.timestamp_millis() as i64
+                v.timestamp_millis()
             )
         }
 
@@ -347,17 +340,17 @@ fn column_builders_for_fields(
 
     for field in fields {
         let col: Box<dyn ArrayBuilder> = match field.data_type() {
-            &DataType::Boolean => Box::new(BooleanBuilder::with_capacity(capacity)),
-            &DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
-            &DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
-            &DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
-            &DataType::Timestamp(_, _) => {
+            DataType::Boolean => Box::new(BooleanBuilder::with_capacity(capacity)),
+            DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
+            DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
+            DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
+            DataType::Timestamp(_, _) => {
                 Box::new(TimestampMicrosecondBuilder::with_capacity(capacity)) // TODO: Possibly change to nanosecond.
             }
-            &DataType::Utf8 => Box::new(StringBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
-            &DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
-            &DataType::Decimal128(_, _) => Box::new(Decimal128Builder::with_capacity(capacity)), // TODO: Can collect avg when inferring schema.
-            &DataType::Struct(ref fields) => {
+            DataType::Utf8 => Box::new(StringBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
+            DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
+            DataType::Decimal128(_, _) => Box::new(Decimal128Builder::with_capacity(capacity)), // TODO: Can collect avg when inferring schema.
+            DataType::Struct(fields) => {
                 let nested = column_builders_for_fields(fields, capacity)?;
                 Box::new(RecordStructBuilder::new_with_builders(
                     fields.clone(),

@@ -5,37 +5,21 @@ mod builder;
 mod exec;
 mod infer;
 
-use crate::errors::{MongoError, Result};
+use crate::errors::Result;
 use crate::exec::MongoBsonExec;
 use crate::infer::TableSampler;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::ScalarValue;
+use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::error::Result as DatafusionResult;
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::project_schema;
-use datafusion::physical_plan::{
-    display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
-};
-use mongodb::bson::{doc, Document, RawDocumentBuf};
+use datafusion::physical_plan::ExecutionPlan;
+use mongodb::bson::{Document, RawDocumentBuf};
 use mongodb::Collection;
 use mongodb::{options::ClientOptions, Client};
 use std::any::Any;
-use std::borrow::{Borrow, Cow};
-use std::fmt::{self, Write};
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
-use tokio::net::TcpStream;
-use tokio::task::JoinHandle;
-use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct MongoAccessInfo {
@@ -44,17 +28,16 @@ pub struct MongoAccessInfo {
 
 #[derive(Debug, Clone)]
 pub struct MongoAccessor {
-    info: MongoAccessInfo,
     client: Client,
 }
 
 impl MongoAccessor {
     pub async fn connect(info: MongoAccessInfo) -> Result<MongoAccessor> {
         let mut opts = ClientOptions::parse(&info.connection_string).await?;
-        opts.app_name = Some("GlareDB (MongDB Data source)".to_string());
+        opts.app_name = Some("GlareDB (MongoDB Data source)".to_string());
         let client = Client::with_options(opts)?;
 
-        Ok(MongoAccessor { info, client })
+        Ok(MongoAccessor { client })
     }
 
     pub fn into_table_accessor(self, info: MongoTableAccessInfo) -> MongoTableAccessor {

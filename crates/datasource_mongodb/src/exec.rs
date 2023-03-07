@@ -1,32 +1,20 @@
 use crate::builder::RecordStructBuilder;
 use crate::errors::{MongoError, Result};
 use async_stream::stream;
-use bitvec::{order::Lsb0, vec::BitVec};
-use datafusion::arrow::array::{
-    Array, ArrayBuilder, BinaryBuilder, BooleanBuilder, Date32Builder, Float32Builder,
-    Float64Builder, Int16Builder, Int32Builder, Int64Builder, Int8Builder, StringBuilder,
-    StructBuilder, Time64MicrosecondBuilder, TimestampMicrosecondBuilder,
-    TimestampMillisecondBuilder,
-};
-use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
+use datafusion::arrow::array::Array;
+use datafusion::arrow::datatypes::{Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
     display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
-use mongodb::bson::{doc, Document, RawBsonRef, RawDocumentBuf};
-use mongodb::{
-    options::{ClientOptions, FindOptions},
-    Client, Collection,
-};
+use mongodb::bson::{Document, RawDocumentBuf};
+use mongodb::{options::FindOptions, Collection};
 use std::any::Any;
-use std::collections::HashMap;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -95,7 +83,7 @@ impl ExecutionPlan for MongoBsonExec {
         Ok(Box::pin(BsonStream::new(
             self.schema.clone(),
             self.collection.clone(),
-            self.limit.clone(),
+            self.limit,
         )))
     }
 

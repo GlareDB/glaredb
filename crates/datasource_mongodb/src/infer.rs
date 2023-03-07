@@ -1,13 +1,9 @@
 use crate::errors::{MongoError, Result};
-use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit, UnionMode,
-};
-use futures::{StreamExt, TryStreamExt};
+use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, TimeUnit};
+use futures::TryStreamExt;
 use mongodb::bson::{doc, Bson, Document};
-use mongodb::{options::ClientOptions, Client, Collection};
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
-use tracing::debug;
+use mongodb::Collection;
+use std::collections::HashMap;
 
 const SAMPLE_PCT: f32 = 0.01;
 const MAX_SAMPLE_SIZE: usize = 30;
@@ -127,7 +123,7 @@ fn merge_schemas(schemas: impl IntoIterator<Item = ArrowSchema>) -> Result<Arrow
         }
     }
 
-    let mut fields: Vec<_> = fields.into_iter().map(|(_, f)| f).collect();
+    let mut fields: Vec<_> = fields.into_values().collect();
     fields.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
     let fields: Vec<_> = fields.into_iter().map(|f| f.1).collect();
