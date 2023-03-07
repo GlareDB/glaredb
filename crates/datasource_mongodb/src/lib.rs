@@ -19,6 +19,7 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::project_schema;
 use datafusion::physical_plan::{
     display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
@@ -137,15 +138,24 @@ impl TableProvider for MongoTableProvider {
     async fn scan(
         &self,
         _ctx: &SessionState,
-        _projection: Option<&Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        // TODO: Projection.
+        // Projection.
+        //
+        // Note that this projection will only project top-level fields. There
+        // is not a way to project nested documents (at least when modelling
+        // nested docs as a struct).
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.schema.project(projection)?),
+            None => self.schema.clone(),
+        };
+
         // TODO: Filters.
 
         Ok(Arc::new(MongoBsonExec::new(
-            self.schema.clone(),
+            projected_schema,
             self.collection.clone(),
             limit,
         )))

@@ -9,7 +9,7 @@ pub enum MongoError {
     #[error("Failed to read raw bson document")]
     FailedToReadRawBsonDocument,
 
-    #[error("Column not in inferred schema")]
+    #[error("Column not in inferred schema: {0}")]
     ColumnNotInInferredSchema(String),
 
     #[error("Unexpected datatype for builder {0:?}")]

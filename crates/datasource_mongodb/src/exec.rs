@@ -32,6 +32,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+/// Field name in mongo for uniquely identifying a record. Some special handling
+/// needs to be done with the field when projecting.
+const ID_FIELD_NAME: &str = "_id";
+
 #[derive(Debug, Clone)]
 pub struct MongoBsonExec {
     schema: Arc<ArrowSchema>,
@@ -117,14 +121,30 @@ impl BsonStream {
     ) -> Self {
         // TODO: Filtering docs.
 
+        // Projection document. Project everything that's in the schema.
+        //
+        // The `_id` field is special and needs to be manually suppressed if not
+        // included in the schema.
+        let mut proj_doc = Document::new();
+        let mut has_id_field = false;
+        for field in &schema.fields {
+            proj_doc.insert(field.name(), 1);
+            has_id_field = has_id_field || field.name().as_str() == ID_FIELD_NAME;
+        }
+
+        if !has_id_field {
+            proj_doc.insert(ID_FIELD_NAME, 0);
+        }
+
         let mut find_opts = FindOptions::default();
         find_opts.limit = limit.map(|v| v as i64);
+        find_opts.projection = Some(proj_doc);
 
         let schema_stream = schema.clone();
         let mut row_count = 0;
         // Build "inner" stream.
         let stream = stream! {
-            let cursor = match collection.find(None, None).await {
+            let cursor = match collection.find(None, Some(find_opts)).await {
                 Ok(cursor) => cursor,
                 Err(e) => {
                     yield Err(DataFusionError::External(Box::new(e)));
