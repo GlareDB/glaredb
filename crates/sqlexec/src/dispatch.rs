@@ -8,9 +8,7 @@ use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
-use datasource_mongodb::{
-    MongoAccessInfo, MongoAccessor, MongoTableAccessInfo,
-};
+use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
