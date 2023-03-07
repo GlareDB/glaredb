@@ -426,14 +426,18 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
             FieldType::Float | FieldType::Float64 => DataType::Float64,
             FieldType::Bytes => DataType::Binary,
             FieldType::Date => DataType::Date32,
+            // BigQuery actually returns times with microsecond precision. We
+            // aim to work only with nanoseconds to have uniformity accross the
+            // codebase. It's also easier to have interop with datafusion since
+            // with many things like type inference datafusion uses nanosecond.
+            // This cast is done when the stream is received by using the
+            // `datasource_common::util::normalize_batch` function.
             FieldType::Datetime => DataType::Timestamp(TimeUnit::Nanosecond, None),
             FieldType::Timestamp => {
                 DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_owned()))
             }
             FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),
             FieldType::Numeric => DataType::Decimal128(38, 9),
-            // TODO: Bignumeric throws an error which terminates the connection abruptly.
-            // FieldType::Bignumeric => DataType::Decimal256(76, 38),
             FieldType::Geography => DataType::Utf8,
             other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
         };
