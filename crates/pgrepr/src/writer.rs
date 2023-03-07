@@ -1,20 +1,15 @@
-use crate::error::{PgReprError, Result};
-use bytes::{BufMut, BytesMut};
-use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
-use dtoa::{Buffer as DtoaBuffer, Float as DtoaFloat};
-use num_traits::Float as NumFloat;
-use std::fmt::Write;
-use tokio_postgres::types::{IsNull, ToSql, Type as PgType};
+use std::fmt::Display;
 
-macro_rules! put_fmt {
-    ($dst:expr, $($arg:tt)*) => {
-        write!($dst, $($arg)*).map_err(|e| PgReprError::from(e))
-    };
-}
+use crate::error::{PgReprError, Result};
+use bytes::BytesMut;
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono_tz::Tz;
+use repr::str::encode::*;
+use tokio_postgres::types::{IsNull, ToSql, Type as PgType};
 
 /// Writer defines the interface for the different kinds of values that can be
 /// encoded as a postgres type.
-pub(crate) trait Writer {
+pub trait Writer {
     fn write_bool(buf: &mut BytesMut, v: bool) -> Result<()>;
 
     fn write_int2(buf: &mut BytesMut, v: i16) -> Result<()>;
@@ -24,80 +19,87 @@ pub(crate) trait Writer {
     fn write_float4(buf: &mut BytesMut, v: f32) -> Result<()>;
     fn write_float8(buf: &mut BytesMut, v: f64) -> Result<()>;
 
-    fn write_text(buf: &mut BytesMut, v: String) -> Result<()>;
-    fn write_bytea(buf: &mut BytesMut, v: Vec<u8>) -> Result<()>;
+    fn write_text(buf: &mut BytesMut, v: &str) -> Result<()>;
+    fn write_bytea(buf: &mut BytesMut, v: &[u8]) -> Result<()>;
 
-    fn write_timestamp(buf: &mut BytesMut, v: NaiveDateTime) -> Result<()>;
-    fn write_timestamptz(buf: &mut BytesMut, v: DateTime<Utc>) -> Result<()>;
-    fn write_time(buf: &mut BytesMut, v: NaiveTime) -> Result<()>;
-    fn write_date(buf: &mut BytesMut, v: NaiveDate) -> Result<()>;
+    fn write_timestamp(buf: &mut BytesMut, v: &NaiveDateTime) -> Result<()>;
+    fn write_timestamptz(buf: &mut BytesMut, v: &DateTime<Tz>) -> Result<()>;
+    fn write_time(buf: &mut BytesMut, v: &NaiveTime) -> Result<()>;
+    fn write_date(buf: &mut BytesMut, v: &NaiveDate) -> Result<()>;
+
+    fn write_any<T: Display>(buf: &mut BytesMut, v: &T) -> Result<()> {
+        encode_string(buf, v)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
-pub(crate) struct TextWriter;
+pub struct TextWriter;
 
 impl Writer for TextWriter {
     fn write_bool(buf: &mut BytesMut, v: bool) -> Result<()> {
-        let v = if v { 't' } else { 'f' };
-        put_fmt!(buf, "{v}")
-    }
-
-    fn write_int2(buf: &mut BytesMut, v: i16) -> Result<()> {
-        put_fmt!(buf, "{v}")
-    }
-
-    fn write_int4(buf: &mut BytesMut, v: i32) -> Result<()> {
-        put_fmt!(buf, "{v}")
-    }
-
-    fn write_int8(buf: &mut BytesMut, v: i64) -> Result<()> {
-        put_fmt!(buf, "{v}")
-    }
-
-    fn write_float4(buf: &mut BytesMut, v: f32) -> Result<()> {
-        put_float_text(buf, v)
-    }
-
-    fn write_float8(buf: &mut BytesMut, v: f64) -> Result<()> {
-        put_float_text(buf, v)
-    }
-
-    fn write_text(buf: &mut BytesMut, v: String) -> Result<()> {
-        put_fmt!(buf, "{v}")
-    }
-
-    fn write_bytea(buf: &mut BytesMut, v: Vec<u8>) -> Result<()> {
-        put_fmt!(buf, "\\x")?;
-        for i in v.into_iter() {
-            // Pad buffer with a '0' to represent single digits (04, 0a...)
-            if i < 16 {
-                buf.put_u8(b'0');
-            }
-            put_fmt!(buf, "{:x}", i)?;
-        }
+        encode_bool(buf, v)?;
         Ok(())
     }
 
-    fn write_timestamp(buf: &mut BytesMut, v: NaiveDateTime) -> Result<()> {
-        put_utc_timestamp_text(buf, v, false)
+    fn write_int2(buf: &mut BytesMut, v: i16) -> Result<()> {
+        encode_int(buf, v)?;
+        Ok(())
     }
 
-    fn write_timestamptz(buf: &mut BytesMut, v: DateTime<Utc>) -> Result<()> {
-        put_utc_timestamp_text(buf, v, true)
+    fn write_int4(buf: &mut BytesMut, v: i32) -> Result<()> {
+        encode_int(buf, v)?;
+        Ok(())
     }
 
-    fn write_time(buf: &mut BytesMut, v: NaiveTime) -> Result<()> {
-        put_time_text(buf, &v, false)
+    fn write_int8(buf: &mut BytesMut, v: i64) -> Result<()> {
+        encode_int(buf, v)?;
+        Ok(())
     }
 
-    fn write_date(buf: &mut BytesMut, v: NaiveDate) -> Result<()> {
-        let is_ad = put_only_date_text(buf, &v)?;
-        put_year_ce_text(buf, is_ad)
+    fn write_float4(buf: &mut BytesMut, v: f32) -> Result<()> {
+        encode_float(buf, v)?;
+        Ok(())
+    }
+
+    fn write_float8(buf: &mut BytesMut, v: f64) -> Result<()> {
+        encode_float(buf, v)?;
+        Ok(())
+    }
+
+    fn write_text(buf: &mut BytesMut, v: &str) -> Result<()> {
+        encode_string(buf, v)?;
+        Ok(())
+    }
+
+    fn write_bytea(buf: &mut BytesMut, v: &[u8]) -> Result<()> {
+        encode_binary(buf, v)?;
+        Ok(())
+    }
+
+    fn write_timestamp(buf: &mut BytesMut, v: &NaiveDateTime) -> Result<()> {
+        encode_utc_timestamp(buf, v, false)?;
+        Ok(())
+    }
+
+    fn write_timestamptz(buf: &mut BytesMut, v: &DateTime<Tz>) -> Result<()> {
+        encode_utc_timestamp(buf, v, true)?;
+        Ok(())
+    }
+
+    fn write_time(buf: &mut BytesMut, v: &NaiveTime) -> Result<()> {
+        encode_time(buf, v, false)?;
+        Ok(())
+    }
+
+    fn write_date(buf: &mut BytesMut, v: &NaiveDate) -> Result<()> {
+        encode_date(buf, v)?;
+        Ok(())
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct BinaryWriter;
+pub struct BinaryWriter;
 
 macro_rules! put_to_sql {
     ($buf:ident, $pgtype:ident, $v:ident) => {
@@ -139,159 +141,38 @@ impl Writer for BinaryWriter {
         put_to_sql!(buf, FLOAT8, v)
     }
 
-    fn write_text(buf: &mut BytesMut, v: String) -> Result<()> {
+    fn write_text(buf: &mut BytesMut, v: &str) -> Result<()> {
         put_to_sql!(buf, TEXT, v)
     }
 
-    fn write_bytea(buf: &mut BytesMut, v: Vec<u8>) -> Result<()> {
+    fn write_bytea(buf: &mut BytesMut, v: &[u8]) -> Result<()> {
         put_to_sql!(buf, BYTEA, v)
     }
 
-    fn write_timestamp(buf: &mut BytesMut, v: NaiveDateTime) -> Result<()> {
+    fn write_timestamp(buf: &mut BytesMut, v: &NaiveDateTime) -> Result<()> {
         put_to_sql!(buf, TIMESTAMP, v)
     }
 
-    fn write_timestamptz(buf: &mut BytesMut, v: DateTime<Utc>) -> Result<()> {
-        put_to_sql!(buf, TIMESTAMPTZ, v)
+    fn write_timestamptz(buf: &mut BytesMut, v: &DateTime<Tz>) -> Result<()> {
+        let utc_date_time = DateTime::<Utc>::from_utc(v.naive_utc(), Utc);
+        put_to_sql!(buf, TIMESTAMPTZ, utc_date_time)
     }
 
-    fn write_time(buf: &mut BytesMut, v: NaiveTime) -> Result<()> {
+    fn write_time(buf: &mut BytesMut, v: &NaiveTime) -> Result<()> {
         put_to_sql!(buf, TIME, v)
     }
 
-    fn write_date(buf: &mut BytesMut, v: NaiveDate) -> Result<()> {
+    fn write_date(buf: &mut BytesMut, v: &NaiveDate) -> Result<()> {
         put_to_sql!(buf, DATE, v)
     }
-}
-
-fn put_float_text<F>(buf: &mut BytesMut, v: F) -> Result<()>
-where
-    F: NumFloat + DtoaFloat,
-{
-    if v.is_nan() {
-        return put_fmt!(buf, "NaN");
-    }
-
-    if v.is_infinite() {
-        if v.is_sign_negative() {
-            return put_fmt!(buf, "-Infinity");
-        } else {
-            return put_fmt!(buf, "Infinity");
-        }
-    }
-
-    if v.is_zero() && v.is_sign_negative() {
-        return put_fmt!(buf, "-0");
-    }
-
-    // We don't use the standard library to get the formatting for floats.
-    // Postgres uses the C style "%g" formatting, which states that:
-    //
-    //     The double argument is converted in style f or e (or F or E
-    //     for G conversions).  The precision specifies the number of
-    //     significant digits.  If the precision is missing, 6 digits are
-    //     given; if the precision is zero, it is treated as 1.  Style e
-    //     is used if the exponent from its conversion is less than -4 or
-    //     greater than or equal to the precision.  Trailing zeros are
-    //     removed from the fractional part of the result; a decimal
-    //     point appears only if it is followed by at least one digit.
-    //
-    // Dtoa is the closest we have to this in Rust. Maybe in future we can look
-    // at using the libc bindings to get it working exactly!
-
-    // Creating this buffer is very cheap, nothing to worry.
-    let mut dtoa_buf = DtoaBuffer::new();
-
-    let v = dtoa_buf
-        .format_finite(v)
-        // Remove any trailing ".0" so as to get whole numbers in case of when
-        // fractional part is 0.
-        .trim_end_matches(".0");
-
-    let mut iter = v.chars().peekable();
-    while let Some(c) = iter.next() {
-        buf.put_u8(c as u8);
-        if c == 'e' {
-            // Postgres represents exponential values as "1e+9" and "1e-9".
-            // Adding a '+' sign in the case of positive exponent since the
-            // library doesn't (it returns "1e9").
-            if iter.peek() != Some(&'-') {
-                buf.put_u8(b'+');
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn put_micros_text<T>(buf: &mut BytesMut, v: &T) -> Result<()>
-where
-    T: Timelike,
-{
-    let nanos = v.nanosecond() as i64;
-    // Add 500 ns to let flooring integer division round the time to nearest microsecond
-    let nanos = nanos + 500;
-    let mut micros = nanos / 1_000;
-    if micros > 0 {
-        // Remove the trailing zeros from microseconds.
-        let mut width = 6;
-        while micros % 10 == 0 {
-            width -= 1;
-            micros /= 10;
-        }
-        put_fmt!(buf, ".{micros:0width$}")?;
-    }
-    Ok(())
-}
-
-fn put_year_ce_text(buf: &mut BytesMut, is_ad: bool) -> Result<()> {
-    if !is_ad {
-        put_fmt!(buf, " BC")?;
-    }
-    Ok(())
-}
-
-/// Returns true if year is AD else false.
-fn put_only_date_text<T>(buf: &mut BytesMut, v: &T) -> Result<bool>
-where
-    T: Datelike,
-{
-    let (is_ad, year) = v.year_ce();
-    let (month, day) = (v.month(), v.day());
-    put_fmt!(buf, "{year}-{month:02}-{day:02}")?;
-    Ok(is_ad)
-}
-
-fn put_time_text<T>(buf: &mut BytesMut, v: &T, tz: bool) -> Result<()>
-where
-    T: Timelike,
-{
-    let (hour, minute, second) = (v.hour(), v.minute(), v.second());
-    put_fmt!(buf, "{hour:02}:{minute:02}:{second:02}")?;
-    put_micros_text(buf, v)?;
-    if tz {
-        put_fmt!(buf, "+00")?;
-    }
-    Ok(())
-}
-
-fn put_utc_timestamp_text<T>(buf: &mut BytesMut, v: T, tz: bool) -> Result<()>
-where
-    T: Timelike + Datelike,
-{
-    let is_ad = put_only_date_text(buf, &v)?;
-    // Add a space between date and time.
-    buf.put_u8(b' ');
-    put_time_text(buf, &v, tz)?;
-    put_year_ce_text(buf, is_ad)?;
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use crate::writer::{BinaryWriter, TextWriter, Writer};
     use bytes::BytesMut;
-    use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+    use chrono_tz::UTC;
 
     fn assert_buf(buf: &BytesMut, val: &[u8]) {
         let slice = buf.as_ref();
@@ -417,16 +298,16 @@ mod tests {
         assert_buf(buf, b"0");
 
         buf.clear();
-        Writer::write_text(buf, "abcdefghij".to_string()).unwrap();
+        Writer::write_text(buf, "abcdefghij").unwrap();
         assert_buf(buf, b"abcdefghij");
 
         buf.clear();
-        Writer::write_bytea(buf, [23, 13, 255, 0, 130].to_vec()).unwrap();
+        Writer::write_bytea(buf, &[23, 13, 255, 0, 130]).unwrap();
         assert_buf(buf, b"\\x170dff0082");
 
         buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 0).unwrap();
-        Writer::write_timestamp(buf, nt).unwrap();
+        Writer::write_timestamp(buf, &nt).unwrap();
         assert_buf(
             buf,
             format!("{}", nt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
@@ -434,7 +315,7 @@ mod tests {
 
         buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 123567).unwrap();
-        Writer::write_timestamp(buf, nt).unwrap();
+        Writer::write_timestamp(buf, &nt).unwrap();
         assert_buf(
             buf,
             format!("{}.000124", nt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
@@ -442,7 +323,7 @@ mod tests {
 
         buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 123_400_000).unwrap();
-        Writer::write_timestamp(buf, nt).unwrap();
+        Writer::write_timestamp(buf, &nt).unwrap();
         assert_buf(
             buf,
             format!("{}.1234", nt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
@@ -450,7 +331,7 @@ mod tests {
 
         buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(-197199051, 0).unwrap();
-        Writer::write_timestamp(buf, nt).unwrap();
+        Writer::write_timestamp(buf, &nt).unwrap();
         assert_buf(
             buf,
             format!("{}", nt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
@@ -458,62 +339,47 @@ mod tests {
 
         buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(-62143593684, 0).unwrap();
-        Writer::write_timestamp(buf, nt).unwrap();
+        Writer::write_timestamp(buf, &nt).unwrap();
         assert_buf(
             buf,
             format!("1-{} BC", nt.format("%m-%d %H:%M:%S")).as_bytes(),
         );
 
         buf.clear();
-        let dt = DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(938689324, 0).unwrap(),
-            Utc,
-        );
-        Writer::write_timestamptz(buf, dt).unwrap();
+        let dt = UTC.timestamp_opt(938689324, 0).unwrap();
+        Writer::write_timestamptz(buf, &dt).unwrap();
         assert_buf(
             buf,
             format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
         );
 
         buf.clear();
-        let dt = DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(938689324, 123567).unwrap(),
-            Utc,
-        );
-        Writer::write_timestamptz(buf, dt).unwrap();
+        let dt = UTC.timestamp_opt(938689324, 123567).unwrap();
+        Writer::write_timestamptz(buf, &dt).unwrap();
         assert_buf(
             buf,
             format!("{}.000124+00", dt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
         );
 
         buf.clear();
-        let dt = DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(938689324, 123_400_000).unwrap(),
-            Utc,
-        );
-        Writer::write_timestamptz(buf, dt).unwrap();
+        let dt = UTC.timestamp_opt(938689324, 123_400_000).unwrap();
+        Writer::write_timestamptz(buf, &dt).unwrap();
         assert_buf(
             buf,
             format!("{}.1234+00", dt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
         );
 
         buf.clear();
-        let dt = DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(-197199051, 0).unwrap(),
-            Utc,
-        );
-        Writer::write_timestamptz(buf, dt).unwrap();
+        let dt = UTC.timestamp_opt(-197199051, 0).unwrap();
+        Writer::write_timestamptz(buf, &dt).unwrap();
         assert_buf(
             buf,
             format!("{}+00", dt.format("%Y-%m-%d %H:%M:%S")).as_bytes(),
         );
 
         buf.clear();
-        let dt = DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(-62143593684, 0).unwrap(),
-            Utc,
-        );
-        Writer::write_timestamptz(buf, dt).unwrap();
+        let dt = UTC.timestamp_opt(-62143593684, 0).unwrap();
+        Writer::write_timestamptz(buf, &dt).unwrap();
         assert_buf(
             buf,
             format!("1-{}+00 BC", dt.format("%m-%d %H:%M:%S")).as_bytes(),
@@ -521,32 +387,32 @@ mod tests {
 
         buf.clear();
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 0).unwrap();
-        Writer::write_time(buf, nt).unwrap();
+        Writer::write_time(buf, &nt).unwrap();
         assert_buf(buf, b"16:32:04");
 
         buf.clear();
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123567).unwrap();
-        Writer::write_time(buf, nt).unwrap();
+        Writer::write_time(buf, &nt).unwrap();
         assert_buf(buf, b"16:32:04.000124");
 
         buf.clear();
         let nt = NaiveTime::from_hms_nano_opt(16, 32, 4, 123_400_000).unwrap();
-        Writer::write_time(buf, nt).unwrap();
+        Writer::write_time(buf, &nt).unwrap();
         assert_buf(buf, b"16:32:04.1234");
 
         buf.clear();
         let nd = NaiveDate::from_ymd_opt(1999, 9, 30).unwrap();
-        Writer::write_date(buf, nd).unwrap();
+        Writer::write_date(buf, &nd).unwrap();
         assert_buf(buf, b"1999-09-30");
 
         buf.clear();
         let nd = NaiveDate::from_ymd_opt(1963, 10, 2).unwrap();
-        Writer::write_date(buf, nd).unwrap();
+        Writer::write_date(buf, &nd).unwrap();
         assert_buf(buf, b"1963-10-02");
 
         buf.clear();
         let nd = NaiveDate::from_ymd_opt(0, 9, 30).unwrap();
-        Writer::write_date(buf, nd).unwrap();
+        Writer::write_date(buf, &nd).unwrap();
         assert_buf(buf, b"1-09-30 BC");
     }
 
@@ -586,33 +452,33 @@ mod tests {
         assert_buf(buf, 123.0456789_f64.to_be_bytes().as_ref());
 
         buf.clear();
-        Writer::write_text(buf, "abcdefghij".to_string()).unwrap();
+        Writer::write_text(buf, "abcdefghij").unwrap();
         assert_buf(buf, b"abcdefghij");
 
         buf.clear();
-        Writer::write_bytea(buf, [23, 13, 255, 0, 130].to_vec()).unwrap();
+        Writer::write_bytea(buf, &[23, 13, 255, 0, 130]).unwrap();
         assert_buf(buf, &[23, 13, 255, 0, 130]);
 
         buf.clear();
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 123567).unwrap();
-        Writer::write_timestamp(buf, nt).unwrap();
+        Writer::write_timestamp(buf, &nt).unwrap();
         // Microseconds since Jan 1, 2000
         assert_buf(buf, (-7_995_475_999_876_i64).to_be_bytes().as_ref());
 
         buf.clear();
-        let dt = DateTime::<Utc>::from_utc(nt, Utc);
-        Writer::write_timestamptz(buf, dt).unwrap();
+        let dt = UTC.timestamp_opt(938689324, 123567).unwrap();
+        Writer::write_timestamptz(buf, &dt).unwrap();
         assert_buf(buf, (-7_995_475_999_876_i64).to_be_bytes().as_ref());
 
         buf.clear();
         let nt = NaiveTime::from_hms_micro_opt(16, 32, 4, 1234).unwrap();
-        Writer::write_time(buf, nt).unwrap();
+        Writer::write_time(buf, &nt).unwrap();
         // Microseconds since mid-night
         assert_buf(buf, 59_524_001_234_i64.to_be_bytes().as_ref());
 
         buf.clear();
         let nd = NaiveDate::from_ymd_opt(1999, 9, 30).unwrap();
-        Writer::write_date(buf, nd).unwrap();
+        Writer::write_date(buf, &nd).unwrap();
         // Days since Jan 1, 2000
         assert_buf(buf, (-93_i32).to_be_bytes().as_ref());
     }

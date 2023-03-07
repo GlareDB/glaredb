@@ -420,6 +420,7 @@ pub enum TableOptions {
     Local(TableOptionsLocal),
     Gcs(TableOptionsGcs),
     S3(TableOptionsS3),
+    Mongo(TableOptionsMongo),
 }
 
 impl TableOptions {
@@ -430,6 +431,7 @@ impl TableOptions {
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
+    pub const MONGO: &str = "mongo";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -440,6 +442,7 @@ impl TableOptions {
             TableOptions::Local(_) => Self::LOCAL,
             TableOptions::Gcs(_) => Self::GCS,
             TableOptions::S3(_) => Self::S3_STORAGE,
+            TableOptions::Mongo(_) => Self::MONGO,
         }
     }
 }
@@ -461,6 +464,7 @@ impl TryFrom<catalog::table_options::Options> for TableOptions {
             catalog::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
             catalog::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
             catalog::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
+            catalog::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
         })
     }
 }
@@ -482,6 +486,7 @@ impl From<TableOptions> for catalog::table_options::Options {
             TableOptions::Local(v) => catalog::table_options::Options::Local(v.into()),
             TableOptions::Gcs(v) => catalog::table_options::Options::Gcs(v.into()),
             TableOptions::S3(v) => catalog::table_options::Options::S3(v.into()),
+            TableOptions::Mongo(v) => catalog::table_options::Options::Mongo(v.into()),
         }
     }
 }
@@ -667,6 +672,31 @@ impl From<TableOptionsS3> for catalog::TableOptionsS3 {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsMongo {
+    pub database: String,
+    pub collection: String,
+}
+
+impl TryFrom<catalog::TableOptionsMongo> for TableOptionsMongo {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TableOptionsMongo) -> Result<Self, Self::Error> {
+        Ok(TableOptionsMongo {
+            database: value.database,
+            collection: value.collection,
+        })
+    }
+}
+
+impl From<TableOptionsMongo> for catalog::TableOptionsMongo {
+    fn from(value: TableOptionsMongo) -> Self {
+        catalog::TableOptionsMongo {
+            database: value.database,
+            collection: value.collection,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum ConnectionOptions {
     Debug(ConnectionOptionsDebug),
     Postgres(ConnectionOptionsPostgres),
@@ -676,6 +706,7 @@ pub enum ConnectionOptions {
     Gcs(ConnectionOptionsGcs),
     S3(ConnectionOptionsS3),
     Ssh(ConnectionOptionsSsh),
+    Mongo(ConnectionOptionsMongo),
 }
 
 impl ConnectionOptions {
@@ -687,6 +718,7 @@ impl ConnectionOptions {
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
     pub const SSH: &str = "ssh";
+    pub const MONGO: &str = "mongo";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -698,6 +730,7 @@ impl ConnectionOptions {
             ConnectionOptions::Gcs(_) => Self::GCS,
             ConnectionOptions::S3(_) => Self::S3_STORAGE,
             ConnectionOptions::Ssh(_) => Self::SSH,
+            ConnectionOptions::Mongo(_) => Self::MONGO,
         }
     }
 }
@@ -730,6 +763,9 @@ impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
             catalog::connection_options::Options::Gcs(v) => ConnectionOptions::Gcs(v.try_into()?),
             catalog::connection_options::Options::S3(v) => ConnectionOptions::S3(v.try_into()?),
             catalog::connection_options::Options::Ssh(v) => ConnectionOptions::Ssh(v.try_into()?),
+            catalog::connection_options::Options::Mongo(v) => {
+                ConnectionOptions::Mongo(v.try_into()?)
+            }
         })
     }
 }
@@ -756,6 +792,7 @@ impl From<ConnectionOptions> for catalog::connection_options::Options {
             ConnectionOptions::Gcs(v) => catalog::connection_options::Options::Gcs(v.into()),
             ConnectionOptions::S3(v) => catalog::connection_options::Options::S3(v.into()),
             ConnectionOptions::Ssh(v) => catalog::connection_options::Options::Ssh(v.into()),
+            ConnectionOptions::Mongo(v) => catalog::connection_options::Options::Mongo(v.into()),
         }
     }
 }
@@ -949,6 +986,28 @@ impl From<ConnectionOptionsSsh> for catalog::ConnectionOptionsSsh {
             user: value.user,
             port: value.port.into(),
             keypair: value.keypair,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct ConnectionOptionsMongo {
+    pub connection_string: String,
+}
+
+impl TryFrom<catalog::ConnectionOptionsMongo> for ConnectionOptionsMongo {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::ConnectionOptionsMongo) -> Result<Self, Self::Error> {
+        Ok(ConnectionOptionsMongo {
+            connection_string: value.connection_string,
+        })
+    }
+}
+
+impl From<ConnectionOptionsMongo> for catalog::ConnectionOptionsMongo {
+    fn from(value: ConnectionOptionsMongo) -> Self {
+        catalog::ConnectionOptionsMongo {
+            connection_string: value.connection_string,
         }
     }
 }

@@ -1,11 +1,12 @@
 [package]
-name = "datasource_bigquery"
+name = "datasource_mongodb"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+datasource_common = {path = "../datasource_common"}
 thiserror = "1.0"
 tracing = "0.1"
 futures = "0.3.26"
@@ -13,11 +14,8 @@ async-trait = "0.1.64"
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3.4"
 datafusion = "19.0"
-serde_json = "1.0.91"
 serde = { version = "1.0", features = ["derive"] }
-gcp-bigquery-client = "0.16.5"
-bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
-parking_lot = "0.12.1"
-async-channel = "1.8.0"
-metastore = { path = "../metastore" }
-datasource_common = { path = "../datasource_common" }
+chrono = "*"
+rust_decimal = "*"
+mongodb = "2.4.0"
+bitvec = "1"
