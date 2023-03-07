@@ -21,6 +21,12 @@ pub enum MongoError {
     #[error("Invalid args for record struct builder")]
     InvalidArgsForRecordStructBuilder,
 
+    #[error("Unhandled element type to arrow type conversion; {0:?}, {1}")]
+    UnhandledElementType(
+        mongodb::bson::spec::ElementType,
+        datafusion::arrow::datatypes::DataType,
+    ),
+
     #[error(transparent)]
     Mongo(#[from] mongodb::error::Error),
 

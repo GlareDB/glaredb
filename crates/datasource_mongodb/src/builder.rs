@@ -175,6 +175,14 @@ macro_rules! append_scalar {
 fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
     // So robust
     match (val, typ) {
+        // Boolean
+        (RawBsonRef::Boolean(v), DataType::Boolean) => {
+            append_scalar!(BooleanBuilder, col, v)
+        }
+        (RawBsonRef::Boolean(v), DataType::Utf8) => {
+            append_scalar!(StringBuilder, col, v.to_string())
+        }
+
         // Double
         (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
@@ -200,6 +208,9 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
         }
 
         // String
+        (RawBsonRef::String(v), DataType::Boolean) => {
+            append_scalar!(BooleanBuilder, col, v.parse().unwrap_or_default())
+        }
         (RawBsonRef::String(v), DataType::Int32) => {
             append_scalar!(Int32Builder, col, v.parse().unwrap_or_default())
         }
@@ -222,18 +233,18 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
         }
 
         // Timestamp
-        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => col
-            .as_any_mut()
-            .downcast_mut::<TimestampMicrosecondBuilder>() // TODO: Possibly change to nanosecond.
-            .unwrap()
-            .append_value(v.time as i64),
+        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
+            append_scalar!(TimestampMicrosecondBuilder, col, v.time as i64) // TODO: Possibly change to nanosecond.
+        }
 
         // Datetime
-        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => col
-            .as_any_mut()
-            .downcast_mut::<TimestampMicrosecondBuilder>() // TODO: Possibly change to nanosecond.
-            .unwrap()
-            .append_value(v.timestamp_millis()),
+        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
+            append_scalar!(
+                TimestampMicrosecondBuilder, // TODO: Possibly change to nanosecond.
+                col,
+                v.timestamp_millis() as i64
+            )
+        }
 
         // Document
         (RawBsonRef::Document(nested), DataType::Struct(_)) => {
@@ -245,11 +256,15 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
         }
 
         // Array
-        (RawBsonRef::Array(_arr), DataType::Utf8) => col
-            .as_any_mut()
-            .downcast_mut::<StringBuilder>()
-            .unwrap()
-            .append_value("RAW ARRAY (unimplemented)"),
+        (RawBsonRef::Array(arr), DataType::Utf8) => {
+            // TODO: Proper types.
+            let s = arr
+                .into_iter()
+                .map(|r| r.map(|v| format!("{:?}", v)).unwrap_or_default())
+                .collect::<Vec<_>>()
+                .join(", ");
+            append_scalar!(StringBuilder, col, format!("[{}]", s))
+        }
 
         // Decimal128
         (RawBsonRef::Decimal128(v), DataType::Decimal128(_, _)) => col
@@ -258,7 +273,12 @@ fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuil
             .unwrap()
             .append_value(i128::from_le_bytes(v.bytes())),
 
-        _ => return Err(MongoError::UnsupportedBsonType("Other")), // TODO: Match on all types.
+        (bson_ref, dt) => {
+            return Err(MongoError::UnhandledElementType(
+                bson_ref.element_type(),
+                dt.clone(),
+            ))
+        }
     }
     Ok(())
 }
@@ -309,11 +329,6 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<RecordStructBuilder>()
             .unwrap()
             .append_nulls()?,
-        &DataType::List(_) => col
-            .as_any_mut()
-            .downcast_mut::<StringBuilder>()
-            .unwrap()
-            .append_null(),
         &DataType::Decimal128(_, _) => col
             .as_any_mut()
             .downcast_mut::<Decimal128Builder>()

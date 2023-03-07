@@ -44,7 +44,11 @@ impl TableSampler {
             schemas.push(schema);
         }
 
-        let merged = ArrowSchema::try_merge(schemas).map_err(MongoError::FailedSchemaMerge)?;
+        // Note that we're not using `try_merge` since that errors on type
+        // mismatch. Since mongo is schemaless, we want to be best effort with
+        // defining a schema, so we merge schemas in such a way that each field
+        // has its data type set to the "widest" type that we encountered.
+        let merged = merge_schemas(schemas)?;
 
         Ok(merged)
     }
@@ -78,7 +82,7 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
     let arrow_typ = match bson {
         Bson::Double(_) => DataType::Float64,
         Bson::String(_) => DataType::Utf8,
-        Bson::Array(_) => DataType::Utf8, // TODO: Proper type
+        Bson::Array(_) => DataType::Utf8, // TODO: Proper type.
         Bson::Document(nested) => {
             let fields = fields_from_document(depth + 1, nested)?;
             DataType::Struct(fields)
@@ -90,12 +94,12 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::JavaScriptCodeWithScope(_) => DataType::Utf8,
         Bson::Int32(_) => DataType::Float64,
         Bson::Int64(_) => DataType::Float64,
-        Bson::Timestamp(_) => DataType::Timestamp(TimeUnit::Microsecond, None),
-        Bson::Binary(_) => DataType::Binary, // TODO: Subtype?
+        Bson::Timestamp(_) => DataType::Timestamp(TimeUnit::Microsecond, None), // TODO: Nanosecond
+        Bson::Binary(_) => DataType::Binary,                                    // TODO: Subtype?
         Bson::ObjectId(_) => DataType::Utf8,
-        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Microsecond, None),
+        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Microsecond, None), // TODO: Nanosecond
         Bson::Symbol(_) => DataType::Utf8,
-        Bson::Decimal128(_) => DataType::Decimal128(38, 9),
+        Bson::Decimal128(_) => DataType::Decimal128(38, 10),
         Bson::Undefined => DataType::Null,
         Bson::MaxKey => DataType::Utf8,
         Bson::MinKey => DataType::Utf8,
@@ -104,10 +108,43 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
     Ok(arrow_typ)
 }
 
+#[derive(Debug, Clone)]
+struct OrderedField(usize, Field);
+
 fn merge_schemas(schemas: impl IntoIterator<Item = ArrowSchema>) -> Result<ArrowSchema> {
-    unimplemented!()
+    let mut fields: HashMap<String, OrderedField> = HashMap::new();
+
+    for schema in schemas.into_iter() {
+        for (idx, field) in schema.fields.into_iter().enumerate() {
+            match fields.get_mut(field.name()) {
+                Some(existing) => {
+                    merge_field(&mut existing.1, field)?;
+                }
+                None => {
+                    fields.insert(field.name().clone(), OrderedField(idx, field));
+                }
+            };
+        }
+    }
+
+    let mut fields: Vec<_> = fields.into_iter().map(|(_, f)| f).collect();
+    fields.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+    let fields: Vec<_> = fields.into_iter().map(|f| f.1).collect();
+    Ok(ArrowSchema::new(fields))
 }
 
-fn merge_field(a: &mut Field, b: Field) -> Result<()> {
-    unimplemented!()
+/// Merge fields with best-effort type widening.
+fn merge_field(left: &mut Field, right: Field) -> Result<()> {
+    let dt = match (left.data_type(), right.data_type()) {
+        (&DataType::Null, right) => right.clone(),
+        (&DataType::Int32 | &DataType::Int64 | &DataType::Float64, &DataType::Float64) => {
+            DataType::Float64
+        }
+        (_, &DataType::Utf8) => DataType::Utf8,
+        _ => return Ok(()),
+    };
+
+    *left = Field::new(left.name(), dt, true);
+    Ok(())
 }
