@@ -88,6 +88,19 @@ jobs:
           fi
           nix run .#slt-runner -- -v embedded testdata/sqllogictests_bigquery/**/*.slt
 
+      - name: SQL Logic Tests (GCS)
+        run: |
+          shopt -s globstar
+          export GCS_BUCKET_NAME=glaredb-test
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/gcs/**/*.slt
+
+      - name: SQL Logic Tests (S3)
+        run: |
+          shopt -s globstar
+          export AWS_BUCKET_REGION=us-east-1
+          export AWS_BUCKET_NAME=glaredb-test
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/s3/**/*.slt
+
       - name: SQL Logic Tests (Postgres)
         run: |
           shopt -s globstar
