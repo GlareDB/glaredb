@@ -10,14 +10,6 @@ use datafusion::arrow::array::{
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::{
-    display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
-};
 use futures::{Stream, StreamExt};
 use mongodb::bson::{doc, Document, RawBsonRef, RawDocument, RawDocumentBuf};
 use mongodb::{options::ClientOptions, Client, Collection};
@@ -84,9 +76,14 @@ impl RecordStructBuilder {
                         .get(key)
                         .ok_or_else(|| MongoError::ColumnNotInInferredSchema(key.to_string()))?;
 
+                    if *cols_set.get(idx).unwrap() {
+                        println!("DUPLICATE SET: {}, {:?}", key, doc);
+                    }
+
                     // Add value to columns.
+                    let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
                     let col = self.builders.get_mut(idx).unwrap(); // Programmer error if this doesn't exist.
-                    append_value(val, col.as_mut())?;
+                    append_value(val, typ, col.as_mut())?;
 
                     // Track which columns we've added values to.
                     cols_set.set(idx, true);
@@ -125,7 +122,13 @@ impl ArrayBuilder for RecordStructBuilder {
     fn finish(&mut self) -> ArrayRef {
         let fields = std::mem::take(&mut self.fields);
         let builders = std::mem::take(&mut self.builders);
-        Arc::new(StructBuilder::new(fields, builders).finish())
+        let arrays = builders.into_iter().map(|mut b| b.finish());
+
+        let pairs: Vec<(Field, Arc<dyn Array>)> = fields.into_iter().zip(arrays).collect();
+
+        let array: StructArray = pairs.into();
+
+        Arc::new(array)
     }
 
     fn finish_cloned(&self) -> ArrayRef {
@@ -153,76 +156,108 @@ impl ArrayBuilder for RecordStructBuilder {
     }
 }
 
+/// Macro for generating code for downcasting and appending a value.
+macro_rules! append_scalar {
+    ($builder:ty, $col:expr, $v:expr) => {
+        $col.as_any_mut()
+            .downcast_mut::<$builder>()
+            .unwrap()
+            .append_value($v)
+    };
+}
+
 /// Append a value to a column.
 ///
 /// Errors if the value is of an unsupported type.
 ///
 /// Panics if the array builder is not the expected type. This would indicated a
 /// programmer error.
-fn append_value<'a>(val: RawBsonRef<'a>, col: &mut dyn ArrayBuilder) -> Result<()> {
-    match val {
-        RawBsonRef::Double(v) => col
+fn append_value<'a>(val: RawBsonRef<'a>, typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
+    // So robust
+    match (val, typ) {
+        // Double
+        (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
+        (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Double(v), DataType::Float64) => append_scalar!(Float64Builder, col, v),
+        (RawBsonRef::Double(v), DataType::Utf8) => {
+            append_scalar!(StringBuilder, col, v.to_string())
+        }
+
+        // Int32
+        (RawBsonRef::Int32(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
+        (RawBsonRef::Int32(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Int32(v), DataType::Float64) => append_scalar!(Float64Builder, col, v as f64),
+        (RawBsonRef::Int32(v), DataType::Utf8) => {
+            append_scalar!(StringBuilder, col, v.to_string())
+        }
+
+        // Int64
+        (RawBsonRef::Int64(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
+        (RawBsonRef::Int64(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Int64(v), DataType::Float64) => append_scalar!(Float64Builder, col, v as f64),
+        (RawBsonRef::Int64(v), DataType::Utf8) => {
+            append_scalar!(StringBuilder, col, v.to_string())
+        }
+
+        // String
+        (RawBsonRef::String(v), DataType::Int32) => {
+            append_scalar!(Int32Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Int64) => {
+            append_scalar!(Int64Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Float64) => {
+            append_scalar!(Float64Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Utf8) => {
+            append_scalar!(StringBuilder, col, v)
+        }
+
+        // Binary
+        (RawBsonRef::Binary(v), DataType::Binary) => append_scalar!(BinaryBuilder, col, v.bytes),
+
+        // Object id
+        (RawBsonRef::ObjectId(v), DataType::Utf8) => {
+            append_scalar!(StringBuilder, col, v.to_string())
+        }
+
+        // Timestamp
+        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => col
             .as_any_mut()
-            .downcast_mut::<Float64Builder>()
-            .unwrap()
-            .append_value(v),
-        RawBsonRef::String(v) => col
-            .as_any_mut()
-            .downcast_mut::<StringBuilder>()
-            .unwrap()
-            .append_value(v),
-        RawBsonRef::Boolean(v) => col
-            .as_any_mut()
-            .downcast_mut::<BooleanBuilder>()
-            .unwrap()
-            .append_value(v),
-        RawBsonRef::Int32(v) => col
-            .as_any_mut()
-            .downcast_mut::<Float64Builder>()
-            .unwrap()
-            .append_value(v as f64),
-        RawBsonRef::Int64(v) => col
-            .as_any_mut()
-            .downcast_mut::<Float64Builder>()
-            .unwrap()
-            .append_value(v as f64),
-        RawBsonRef::Timestamp(v) => col
-            .as_any_mut()
-            .downcast_mut::<TimestampMillisecondBuilder>() // TODO: Possibly change to nanosecond.
+            .downcast_mut::<TimestampMicrosecondBuilder>() // TODO: Possibly change to nanosecond.
             .unwrap()
             .append_value(v.time as i64),
-        RawBsonRef::DateTime(v) => col
+
+        // Datetime
+        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => col
             .as_any_mut()
-            .downcast_mut::<TimestampMillisecondBuilder>() // TODO: Possibly change to nanosecond.
+            .downcast_mut::<TimestampMicrosecondBuilder>() // TODO: Possibly change to nanosecond.
             .unwrap()
             .append_value(v.timestamp_millis()),
-        RawBsonRef::Binary(v) => col
-            .as_any_mut()
-            .downcast_mut::<BinaryBuilder>()
-            .unwrap()
-            .append_value(v.bytes), // TODO: Subtype?
-        RawBsonRef::ObjectId(v) => col
-            .as_any_mut()
-            .downcast_mut::<StringBuilder>()
-            .unwrap()
-            .append_value(v.to_string()),
-        RawBsonRef::Document(nested) => {
+
+        // Document
+        (RawBsonRef::Document(nested), DataType::Struct(_)) => {
             let builder = col
                 .as_any_mut()
                 .downcast_mut::<RecordStructBuilder>()
                 .unwrap();
             builder.append_record(nested)?;
         }
-        RawBsonRef::Array(_arr) => col
+
+        // Array
+        (RawBsonRef::Array(_arr), DataType::Utf8) => col
             .as_any_mut()
             .downcast_mut::<StringBuilder>()
             .unwrap()
             .append_value("RAW ARRAY (unimplemented)"),
-        RawBsonRef::Decimal128(v) => col
+
+        // Decimal128
+        (RawBsonRef::Decimal128(v), DataType::Decimal128(_, _)) => col
             .as_any_mut()
             .downcast_mut::<Decimal128Builder>()
             .unwrap()
             .append_value(i128::from_le_bytes(v.bytes())),
+
         _ => return Err(MongoError::UnsupportedBsonType("Other")), // TODO: Match on all types.
     }
     Ok(())
@@ -274,6 +309,11 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<RecordStructBuilder>()
             .unwrap()
             .append_nulls()?,
+        &DataType::List(_) => col
+            .as_any_mut()
+            .downcast_mut::<StringBuilder>()
+            .unwrap()
+            .append_null(),
         &DataType::Decimal128(_, _) => col
             .as_any_mut()
             .downcast_mut::<Decimal128Builder>()
@@ -297,7 +337,7 @@ fn column_builders_for_fields(
             &DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
             &DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
             &DataType::Timestamp(_, _) => {
-                Box::new(TimestampMillisecondBuilder::with_capacity(capacity)) // TODO: Possibly change to nanosecond.
+                Box::new(TimestampMicrosecondBuilder::with_capacity(capacity)) // TODO: Possibly change to nanosecond.
             }
             &DataType::Utf8 => Box::new(StringBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
             &DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.

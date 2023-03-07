@@ -5,11 +5,12 @@ use datafusion::arrow::datatypes::{
 use futures::{StreamExt, TryStreamExt};
 use mongodb::bson::{doc, Bson, Document};
 use mongodb::{options::ClientOptions, Client, Collection};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use tracing::debug;
 
-/// How many documents to sample for schema inferrence.
-const SAMPLE_COUNT: usize = 1;
+const SAMPLE_PCT: f32 = 0.01;
+const MAX_SAMPLE_SIZE: usize = 30;
 
 /// Recursion limit for inferring the schema for nested documents.
 const RECURSION_LIMIT: usize = 5;
@@ -25,13 +26,19 @@ impl TableSampler {
 
     #[tracing::instrument(skip(self))]
     pub async fn infer_schema_from_sample(&self) -> Result<ArrowSchema> {
+        let count = self.collection.estimated_document_count(None).await?;
+        let mut sample_count = (count as f32 * SAMPLE_PCT) as i64;
+        if sample_count as usize > MAX_SAMPLE_SIZE {
+            sample_count = MAX_SAMPLE_SIZE as i64;
+        }
+
         let sample_pipeline = [doc! {
-            "$sample": {"size": SAMPLE_COUNT as i64}
+            "$sample": {"size": sample_count}
         }];
 
         let mut cursor = self.collection.aggregate(sample_pipeline, None).await?;
 
-        let mut schemas = Vec::with_capacity(SAMPLE_COUNT);
+        let mut schemas = Vec::with_capacity(sample_count as usize);
         while let Some(doc) = cursor.try_next().await? {
             let schema = schema_from_document(&doc)?;
             schemas.push(schema);
@@ -83,10 +90,10 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::JavaScriptCodeWithScope(_) => DataType::Utf8,
         Bson::Int32(_) => DataType::Float64,
         Bson::Int64(_) => DataType::Float64,
-        Bson::Timestamp(_) => DataType::Timestamp(TimeUnit::Second, None),
+        Bson::Timestamp(_) => DataType::Timestamp(TimeUnit::Microsecond, None),
         Bson::Binary(_) => DataType::Binary, // TODO: Subtype?
         Bson::ObjectId(_) => DataType::Utf8,
-        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Millisecond, Some("UTC".to_string())),
+        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Microsecond, None),
         Bson::Symbol(_) => DataType::Utf8,
         Bson::Decimal128(_) => DataType::Decimal128(38, 9),
         Bson::Undefined => DataType::Null,
@@ -95,4 +102,12 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::DbPointer(_) => return Err(MongoError::UnsupportedBsonType("DbPointer")),
     };
     Ok(arrow_typ)
+}
+
+fn merge_schemas(schemas: impl IntoIterator<Item = ArrowSchema>) -> Result<ArrowSchema> {
+    unimplemented!()
+}
+
+fn merge_field(a: &mut Field, b: Field) -> Result<()> {
+    unimplemented!()
 }
