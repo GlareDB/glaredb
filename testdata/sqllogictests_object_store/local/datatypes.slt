@@ -10,6 +10,7 @@ CREATE EXTERNAL TABLE datatypes
         location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
     );
 
+# TODO fix representation of timestamp value
 query TTIRTTTTTTT
 SELECT * FROM datatypes;
 ----

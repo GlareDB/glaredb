@@ -8,34 +8,34 @@ include ./include/conn.slti
 statement ok
 CREATE CONNECTION empty_id
     FOR s3 OPTIONS (
-		access_key_id = '',
-		secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+                access_key_id = '',
+                secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
     );
 
 statement error
 CREATE EXTERNAL TABLE empty_id_table
     FROM empty_id
     OPTIONS (
-		region = '${AWS_S3_REGION}',
-		bucket_name = '${AWS_S3_BUCKET_NAME}',
-		location = 'bikeshare_stations.csv'
+                region = '${AWS_S3_REGION}',
+                bucket_name = '${AWS_S3_BUCKET_NAME}',
+                location = 'bikeshare_stations.csv'
     );
 
 # Validation test for connection with empty key
 statement ok
 CREATE CONNECTION empty_key
     FOR s3 OPTIONS (
-		access_key_id = '${AWS_ACCESS_KEY_ID}',
-		secret_access_key = '',
+                access_key_id = '${AWS_ACCESS_KEY_ID}',
+                secret_access_key = '',
     );
 
 statement error
 CREATE EXTERNAL TABLE empty_key_table
     FROM empty_key
     OPTIONS (
-		region = '${AWS_S3_REGION}',
-		bucket_name = '${AWS_S3_BUCKET_NAME}',
-		location = 'bikeshare_stations.csv'
+                region = '${AWS_S3_REGION}',
+                bucket_name = '${AWS_S3_BUCKET_NAME}',
+                location = 'bikeshare_stations.csv'
     );
 
 # Validation test for create external table
@@ -45,8 +45,8 @@ statement error
 CREATE EXTERNAL TABLE missing_table
     FROM testconn
     OPTIONS (
-		region = '${AWS_S3_REGION}',
-		bucket_name = '${AWS_S3_BUCKET_NAME}',
+                region = '${AWS_S3_REGION}',
+                bucket_name = '${AWS_S3_BUCKET_NAME}',
         location = 'missing_table.parquet'
     );
 
@@ -55,8 +55,8 @@ statement error
 CREATE EXTERNAL TABLE wrong_bucket_name
     FROM testconn
     OPTIONS (
-		region = '${AWS_S3_REGION}',
-		bucket_name = '${AWS_S3_BUCKET_NAME}-wrong-bucket-name',
+                region = '${AWS_S3_REGION}',
+                bucket_name = '${AWS_S3_BUCKET_NAME}-wrong-bucket-name',
         location = 'bikeshare_stations.csv'
     );
 
@@ -65,7 +65,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_bucket_name
     FROM testconn
     OPTIONS (
-		region = 'us-west-1',
-		bucket_name = '${AWS_S3_BUCKET_NAME}',
+                region = 'us-west-1',
+                bucket_name = '${AWS_S3_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );

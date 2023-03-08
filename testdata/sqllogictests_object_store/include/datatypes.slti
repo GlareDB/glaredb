@@ -5,11 +5,11 @@ include ./include/conn.slti
 # Create an external table that connects to the datatypes table.
 statement ok
 CREATE EXTERNAL TABLE datatypes
-	FROM testconn
-	OPTIONS (
-		dataset_id = '${BIGQUERY_DATASET_ID}',
-		table_id = 'datatypes'
-	);
+    FROM testconn
+    OPTIONS (
+        dataset_id = '${BIGQUERY_DATASET_ID}',
+        table_id = 'datatypes'
+    );
 
 query TTIRTTTTTTT
 SELECT * FROM datatypes;

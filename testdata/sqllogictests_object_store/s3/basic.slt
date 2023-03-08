@@ -11,12 +11,12 @@ include ./include/conn.slti
 # Basic test for csv format
 statement ok
 CREATE EXTERNAL TABLE basic
-	FROM testconn
-	OPTIONS (
-		region = '${AWS_S3_REGION}',
-		bucket_name = '${AWS_S3_BUCKET_NAME}',
-		location = 'bikeshare_stations.csv'
-	);
+    FROM testconn
+    OPTIONS (
+        region = '${AWS_S3_REGION}',
+        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        location = 'bikeshare_stations.csv'
+    );
 
 include ../sqllogictests_datasources_common/include/basic.slti
 
@@ -25,11 +25,11 @@ include ../sqllogictests_datasources_common/include/basic.slti
 halt
 statement ok
 CREATE EXTERNAL TABLE basic
-	FROM testconn
-	OPTIONS (
-		region = '${AWS_S3_REGION}',
-		bucket_name = '${AWS_S3_BUCKET_NAME}',
-		location = 'bikeshare_stations.csv'
-	);
+    FROM testconn
+    OPTIONS (
+        region = '${AWS_S3_REGION}',
+        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        location = 'bikeshare_stations.csv'
+    );
 
 include ../sqllogictests_datasources_common/include/basic.slti
