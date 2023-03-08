@@ -101,6 +101,11 @@ jobs:
           export AWS_BUCKET_NAME=glaredb-test
           nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/s3/**/*.slt
 
+      - name: SQL Logic Tests (Local Object Store)
+        run: |
+          shopt -s globstar
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/local/**/*.slt
+
       - name: SQL Logic Tests (Postgres)
         run: |
           shopt -s globstar
