@@ -1,10 +1,10 @@
 # Creating external tables with parquet files.
 
 statement ok
-create schema parquet_local;
+create schema parquet_s3;
 
 statement ok
-set search_path = parquet_local;
+set search_path = parquet_s3;
 
 include ./include/conn.slti
 
@@ -12,7 +12,9 @@ statement ok
 CREATE EXTERNAL TABLE userdata1
     FROM testconn
     OPTIONS (
-        location = 'testdata/parquet/userdata1.parquet'
+        region = '${AWS_S3_REGION}',
+        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        location = 'userdata1.parquet'
     );
 
 statement ok

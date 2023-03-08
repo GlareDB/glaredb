@@ -1,10 +1,10 @@
 # Creating external tables with parquet files.
 
 statement ok
-create schema parquet_local;
+create schema parquet_gcs;
 
 statement ok
-set search_path = parquet_local;
+set search_path = parquet_gcs;
 
 include ./include/conn.slti
 
@@ -12,7 +12,8 @@ statement ok
 CREATE EXTERNAL TABLE userdata1
     FROM testconn
     OPTIONS (
-        location = 'testdata/parquet/userdata1.parquet'
+        bucket_name = '${GCS_BUCKET_NAME}',
+        location = 'userdata1.parquet'
     );
 
 statement ok
