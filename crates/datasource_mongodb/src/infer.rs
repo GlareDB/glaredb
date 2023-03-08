@@ -27,6 +27,10 @@ impl TableSampler {
         if sample_count as usize > MAX_SAMPLE_SIZE {
             sample_count = MAX_SAMPLE_SIZE as i64;
         }
+        // Very small table.
+        if sample_count == 0 {
+            sample_count = MAX_SAMPLE_SIZE as i64;
+        }
 
         let sample_pipeline = [doc! {
             "$sample": {"size": sample_count}
