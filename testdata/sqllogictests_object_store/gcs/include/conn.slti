@@ -1,4 +1,4 @@
-# Include file to create bigquery connection
+# Include file to create gcs connection
 
 statement ok
 CREATE CONNECTION IF NOT EXISTS testconn
