@@ -61,7 +61,6 @@ impl LocalAccessor {
         let store = Arc::new(LocalFileSystem::new());
 
         let location = ObjectStorePath::from_filesystem_path(access.location)?;
-
         store.head(&location).await?;
         Ok(())
     }
