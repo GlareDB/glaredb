@@ -1,4 +1,4 @@
-# Validation tests for mysql connections and external tables
+# Validation tests for big query connections and external tables
 
 include ./include/conn.slti
 

@@ -1,16 +1,23 @@
 # Creating external tables with parquet files.
 
 statement ok
-create schema parquet;
+create schema parquet_gcs;
 
 statement ok
-set search_path = parquet;
+set search_path = parquet_gcs;
+
+include ./include/conn.slti
 
 statement ok
-create connection if not exists local_filesystem_conn for local;
+CREATE EXTERNAL TABLE userdata1
+    FROM testconn
+    OPTIONS (
+        bucket_name = '${GCS_BUCKET_NAME}',
+        location = 'userdata1.parquet'
+    );
 
 statement ok
-create external table userdata1 from local_filesystem_conn options(location='${PWD}/testdata/parquet/userdata1.parquet');
+select * from userdata1;
 
 query I
 select count(*) from userdata1;

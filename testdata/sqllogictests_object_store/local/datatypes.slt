@@ -1,0 +1,20 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+include ./include/conn.slti
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+    FROM testconn
+    OPTIONS (
+        location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
+    );
+
+# TODO fix representation of timestamp value
+query TTIRTTTTTTT
+SELECT * FROM datatypes;
+----
+t abc 123 123.456 Ymlu 938709124000
+NULL (empty) NULL NULL (empty) NULL
+
+# TODO add tests for all parquet data types

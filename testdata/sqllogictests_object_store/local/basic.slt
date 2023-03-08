@@ -1,0 +1,20 @@
+# Basic tests for local object store data source external tables
+
+statement ok
+create schema local_object_store;
+
+statement ok
+set search_path = local_object_store;
+
+include ./include/conn.slti
+
+statement ok
+CREATE EXTERNAL TABLE basic
+    FROM testconn
+    OPTIONS (
+        location = 'testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+    );
+
+# TODO re-enable when CSV related querying is improved, (timestamp issue)
+halt
+include ../../sqllogictests_datasources_common/include/basic.slti

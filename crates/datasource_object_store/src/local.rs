@@ -43,7 +43,7 @@ impl LocalAccessor {
     pub async fn new(access: LocalTableAccess) -> Result<Self> {
         let store = Arc::new(LocalFileSystem::new());
 
-        let location = ObjectStorePath::from(access.location);
+        let location = ObjectStorePath::from_filesystem_path(access.location)?;
         // Use provided file type or infer from location
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");
@@ -60,7 +60,7 @@ impl LocalAccessor {
     pub async fn validate_table_access(access: LocalTableAccess) -> Result<()> {
         let store = Arc::new(LocalFileSystem::new());
 
-        let location = ObjectStorePath::from(access.location);
+        let location = ObjectStorePath::from_filesystem_path(access.location)?;
         store.head(&location).await?;
         Ok(())
     }

@@ -1,0 +1,15 @@
+# Test if large amount of data loads successfully.
+
+# TODO Due to CSV schema inference errors we can't parse all values see
+# GlareDB/glaredb#697
+halt
+include ./include/conn.slti
+
+statement ok
+CREATE EXTERNAL TABLE large_table
+    FROM testconn
+    OPTIONS (
+        location = 'testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv'
+    );
+
+include ../../sqllogictests_datasources_common/include/large_table.slti
