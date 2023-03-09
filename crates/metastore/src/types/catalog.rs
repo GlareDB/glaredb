@@ -112,7 +112,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
             CatalogEntry::Connection(v) => catalog::catalog_entry::Entry::Connection(v.into()),
             CatalogEntry::ExternalTable(v) => {
-                catalog::catalog_entry::Entry::ExternalTable(v.into())
+                catalog::catalog_entry::Entry::ExternalTable(v.try_into()?)
             }
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
@@ -350,7 +350,6 @@ impl From<ViewEntry> for catalog::ViewEntry {
 pub struct ConnectionEntry {
     pub meta: EntryMeta,
     pub options: ConnectionOptions,
-    // pub columns: Vec<ColumnDefinition>,
 }
 
 impl TryFrom<catalog::ConnectionEntry> for ConnectionEntry {
@@ -383,11 +382,12 @@ impl ConnectionEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone)]
 pub struct ExternalTableEntry {
     pub meta: EntryMeta,
     pub connection_id: u32,
     pub options: TableOptions,
+    pub columns: Vec<ColumnDefinition>,
 }
 
 impl TryFrom<catalog::ExternalTableEntry> for ExternalTableEntry {
@@ -398,17 +398,28 @@ impl TryFrom<catalog::ExternalTableEntry> for ExternalTableEntry {
             meta,
             connection_id: value.connection_id,
             options: value.options.required("options")?,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
         })
     }
 }
 
-impl From<ExternalTableEntry> for catalog::ExternalTableEntry {
-    fn from(value: ExternalTableEntry) -> Self {
-        catalog::ExternalTableEntry {
+impl TryFrom<ExternalTableEntry> for catalog::ExternalTableEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: ExternalTableEntry) -> Result<Self, Self::Error> {
+        Ok(catalog::ExternalTableEntry {
             meta: Some(value.meta.into()),
             connection_id: value.connection_id,
             options: Some(value.options.into()),
-        }
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 

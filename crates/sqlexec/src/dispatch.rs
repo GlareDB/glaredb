@@ -527,36 +527,28 @@ impl<'a> SystemTableDispatcher<'a> {
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::ExternalTable)
         {
-            // TODO update building of external_columns to get columns saved in catalog
-            let _ent = match table.entry {
+            let ent = match table.entry {
                 CatalogEntry::ExternalTable(ent) => ent,
-                other => panic!("unexpected entry type: {:?}", other), // Bug
+                other => unreachable!("unexpected entry type: {:?}", other), // Bug
             };
             let schema_name = table
                 .schema_entry
                 .map(|schema| schema.get_meta().name.as_str())
                 .unwrap_or("<invalid>");
 
-            table_oids.append_value(table.oid);
-            schema_names.append_value(schema_name);
-            table_names.append_value(&table.entry.get_meta().name);
-            column_names.append_value("<temp>");
-            column_indexes.append_value(u32::MAX);
-            data_types.append_value("<temp>");
-            pg_data_types.append_value("<temp>");
-            is_nullables.append_value(true);
+            let table_name = ent.meta.name.as_str();
 
-            //for (i, col) in ent.columns.iter().enumerate() {
-            //    table_oids.append_value(table.oid);
-            //    schema_names.append_value(schema_name);
-            //    table_names.append_value(&table.entry.get_meta().name);
-            //    column_names.append_value(&col.name);
-            //    column_indexes.append_value(i as u32);
-            //    data_types.append_value(col.arrow_type.to_string());
-            //    pg_data_types.append_value(col.arrow_type.to_string()); //TODO update to get pg
-            //                                                            //type
-            //    is_nullables.append_value(col.nullable);
-            //}
+            for (i, col) in ent.columns.iter().enumerate() {
+                table_oids.append_value(table.oid);
+                schema_names.append_value(schema_name);
+                table_names.append_value(table_name);
+                column_names.append_value(&col.name);
+                column_indexes.append_value(i as u32);
+                data_types.append_value(col.arrow_type.to_string());
+                pg_data_types.append_value(col.arrow_type.to_string()); //TODO update to get pg
+                                                                        //type
+                is_nullables.append_value(col.nullable);
+            }
         }
 
         let batch = RecordBatch::try_new(
