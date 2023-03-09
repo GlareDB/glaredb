@@ -15,8 +15,8 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
-    GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_VIEWS,
+    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
+    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -359,6 +359,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_tables())
         } else if GLARE_COLUMNS.matches(schema, name) {
             Arc::new(self.build_glare_columns())
+        } else if GLARE_EXTERNAL_COLUMNS.matches(schema, name) {
+            Arc::new(self.build_glare_external_columns())
         } else if GLARE_VIEWS.matches(schema, name) {
             Arc::new(self.build_glare_views())
         } else if GLARE_SCHEMAS.matches(schema, name) {
@@ -500,6 +502,73 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(column_names.finish()),
                 Arc::new(column_indexes.finish()),
                 Arc::new(data_types.finish()),
+                Arc::new(is_nullables.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_external_columns(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_EXTERNAL_COLUMNS.arrow_schema());
+
+        let mut table_oids = UInt32Builder::new();
+        let mut schema_names = StringBuilder::new();
+        let mut table_names = StringBuilder::new();
+        let mut column_names = StringBuilder::new();
+        let mut column_indexes = UInt32Builder::new();
+        let mut data_types = StringBuilder::new();
+        let mut pg_data_types = StringBuilder::new();
+        let mut is_nullables = BooleanBuilder::new();
+
+        for table in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::ExternalTable)
+        {
+            // TODO update building of external_columns to get columns saved in catalog
+            let _ent = match table.entry {
+                CatalogEntry::ExternalTable(ent) => ent,
+                other => panic!("unexpected entry type: {:?}", other), // Bug
+            };
+            let schema_name = table
+                .schema_entry
+                .map(|schema| schema.get_meta().name.as_str())
+                .unwrap_or("<invalid>");
+
+            table_oids.append_value(table.oid);
+            schema_names.append_value(schema_name);
+            table_names.append_value(&table.entry.get_meta().name);
+            column_names.append_value("<temp>");
+            column_indexes.append_value(u32::MAX);
+            data_types.append_value("<temp>");
+            pg_data_types.append_value("<temp>");
+            is_nullables.append_value(true);
+
+            //for (i, col) in ent.columns.iter().enumerate() {
+            //    table_oids.append_value(table.oid);
+            //    schema_names.append_value(schema_name);
+            //    table_names.append_value(&table.entry.get_meta().name);
+            //    column_names.append_value(&col.name);
+            //    column_indexes.append_value(i as u32);
+            //    data_types.append_value(col.arrow_type.to_string());
+            //    pg_data_types.append_value(col.arrow_type.to_string()); //TODO update to get pg
+            //                                                            //type
+            //    is_nullables.append_value(col.nullable);
+            //}
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(table_oids.finish()),
+                Arc::new(schema_names.finish()),
+                Arc::new(table_names.finish()),
+                Arc::new(column_names.finish()),
+                Arc::new(column_indexes.finish()),
+                Arc::new(data_types.finish()),
+                Arc::new(pg_data_types.finish()),
                 Arc::new(is_nullables.finish()),
             ],
         )

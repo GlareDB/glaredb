@@ -350,6 +350,7 @@ impl From<ViewEntry> for catalog::ViewEntry {
 pub struct ConnectionEntry {
     pub meta: EntryMeta,
     pub options: ConnectionOptions,
+    // pub columns: Vec<ColumnDefinition>,
 }
 
 impl TryFrom<catalog::ConnectionEntry> for ConnectionEntry {

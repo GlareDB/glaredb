@@ -95,6 +95,21 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_EXTERNAL_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "external_columns",
+    columns: ColumnDefinition::from_tuples([
+        ("table_oid", DataType::UInt32, false),
+        ("schema_name", DataType::Utf8, false),
+        ("table_name", DataType::Utf8, false),
+        ("column_name", DataType::Utf8, false),
+        ("column_index", DataType::UInt32, false),
+        ("data_type", DataType::Utf8, false),
+        ("pg_data_type", DataType::Utf8, false), //TODO should this be Type OID
+        ("is_nullable", DataType::Boolean, false),
+    ]),
+});
+
 pub static GLARE_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "connections",
@@ -155,6 +170,7 @@ impl BuiltinTable {
             &GLARE_SCHEMAS,
             &GLARE_TABLES,
             &GLARE_COLUMNS,
+            &GLARE_EXTERNAL_COLUMNS,
             &GLARE_CONNECTIONS,
             &GLARE_SSH_CONNECTIONS,
             &GLARE_SESSION_QUERY_METRICS,
@@ -313,7 +329,53 @@ SELECT
     null AS is_generated,
     null AS generation_expression,
     'NO' AS is_updateable
-FROM glare_catalog.columns c;",
+FROM glare_catalog.columns c
+UNION ALL
+SELECT
+    'default' AS table_catalog,
+    c.schema_name AS table_schema,
+    c.table_name AS table_name,
+    c.column_name AS column_name,
+    c.column_index + 1 AS ordinal_position,
+    null AS column_default,
+    c.is_nullable AS is_nullable,
+    c.pg_data_type AS data_type,
+    null AS character_maximum_length,
+    null AS numeric_precision,
+    null AS numeric_precision_radix,
+    null AS numeric_scale,
+    null AS datetime_precision,
+    null AS interval_type,
+    null AS interval_precision,
+    null AS character_set_catalog,
+    null AS character_set_schema,
+    null AS character_set_name,
+    null AS collation_catalog,
+    null AS collation_schema,
+    null AS collation_name,
+    null AS domain_catalog,
+    null AS domain_schema,
+    null AS domain_name,
+    null AS udt_catalog,
+    null AS udt_schema,
+    null AS udt_name,
+    null AS scope_catalog,
+    null AS scope_schema,
+    null AS scope_name,
+    null AS maximum_cardinality,
+    null AS dtd_identifier,
+    null AS is_self_referencing,
+    null AS is_identity,
+    null AS identity_generation,
+    null AS identity_start,
+    null AS identity_increment,
+    null AS identity_maximum,
+    null AS identity_minimum,
+    null AS identity_cyle,
+    null AS is_generated,
+    null AS generation_expression,
+    'NO' AS is_updateable
+FROM glare_catalog.external_columns c;",
 });
 
 // Postgres catalog tables.
