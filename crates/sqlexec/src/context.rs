@@ -21,7 +21,7 @@ use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{self, ConnectionEntry, ConnectionOptions};
+use metastore::types::catalog::{self, ColumnDefinition, ConnectionEntry, ConnectionOptions};
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -127,6 +127,12 @@ impl SessionContext {
                 connection_id: plan.connection_id,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
+                // TODO update this to convert arrow schema into Vec<ColumnDefinition>
+                columns: vec![ColumnDefinition {
+                    name: "<temp2>".to_string(),
+                    nullable: true,
+                    arrow_type: datafusion::arrow::datatypes::DataType::Null,
+                }],
             },
         )])
         .await?;

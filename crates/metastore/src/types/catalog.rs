@@ -267,7 +267,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnDefinition {
     pub name: String,
     pub nullable: bool,

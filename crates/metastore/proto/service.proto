@@ -76,7 +76,8 @@ message CreateExternalTable {
   uint32 connection_id = 3;
   catalog.TableOptions options = 4;
   bool if_not_exists = 5;
-  // next: 6
+  repeated catalog.ColumnDefinition columns = 6;
+  // next: 7
 }
 
 message MutateRequest {

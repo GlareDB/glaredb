@@ -3,8 +3,8 @@ use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, ColumnDefinition, ConnectionEntry, EntryMeta, EntryType,
-    ExternalTableEntry, SchemaEntry, TableEntry, ViewEntry,
+    CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, ExternalTableEntry,
+    SchemaEntry, TableEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
 use crate::types::storage::PersistedCatalog;
@@ -13,7 +13,6 @@ use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::vec;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::debug;
 use uuid::Uuid;
@@ -449,11 +448,7 @@ impl State {
                         connection_id: create_ext.connection_id,
                         options: create_ext.options,
                         //TODO take arrow schema in CreateExternalTable
-                        columns: vec![ColumnDefinition {
-                            name: "<temp>".to_string(),
-                            nullable: true,
-                            arrow_type: datafusion::arrow::datatypes::DataType::Null,
-                        }],
+                        columns: create_ext.columns,
                     };
 
                     self.try_insert_entry_for_schema(
