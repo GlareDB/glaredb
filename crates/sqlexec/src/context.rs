@@ -120,6 +120,15 @@ impl SessionContext {
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
         let (schema, name) = self.resolve_object_reference(plan.table_name.into())?;
+        let columns = plan
+            .columns
+            .into_iter()
+            .map(|field| ColumnDefinition {
+                name: field.name().to_owned(),
+                nullable: field.is_nullable(),
+                arrow_type: field.data_type().to_owned(),
+            })
+            .collect();
         self.mutate_catalog([Mutation::CreateExternalTable(
             service::CreateExternalTable {
                 schema,
@@ -127,12 +136,7 @@ impl SessionContext {
                 connection_id: plan.connection_id,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
-                // TODO update this to convert arrow schema into Vec<ColumnDefinition>
-                columns: vec![ColumnDefinition {
-                    name: "<temp2>".to_string(),
-                    nullable: true,
-                    arrow_type: datafusion::arrow::datatypes::DataType::Null,
-                }],
+                columns,
             },
         )])
         .await?;

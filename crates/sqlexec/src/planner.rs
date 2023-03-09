@@ -389,6 +389,8 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             connection_id: conn.meta.id,
             table_options: external_table_options,
+            // TODO update this to convert arrow schema into Vec<Field>
+            columns: vec![Field::new("<temp3>", DataType::Null, true)],
         };
 
         Ok(DdlPlan::CreateExternalTable(plan).into())
