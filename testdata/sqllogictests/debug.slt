@@ -27,6 +27,13 @@ create external table error_table from debug_conn options (table_type = 'error_d
 
 # Should always error.
 
-# TODO: Re-enable when _only_ error is sent back, and not both the error and command tag.
-# statement error
-# select * from error_table;
+statement error
+select * from error_table;
+
+# validate external column catalog info
+query TTTITTT
+select schema_name, table_name, column_name, column_index, data_type,
+    pg_data_type, is_nullable
+    from glare_catalog.external_columns where table_name = 'error_table';
+----
+debug_datasources error_table a 0 Int32 Int32 f

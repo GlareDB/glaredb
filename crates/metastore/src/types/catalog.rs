@@ -267,10 +267,12 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct ColumnDefinition {
     pub name: String,
     pub nullable: bool,
+    // TODO: change proptest strategy to select random DataType
+    #[proptest(value("DataType::Utf8"))]
     pub arrow_type: DataType,
 }
 

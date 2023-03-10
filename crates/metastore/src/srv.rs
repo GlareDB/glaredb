@@ -197,7 +197,8 @@ mod tests {
             mutations: vec![Mutation::CreateSchema(CreateSchema {
                 name: "test_schema".to_string(),
             })
-            .into()],
+            .try_into()
+            .unwrap()],
         }))
         .await
         .unwrap();

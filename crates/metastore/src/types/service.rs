@@ -3,7 +3,7 @@ use crate::proto::service;
 use crate::types::catalog::{ColumnDefinition, ConnectionOptions, TableOptions};
 use proptest_derive::Arbitrary;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum Mutation {
     DropSchema(DropSchema),
     DropObject(DropObject),
@@ -199,7 +199,7 @@ impl From<CreateConnection> for service::CreateConnection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
@@ -255,7 +255,7 @@ mod tests {
     proptest! {
         #[test]
         fn roundtrip_mutation(expected in any::<Mutation>()) {
-            let p: service::mutation::Mutation = expected.clone().into();
+            let p: service::mutation::Mutation = expected.clone().try_into().unwrap();
             let got: Mutation = p.try_into().unwrap();
             assert_eq!(expected, got)
         }

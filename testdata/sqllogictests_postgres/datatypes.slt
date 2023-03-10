@@ -17,3 +17,28 @@ SELECT * FROM datatypes;
 ----
 t     1     2     3     4.5   6.7   a     b     cde   fghi  {"a":[1,2]}  [{"b":null},{"c":true}]  292a485f-a56a-4938-8f1a-bbbbbbbbbbb1  \x62696e  1999-09-30 16:32:04  16:32:04  1999-09-30  1999-09-30 14:32:04+00
 NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL         NULL                     NULL                                  NULL      NULL                 NULL      NULL        NULL
+
+# validate external column catalog info
+query TTTITTT
+select schema_name, table_name, column_name, column_index, data_type,
+    pg_data_type, is_nullable
+    from glare_catalog.external_columns where table_name = 'datatypes';
+----
+public datatypes c1 0 Boolean Boolean t
+public datatypes c2 1 Int16 Int16 t
+public datatypes c3 2 Int32 Int32 t
+public datatypes c4 3 Int64 Int64 t
+public datatypes c5 4 Float32 Float32 t
+public datatypes c6 5 Float64 Float64 t
+public datatypes c7 6 Utf8 Utf8 t
+public datatypes c8 7 Utf8 Utf8 t
+public datatypes c9 8 Utf8 Utf8 t
+public datatypes c10 9 Utf8 Utf8 t
+public datatypes c11 10 Utf8 Utf8 t
+public datatypes c12 11 Utf8 Utf8 t
+public datatypes c13 12 Utf8 Utf8 t
+public datatypes c14 13 Binary Binary t
+public datatypes c15 14 Timestamp(Nanosecond, None) Timestamp(Nanosecond, None) t
+public datatypes c16 15 Time64(Nanosecond) Time64(Nanosecond) t
+public datatypes c17 16 Date32 Date32 t
+public datatypes c18 17 Timestamp(Nanosecond, Some("UTC")) Timestamp(Nanosecond, Some("UTC")) t

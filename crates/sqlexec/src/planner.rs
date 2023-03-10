@@ -200,13 +200,18 @@ impl<'a> SessionPlanner<'a> {
         let conn = stmt.connection.to_lowercase();
         let conn = self.ctx.get_connection_by_name(&conn)?;
 
-        let external_table_options = match &conn.options {
+        let (external_table_options, external_table_columns) = match &conn.options {
             ConnectionOptions::Debug(_) => {
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
-                TableOptions::Debug(TableOptionsDebug {
-                    table_type: typ.to_string(),
-                })
+                let columns = typ.arrow_schema().fields;
+
+                (
+                    TableOptions::Debug(TableOptionsDebug {
+                        table_type: typ.to_string(),
+                    }),
+                    columns,
+                )
             }
             ConnectionOptions::Postgres(options) => {
                 let source_schema = remove_required_opt(m, "schema")?;
@@ -222,20 +227,32 @@ impl<'a> SessionPlanner<'a> {
                     .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
                     .transpose()?;
 
-                task::block_in_place(|| {
+                let result = task::block_in_place(|| {
                     Handle::current().block_on(async {
-                        PostgresAccessor::validate_table_access(&access, tunn_access)
+                        PostgresAccessor::validate_table_access(&access, tunn_access.as_ref())
                             .await
                             .map_err(|e| ExecError::InvalidExternalTable {
                                 source: Box::new(e),
+                            })?;
+
+                        PostgresAccessor::get_column_info(&access, tunn_access.as_ref())
+                            .await
+                            .map_err(|e| ExecError::NoCoulumnInfo {
+                                schema: access.schema.clone(),
+                                name: access.name.clone(),
+                                source: Box::new(e),
                             })
                     })
-                })?;
+                });
+                let columns = result?;
 
-                TableOptions::Postgres(TableOptionsPostgres {
-                    schema: access.schema,
-                    table: access.name,
-                })
+                (
+                    TableOptions::Postgres(TableOptionsPostgres {
+                        schema: access.schema,
+                        table: access.name,
+                    }),
+                    columns,
+                )
             }
             ConnectionOptions::BigQuery(options) => {
                 let dataset_id = remove_required_opt(m, "dataset_id")?;
@@ -258,10 +275,14 @@ impl<'a> SessionPlanner<'a> {
                     })
                 })?;
 
-                TableOptions::BigQuery(TableOptionsBigQuery {
-                    dataset_id: access.dataset_id,
-                    table_id: access.table_id,
-                })
+                (
+                    TableOptions::BigQuery(TableOptionsBigQuery {
+                        dataset_id: access.dataset_id,
+                        table_id: access.table_id,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
             }
             ConnectionOptions::Mysql(options) => {
                 let source_schema = remove_required_opt(m, "schema")?;
@@ -287,10 +308,14 @@ impl<'a> SessionPlanner<'a> {
                     })
                 })?;
 
-                TableOptions::Mysql(TableOptionsMysql {
-                    schema: access.schema,
-                    table: access.name,
-                })
+                (
+                    TableOptions::Mysql(TableOptionsMysql {
+                        schema: access.schema,
+                        table: access.name,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
             }
             ConnectionOptions::Local(_) => {
                 let location = remove_required_opt(m, "location")?;
@@ -310,7 +335,11 @@ impl<'a> SessionPlanner<'a> {
                     })
                 })?;
 
-                TableOptions::Local(TableOptionsLocal { location })
+                (
+                    TableOptions::Local(TableOptionsLocal { location }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
             }
             ConnectionOptions::Gcs(options) => {
                 let bucket_name = remove_required_opt(m, "bucket_name")?;
@@ -333,10 +362,14 @@ impl<'a> SessionPlanner<'a> {
                     })
                 })?;
 
-                TableOptions::Gcs(TableOptionsGcs {
-                    bucket_name,
-                    location,
-                })
+                (
+                    TableOptions::Gcs(TableOptionsGcs {
+                        bucket_name,
+                        location,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
             }
             ConnectionOptions::S3(options) => {
                 let region = remove_required_opt(m, "region")?;
@@ -362,11 +395,15 @@ impl<'a> SessionPlanner<'a> {
                     })
                 })?;
 
-                TableOptions::S3(TableOptionsS3 {
-                    region,
-                    bucket_name,
-                    location,
-                })
+                (
+                    TableOptions::S3(TableOptionsS3 {
+                        region,
+                        bucket_name,
+                        location,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
             }
             ConnectionOptions::Ssh(_) => {
                 return Err(ExecError::ExternalTableWithSsh);
@@ -377,10 +414,14 @@ impl<'a> SessionPlanner<'a> {
 
                 // TODO: Validate.
 
-                TableOptions::Mongo(TableOptionsMongo {
-                    database,
-                    collection,
-                })
+                (
+                    TableOptions::Mongo(TableOptionsMongo {
+                        database,
+                        collection,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
             }
         };
 
@@ -389,8 +430,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             connection_id: conn.meta.id,
             table_options: external_table_options,
-            // TODO update this to convert arrow schema into Vec<Field>
-            columns: vec![Field::new("<temp3>", DataType::Null, true)],
+            columns: external_table_columns,
         };
 
         Ok(DdlPlan::CreateExternalTable(plan).into())

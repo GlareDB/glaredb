@@ -447,7 +447,6 @@ impl State {
                         },
                         connection_id: create_ext.connection_id,
                         options: create_ext.options,
-                        //TODO take arrow schema in CreateExternalTable
                         columns: create_ext.columns,
                     };
 

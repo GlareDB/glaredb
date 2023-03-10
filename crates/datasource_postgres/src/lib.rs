@@ -70,7 +70,7 @@ impl PostgresAccessor {
         let (client, conn_handle) = match ssh_tunnel {
             None => Self::connect_direct(&access.connection_string).await?,
             Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+                Self::connect_with_ssh_tunnel(&access.connection_string, &ssh_tunnel).await?
             }
         };
 
@@ -93,7 +93,7 @@ impl PostgresAccessor {
 
     async fn connect_with_ssh_tunnel(
         connection_string: &str,
-        ssh_tunnel: SshTunnelAccess,
+        ssh_tunnel: &SshTunnelAccess,
     ) -> Result<(Client, JoinHandle<()>)> {
         let config: Config = connection_string.parse()?;
 
@@ -136,7 +136,7 @@ impl PostgresAccessor {
         let (client, _) = match ssh_tunnel {
             None => Self::connect_direct(connection_string).await?,
             Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
+                Self::connect_with_ssh_tunnel(connection_string, &ssh_tunnel).await?
             }
         };
 
@@ -147,7 +147,7 @@ impl PostgresAccessor {
     /// Validate postgres connection and access to table
     pub async fn validate_table_access(
         access: &PostgresTableAccess,
-        ssh_tunnel: Option<SshTunnelAccess>,
+        ssh_tunnel: Option<&SshTunnelAccess>,
     ) -> Result<()> {
         let (client, _) = match ssh_tunnel {
             None => Self::connect_direct(&access.connection_string).await?,
@@ -164,13 +164,29 @@ impl PostgresAccessor {
         Ok(())
     }
 
-    pub async fn into_table_provider(
-        self,
-        predicate_pushdown: bool,
-    ) -> Result<PostgresTableProvider> {
-        // Every operation in this accessor will happen in a single transaction.
-        // The transaction will remain open until the end of the table scan.
-        self.client
+    pub async fn get_column_info(
+        access: &PostgresTableAccess,
+        ssh_tunnel: Option<&SshTunnelAccess>,
+    ) -> Result<Vec<Field>> {
+        let (client, _) = match ssh_tunnel {
+            None => Self::connect_direct(&access.connection_string).await?,
+            Some(ssh_tunnel) => {
+                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+            }
+        };
+
+        let (arrow_schema, _) =
+            Self::get_table_schema(&client, &access.schema, &access.name).await?;
+
+        Ok(arrow_schema.fields)
+    }
+
+    async fn get_table_schema(
+        client: &tokio_postgres::Client,
+        schema: &str,
+        name: &str,
+    ) -> Result<(ArrowSchema, Vec<PostgresType>)> {
+        client
             .execute(
                 "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
                 &[],
@@ -178,8 +194,7 @@ impl PostgresAccessor {
             .await?;
 
         // Get oid of table, and approx number of pages for the relation.
-        let row = self
-            .client
+        let row = client
             .query_one(
                 "
 SELECT
@@ -188,15 +203,14 @@ SELECT
 FROM pg_class INNER JOIN pg_namespace ON relnamespace = pg_namespace.oid
 WHERE nspname=$1 AND relname=$2;
 ",
-                &[&self.access.schema, &self.access.name],
+                &[&schema, &name],
             )
             .await?;
         let oid: u32 = row.try_get(0)?;
         // let approx_pages: i64 = row.try_get(1)?;
 
         // Get table schema.
-        let rows = self
-            .client
+        let rows = client
             .query(
                 "
 SELECT
@@ -210,6 +224,9 @@ ORDER BY attnum;
                 &[&oid],
             )
             .await?;
+
+        client.execute("END TRANSACTION", &[]).await?;
+
         let mut names: Vec<String> = Vec::with_capacity(rows.len());
         let mut type_oids: Vec<u32> = Vec::with_capacity(rows.len());
         for row in rows {
@@ -224,6 +241,24 @@ ORDER BY attnum;
             .ok_or(PostgresError::UnknownPostgresOids(type_oids))?;
 
         let arrow_schema = try_create_arrow_schema(names, &pg_types)?;
+        Ok((arrow_schema, pg_types))
+    }
+
+    pub async fn into_table_provider(
+        self,
+        predicate_pushdown: bool,
+    ) -> Result<PostgresTableProvider> {
+        let (arrow_schema, pg_types) =
+            Self::get_table_schema(&self.client, &self.access.schema, &self.access.name).await?;
+
+        // Every operation in this accessor will happen in a single transaction.
+        // The transaction will remain open until the end of the table scan.
+        self.client
+            .execute(
+                "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+                &[],
+            )
+            .await?;
 
         Ok(PostgresTableProvider {
             predicate_pushdown,
