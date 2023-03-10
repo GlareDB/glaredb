@@ -136,6 +136,7 @@ pub struct CreateExternalTable {
     pub if_not_exists: bool,
     pub connection_id: u32,
     pub table_options: TableOptions,
+    pub columns: Vec<Field>,
 }
 
 #[derive(Clone, Debug)]

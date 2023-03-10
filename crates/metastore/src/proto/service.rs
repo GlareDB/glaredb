@@ -152,9 +152,11 @@ pub struct CreateExternalTable {
     pub connection_id: u32,
     #[prost(message, optional, tag = "4")]
     pub options: ::core::option::Option<super::catalog::TableOptions>,
-    /// next: 6
     #[prost(bool, tag = "5")]
     pub if_not_exists: bool,
+    /// next: 7
+    #[prost(message, repeated, tag = "6")]
+    pub columns: ::prost::alloc::vec::Vec<super::catalog::ColumnDefinition>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

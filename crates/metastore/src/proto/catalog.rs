@@ -151,6 +151,9 @@ pub struct ExternalTableEntry {
     /// options. The type derived here must match the connection type.
     #[prost(message, optional, tag = "3")]
     pub options: ::core::option::Option<TableOptions>,
+    /// Columns in the external table.
+    #[prost(message, repeated, tag = "4")]
+    pub columns: ::prost::alloc::vec::Vec<ColumnDefinition>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

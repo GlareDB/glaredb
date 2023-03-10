@@ -447,6 +447,7 @@ impl State {
                         },
                         connection_id: create_ext.connection_id,
                         options: create_ext.options,
+                        columns: create_ext.columns,
                     };
 
                     self.try_insert_entry_for_schema(

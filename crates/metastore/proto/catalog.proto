@@ -102,7 +102,10 @@ message ExternalTableEntry {
   // options. The type derived here must match the connection type.
   TableOptions options = 3;
 
-  // next: 4
+  // Columns in the external table.
+  repeated ColumnDefinition columns = 4;
+
+  // next: 5
 }
 
 message TableOptions {

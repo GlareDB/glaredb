@@ -21,7 +21,7 @@ use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{self, ConnectionEntry, ConnectionOptions};
+use metastore::types::catalog::{self, ColumnDefinition, ConnectionEntry, ConnectionOptions};
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -120,6 +120,15 @@ impl SessionContext {
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
         let (schema, name) = self.resolve_object_reference(plan.table_name.into())?;
+        let columns = plan
+            .columns
+            .into_iter()
+            .map(|field| ColumnDefinition {
+                name: field.name().to_owned(),
+                nullable: field.is_nullable(),
+                arrow_type: field.data_type().to_owned(),
+            })
+            .collect();
         self.mutate_catalog([Mutation::CreateExternalTable(
             service::CreateExternalTable {
                 schema,
@@ -127,6 +136,7 @@ impl SessionContext {
                 connection_id: plan.connection_id,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
+                columns,
             },
         )])
         .await?;

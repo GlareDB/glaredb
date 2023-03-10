@@ -1,5 +1,6 @@
 //! Module for facilitating interaction with the Metastore.
 use crate::errors::{ExecError, Result};
+use metastore::errors::MetastoreError;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::proto::service::{FetchCatalogRequest, InitializeCatalogRequest, MutateRequest};
 use metastore::types::catalog::CatalogState;
@@ -431,14 +432,23 @@ impl DatabaseWorker {
                 response,
                 ..
             } => {
-                let result = self
-                    .client
-                    .mutate_catalog(tonic::Request::new(MutateRequest {
-                        db_id: self.db_id.into_bytes().to_vec(),
-                        catalog_version: version,
-                        mutations: mutations.into_iter().map(|m| m.into()).collect(),
-                    }))
-                    .await;
+                let result = mutations
+                    .into_iter()
+                    .map(|m| m.try_into())
+                    .collect::<Result<_, _>>();
+
+                let result = match result {
+                    Ok(mutations) => {
+                        self.client
+                            .mutate_catalog(tonic::Request::new(MutateRequest {
+                                db_id: self.db_id.into_bytes().to_vec(),
+                                catalog_version: version,
+                                mutations,
+                            }))
+                            .await
+                    }
+                    Err(e) => Err(MetastoreError::from(e).into()),
+                };
 
                 let result = match result {
                     Ok(resp) => {

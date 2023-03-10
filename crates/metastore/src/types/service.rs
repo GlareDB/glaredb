@@ -1,6 +1,6 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::service;
-use crate::types::catalog::{ConnectionOptions, TableOptions};
+use crate::types::catalog::{ColumnDefinition, ConnectionOptions, TableOptions};
 use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
@@ -38,9 +38,10 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
     }
 }
 
-impl From<Mutation> for service::mutation::Mutation {
-    fn from(value: Mutation) -> Self {
-        match value {
+impl TryFrom<Mutation> for service::mutation::Mutation {
+    type Error = ProtoConvError;
+    fn try_from(value: Mutation) -> Result<Self, Self::Error> {
+        Ok(match value {
             Mutation::DropSchema(v) => service::mutation::Mutation::DropSchema(v.into()),
             Mutation::DropObject(v) => service::mutation::Mutation::DropObject(v.into()),
             Mutation::CreateSchema(v) => service::mutation::Mutation::CreateSchema(v.into()),
@@ -49,17 +50,18 @@ impl From<Mutation> for service::mutation::Mutation {
                 service::mutation::Mutation::CreateConnection(v.into())
             }
             Mutation::CreateExternalTable(v) => {
-                service::mutation::Mutation::CreateExternalTable(v.into())
+                service::mutation::Mutation::CreateExternalTable(v.try_into()?)
             }
-        }
+        })
     }
 }
 
-impl From<Mutation> for service::Mutation {
-    fn from(value: Mutation) -> Self {
-        service::Mutation {
-            mutation: Some(value.into()),
-        }
+impl TryFrom<Mutation> for service::Mutation {
+    type Error = ProtoConvError;
+    fn try_from(value: Mutation) -> Result<Self, Self::Error> {
+        Ok(service::Mutation {
+            mutation: Some(value.try_into()?),
+        })
     }
 }
 
@@ -204,6 +206,7 @@ pub struct CreateExternalTable {
     pub connection_id: u32,
     pub options: TableOptions,
     pub if_not_exists: bool,
+    pub columns: Vec<ColumnDefinition>,
 }
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
@@ -216,19 +219,30 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             connection_id: value.connection_id,
             options: value.options.required("options")?,
             if_not_exists: value.if_not_exists,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
         })
     }
 }
 
-impl From<CreateExternalTable> for service::CreateExternalTable {
-    fn from(value: CreateExternalTable) -> Self {
-        service::CreateExternalTable {
+impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
+    type Error = ProtoConvError;
+    fn try_from(value: CreateExternalTable) -> Result<Self, Self::Error> {
+        Ok(service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
             connection_id: value.connection_id,
             options: Some(value.options.into()),
             if_not_exists: value.if_not_exists,
-        }
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
@@ -241,7 +255,7 @@ mod tests {
     proptest! {
         #[test]
         fn roundtrip_mutation(expected in any::<Mutation>()) {
-            let p: service::mutation::Mutation = expected.clone().into();
+            let p: service::mutation::Mutation = expected.clone().try_into().unwrap();
             let got: Mutation = p.try_into().unwrap();
             assert_eq!(expected, got)
         }
