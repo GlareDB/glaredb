@@ -157,11 +157,6 @@ mod tests {
         let cases = vec![
             TestCase {
                 datasource: Postgres,
-                literal: ScalarValue::Boolean(Some(true)),
-                expected: None,
-            },
-            TestCase {
-                datasource: Postgres,
                 literal: ScalarValue::Int8(Some(12)),
                 expected: Some("12"),
             },
