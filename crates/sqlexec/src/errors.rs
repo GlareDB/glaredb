@@ -30,13 +30,6 @@ pub enum ExecError {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[error("Unable to get coulmn info for {schema}.{name}: {source}")]
-    NoCoulumnInfo {
-        schema: String,
-        name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[error("Unknown prepared statement with name: {0}")]
     UnknownPreparedStatement(String),
 

@@ -144,11 +144,11 @@ impl PostgresAccessor {
         Ok(())
     }
 
-    /// Validate postgres connection and access to table
+    /// Validate postgres connection and access to table and retrieve arrow schema
     pub async fn validate_table_access(
         access: &PostgresTableAccess,
         ssh_tunnel: Option<&SshTunnelAccess>,
-    ) -> Result<()> {
+    ) -> Result<ArrowSchema> {
         let (client, _) = match ssh_tunnel {
             None => Self::connect_direct(&access.connection_string).await?,
             Some(ssh_tunnel) => {
@@ -161,24 +161,10 @@ impl PostgresAccessor {
             access.schema, access.name
         );
         client.execute(query.as_str(), &[]).await?;
-        Ok(())
-    }
-
-    pub async fn get_column_info(
-        access: &PostgresTableAccess,
-        ssh_tunnel: Option<&SshTunnelAccess>,
-    ) -> Result<Vec<Field>> {
-        let (client, _) = match ssh_tunnel {
-            None => Self::connect_direct(&access.connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
-            }
-        };
 
         let (arrow_schema, _) =
             Self::get_table_schema(&client, &access.schema, &access.name).await?;
-
-        Ok(arrow_schema.fields)
+        Ok(arrow_schema)
     }
 
     async fn get_table_schema(
@@ -186,13 +172,6 @@ impl PostgresAccessor {
         schema: &str,
         name: &str,
     ) -> Result<(ArrowSchema, Vec<PostgresType>)> {
-        client
-            .execute(
-                "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
-                &[],
-            )
-            .await?;
-
         // Get oid of table, and approx number of pages for the relation.
         let row = client
             .query_one(
@@ -225,8 +204,6 @@ ORDER BY attnum;
             )
             .await?;
 
-        client.execute("END TRANSACTION", &[]).await?;
-
         let mut names: Vec<String> = Vec::with_capacity(rows.len());
         let mut type_oids: Vec<u32> = Vec::with_capacity(rows.len());
         for row in rows {
@@ -248,9 +225,6 @@ ORDER BY attnum;
         self,
         predicate_pushdown: bool,
     ) -> Result<PostgresTableProvider> {
-        let (arrow_schema, pg_types) =
-            Self::get_table_schema(&self.client, &self.access.schema, &self.access.name).await?;
-
         // Every operation in this accessor will happen in a single transaction.
         // The transaction will remain open until the end of the table scan.
         self.client
@@ -259,6 +233,9 @@ ORDER BY attnum;
                 &[],
             )
             .await?;
+
+        let (arrow_schema, pg_types) =
+            Self::get_table_schema(&self.client, &self.access.schema, &self.access.name).await?;
 
         Ok(PostgresTableProvider {
             predicate_pushdown,

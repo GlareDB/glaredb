@@ -99,9 +99,8 @@ pub static GLARE_EXTERNAL_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTabl
     schema: INTERNAL_SCHEMA,
     name: "external_columns",
     columns: ColumnDefinition::from_tuples([
+        ("schema_oid", DataType::UInt32, false),
         ("table_oid", DataType::UInt32, false),
-        ("schema_name", DataType::Utf8, false),
-        ("table_name", DataType::Utf8, false),
         ("column_name", DataType::Utf8, false),
         ("column_index", DataType::UInt32, false),
         ("data_type", DataType::Utf8, false),
@@ -333,8 +332,8 @@ FROM glare_catalog.columns c
 UNION ALL
 SELECT
     'default' AS table_catalog,
-    c.schema_name AS table_schema,
-    c.table_name AS table_name,
+    s.schema_name AS table_schema,
+    t.table_name AS table_name,
     c.column_name AS column_name,
     c.column_index + 1 AS ordinal_position,
     null AS column_default,
@@ -375,7 +374,12 @@ SELECT
     null AS is_generated,
     null AS generation_expression,
     'NO' AS is_updateable
-FROM glare_catalog.external_columns c;",
+FROM glare_catalog.external_columns c
+    JOIN glare_catalog.tables t
+    ON c.table_oid = t.oid
+    JOIN glare_catalog.schemas s
+    ON c.schema_oid = s.oid
+;",
 });
 
 // Postgres catalog tables.

@@ -513,9 +513,8 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_external_columns(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_EXTERNAL_COLUMNS.arrow_schema());
 
+        let mut schema_oids = UInt32Builder::new();
         let mut table_oids = UInt32Builder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut table_names = StringBuilder::new();
         let mut column_names = StringBuilder::new();
         let mut column_indexes = UInt32Builder::new();
         let mut data_types = StringBuilder::new();
@@ -531,17 +530,11 @@ impl<'a> SystemTableDispatcher<'a> {
                 CatalogEntry::ExternalTable(ent) => ent,
                 other => unreachable!("unexpected entry type: {:?}", other), // Bug
             };
-            let schema_name = table
-                .schema_entry
-                .map(|schema| schema.get_meta().name.as_str())
-                .unwrap_or("<invalid>");
-
-            let table_name = ent.meta.name.as_str();
+            let schema_oid = table.schema_entry.expect("table with schema").get_meta().id;
 
             for (i, col) in ent.columns.iter().enumerate() {
+                schema_oids.append_value(schema_oid);
                 table_oids.append_value(table.oid);
-                schema_names.append_value(schema_name);
-                table_names.append_value(table_name);
                 column_names.append_value(&col.name);
                 column_indexes.append_value(i as u32);
                 data_types.append_value(col.arrow_type.to_string());
@@ -554,9 +547,8 @@ impl<'a> SystemTableDispatcher<'a> {
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
+                Arc::new(schema_oids.finish()),
                 Arc::new(table_oids.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(table_names.finish()),
                 Arc::new(column_names.finish()),
                 Arc::new(column_indexes.finish()),
                 Arc::new(data_types.finish()),

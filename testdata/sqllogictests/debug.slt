@@ -31,9 +31,11 @@ statement error
 select * from error_table;
 
 # validate external column catalog info
-query TTTITTT
-select schema_name, table_name, column_name, column_index, data_type,
-    pg_data_type, is_nullable
-    from glare_catalog.external_columns where table_name = 'error_table';
+query TITTT
+select column_name, column_index, data_type, pg_data_type, is_nullable
+    from glare_catalog.external_columns c
+    join glare_catalog.tables t
+    on c.table_oid = t.oid
+    where t.table_name = 'error_table';
 ----
-debug_datasources error_table a 0 Int32 Int32 f
+a 0 Int32 Int32 f

@@ -233,25 +233,17 @@ impl<'a> SessionPlanner<'a> {
                             .await
                             .map_err(|e| ExecError::InvalidExternalTable {
                                 source: Box::new(e),
-                            })?;
-
-                        PostgresAccessor::get_column_info(&access, tunn_access.as_ref())
-                            .await
-                            .map_err(|e| ExecError::NoCoulumnInfo {
-                                schema: access.schema.clone(),
-                                name: access.name.clone(),
-                                source: Box::new(e),
                             })
                     })
                 });
-                let columns = result?;
+                let arrow_schema = result?;
 
                 (
                     TableOptions::Postgres(TableOptionsPostgres {
                         schema: access.schema,
                         table: access.name,
                     }),
-                    columns,
+                    arrow_schema.fields,
                 )
             }
             ConnectionOptions::BigQuery(options) => {
