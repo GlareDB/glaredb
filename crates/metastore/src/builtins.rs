@@ -146,6 +146,16 @@ pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| Builti
     ]),
 });
 
+pub static GLARE_TYPES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "types",
+    columns: ColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("type_name", DataType::Utf8, false),
+        ("schema_oid", DataType::UInt32, false),
+    ]),
+});
+
 impl BuiltinTable {
     /// Check if this table matches the provided schema and name.
     pub fn matches(&self, schema: &str, name: &str) -> bool {
@@ -397,6 +407,19 @@ SELECT
     't' AS amtype",
 });
 
+pub static PG_ATTRDEF: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_attrdef",
+    sql: "
+SELECT
+    null AS oid,
+    null AS alrelid,
+    null AS adnum,
+    null AS adbin
+FROM (SELECT NULL AS dummy) AS dummy_table
+WHERE false",
+});
+
 pub static PG_ATTRIBUTE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
     name: "pg_attribute",
@@ -404,7 +427,7 @@ pub static PG_ATTRIBUTE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
 SELECT
     c.table_oid AS attrelid,
     c.column_name AS attname,
-    null AS atttypeid,
+    null AS atttypid,
     null AS attstattarget,
     null AS attlen,
     null AS attnum,
@@ -472,6 +495,19 @@ SELECT
 FROM glare_catalog.tables t",
 });
 
+pub static PG_ENUM: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_enum",
+    sql: "
+SELECT
+    null AS oid,
+    null AS enumtypid,
+    null AS nspowner,
+    null AS nspacl
+FROM (SELECT NULL AS dummy) AS dummy_table
+WHERE false",
+});
+
 pub static PG_NAMESPACE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
     name: "pg_namespace",
@@ -482,6 +518,73 @@ SELECT
     0 AS nspowner,
     null AS nspacl
 FROM glare_catalog.schemas s",
+});
+
+pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_type",
+    sql: "
+SELECT
+    null AS oid,
+    null AS typname,
+    null as typnamespace,
+    null AS typowner,
+    null AS typlen,
+    null AS typbyval,
+    null AS typtype,
+    null AS typcategory,
+    null AS typispreferred,
+    null AS typisdefined,
+    null AS typdelim,
+    null AS typrelid,
+    null AS typsubscript,
+    null AS typelem,
+    null AS typarray,
+    null AS typinput,
+    null AS typoutput,
+    null AS typreceive,
+    null AS typsend,
+    null AS typmodin,
+    null AS typmodout,
+    null AS typanalyze,
+    null AS typalign,
+    null AS typstorage,
+    null AS typnotnull,
+    null AS typbasetype,
+    null AS typtypmod,
+    null AS typndims,
+    null AS typcollation,
+    null AS typdefaultbin,
+    null AS typdefault,
+    null AS typacl
+FROM (SELECT NULL AS dummy) AS dummy_table
+WHERE false",
+});
+
+pub static PG_SETTINGS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_settings",
+    sql: "
+SELECT
+    null AS name,
+    null AS setting,
+    null AS unit,
+    null AS category,
+    null AS short_desc,
+    null AS extra_desc,
+    null AS context,
+    null AS vartype,
+    null AS source,
+    null AS min_val,
+    null AS max_val,
+    null AS enumvals,
+    null AS boot_val,
+    null AS reset_val,
+    null AS sourcefile,
+    null AS sourceline,
+    null AS pending_restart
+FROM (SELECT NULL AS dummy) AS dummy_table
+WHERE false",
 });
 
 pub static PG_DESCRIPTION: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
@@ -504,8 +607,12 @@ impl BuiltinView {
             &INFORMATION_SCHEMA_COLUMNS,
             &PG_AM,
             &PG_ATTRIBUTE,
+            &PG_ATTRDEF,
             &PG_CLASS,
+            &PG_ENUM,
             &PG_NAMESPACE,
+            &PG_TYPE,
+            &PG_SETTINGS,
             &PG_DESCRIPTION,
         ]
     }
