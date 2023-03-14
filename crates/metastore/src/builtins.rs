@@ -413,7 +413,7 @@ pub static PG_ATTRDEF: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     sql: "
 SELECT
     null AS oid,
-    null AS alrelid,
+    null AS adrelid,
     null AS adnum,
     null AS adbin
 FROM (SELECT NULL AS dummy) AS dummy_table
@@ -502,8 +502,8 @@ pub static PG_ENUM: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
 SELECT
     null AS oid,
     null AS enumtypid,
-    null AS nspowner,
-    null AS nspacl
+    null AS enumsortorder,
+    null AS enumlabel
 FROM (SELECT NULL AS dummy) AS dummy_table
 WHERE false",
 });
