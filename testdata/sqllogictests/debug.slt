@@ -38,4 +38,4 @@ select column_name, column_index, data_type, pg_data_type, is_nullable
     on c.table_oid = t.oid
     where t.table_name = 'error_table';
 ----
-a 0 Int32 Int32 f
+a 1 Int32 Int32 f

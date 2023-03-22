@@ -301,7 +301,7 @@ SELECT
     s.schema_name AS table_schema,
     t.table_name AS table_name,
     c.column_name AS column_name,
-    c.column_index + 1 AS ordinal_position,
+    c.column_index AS ordinal_position,
     null AS column_default,
     c.is_nullable AS is_nullable,
     c.data_type AS data_type,

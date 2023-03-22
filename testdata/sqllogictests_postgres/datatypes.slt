@@ -26,21 +26,21 @@ select column_name, column_index, data_type, pg_data_type, is_nullable
     on c.table_oid = t.oid
     where t.table_name = 'datatypes';
 ----
-c1 0 Boolean Boolean t
-c2 1 Int16 Int16 t
-c3 2 Int32 Int32 t
-c4 3 Int64 Int64 t
-c5 4 Float32 Float32 t
-c6 5 Float64 Float64 t
-c7 6 Utf8 Utf8 t
-c8 7 Utf8 Utf8 t
-c9 8 Utf8 Utf8 t
-c10 9 Utf8 Utf8 t
-c11 10 Utf8 Utf8 t
-c12 11 Utf8 Utf8 t
-c13 12 Utf8 Utf8 t
-c14 13 Binary Binary t
-c15 14 Timestamp(Nanosecond, None) Timestamp(Nanosecond, None) t
-c16 15 Time64(Nanosecond) Time64(Nanosecond) t
-c17 16 Date32 Date32 t
-c18 17 Timestamp(Nanosecond, Some("UTC")) Timestamp(Nanosecond, Some("UTC")) t
+c1 1 Boolean Boolean t
+c2 2 Int16 Int16 t
+c3 3 Int32 Int32 t
+c4 4 Int64 Int64 t
+c5 5 Float32 Float32 t
+c6 6 Float64 Float64 t
+c7 7 Utf8 Utf8 t
+c8 8 Utf8 Utf8 t
+c9 9 Utf8 Utf8 t
+c10 10 Utf8 Utf8 t
+c11 11 Utf8 Utf8 t
+c12 12 Utf8 Utf8 t
+c13 13 Utf8 Utf8 t
+c14 14 Binary Binary t
+c15 15 Timestamp(Nanosecond, None) Timestamp(Nanosecond, None) t
+c16 16 Time64(Nanosecond) Time64(Nanosecond) t
+c17 17 Date32 Date32 t
+c18 18 Timestamp(Nanosecond, Some("UTC")) Timestamp(Nanosecond, Some("UTC")) t
