@@ -146,7 +146,6 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
-        tracing::warn!(sql=?view.sql, "late plan view");
         let plan = self
             .ctx
             .late_view_plan(&view.sql)

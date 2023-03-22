@@ -623,6 +623,7 @@ impl BuiltinCatalog {
 
             oid += 1;
         }
+
         Ok(BuiltinCatalog {
             entries,
             schema_names,

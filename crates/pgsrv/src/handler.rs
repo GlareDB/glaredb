@@ -332,7 +332,6 @@ where
     /// connection. All errors resulting from query execution should be sent to
     /// client following by a "ready for query".
     async fn query(&mut self, sql: String) -> Result<()> {
-        tracing::warn!(?sql, "SQL to query");
         let session = &mut self.session;
         let conn = &mut self.conn;
 
@@ -418,7 +417,6 @@ where
     async fn parse(&mut self, name: String, sql: String, param_types: Vec<i32>) -> Result<()> {
         // TODO: Ensure in transaction.
 
-        tracing::warn!(?sql, "SQL to query");
         let mut stmts = match parse_sql(&sql) {
             Ok(stmts) => stmts,
             Err(e) => return self.send_error(e).await,

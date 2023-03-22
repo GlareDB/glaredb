@@ -1,7 +1,6 @@
 //! Arrow type conversions.
 //!
 //! Note this uses the re-exported Arrow types from Datafusion.
-
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::arrow;
 use datafusion::arrow::datatypes::{DataType, Field, IntervalUnit, TimeUnit, UnionMode};
@@ -297,6 +296,7 @@ fn parse_i32_to_interval_unit(value: &i32) -> Result<IntervalUnit, ProtoConvErro
         .ok_or(ProtoConvError::UnknownEnumVariant("IntervalUnit", *value))
 }
 
+// TODO: Update this to an glare db internal only range
 const DATA_TYPE_OID_START: u32 = 30000;
 // OID for ever datafusion type
 pub fn oid_from_data_type(data_type: &DataType) -> u32 {
