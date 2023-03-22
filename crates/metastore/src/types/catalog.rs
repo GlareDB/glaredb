@@ -52,6 +52,7 @@ pub enum CatalogEntry {
     View(ViewEntry),
     Connection(ConnectionEntry),
     ExternalTable(ExternalTableEntry),
+    DataType(DataTypeEntry),
 }
 
 impl CatalogEntry {
@@ -62,6 +63,7 @@ impl CatalogEntry {
             CatalogEntry::Table(_) => EntryType::Table,
             CatalogEntry::Connection(_) => EntryType::Connection,
             CatalogEntry::ExternalTable(_) => EntryType::ExternalTable,
+            CatalogEntry::DataType(_) => EntryType::DataType,
         }
     }
 
@@ -77,6 +79,7 @@ impl CatalogEntry {
             CatalogEntry::Table(table) => &table.meta,
             CatalogEntry::Connection(conn) => &conn.meta,
             CatalogEntry::ExternalTable(tbl) => &tbl.meta,
+            CatalogEntry::DataType(typ) => &typ.meta,
         }
     }
 }
@@ -92,6 +95,7 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
             catalog::catalog_entry::Entry::ExternalTable(v) => {
                 CatalogEntry::ExternalTable(v.try_into()?)
             }
+            catalog::catalog_entry::Entry::DataType(v) => CatalogEntry::DataType(v.try_into()?),
         })
     }
 }
@@ -114,6 +118,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::ExternalTable(v) => {
                 catalog::catalog_entry::Entry::ExternalTable(v.try_into()?)
             }
+            CatalogEntry::DataType(v) => catalog::catalog_entry::Entry::DataType(v.try_into()?),
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
@@ -126,6 +131,7 @@ pub enum EntryType {
     Table,
     View,
     Connection,
+    DataType,
 }
 
 impl TryFrom<i32> for EntryType {
@@ -149,6 +155,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             catalog::entry_meta::EntryType::Table => EntryType::Table,
             catalog::entry_meta::EntryType::View => EntryType::View,
             catalog::entry_meta::EntryType::Connection => EntryType::Connection,
+            catalog::entry_meta::EntryType::DataType => EntryType::DataType,
         })
     }
 }
@@ -161,6 +168,7 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
             EntryType::ExternalTable => catalog::entry_meta::EntryType::ExternalTable,
             EntryType::View => catalog::entry_meta::EntryType::View,
             EntryType::Connection => catalog::entry_meta::EntryType::Connection,
+            EntryType::DataType => catalog::entry_meta::EntryType::DataType,
         }
     }
 }
@@ -318,6 +326,32 @@ impl TryFrom<ColumnDefinition> for catalog::ColumnDefinition {
             name: value.name,
             nullable: value.nullable,
             arrow_type: Some(arrow_type),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DataTypeEntry {
+    pub meta: EntryMeta,
+    pub data_type: DataType,
+}
+
+impl TryFrom<catalog::DataTypeEntry> for DataTypeEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DataTypeEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        let data_type = value.data_type.as_ref().required("data_type")?;
+        Ok(DataTypeEntry { meta, data_type })
+    }
+}
+
+impl TryFrom<DataTypeEntry> for catalog::DataTypeEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: DataTypeEntry) -> Result<Self, Self::Error> {
+        let data_type = Some(arrow::ArrowType::try_from(&value.data_type)?);
+        Ok(catalog::DataTypeEntry {
+            meta: Some(value.meta.into()),
+            data_type,
         })
     }
 }

@@ -16,9 +16,10 @@ use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
     GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
-    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_VIEWS,
+    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_TYPES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
+use metastore::types::arrow::oid_from_data_type;
 use metastore::types::catalog::{
     CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, EntryType,
     ExternalTableEntry, TableOptions, ViewEntry,
@@ -145,6 +146,7 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
+        tracing::warn!(sql=?view.sql, "late plan view");
         let plan = self
             .ctx
             .late_view_plan(&view.sql)
@@ -371,6 +373,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_ssh_connections())
         } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
             Arc::new(self.build_session_query_metrics())
+        } else if GLARE_TYPES.matches(schema, name) {
+            Arc::new(self.build_glare_types())
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -459,11 +463,11 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_columns(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_COLUMNS.arrow_schema());
 
+        let mut schema_oids = UInt32Builder::new();
         let mut table_oids = UInt32Builder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut table_names = StringBuilder::new();
         let mut column_names = StringBuilder::new();
         let mut column_indexes = UInt32Builder::new();
+        let mut data_type_oids = UInt32Builder::new();
         let mut data_types = StringBuilder::new();
         let mut is_nullables = BooleanBuilder::new();
 
@@ -476,18 +480,14 @@ impl<'a> SystemTableDispatcher<'a> {
                 CatalogEntry::Table(ent) => ent,
                 other => panic!("unexpected entry type: {:?}", other), // Bug
             };
+            let schema_oid = table.schema_entry.expect("table with schema").get_meta().id;
 
             for (i, col) in ent.columns.iter().enumerate() {
+                schema_oids.append_value(schema_oid);
                 table_oids.append_value(table.oid);
-                schema_names.append_value(
-                    table
-                        .schema_entry
-                        .map(|schema| schema.get_meta().name.as_str())
-                        .unwrap_or("<invalid>"),
-                );
-                table_names.append_value(&table.entry.get_meta().name);
                 column_names.append_value(&col.name);
                 column_indexes.append_value(i as u32);
+                data_type_oids.append_value(oid_from_data_type(&col.arrow_type));
                 data_types.append_value(col.arrow_type.to_string());
                 is_nullables.append_value(col.nullable);
             }
@@ -496,11 +496,11 @@ impl<'a> SystemTableDispatcher<'a> {
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
+                Arc::new(schema_oids.finish()),
                 Arc::new(table_oids.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(table_names.finish()),
                 Arc::new(column_names.finish()),
                 Arc::new(column_indexes.finish()),
+                Arc::new(data_type_oids.finish()),
                 Arc::new(data_types.finish()),
                 Arc::new(is_nullables.finish()),
             ],
@@ -517,6 +517,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut table_oids = UInt32Builder::new();
         let mut column_names = StringBuilder::new();
         let mut column_indexes = UInt32Builder::new();
+        let mut data_type_oids = UInt32Builder::new();
         let mut data_types = StringBuilder::new();
         let mut pg_data_types = StringBuilder::new();
         let mut is_nullables = BooleanBuilder::new();
@@ -537,6 +538,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 table_oids.append_value(table.oid);
                 column_names.append_value(&col.name);
                 column_indexes.append_value(i as u32);
+                data_type_oids.append_value(oid_from_data_type(&col.arrow_type));
                 data_types.append_value(col.arrow_type.to_string());
                 pg_data_types.append_value(col.arrow_type.to_string()); //TODO update to get pg
                                                                         //type
@@ -551,6 +553,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(table_oids.finish()),
                 Arc::new(column_names.finish()),
                 Arc::new(column_indexes.finish()),
+                Arc::new(data_type_oids.finish()),
                 Arc::new(data_types.finish()),
                 Arc::new(pg_data_types.finish()),
                 Arc::new(is_nullables.finish()),
@@ -740,6 +743,41 @@ impl<'a> SystemTableDispatcher<'a> {
             ],
         )
         .unwrap();
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_types(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_TYPES.arrow_schema());
+
+        let mut oids = UInt32Builder::new();
+        let mut data_type_names = StringBuilder::new();
+        let mut schema_oids = UInt32Builder::new();
+
+        for data_type in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| matches!(ent.entry_type(), EntryType::DataType))
+        {
+            let ent = match data_type.entry {
+                CatalogEntry::DataType(ent) => ent,
+                other => unreachable!("unexpected entry type: {:?}", other), // Bug
+            };
+            let schema_oid = data_type.entry.get_meta().parent;
+            oids.append_value(data_type.oid);
+            data_type_names.append_value(ent.data_type.to_string());
+            schema_oids.append_value(schema_oid);
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oids.finish()),
+                Arc::new(data_type_names.finish()),
+                Arc::new(schema_oids.finish()),
+            ],
+        )
+        .unwrap();
+
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 }

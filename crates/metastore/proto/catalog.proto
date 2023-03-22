@@ -27,6 +27,7 @@ message CatalogEntry {
     ViewEntry view = 3;
     ConnectionEntry connection = 4;
     ExternalTableEntry external_table = 5;
+    DataTypeEntry data_type = 6;
   }
 }
 
@@ -48,6 +49,8 @@ message EntryMeta {
     VIEW = 4;
     // Connections to external data sources.
     CONNECTION = 5;
+    // Data type of column
+    DATA_TYPE = 6;
   }
 
   // Type of the entry.
@@ -193,6 +196,15 @@ message ColumnDefinition {
   arrow.ArrowType arrow_type = 3;
 
   // next: 4
+}
+
+message DataTypeEntry {
+  EntryMeta meta = 1;
+
+  // Data types in glaredb
+  arrow.ArrowType data_type = 2;
+
+  // next: 3
 }
 
 message ViewEntry {

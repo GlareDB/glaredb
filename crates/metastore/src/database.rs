@@ -1,10 +1,13 @@
 //! Module for handling the catalog for a single database.
-use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA_ID};
+use crate::builtins::{
+    BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA_ID, SCHEMA_INTERNAL,
+};
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
+use crate::types::arrow::{dummy_data_types, oid_from_data_type};
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, ExternalTableEntry,
-    SchemaEntry, TableEntry, ViewEntry,
+    CatalogEntry, CatalogState, ConnectionEntry, DataTypeEntry, EntryMeta, EntryType,
+    ExternalTableEntry, SchemaEntry, TableEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
 use crate::types::storage::PersistedCatalog;
@@ -547,6 +550,25 @@ impl BuiltinCatalog {
             );
         }
 
+        // Type ids for all datafusion data types
+        let data_type_schema_oid = SCHEMA_INTERNAL.oid;
+        for data_type in dummy_data_types().into_iter() {
+            let oid = oid_from_data_type(&data_type);
+            entries.insert(
+                oid,
+                CatalogEntry::DataType(DataTypeEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::DataType,
+                        id: oid,
+                        parent: data_type_schema_oid,
+                        name: data_type.to_string(),
+                        builtin: true,
+                    },
+                    data_type,
+                }),
+            );
+        }
+
         // All the below items don't have stable ids.
         let mut oid = FIRST_NON_SCHEMA_ID;
 
@@ -601,7 +623,6 @@ impl BuiltinCatalog {
 
             oid += 1;
         }
-
         Ok(BuiltinCatalog {
             entries,
             schema_names,

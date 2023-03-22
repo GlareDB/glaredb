@@ -25,6 +25,14 @@ pub enum BuiltinScalarFunction {
     /// (Postgres)
     /// Get a list of schemas in the current search path.
     CurrentSchemas,
+
+    /// pg_get_expr (pg_node_tree, relation_oid, pretty_bool) -> String
+    /// pg_get_expr (pg_node_tree, relation_oid) -> String
+    ///
+    /// (Postgres)
+    /// Decompile internal form of an expression, assuming that any Vars in it refer to the
+    /// relation indicated by the second parameter
+    PgGetExpr,
 }
 
 impl BuiltinScalarFunction {
@@ -38,6 +46,7 @@ impl BuiltinScalarFunction {
 
             // Postgres system functions.
             "pg_catalog.current_schemas" => BuiltinScalarFunction::CurrentSchemas,
+            "pg_catalog.pg_get_expr" => BuiltinScalarFunction::PgGetExpr,
 
             // Always fall back to trying to bare pg functions. Longer term will
             // want to ensure functions are scoped to schemas and do proper
@@ -70,6 +79,7 @@ impl BuiltinScalarFunction {
             BuiltinScalarFunction::Version => "version",
             BuiltinScalarFunction::ConnectionId => "connection_id",
             BuiltinScalarFunction::CurrentSchemas => "current_schemas",
+            BuiltinScalarFunction::PgGetExpr => "pg_get_expr",
         }
     }
 
@@ -89,6 +99,13 @@ impl BuiltinScalarFunction {
                 ]),
                 Volatility::Stable,
             ),
+            BuiltinScalarFunction::PgGetExpr => Signature::new(
+                TypeSignature::OneOf(vec![
+                    TypeSignature::Any(2), // TODO set types for these inputs
+                    TypeSignature::Any(3),
+                ]),
+                Volatility::Stable,
+            ),
         }
     }
 
@@ -104,6 +121,7 @@ impl BuiltinScalarFunction {
                 )))))
             }),
             BuiltinScalarFunction::ConnectionId => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+            BuiltinScalarFunction::PgGetExpr => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
         }
     }
 
@@ -147,6 +165,14 @@ impl BuiltinScalarFunction {
                     ))))
                 })
             }
+            // TODO: Currently a dummy function
+            BuiltinScalarFunction::PgGetExpr => Arc::new(move |_| {
+                // Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                //     "abcd".to_string(),
+                // ))))
+                // Ok(ColumnarValue::Scalar(ScalarValue::Utf8(None)))
+                Ok(ColumnarValue::Scalar(ScalarValue::Null))
+            }),
         }
     }
 }

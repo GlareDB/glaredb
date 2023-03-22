@@ -44,6 +44,7 @@ impl<'a> SessionPlanner<'a> {
 
     pub fn plan_ast(&self, mut statement: StatementWithExtensions) -> Result<LogicalPlan> {
         debug!(%statement, "planning sql statement");
+        tracing::error!(%statement, "planning sql statement");
 
         // Run replacers as needed.
         if let StatementWithExtensions::Statement(inner) = &mut statement {

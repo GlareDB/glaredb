@@ -85,11 +85,11 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "columns",
     columns: ColumnDefinition::from_tuples([
+        ("schema_oid", DataType::UInt32, false),
         ("table_oid", DataType::UInt32, false),
-        ("schema_name", DataType::Utf8, false),
-        ("table_name", DataType::Utf8, false),
         ("column_name", DataType::Utf8, false),
         ("column_index", DataType::UInt32, false),
+        ("data_type_oid", DataType::UInt32, false),
         ("data_type", DataType::Utf8, false),
         ("is_nullable", DataType::Boolean, false),
     ]),
@@ -103,6 +103,7 @@ pub static GLARE_EXTERNAL_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTabl
         ("table_oid", DataType::UInt32, false),
         ("column_name", DataType::Utf8, false),
         ("column_index", DataType::UInt32, false),
+        ("data_type_oid", DataType::UInt32, false),
         ("data_type", DataType::Utf8, false),
         ("pg_data_type", DataType::Utf8, false), //TODO should this be Type OID
         ("is_nullable", DataType::Boolean, false),
@@ -183,6 +184,7 @@ impl BuiltinTable {
             &GLARE_CONNECTIONS,
             &GLARE_SSH_CONNECTIONS,
             &GLARE_SESSION_QUERY_METRICS,
+            &GLARE_TYPES,
         ]
     }
 }
@@ -296,8 +298,8 @@ pub static INFORMATION_SCHEMA_COLUMNS: Lazy<BuiltinView> = Lazy::new(|| BuiltinV
     sql: "
 SELECT
     'default' AS table_catalog,
-    c.schema_name AS table_schema,
-    c.table_name AS table_name,
+    s.schema_name AS table_schema,
+    t.table_name AS table_name,
     c.column_name AS column_name,
     c.column_index + 1 AS ordinal_position,
     null AS column_default,
@@ -339,6 +341,10 @@ SELECT
     null AS generation_expression,
     'NO' AS is_updateable
 FROM glare_catalog.columns c
+    JOIN glare_catalog.tables t
+    ON c.table_oid = t.oid
+    JOIN glare_catalog.schemas s
+    ON c.schema_oid = s.oid
 UNION ALL
 SELECT
     'default' AS table_catalog,
@@ -407,6 +413,7 @@ SELECT
     't' AS amtype",
 });
 
+// No support for default values in glaredb
 pub static PG_ATTRDEF: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
     name: "pg_attrdef",
@@ -427,10 +434,10 @@ pub static PG_ATTRIBUTE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
 SELECT
     c.table_oid AS attrelid,
     c.column_name AS attname,
-    null AS atttypid,
+    c.data_type_oid AS atttypid,
     null AS attstattarget,
     null AS attlen,
-    null AS attnum,
+    c.column_index AS attnum,
     null AS attndims,
     null AS attcacheoff,
     null AS atttypmod,
@@ -438,12 +445,12 @@ SELECT
     null AS attalign,
     null AS attstorage,
     null AS attcompression,
-    null AS attnotnull,
+    c.is_nullable AS attnotnull,
     null AS atthasdef,
     null AS atthasmissing,
     null AS attidentity,
     null AS attgenerated,
-    null AS attisdropped,
+    false AS attisdropped,
     null AS attislocal,
     null AS attinhcount,
     null AS attcollation,
@@ -451,7 +458,36 @@ SELECT
     null AS attoptions,
     null AS attfdwoptions,
     null AS attmissingval
-FROM glare_catalog.columns c",
+FROM glare_catalog.columns c
+UNION ALL
+SELECT
+    c.table_oid AS attrelid,
+    c.column_name AS attname,
+    c.data_type_oid AS atttypid,
+    null AS attstattarget,
+    null AS attlen,
+    c.column_index AS attnum,
+    null AS attndims,
+    null AS attcacheoff,
+    null AS atttypmod,
+    null AS attbyval,
+    null AS attalign,
+    null AS attstorage,
+    null AS attcompression,
+    c.is_nullable AS attnotnull,
+    null AS atthasdef,
+    null AS atthasmissing,
+    null AS attidentity,
+    null AS attgenerated,
+    false AS attisdropped,
+    null AS attislocal,
+    null AS attinhcount,
+    null AS attcollation,
+    null AS attacl,
+    null AS attoptions,
+    null AS attfdwoptions,
+    null AS attmissingval
+FROM glare_catalog.external_columns c",
 });
 
 pub static PG_CLASS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
@@ -500,11 +536,11 @@ pub static PG_ENUM: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     name: "pg_enum",
     sql: "
 SELECT
-    null AS oid,
-    null AS enumtypid,
+    c.table_oid AS oid,
+    c.data_type AS enumtypid,
     null AS enumsortorder,
     null AS enumlabel
-FROM (SELECT NULL AS dummy) AS dummy_table
+FROM glare_catalog.columns c
 WHERE false",
 });
 
@@ -525,18 +561,18 @@ pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     name: "pg_type",
     sql: "
 SELECT
-    null AS oid,
-    null AS typname,
-    null as typnamespace,
+    ty.oid AS oid,
+    c.data_type AS typname,
+    ty.schema_oid as typnamespace,
     null AS typowner,
     null AS typlen,
     null AS typbyval,
-    null AS typtype,
+    'b' AS typtype,
     null AS typcategory,
     null AS typispreferred,
     null AS typisdefined,
     null AS typdelim,
-    null AS typrelid,
+    c.table_oid AS typrelid,
     null AS typsubscript,
     null AS typelem,
     null AS typarray,
@@ -549,7 +585,7 @@ SELECT
     null AS typanalyze,
     null AS typalign,
     null AS typstorage,
-    null AS typnotnull,
+    c.is_nullable AS typnotnull,
     null AS typbasetype,
     null AS typtypmod,
     null AS typndims,
@@ -557,8 +593,46 @@ SELECT
     null AS typdefaultbin,
     null AS typdefault,
     null AS typacl
-FROM (SELECT NULL AS dummy) AS dummy_table
-WHERE false",
+FROM glare_catalog.columns c
+LEFT JOIN glare_catalog.types ty
+ON c.data_type_oid = ty.oid
+UNION ALL
+SELECT
+    ty.oid AS oid,
+    c.data_type AS typname,
+    ty.schema_oid as typnamespace,
+    null AS typowner,
+    null AS typlen,
+    null AS typbyval,
+    'b' AS typtype,
+    null AS typcategory,
+    null AS typispreferred,
+    null AS typisdefined,
+    null AS typdelim,
+    c.table_oid AS typrelid,
+    null AS typsubscript,
+    null AS typelem,
+    null AS typarray,
+    null AS typinput,
+    null AS typoutput,
+    null AS typreceive,
+    null AS typsend,
+    null AS typmodin,
+    null AS typmodout,
+    null AS typanalyze,
+    null AS typalign,
+    null AS typstorage,
+    c.is_nullable AS typnotnull,
+    null AS typbasetype,
+    null AS typtypmod,
+    null AS typndims,
+    null AS typcollation,
+    null AS typdefaultbin,
+    null AS typdefault,
+    null AS typacl
+FROM glare_catalog.external_columns c
+LEFT JOIN glare_catalog.types ty
+ON c.data_type_oid = ty.oid",
 });
 
 pub static PG_SETTINGS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {

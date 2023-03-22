@@ -15,7 +15,7 @@ pub struct CatalogState {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogEntry {
-    #[prost(oneof = "catalog_entry::Entry", tags = "1, 2, 3, 4, 5")]
+    #[prost(oneof = "catalog_entry::Entry", tags = "1, 2, 3, 4, 5, 6")]
     pub entry: ::core::option::Option<catalog_entry::Entry>,
 }
 /// Nested message and enum types in `CatalogEntry`.
@@ -33,6 +33,8 @@ pub mod catalog_entry {
         Connection(super::ConnectionEntry),
         #[prost(message, tag = "5")]
         ExternalTable(super::ExternalTableEntry),
+        #[prost(message, tag = "6")]
+        DataType(super::DataTypeEntry),
     }
 }
 /// Metadata for every entry in the catalog.
@@ -92,6 +94,8 @@ pub mod entry_meta {
         View = 4,
         /// Connections to external data sources.
         Connection = 5,
+        /// Data type of column
+        DataType = 6,
     }
     impl EntryType {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -106,6 +110,7 @@ pub mod entry_meta {
                 EntryType::ExternalTable => "EXTERNAL_TABLE",
                 EntryType::View => "VIEW",
                 EntryType::Connection => "CONNECTION",
+                EntryType::DataType => "DATA_TYPE",
             }
         }
         /// Creates an enum from field names used in the ProtoBuf definition.
@@ -117,6 +122,7 @@ pub mod entry_meta {
                 "EXTERNAL_TABLE" => Some(Self::ExternalTable),
                 "VIEW" => Some(Self::View),
                 "CONNECTION" => Some(Self::Connection),
+                "DATA_TYPE" => Some(Self::DataType),
                 _ => None,
             }
         }
@@ -275,6 +281,15 @@ pub struct ColumnDefinition {
     /// Note this will likely need to be expanded for complex types.
     #[prost(message, optional, tag = "3")]
     pub arrow_type: ::core::option::Option<super::arrow::ArrowType>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DataTypeEntry {
+    #[prost(message, optional, tag = "1")]
+    pub meta: ::core::option::Option<EntryMeta>,
+    /// Data types in glaredb
+    #[prost(message, optional, tag = "2")]
+    pub data_type: ::core::option::Option<super::arrow::ArrowType>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
