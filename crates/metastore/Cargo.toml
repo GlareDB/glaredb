@@ -24,7 +24,7 @@ once_cell = "1.17.1"
 proptest = "1.1"
 proptest-derive = "0.3"
 tower = "0.4"
-futures = "0.3.26"
+futures = "0.3.27"
 
 [build-dependencies]
 tonic-build = "0.8"
