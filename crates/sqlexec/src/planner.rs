@@ -723,6 +723,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             // adds/changes the `ast::DataType` the compiler will tell us on upgrade
             // and avoid bugs like https://github.com/apache/arrow-datafusion/issues/3059
             ast::DataType::Nvarchar(_)
+            | ast::DataType::JSON
             | ast::DataType::Uuid
             | ast::DataType::Binary(_)
             | ast::DataType::Varbinary(_)
@@ -740,12 +741,14 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             | ast::DataType::CharacterVarying(_)
             | ast::DataType::CharVarying(_)
             | ast::DataType::CharacterLargeObject(_)
-                | ast::DataType::CharLargeObject(_)
+            | ast::DataType::CharLargeObject(_)
             // precision is not supported
-                | ast::DataType::Timestamp(Some(_), _)
+            | ast::DataType::Timestamp(Some(_), _)
             // precision is not supported
-                | ast::DataType::Time(Some(_), _)
-                | ast::DataType::Dec(_)
+            | ast::DataType::Time(Some(_), _)
+            | ast::DataType::Dec(_)
+            | ast::DataType::BigNumeric(_)
+            | ast::DataType::BigDecimal(_)
             | ast::DataType::Clob(_) => Err(internal!(
                 "Unsupported SQL type {:?}",
                 sql_type
