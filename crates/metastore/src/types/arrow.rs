@@ -300,49 +300,49 @@ fn parse_i32_to_interval_unit(value: &i32) -> Result<IntervalUnit, ProtoConvErro
 const DATA_TYPE_OID_START: u32 = 30000;
 // OID for ever datafusion type
 pub fn oid_from_data_type(data_type: &DataType) -> u32 {
-    match data_type {
-        &DataType::Null => DATA_TYPE_OID_START,
-        &DataType::Boolean => DATA_TYPE_OID_START + 1,
-        &DataType::Int8 => DATA_TYPE_OID_START + 2,
-        &DataType::Int16 => DATA_TYPE_OID_START + 3,
-        &DataType::Int32 => DATA_TYPE_OID_START + 4,
-        &DataType::Int64 => DATA_TYPE_OID_START + 5,
-        &DataType::UInt8 => DATA_TYPE_OID_START + 6,
-        &DataType::UInt16 => DATA_TYPE_OID_START + 7,
-        &DataType::UInt32 => DATA_TYPE_OID_START + 8,
-        &DataType::UInt64 => DATA_TYPE_OID_START + 9,
-        &DataType::Float16 => DATA_TYPE_OID_START + 10,
-        &DataType::Float32 => DATA_TYPE_OID_START + 11,
-        &DataType::Float64 => DATA_TYPE_OID_START + 12,
-        &DataType::Timestamp(_, _) => DATA_TYPE_OID_START + 13,
-        &DataType::Date32 => DATA_TYPE_OID_START + 14,
-        &DataType::Date64 => DATA_TYPE_OID_START + 15,
-        &DataType::Time32(_) => DATA_TYPE_OID_START + 16,
-        &DataType::Time64(_) => DATA_TYPE_OID_START + 17,
-        &DataType::Duration(_) => DATA_TYPE_OID_START + 18,
-        &DataType::Interval(_) => DATA_TYPE_OID_START + 19,
-        &DataType::Binary => DATA_TYPE_OID_START + 20,
-        &DataType::FixedSizeBinary(_) => DATA_TYPE_OID_START + 21,
-        &DataType::LargeBinary => DATA_TYPE_OID_START + 22,
-        &DataType::Utf8 => DATA_TYPE_OID_START + 23,
-        &DataType::LargeUtf8 => DATA_TYPE_OID_START + 24,
-        &DataType::List(_) => DATA_TYPE_OID_START + 25,
-        &DataType::FixedSizeList(_, _) => DATA_TYPE_OID_START + 26,
-        &DataType::LargeList(_) => DATA_TYPE_OID_START + 27,
-        &DataType::Struct(_) => DATA_TYPE_OID_START + 28,
-        &DataType::Union(_, _, _) => DATA_TYPE_OID_START + 29,
-        &DataType::Dictionary(_, _) => DATA_TYPE_OID_START + 30,
-        &DataType::Decimal128(_, _) => DATA_TYPE_OID_START + 31,
+    match *data_type {
+        DataType::Null => DATA_TYPE_OID_START,
+        DataType::Boolean => DATA_TYPE_OID_START + 1,
+        DataType::Int8 => DATA_TYPE_OID_START + 2,
+        DataType::Int16 => DATA_TYPE_OID_START + 3,
+        DataType::Int32 => DATA_TYPE_OID_START + 4,
+        DataType::Int64 => DATA_TYPE_OID_START + 5,
+        DataType::UInt8 => DATA_TYPE_OID_START + 6,
+        DataType::UInt16 => DATA_TYPE_OID_START + 7,
+        DataType::UInt32 => DATA_TYPE_OID_START + 8,
+        DataType::UInt64 => DATA_TYPE_OID_START + 9,
+        DataType::Float16 => DATA_TYPE_OID_START + 10,
+        DataType::Float32 => DATA_TYPE_OID_START + 11,
+        DataType::Float64 => DATA_TYPE_OID_START + 12,
+        DataType::Timestamp(_, _) => DATA_TYPE_OID_START + 13,
+        DataType::Date32 => DATA_TYPE_OID_START + 14,
+        DataType::Date64 => DATA_TYPE_OID_START + 15,
+        DataType::Time32(_) => DATA_TYPE_OID_START + 16,
+        DataType::Time64(_) => DATA_TYPE_OID_START + 17,
+        DataType::Duration(_) => DATA_TYPE_OID_START + 18,
+        DataType::Interval(_) => DATA_TYPE_OID_START + 19,
+        DataType::Binary => DATA_TYPE_OID_START + 20,
+        DataType::FixedSizeBinary(_) => DATA_TYPE_OID_START + 21,
+        DataType::LargeBinary => DATA_TYPE_OID_START + 22,
+        DataType::Utf8 => DATA_TYPE_OID_START + 23,
+        DataType::LargeUtf8 => DATA_TYPE_OID_START + 24,
+        DataType::List(_) => DATA_TYPE_OID_START + 25,
+        DataType::FixedSizeList(_, _) => DATA_TYPE_OID_START + 26,
+        DataType::LargeList(_) => DATA_TYPE_OID_START + 27,
+        DataType::Struct(_) => DATA_TYPE_OID_START + 28,
+        DataType::Union(_, _, _) => DATA_TYPE_OID_START + 29,
+        DataType::Dictionary(_, _) => DATA_TYPE_OID_START + 30,
+        DataType::Decimal128(_, _) => DATA_TYPE_OID_START + 31,
         // The following are unsupported types
-        &DataType::Decimal256(_, _) => DATA_TYPE_OID_START + 32,
-        &DataType::Map(_, _) => DATA_TYPE_OID_START + 33,
-        &DataType::RunEndEncoded(_, _) => DATA_TYPE_OID_START + 34,
+        DataType::Decimal256(_, _) => DATA_TYPE_OID_START + 32,
+        DataType::Map(_, _) => DATA_TYPE_OID_START + 33,
+        DataType::RunEndEncoded(_, _) => DATA_TYPE_OID_START + 34,
     }
 }
 
 pub fn dummy_data_types() -> Vec<DataType> {
     let dummy_field = Field::new("", DataType::Null, true);
-    let dummy_box_field = Box::new(dummy_field.clone());
+    let dummy_box_field = Box::new(dummy_field);
     let dummy_box_data_type = Box::new(DataType::Null);
     let dummy_timeunit = TimeUnit::Nanosecond;
     let dummy_interval = IntervalUnit::MonthDayNano;
@@ -367,7 +367,7 @@ pub fn dummy_data_types() -> Vec<DataType> {
         DataType::Date64,
         DataType::Time32(dummy_timeunit.clone()),
         DataType::Time64(dummy_timeunit.clone()),
-        DataType::Duration(dummy_timeunit.clone()),
+        DataType::Duration(dummy_timeunit),
         DataType::Interval(dummy_interval),
         DataType::Binary,
         DataType::FixedSizeBinary(Default::default()),
@@ -376,10 +376,10 @@ pub fn dummy_data_types() -> Vec<DataType> {
         DataType::LargeUtf8,
         DataType::List(dummy_box_field.clone()),
         DataType::FixedSizeList(dummy_box_field.clone(), Default::default()),
-        DataType::LargeList(dummy_box_field.clone()),
+        DataType::LargeList(dummy_box_field),
         DataType::Struct(vec![]),
         DataType::Union(vec![], vec![], dummy_union_mode),
-        DataType::Dictionary(dummy_box_data_type.clone(), dummy_box_data_type.clone()),
+        DataType::Dictionary(dummy_box_data_type.clone(), dummy_box_data_type),
         DataType::Decimal128(Default::default(), Default::default()),
     ]
 }
