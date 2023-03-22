@@ -6,16 +6,19 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::common::ToDFSchema;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
+use datafusion::optimizer::utils::conjunction;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
 use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
+use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_plan::file_format::{
     FileMeta, FileScanConfig, ParquetExec, ParquetFileReaderFactory,
 };
@@ -154,16 +157,27 @@ where
 
     async fn scan(
         &self,
-        _ctx: &SessionState,
+        ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let predicate = if self.predicate_pushdown {
-            filters
-                .iter()
-                .cloned()
-                .reduce(|accum, expr| accum.and(expr))
+            // Adapted from df...
+            if let Some(expr) = conjunction(filters.to_vec()) {
+                // NOTE: Use the table schema (NOT file schema) here because `expr` may contain references to partition columns.
+                let table_df_schema = self.arrow_schema.as_ref().clone().to_dfschema()?;
+                let filter = create_physical_expr(
+                    &expr,
+                    &table_df_schema,
+                    &self.arrow_schema,
+                    ctx.execution_props(),
+                )?;
+
+                Some(filter)
+            } else {
+                None
+            }
         } else {
             None
         };
