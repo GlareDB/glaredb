@@ -562,7 +562,7 @@ pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     sql: "
 SELECT
     ty.oid AS oid,
-    c.data_type AS typname,
+    ty.type_name AS typname,
     ty.schema_oid as typnamespace,
     null AS typowner,
     null AS typlen,
@@ -572,7 +572,7 @@ SELECT
     null AS typispreferred,
     null AS typisdefined,
     null AS typdelim,
-    c.table_oid AS typrelid,
+    0 AS typrelid,
     null AS typsubscript,
     null AS typelem,
     null AS typarray,
@@ -585,7 +585,7 @@ SELECT
     null AS typanalyze,
     null AS typalign,
     null AS typstorage,
-    c.is_nullable AS typnotnull,
+    false AS typnotnull,
     null AS typbasetype,
     null AS typtypmod,
     null AS typndims,
@@ -593,46 +593,7 @@ SELECT
     null AS typdefaultbin,
     null AS typdefault,
     null AS typacl
-FROM glare_catalog.columns c
-LEFT JOIN glare_catalog.types ty
-ON c.data_type_oid = ty.oid
-UNION ALL
-SELECT
-    ty.oid AS oid,
-    c.data_type AS typname,
-    ty.schema_oid as typnamespace,
-    null AS typowner,
-    null AS typlen,
-    null AS typbyval,
-    'b' AS typtype,
-    null AS typcategory,
-    null AS typispreferred,
-    null AS typisdefined,
-    null AS typdelim,
-    c.table_oid AS typrelid,
-    null AS typsubscript,
-    null AS typelem,
-    null AS typarray,
-    null AS typinput,
-    null AS typoutput,
-    null AS typreceive,
-    null AS typsend,
-    null AS typmodin,
-    null AS typmodout,
-    null AS typanalyze,
-    null AS typalign,
-    null AS typstorage,
-    c.is_nullable AS typnotnull,
-    null AS typbasetype,
-    null AS typtypmod,
-    null AS typndims,
-    null AS typcollation,
-    null AS typdefaultbin,
-    null AS typdefault,
-    null AS typacl
-FROM glare_catalog.external_columns c
-LEFT JOIN glare_catalog.types ty
-ON c.data_type_oid = ty.oid",
+FROM glare_catalog.types ty",
 });
 
 pub static PG_SETTINGS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {

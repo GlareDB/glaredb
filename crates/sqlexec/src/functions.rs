@@ -166,13 +166,9 @@ impl BuiltinScalarFunction {
                 })
             }
             // TODO: Currently a dummy function
-            BuiltinScalarFunction::PgGetExpr => Arc::new(move |_| {
-                // Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                //     "abcd".to_string(),
-                // ))))
-                // Ok(ColumnarValue::Scalar(ScalarValue::Utf8(None)))
-                Ok(ColumnarValue::Scalar(ScalarValue::Null))
-            }),
+            BuiltinScalarFunction::PgGetExpr => {
+                Arc::new(move |_| Ok(ColumnarValue::Scalar(ScalarValue::Utf8(None))))
+            }
         }
     }
 }

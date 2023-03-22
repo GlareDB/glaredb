@@ -5,7 +5,6 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::arrow;
 use datafusion::arrow::datatypes::{DataType, Field, IntervalUnit, TimeUnit, UnionMode};
-use pgrepr::oid::FIRST_AVAILABLE_ID;
 
 impl TryFrom<&arrow::ArrowType> for DataType {
     type Error = ProtoConvError;
@@ -298,45 +297,46 @@ fn parse_i32_to_interval_unit(value: &i32) -> Result<IntervalUnit, ProtoConvErro
         .ok_or(ProtoConvError::UnknownEnumVariant("IntervalUnit", *value))
 }
 
+const DATA_TYPE_OID_START: u32 = 30000;
 // OID for ever datafusion type
 pub fn oid_from_data_type(data_type: &DataType) -> u32 {
     match data_type {
-        &DataType::Null => FIRST_AVAILABLE_ID,
-        &DataType::Boolean => FIRST_AVAILABLE_ID + 1,
-        &DataType::Int8 => FIRST_AVAILABLE_ID + 2,
-        &DataType::Int16 => FIRST_AVAILABLE_ID + 3,
-        &DataType::Int32 => FIRST_AVAILABLE_ID + 4,
-        &DataType::Int64 => FIRST_AVAILABLE_ID + 5,
-        &DataType::UInt8 => FIRST_AVAILABLE_ID + 6,
-        &DataType::UInt16 => FIRST_AVAILABLE_ID + 7,
-        &DataType::UInt32 => FIRST_AVAILABLE_ID + 8,
-        &DataType::UInt64 => FIRST_AVAILABLE_ID + 9,
-        &DataType::Float16 => FIRST_AVAILABLE_ID + 10,
-        &DataType::Float32 => FIRST_AVAILABLE_ID + 11,
-        &DataType::Float64 => FIRST_AVAILABLE_ID + 12,
-        &DataType::Timestamp(_, _) => FIRST_AVAILABLE_ID + 13,
-        &DataType::Date32 => FIRST_AVAILABLE_ID + 14,
-        &DataType::Date64 => FIRST_AVAILABLE_ID + 15,
-        &DataType::Time32(_) => FIRST_AVAILABLE_ID + 16,
-        &DataType::Time64(_) => FIRST_AVAILABLE_ID + 17,
-        &DataType::Duration(_) => FIRST_AVAILABLE_ID + 18,
-        &DataType::Interval(_) => FIRST_AVAILABLE_ID + 19,
-        &DataType::Binary => FIRST_AVAILABLE_ID + 20,
-        &DataType::FixedSizeBinary(_) => FIRST_AVAILABLE_ID + 21,
-        &DataType::LargeBinary => FIRST_AVAILABLE_ID + 22,
-        &DataType::Utf8 => FIRST_AVAILABLE_ID + 23,
-        &DataType::LargeUtf8 => FIRST_AVAILABLE_ID + 24,
-        &DataType::List(_) => FIRST_AVAILABLE_ID + 25,
-        &DataType::FixedSizeList(_, _) => FIRST_AVAILABLE_ID + 26,
-        &DataType::LargeList(_) => FIRST_AVAILABLE_ID + 27,
-        &DataType::Struct(_) => FIRST_AVAILABLE_ID + 28,
-        &DataType::Union(_, _, _) => FIRST_AVAILABLE_ID + 29,
-        &DataType::Dictionary(_, _) => FIRST_AVAILABLE_ID + 30,
-        &DataType::Decimal128(_, _) => FIRST_AVAILABLE_ID + 31,
+        &DataType::Null => DATA_TYPE_OID_START,
+        &DataType::Boolean => DATA_TYPE_OID_START + 1,
+        &DataType::Int8 => DATA_TYPE_OID_START + 2,
+        &DataType::Int16 => DATA_TYPE_OID_START + 3,
+        &DataType::Int32 => DATA_TYPE_OID_START + 4,
+        &DataType::Int64 => DATA_TYPE_OID_START + 5,
+        &DataType::UInt8 => DATA_TYPE_OID_START + 6,
+        &DataType::UInt16 => DATA_TYPE_OID_START + 7,
+        &DataType::UInt32 => DATA_TYPE_OID_START + 8,
+        &DataType::UInt64 => DATA_TYPE_OID_START + 9,
+        &DataType::Float16 => DATA_TYPE_OID_START + 10,
+        &DataType::Float32 => DATA_TYPE_OID_START + 11,
+        &DataType::Float64 => DATA_TYPE_OID_START + 12,
+        &DataType::Timestamp(_, _) => DATA_TYPE_OID_START + 13,
+        &DataType::Date32 => DATA_TYPE_OID_START + 14,
+        &DataType::Date64 => DATA_TYPE_OID_START + 15,
+        &DataType::Time32(_) => DATA_TYPE_OID_START + 16,
+        &DataType::Time64(_) => DATA_TYPE_OID_START + 17,
+        &DataType::Duration(_) => DATA_TYPE_OID_START + 18,
+        &DataType::Interval(_) => DATA_TYPE_OID_START + 19,
+        &DataType::Binary => DATA_TYPE_OID_START + 20,
+        &DataType::FixedSizeBinary(_) => DATA_TYPE_OID_START + 21,
+        &DataType::LargeBinary => DATA_TYPE_OID_START + 22,
+        &DataType::Utf8 => DATA_TYPE_OID_START + 23,
+        &DataType::LargeUtf8 => DATA_TYPE_OID_START + 24,
+        &DataType::List(_) => DATA_TYPE_OID_START + 25,
+        &DataType::FixedSizeList(_, _) => DATA_TYPE_OID_START + 26,
+        &DataType::LargeList(_) => DATA_TYPE_OID_START + 27,
+        &DataType::Struct(_) => DATA_TYPE_OID_START + 28,
+        &DataType::Union(_, _, _) => DATA_TYPE_OID_START + 29,
+        &DataType::Dictionary(_, _) => DATA_TYPE_OID_START + 30,
+        &DataType::Decimal128(_, _) => DATA_TYPE_OID_START + 31,
         // The following are unsupported types
-        &DataType::Decimal256(_, _) => FIRST_AVAILABLE_ID + 32,
-        &DataType::Map(_, _) => FIRST_AVAILABLE_ID + 33,
-        &DataType::RunEndEncoded(_, _) => FIRST_AVAILABLE_ID + 34,
+        &DataType::Decimal256(_, _) => DATA_TYPE_OID_START + 32,
+        &DataType::Map(_, _) => DATA_TYPE_OID_START + 33,
+        &DataType::RunEndEncoded(_, _) => DATA_TYPE_OID_START + 34,
     }
 }
 

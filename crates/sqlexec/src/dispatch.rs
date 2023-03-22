@@ -482,11 +482,12 @@ impl<'a> SystemTableDispatcher<'a> {
             };
             let schema_oid = table.schema_entry.expect("table with schema").get_meta().id;
 
-            for (i, col) in ent.columns.iter().enumerate() {
+            // Column index starts at 1 for postgres compat
+            for (col, i) in ent.columns.iter().zip(1_u32..) {
                 schema_oids.append_value(schema_oid);
                 table_oids.append_value(table.oid);
                 column_names.append_value(&col.name);
-                column_indexes.append_value(i as u32);
+                column_indexes.append_value(i);
                 data_type_oids.append_value(oid_from_data_type(&col.arrow_type));
                 data_types.append_value(col.arrow_type.to_string());
                 is_nullables.append_value(col.nullable);
@@ -533,11 +534,12 @@ impl<'a> SystemTableDispatcher<'a> {
             };
             let schema_oid = table.schema_entry.expect("table with schema").get_meta().id;
 
-            for (i, col) in ent.columns.iter().enumerate() {
+            // Column index starts at 1 for postgres compat
+            for (col, i) in ent.columns.iter().zip(1_u32..) {
                 schema_oids.append_value(schema_oid);
                 table_oids.append_value(table.oid);
                 column_names.append_value(&col.name);
-                column_indexes.append_value(i as u32);
+                column_indexes.append_value(i);
                 data_type_oids.append_value(oid_from_data_type(&col.arrow_type));
                 data_types.append_value(col.arrow_type.to_string());
                 pg_data_types.append_value(col.arrow_type.to_string()); //TODO update to get pg
