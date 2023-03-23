@@ -132,9 +132,9 @@ pub struct CustomParser<'a> {
 impl<'a> CustomParser<'a> {
     pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
         let dialect = PostgreSqlDialect {};
-        let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
+        let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
         let mut parser = CustomParser {
-            parser: Parser::new(&dialect).with_tokens_with_locations(tokens),
+            parser: Parser::new(&dialect).with_tokens(tokens),
         };
 
         let mut stmts = VecDeque::new();
