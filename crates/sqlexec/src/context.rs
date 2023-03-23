@@ -6,7 +6,7 @@ use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
-use crate::planner::SessionPlanner;
+use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::config::{CatalogOptions, ConfigOptions};
