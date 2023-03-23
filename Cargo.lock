@@ -4806,8 +4806,8 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.13.1"
-source = "git+https://github.com/risinglightdb/sqllogictest-rs#9311624212234a6a7e74b2cb47723f4212c20f3b"
+version = "0.13.0"
+source = "git+https://github.com/risinglightdb/sqllogictest-rs?rev=33e9c118bb53fcf4655a0c97ef5bd31ba164acdc#33e9c118bb53fcf4655a0c97ef5bd31ba164acdc"
 dependencies = [
  "async-trait",
  "educe",

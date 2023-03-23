@@ -335,6 +335,8 @@ impl<'a> CustomParser<'a> {
     }
 }
 
+/// Validate idents as per [postgres identifier
+/// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
 fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
     const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
     for ident in name.0.iter() {
