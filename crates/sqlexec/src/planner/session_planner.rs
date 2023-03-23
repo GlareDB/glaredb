@@ -1,10 +1,10 @@
 use crate::context::SessionContext;
-use crate::logical_plan::*;
 use crate::parser::{
     CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
+use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
@@ -29,8 +29,6 @@ use metastore::types::catalog::{
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use tokio::runtime::Handle;
-use tokio::task;
 use tracing::debug;
 
 /// Plan SQL statements for a session.
@@ -55,14 +53,16 @@ impl<'a> SessionPlanner<'a> {
         match statement {
             StatementWithExtensions::Statement(stmt) => self.plan_statement(stmt).await,
             StatementWithExtensions::CreateExternalTable(stmt) => {
-                self.plan_create_external_table(stmt)
+                self.plan_create_external_table(stmt).await
             }
-            StatementWithExtensions::CreateConnection(stmt) => self.plan_create_connection(stmt),
+            StatementWithExtensions::CreateConnection(stmt) => {
+                self.plan_create_connection(stmt).await
+            }
             StatementWithExtensions::DropConnection(stmt) => self.plan_drop_connection(stmt),
         }
     }
 
-    fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
+    async fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let connection_options = match stmt.datasource.to_lowercase().as_str() {
@@ -75,15 +75,11 @@ impl<'a> SessionPlanner<'a> {
                     None => None.unzip(),
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        PostgresAccessor::validate_connection(&connection_string, access)
-                            .await
-                            .map_err(|e| PlanError::InvalidConnection {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                PostgresAccessor::validate_connection(&connection_string, access)
+                    .await
+                    .map_err(|e| PlanError::InvalidConnection {
+                        source: Box::new(e),
+                    })?;
 
                 ConnectionOptions::Postgres(ConnectionOptionsPostgres {
                     connection_string,
@@ -99,15 +95,11 @@ impl<'a> SessionPlanner<'a> {
                     project_id,
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        BigQueryAccessor::validate_connection(&options)
-                            .await
-                            .map_err(|e| PlanError::InvalidConnection {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                BigQueryAccessor::validate_connection(&options)
+                    .await
+                    .map_err(|e| PlanError::InvalidConnection {
+                        source: Box::new(e),
+                    })?;
 
                 ConnectionOptions::BigQuery(options)
             }
@@ -120,15 +112,11 @@ impl<'a> SessionPlanner<'a> {
                     None => None.unzip(),
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        MysqlAccessor::validate_connection(&connection_string, access)
-                            .await
-                            .map_err(|e| PlanError::InvalidConnection {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                MysqlAccessor::validate_connection(&connection_string, access)
+                    .await
+                    .map_err(|e| PlanError::InvalidConnection {
+                        source: Box::new(e),
+                    })?;
 
                 ConnectionOptions::Mysql(ConnectionOptionsMysql {
                     connection_string,
@@ -195,7 +183,10 @@ impl<'a> SessionPlanner<'a> {
         Ok(LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)))
     }
 
-    fn plan_create_external_table(&self, mut stmt: CreateExternalTableStmt) -> Result<LogicalPlan> {
+    async fn plan_create_external_table(
+        &self,
+        mut stmt: CreateExternalTableStmt,
+    ) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let conn = stmt.connection.to_lowercase();
@@ -228,16 +219,12 @@ impl<'a> SessionPlanner<'a> {
                     .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
                     .transpose()?;
 
-                let result = task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        PostgresAccessor::validate_table_access(&access, tunn_access.as_ref())
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })
-                    })
-                });
-                let arrow_schema = result?;
+                let arrow_schema =
+                    PostgresAccessor::validate_table_access(&access, tunn_access.as_ref())
+                        .await
+                        .map_err(|e| PlanError::InvalidExternalTable {
+                            source: Box::new(e),
+                        })?;
 
                 (
                     TableOptions::Postgres(TableOptionsPostgres {
@@ -258,15 +245,11 @@ impl<'a> SessionPlanner<'a> {
                     table_id,
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        BigQueryAccessor::validate_table_access(&access)
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                BigQueryAccessor::validate_table_access(&access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
                 (
                     TableOptions::BigQuery(TableOptionsBigQuery {
@@ -291,15 +274,11 @@ impl<'a> SessionPlanner<'a> {
                     .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
                     .transpose()?;
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        MysqlAccessor::validate_table_access(&access, tunn_access)
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                MysqlAccessor::validate_table_access(&access, tunn_access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
                 (
                     TableOptions::Mysql(TableOptionsMysql {
@@ -318,15 +297,11 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        LocalAccessor::validate_table_access(access)
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                LocalAccessor::validate_table_access(access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
                 (
                     TableOptions::Local(TableOptionsLocal { location }),
@@ -345,15 +320,11 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        GcsAccessor::validate_table_access(access)
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                GcsAccessor::validate_table_access(access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
                 (
                     TableOptions::Gcs(TableOptionsGcs {
@@ -378,15 +349,11 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                 };
 
-                task::block_in_place(|| {
-                    Handle::current().block_on(async {
-                        S3Accessor::validate_table_access(access)
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })
-                    })
-                })?;
+                S3Accessor::validate_table_access(access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
                 (
                     TableOptions::S3(TableOptionsS3 {

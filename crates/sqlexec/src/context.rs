@@ -1,11 +1,11 @@
 use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
-use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
+use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
