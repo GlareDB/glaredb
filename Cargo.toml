@@ -5,4 +5,4 @@ members = ["crates/*"]
 object_store = { git = "https://github.com/glaredb/arrow-rs.git", branch = "content-length" }
 # Use the following patched version of sqllogictest until 0.13.1 is released on
 # crates.io
-sqllogictest = { git = "https://github.com/risinglightdb/sqllogictest-rs", rev = "33e9c118bb53fcf4655a0c97ef5bd31ba164acdc" }
+sqllogictest = { git = "https://github.com/risinglightdb/sqllogictest-rs", package = "sqllogictest", rev = "33e9c118bb53fcf4655a0c97ef5bd31ba164acdc" }
