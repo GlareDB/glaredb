@@ -1,10 +1,11 @@
-use crate::context::{ContextProviderAdapter, SessionContext};
-use crate::errors::{internal, ExecError, Result};
+use crate::context::SessionContext;
 use crate::logical_plan::*;
 use crate::parser::{
     CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
 };
-use crate::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::planner::context_builder::PlanContextBuilder;
+use crate::planner::errors::{internal, PlanError, Result};
+use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -42,7 +43,7 @@ impl<'a> SessionPlanner<'a> {
         SessionPlanner { ctx }
     }
 
-    pub fn plan_ast(&self, mut statement: StatementWithExtensions) -> Result<LogicalPlan> {
+    pub async fn plan_ast(&self, mut statement: StatementWithExtensions) -> Result<LogicalPlan> {
         debug!(%statement, "planning sql statement");
 
         // Run replacers as needed.
@@ -52,7 +53,7 @@ impl<'a> SessionPlanner<'a> {
         }
 
         match statement {
-            StatementWithExtensions::Statement(stmt) => self.plan_statement(stmt),
+            StatementWithExtensions::Statement(stmt) => self.plan_statement(stmt).await,
             StatementWithExtensions::CreateExternalTable(stmt) => {
                 self.plan_create_external_table(stmt)
             }
@@ -78,7 +79,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         PostgresAccessor::validate_connection(&connection_string, access)
                             .await
-                            .map_err(|e| ExecError::InvalidConnection {
+                            .map_err(|e| PlanError::InvalidConnection {
                                 source: Box::new(e),
                             })
                     })
@@ -102,7 +103,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         BigQueryAccessor::validate_connection(&options)
                             .await
-                            .map_err(|e| ExecError::InvalidConnection {
+                            .map_err(|e| PlanError::InvalidConnection {
                                 source: Box::new(e),
                             })
                     })
@@ -123,7 +124,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         MysqlAccessor::validate_connection(&connection_string, access)
                             .await
-                            .map_err(|e| ExecError::InvalidConnection {
+                            .map_err(|e| PlanError::InvalidConnection {
                                 source: Box::new(e),
                             })
                     })
@@ -231,7 +232,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         PostgresAccessor::validate_table_access(&access, tunn_access.as_ref())
                             .await
-                            .map_err(|e| ExecError::InvalidExternalTable {
+                            .map_err(|e| PlanError::InvalidExternalTable {
                                 source: Box::new(e),
                             })
                     })
@@ -261,7 +262,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         BigQueryAccessor::validate_table_access(&access)
                             .await
-                            .map_err(|e| ExecError::InvalidExternalTable {
+                            .map_err(|e| PlanError::InvalidExternalTable {
                                 source: Box::new(e),
                             })
                     })
@@ -294,7 +295,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         MysqlAccessor::validate_table_access(&access, tunn_access)
                             .await
-                            .map_err(|e| ExecError::InvalidExternalTable {
+                            .map_err(|e| PlanError::InvalidExternalTable {
                                 source: Box::new(e),
                             })
                     })
@@ -321,7 +322,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         LocalAccessor::validate_table_access(access)
                             .await
-                            .map_err(|e| ExecError::InvalidExternalTable {
+                            .map_err(|e| PlanError::InvalidExternalTable {
                                 source: Box::new(e),
                             })
                     })
@@ -348,7 +349,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         GcsAccessor::validate_table_access(access)
                             .await
-                            .map_err(|e| ExecError::InvalidExternalTable {
+                            .map_err(|e| PlanError::InvalidExternalTable {
                                 source: Box::new(e),
                             })
                     })
@@ -381,7 +382,7 @@ impl<'a> SessionPlanner<'a> {
                     Handle::current().block_on(async {
                         S3Accessor::validate_table_access(access)
                             .await
-                            .map_err(|e| ExecError::InvalidExternalTable {
+                            .map_err(|e| PlanError::InvalidExternalTable {
                                 source: Box::new(e),
                             })
                     })
@@ -398,7 +399,7 @@ impl<'a> SessionPlanner<'a> {
                 )
             }
             ConnectionOptions::Ssh(_) => {
-                return Err(ExecError::ExternalTableWithSsh);
+                return Err(PlanError::ExternalTableWithSsh);
             }
             ConnectionOptions::Mongo(_options) => {
                 let database = remove_required_opt(m, "database")?;
@@ -428,9 +429,11 @@ impl<'a> SessionPlanner<'a> {
         Ok(DdlPlan::CreateExternalTable(plan).into())
     }
 
-    fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
-        let context = ContextProviderAdapter { context: self.ctx };
-        let planner = SqlToRel::new(&context);
+    async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
+        let builder = PlanContextBuilder::new(self.ctx);
+        let context_provider = builder.build_plan_context(&statement).await?;
+
+        let planner = SqlToRel::new(&context_provider);
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
@@ -508,10 +511,10 @@ impl<'a> SessionPlanner<'a> {
                 ..
             } => {
                 if !columns.is_empty() {
-                    return Err(ExecError::UnsupportedFeature("named columns in views"));
+                    return Err(PlanError::UnsupportedFeature("named columns in views"));
                 }
                 if !with_options.is_empty() {
-                    return Err(ExecError::UnsupportedFeature("view options"));
+                    return Err(PlanError::UnsupportedFeature("view options"));
                 }
 
                 // Also validates that the view body is either a SELECT or
@@ -522,7 +525,7 @@ impl<'a> SessionPlanner<'a> {
                         values.rows.first().map(|first| first.len()).unwrap_or(0)
                     }
                     _ => {
-                        return Err(ExecError::InvalidViewStatement {
+                        return Err(PlanError::InvalidViewStatement {
                             msg: "view body must either be a SELECT or VALUES statement",
                         })
                     }
@@ -537,7 +540,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             stmt @ ast::Statement::Insert { .. } => {
-                Err(ExecError::UnsupportedSQLStatement(stmt.to_string()))
+                Err(PlanError::UnsupportedSQLStatement(stmt.to_string()))
             }
 
             // Drop tables
@@ -625,7 +628,7 @@ impl<'a> SessionPlanner<'a> {
                 Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
             }
 
-            stmt => Err(ExecError::UnsupportedSQLStatement(stmt.to_string())),
+            stmt => Err(PlanError::UnsupportedSQLStatement(stmt.to_string())),
         }
     }
 

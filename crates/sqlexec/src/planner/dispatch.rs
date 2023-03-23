@@ -50,7 +50,7 @@ pub enum DispatchError {
     UnhandledEntryType(EntryType),
 
     #[error("failed to do late planning: {0}")]
-    LatePlanning(Box<crate::errors::ExecError>),
+    LatePlanning(Box<crate::planner::errors::PlanError>),
 
     #[error(
         "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
@@ -109,7 +109,11 @@ impl<'a> SessionDispatcher<'a> {
 
     /// Return a datafusion table provider based on how the table should be
     /// accessed.
-    pub fn dispatch_access(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+    pub async fn dispatch_access(
+        &self,
+        schema: &str,
+        name: &str,
+    ) -> Result<Arc<dyn TableProvider>> {
         let catalog = self.ctx.get_session_catalog();
 
         let ent =
@@ -136,7 +140,7 @@ impl<'a> SessionDispatcher<'a> {
         }
 
         match ent {
-            CatalogEntry::View(view) => self.dispatch_view(view),
+            CatalogEntry::View(view) => self.dispatch_view(view).await,
             CatalogEntry::ExternalTable(table) => self.dispatch_external_table(table),
             // Note that all 'table' entries should have already been handled
             // with the above builtin table dispatcher.
@@ -144,10 +148,11 @@ impl<'a> SessionDispatcher<'a> {
         }
     }
 
-    fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
+    async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
         let plan = self
             .ctx
             .late_view_plan(&view.sql)
+            .await
             .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }

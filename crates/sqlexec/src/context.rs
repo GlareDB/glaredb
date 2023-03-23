@@ -1,4 +1,3 @@
-use crate::dispatch::SessionDispatcher;
 use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::functions::BuiltinScalarFunction;
@@ -6,12 +5,12 @@ use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
+use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::config::{CatalogOptions, ConfigOptions};
-use datafusion::datasource::DefaultTableSource;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
@@ -19,6 +18,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
+use futures::future::BoxFuture;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{self, ColumnDefinition, ConnectionEntry, ConnectionOptions};
@@ -361,7 +361,7 @@ impl SessionContext {
             ));
         }
 
-        let stmt = PreparedStatement::new(stmt, self)?;
+        let stmt = PreparedStatement::build(stmt, self).await?;
         self.prepared.insert(name, stmt);
 
         Ok(())
@@ -449,22 +449,29 @@ impl SessionContext {
     }
 
     /// Plan the body of a view.
-    pub(crate) fn late_view_plan(
-        &self,
-        sql: &str,
-    ) -> Result<datafusion::logical_expr::LogicalPlan, ExecError> {
-        let mut statements = CustomParser::parse_sql(sql)?;
-        if statements.len() != 1 {
-            return Err(ExecError::ExpectedExactlyOneStatement(
-                statements.into_iter().collect(),
-            ));
-        }
+    pub(crate) fn late_view_plan<'a, 'b: 'a>(
+        &'a self,
+        sql: &'b str,
+    ) -> BoxFuture<Result<datafusion::logical_expr::LogicalPlan, PlanError>> {
+        // TODO: Instead of doing late planning, we should instead try to insert
+        // the contents of the view into the parent query prior to any planning.
+        //
+        // The boxed future is a quick fix to enable recursive async planning.
+        Box::pin(async move {
+            let mut statements = CustomParser::parse_sql(sql)?;
+            if statements.len() != 1 {
+                return Err(PlanError::ExpectedExactlyOneStatement(
+                    statements.into_iter().collect(),
+                ));
+            }
 
-        let planner = SessionPlanner::new(self);
-        let plan = planner.plan_ast(statements.pop_front().unwrap())?;
-        let df_plan = plan.try_into_datafusion_plan()?;
+            let planner = SessionPlanner::new(self);
 
-        Ok(df_plan)
+            let plan = planner.plan_ast(statements.pop_front().unwrap()).await?;
+            let df_plan = plan.try_into_datafusion_plan()?;
+
+            Ok(df_plan)
+        })
     }
 
     /// Attempt to apply mutations to the catalog.
@@ -523,66 +530,6 @@ impl SessionContext {
     }
 }
 
-/// Adapter for datafusion planning.
-///
-/// NOTE: While `ContextProvider` is for _logical_ planning, DataFusion will
-/// actually try to downcast the `TableSource` to a `TableProvider` during
-/// physical planning. This only works with `DefaultTableSource` which is what
-/// this adapter uses.
-pub struct ContextProviderAdapter<'a> {
-    pub context: &'a SessionContext,
-}
-
-impl<'a> ContextProvider for ContextProviderAdapter<'a> {
-    fn get_table_provider(&self, name: TableReference) -> DataFusionResult<Arc<dyn TableSource>> {
-        let dispatcher = SessionDispatcher::new(self.context);
-        match name {
-            TableReference::Bare { table } => {
-                for schema in self.context.implicit_search_path_iter() {
-                    match dispatcher.dispatch_access(schema, &table) {
-                        Ok(table) => return Ok(Arc::new(DefaultTableSource::new(table))),
-                        Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
-                        Err(e) => {
-                            return Err(DataFusionError::Plan(format!(
-                                "failed to dispatch bare table: {}",
-                                e
-                            )))
-                        }
-                    }
-                }
-                Err(DataFusionError::Plan(format!(
-                    "failed to resolve bare table: {}",
-                    table
-                )))
-            }
-            TableReference::Full { schema, table, .. }
-            | TableReference::Partial { schema, table } => {
-                let table = dispatcher.dispatch_access(&schema, &table).map_err(|e| {
-                    DataFusionError::Plan(format!("failed dispatch for qualified table: {}", e))
-                })?;
-                Ok(Arc::new(DefaultTableSource::new(table)))
-            }
-        }
-    }
-
-    fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
-        BuiltinScalarFunction::try_from_name(name)
-            .map(|f| Arc::new(f.build_scalar_udf(self.context)))
-    }
-
-    fn get_aggregate_meta(&self, _name: &str) -> Option<Arc<AggregateUDF>> {
-        None
-    }
-
-    fn get_variable_type(&self, _variable_names: &[String]) -> Option<DataType> {
-        None
-    }
-
-    fn options(&self) -> &ConfigOptions {
-        self.context.df_state.config_options()
-    }
-}
-
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct PreparedStatement {
@@ -601,11 +548,14 @@ pub struct PreparedStatement {
 impl PreparedStatement {
     /// Create and plan a new prepared statement.
     // TODO: Not sure if we want to delay the planning portion.
-    fn new(mut stmt: Option<StatementWithExtensions>, ctx: &SessionContext) -> Result<Self> {
+    async fn build(
+        mut stmt: Option<StatementWithExtensions>,
+        ctx: &SessionContext,
+    ) -> Result<Self> {
         if let Some(inner) = stmt.take() {
             // Go ahead and plan using the session context.
             let planner = SessionPlanner::new(ctx);
-            let plan = planner.plan_ast(inner.clone())?;
+            let plan = planner.plan_ast(inner.clone()).await?;
             let schema = plan.output_schema();
             let pg_types = match &schema {
                 Some(s) => {

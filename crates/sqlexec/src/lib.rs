@@ -7,9 +7,7 @@ pub mod metastore;
 pub mod parser;
 pub mod session;
 
-mod dispatch;
 mod functions;
 mod metrics;
 mod planner;
-mod preprocess;
 mod vars;
