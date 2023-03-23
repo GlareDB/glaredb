@@ -210,6 +210,7 @@ impl<'a> CustomParser<'a> {
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
         let name = self.parser.parse_object_name()?;
+        validate_object_name(&name)?;
 
         // FOR datasource
         self.parser.expect_keyword(Keyword::FOR)?;
@@ -235,6 +236,7 @@ impl<'a> CustomParser<'a> {
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
         let name = self.parser.parse_object_name()?;
+        validate_object_name(&name)?;
 
         // FROM datasource
         self.parser.expect_keyword(Keyword::FROM)?;
@@ -331,6 +333,20 @@ impl<'a> CustomParser<'a> {
             DropConnectionStmt { names, if_exists },
         ))
     }
+}
+
+/// Validate idents as per [postgres identifier
+/// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
+fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
+    const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
+    for ident in name.0.iter() {
+        if ident.value.len() >= POSTGRES_IDENT_MAX_LENGTH {
+            return Err(ParserError::ParserError(format!(
+                "Ident {ident} is greater than 63 bytes in length"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
