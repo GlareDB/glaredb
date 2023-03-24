@@ -1,5 +1,3 @@
-use crate::parser::StatementWithExtensions;
-
 #[derive(Debug, thiserror::Error)]
 pub enum ExecError {
     #[error("SQL statement currently unsupported: {0}")]
@@ -17,19 +15,6 @@ pub enum ExecError {
     #[error("Unknown variable: {0}")]
     UnknownVariable(String),
 
-    #[error("Invalid view statement: {msg}")]
-    InvalidViewStatement { msg: &'static str },
-
-    #[error("Connection validation failed: {source}")]
-    InvalidConnection {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[error("External table validation failed: {source}")]
-    InvalidExternalTable {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[error("Unknown prepared statement with name: {0}")]
     UnknownPreparedStatement(String),
 
@@ -38,9 +23,6 @@ pub enum ExecError {
 
     #[error("Empty search path, unable to resolve schema")]
     EmptySearchPath,
-
-    #[error("Expected exactly on SQL statement, got: {0:?}")]
-    ExpectedExactlyOneStatement(Vec<StatementWithExtensions>),
 
     #[error("Unexpected entry type; got: {got}, want: {want}")]
     UnexpectedEntryType {
@@ -90,9 +72,6 @@ pub enum ExecError {
     },
 
     #[error(transparent)]
-    Dispatch(#[from] crate::dispatch::DispatchError),
-
-    #[error(transparent)]
     Metastore(#[from] metastore::errors::MetastoreError),
 
     #[error(transparent)]
@@ -132,13 +111,13 @@ pub enum ExecError {
     Internal(String),
 
     #[error(transparent)]
-    Preprocess(#[from] crate::preprocess::PreprocessError),
-
-    #[error(transparent)]
     DatasourceDebug(#[from] datasource_debug::errors::DebugError),
 
     #[error(transparent)]
     DatasourceCommon(#[from] datasource_common::errors::Error),
+
+    #[error(transparent)]
+    PlanError(#[from] crate::planner::errors::PlanError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
