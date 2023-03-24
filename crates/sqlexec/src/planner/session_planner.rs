@@ -59,6 +59,7 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateExternalDatabase(stmt) => {
                 self.plan_create_database(stmt).await
             }
+            StatementWithExtensions::DropDatabase(stmt) => unimplemented!(),
             StatementWithExtensions::CreateConnection(stmt) => {
                 self.plan_create_connection(stmt).await
             }

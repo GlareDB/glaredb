@@ -81,6 +81,23 @@ impl fmt::Display for CreateExternalDatabaseStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropDatabase {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+impl fmt::Display for DropDatabase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DROP DATABASE ")?;
+        if self.if_exists {
+            write!(f, "IF EXISTS ")?;
+        }
+
+        write!(f, "{}", self.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateConnectionStmt {
     /// Name of the connection.
     pub name: String,
@@ -142,6 +159,7 @@ pub enum StatementWithExtensions {
     CreateExternalTable(CreateExternalTableStmt),
     /// Create external database extension.
     CreateExternalDatabase(CreateExternalDatabaseStmt),
+    DropDatabase(DropDatabase),
     /// Create connection extension.
     CreateConnection(CreateConnectionStmt),
     /// Drop connection extension.
@@ -154,6 +172,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::Statement(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateConnection(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropConnection(stmt) => write!(f, "{}", stmt),
         }
@@ -381,6 +400,9 @@ impl<'a> CustomParser<'a> {
         if self.parser.parse_keyword(Keyword::CONNECTION) {
             // DROP CONNECTION ...
             self.parse_drop_connection()
+        } else if self.parser.parse_keyword(Keyword::DATABASE) {
+            // DROP DATABASE ...
+            self.parse_drop_database()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -401,6 +423,15 @@ impl<'a> CustomParser<'a> {
         Ok(StatementWithExtensions::DropConnection(
             DropConnectionStmt { names, if_exists },
         ))
+    }
+
+    fn parse_drop_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+        let name = self.parser.parse_identifier()?;
+        Ok(StatementWithExtensions::DropDatabase(DropDatabase {
+            name: name.value,
+            if_exists,
+        }))
     }
 }
 
@@ -486,6 +517,19 @@ mod tests {
             "CREATE EXTERNAL DATABASE qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
         ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn drop_database_roundtrips() {
+        let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

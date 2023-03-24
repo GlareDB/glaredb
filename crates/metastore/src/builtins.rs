@@ -44,6 +44,16 @@ pub struct BuiltinTable {
     pub columns: Vec<ColumnDefinition>,
 }
 
+pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "databases",
+    columns: ColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("database_name", DataType::Utf8, false),
+        ("external", DataType::Boolean, false),
+    ]),
+});
+
 pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "views",
