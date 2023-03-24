@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
@@ -76,6 +75,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
     }
 }
 
+#[allow(dead_code)] // Inserts not constructed anywhere (yet)
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
