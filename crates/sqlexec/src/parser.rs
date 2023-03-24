@@ -47,6 +47,39 @@ impl fmt::Display for CreateExternalTableStmt {
     }
 }
 
+/// DDL for external databases.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateExternalDatabaseStmt {
+    /// Name of the database as it exists in GlareDB.
+    pub name: String,
+    /// Optionally don't error if database exists.
+    pub if_not_exists: bool,
+    /// The data source type the connection is for.
+    pub datasource: String,
+    /// Datasource specific options.
+    pub options: BTreeMap<String, String>,
+}
+
+impl fmt::Display for CreateExternalDatabaseStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CREATE EXTERNAL DATABASE ")?;
+        if self.if_not_exists {
+            write!(f, "IF NOT EXISTS ")?;
+        }
+        write!(f, "{} FROM {} ", self.name, self.datasource)?;
+
+        let opts = self
+            .options
+            .iter()
+            .map(|(k, v)| format!("{} = '{}'", k, v))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        write!(f, "OPTIONS ({})", opts)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateConnectionStmt {
     /// Name of the connection.
@@ -107,6 +140,8 @@ pub enum StatementWithExtensions {
     Statement(ast::Statement),
     /// Create external table extension.
     CreateExternalTable(CreateExternalTableStmt),
+    /// Create external database extension.
+    CreateExternalDatabase(CreateExternalDatabaseStmt),
     /// Create connection extension.
     CreateConnection(CreateConnectionStmt),
     /// Drop connection extension.
@@ -118,6 +153,7 @@ impl fmt::Display for StatementWithExtensions {
         match self {
             StatementWithExtensions::Statement(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateConnection(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropConnection(stmt) => write!(f, "{}", stmt),
         }
@@ -185,7 +221,17 @@ impl<'a> CustomParser<'a> {
     fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
         if self.parser.parse_keyword(Keyword::EXTERNAL) {
             // CREATE EXTERNAL TABLE ...
-            self.parse_create_external_table()
+            if self.parser.parse_keyword(Keyword::TABLE) {
+                self.parse_create_external_table()
+            } else if self.parser.parse_keyword(Keyword::DATABASE) {
+                self.parse_create_external_database()
+            } else {
+                let next = self.parser.peek_token().token;
+                Err(ParserError::ParserError(format!(
+                    "Expected 'CREATE EXTERNAL DATABASE' or 'CREATE EXTERNAL TABLE', found 'CREATE EXTERNAL {}'",
+                    next
+                )))
+            }
         } else if self.parser.parse_keyword(Keyword::CONNECTION) {
             // CREATE CONNECTION ...
             self.parse_create_connection()
@@ -231,7 +277,6 @@ impl<'a> CustomParser<'a> {
     }
 
     fn parse_create_external_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        self.parser.expect_keyword(Keyword::TABLE)?;
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
@@ -250,6 +295,30 @@ impl<'a> CustomParser<'a> {
                 name: name.to_string(),
                 if_not_exists,
                 connection: datasource,
+                options,
+            },
+        ))
+    }
+
+    fn parse_create_external_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_not_exists =
+            self.parser
+                .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
+        let name = self.parser.parse_object_name()?;
+        validate_object_name(&name)?;
+
+        // FROM datasource
+        self.parser.expect_keyword(Keyword::FROM)?;
+        let datasource = self.parse_datasource()?;
+
+        // OPTIONS (..)
+        let options = self.parse_datasource_options()?;
+
+        Ok(StatementWithExtensions::CreateExternalDatabase(
+            CreateExternalDatabaseStmt {
+                name: name.to_string(),
+                if_not_exists,
+                datasource,
                 options,
             },
         ))
@@ -400,6 +469,22 @@ mod tests {
         let test_cases = [
             "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn create_external_database_roundtrips() {
+        let test_cases = [
+            "CREATE EXTERNAL DATABASE qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
         ];
 
         for test_case in test_cases {
