@@ -13,7 +13,7 @@ pgrepr = {path = "../pgrepr"}
 thiserror = "1.0"
 tracing = "0.1"
 futures = "0.3.27"
-async-trait = "0.1.66"
+async-trait = "0.1.67"
 datafusion = "20.0"
 tokio-util = { version = "0.7.7", features = ["codec"] }
 bytes = "1.4.0"
