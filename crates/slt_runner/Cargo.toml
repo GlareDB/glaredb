@@ -14,7 +14,7 @@ sqllogictest = "0.13.0"
 tokio-postgres = "0.7.7"
 object_store = {version = "0.5", features = ["gcp"]}
 anyhow = "1.0"
-async-trait = "0.1.66"
+async-trait = "0.1.67"
 clap = { version = "4.1.9", features = ["derive"] }
 glob = "0.3.1"
 regex = "1.7.1"
