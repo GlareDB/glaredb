@@ -3,7 +3,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use metastore::types::catalog::{ConnectionOptions, TableOptions};
+use metastore::types::catalog::{ConnectionOptions, DatabaseOptions, TableOptions};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -100,6 +100,7 @@ pub struct Insert {
 /// on working with "external" data that won't be modified like parquet files.
 #[derive(Clone, Debug)]
 pub enum DdlPlan {
+    CreateDatabase(CreateDatabase),
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
@@ -116,6 +117,13 @@ impl From<DdlPlan> for LogicalPlan {
     fn from(plan: DdlPlan) -> Self {
         LogicalPlan::Ddl(plan)
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateDatabase {
+    pub database_name: String,
+    pub if_not_exists: bool,
+    pub options: DatabaseOptions,
 }
 
 #[derive(Clone, Debug)]

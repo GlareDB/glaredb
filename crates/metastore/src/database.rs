@@ -3,8 +3,8 @@ use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, ConnectionEntry, EntryMeta, EntryType, ExternalTableEntry,
-    SchemaEntry, TableEntry, ViewEntry,
+    CatalogEntry, CatalogState, ConnectionEntry, DatabaseEntry, EntryMeta, EntryType,
+    ExternalTableEntry, SchemaEntry, TableEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
 use crate::types::storage::PersistedCatalog;
@@ -357,6 +357,26 @@ impl State {
                     };
 
                     self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
+                }
+                Mutation::CreateDatabase(create_database) => {
+                    // TODO: If not exists.
+                    // TODO: Need to do slight refactor to hold database names.
+
+                    // Create new entry
+                    let oid = self.next_oid();
+                    let ent = DatabaseEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::Database,
+                            id: oid,
+                            parent: SCHEMA_PARENT_ID, // TODO: Change?
+                            name: create_database.name.clone(),
+                            builtin: false,
+                        },
+                        options: create_database.options,
+                    };
+                    self.entries.insert(oid, CatalogEntry::Database(ent));
+
+                    // TODO: Add to "database".
                 }
                 Mutation::CreateSchema(create_schema) => {
                     // TODO: If not exists.

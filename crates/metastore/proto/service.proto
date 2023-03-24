@@ -39,6 +39,7 @@ message Mutation {
     CreateView create_view = 4;
     CreateConnection create_connection = 5;
     CreateExternalTable create_external_table = 6;
+    CreateDatabase create_database = 7;
   }
   // next: 7
 }
@@ -78,6 +79,13 @@ message CreateExternalTable {
   bool if_not_exists = 5;
   repeated catalog.ColumnDefinition columns = 6;
   // next: 7
+}
+
+message CreateDatabase {
+  string name = 1;
+  catalog.DatabaseOptions options = 2;
+  bool if_not_exists = 3;
+  // next: 4
 }
 
 message MutateRequest {

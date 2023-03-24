@@ -46,6 +46,8 @@ pub enum ExecutionResult {
     WriteSuccess,
     /// Table created.
     CreateTable,
+    /// Database created.
+    CreateDatabase,
     /// Schema created.
     CreateSchema,
     /// A view was created.
@@ -75,6 +77,7 @@ impl ExecutionResult {
             ExecutionResult::Rollback => "rollback",
             ExecutionResult::WriteSuccess => "write_success",
             ExecutionResult::CreateTable => "create_table",
+            ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
             ExecutionResult::CreateConnection => "create_connection",
@@ -102,6 +105,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Rollback => write!(f, "rollback"),
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
+            ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::CreateConnection => write!(f, "create connection"),
@@ -175,6 +179,11 @@ impl Session {
 
     pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         self.ctx.create_schema(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn create_database(&mut self, plan: CreateDatabase) -> Result<()> {
+        self.ctx.create_database(plan).await?;
         Ok(())
     }
 
@@ -296,6 +305,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
                 self.create_external_table(plan).await?;
                 ExecutionResult::CreateTable
+            }
+            LogicalPlan::Ddl(DdlPlan::CreateDatabase(plan)) => {
+                self.create_database(plan).await?;
+                ExecutionResult::CreateDatabase
             }
             LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
                 self.create_table_as(plan).await?;

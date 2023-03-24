@@ -1,4 +1,4 @@
-use crate::types::catalog::{CatalogEntry, CatalogState, EntryType, SchemaEntry};
+use crate::types::catalog::{CatalogEntry, CatalogState, DatabaseEntry, EntryType, SchemaEntry};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -38,6 +38,14 @@ impl SessionCatalog {
         self.rebuild_name_maps();
     }
 
+    // TODO
+    pub fn resolve_database(&self, name: &str) -> Option<&DatabaseEntry> {
+        self.state.entries.values().find_map(|ent| match ent {
+            CatalogEntry::Database(db) if db.meta.name == name => Some(db),
+            _ => None,
+        })
+    }
+
     /// Resolve a schema by name.
     pub fn resolve_schema(&self, name: &str) -> Option<&SchemaEntry> {
         // This function will panic if certain invariants aren't held:
@@ -67,7 +75,7 @@ impl SessionCatalog {
     /// Resolve an entry by schema name and object name.
     ///
     /// Note that this will never return a schema entry.
-    pub fn resolve_entry(&self, schema: &str, name: &str) -> Option<&CatalogEntry> {
+    pub fn resolve_entry(&self, database: &str, schema: &str, name: &str) -> Option<&CatalogEntry> {
         let schema_id = self.schema_names.get(schema)?;
         let obj = self.schema_objects.get(schema_id)?;
         let obj_id = obj.objects.get(name)?;

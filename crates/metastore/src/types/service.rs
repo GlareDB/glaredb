@@ -1,6 +1,6 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::service;
-use crate::types::catalog::{ColumnDefinition, ConnectionOptions, TableOptions};
+use crate::types::catalog::{ColumnDefinition, ConnectionOptions, DatabaseOptions, TableOptions};
 use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
@@ -11,6 +11,7 @@ pub enum Mutation {
     CreateView(CreateView),
     CreateConnection(CreateConnection),
     CreateExternalTable(CreateExternalTable),
+    CreateDatabase(CreateDatabase),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -34,6 +35,9 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::CreateExternalTable(v) => {
                 Mutation::CreateExternalTable(v.try_into()?)
             }
+            service::mutation::Mutation::CreateDatabase(v) => {
+                Mutation::CreateDatabase(v.try_into()?)
+            }
         })
     }
 }
@@ -52,6 +56,7 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             Mutation::CreateExternalTable(v) => {
                 service::mutation::Mutation::CreateExternalTable(v.try_into()?)
             }
+            Mutation::CreateDatabase(v) => service::mutation::Mutation::CreateDatabase(v.into()),
         })
     }
 }
@@ -243,6 +248,34 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
                 .map(|col| col.try_into())
                 .collect::<Result<_, _>>()?,
         })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateDatabase {
+    pub name: String,
+    pub options: DatabaseOptions,
+    pub if_not_exists: bool,
+}
+
+impl TryFrom<service::CreateDatabase> for CreateDatabase {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateDatabase) -> Result<Self, Self::Error> {
+        Ok(CreateDatabase {
+            name: value.name,
+            options: value.options.required("options")?,
+            if_not_exists: value.if_not_exists,
+        })
+    }
+}
+
+impl From<CreateDatabase> for service::CreateDatabase {
+    fn from(value: CreateDatabase) -> Self {
+        service::CreateDatabase {
+            name: value.name,
+            options: Some(value.options.into()),
+            if_not_exists: value.if_not_exists,
+        }
     }
 }
 

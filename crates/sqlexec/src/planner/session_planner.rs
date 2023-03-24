@@ -1,6 +1,7 @@
 use crate::context::SessionContext;
 use crate::parser::{
-    CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
+    CreateConnectionStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, DropConnectionStmt,
+    StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -14,7 +15,6 @@ use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::SshKey;
 use datasource_debug::DebugTableType;
-
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -23,9 +23,10 @@ use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
     ConnectionOptionsLocal, ConnectionOptionsMongo, ConnectionOptionsMysql,
-    ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh, DatabaseOptions,
+    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
+    TableOptionsS3,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -55,12 +56,37 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateExternalTable(stmt) => {
                 self.plan_create_external_table(stmt).await
             }
-            StatementWithExtensions::CreateExternalDatabase(stmt) => unimplemented!(),
+            StatementWithExtensions::CreateExternalDatabase(stmt) => {
+                self.plan_create_database(stmt).await
+            }
             StatementWithExtensions::CreateConnection(stmt) => {
                 self.plan_create_connection(stmt).await
             }
             StatementWithExtensions::DropConnection(stmt) => self.plan_drop_connection(stmt),
         }
+    }
+
+    async fn plan_create_database(
+        &self,
+        mut stmt: CreateExternalDatabaseStmt,
+    ) -> Result<LogicalPlan> {
+        let m = &mut stmt.options;
+
+        let db_options = match stmt.datasource.to_lowercase().as_str() {
+            ConnectionOptions::POSTGRES => {
+                let connection_string = remove_required_opt(m, "postgres_conn")?;
+                DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
+            }
+            other => return Err(internal!("unsupported datasource: {}", other)),
+        };
+
+        let plan = CreateDatabase {
+            database_name: stmt.name,
+            if_not_exists: stmt.if_not_exists,
+            options: db_options,
+        };
+
+        Ok(LogicalPlan::Ddl(DdlPlan::CreateDatabase(plan)))
     }
 
     async fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {

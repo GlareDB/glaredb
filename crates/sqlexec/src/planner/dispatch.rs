@@ -15,13 +15,14 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
+    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
     GLARE_SESSION_QUERY_METRICS, GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
-    CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, EntryType,
-    ExternalTableEntry, TableOptions, ViewEntry,
+    CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, DatabaseEntry,
+    DatabaseOptions, DatabaseOptionsPostgres, EntryType, ExternalTableEntry, TableOptions,
+    ViewEntry,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -115,13 +116,18 @@ impl<'a> SessionDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         let catalog = self.ctx.get_session_catalog();
 
-        let ent =
-            catalog
-                .resolve_entry(schema, name)
-                .ok_or_else(|| DispatchError::MissingEntry {
-                    schema: schema.to_string(),
-                    name: name.to_string(),
-                })?;
+        // "External" database
+        if database != DEFAULT_CATALOG {
+            let db = catalog.resolve_database(database).unwrap();
+            return self.dispatch_catalog(db, schema, name).await;
+        }
+
+        let ent = catalog
+            .resolve_entry(database, schema, name)
+            .ok_or_else(|| DispatchError::MissingEntry {
+                schema: schema.to_string(),
+                name: name.to_string(),
+            })?;
 
         // Only allow dispatching to types we can actually convert to a table
         // provider.
@@ -144,6 +150,32 @@ impl<'a> SessionDispatcher<'a> {
             // Note that all 'table' entries should have already been handled
             // with the above builtin table dispatcher.
             other => Err(DispatchError::UnhandledEntryType(other.entry_type())),
+        }
+    }
+
+    async fn dispatch_catalog(
+        &self,
+        db: &DatabaseEntry,
+        schema: &str,
+        name: &str,
+    ) -> Result<Arc<dyn TableProvider>> {
+        match &db.options {
+            DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
+                let table_access = PostgresTableAccess {
+                    schema: schema.to_string(),
+                    name: name.to_string(),
+                    connection_string: connection_string.clone(),
+                };
+
+                let predicate_pushdown = *self
+                    .ctx
+                    .get_session_vars()
+                    .postgres_predicate_pushdown
+                    .value();
+                let accessor = PostgresAccessor::connect(table_access, None).await?;
+                let provider = accessor.into_table_provider(predicate_pushdown).await?;
+                Ok(Arc::new(provider))
+            }
         }
     }
 

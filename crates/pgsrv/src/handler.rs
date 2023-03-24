@@ -587,6 +587,9 @@ where
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
             ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
+            ExecutionResult::CreateDatabase => {
+                Self::command_complete(conn, "CREATE DATABASE").await?
+            }
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
             ExecutionResult::CreateConnection => {
