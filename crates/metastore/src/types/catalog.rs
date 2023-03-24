@@ -47,6 +47,7 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
 // Arbitrary for arrow's DataType.
 #[derive(Debug, Clone)]
 pub enum CatalogEntry {
+    Database(DatabaseEntry),
     Schema(SchemaEntry),
     Table(TableEntry),
     View(ViewEntry),
@@ -57,6 +58,7 @@ pub enum CatalogEntry {
 impl CatalogEntry {
     pub const fn entry_type(&self) -> EntryType {
         match self {
+            CatalogEntry::Database(_) => EntryType::Database,
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
             CatalogEntry::Table(_) => EntryType::Table,
@@ -72,6 +74,7 @@ impl CatalogEntry {
     /// Get the entry metadata.
     pub fn get_meta(&self) -> &EntryMeta {
         match self {
+            CatalogEntry::Database(db) => &db.meta,
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
             CatalogEntry::Table(table) => &table.meta,
@@ -85,6 +88,7 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::catalog_entry::Entry) -> Result<Self, Self::Error> {
         Ok(match value {
+            catalog::catalog_entry::Entry::Database(v) => CatalogEntry::Database(v.try_into()?),
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
             catalog::catalog_entry::Entry::Table(v) => CatalogEntry::Table(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
@@ -107,6 +111,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     type Error = ProtoConvError;
     fn try_from(value: CatalogEntry) -> Result<Self, Self::Error> {
         let ent = match value {
+            CatalogEntry::Database(v) => catalog::catalog_entry::Entry::Database(v.into()),
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
@@ -121,6 +126,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
 
 #[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum EntryType {
+    Database,
     Schema,
     ExternalTable,
     Table,
@@ -144,6 +150,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             catalog::entry_meta::EntryType::Unknown => {
                 return Err(ProtoConvError::ZeroValueEnumVariant("EntryType"))
             }
+            catalog::entry_meta::EntryType::Database => EntryType::Database,
             catalog::entry_meta::EntryType::Schema => EntryType::Schema,
             catalog::entry_meta::EntryType::ExternalTable => EntryType::ExternalTable,
             catalog::entry_meta::EntryType::Table => EntryType::Table,
@@ -156,6 +163,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
 impl From<EntryType> for catalog::entry_meta::EntryType {
     fn from(value: EntryType) -> Self {
         match value {
+            EntryType::Database => catalog::entry_meta::EntryType::Database,
             EntryType::Schema => catalog::entry_meta::EntryType::Schema,
             EntryType::Table => catalog::entry_meta::EntryType::Table,
             EntryType::ExternalTable => catalog::entry_meta::EntryType::ExternalTable,
@@ -208,6 +216,109 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
             name: value.name,
             builtin: value.builtin,
         })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct DatabaseEntry {
+    pub meta: EntryMeta,
+    pub options: DatabaseOptions,
+}
+
+impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DatabaseEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(DatabaseEntry {
+            meta,
+            options: value.options.required("options")?,
+        })
+    }
+}
+
+impl From<DatabaseEntry> for catalog::DatabaseEntry {
+    fn from(value: DatabaseEntry) -> Self {
+        catalog::DatabaseEntry {
+            meta: Some(value.meta.into()),
+            options: Some(value.options.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub enum DatabaseOptions {
+    Postgres(DatabaseOptionsPostgres),
+}
+
+impl DatabaseOptions {
+    pub const POSTGRES: &str = "postgres";
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DatabaseOptions::Postgres(_) => Self::POSTGRES,
+        }
+    }
+}
+
+impl fmt::Display for DatabaseOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl TryFrom<catalog::database_options::Options> for DatabaseOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::database_options::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            catalog::database_options::Options::Postgres(v) => {
+                DatabaseOptions::Postgres(v.try_into()?)
+            }
+        })
+    }
+}
+
+impl TryFrom<catalog::DatabaseOptions> for DatabaseOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DatabaseOptions) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl From<DatabaseOptions> for catalog::database_options::Options {
+    fn from(value: DatabaseOptions) -> Self {
+        match value {
+            DatabaseOptions::Postgres(v) => catalog::database_options::Options::Postgres(v.into()),
+        }
+    }
+}
+
+impl From<DatabaseOptions> for catalog::DatabaseOptions {
+    fn from(value: DatabaseOptions) -> Self {
+        catalog::DatabaseOptions {
+            options: Some(value.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DatabaseOptionsPostgres {
+    pub connection_string: String,
+}
+
+impl TryFrom<catalog::DatabaseOptionsPostgres> for DatabaseOptionsPostgres {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DatabaseOptionsPostgres) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsPostgres {
+            connection_string: value.connection_string,
+        })
+    }
+}
+
+impl From<DatabaseOptionsPostgres> for catalog::DatabaseOptionsPostgres {
+    fn from(value: DatabaseOptionsPostgres) -> Self {
+        catalog::DatabaseOptionsPostgres {
+            connection_string: value.connection_string,
+        }
     }
 }
 

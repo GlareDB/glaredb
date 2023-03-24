@@ -15,7 +15,7 @@ pub struct CatalogState {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogEntry {
-    #[prost(oneof = "catalog_entry::Entry", tags = "1, 2, 3, 4, 5")]
+    #[prost(oneof = "catalog_entry::Entry", tags = "6, 1, 2, 3, 4, 5")]
     pub entry: ::core::option::Option<catalog_entry::Entry>,
 }
 /// Nested message and enum types in `CatalogEntry`.
@@ -23,6 +23,9 @@ pub mod catalog_entry {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Entry {
+        /// TODO
+        #[prost(message, tag = "6")]
+        Database(super::DatabaseEntry),
         #[prost(message, tag = "1")]
         Schema(super::SchemaEntry),
         #[prost(message, tag = "2")]
@@ -92,6 +95,8 @@ pub mod entry_meta {
         View = 4,
         /// Connections to external data sources.
         Connection = 5,
+        /// yeah this will work
+        Database = 6,
     }
     impl EntryType {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -106,6 +111,7 @@ pub mod entry_meta {
                 EntryType::ExternalTable => "EXTERNAL_TABLE",
                 EntryType::View => "VIEW",
                 EntryType::Connection => "CONNECTION",
+                EntryType::Database => "DATABASE",
             }
         }
         /// Creates an enum from field names used in the ProtoBuf definition.
@@ -117,10 +123,42 @@ pub mod entry_meta {
                 "EXTERNAL_TABLE" => Some(Self::ExternalTable),
                 "VIEW" => Some(Self::View),
                 "CONNECTION" => Some(Self::Connection),
+                "DATABASE" => Some(Self::Database),
                 _ => None,
             }
         }
     }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DatabaseEntry {
+    #[prost(message, optional, tag = "1")]
+    pub meta: ::core::option::Option<EntryMeta>,
+    #[prost(message, optional, tag = "2")]
+    pub options: ::core::option::Option<DatabaseOptions>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DatabaseOptions {
+    /// TODO
+    #[prost(oneof = "database_options::Options", tags = "1")]
+    pub options: ::core::option::Option<database_options::Options>,
+}
+/// Nested message and enum types in `DatabaseOptions`.
+pub mod database_options {
+    /// TODO
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Options {
+        #[prost(message, tag = "1")]
+        Postgres(super::DatabaseOptionsPostgres),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DatabaseOptionsPostgres {
+    #[prost(string, tag = "1")]
+    pub connection_string: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

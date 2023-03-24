@@ -109,6 +109,7 @@ impl<'a> SessionDispatcher<'a> {
     /// accessed.
     pub async fn dispatch_access(
         &self,
+        database: &str,
         schema: &str,
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {

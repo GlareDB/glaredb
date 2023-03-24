@@ -18,7 +18,7 @@ use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as Arro
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
 
-/// Each GlareDB database only has a single catalog.
+/// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
 
 /// Default schema that's created on every startup.

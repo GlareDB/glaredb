@@ -22,6 +22,7 @@ message CatalogState {
 // Possible top-level catalog entries.
 message CatalogEntry {
   oneof entry {
+    DatabaseEntry database = 6; // TODO
     SchemaEntry schema = 1;
     TableEntry table = 2;
     ViewEntry view = 3;
@@ -48,6 +49,8 @@ message EntryMeta {
     VIEW = 4;
     // Connections to external data sources.
     CONNECTION = 5;
+    // yeah this will work
+    DATABASE = 6;
   }
 
   // Type of the entry.
@@ -74,6 +77,21 @@ message EntryMeta {
 
   // next: 6
 }
+
+message DatabaseEntry {
+  EntryMeta meta = 1;
+
+  DatabaseOptions options = 2;
+
+  // next: 3
+}
+
+message DatabaseOptions {
+  // TODO
+  oneof options { DatabaseOptionsPostgres postgres = 1; }
+}
+
+message DatabaseOptionsPostgres { string connection_string = 1; }
 
 message SchemaEntry {
   EntryMeta meta = 1;

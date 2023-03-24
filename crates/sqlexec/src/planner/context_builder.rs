@@ -15,6 +15,7 @@ use datafusion::sql::planner::object_name_to_table_reference;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::sqlparser::ast::{self, Visitor};
 use datafusion::sql::TableReference;
+use metastore::builtins::DEFAULT_CATALOG;
 use sqlparser::ast::Visit;
 use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
@@ -86,7 +87,11 @@ impl<'a> PlanContextBuilder<'a> {
         match reference.as_table_reference() {
             TableReference::Bare { table } => {
                 for schema in self.ctx.implicit_search_path_iter() {
-                    match dispatcher.dispatch_access(schema, &table).await {
+                    // TODO
+                    match dispatcher
+                        .dispatch_access(DEFAULT_CATALOG, schema, &table)
+                        .await
+                    {
                         Ok(table) => return Ok(table),
                         Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
                         Err(e) => {
@@ -101,9 +106,21 @@ impl<'a> PlanContextBuilder<'a> {
                     reference: reference.to_string(),
                 })
             }
-            TableReference::Full { schema, table, .. }
-            | TableReference::Partial { schema, table } => {
-                let table = dispatcher.dispatch_access(&schema, &table).await?;
+            TableReference::Partial { schema, table } => {
+                // TODO
+                let table = dispatcher
+                    .dispatch_access(DEFAULT_CATALOG, &schema, &table)
+                    .await?;
+                Ok(table)
+            }
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => {
+                let table = dispatcher
+                    .dispatch_access(&catalog, &schema, &table)
+                    .await?;
                 Ok(table)
             }
         }
