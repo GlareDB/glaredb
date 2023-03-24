@@ -248,14 +248,17 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum DatabaseOptions {
     Postgres(DatabaseOptionsPostgres),
+    BigQuery(DatabaseOptionsBigQuery),
 }
 
 impl DatabaseOptions {
     pub const POSTGRES: &str = "postgres";
+    pub const BIGQUERY: &str = "bigquery";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             DatabaseOptions::Postgres(_) => Self::POSTGRES,
+            DatabaseOptions::BigQuery(_) => Self::BIGQUERY,
         }
     }
 }
@@ -273,6 +276,9 @@ impl TryFrom<catalog::database_options::Options> for DatabaseOptions {
             catalog::database_options::Options::Postgres(v) => {
                 DatabaseOptions::Postgres(v.try_into()?)
             }
+            catalog::database_options::Options::Bigquery(v) => {
+                DatabaseOptions::BigQuery(v.try_into()?)
+            }
         })
     }
 }
@@ -288,6 +294,7 @@ impl From<DatabaseOptions> for catalog::database_options::Options {
     fn from(value: DatabaseOptions) -> Self {
         match value {
             DatabaseOptions::Postgres(v) => catalog::database_options::Options::Postgres(v.into()),
+            DatabaseOptions::BigQuery(v) => catalog::database_options::Options::Bigquery(v.into()),
         }
     }
 }
@@ -318,6 +325,31 @@ impl From<DatabaseOptionsPostgres> for catalog::DatabaseOptionsPostgres {
     fn from(value: DatabaseOptionsPostgres) -> Self {
         catalog::DatabaseOptionsPostgres {
             connection_string: value.connection_string,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DatabaseOptionsBigQuery {
+    pub service_account_key: String,
+    pub project_id: String,
+}
+
+impl TryFrom<catalog::DatabaseOptionsBigQuery> for DatabaseOptionsBigQuery {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DatabaseOptionsBigQuery) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsBigQuery {
+            service_account_key: value.service_account_key,
+            project_id: value.project_id,
+        })
+    }
+}
+
+impl From<DatabaseOptionsBigQuery> for catalog::DatabaseOptionsBigQuery {
+    fn from(value: DatabaseOptionsBigQuery) -> Self {
+        catalog::DatabaseOptionsBigQuery {
+            service_account_key: value.service_account_key,
+            project_id: value.project_id,
         }
     }
 }

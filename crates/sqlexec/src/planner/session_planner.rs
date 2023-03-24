@@ -24,9 +24,9 @@ use metastore::types::catalog::{
     ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
     ConnectionOptionsLocal, ConnectionOptionsMongo, ConnectionOptionsMysql,
     ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh, DatabaseOptions,
-    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
-    TableOptionsS3,
+    DatabaseOptionsBigQuery, DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery,
+    TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -73,9 +73,17 @@ impl<'a> SessionPlanner<'a> {
         let m = &mut stmt.options;
 
         let db_options = match stmt.datasource.to_lowercase().as_str() {
-            ConnectionOptions::POSTGRES => {
+            DatabaseOptions::POSTGRES => {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
                 DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
+            }
+            DatabaseOptions::BIGQUERY => {
+                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let project_id = remove_required_opt(m, "project_id")?;
+                DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+                    service_account_key,
+                    project_id,
+                })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
         };

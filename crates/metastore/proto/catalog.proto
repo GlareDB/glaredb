@@ -88,10 +88,18 @@ message DatabaseEntry {
 
 message DatabaseOptions {
   // TODO
-  oneof options { DatabaseOptionsPostgres postgres = 1; }
+  oneof options {
+    DatabaseOptionsPostgres postgres = 1;
+    DatabaseOptionsBigQuery bigquery = 2;
+  }
 }
 
 message DatabaseOptionsPostgres { string connection_string = 1; }
+
+message DatabaseOptionsBigQuery {
+  string service_account_key = 1;
+  string project_id = 2;
+}
 
 message SchemaEntry {
   EntryMeta meta = 1;

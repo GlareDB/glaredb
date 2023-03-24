@@ -21,8 +21,8 @@ use metastore::builtins::{
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
     CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, DatabaseEntry,
-    DatabaseOptions, DatabaseOptionsPostgres, EntryType, ExternalTableEntry, TableOptions,
-    ViewEntry,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsPostgres, EntryType,
+    ExternalTableEntry, TableOptions, ViewEntry,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -173,6 +173,25 @@ impl<'a> SessionDispatcher<'a> {
                     .postgres_predicate_pushdown
                     .value();
                 let accessor = PostgresAccessor::connect(table_access, None).await?;
+                let provider = accessor.into_table_provider(predicate_pushdown).await?;
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+                service_account_key,
+                project_id,
+            }) => {
+                let table_access = BigQueryTableAccess {
+                    gcp_service_acccount_key_json: service_account_key.clone(),
+                    gcp_project_id: project_id.clone(),
+                    dataset_id: schema.to_string(),
+                    table_id: name.to_string(),
+                };
+                let predicate_pushdown = *self
+                    .ctx
+                    .get_session_vars()
+                    .bigquery_predicate_pushdown
+                    .value();
+                let accessor = BigQueryAccessor::connect(table_access).await?;
                 let provider = accessor.into_table_provider(predicate_pushdown).await?;
                 Ok(Arc::new(provider))
             }
