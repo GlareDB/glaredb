@@ -1,6 +1,5 @@
 use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
-use crate::functions::BuiltinScalarFunction;
 use crate::metastore::SupervisorClient;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
@@ -10,12 +9,9 @@ use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::config::{CatalogOptions, ConfigOptions};
-use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use datafusion::scalar::ScalarValue;
-use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
 use futures::future::BoxFuture;
@@ -41,6 +37,8 @@ const IMPLICIT_SCHEMAS: [&str; 1] = [POSTGRES_SCHEMA];
 ///
 /// The context generally does not have to worry about anything external to the
 /// database. Its source of truth is the in-memory catalog.
+// TODO: Need to make session context less pervasive. Pretty much everything in
+// this crate relies on it, make test setup a pain.
 pub struct SessionContext {
     info: Arc<SessionInfo>,
     /// Database catalog.

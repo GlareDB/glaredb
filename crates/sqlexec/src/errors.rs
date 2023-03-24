@@ -1,5 +1,3 @@
-use crate::parser::StatementWithExtensions;
-
 #[derive(Debug, thiserror::Error)]
 pub enum ExecError {
     #[error("SQL statement currently unsupported: {0}")]
