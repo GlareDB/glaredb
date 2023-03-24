@@ -13,13 +13,13 @@ pgrepr = {path = "../pgrepr"}
 thiserror = "1.0"
 tracing = "0.1"
 futures = "0.3.27"
-async-trait = "0.1.66"
+async-trait = "0.1.67"
 datafusion = "20.0"
 tokio-util = { version = "0.7.7", features = ["codec"] }
 bytes = "1.4.0"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11.14", default-features = false, features = ["json", "rustls-tls"] }
-openssl = "0.10.46"
+openssl = "0.10.48"
+reqwest = { version = "0.11.15", default-features = false, features = ["json", "rustls-tls"] }
 tokio-openssl = "0.6.3"
 uuid = { version = "1.3.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tokio-postgres = "0.7.7"
