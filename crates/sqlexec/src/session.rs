@@ -1,10 +1,10 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
-use crate::logical_plan::*;
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::*;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{

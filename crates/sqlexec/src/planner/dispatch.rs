@@ -25,8 +25,6 @@ use metastore::types::catalog::{
 };
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::runtime::Handle;
-use tokio::task;
 use tracing::error;
 
 #[derive(Debug, thiserror::Error)]
@@ -50,7 +48,7 @@ pub enum DispatchError {
     UnhandledEntryType(EntryType),
 
     #[error("failed to do late planning: {0}")]
-    LatePlanning(Box<crate::errors::ExecError>),
+    LatePlanning(Box<crate::planner::errors::PlanError>),
 
     #[error(
         "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
@@ -109,7 +107,11 @@ impl<'a> SessionDispatcher<'a> {
 
     /// Return a datafusion table provider based on how the table should be
     /// accessed.
-    pub fn dispatch_access(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+    pub async fn dispatch_access(
+        &self,
+        schema: &str,
+        name: &str,
+    ) -> Result<Arc<dyn TableProvider>> {
         let catalog = self.ctx.get_session_catalog();
 
         let ent =
@@ -136,23 +138,24 @@ impl<'a> SessionDispatcher<'a> {
         }
 
         match ent {
-            CatalogEntry::View(view) => self.dispatch_view(view),
-            CatalogEntry::ExternalTable(table) => self.dispatch_external_table(table),
+            CatalogEntry::View(view) => self.dispatch_view(view).await,
+            CatalogEntry::ExternalTable(table) => self.dispatch_external_table(table).await,
             // Note that all 'table' entries should have already been handled
             // with the above builtin table dispatcher.
             other => Err(DispatchError::UnhandledEntryType(other.entry_type())),
         }
     }
 
-    fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
+    async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
         let plan = self
             .ctx
             .late_view_plan(&view.sql)
+            .await
             .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 
-    fn dispatch_external_table(
+    async fn dispatch_external_table(
         &self,
         table: &ExternalTableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
@@ -193,16 +196,8 @@ impl<'a> SessionDispatcher<'a> {
                     .get_session_vars()
                     .postgres_predicate_pushdown
                     .value();
-                let result: Result<_, datasource_postgres::errors::PostgresError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor =
-                                PostgresAccessor::connect(table_access, tunn_access).await?;
-                            let provider = accessor.into_table_provider(predicate_pushdown).await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = PostgresAccessor::connect(table_access, tunn_access).await?;
+                let provider = accessor.into_table_provider(predicate_pushdown).await?;
                 Ok(Arc::new(provider))
             }
             (ConnectionOptions::BigQuery(conn), TableOptions::BigQuery(table)) => {
@@ -217,15 +212,8 @@ impl<'a> SessionDispatcher<'a> {
                     .get_session_vars()
                     .bigquery_predicate_pushdown
                     .value();
-                let result: Result<_, datasource_bigquery::errors::BigQueryError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor = BigQueryAccessor::connect(table_access).await?;
-                            let provider = accessor.into_table_provider(predicate_pushdown).await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = BigQueryAccessor::connect(table_access).await?;
+                let provider = accessor.into_table_provider(predicate_pushdown).await?;
                 Ok(Arc::new(provider))
             }
             (ConnectionOptions::Mysql(conn), TableOptions::Mysql(table)) => {
@@ -246,16 +234,8 @@ impl<'a> SessionDispatcher<'a> {
                     .get_session_vars()
                     .postgres_predicate_pushdown
                     .value();
-                let result: Result<_, datasource_mysql::errors::MysqlError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor =
-                                MysqlAccessor::connect(table_access, tunn_access).await?;
-                            let provider = accessor.into_table_provider(predicate_pushdown).await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = MysqlAccessor::connect(table_access, tunn_access).await?;
+                let provider = accessor.into_table_provider(predicate_pushdown).await?;
                 Ok(Arc::new(provider))
             }
             (ConnectionOptions::Local(_), TableOptions::Local(table)) => {
@@ -263,15 +243,8 @@ impl<'a> SessionDispatcher<'a> {
                     location: table.location.clone(),
                     file_type: None,
                 };
-                let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor = LocalAccessor::new(table_access).await?;
-                            let provider = accessor.into_table_provider(true).await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = LocalAccessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }
             (ConnectionOptions::Gcs(conn), TableOptions::Gcs(table)) => {
@@ -281,15 +254,8 @@ impl<'a> SessionDispatcher<'a> {
                     location: table.location.clone(),
                     file_type: None,
                 };
-                let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor = GcsAccessor::new(table_access).await?;
-                            let provider = accessor.into_table_provider(true).await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = GcsAccessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }
             (ConnectionOptions::S3(conn), TableOptions::S3(table)) => {
@@ -301,15 +267,8 @@ impl<'a> SessionDispatcher<'a> {
                     secret_access_key: conn.secret_access_key.clone(),
                     file_type: None,
                 };
-                let result: Result<_, datasource_object_store::errors::ObjectStoreSourceError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor = S3Accessor::new(table_access).await?;
-                            let provider = accessor.into_table_provider(true).await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = S3Accessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }
             (ConnectionOptions::Mongo(conn), TableOptions::Mongo(table)) => {
@@ -320,16 +279,9 @@ impl<'a> SessionDispatcher<'a> {
                     database: table.database.clone(),
                     collection: table.collection.clone(),
                 };
-                let result: Result<_, datasource_mongodb::errors::MongoError> =
-                    task::block_in_place(move || {
-                        Handle::current().block_on(async move {
-                            let accessor = MongoAccessor::connect(access_info).await?;
-                            let table_accessor = accessor.into_table_accessor(table_info);
-                            let provider = table_accessor.into_table_provider().await?;
-                            Ok(provider)
-                        })
-                    });
-                let provider = result?;
+                let accessor = MongoAccessor::connect(access_info).await?;
+                let table_accessor = accessor.into_table_accessor(table_info);
+                let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
             }
             (conn, table) => Err(DispatchError::UnhandledExternalDispatch {

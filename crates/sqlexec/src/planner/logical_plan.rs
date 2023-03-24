@@ -75,6 +75,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
     }
 }
 
+#[allow(dead_code)] // Inserts not constructed anywhere (yet)
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
