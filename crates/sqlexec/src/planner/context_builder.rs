@@ -19,6 +19,7 @@ use sqlparser::ast::Visit;
 use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 use std::sync::Arc;
+use tracing::debug;
 
 /// Helper for building a context provider for use with Datafusion's SQL
 /// planner.
@@ -66,7 +67,30 @@ impl<'a> PlanContextBuilder<'a> {
                 continue;
             }
 
-            let prov = self.table_for_reference(reference).await?;
+            let prov = match self.table_for_reference(reference).await {
+                Ok(prov) => prov,
+                Err(PlanError::FailedToFindTableForReference { .. }) => {
+                    // Our visitor will pull out CTE aliases as table
+                    // references. If we fail to find table provider, assume
+                    // that it's a CTE.
+                    //
+                    // TODO: We can have better logic when walking the ast to
+                    // skip or filter out CTE names to avoid trying to get
+                    // a provider in the first place.
+                    //
+                    // Also note that while trying to resolve when we don't need
+                    // to does have a performance implication, but it will be
+                    // working with the in-memory catalog. However, once we have
+                    // external databases, we'll want to make sure we _never_
+                    // call out to the external system since that would slow
+                    // things down significantly. The current logic means that
+                    // this will be the case, but if we want fancier resolution,
+                    // this is something we'll need to keep an eye on.
+                    debug!(%reference, "skipping plan error, likely CTE");
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
             providers.insert(s, prov);
         }
 
