@@ -602,6 +602,7 @@ where
                 Self::command_complete(conn, "DROP CONNECTION").await?
             }
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
+            ExecutionResult::DropDatabase => Self::command_complete(conn, "DROP DATABASE").await?,
         };
         Ok(())
     }

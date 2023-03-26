@@ -64,6 +64,8 @@ pub enum ExecutionResult {
     DropConnections,
     /// Schemas dropped.
     DropSchemas,
+    /// Database dropped.
+    DropDatabase,
 }
 
 impl ExecutionResult {
@@ -86,6 +88,7 @@ impl ExecutionResult {
             ExecutionResult::DropViews => "drop_views",
             ExecutionResult::DropConnections => "drop_connections",
             ExecutionResult::DropSchemas => "drop_schemas",
+            ExecutionResult::DropDatabase => "drop_database",
         }
     }
 }
@@ -114,6 +117,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::DropViews => write!(f, "drop views"),
             ExecutionResult::DropConnections => write!(f, "drop connections"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
+            ExecutionResult::DropDatabase => write!(f, "drop database"),
         }
     }
 }
@@ -214,6 +218,11 @@ impl Session {
 
     pub(crate) async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
         self.ctx.drop_schemas(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
+        self.ctx.drop_database(plan).await?;
         Ok(())
     }
 
@@ -341,6 +350,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
                 self.drop_schemas(plan).await?;
                 ExecutionResult::DropSchemas
+            }
+            LogicalPlan::Ddl(DdlPlan::DropDatabase(plan)) => {
+                self.drop_database(plan).await?;
+                ExecutionResult::DropDatabase
             }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert(plan).await?;

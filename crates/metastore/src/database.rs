@@ -1,5 +1,8 @@
 //! Module for handling the catalog for a single database.
-use crate::builtins::{BuiltinSchema, BuiltinTable, BuiltinView, FIRST_NON_SCHEMA_ID};
+use crate::builtins::{
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
+    FIRST_NON_SCHEMA_ID,
+};
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::types::catalog::{
@@ -17,8 +20,8 @@ use tokio::sync::{Mutex, MutexGuard};
 use tracing::debug;
 use uuid::Uuid;
 
-/// Special id indicating that schemas have no parents.
-const SCHEMA_PARENT_ID: u32 = 0;
+/// Special id indicating that databases have no parents.
+const DATABASE_PARENT_ID: u32 = 0;
 
 /// A global builtin catalog. This is meant to be cloned for every database
 /// catalog.
@@ -183,6 +186,8 @@ struct State {
     oid_counter: u32,
     /// All entries in the catalog.
     entries: HashMap<u32, CatalogEntry>,
+    /// Map database names to their ids.
+    database_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -200,6 +205,7 @@ impl State {
             version: persisted.state.version,
             oid_counter: persisted.extra.oid_counter,
             entries: persisted.state.entries,
+            database_names: HashMap::new(),
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
         };
@@ -217,20 +223,36 @@ impl State {
         // Extend with builtin objects.
         let builtin = BUILTIN_CATALOG.clone();
         state.entries.extend(builtin.entries);
+        state.database_names.extend(builtin.database_names);
         state.schema_names.extend(builtin.schema_names);
         state.schema_objects.extend(builtin.schema_objects);
 
         // Rebuild name maps for user objects.
+        //
+        // All non-database objects are checked to ensure they have non-zero
+        // parent ids.
         for (oid, entry) in state
             .entries
             .iter()
             .filter(|(_, ent)| !ent.get_meta().builtin)
         {
-            if entry.is_schema() {
-                if entry.get_meta().parent != SCHEMA_PARENT_ID {
-                    return Err(MetastoreError::SchemaHasNonZeroParent {
-                        schema: *oid,
+            if entry.is_database() {
+                if entry.get_meta().parent != DATABASE_PARENT_ID {
+                    return Err(MetastoreError::DatabaseHasNonZeroParent {
+                        database: *oid,
                         parent: entry.get_meta().parent,
+                    });
+                }
+
+                state
+                    .database_names
+                    .insert(entry.get_meta().name.clone(), *oid);
+            } else if entry.is_schema() {
+                if entry.get_meta().parent == DATABASE_PARENT_ID {
+                    return Err(MetastoreError::ObjectHasInvalidParentId {
+                        object: *oid,
+                        parent: entry.get_meta().parent,
+                        object_type: "schema",
                     });
                 }
 
@@ -238,12 +260,11 @@ impl State {
                     .schema_names
                     .insert(entry.get_meta().name.clone(), *oid);
             } else {
-                // Only schemas may have a parent with ID 0. All other objects
-                // must have non-zero parent IDs.
-                if entry.get_meta().parent == SCHEMA_PARENT_ID {
+                if entry.get_meta().parent == DATABASE_PARENT_ID {
                     return Err(MetastoreError::ObjectHasInvalidParentId {
                         object: *oid,
                         parent: entry.get_meta().parent,
+                        object_type: entry.get_meta().entry_type.as_str(),
                     });
                 }
 
@@ -303,6 +324,9 @@ impl State {
 
         for mutation in mutations {
             match mutation {
+                Mutation::DropDatabase(drop_database) => {
+                    unimplemented!()
+                }
                 Mutation::DropSchema(drop_schema) => {
                     let if_exists = drop_schema.if_exists;
                     let schema_id = match self.schema_names.remove(&drop_schema.name) {
@@ -372,7 +396,7 @@ impl State {
                         meta: EntryMeta {
                             entry_type: EntryType::Database,
                             id: oid,
-                            parent: SCHEMA_PARENT_ID, // TODO: Change?
+                            parent: DATABASE_PARENT_ID,
                             name: create_database.name.clone(),
                             builtin: false,
                         },
@@ -380,7 +404,7 @@ impl State {
                     };
                     self.entries.insert(oid, CatalogEntry::Database(ent));
 
-                    // TODO: Add to "database".
+                    // TODO: Add to "database" map.
                 }
                 Mutation::CreateSchema(create_schema) => {
                     // TODO: If not exists.
@@ -394,7 +418,7 @@ impl State {
                         meta: EntryMeta {
                             entry_type: EntryType::Schema,
                             id: oid,
-                            parent: SCHEMA_PARENT_ID,
+                            parent: DATABASE_DEFAULT.oid, // Schemas can only be created in the default builtin database for now.
                             name: create_schema.name.clone(),
                             builtin: false,
                         },
@@ -539,6 +563,8 @@ struct SchemaObjects {
 struct BuiltinCatalog {
     /// All entries in the catalog.
     entries: HashMap<u32, CatalogEntry>,
+    /// Map database names to their ids.
+    database_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -551,8 +577,13 @@ impl BuiltinCatalog {
     /// It is a programmer error if this fails to build.
     fn new() -> Result<BuiltinCatalog> {
         let mut entries = HashMap::new();
+        let mut database_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
+
+        for database in BuiltinDatabase::builtins() {
+            database_names.insert(database.name.to_string(), database.oid);
+        }
 
         for schema in BuiltinSchema::builtins() {
             schema_names.insert(schema.name.to_string(), schema.oid);
@@ -563,7 +594,7 @@ impl BuiltinCatalog {
                     meta: EntryMeta {
                         entry_type: EntryType::Schema,
                         id: schema.oid,
-                        parent: SCHEMA_PARENT_ID,
+                        parent: DATABASE_DEFAULT.oid,
                         name: schema.name.to_string(),
                         builtin: true,
                     },
@@ -628,6 +659,7 @@ impl BuiltinCatalog {
 
         Ok(BuiltinCatalog {
             entries,
+            database_names,
             schema_names,
             schema_objects,
         })

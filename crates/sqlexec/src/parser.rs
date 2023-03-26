@@ -81,12 +81,12 @@ impl fmt::Display for CreateExternalDatabaseStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DropDatabase {
+pub struct DropDatabaseStmt {
     pub name: String,
     pub if_exists: bool,
 }
 
-impl fmt::Display for DropDatabase {
+impl fmt::Display for DropDatabaseStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DROP DATABASE ")?;
         if self.if_exists {
@@ -159,7 +159,7 @@ pub enum StatementWithExtensions {
     CreateExternalTable(CreateExternalTableStmt),
     /// Create external database extension.
     CreateExternalDatabase(CreateExternalDatabaseStmt),
-    DropDatabase(DropDatabase),
+    DropDatabase(DropDatabaseStmt),
     /// Create connection extension.
     CreateConnection(CreateConnectionStmt),
     /// Drop connection extension.
@@ -428,7 +428,7 @@ impl<'a> CustomParser<'a> {
     fn parse_drop_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
         let name = self.parser.parse_identifier()?;
-        Ok(StatementWithExtensions::DropDatabase(DropDatabase {
+        Ok(StatementWithExtensions::DropDatabase(DropDatabaseStmt {
             name: name.value,
             if_exists,
         }))

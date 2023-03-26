@@ -252,6 +252,15 @@ impl SessionContext {
         Ok(())
     }
 
+    pub async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
+        self.mutate_catalog([Mutation::DropDatabase(service::DropDatabase {
+            name: plan.name,
+            if_exists: plan.if_exists,
+        })])
+        .await?;
+        Ok(())
+    }
+
     /// Get a connection entry from the catalog by name.
     pub fn get_connection_by_name(&self, name: &str) -> Result<&ConnectionEntry> {
         let (_, schema, name) = self.resolve_object_reference(name.into())?;

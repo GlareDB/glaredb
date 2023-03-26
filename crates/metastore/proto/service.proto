@@ -33,6 +33,7 @@ message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
 // Possible mutations to make.
 message Mutation {
   oneof mutation {
+    DropDatabase drop_database = 8;
     DropSchema drop_schema = 1;
     DropObject drop_object = 2;
     CreateSchema create_schema = 3;
@@ -42,6 +43,11 @@ message Mutation {
     CreateDatabase create_database = 7;
   }
   // next: 7
+}
+
+message DropDatabase {
+  string name = 1;
+  bool if_exists = 2;
 }
 
 message DropSchema {

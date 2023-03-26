@@ -111,6 +111,7 @@ pub enum DdlPlan {
     DropViews(DropViews),
     DropConnections(DropConnections),
     DropSchemas(DropSchemas),
+    DropDatabase(DropDatabase),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -189,6 +190,12 @@ pub struct DropConnections {
 #[derive(Clone, Debug)]
 pub struct DropSchemas {
     pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DropDatabase {
+    pub name: String,
     pub if_exists: bool,
 }
 

@@ -5,6 +5,7 @@ use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum Mutation {
+    DropDatabase(DropDatabase),
     DropSchema(DropSchema),
     DropObject(DropObject),
     CreateSchema(CreateSchema),
@@ -25,6 +26,7 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
     type Error = ProtoConvError;
     fn try_from(value: service::mutation::Mutation) -> Result<Self, Self::Error> {
         Ok(match value {
+            service::mutation::Mutation::DropDatabase(v) => Mutation::DropDatabase(v.try_into()?),
             service::mutation::Mutation::DropSchema(v) => Mutation::DropSchema(v.try_into()?),
             service::mutation::Mutation::DropObject(v) => Mutation::DropObject(v.try_into()?),
             service::mutation::Mutation::CreateSchema(v) => Mutation::CreateSchema(v.try_into()?),
@@ -46,6 +48,7 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
     type Error = ProtoConvError;
     fn try_from(value: Mutation) -> Result<Self, Self::Error> {
         Ok(match value {
+            Mutation::DropDatabase(v) => service::mutation::Mutation::DropDatabase(v.into()),
             Mutation::DropSchema(v) => service::mutation::Mutation::DropSchema(v.into()),
             Mutation::DropObject(v) => service::mutation::Mutation::DropObject(v.into()),
             Mutation::CreateSchema(v) => service::mutation::Mutation::CreateSchema(v.into()),
@@ -67,6 +70,32 @@ impl TryFrom<Mutation> for service::Mutation {
         Ok(service::Mutation {
             mutation: Some(value.try_into()?),
         })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DropDatabase {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+impl TryFrom<service::DropDatabase> for DropDatabase {
+    type Error = ProtoConvError;
+    fn try_from(value: service::DropDatabase) -> Result<Self, Self::Error> {
+        // TODO: Check if string is zero value.
+        Ok(DropDatabase {
+            name: value.name,
+            if_exists: value.if_exists,
+        })
+    }
+}
+
+impl From<DropDatabase> for service::DropDatabase {
+    fn from(value: DropDatabase) -> Self {
+        service::DropDatabase {
+            name: value.name,
+            if_exists: value.if_exists,
+        }
     }
 }
 

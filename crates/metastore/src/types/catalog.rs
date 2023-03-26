@@ -67,6 +67,10 @@ impl CatalogEntry {
         }
     }
 
+    pub const fn is_database(&self) -> bool {
+        matches!(self, CatalogEntry::Database(_))
+    }
+
     pub const fn is_schema(&self) -> bool {
         matches!(self, CatalogEntry::Schema(_))
     }
@@ -132,6 +136,19 @@ pub enum EntryType {
     Table,
     View,
     Connection,
+}
+
+impl EntryType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EntryType::Database => "database",
+            EntryType::Schema => "schema",
+            EntryType::ExternalTable => "external table",
+            EntryType::Table => "table",
+            EntryType::View => "view",
+            EntryType::Connection => "connection",
+        }
+    }
 }
 
 impl TryFrom<i32> for EntryType {

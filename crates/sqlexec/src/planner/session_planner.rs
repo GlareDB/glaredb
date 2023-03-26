@@ -1,7 +1,7 @@
 use crate::context::SessionContext;
 use crate::parser::{
     CreateConnectionStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, DropConnectionStmt,
-    StatementWithExtensions,
+    DropDatabaseStmt, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -59,11 +59,11 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateExternalDatabase(stmt) => {
                 self.plan_create_database(stmt).await
             }
-            StatementWithExtensions::DropDatabase(stmt) => unimplemented!(),
             StatementWithExtensions::CreateConnection(stmt) => {
                 self.plan_create_connection(stmt).await
             }
             StatementWithExtensions::DropConnection(stmt) => self.plan_drop_connection(stmt),
+            StatementWithExtensions::DropDatabase(stmt) => self.plan_drop_database(stmt),
         }
     }
 
@@ -639,6 +639,14 @@ impl<'a> SessionPlanner<'a> {
         Ok(DdlPlan::DropConnections(DropConnections {
             if_exists: stmt.if_exists,
             names: stmt.names,
+        })
+        .into())
+    }
+
+    fn plan_drop_database(&self, stmt: DropDatabaseStmt) -> Result<LogicalPlan> {
+        Ok(DdlPlan::DropDatabase(DropDatabase {
+            name: stmt.name,
+            if_exists: stmt.if_exists,
         })
         .into())
     }

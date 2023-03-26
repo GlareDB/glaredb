@@ -56,6 +56,8 @@ pub struct EntryMeta {
     /// For tables and views, the parent id will be the schema id.
     ///
     /// For schemas, the parent will be the database id.
+    ///
+    /// Database entries will have a parent id of 0.
     #[prost(uint32, tag = "3")]
     pub parent: u32,
     /// Name of this entry.

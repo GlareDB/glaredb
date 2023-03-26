@@ -72,7 +72,7 @@ pub struct FetchCatalogResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Mutation {
-    #[prost(oneof = "mutation::Mutation", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "mutation::Mutation", tags = "8, 1, 2, 3, 4, 5, 6, 7")]
     pub mutation: ::core::option::Option<mutation::Mutation>,
 }
 /// Nested message and enum types in `Mutation`.
@@ -80,6 +80,8 @@ pub mod mutation {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Mutation {
+        #[prost(message, tag = "8")]
+        DropDatabase(super::DropDatabase),
         #[prost(message, tag = "1")]
         DropSchema(super::DropSchema),
         #[prost(message, tag = "2")]
@@ -95,6 +97,14 @@ pub mod mutation {
         #[prost(message, tag = "7")]
         CreateDatabase(super::CreateDatabase),
     }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DropDatabase {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

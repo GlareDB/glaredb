@@ -73,6 +73,8 @@ message EntryMeta {
   // For tables and views, the parent id will be the schema id.
   //
   // For schemas, the parent will be the database id.
+  //
+  // Database entries will have a parent id of 0.
   uint32 parent = 3;
 
   // Name of this entry.
