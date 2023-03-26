@@ -128,7 +128,7 @@ pub struct TableOptionsMysql {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptionsLocal {
     #[prost(string, tag = "1")]
-    pub locations: ::prost::alloc::string::String,
+    pub location: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

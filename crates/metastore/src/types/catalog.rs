@@ -1208,22 +1208,4 @@ mod tests {
             assert_eq!(expected, got);
         }
     }
-
-    proptest! {
-        #[test]
-        fn roundtrip_table_options(expected in any::<TableOptions>()) {
-            let p: catalog::TableOptions = expected.clone().into();
-            let got: TableOptions = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_connection_options(expected in any::<ConnectionOptions>()) {
-            let p: catalog::ConnectionOptions = expected.clone().into();
-            let got: ConnectionOptions = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
 }

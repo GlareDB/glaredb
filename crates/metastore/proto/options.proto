@@ -78,7 +78,7 @@ message TableOptionsMysql {
   string table = 3;
 }
 
-message TableOptionsLocal { string locations = 1; }
+message TableOptionsLocal { string location = 1; }
 
 message TableOptionsGcs {
   string service_account_key = 1;
