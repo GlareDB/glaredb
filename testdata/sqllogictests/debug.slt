@@ -9,6 +9,8 @@ set search_path = debug_datasources;
 statement ok
 set enable_debug_datasources to false;
 
+halt
+
 # Ensure we can't create a debug connection if above var is false.
 
 statement error

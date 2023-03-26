@@ -11,6 +11,8 @@ set enable_debug_datasources to t;
 
 # Create some connections.
 
+halt
+
 statement ok
 create connection c1 for debug;
 

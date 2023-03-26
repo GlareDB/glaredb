@@ -6,8 +6,6 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::ssh::SshKey;
-use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -23,10 +21,11 @@ use metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
 use metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsPostgres, TableOptions,
-    TableOptionsInternal, TableOptionsPostgres,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3,
 };
-use std::str::FromStr;
 use std::sync::Arc;
 use tracing::error;
 
@@ -52,14 +51,6 @@ pub enum DispatchError {
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::planner::errors::PlanError>),
-
-    #[error(
-        "Unhandled external dispatch; table type: {table_type}, connection type: {connection_type}"
-    )]
-    UnhandledExternalDispatch {
-        table_type: String,
-        connection_type: String,
-    },
 
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
@@ -160,6 +151,7 @@ impl<'a> SessionDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         match &db.options {
             DatabaseOptions::Internal(_) => unimplemented!(),
+            DatabaseOptions::Debug(_) => unimplemented!(),
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let table_access = PostgresTableAccess {
                     schema: schema.to_string(),
@@ -167,13 +159,8 @@ impl<'a> SessionDispatcher<'a> {
                     connection_string: connection_string.clone(),
                 };
 
-                let predicate_pushdown = *self
-                    .ctx
-                    .get_session_vars()
-                    .postgres_predicate_pushdown
-                    .value();
                 let accessor = PostgresAccessor::connect(table_access, None).await?;
-                let provider = accessor.into_table_provider(predicate_pushdown).await?;
+                let provider = accessor.into_table_provider(true).await?;
                 Ok(Arc::new(provider))
             }
             DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
@@ -186,31 +173,42 @@ impl<'a> SessionDispatcher<'a> {
                     dataset_id: schema.to_string(),
                     table_id: name.to_string(),
                 };
-                let predicate_pushdown = *self
-                    .ctx
-                    .get_session_vars()
-                    .bigquery_predicate_pushdown
-                    .value();
+
                 let accessor = BigQueryAccessor::connect(table_access).await?;
-                let provider = accessor.into_table_provider(predicate_pushdown).await?;
+                let provider = accessor.into_table_provider(true).await?;
                 Ok(Arc::new(provider))
             }
-            _ => unimplemented!(),
-        }
-    }
+            DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
+                let table_access = MysqlTableAccess {
+                    schema: schema.to_string(),
+                    name: name.to_string(),
+                    connection_string: connection_string.clone(),
+                };
 
-    async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
-        let plan = self
-            .ctx
-            .late_view_plan(&view.sql)
-            .await
-            .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
-        Ok(Arc::new(ViewTable::try_new(plan, None)?))
+                let accessor = MysqlAccessor::connect(table_access, None).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
+                let access_info = MongoAccessInfo {
+                    connection_string: connection_string.clone(),
+                };
+                let table_info = MongoTableAccessInfo {
+                    database: schema.to_string(), // A mongodb database is pretty much a schema.
+                    collection: name.to_string(),
+                };
+                let accessor = MongoAccessor::connect(access_info).await?;
+                let table_accessor = accessor.into_table_accessor(table_info);
+                let provider = table_accessor.into_table_provider().await?;
+                Ok(Arc::new(provider))
+            }
+        }
     }
 
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         match &table.options {
             TableOptions::Internal(TableOptionsInternal {}) => unimplemented!(),
+            TableOptions::Debug(TableOptionsDebug {}) => unimplemented!(),
             TableOptions::Postgres(TableOptionsPostgres {
                 connection_string,
                 schema,
@@ -222,17 +220,112 @@ impl<'a> SessionDispatcher<'a> {
                     connection_string: connection_string.clone(),
                 };
 
-                let predicate_pushdown = *self
-                    .ctx
-                    .get_session_vars()
-                    .postgres_predicate_pushdown
-                    .value();
                 let accessor = PostgresAccessor::connect(table_access, None).await?;
-                let provider = accessor.into_table_provider(predicate_pushdown).await?;
+                let provider = accessor.into_table_provider(true).await?;
                 Ok(Arc::new(provider))
             }
-            _ => unimplemented!(),
+            TableOptions::BigQuery(TableOptionsBigQuery {
+                service_account_key,
+                project_id,
+                dataset_id,
+                table_id,
+            }) => {
+                let table_access = BigQueryTableAccess {
+                    gcp_service_acccount_key_json: service_account_key.to_string(),
+                    gcp_project_id: project_id.to_string(),
+                    dataset_id: dataset_id.to_string(),
+                    table_id: table_id.to_string(),
+                };
+
+                let accessor = BigQueryAccessor::connect(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(Arc::new(provider))
+            }
+            TableOptions::Mysql(TableOptionsMysql {
+                connection_string,
+                schema,
+                table,
+            }) => {
+                let table_access = MysqlTableAccess {
+                    schema: schema.clone(),
+                    name: table.clone(),
+                    connection_string: connection_string.clone(),
+                };
+
+                let accessor = MysqlAccessor::connect(table_access, None).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(Arc::new(provider))
+            }
+            TableOptions::Mongo(TableOptionsMongo {
+                connection_string,
+                database,
+                collection,
+            }) => {
+                let access_info = MongoAccessInfo {
+                    connection_string: connection_string.clone(),
+                };
+                let table_info = MongoTableAccessInfo {
+                    database: database.to_string(),
+                    collection: collection.to_string(),
+                };
+                let accessor = MongoAccessor::connect(access_info).await?;
+                let table_accessor = accessor.into_table_accessor(table_info);
+                let provider = table_accessor.into_table_provider().await?;
+                Ok(Arc::new(provider))
+            }
+            TableOptions::Local(TableOptionsLocal { location }) => {
+                let table_access = LocalTableAccess {
+                    location: location.clone(),
+                    file_type: None,
+                };
+                let accessor = LocalAccessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(provider)
+            }
+            TableOptions::Gcs(TableOptionsGcs {
+                service_account_key,
+                bucket,
+                location,
+            }) => {
+                let table_access = GcsTableAccess {
+                    service_acccount_key_json: service_account_key.clone(),
+                    bucket_name: bucket.clone(),
+                    location: location.clone(),
+                    file_type: None,
+                };
+                let accessor = GcsAccessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(provider)
+            }
+            TableOptions::S3(TableOptionsS3 {
+                access_key_id,
+                secret_access_key,
+                region,
+                bucket,
+                location,
+            }) => {
+                let table_access = S3TableAccess {
+                    region: region.clone(),
+                    bucket_name: bucket.clone(),
+                    location: location.clone(),
+                    access_key_id: access_key_id.clone(),
+                    secret_access_key: secret_access_key.clone(),
+                    file_type: None,
+                };
+                let accessor = S3Accessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(provider)
+            }
         }
+    }
+
+    async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
+        let plan = self
+            .ctx
+            .late_view_plan(&view.sql)
+            .await
+            .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
+        Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 }
 

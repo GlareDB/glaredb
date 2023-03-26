@@ -21,8 +21,8 @@ pub struct CreateExternalTableStmt {
     pub name: String,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
-    /// The connection name for the table.
-    pub connection: String,
+    /// Data source type.
+    pub datasource: String,
     /// Datasource specific options.
     pub options: BTreeMap<String, String>,
 }
@@ -33,7 +33,7 @@ impl fmt::Display for CreateExternalTableStmt {
         if self.if_not_exists {
             write!(f, "IF NOT EXISTS ")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.connection)?;
+        write!(f, "{} FROM {} ", self.name, self.datasource)?;
 
         let opts = self
             .options
@@ -94,60 +94,6 @@ impl fmt::Display for DropDatabaseStmt {
         }
 
         write!(f, "{}", self.name)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CreateConnectionStmt {
-    /// Name of the connection.
-    pub name: String,
-    /// Optionatlly don't error if the connection already exists.
-    pub if_not_exists: bool,
-    /// The data source the connection is for.
-    pub datasource: String,
-    /// Options for the connection.
-    pub options: BTreeMap<String, String>,
-}
-
-impl fmt::Display for CreateConnectionStmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE CONNECTION ")?;
-        if self.if_not_exists {
-            write!(f, "IF NOT EXISTS ")?;
-        }
-        write!(f, "{} FOR {} ", self.name, self.datasource)?;
-
-        let opts = self
-            .options
-            .iter()
-            // TODO: Make this more flexible in the future to accept non-quoted values. Especailly
-            // helpful for ssh ports which people will often try to provide as a non-quoted number
-            .map(|(k, v)| format!("{} = '{}'", k, v))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        write!(f, "OPTIONS ({})", opts)?;
-        Ok(())
-    }
-}
-
-/// DDL extension for GlareDB's drop connection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DropConnectionStmt {
-    /// Name of the connections
-    pub names: Vec<String>,
-    /// Optionally don't error if table does not exists.
-    pub if_exists: bool,
-}
-
-impl fmt::Display for DropConnectionStmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DROP CONNECTION ")?;
-        if self.if_exists {
-            write!(f, "IF EXISTS ")?;
-        }
-
-        write!(f, "{}", self.names.join(", "))
     }
 }
 
@@ -279,7 +225,7 @@ impl<'a> CustomParser<'a> {
             CreateExternalTableStmt {
                 name: name.to_string(),
                 if_not_exists,
-                connection: datasource,
+                datasource,
                 options,
             },
         ))
@@ -412,7 +358,7 @@ mod tests {
         let stmt = CreateExternalTableStmt {
             name: "test".to_string(),
             if_not_exists: false,
-            connection: "postgres".to_string(),
+            datasource: "postgres".to_string(),
             options,
         };
 
@@ -437,7 +383,7 @@ mod tests {
             StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
                 name: "test".to_string(),
                 if_not_exists: false,
-                connection: "postgres".to_string(),
+                datasource: "postgres".to_string(),
                 options,
             }),
             stmt

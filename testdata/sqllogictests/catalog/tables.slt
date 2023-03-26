@@ -16,6 +16,8 @@ select external, connection_oid from glare_catalog.tables where schema_name = 'g
 ----
 f   NULL
 
+halt
+
 statement ok
 create connection c1 for debug;
 
