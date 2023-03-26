@@ -20,13 +20,8 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
-use metastore::types::catalog::{
-    ConnectionOptions, ConnectionOptionsBigQuery, ConnectionOptionsDebug, ConnectionOptionsGcs,
-    ConnectionOptionsLocal, ConnectionOptionsMongo, ConnectionOptionsMysql,
-    ConnectionOptionsPostgres, ConnectionOptionsS3, ConnectionOptionsSsh, DatabaseOptions,
-    DatabaseOptionsBigQuery, DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery,
-    TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsPostgres, TableOptionsS3,
+use metastore::types::options::{
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsPostgres,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -54,15 +49,12 @@ impl<'a> SessionPlanner<'a> {
         match statement {
             StatementWithExtensions::Statement(stmt) => self.plan_statement(stmt).await,
             StatementWithExtensions::CreateExternalTable(stmt) => {
-                self.plan_create_external_table(stmt).await
+                unimplemented!()
+                // self.plan_create_external_table(stmt).await
             }
             StatementWithExtensions::CreateExternalDatabase(stmt) => {
                 self.plan_create_database(stmt).await
             }
-            StatementWithExtensions::CreateConnection(stmt) => {
-                self.plan_create_connection(stmt).await
-            }
-            StatementWithExtensions::DropConnection(stmt) => self.plan_drop_connection(stmt),
             StatementWithExtensions::DropDatabase(stmt) => self.plan_drop_database(stmt),
         }
     }
@@ -89,348 +81,227 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
-        let plan = CreateDatabase {
+        let plan = CreateExternalDatabase {
             database_name: stmt.name,
             if_not_exists: stmt.if_not_exists,
             options: db_options,
         };
 
-        Ok(LogicalPlan::Ddl(DdlPlan::CreateDatabase(plan)))
+        Ok(LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)))
     }
 
-    async fn plan_create_connection(&self, mut stmt: CreateConnectionStmt) -> Result<LogicalPlan> {
-        let m = &mut stmt.options;
+    // async fn plan_create_external_table(
+    //     &self,
+    //     mut stmt: CreateExternalTableStmt,
+    // ) -> Result<LogicalPlan> {
+    //     let m = &mut stmt.options;
 
-        let connection_options = match stmt.datasource.to_lowercase().as_str() {
-            ConnectionOptions::POSTGRES => {
-                let connection_string = remove_required_opt(m, "postgres_conn")?;
-                let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
+    //     let conn = stmt.connection.to_lowercase();
+    //     let conn = self.ctx.get_connection_by_name(&conn)?;
 
-                let (tunn_id, access) = match ssh_tunnel {
-                    Some(name) => Some(self.ctx.get_ssh_tunnel_access_by_name(&name)?).unzip(),
-                    None => None.unzip(),
-                };
+    //     let (external_table_options, external_table_columns) = match &conn.options {
+    //         ConnectionOptions::Debug(_) => {
+    //             let typ = remove_required_opt(m, "table_type")?;
+    //             let typ = DebugTableType::from_str(&typ)?;
+    //             let columns = typ.arrow_schema().fields;
 
-                PostgresAccessor::validate_connection(&connection_string, access)
-                    .await
-                    .map_err(|e| PlanError::InvalidConnection {
-                        source: Box::new(e),
-                    })?;
+    //             (
+    //                 TableOptions::Debug(TableOptionsDebug {
+    //                     table_type: typ.to_string(),
+    //                 }),
+    //                 columns,
+    //             )
+    //         }
+    //         ConnectionOptions::Postgres(options) => {
+    //             let source_schema = remove_required_opt(m, "schema")?;
+    //             let source_table = remove_required_opt(m, "table")?;
 
-                ConnectionOptions::Postgres(ConnectionOptionsPostgres {
-                    connection_string,
-                    ssh_tunnel: tunn_id,
-                })
-            }
-            ConnectionOptions::BIGQUERY => {
-                let service_account_key = remove_required_opt(m, "service_account_key")?;
-                let project_id = remove_required_opt(m, "project_id")?;
+    //             let access = PostgresTableAccess {
+    //                 schema: source_schema,
+    //                 name: source_table,
+    //                 connection_string: options.connection_string.to_owned(),
+    //             };
+    //             let tunn_access = options
+    //                 .ssh_tunnel
+    //                 .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
+    //                 .transpose()?;
 
-                let options = ConnectionOptionsBigQuery {
-                    service_account_key,
-                    project_id,
-                };
+    //             let arrow_schema =
+    //                 PostgresAccessor::validate_table_access(&access, tunn_access.as_ref())
+    //                     .await
+    //                     .map_err(|e| PlanError::InvalidExternalTable {
+    //                         source: Box::new(e),
+    //                     })?;
 
-                BigQueryAccessor::validate_connection(&options)
-                    .await
-                    .map_err(|e| PlanError::InvalidConnection {
-                        source: Box::new(e),
-                    })?;
+    //             (
+    //                 TableOptions::Postgres(TableOptionsPostgres {
+    //                     schema: access.schema,
+    //                     table: access.name,
+    //                 }),
+    //                 arrow_schema.fields,
+    //             )
+    //         }
+    //         ConnectionOptions::BigQuery(options) => {
+    //             let dataset_id = remove_required_opt(m, "dataset_id")?;
+    //             let table_id = remove_required_opt(m, "table_id")?;
 
-                ConnectionOptions::BigQuery(options)
-            }
-            ConnectionOptions::MYSQL => {
-                let connection_string = remove_required_opt(m, "mysql_conn")?;
-                let ssh_tunnel = remove_optional_opt(m, "ssh_tunnel");
+    //             let access = BigQueryTableAccess {
+    //                 gcp_service_acccount_key_json: options.service_account_key.to_owned(),
+    //                 gcp_project_id: options.project_id.to_owned(),
+    //                 dataset_id,
+    //                 table_id,
+    //             };
 
-                let (tunn_id, access) = match ssh_tunnel {
-                    Some(name) => Some(self.ctx.get_ssh_tunnel_access_by_name(&name)?).unzip(),
-                    None => None.unzip(),
-                };
+    //             BigQueryAccessor::validate_table_access(&access)
+    //                 .await
+    //                 .map_err(|e| PlanError::InvalidExternalTable {
+    //                     source: Box::new(e),
+    //                 })?;
 
-                MysqlAccessor::validate_connection(&connection_string, access)
-                    .await
-                    .map_err(|e| PlanError::InvalidConnection {
-                        source: Box::new(e),
-                    })?;
+    //             (
+    //                 TableOptions::BigQuery(TableOptionsBigQuery {
+    //                     dataset_id: access.dataset_id,
+    //                     table_id: access.table_id,
+    //                 }),
+    //                 // TODO: return column info for this datasource
+    //                 vec![],
+    //             )
+    //         }
+    //         ConnectionOptions::Mysql(options) => {
+    //             let source_schema = remove_required_opt(m, "schema")?;
+    //             let source_table = remove_required_opt(m, "table")?;
 
-                ConnectionOptions::Mysql(ConnectionOptionsMysql {
-                    connection_string,
-                    ssh_tunnel: tunn_id,
-                })
-            }
-            ConnectionOptions::LOCAL => ConnectionOptions::Local(ConnectionOptionsLocal {}),
-            // TODO: create connection validation
-            ConnectionOptions::GCS => {
-                let service_account_key = remove_required_opt(m, "service_account_key")?;
-                ConnectionOptions::Gcs(ConnectionOptionsGcs {
-                    service_account_key,
-                })
-            }
-            // TODO: create connection validation
-            ConnectionOptions::S3_STORAGE => {
-                // Require `access_key_id` and `secret_access_key` as per access key generated on
-                // AWS IAM
-                let access_key_id = remove_required_opt(m, "access_key_id")?;
-                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
-                ConnectionOptions::S3(ConnectionOptionsS3 {
-                    access_key_id,
-                    secret_access_key,
-                })
-            }
-            ConnectionOptions::SSH => {
-                let host = remove_required_opt(m, "host")?;
-                let user = remove_required_opt(m, "user")?;
-                let port: u16 = remove_required_opt(m, "port")?.parse()?;
+    //             let access = MysqlTableAccess {
+    //                 schema: source_schema,
+    //                 name: source_table,
+    //                 connection_string: options.connection_string.clone(),
+    //             };
+    //             let tunn_access = options
+    //                 .ssh_tunnel
+    //                 .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
+    //                 .transpose()?;
 
-                // Generate random ssh keypair
-                let keypair = SshKey::generate_random()?.to_bytes()?;
+    //             MysqlAccessor::validate_table_access(&access, tunn_access)
+    //                 .await
+    //                 .map_err(|e| PlanError::InvalidExternalTable {
+    //                     source: Box::new(e),
+    //                 })?;
 
-                ConnectionOptions::Ssh(ConnectionOptionsSsh {
-                    host,
-                    user,
-                    port,
-                    keypair,
-                })
-            }
-            ConnectionOptions::MONGO => {
-                let conn_str = remove_required_opt(m, "mongo_conn")?;
+    //             (
+    //                 TableOptions::Mysql(TableOptionsMysql {
+    //                     schema: access.schema,
+    //                     table: access.name,
+    //                 }),
+    //                 // TODO: return column info for this datasource
+    //                 vec![],
+    //             )
+    //         }
+    //         ConnectionOptions::Local(_) => {
+    //             let location = remove_required_opt(m, "location")?;
 
-                // TODO: Validate
+    //             let access = LocalTableAccess {
+    //                 location: location.clone(),
+    //                 file_type: None,
+    //             };
 
-                ConnectionOptions::Mongo(ConnectionOptionsMongo {
-                    connection_string: conn_str,
-                })
-            }
-            ConnectionOptions::DEBUG
-                if *self.ctx.get_session_vars().enable_debug_datasources.value() =>
-            {
-                ConnectionOptions::Debug(ConnectionOptionsDebug {})
-            }
-            other => return Err(internal!("unsupported datasource: {}", other)),
-        };
+    //             LocalAccessor::validate_table_access(access)
+    //                 .await
+    //                 .map_err(|e| PlanError::InvalidExternalTable {
+    //                     source: Box::new(e),
+    //                 })?;
 
-        let plan = CreateConnection {
-            connection_name: stmt.name,
-            if_not_exists: stmt.if_not_exists,
-            options: connection_options,
-        };
+    //             (
+    //                 TableOptions::Local(TableOptionsLocal { location }),
+    //                 // TODO: return column info for this datasource
+    //                 vec![],
+    //             )
+    //         }
+    //         ConnectionOptions::Gcs(options) => {
+    //             let bucket_name = remove_required_opt(m, "bucket_name")?;
+    //             let location = remove_required_opt(m, "location")?;
 
-        Ok(LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)))
-    }
+    //             let access = GcsTableAccess {
+    //                 bucket_name: bucket_name.clone(),
+    //                 service_acccount_key_json: options.service_account_key.to_owned(),
+    //                 location: location.clone(),
+    //                 file_type: None,
+    //             };
 
-    async fn plan_create_external_table(
-        &self,
-        mut stmt: CreateExternalTableStmt,
-    ) -> Result<LogicalPlan> {
-        let m = &mut stmt.options;
+    //             GcsAccessor::validate_table_access(access)
+    //                 .await
+    //                 .map_err(|e| PlanError::InvalidExternalTable {
+    //                     source: Box::new(e),
+    //                 })?;
 
-        let conn = stmt.connection.to_lowercase();
-        let conn = self.ctx.get_connection_by_name(&conn)?;
+    //             (
+    //                 TableOptions::Gcs(TableOptionsGcs {
+    //                     bucket_name,
+    //                     location,
+    //                 }),
+    //                 // TODO: return column info for this datasource
+    //                 vec![],
+    //             )
+    //         }
+    //         ConnectionOptions::S3(options) => {
+    //             let region = remove_required_opt(m, "region")?;
+    //             let bucket_name = remove_required_opt(m, "bucket_name")?;
+    //             let location = remove_required_opt(m, "location")?;
 
-        let (external_table_options, external_table_columns) = match &conn.options {
-            ConnectionOptions::Debug(_) => {
-                let typ = remove_required_opt(m, "table_type")?;
-                let typ = DebugTableType::from_str(&typ)?;
-                let columns = typ.arrow_schema().fields;
+    //             let access = S3TableAccess {
+    //                 region: region.clone(),
+    //                 bucket_name: bucket_name.clone(),
+    //                 access_key_id: options.access_key_id.to_owned(),
+    //                 secret_access_key: options.secret_access_key.to_owned(),
+    //                 location: location.clone(),
+    //                 file_type: None,
+    //             };
 
-                (
-                    TableOptions::Debug(TableOptionsDebug {
-                        table_type: typ.to_string(),
-                    }),
-                    columns,
-                )
-            }
-            ConnectionOptions::Postgres(options) => {
-                let source_schema = remove_required_opt(m, "schema")?;
-                let source_table = remove_required_opt(m, "table")?;
+    //             S3Accessor::validate_table_access(access)
+    //                 .await
+    //                 .map_err(|e| PlanError::InvalidExternalTable {
+    //                     source: Box::new(e),
+    //                 })?;
 
-                let access = PostgresTableAccess {
-                    schema: source_schema,
-                    name: source_table,
-                    connection_string: options.connection_string.to_owned(),
-                };
-                let tunn_access = options
-                    .ssh_tunnel
-                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
-                    .transpose()?;
+    //             (
+    //                 TableOptions::S3(TableOptionsS3 {
+    //                     region,
+    //                     bucket_name,
+    //                     location,
+    //                 }),
+    //                 // TODO: return column info for this datasource
+    //                 vec![],
+    //             )
+    //         }
+    //         ConnectionOptions::Ssh(_) => {
+    //             return Err(PlanError::ExternalTableWithSsh);
+    //         }
+    //         ConnectionOptions::Mongo(_options) => {
+    //             let database = remove_required_opt(m, "database")?;
+    //             let collection = remove_required_opt(m, "collection")?;
 
-                let arrow_schema =
-                    PostgresAccessor::validate_table_access(&access, tunn_access.as_ref())
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+    //             // TODO: Validate.
 
-                (
-                    TableOptions::Postgres(TableOptionsPostgres {
-                        schema: access.schema,
-                        table: access.name,
-                    }),
-                    arrow_schema.fields,
-                )
-            }
-            ConnectionOptions::BigQuery(options) => {
-                let dataset_id = remove_required_opt(m, "dataset_id")?;
-                let table_id = remove_required_opt(m, "table_id")?;
+    //             (
+    //                 TableOptions::Mongo(TableOptionsMongo {
+    //                     database,
+    //                     collection,
+    //                 }),
+    //                 // TODO: return column info for this datasource
+    //                 vec![],
+    //             )
+    //         }
+    //     };
 
-                let access = BigQueryTableAccess {
-                    gcp_service_acccount_key_json: options.service_account_key.to_owned(),
-                    gcp_project_id: options.project_id.to_owned(),
-                    dataset_id,
-                    table_id,
-                };
+    //     let plan = CreateExternalTable {
+    //         table_name: stmt.name,
+    //         if_not_exists: stmt.if_not_exists,
+    //         connection_id: conn.meta.id,
+    //         table_options: external_table_options,
+    //         columns: external_table_columns,
+    //     };
 
-                BigQueryAccessor::validate_table_access(&access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
-
-                (
-                    TableOptions::BigQuery(TableOptionsBigQuery {
-                        dataset_id: access.dataset_id,
-                        table_id: access.table_id,
-                    }),
-                    // TODO: return column info for this datasource
-                    vec![],
-                )
-            }
-            ConnectionOptions::Mysql(options) => {
-                let source_schema = remove_required_opt(m, "schema")?;
-                let source_table = remove_required_opt(m, "table")?;
-
-                let access = MysqlTableAccess {
-                    schema: source_schema,
-                    name: source_table,
-                    connection_string: options.connection_string.clone(),
-                };
-                let tunn_access = options
-                    .ssh_tunnel
-                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
-                    .transpose()?;
-
-                MysqlAccessor::validate_table_access(&access, tunn_access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
-
-                (
-                    TableOptions::Mysql(TableOptionsMysql {
-                        schema: access.schema,
-                        table: access.name,
-                    }),
-                    // TODO: return column info for this datasource
-                    vec![],
-                )
-            }
-            ConnectionOptions::Local(_) => {
-                let location = remove_required_opt(m, "location")?;
-
-                let access = LocalTableAccess {
-                    location: location.clone(),
-                    file_type: None,
-                };
-
-                LocalAccessor::validate_table_access(access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
-
-                (
-                    TableOptions::Local(TableOptionsLocal { location }),
-                    // TODO: return column info for this datasource
-                    vec![],
-                )
-            }
-            ConnectionOptions::Gcs(options) => {
-                let bucket_name = remove_required_opt(m, "bucket_name")?;
-                let location = remove_required_opt(m, "location")?;
-
-                let access = GcsTableAccess {
-                    bucket_name: bucket_name.clone(),
-                    service_acccount_key_json: options.service_account_key.to_owned(),
-                    location: location.clone(),
-                    file_type: None,
-                };
-
-                GcsAccessor::validate_table_access(access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
-
-                (
-                    TableOptions::Gcs(TableOptionsGcs {
-                        bucket_name,
-                        location,
-                    }),
-                    // TODO: return column info for this datasource
-                    vec![],
-                )
-            }
-            ConnectionOptions::S3(options) => {
-                let region = remove_required_opt(m, "region")?;
-                let bucket_name = remove_required_opt(m, "bucket_name")?;
-                let location = remove_required_opt(m, "location")?;
-
-                let access = S3TableAccess {
-                    region: region.clone(),
-                    bucket_name: bucket_name.clone(),
-                    access_key_id: options.access_key_id.to_owned(),
-                    secret_access_key: options.secret_access_key.to_owned(),
-                    location: location.clone(),
-                    file_type: None,
-                };
-
-                S3Accessor::validate_table_access(access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
-
-                (
-                    TableOptions::S3(TableOptionsS3 {
-                        region,
-                        bucket_name,
-                        location,
-                    }),
-                    // TODO: return column info for this datasource
-                    vec![],
-                )
-            }
-            ConnectionOptions::Ssh(_) => {
-                return Err(PlanError::ExternalTableWithSsh);
-            }
-            ConnectionOptions::Mongo(_options) => {
-                let database = remove_required_opt(m, "database")?;
-                let collection = remove_required_opt(m, "collection")?;
-
-                // TODO: Validate.
-
-                (
-                    TableOptions::Mongo(TableOptionsMongo {
-                        database,
-                        collection,
-                    }),
-                    // TODO: return column info for this datasource
-                    vec![],
-                )
-            }
-        };
-
-        let plan = CreateExternalTable {
-            table_name: stmt.name,
-            if_not_exists: stmt.if_not_exists,
-            connection_id: conn.meta.id,
-            table_options: external_table_options,
-            columns: external_table_columns,
-        };
-
-        Ok(DdlPlan::CreateExternalTable(plan).into())
-    }
+    //     Ok(DdlPlan::CreateExternalTable(plan).into())
+    // }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let builder = PlanContextBuilder::new(self.ctx);

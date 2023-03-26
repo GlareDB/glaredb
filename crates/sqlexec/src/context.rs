@@ -13,12 +13,11 @@ use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datasource_common::ssh::SshTunnelAccess;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{self, ColumnDefinition, ConnectionEntry, ConnectionOptions};
+use metastore::types::catalog::{self, ColumnDefinition};
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -151,26 +150,15 @@ impl SessionContext {
         Ok(())
     }
 
-    pub async fn create_database(&mut self, plan: CreateDatabase) -> Result<()> {
-        self.mutate_catalog([Mutation::CreateDatabase(service::CreateDatabase {
-            name: plan.database_name,
-            if_not_exists: plan.if_not_exists,
-            options: plan.options,
-        })])
+    pub async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+        self.mutate_catalog([Mutation::CreateExternalDatabase(
+            service::CreateExternalDatabase {
+                name: plan.database_name,
+                if_not_exists: plan.if_not_exists,
+                options: plan.options,
+            },
+        )])
         .await?;
-        Ok(())
-    }
-
-    pub async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
-        let (_, schema, name) = self.resolve_object_reference(plan.connection_name.into())?;
-        self.mutate_catalog([Mutation::CreateConnection(service::CreateConnection {
-            schema,
-            name,
-            options: plan.options,
-            if_not_exists: plan.if_not_exists,
-        })])
-        .await?;
-
         Ok(())
     }
 
@@ -259,76 +247,6 @@ impl SessionContext {
         })])
         .await?;
         Ok(())
-    }
-
-    /// Get a connection entry from the catalog by name.
-    pub fn get_connection_by_name(&self, name: &str) -> Result<&ConnectionEntry> {
-        let (_, schema, name) = self.resolve_object_reference(name.into())?;
-        let ent = self
-            .metastore_catalog
-            .resolve_entry(DEFAULT_CATALOG, &schema, &name)
-            .ok_or(ExecError::MissingConnectionByName { schema, name })?;
-
-        match ent {
-            catalog::CatalogEntry::Connection(ent) => Ok(ent),
-            other => Err(ExecError::UnexpectedEntryType {
-                got: other.entry_type(),
-                want: catalog::EntryType::Connection,
-            }),
-        }
-    }
-
-    /// Get a connection entry from the catalog by id.
-    pub fn get_connection_by_oid(&self, oid: u32) -> Result<&ConnectionEntry> {
-        let ent = self
-            .metastore_catalog
-            .get_by_oid(oid)
-            .ok_or(ExecError::MissingConnectionByOid { oid })?;
-
-        match ent {
-            catalog::CatalogEntry::Connection(ent) => Ok(ent),
-            other => Err(ExecError::UnexpectedEntryType {
-                got: other.entry_type(),
-                want: catalog::EntryType::Connection,
-            }),
-        }
-    }
-
-    /// Get an ssh tunnel access info from the catalog, along with its id.
-    ///
-    /// Errors if a connection doesn't exist with the given name, or if the
-    /// connection isn't an ssh connection.
-    pub fn get_ssh_tunnel_access_by_name(
-        &self,
-        name: &str,
-    ) -> Result<(u32, SshTunnelAccess), ExecError> {
-        let conn = self.get_connection_by_name(name)?;
-        let ssh_opts = conn
-            .try_get_ssh_options()
-            .ok_or(ExecError::InvalidConnectionType {
-                expected: ConnectionOptions::SSH,
-                got: conn.options.as_str(),
-            })?;
-
-        let access = ssh_opts.try_into()?;
-        Ok((conn.meta.id, access))
-    }
-
-    /// Get an ssh tunnel access info from the catalog by oid..
-    ///
-    /// Errors if a connection doesn't exist with the given name, or if the
-    /// connection isn't an ssh connection.
-    pub fn get_ssh_tunnel_access_by_oid(&self, oid: u32) -> Result<SshTunnelAccess, ExecError> {
-        let conn = self.get_connection_by_oid(oid)?;
-        let ssh_opts = conn
-            .try_get_ssh_options()
-            .ok_or(ExecError::InvalidConnectionType {
-                expected: ConnectionOptions::SSH,
-                got: conn.options.as_str(),
-            })?;
-
-        let access = ssh_opts.try_into()?;
-        Ok(access)
     }
 
     /// Get a reference to the session variables.

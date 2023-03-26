@@ -160,10 +160,6 @@ pub enum StatementWithExtensions {
     /// Create external database extension.
     CreateExternalDatabase(CreateExternalDatabaseStmt),
     DropDatabase(DropDatabaseStmt),
-    /// Create connection extension.
-    CreateConnection(CreateConnectionStmt),
-    /// Drop connection extension.
-    DropConnection(DropConnectionStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -173,8 +169,6 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
-            StatementWithExtensions::CreateConnection(stmt) => write!(f, "{}", stmt),
-            StatementWithExtensions::DropConnection(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -251,9 +245,6 @@ impl<'a> CustomParser<'a> {
                     next
                 )))
             }
-        } else if self.parser.parse_keyword(Keyword::CONNECTION) {
-            // CREATE CONNECTION ...
-            self.parse_create_connection()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -268,31 +259,6 @@ impl<'a> CustomParser<'a> {
             "Expected {}, found: {}",
             expected, found
         )))
-    }
-
-    fn parse_create_connection(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        let if_not_exists =
-            self.parser
-                .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-        let name = self.parser.parse_object_name()?;
-        validate_object_name(&name)?;
-
-        // FOR datasource
-        self.parser.expect_keyword(Keyword::FOR)?;
-
-        let datasource = self.parse_datasource()?;
-
-        // OPTIONS (..)
-        let options = self.parse_datasource_options()?;
-
-        Ok(StatementWithExtensions::CreateConnection(
-            CreateConnectionStmt {
-                name: name.to_string(),
-                if_not_exists,
-                datasource,
-                options,
-            },
-        ))
     }
 
     fn parse_create_external_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
@@ -397,10 +363,7 @@ impl<'a> CustomParser<'a> {
 
     /// Parse a SQL DROP statement
     fn parse_drop(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        if self.parser.parse_keyword(Keyword::CONNECTION) {
-            // DROP CONNECTION ...
-            self.parse_drop_connection()
-        } else if self.parser.parse_keyword(Keyword::DATABASE) {
+        if self.parser.parse_keyword(Keyword::DATABASE) {
             // DROP DATABASE ...
             self.parse_drop_database()
         } else {
@@ -409,20 +372,6 @@ impl<'a> CustomParser<'a> {
                 self.parser.parse_drop()?,
             ))
         }
-    }
-
-    fn parse_drop_connection(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
-        let names = self
-            .parser
-            .parse_comma_separated(Parser::parse_object_name)?
-            .into_iter()
-            .map(|n| n.to_string())
-            .collect();
-
-        Ok(StatementWithExtensions::DropConnection(
-            DropConnectionStmt { names, if_exists },
-        ))
     }
 
     fn parse_drop_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
@@ -530,40 +479,6 @@ mod tests {
     #[test]
     fn drop_database_roundtrips() {
         let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
-
-        for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
-                .unwrap()
-                .pop_front()
-                .unwrap();
-            assert_eq!(test_case, stmt.to_string().as_str());
-        }
-    }
-
-    #[test]
-    fn create_connection_roundtrips() {
-        let test_cases = [
-            "CREATE CONNECTION my_conn FOR postgres OPTIONS (host = 'localhost', user = 'postgres')",
-            "CREATE CONNECTION IF NOT EXISTS my_conn FOR postgres OPTIONS (host = 'localhost', user = 'postgres')",
-        ];
-
-        for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
-                .unwrap()
-                .pop_front()
-                .unwrap();
-            assert_eq!(test_case, stmt.to_string().as_str());
-        }
-    }
-
-    #[test]
-    fn drop_connection_roundtrips() {
-        let test_cases = [
-            "DROP CONNECTION my_conn",
-            "DROP CONNECTION IF EXISTS my_conn",
-            "DROP CONNECTION my_conn1, my_conn2, my_conn3",
-            "DROP CONNECTION IF EXISTS my_conn1, my_conn2, my_conn3",
-        ];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

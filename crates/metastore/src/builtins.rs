@@ -136,30 +136,6 @@ pub static GLARE_EXTERNAL_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTabl
     ]),
 });
 
-pub static GLARE_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "connections",
-    columns: ColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("builtin", DataType::Boolean, false),
-        ("schema_name", DataType::Utf8, false),
-        ("connection_name", DataType::Utf8, false),
-        ("connection_type", DataType::Utf8, false),
-    ]),
-});
-
-pub static GLARE_SSH_CONNECTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "ssh_connections",
-    columns: ColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("builtin", DataType::Boolean, false),
-        ("schema_name", DataType::Utf8, false),
-        ("connection_name", DataType::Utf8, false),
-        ("public_key", DataType::Utf8, false),
-    ]),
-});
-
 pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "session_query_metrics",
@@ -197,8 +173,6 @@ impl BuiltinTable {
             &GLARE_TABLES,
             &GLARE_COLUMNS,
             &GLARE_EXTERNAL_COLUMNS,
-            &GLARE_CONNECTIONS,
-            &GLARE_SSH_CONNECTIONS,
             &GLARE_SESSION_QUERY_METRICS,
         ]
     }

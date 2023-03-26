@@ -33,7 +33,6 @@ use gcp_bigquery_client::{
     model::{field_type::FieldType, table::Table},
     project::GetOptions,
 };
-use metastore::types::catalog::ConnectionOptionsBigQuery;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -79,27 +78,27 @@ impl BigQueryAccessor {
         Ok(BigQueryAccessor { access, metadata })
     }
 
-    /// Validate big query connection
-    pub async fn validate_connection(options: &ConnectionOptionsBigQuery) -> Result<()> {
-        let client = {
-            let key = serde_json::from_str(&options.service_account_key)?;
-            BigQueryClient::from_service_account_key(key, true).await?
-        };
+    // /// Validate big query connection
+    // pub async fn validate_connection(options: &ConnectionOptionsBigQuery) -> Result<()> {
+    //     let client = {
+    //         let key = serde_json::from_str(&options.service_account_key)?;
+    //         BigQueryClient::from_service_account_key(key, true).await?
+    //     };
 
-        let project_list = client.project().list(GetOptions::default()).await?;
+    //     let project_list = client.project().list(GetOptions::default()).await?;
 
-        project_list
-            .projects
-            .iter()
-            .flatten()
-            .flat_map(|p| &p.id)
-            .find(|p| p.as_str() == options.project_id.as_str())
-            .ok_or(BigQueryError::ProjectReadPerm(
-                options.project_id.to_owned(),
-            ))?;
+    //     project_list
+    //         .projects
+    //         .iter()
+    //         .flatten()
+    //         .flat_map(|p| &p.id)
+    //         .find(|p| p.as_str() == options.project_id.as_str())
+    //         .ok_or(BigQueryError::ProjectReadPerm(
+    //             options.project_id.to_owned(),
+    //         ))?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Validate big query connection and access to table
     pub async fn validate_table_access(access: &BigQueryTableAccess) -> Result<()> {

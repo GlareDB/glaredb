@@ -15,14 +15,16 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CONNECTIONS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
-    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_CONNECTIONS, GLARE_TABLES, GLARE_VIEWS,
+    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
+    GLARE_SESSION_QUERY_METRICS, GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
-    CatalogEntry, ConnectionEntry, ConnectionOptions, ConnectionOptionsSsh, DatabaseEntry,
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsPostgres, EntryType,
-    ExternalTableEntry, TableOptions, ViewEntry,
+    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
+};
+use metastore::types::options::{
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsPostgres, TableOptions,
+    TableOptionsInternal, TableOptionsPostgres,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -45,8 +47,8 @@ pub enum DispatchError {
     #[error("Invalid entry for table dispatch: {0}")]
     InvalidEntryTypeForDispatch(EntryType),
 
-    #[error("Unhandled entry for table dispatch: {0}")]
-    UnhandledEntryType(EntryType),
+    #[error("Unhandled entry for table dispatch: {0:?}")]
+    UnhandledEntry(EntryMeta),
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::planner::errors::PlanError>),
@@ -119,7 +121,7 @@ impl<'a> SessionDispatcher<'a> {
         // "External" database
         if database != DEFAULT_CATALOG {
             let db = catalog.resolve_database(database).unwrap();
-            return self.dispatch_catalog(db, schema, name).await;
+            return self.dispatch_external_database(db, schema, name).await;
         }
 
         let ent = catalog
@@ -131,29 +133,26 @@ impl<'a> SessionDispatcher<'a> {
 
         // Only allow dispatching to types we can actually convert to a table
         // provider.
-        if !matches!(
-            ent.entry_type(),
-            EntryType::View | EntryType::Table | EntryType::ExternalTable
-        ) {
+        if !matches!(ent.entry_type(), EntryType::View | EntryType::Table) {
             return Err(DispatchError::InvalidEntryTypeForDispatch(ent.entry_type()));
-        }
-
-        // Dispatch to system tables if builtin...
-        if ent.get_meta().builtin && ent.entry_type() == EntryType::Table {
-            let table = SystemTableDispatcher::new(self.ctx).dispatch(schema, name)?;
-            return Ok(table);
         }
 
         match ent {
             CatalogEntry::View(view) => self.dispatch_view(view).await,
-            CatalogEntry::ExternalTable(table) => self.dispatch_external_table(table).await,
-            // Note that all 'table' entries should have already been handled
-            // with the above builtin table dispatcher.
-            other => Err(DispatchError::UnhandledEntryType(other.entry_type())),
+            // Dispatch to builtin tables.
+            CatalogEntry::Table(tbl) if tbl.meta.builtin => {
+                SystemTableDispatcher::new(self.ctx).dispatch(schema, name)
+            }
+            // Dispatch to external tables.
+            CatalogEntry::Table(tbl) if tbl.meta.external => {
+                self.dispatch_external_table(tbl).await
+            }
+            // We don't currently support non-external, non-builtin tables.
+            other => Err(DispatchError::UnhandledEntry(other.get_meta().clone())),
         }
     }
 
-    async fn dispatch_catalog(
+    async fn dispatch_external_database(
         &self,
         db: &DatabaseEntry,
         schema: &str,
@@ -196,6 +195,7 @@ impl<'a> SessionDispatcher<'a> {
                 let provider = accessor.into_table_provider(predicate_pushdown).await?;
                 Ok(Arc::new(provider))
             }
+            _ => unimplemented!(),
         }
     }
 
@@ -208,139 +208,30 @@ impl<'a> SessionDispatcher<'a> {
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 
-    async fn dispatch_external_table(
-        &self,
-        table: &ExternalTableEntry,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let conn = self
-            .ctx
-            .get_session_catalog()
-            .get_by_oid(table.connection_id)
-            .ok_or(DispatchError::MissingObjectWithOid(table.connection_id))?;
-        let conn = match conn {
-            CatalogEntry::Connection(conn) => conn,
-            other => {
-                return Err(DispatchError::InvalidEntryTypeForDispatch(
-                    other.entry_type(),
-                ))
-            }
-        };
-
-        match (&conn.options, &table.options) {
-            (ConnectionOptions::Debug(_), TableOptions::Debug(table)) => {
-                let provider = DebugTableType::from_str(&table.table_type)?;
-                Ok(provider.into_table_provider())
-            }
-            (ConnectionOptions::Postgres(conn), TableOptions::Postgres(table)) => {
+    async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+        match &table.options {
+            TableOptions::Internal(TableOptionsInternal {}) => unimplemented!(),
+            TableOptions::Postgres(TableOptionsPostgres {
+                connection_string,
+                schema,
+                table,
+            }) => {
                 let table_access = PostgresTableAccess {
-                    schema: table.schema.clone(),
-                    name: table.table.clone(),
-                    connection_string: conn.connection_string.clone(),
+                    schema: schema.clone(),
+                    name: table.clone(),
+                    connection_string: connection_string.clone(),
                 };
-
-                let tunn_access = conn
-                    .ssh_tunnel
-                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
-                    .transpose()
-                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
 
                 let predicate_pushdown = *self
                     .ctx
                     .get_session_vars()
                     .postgres_predicate_pushdown
                     .value();
-                let accessor = PostgresAccessor::connect(table_access, tunn_access).await?;
+                let accessor = PostgresAccessor::connect(table_access, None).await?;
                 let provider = accessor.into_table_provider(predicate_pushdown).await?;
                 Ok(Arc::new(provider))
             }
-            (ConnectionOptions::BigQuery(conn), TableOptions::BigQuery(table)) => {
-                let table_access = BigQueryTableAccess {
-                    gcp_service_acccount_key_json: conn.service_account_key.clone(),
-                    gcp_project_id: conn.project_id.clone(),
-                    dataset_id: table.dataset_id.clone(),
-                    table_id: table.table_id.clone(),
-                };
-                let predicate_pushdown = *self
-                    .ctx
-                    .get_session_vars()
-                    .bigquery_predicate_pushdown
-                    .value();
-                let accessor = BigQueryAccessor::connect(table_access).await?;
-                let provider = accessor.into_table_provider(predicate_pushdown).await?;
-                Ok(Arc::new(provider))
-            }
-            (ConnectionOptions::Mysql(conn), TableOptions::Mysql(table)) => {
-                let table_access = MysqlTableAccess {
-                    schema: table.schema.clone(),
-                    name: table.table.clone(),
-                    connection_string: conn.connection_string.clone(),
-                };
-
-                let tunn_access = conn
-                    .ssh_tunnel
-                    .map(|oid| self.ctx.get_ssh_tunnel_access_by_oid(oid))
-                    .transpose()
-                    .map_err(|e| DispatchError::MissingSshTunnel(Box::new(e)))?;
-
-                let predicate_pushdown = *self
-                    .ctx
-                    .get_session_vars()
-                    .postgres_predicate_pushdown
-                    .value();
-                let accessor = MysqlAccessor::connect(table_access, tunn_access).await?;
-                let provider = accessor.into_table_provider(predicate_pushdown).await?;
-                Ok(Arc::new(provider))
-            }
-            (ConnectionOptions::Local(_), TableOptions::Local(table)) => {
-                let table_access = LocalTableAccess {
-                    location: table.location.clone(),
-                    file_type: None,
-                };
-                let accessor = LocalAccessor::new(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
-                Ok(provider)
-            }
-            (ConnectionOptions::Gcs(conn), TableOptions::Gcs(table)) => {
-                let table_access = GcsTableAccess {
-                    service_acccount_key_json: conn.service_account_key.clone(),
-                    bucket_name: table.bucket_name.clone(),
-                    location: table.location.clone(),
-                    file_type: None,
-                };
-                let accessor = GcsAccessor::new(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
-                Ok(provider)
-            }
-            (ConnectionOptions::S3(conn), TableOptions::S3(table)) => {
-                let table_access = S3TableAccess {
-                    region: table.region.clone(),
-                    bucket_name: table.bucket_name.clone(),
-                    location: table.location.clone(),
-                    access_key_id: conn.access_key_id.clone(),
-                    secret_access_key: conn.secret_access_key.clone(),
-                    file_type: None,
-                };
-                let accessor = S3Accessor::new(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
-                Ok(provider)
-            }
-            (ConnectionOptions::Mongo(conn), TableOptions::Mongo(table)) => {
-                let access_info = MongoAccessInfo {
-                    connection_string: conn.connection_string.clone(),
-                };
-                let table_info = MongoTableAccessInfo {
-                    database: table.database.clone(),
-                    collection: table.collection.clone(),
-                };
-                let accessor = MongoAccessor::connect(access_info).await?;
-                let table_accessor = accessor.into_table_accessor(table_info);
-                let provider = table_accessor.into_table_provider().await?;
-                Ok(Arc::new(provider))
-            }
-            (conn, table) => Err(DispatchError::UnhandledExternalDispatch {
-                table_type: table.to_string(),
-                connection_type: conn.to_string(),
-            }),
+            _ => unimplemented!(),
         }
     }
 }
@@ -370,10 +261,6 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_views())
         } else if GLARE_SCHEMAS.matches(schema, name) {
             Arc::new(self.build_glare_schemas())
-        } else if GLARE_CONNECTIONS.matches(schema, name) {
-            Arc::new(self.build_glare_connections())
-        } else if GLARE_SSH_CONNECTIONS.matches(schema, name) {
-            Arc::new(self.build_glare_ssh_connections())
         } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
             Arc::new(self.build_session_query_metrics())
         } else {
@@ -423,9 +310,11 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut externals = BooleanBuilder::new();
         let mut connection_oids = UInt32Builder::new();
 
-        for table in self.catalog().iter_entries().filter(|ent| {
-            ent.entry_type() == EntryType::Table || ent.entry_type() == EntryType::ExternalTable
-        }) {
+        for table in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Table)
+        {
             oids.append_value(table.oid);
             builtins.append_value(table.builtin);
             schema_oids.append_value(table.entry.get_meta().parent);
@@ -436,10 +325,9 @@ impl<'a> SystemTableDispatcher<'a> {
                     .unwrap_or("<invalid>"),
             );
             table_names.append_value(&table.entry.get_meta().name);
-            externals.append_value(table.entry_type() == EntryType::ExternalTable);
+            externals.append_value(false);
 
             match table.entry {
-                CatalogEntry::ExternalTable(ent) => connection_oids.append_value(ent.connection_id),
                 _ => connection_oids.append_null(),
             }
         }
@@ -529,10 +417,10 @@ impl<'a> SystemTableDispatcher<'a> {
         for table in self
             .catalog()
             .iter_entries()
-            .filter(|ent| ent.entry_type() == EntryType::ExternalTable)
+            .filter(|ent| ent.entry_type() == EntryType::Table && ent.entry.get_meta().external)
         {
             let ent = match table.entry {
-                CatalogEntry::ExternalTable(ent) => ent,
+                CatalogEntry::Table(ent) => ent,
                 other => unreachable!("unexpected entry type: {:?}", other), // Bug
             };
             let schema_oid = table.schema_entry.expect("table with schema").get_meta().id;
@@ -607,105 +495,6 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(schema_names.finish()),
                 Arc::new(view_names.finish()),
                 Arc::new(sqls.finish()),
-            ],
-        )
-        .unwrap();
-
-        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
-    }
-
-    fn build_glare_connections(&self) -> MemTable {
-        let arrow_schema = Arc::new(GLARE_CONNECTIONS.arrow_schema());
-
-        let mut oids = UInt32Builder::new();
-        let mut builtins = BooleanBuilder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut connection_names = StringBuilder::new();
-        let mut connection_types = StringBuilder::new();
-
-        for conn in self
-            .catalog()
-            .iter_entries()
-            .filter(|ent| ent.entry_type() == EntryType::Connection)
-        {
-            let ent = match conn.entry {
-                CatalogEntry::Connection(ent) => ent,
-                other => panic!("unexpected catalog entry: {:?}", other), // Bug
-            };
-
-            oids.append_value(conn.oid);
-            builtins.append_value(conn.builtin);
-            schema_names.append_value(
-                conn.schema_entry
-                    .map(|schema| schema.get_meta().name.as_str())
-                    .unwrap_or("<invalid>"),
-            );
-            connection_names.append_value(&conn.entry.get_meta().name);
-            connection_types.append_value(ent.options.to_string());
-        }
-
-        let batch = RecordBatch::try_new(
-            arrow_schema.clone(),
-            vec![
-                Arc::new(oids.finish()),
-                Arc::new(builtins.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(connection_names.finish()),
-                Arc::new(connection_types.finish()),
-            ],
-        )
-        .unwrap();
-
-        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
-    }
-
-    fn build_glare_ssh_connections(&self) -> MemTable {
-        let arrow_schema = Arc::new(GLARE_SSH_CONNECTIONS.arrow_schema());
-
-        let mut oids = UInt32Builder::new();
-        let mut builtins = BooleanBuilder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut connection_names = StringBuilder::new();
-        let mut public_key = StringBuilder::new();
-
-        for conn in self
-            .catalog()
-            .iter_entries()
-            .filter(|ent| ent.entry_type() == EntryType::Connection)
-        {
-            match conn.entry {
-                CatalogEntry::Connection(ConnectionEntry {
-                    options: ConnectionOptions::Ssh(ConnectionOptionsSsh { keypair, .. }),
-                    ..
-                }) => {
-                    let ssh_public_key = SshKey::from_bytes(keypair)
-                        .expect("Keypair should always be a valid ssh key")
-                        .public_key()
-                        .expect("Always produces a valid OpenSSH public key");
-
-                    oids.append_value(conn.oid);
-                    builtins.append_value(conn.builtin);
-                    schema_names.append_value(
-                        conn.schema_entry
-                            .map(|schema| schema.get_meta().name.as_str())
-                            .unwrap_or("<invalid>"),
-                    );
-                    connection_names.append_value(&conn.entry.get_meta().name);
-                    public_key.append_value(ssh_public_key);
-                }
-                CatalogEntry::Connection(_) => (),
-                other => panic!("unexpected catalog entry: {:?}", other), // Bug
-            };
-        }
-
-        let batch = RecordBatch::try_new(
-            arrow_schema.clone(),
-            vec![
-                Arc::new(oids.finish()),
-                Arc::new(builtins.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(connection_names.finish()),
-                Arc::new(public_key.finish()),
             ],
         )
         .unwrap();

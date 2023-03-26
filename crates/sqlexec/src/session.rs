@@ -186,13 +186,8 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn create_database(&mut self, plan: CreateDatabase) -> Result<()> {
+    pub(crate) async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
         self.ctx.create_database(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
-        self.ctx.create_connection(plan).await?;
         Ok(())
     }
 
@@ -315,7 +310,7 @@ impl Session {
                 self.create_external_table(plan).await?;
                 ExecutionResult::CreateTable
             }
-            LogicalPlan::Ddl(DdlPlan::CreateDatabase(plan)) => {
+            LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)) => {
                 self.create_database(plan).await?;
                 ExecutionResult::CreateDatabase
             }
@@ -326,10 +321,6 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;
                 ExecutionResult::CreateSchema
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)) => {
-                self.create_connection(plan).await?;
-                ExecutionResult::CreateConnection
             }
             LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
                 self.create_view(plan).await?;
