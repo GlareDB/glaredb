@@ -1,4 +1,10 @@
 // Catalog type definitions.
+//
+// These are generally the types used for persisting catalogs to storage, as
+// well as RPC calls when fetching/mutating catalogs.
+//
+// Longer term our storage format may differ from our RPC format, but until
+// then, keeping them in sync allows for faster iteration.
 
 syntax = "proto3";
 
@@ -36,6 +42,7 @@ message EntryMeta {
   // Possible entry types in the catalog.
   //
   // Each entry of this type shares the same ID space.
+  // TODO: Renumber
   enum EntryType {
     // Unknown catalog entry. We should error if this is encountered.
     UNKNOWN = 0;
@@ -43,13 +50,12 @@ message EntryMeta {
     SCHEMA = 1;
     // Database tables.
     TABLE = 2;
-    // External database tables.
-    EXTERNAL_TABLE = 3;
     // Database views.
     VIEW = 4;
     // Connections to external data sources.
     CONNECTION = 5;
-    // yeah this will work
+
+    EXTERNAL_TABLE = 3;
     DATABASE = 6;
   }
 
@@ -64,9 +70,9 @@ message EntryMeta {
 
   // ID of the parent entry.
   //
-  // For tables, views, and connections, the parent id will be the schema id.
+  // For tables and views, the parent id will be the schema id.
   //
-  // Schemas are a special case, and have a parent id of 0.
+  // For schemas, the parent will be the database id.
   uint32 parent = 3;
 
   // Name of this entry.
@@ -80,19 +86,20 @@ message EntryMeta {
 
 message DatabaseEntry {
   EntryMeta meta = 1;
-
   DatabaseOptions options = 2;
-
   // next: 3
 }
 
 message DatabaseOptions {
   // TODO
   oneof options {
-    DatabaseOptionsPostgres postgres = 1;
-    DatabaseOptionsBigQuery bigquery = 2;
+    DatabaseOptionsInternal internal = 1;
+    DatabaseOptionsPostgres postgres = 2;
+    DatabaseOptionsBigQuery bigquery = 3;
   }
 }
+
+message DatabaseOptionsInternal {}
 
 message DatabaseOptionsPostgres { string connection_string = 1; }
 
@@ -103,7 +110,6 @@ message DatabaseOptionsBigQuery {
 
 message SchemaEntry {
   EntryMeta meta = 1;
-
   // next: 2
 }
 
@@ -140,7 +146,9 @@ message TableOptions {
   // and don't provide any tables.
   reserved 8;
 
+  // TODO: Renumber
   oneof options {
+    TableOptionsInternal internal = 10;
     TableOptionsDebug debug = 1;
     TableOptionsPostgres postgres = 2;
     TableOptionsBigQuery bigquery = 3;
@@ -151,6 +159,8 @@ message TableOptions {
     TableOptionsMongo mongo = 9;
   }
 }
+
+message TableOptionsInternal {}
 
 message TableOptionsDebug {
   // TODO: Probably make thise well-known id.

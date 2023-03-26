@@ -247,16 +247,19 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum DatabaseOptions {
+    Internal(DatabaseOptionsInternal),
     Postgres(DatabaseOptionsPostgres),
     BigQuery(DatabaseOptionsBigQuery),
 }
 
 impl DatabaseOptions {
+    pub const INTERNAL: &str = "internal";
     pub const POSTGRES: &str = "postgres";
     pub const BIGQUERY: &str = "bigquery";
 
     pub fn as_str(&self) -> &'static str {
         match self {
+            DatabaseOptions::Internal(_) => Self::INTERNAL,
             DatabaseOptions::Postgres(_) => Self::POSTGRES,
             DatabaseOptions::BigQuery(_) => Self::BIGQUERY,
         }
@@ -273,6 +276,7 @@ impl TryFrom<catalog::database_options::Options> for DatabaseOptions {
     type Error = ProtoConvError;
     fn try_from(value: catalog::database_options::Options) -> Result<Self, Self::Error> {
         Ok(match value {
+            catalog::database_options::Options::Internal(v) => DatabaseOptions::Internal(v.into()),
             catalog::database_options::Options::Postgres(v) => {
                 DatabaseOptions::Postgres(v.try_into()?)
             }
@@ -293,6 +297,7 @@ impl TryFrom<catalog::DatabaseOptions> for DatabaseOptions {
 impl From<DatabaseOptions> for catalog::database_options::Options {
     fn from(value: DatabaseOptions) -> Self {
         match value {
+            DatabaseOptions::Internal(v) => catalog::database_options::Options::Internal(v.into()),
             DatabaseOptions::Postgres(v) => catalog::database_options::Options::Postgres(v.into()),
             DatabaseOptions::BigQuery(v) => catalog::database_options::Options::Bigquery(v.into()),
         }
@@ -304,6 +309,21 @@ impl From<DatabaseOptions> for catalog::DatabaseOptions {
         catalog::DatabaseOptions {
             options: Some(value.into()),
         }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DatabaseOptionsInternal;
+
+impl From<catalog::DatabaseOptionsInternal> for DatabaseOptionsInternal {
+    fn from(_value: catalog::DatabaseOptionsInternal) -> Self {
+        DatabaseOptionsInternal
+    }
+}
+
+impl From<DatabaseOptionsInternal> for catalog::DatabaseOptionsInternal {
+    fn from(_value: DatabaseOptionsInternal) -> Self {
+        catalog::DatabaseOptionsInternal {}
     }
 }
 
@@ -614,6 +634,7 @@ impl TryFrom<catalog::table_options::Options> for TableOptions {
     type Error = ProtoConvError;
     fn try_from(value: catalog::table_options::Options) -> Result<Self, Self::Error> {
         Ok(match value {
+            catalog::table_options::Options::Internal(v) => unimplemented!(),
             catalog::table_options::Options::Debug(v) => TableOptions::Debug(v.try_into()?),
             catalog::table_options::Options::Postgres(v) => TableOptions::Postgres(v.try_into()?),
             catalog::table_options::Options::Bigquery(v) => TableOptions::BigQuery(v.try_into()?),

@@ -7,7 +7,7 @@ use crate::types::catalog::{
     ExternalTableEntry, SchemaEntry, TableEntry, ViewEntry,
 };
 use crate::types::service::Mutation;
-use crate::types::storage::PersistedCatalog;
+use crate::types::storage::{ExtraState, PersistedCatalog};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
@@ -197,9 +197,9 @@ impl State {
     /// This will build the schema names and objects maps.
     fn from_persisted(persisted: PersistedCatalog) -> Result<State> {
         let mut state = State {
-            version: persisted.version,
-            oid_counter: persisted.oid_counter,
-            entries: persisted.entries,
+            version: persisted.state.version,
+            oid_counter: persisted.extra.oid_counter,
+            entries: persisted.state.entries,
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
         };
@@ -271,14 +271,18 @@ impl State {
     /// catalog.
     fn to_persisted(&self) -> PersistedCatalog {
         PersistedCatalog {
-            version: self.version,
-            entries: self
-                .entries
-                .clone()
-                .into_iter()
-                .filter(|(_, ent)| !ent.get_meta().builtin)
-                .collect(),
-            oid_counter: self.oid_counter,
+            state: CatalogState {
+                version: self.version,
+                entries: self
+                    .entries
+                    .clone()
+                    .into_iter()
+                    .filter(|(_, ent)| !ent.get_meta().builtin)
+                    .collect(),
+            },
+            extra: ExtraState {
+                oid_counter: self.oid_counter,
+            },
         }
     }
 

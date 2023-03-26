@@ -36,6 +36,23 @@ pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 /// objects, rely on the oid of schemas.
 pub const FIRST_NON_SCHEMA_ID: u32 = FIRST_GLAREDB_BUILTIN_ID + 100;
 
+#[derive(Debug, Clone)]
+pub struct BuiltinDatabase {
+    pub name: &'static str,
+    pub oid: u32,
+}
+
+pub static DATABASE_DEFAULT: Lazy<BuiltinDatabase> = Lazy::new(|| BuiltinDatabase {
+    name: DEFAULT_CATALOG,
+    oid: FIRST_GLAREDB_BUILTIN_ID,
+});
+
+impl BuiltinDatabase {
+    pub fn builtins() -> Vec<&'static BuiltinDatabase> {
+        vec![&DATABASE_DEFAULT]
+    }
+}
+
 /// A builtin table.
 #[derive(Debug, Clone)]
 pub struct BuiltinTable {
@@ -196,22 +213,22 @@ pub struct BuiltinSchema {
 
 pub static SCHEMA_INTERNAL: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
     name: INTERNAL_SCHEMA,
-    oid: 16384,
+    oid: 16385,
 });
 
 pub static SCHEMA_DEFAULT: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
     name: DEFAULT_SCHEMA,
-    oid: 16385,
+    oid: 16386,
 });
 
 pub static SCHEMA_INFORMATION: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
     name: INFORMATION_SCHEMA,
-    oid: 16386,
+    oid: 16387,
 });
 
 pub static SCHEMA_POSTGRES: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
     name: POSTGRES_SCHEMA,
-    oid: 16387,
+    oid: 16388,
 });
 
 impl BuiltinSchema {

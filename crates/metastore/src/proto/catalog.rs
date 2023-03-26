@@ -53,9 +53,9 @@ pub struct EntryMeta {
     pub id: u32,
     /// ID of the parent entry.
     ///
-    /// For tables, views, and connections, the parent id will be the schema id.
+    /// For tables and views, the parent id will be the schema id.
     ///
-    /// Schemas are a special case, and have a parent id of 0.
+    /// For schemas, the parent will be the database id.
     #[prost(uint32, tag = "3")]
     pub parent: u32,
     /// Name of this entry.
@@ -70,6 +70,7 @@ pub mod entry_meta {
     /// Possible entry types in the catalog.
     ///
     /// Each entry of this type shares the same ID space.
+    /// TODO: Renumber
     #[derive(
         Clone,
         Copy,
@@ -89,13 +90,11 @@ pub mod entry_meta {
         Schema = 1,
         /// Database tables.
         Table = 2,
-        /// External database tables.
-        ExternalTable = 3,
         /// Database views.
         View = 4,
         /// Connections to external data sources.
         Connection = 5,
-        /// yeah this will work
+        ExternalTable = 3,
         Database = 6,
     }
     impl EntryType {
@@ -108,9 +107,9 @@ pub mod entry_meta {
                 EntryType::Unknown => "UNKNOWN",
                 EntryType::Schema => "SCHEMA",
                 EntryType::Table => "TABLE",
-                EntryType::ExternalTable => "EXTERNAL_TABLE",
                 EntryType::View => "VIEW",
                 EntryType::Connection => "CONNECTION",
+                EntryType::ExternalTable => "EXTERNAL_TABLE",
                 EntryType::Database => "DATABASE",
             }
         }
@@ -120,9 +119,9 @@ pub mod entry_meta {
                 "UNKNOWN" => Some(Self::Unknown),
                 "SCHEMA" => Some(Self::Schema),
                 "TABLE" => Some(Self::Table),
-                "EXTERNAL_TABLE" => Some(Self::ExternalTable),
                 "VIEW" => Some(Self::View),
                 "CONNECTION" => Some(Self::Connection),
+                "EXTERNAL_TABLE" => Some(Self::ExternalTable),
                 "DATABASE" => Some(Self::Database),
                 _ => None,
             }
@@ -134,6 +133,7 @@ pub mod entry_meta {
 pub struct DatabaseEntry {
     #[prost(message, optional, tag = "1")]
     pub meta: ::core::option::Option<EntryMeta>,
+    /// next: 3
     #[prost(message, optional, tag = "2")]
     pub options: ::core::option::Option<DatabaseOptions>,
 }
@@ -141,7 +141,7 @@ pub struct DatabaseEntry {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DatabaseOptions {
     /// TODO
-    #[prost(oneof = "database_options::Options", tags = "1, 2")]
+    #[prost(oneof = "database_options::Options", tags = "1, 2, 3")]
     pub options: ::core::option::Option<database_options::Options>,
 }
 /// Nested message and enum types in `DatabaseOptions`.
@@ -151,11 +151,16 @@ pub mod database_options {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Options {
         #[prost(message, tag = "1")]
-        Postgres(super::DatabaseOptionsPostgres),
+        Internal(super::DatabaseOptionsInternal),
         #[prost(message, tag = "2")]
+        Postgres(super::DatabaseOptionsPostgres),
+        #[prost(message, tag = "3")]
         Bigquery(super::DatabaseOptionsBigQuery),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DatabaseOptionsInternal {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DatabaseOptionsPostgres {
@@ -173,6 +178,7 @@ pub struct DatabaseOptionsBigQuery {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SchemaEntry {
+    /// next: 2
     #[prost(message, optional, tag = "1")]
     pub meta: ::core::option::Option<EntryMeta>,
 }
@@ -206,14 +212,18 @@ pub struct ExternalTableEntry {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptions {
-    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 9")]
+    /// TODO: Renumber
+    #[prost(oneof = "table_options::Options", tags = "10, 1, 2, 3, 4, 5, 6, 7, 9")]
     pub options: ::core::option::Option<table_options::Options>,
 }
 /// Nested message and enum types in `TableOptions`.
 pub mod table_options {
+    /// TODO: Renumber
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Options {
+        #[prost(message, tag = "10")]
+        Internal(super::TableOptionsInternal),
         #[prost(message, tag = "1")]
         Debug(super::TableOptionsDebug),
         #[prost(message, tag = "2")]
@@ -232,6 +242,9 @@ pub mod table_options {
         Mongo(super::TableOptionsMongo),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsInternal {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptionsDebug {

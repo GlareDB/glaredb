@@ -160,6 +160,7 @@ impl<'a> SessionDispatcher<'a> {
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
         match &db.options {
+            DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let table_access = PostgresTableAccess {
                     schema: schema.to_string(),
