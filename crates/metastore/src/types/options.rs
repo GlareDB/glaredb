@@ -238,6 +238,10 @@ impl TableOptions {
     pub const S3_STORAGE: &str = "s3";
     pub const MONGO: &str = "mongo";
 
+    pub const fn new_internal() -> TableOptions {
+        TableOptions::Internal(TableOptionsInternal {})
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             TableOptions::Internal(_) => Self::INTERNAL,

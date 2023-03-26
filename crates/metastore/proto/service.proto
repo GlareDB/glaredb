@@ -39,9 +39,8 @@ message Mutation {
     DropObject drop_object = 2;
     CreateSchema create_schema = 3;
     CreateView create_view = 4;
-    CreateConnection create_connection = 5;
     CreateExternalTable create_external_table = 6;
-    CreateDatabase create_database = 7;
+    CreateExternalDatabase create_external_database = 7;
   }
   // next: 7
 }
@@ -70,25 +69,17 @@ message CreateView {
   string sql = 3;
 }
 
-message CreateConnection {
-  string schema = 1;
-  string name = 2;
-  catalog.ConnectionOptions options = 3;
-  bool if_not_exists = 4;
-  // next: 5
-}
-
 message CreateExternalTable {
   string schema = 1;
   string name = 2;
   uint32 connection_id = 3;
-  catalog.TableOptions options = 4;
+  options.TableOptions options = 4;
   bool if_not_exists = 5;
   repeated catalog.ColumnDefinition columns = 6;
   // next: 7
 }
 
-message CreateDatabase {
+message CreateExternalDatabase {
   string name = 1;
   options.DatabaseOptions options = 2;
   bool if_not_exists = 3;

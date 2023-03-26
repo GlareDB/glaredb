@@ -49,7 +49,7 @@ message CatalogState {
 // Possible top-level catalog entries.
 message CatalogEntry {
   oneof entry {
-    DatabaseEntry database = 1; // TODO
+    DatabaseEntry database = 1;
     SchemaEntry schema = 2;
     TableEntry table = 3;
     ViewEntry view = 4;
@@ -98,7 +98,11 @@ message EntryMeta {
   // Whether or not this entry is builtin. Builtin entries cannot be dropped.
   bool builtin = 5;
 
-  // next: 6
+  // If this entry is backed by an external system or resource (e.g. external
+  // database or external table).
+  bool external = 6;
+
+  // next: 7
 }
 
 message DatabaseEntry {
@@ -118,101 +122,18 @@ message TableEntry {
   // Columns in the table.
   repeated ColumnDefinition columns = 2;
 
-  // next: 3
+  options.TableOptions options = 3;
+
+  // next: 4
 }
 
-message ExternalTableEntry {
+message ViewEntry {
   EntryMeta meta = 1;
 
-  // ID to the connection to use.
-  uint32 connection_id = 2;
+  // The sql statement for materializing the view.
+  string sql = 2;
 
-  // Table specific options to use when connecting to the external table.
-  //
-  // The external table type (postgres, bigquery, etc) is derived from these
-  // options. The type derived here must match the connection type.
-  TableOptions options = 3;
-
-  // Columns in the external table.
-  repeated ColumnDefinition columns = 4;
-
-  // next: 5
-}
-
-message TableOptions {
-  // Reserved just to keep table options/ connection options the same id for
-  // each type. SSH connections (field id 8 in ConnectionOptions) are special
-  // and don't provide any tables.
-  reserved 8;
-
-  // TODO: Renumber
-  oneof options {
-    TableOptionsInternal internal = 10;
-    TableOptionsDebug debug = 1;
-    TableOptionsPostgres postgres = 2;
-    TableOptionsBigQuery bigquery = 3;
-    TableOptionsLocal local = 4;
-    TableOptionsGcs gcs = 5;
-    TableOptionsS3 s3 = 6;
-    TableOptionsMysql mysql = 7;
-    TableOptionsMongo mongo = 9;
-  }
-}
-
-message TableOptionsInternal {}
-
-message TableOptionsDebug {
-  // TODO: Probably make thise well-known id.
-  string table_type = 1;
-}
-
-message TableOptionsPostgres {
-  // Source schema to connect to on Postgres.
-  string schema = 1;
-  // Source table to connect to.
-  string table = 2;
-}
-
-message TableOptionsBigQuery {
-  // The dataset where table belongs.
-  string dataset_id = 1;
-  // Name of the table.
-  string table_id = 2;
-}
-
-message TableOptionsLocal {
-  // File path on the local machine.
-  string location = 1;
-}
-
-message TableOptionsGcs {
-  // Bucket the file belongs to.
-  string bucket_name = 1;
-  // Name of the object.
-  string location = 2;
-}
-
-message TableOptionsS3 {
-  // Region the bucket belongs to.
-  string region = 1;
-  // Bucket the file belongs to.
-  string bucket_name = 2;
-  // Name of the object.
-  string location = 3;
-}
-
-message TableOptionsMysql {
-  // Source schema to connect to on Mysql.
-  string schema = 1;
-  // Source table to connect to.
-  string table = 2;
-}
-
-message TableOptionsMongo {
-  // Database containing the collection.
-  string database = 1;
-  // The collection (table).
-  string collection = 2;
+  // next: 3
 }
 
 message ColumnDefinition {
@@ -229,76 +150,3 @@ message ColumnDefinition {
 
   // next: 4
 }
-
-message ViewEntry {
-  EntryMeta meta = 1;
-
-  // The sql statement for materializing the view.
-  string sql = 2;
-
-  // next: 3
-}
-
-message ConnectionEntry {
-  EntryMeta meta = 1;
-
-  // Options related to this connection.
-  //
-  // The connection type is derived from these options.
-  ConnectionOptions options = 2;
-
-  // next: 3
-}
-
-message ConnectionOptions {
-  oneof options {
-    ConnectionOptionsDebug debug = 1;
-    ConnectionOptionsPostgres postgres = 2;
-    ConnectionOptionsBigQuery bigquery = 3;
-    ConnectionOptionsLocal local = 4;
-    ConnectionOptionsGcs gcs = 5;
-    ConnectionOptionsS3 s3 = 6;
-    ConnectionOptionsSsh ssh = 7;
-    ConnectionOptionsMysql mysql = 8;
-    ConnectionOptionsMongo mongo = 9;
-  }
-
-  // next:9
-}
-
-message ConnectionOptionsDebug {}
-
-message ConnectionOptionsPostgres {
-  string connection_string = 1;
-  reserved 2;
-  optional uint32 ssh_tunnel = 3; // Connection id for ssh tunnel
-}
-
-message ConnectionOptionsBigQuery {
-  string service_account_key = 1;
-  string project_id = 2;
-}
-
-message ConnectionOptionsMysql {
-  string connection_string = 1;
-  reserved 2;
-  optional uint32 ssh_tunnel = 3; // Connection id for ssh tunnel
-}
-
-message ConnectionOptionsLocal {}
-
-message ConnectionOptionsGcs { string service_account_key = 1; }
-
-message ConnectionOptionsS3 {
-  string access_key_id = 1;
-  string secret_access_key = 2;
-}
-
-message ConnectionOptionsSsh {
-  string host = 1;
-  string user = 2;
-  uint32 port = 3; // Note the value here should not be larger than uint16 MAX
-  bytes keypair = 4;
-}
-
-message ConnectionOptionsMongo { string connection_string = 1; }
