@@ -28,11 +28,8 @@ use datafusion::physical_plan::{
 };
 use datasource_common::util;
 use futures::{Stream, StreamExt};
+use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
-use gcp_bigquery_client::{
-    model::{field_type::FieldType, table::Table},
-    project::GetOptions,
-};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;

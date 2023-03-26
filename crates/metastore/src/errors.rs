@@ -53,6 +53,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
+
+    #[error("Feature unimplemented: {0}")]
+    Unimplemented(&'static str),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;

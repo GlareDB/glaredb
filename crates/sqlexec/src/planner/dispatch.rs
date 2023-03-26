@@ -420,9 +420,7 @@ impl<'a> SystemTableDispatcher<'a> {
             table_names.append_value(&table.entry.get_meta().name);
             externals.append_value(false);
 
-            match table.entry {
-                _ => connection_oids.append_null(),
-            }
+            connection_oids.append_null();
         }
 
         let batch = RecordBatch::try_new(

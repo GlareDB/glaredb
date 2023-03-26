@@ -17,7 +17,7 @@ use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{self, ColumnDefinition};
+use metastore::types::catalog::ColumnDefinition;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -192,23 +192,6 @@ impl SessionContext {
 
     /// Drop one or more views.
     pub async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
-        let mut drops = Vec::with_capacity(plan.names.len());
-        for name in plan.names {
-            let (_, schema, name) = self.resolve_object_reference(name.into())?;
-            drops.push(Mutation::DropObject(service::DropObject {
-                schema,
-                name,
-                if_exists: plan.if_exists,
-            }));
-        }
-
-        self.mutate_catalog(drops).await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more connections.
-    pub async fn drop_connections(&mut self, plan: DropConnections) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
             let (_, schema, name) = self.resolve_object_reference(name.into())?;

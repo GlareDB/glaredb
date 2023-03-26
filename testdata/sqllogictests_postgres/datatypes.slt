@@ -1,12 +1,11 @@
 # Test if the datasource supports the different datatypes (and NULLs).
 
-include ./include/conn.slti
-
 # Create an external table that connects to the datatypes table.
 statement ok
 CREATE EXTERNAL TABLE datatypes
-	FROM testconn
+	FROM postgres
 	OPTIONS (
+		postgres_conn = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'datatypes'
 	);

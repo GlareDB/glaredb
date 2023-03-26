@@ -663,7 +663,3 @@ fn remove_required_opt(m: &mut BTreeMap<String, String>, k: &str) -> Result<Stri
     m.remove(k)
         .ok_or_else(|| internal!("missing required option: {}", k))
 }
-
-fn remove_optional_opt(m: &mut BTreeMap<String, String>, k: &str) -> Option<String> {
-    m.remove(k)
-}

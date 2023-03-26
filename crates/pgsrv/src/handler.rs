@@ -598,9 +598,6 @@ where
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,
-            ExecutionResult::DropConnections => {
-                Self::command_complete(conn, "DROP CONNECTION").await?
-            }
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
             ExecutionResult::DropDatabase => Self::command_complete(conn, "DROP DATABASE").await?,
         };

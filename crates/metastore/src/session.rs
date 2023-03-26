@@ -75,7 +75,12 @@ impl SessionCatalog {
     /// Resolve an entry by schema name and object name.
     ///
     /// Note that this will never return a schema entry.
-    pub fn resolve_entry(&self, database: &str, schema: &str, name: &str) -> Option<&CatalogEntry> {
+    pub fn resolve_entry(
+        &self,
+        _database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Option<&CatalogEntry> {
         let schema_id = self.schema_names.get(schema)?;
         let obj = self.schema_objects.get(schema_id)?;
         let obj_id = obj.objects.get(name)?;
@@ -86,6 +91,7 @@ impl SessionCatalog {
             .get(obj_id)
             .expect("object name points to invalid id");
         assert!(!ent.is_schema());
+        assert!(!ent.is_database());
 
         Some(ent)
     }

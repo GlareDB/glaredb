@@ -9,7 +9,7 @@ use crate::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
     ViewEntry,
 };
-use crate::types::options::{DatabaseOptions, TableOptions};
+use crate::types::options::TableOptions;
 use crate::types::service::Mutation;
 use crate::types::storage::{ExtraState, PersistedCatalog};
 use once_cell::sync::Lazy;
@@ -325,8 +325,8 @@ impl State {
 
         for mutation in mutations {
             match mutation {
-                Mutation::DropDatabase(drop_database) => {
-                    unimplemented!()
+                Mutation::DropDatabase(_drop_database) => {
+                    return Err(MetastoreError::Unimplemented("DROP DATABASE"))
                 }
                 Mutation::DropSchema(drop_schema) => {
                     let if_exists = drop_schema.if_exists;

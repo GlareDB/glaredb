@@ -1,7 +1,6 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::storage;
-use crate::types::catalog::{CatalogEntry, CatalogState};
-use std::collections::HashMap;
+use crate::types::catalog::CatalogState;
 use std::time::SystemTime;
 use uuid::Uuid;
 
