@@ -312,10 +312,7 @@ fn split_comma_delimited(text: &str) -> Vec<String> {
         static ref RE: Regex = Regex::new(SPLIT_ON_UNQUOTED_COMMAS).unwrap();
     }
 
-    RE.find_iter(text)
-        .into_iter()
-        .map(|m| m.as_str().to_string())
-        .collect()
+    RE.find_iter(text).map(|m| m.as_str().to_string()).collect()
 }
 
 impl Value for [String] {

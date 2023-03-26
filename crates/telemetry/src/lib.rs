@@ -8,9 +8,10 @@ use uuid::Uuid;
 
 const MESSAGE_BUF_SIZE: usize = 256;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum Tracker {
     Segment(SegmentTracker),
+    #[default]
     Nop,
 }
 
@@ -26,12 +27,6 @@ impl Tracker {
 impl From<SegmentTracker> for Tracker {
     fn from(value: SegmentTracker) -> Self {
         Tracker::Segment(value)
-    }
-}
-
-impl Default for Tracker {
-    fn default() -> Self {
-        Tracker::Nop
     }
 }
 
