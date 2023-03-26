@@ -3,6 +3,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
+use gpt::client::CompletionRequest;
 use metastore::types::catalog::{ConnectionOptions, TableOptions};
 use std::collections::HashMap;
 
@@ -19,6 +20,8 @@ pub enum LogicalPlan {
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
     Variable(VariablePlan),
+    /// GPT related plans.
+    Gpt(GptPlan),
 }
 
 impl LogicalPlan {
@@ -41,6 +44,11 @@ impl LogicalPlan {
             LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => Some(ArrowSchema::new(
                 vec![Field::new(&plan.variable, DataType::Utf8, false)],
             )),
+            LogicalPlan::Gpt(_) => Some(ArrowSchema::new(vec![Field::new(
+                "GPT Explain",
+                DataType::Utf8,
+                false,
+            )])),
             _ => None,
         }
     }
@@ -242,4 +250,14 @@ impl SetVariable {
 #[derive(Clone, Debug)]
 pub struct ShowVariable {
     pub variable: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum GptPlan {
+    Explain(GptExplain),
+}
+
+#[derive(Clone, Debug)]
+pub struct GptExplain {
+    pub req: CompletionRequest,
 }

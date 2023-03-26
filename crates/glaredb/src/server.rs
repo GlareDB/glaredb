@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
+use gpt::client::GptClient;
 use metastore::local::start_inprocess_inmemory;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use pgsrv::handler::ProtocolHandler;
@@ -25,6 +26,7 @@ impl Server {
     pub async fn connect(
         metastore_addr: Option<String>,
         segment_key: Option<String>,
+        openai_key: Option<String>,
         local: bool,
     ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
@@ -61,7 +63,18 @@ impl Server {
             }
         };
 
-        let engine = Engine::new(metastore_client, Arc::new(tracker)).await?;
+        let gpt_client = match openai_key {
+            Some(key) => {
+                info!("initializing gpt client");
+                Some(GptClient::new(&key)?)
+            }
+            None => {
+                info!("skipping initialization of gpt client");
+                None
+            }
+        };
+
+        let engine = Engine::new(metastore_client, Arc::new(tracker), gpt_client).await?;
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(engine, local)),
         })

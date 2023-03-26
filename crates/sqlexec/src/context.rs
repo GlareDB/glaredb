@@ -15,6 +15,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasource_common::ssh::SshTunnelAccess;
 use futures::future::BoxFuture;
+use gpt::client::GptClient;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{self, ColumnDefinition, ConnectionEntry, ConnectionOptions};
@@ -57,6 +58,8 @@ pub struct SessionContext {
     /// This session state makes a ton of assumptions, try to keep usage of it
     /// to a minimum and ensure interactions with this are well-defined.
     df_state: SessionState,
+    /// Weekend hack for integrating gpt into GlareDB.
+    gpt_client: Option<GptClient>,
 }
 
 impl SessionContext {
@@ -66,6 +69,7 @@ impl SessionContext {
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         metrics: SessionMetrics,
+        gpt_client: Option<GptClient>,
     ) -> SessionContext {
         // TODO: Pass in datafusion runtime env.
 
@@ -96,6 +100,7 @@ impl SessionContext {
             portals: HashMap::new(),
             metrics,
             df_state: state,
+            gpt_client,
         }
     }
 
@@ -109,6 +114,10 @@ impl SessionContext {
 
     pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
         &mut self.metrics
+    }
+
+    pub fn get_gpt_client(&self) -> Option<&GptClient> {
+        self.gpt_client.as_ref()
     }
 
     /// Create a table.

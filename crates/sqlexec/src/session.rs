@@ -1,6 +1,7 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
+use crate::gpt::execute::GptExecutor;
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
@@ -11,6 +12,7 @@ use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use gpt::client::GptClient;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use std::fmt;
@@ -62,6 +64,8 @@ pub enum ExecutionResult {
     DropConnections,
     /// Schemas dropped.
     DropSchemas,
+    /// Catch-all result for GPT.
+    Gpt { stream: SendableRecordBatchStream },
 }
 
 impl ExecutionResult {
@@ -83,6 +87,7 @@ impl ExecutionResult {
             ExecutionResult::DropViews => "drop_views",
             ExecutionResult::DropConnections => "drop_connections",
             ExecutionResult::DropSchemas => "drop_schemas",
+            ExecutionResult::Gpt { .. } => "gpt",
         }
     }
 }
@@ -110,6 +115,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::DropViews => write!(f, "drop views"),
             ExecutionResult::DropConnections => write!(f, "drop connections"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
+            ExecutionResult::Gpt { .. } => write!(f, "gpt"),
         }
     }
 }
@@ -133,9 +139,10 @@ impl Session {
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         tracker: Arc<Tracker>,
+        gpt_client: Option<GptClient>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, metrics);
+        let ctx = SessionContext::new(info, catalog, metastore, metrics, gpt_client);
         Ok(Session { ctx })
     }
 
@@ -348,6 +355,11 @@ impl Session {
             LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
                 let stream = self.show_variable(plan)?;
                 ExecutionResult::ShowVariable { stream }
+            }
+            LogicalPlan::Gpt(GptPlan::Explain(plan)) => {
+                let gpt_exec = GptExecutor::new(self.ctx.get_gpt_client());
+                let stream = gpt_exec.execute_gpt_explain(plan).await?;
+                ExecutionResult::Gpt { stream }
             }
             other => return Err(internal!("unimplemented logical plan: {:?}", other)),
         };

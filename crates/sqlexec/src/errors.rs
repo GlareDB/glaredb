@@ -118,6 +118,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
+
+    #[error(transparent)]
+    Gpt(#[from] crate::gpt::errors::GptError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

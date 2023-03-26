@@ -102,6 +102,17 @@ impl fmt::Display for DropConnectionStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplainGptStmt {
+    pub stmt: ast::Statement,
+}
+
+impl fmt::Display for ExplainGptStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "EXPLAIN GPT {}", self.stmt)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
@@ -111,6 +122,8 @@ pub enum StatementWithExtensions {
     CreateConnection(CreateConnectionStmt),
     /// Drop connection extension.
     DropConnection(DropConnectionStmt),
+    /// Explain with GPT
+    ExplainGpt(ExplainGptStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -120,6 +133,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateConnection(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropConnection(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::ExplainGpt(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -171,6 +185,10 @@ impl<'a> CustomParser<'a> {
                     self.parser.next_token();
                     self.parse_drop()
                 }
+                Keyword::EXPLAIN => {
+                    self.parser.next_token();
+                    self.parse_explain()
+                }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
                 )),
@@ -179,6 +197,27 @@ impl<'a> CustomParser<'a> {
                 self.parser.parse_statement()?,
             )),
         }
+    }
+
+    /// Parse EXPLAIN
+    fn parse_explain(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        // Check for 'EXPLAIN GPT ...'
+        let tok = self.parser.peek_token();
+        if let Token::Word(word) = tok.token {
+            if word.value.eq_ignore_ascii_case("gpt") {
+                self.parser.next_token();
+
+                // TODO: Allow this to be a statement with extensions.
+                let remaining = self.parser.parse_statement()?;
+                return Ok(StatementWithExtensions::ExplainGpt(ExplainGptStmt {
+                    stmt: remaining,
+                }));
+            }
+        }
+
+        // Fallback to builtin EXPLAIN parsing.
+        let stmt = self.parser.parse_explain(false)?;
+        Ok(StatementWithExtensions::Statement(stmt))
     }
 
     /// Parse a SQL CREATE statement
@@ -434,6 +473,23 @@ mod tests {
             "DROP CONNECTION IF EXISTS my_conn",
             "DROP CONNECTION my_conn1, my_conn2, my_conn3",
             "DROP CONNECTION IF EXISTS my_conn1, my_conn2, my_conn3",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn explain_roundtrips() {
+        let test_cases = [
+            "EXPLAIN SELECT 1",
+            "EXPLAIN ANALYZE SELECT 1",
+            "EXPLAIN GPT SELECT 1",
         ];
 
         for test_case in test_cases {

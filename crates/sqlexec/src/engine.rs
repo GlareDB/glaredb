@@ -1,6 +1,7 @@
 use crate::errors::Result;
 use crate::metastore::Supervisor;
 use crate::session::Session;
+use gpt::client::GptClient;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
 use std::sync::Arc;
@@ -24,6 +25,7 @@ pub struct SessionInfo {
 pub struct Engine {
     supervisor: Supervisor,
     tracker: Arc<Tracker>,
+    gpt_client: Option<GptClient>,
 }
 
 impl Engine {
@@ -31,10 +33,12 @@ impl Engine {
     pub async fn new(
         metastore: MetastoreServiceClient<Channel>,
         tracker: Arc<Tracker>,
+        gpt_client: Option<GptClient>,
     ) -> Result<Engine> {
         Ok(Engine {
             supervisor: Supervisor::new(metastore),
             tracker,
+            gpt_client,
         })
     }
 
@@ -56,7 +60,13 @@ impl Engine {
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
-        let session = Session::new(info, catalog, metastore, self.tracker.clone())?;
+        let session = Session::new(
+            info,
+            catalog,
+            metastore,
+            self.tracker.clone(),
+            self.gpt_client.clone(),
+        )?;
         Ok(session)
     }
 }

@@ -1,4 +1,5 @@
 use crate::context::SessionContext;
+use crate::gpt::planner::GptPlanner;
 use crate::parser::{
     CreateConnectionStmt, CreateExternalTableStmt, DropConnectionStmt, StatementWithExtensions,
 };
@@ -59,6 +60,11 @@ impl<'a> SessionPlanner<'a> {
                 self.plan_create_connection(stmt).await
             }
             StatementWithExtensions::DropConnection(stmt) => self.plan_drop_connection(stmt),
+            StatementWithExtensions::ExplainGpt(stmt) => {
+                let gpt_planner = GptPlanner;
+                let plan = gpt_planner.plan_gpt_explain(stmt)?;
+                Ok(plan)
+            }
         }
     }
 

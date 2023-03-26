@@ -59,6 +59,9 @@ pub enum PlanError {
     ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),
 
     #[error(transparent)]
+    Gpt(#[from] crate::gpt::errors::GptError),
+
+    #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
 
     #[error(transparent)]

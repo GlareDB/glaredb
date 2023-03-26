@@ -56,6 +56,10 @@ enum Commands {
         /// API key for segment.
         #[clap(long, value_parser)]
         segment_key: Option<String>,
+
+        /// API key for OpenAI.
+        #[clap(long, value_parser)]
+        openai_key: Option<String>,
     },
 
     /// Starts an instance of the pgsrv proxy.
@@ -105,11 +109,13 @@ fn main() -> Result<()> {
             metastore_addr,
             local,
             mut segment_key,
+            mut openai_key,
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
+            openai_key = openai_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
-            begin_server(&bind, metastore_addr, segment_key, local)?;
+            begin_server(&bind, metastore_addr, segment_key, openai_key, local)?;
         }
         Commands::Proxy {
             bind,
@@ -152,13 +158,14 @@ fn begin_server(
     pg_bind: &str,
     metastore_addr: Option<String>,
     segment_key: Option<String>,
+    openai_key: Option<String>,
     local: bool,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(metastore_addr, segment_key, local).await?;
+        let server = Server::connect(metastore_addr, segment_key, openai_key, local).await?;
         server.serve(conf).await
     })
 }

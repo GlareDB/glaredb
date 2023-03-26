@@ -10,6 +10,7 @@ buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
 metastore = {path = "../metastore"}
 telemetry = {path = "../telemetry"}
+gpt = {path = "../gpt"}
 datasource_bigquery = {path = "../datasource_bigquery"}
 datasource_postgres = {path = "../datasource_postgres"}
 datasource_mysql = {path = "../datasource_mysql"}
@@ -30,6 +31,7 @@ regex = "1.7"
 lazy_static = "1.4"
 tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
 tokio-postgres = "0.7.7"
+textwrap = "0.16"
 
 [dev-dependencies]
 tempfile = "3"
