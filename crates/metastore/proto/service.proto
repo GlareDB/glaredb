@@ -5,6 +5,7 @@ syntax = "proto3";
 package metastore.service;
 
 import "catalog.proto";
+import "options.proto";
 
 message InitializeCatalogRequest {
   // ID of the catalog to initialize.
@@ -89,7 +90,7 @@ message CreateExternalTable {
 
 message CreateDatabase {
   string name = 1;
-  catalog.DatabaseOptions options = 2;
+  options.DatabaseOptions options = 2;
   bool if_not_exists = 3;
   // next: 4
 }

@@ -126,45 +126,7 @@ pub struct DatabaseEntry {
     pub meta: ::core::option::Option<EntryMeta>,
     /// next: 3
     #[prost(message, optional, tag = "2")]
-    pub options: ::core::option::Option<DatabaseOptions>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DatabaseOptions {
-    /// TODO
-    #[prost(oneof = "database_options::Options", tags = "1, 2, 3")]
-    pub options: ::core::option::Option<database_options::Options>,
-}
-/// Nested message and enum types in `DatabaseOptions`.
-pub mod database_options {
-    /// TODO
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Options {
-        #[prost(message, tag = "1")]
-        Internal(super::DatabaseOptionsInternal),
-        #[prost(message, tag = "2")]
-        Postgres(super::DatabaseOptionsPostgres),
-        #[prost(message, tag = "3")]
-        Bigquery(super::DatabaseOptionsBigQuery),
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DatabaseOptionsInternal {}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DatabaseOptionsPostgres {
-    #[prost(string, tag = "1")]
-    pub connection_string: ::prost::alloc::string::String,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DatabaseOptionsBigQuery {
-    #[prost(string, tag = "1")]
-    pub service_account_key: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub project_id: ::prost::alloc::string::String,
+    pub options: ::core::option::Option<super::options::DatabaseOptions>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -51,8 +51,6 @@ pub enum CatalogEntry {
     Schema(SchemaEntry),
     Table(TableEntry),
     View(ViewEntry),
-    Connection(ConnectionEntry),
-    ExternalTable(ExternalTableEntry),
 }
 
 impl CatalogEntry {
@@ -62,8 +60,6 @@ impl CatalogEntry {
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
             CatalogEntry::Table(_) => EntryType::Table,
-            CatalogEntry::Connection(_) => EntryType::Connection,
-            CatalogEntry::ExternalTable(_) => EntryType::ExternalTable,
         }
     }
 
@@ -82,8 +78,6 @@ impl CatalogEntry {
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
             CatalogEntry::Table(table) => &table.meta,
-            CatalogEntry::Connection(conn) => &conn.meta,
-            CatalogEntry::ExternalTable(tbl) => &tbl.meta,
         }
     }
 }
@@ -96,10 +90,6 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
             catalog::catalog_entry::Entry::Table(v) => CatalogEntry::Table(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
-            catalog::catalog_entry::Entry::Connection(v) => CatalogEntry::Connection(v.try_into()?),
-            catalog::catalog_entry::Entry::ExternalTable(v) => {
-                CatalogEntry::ExternalTable(v.try_into()?)
-            }
         })
     }
 }
@@ -119,10 +109,6 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
-            CatalogEntry::Connection(v) => catalog::catalog_entry::Entry::Connection(v.into()),
-            CatalogEntry::ExternalTable(v) => {
-                catalog::catalog_entry::Entry::ExternalTable(v.try_into()?)
-            }
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
@@ -132,10 +118,8 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
 pub enum EntryType {
     Database,
     Schema,
-    ExternalTable,
     Table,
     View,
-    Connection,
 }
 
 impl EntryType {
@@ -143,10 +127,8 @@ impl EntryType {
         match self {
             EntryType::Database => "database",
             EntryType::Schema => "schema",
-            EntryType::ExternalTable => "external table",
             EntryType::Table => "table",
             EntryType::View => "view",
-            EntryType::Connection => "connection",
         }
     }
 }
@@ -169,10 +151,8 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             }
             catalog::entry_meta::EntryType::Database => EntryType::Database,
             catalog::entry_meta::EntryType::Schema => EntryType::Schema,
-            catalog::entry_meta::EntryType::ExternalTable => EntryType::ExternalTable,
             catalog::entry_meta::EntryType::Table => EntryType::Table,
             catalog::entry_meta::EntryType::View => EntryType::View,
-            catalog::entry_meta::EntryType::Connection => EntryType::Connection,
         })
     }
 }
@@ -183,9 +163,7 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
             EntryType::Database => catalog::entry_meta::EntryType::Database,
             EntryType::Schema => catalog::entry_meta::EntryType::Schema,
             EntryType::Table => catalog::entry_meta::EntryType::Table,
-            EntryType::ExternalTable => catalog::entry_meta::EntryType::ExternalTable,
             EntryType::View => catalog::entry_meta::EntryType::View,
-            EntryType::Connection => catalog::entry_meta::EntryType::Connection,
         }
     }
 }

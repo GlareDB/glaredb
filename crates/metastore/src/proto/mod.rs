@@ -9,3 +9,5 @@ pub mod catalog;
 pub mod service;
 #[rustfmt::skip]
 pub mod storage;
+#[rustfmt::skip]
+pub mod options;

@@ -176,7 +176,7 @@ pub struct CreateDatabase {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
-    pub options: ::core::option::Option<super::catalog::DatabaseOptions>,
+    pub options: ::core::option::Option<super::options::DatabaseOptions>,
     /// next: 4
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
