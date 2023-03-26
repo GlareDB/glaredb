@@ -131,7 +131,6 @@ impl SessionContext {
             service::CreateExternalTable {
                 schema,
                 name,
-                connection_id: plan.connection_id,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
                 columns,

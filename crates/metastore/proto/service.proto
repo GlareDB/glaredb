@@ -72,10 +72,9 @@ message CreateView {
 message CreateExternalTable {
   string schema = 1;
   string name = 2;
-  uint32 connection_id = 3;
-  options.TableOptions options = 4;
-  bool if_not_exists = 5;
-  repeated catalog.ColumnDefinition columns = 6;
+  options.TableOptions options = 3;
+  bool if_not_exists = 4;
+  repeated catalog.ColumnDefinition columns = 5;
   // next: 7
 }
 

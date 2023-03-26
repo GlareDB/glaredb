@@ -460,10 +460,6 @@ impl State {
                 Mutation::CreateExternalTable(create_ext) => {
                     let schema_id = self.get_schema_id(&create_ext.schema)?;
 
-                    if !self.entries.contains_key(&create_ext.connection_id) {
-                        return Err(MetastoreError::MissingEntry(create_ext.connection_id));
-                    }
-
                     // Create new entry.
                     let oid = self.next_oid();
                     let ent = TableEntry {

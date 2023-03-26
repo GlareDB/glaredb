@@ -145,14 +145,12 @@ pub struct CreateExternalTable {
     pub schema: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub name: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "3")]
-    pub connection_id: u32,
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "3")]
     pub options: ::core::option::Option<super::options::TableOptions>,
-    #[prost(bool, tag = "5")]
+    #[prost(bool, tag = "4")]
     pub if_not_exists: bool,
     /// next: 7
-    #[prost(message, repeated, tag = "6")]
+    #[prost(message, repeated, tag = "5")]
     pub columns: ::prost::alloc::vec::Vec<super::catalog::ColumnDefinition>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]

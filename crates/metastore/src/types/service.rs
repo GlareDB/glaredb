@@ -202,7 +202,6 @@ impl From<CreateView> for service::CreateView {
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
-    pub connection_id: u32,
     pub options: TableOptions,
     pub if_not_exists: bool,
     pub columns: Vec<ColumnDefinition>,
@@ -215,7 +214,6 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
         Ok(CreateExternalTable {
             schema: value.schema,
             name: value.name,
-            connection_id: value.connection_id,
             options: value.options.required("options")?,
             if_not_exists: value.if_not_exists,
             columns: value
@@ -233,7 +231,6 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
         Ok(service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
-            connection_id: value.connection_id,
             options: Some(value.options.into()),
             if_not_exists: value.if_not_exists,
             columns: value
