@@ -12,6 +12,7 @@ fn main() {
                 "proto/catalog.proto",
                 "proto/service.proto",
                 "proto/storage.proto",
+                "proto/options.proto",
             ],
             &["proto"],
         )
@@ -23,6 +24,7 @@ fn main() {
         ("metastore.catalog.rs", "catalog.rs"),
         ("metastore.service.rs", "service.rs"),
         ("metastore.storage.rs", "storage.rs"),
+        ("metastore.options.rs", "options.rs"),
     ];
     let out: PathBuf = std::env::var("OUT_DIR").unwrap().into();
     for (src, dest) in src_dest {

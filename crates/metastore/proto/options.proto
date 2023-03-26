@@ -1,0 +1,101 @@
+// Connection options when connecting to external systems.
+//
+// These message are used when hooking up external databases or tables to
+// GlareDB.
+
+// TODO: Breakup "connection strings" to individual components.
+
+syntax = "proto3";
+
+package metastore.options;
+
+// Database options
+
+message DatabaseOptions {
+  oneof options {
+    DatabaseOptionsInternal internal = 1;
+    DatabaseOptionsDebug debug = 2;
+    DatabaseOptionsPostgres postgres = 3;
+    DatabaseOptionsBigQuery bigquery = 4;
+    DatabaseOptionsMysql mysql = 5;
+    DatabaseOptionsMongo mongo = 6;
+  }
+  // next: 7
+}
+
+message DatabaseOptionsInternal {}
+
+message DatabaseOptionsDebug {}
+
+message DatabaseOptionsPostgres { string connection_string = 1; }
+
+message DatabaseOptionsBigQuery {
+  string service_account_key = 1;
+  string project_id = 2;
+}
+
+message DatabaseOptionsMysql { string connection_string = 1; }
+
+message DatabaseOptionsMongo { string connection_string = 1; }
+
+// Table options
+
+message TableOptions {
+  oneof options {
+    TableOptionsInternal internal = 1;
+    TableOptionsDebug debug = 2;
+    TableOptionsPostgres postgres = 3;
+    TableOptionsBigQuery bigquery = 4;
+    TableOptionsLocal local = 5;
+    TableOptionsGcs gcs = 6;
+    TableOptionsS3 s3 = 7;
+    TableOptionsMysql mysql = 8;
+    TableOptionsMongo mongo = 9;
+  }
+  // next: 10
+}
+
+message TableOptionsInternal {}
+
+message TableOptionsDebug {}
+
+message TableOptionsPostgres {
+  string connection_string = 1;
+  string schema = 2;
+  string table = 3;
+}
+
+message TableOptionsBigQuery {
+  string service_account_key = 1;
+  string project_id = 2;
+  string dataset_id = 3;
+  string table_id = 4;
+}
+
+message TableOptionsMysql {
+  string connection_string = 1;
+  string schema = 2;
+  string table = 3;
+}
+
+message TableOptionsLocal { string locations = 1; }
+
+message TableOptionsGcs {
+  string service_account_key = 1;
+  string bucket = 2;
+  string location = 3;
+}
+
+message TableOptionsS3 {
+  string access_key_id = 1;
+  string secret_access_key = 2;
+  string region = 3;
+  string bucket = 4;
+  string location = 5;
+}
+
+message TableOptionsMongo {
+  string connection_string = 1;
+  string database = 2;
+  string collection = 3;
+}

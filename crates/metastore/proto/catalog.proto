@@ -5,6 +5,26 @@
 //
 // Longer term our storage format may differ from our RPC format, but until
 // then, keeping them in sync allows for faster iteration.
+//
+// # External data sources
+//
+// External data sources can be hooked up to GlareDB to allow querying across
+// data sources. We currently support "external databases" and "externa tables".
+// Some data sources can be connected with either method, while others are
+// limited to a single method. For example, an S3 data source can only be added
+// as an external table.
+//
+// Support matrix:
+//
+// | Data source        | External Database? | External Table? |
+// |--------------------|--------------------|-----------------|
+// | Postgres           | yes                | yes             |
+// | BigQuery           | yes                | yes             |
+// | MySQL              | yes                | yes             |
+// | MongoDB            | yes                | yes             |
+// | Local object store | no                 | yes             |
+// | GCS                | no                 | yes             |
+// | S3                 | no                 | yes             |
 
 syntax = "proto3";
 
@@ -28,12 +48,10 @@ message CatalogState {
 // Possible top-level catalog entries.
 message CatalogEntry {
   oneof entry {
-    DatabaseEntry database = 6; // TODO
-    SchemaEntry schema = 1;
-    TableEntry table = 2;
-    ViewEntry view = 3;
-    ConnectionEntry connection = 4;
-    ExternalTableEntry external_table = 5;
+    DatabaseEntry database = 1; // TODO
+    SchemaEntry schema = 2;
+    TableEntry table = 3;
+    ViewEntry view = 4;
   }
 }
 
@@ -42,21 +60,17 @@ message EntryMeta {
   // Possible entry types in the catalog.
   //
   // Each entry of this type shares the same ID space.
-  // TODO: Renumber
   enum EntryType {
     // Unknown catalog entry. We should error if this is encountered.
     UNKNOWN = 0;
-    // Database schemas.
-    SCHEMA = 1;
-    // Database tables.
-    TABLE = 2;
-    // Database views.
+    // Internal or external database.
+    DATABASE = 1;
+    // Internal schema (eventually include external)
+    SCHEMA = 2;
+    // Internal or external table.
+    TABLE = 3;
+    // Internal view.
     VIEW = 4;
-    // Connections to external data sources.
-    CONNECTION = 5;
-
-    EXTERNAL_TABLE = 3;
-    DATABASE = 6;
   }
 
   // Type of the entry.

@@ -15,7 +15,7 @@ pub struct CatalogState {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CatalogEntry {
-    #[prost(oneof = "catalog_entry::Entry", tags = "6, 1, 2, 3, 4, 5")]
+    #[prost(oneof = "catalog_entry::Entry", tags = "1, 2, 3, 4")]
     pub entry: ::core::option::Option<catalog_entry::Entry>,
 }
 /// Nested message and enum types in `CatalogEntry`.
@@ -24,18 +24,14 @@ pub mod catalog_entry {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Entry {
         /// TODO
-        #[prost(message, tag = "6")]
-        Database(super::DatabaseEntry),
         #[prost(message, tag = "1")]
-        Schema(super::SchemaEntry),
+        Database(super::DatabaseEntry),
         #[prost(message, tag = "2")]
-        Table(super::TableEntry),
+        Schema(super::SchemaEntry),
         #[prost(message, tag = "3")]
-        View(super::ViewEntry),
+        Table(super::TableEntry),
         #[prost(message, tag = "4")]
-        Connection(super::ConnectionEntry),
-        #[prost(message, tag = "5")]
-        ExternalTable(super::ExternalTableEntry),
+        View(super::ViewEntry),
     }
 }
 /// Metadata for every entry in the catalog.
@@ -72,7 +68,6 @@ pub mod entry_meta {
     /// Possible entry types in the catalog.
     ///
     /// Each entry of this type shares the same ID space.
-    /// TODO: Renumber
     #[derive(
         Clone,
         Copy,
@@ -88,16 +83,14 @@ pub mod entry_meta {
     pub enum EntryType {
         /// Unknown catalog entry. We should error if this is encountered.
         Unknown = 0,
-        /// Database schemas.
-        Schema = 1,
-        /// Database tables.
-        Table = 2,
-        /// Database views.
+        /// Internal or external database.
+        Database = 1,
+        /// Internal schema (eventually include external)
+        Schema = 2,
+        /// Internal or external table.
+        Table = 3,
+        /// Internal view.
         View = 4,
-        /// Connections to external data sources.
-        Connection = 5,
-        ExternalTable = 3,
-        Database = 6,
     }
     impl EntryType {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -107,24 +100,20 @@ pub mod entry_meta {
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 EntryType::Unknown => "UNKNOWN",
+                EntryType::Database => "DATABASE",
                 EntryType::Schema => "SCHEMA",
                 EntryType::Table => "TABLE",
                 EntryType::View => "VIEW",
-                EntryType::Connection => "CONNECTION",
-                EntryType::ExternalTable => "EXTERNAL_TABLE",
-                EntryType::Database => "DATABASE",
             }
         }
         /// Creates an enum from field names used in the ProtoBuf definition.
         pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
             match value {
                 "UNKNOWN" => Some(Self::Unknown),
+                "DATABASE" => Some(Self::Database),
                 "SCHEMA" => Some(Self::Schema),
                 "TABLE" => Some(Self::Table),
                 "VIEW" => Some(Self::View),
-                "CONNECTION" => Some(Self::Connection),
-                "EXTERNAL_TABLE" => Some(Self::ExternalTable),
-                "DATABASE" => Some(Self::Database),
                 _ => None,
             }
         }
