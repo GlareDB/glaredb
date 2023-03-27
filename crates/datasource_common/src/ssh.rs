@@ -147,19 +147,6 @@ impl SshTunnelAccess {
     }
 }
 
-// impl TryFrom<&ConnectionOptionsSsh> for SshTunnelAccess {
-//     type Error = Error;
-//     fn try_from(value: &ConnectionOptionsSsh) -> Result<Self> {
-//         let keypair = SshKey::from_bytes(&value.keypair)?;
-//         Ok(SshTunnelAccess {
-//             host: value.host.clone(),
-//             user: value.user.clone(),
-//             port: value.port,
-//             keypair,
-//         })
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use crate::ssh::{SshKey, SshTunnelAccess};

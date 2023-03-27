@@ -1,9 +1,6 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use datafusion::arrow::array::{
-    Array, BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder,
-};
-use datafusion::arrow::datatypes::Schema as ArrowSchema;
+use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
@@ -34,6 +31,9 @@ use tracing::error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DispatchError {
+    #[error("Missing database: {database}")]
+    MissingDatabase { database: String },
+
     #[error("Missing catalog entry; schema: {schema}, name: {name}")]
     MissingEntry { schema: String, name: String },
 
@@ -112,9 +112,16 @@ impl<'a> SessionDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         let catalog = self.ctx.get_session_catalog();
 
-        // "External" database
+        // "External" database.
         if database != DEFAULT_CATALOG {
-            let db = catalog.resolve_database(database).unwrap();
+            let db = match catalog.resolve_database(database) {
+                Some(db) => db,
+                None => {
+                    return Err(DispatchError::MissingDatabase {
+                        database: database.to_string(),
+                    })
+                }
+            };
             return self.dispatch_external_database(db, schema, name).await;
         }
 
