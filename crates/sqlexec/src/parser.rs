@@ -4,12 +4,9 @@ use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
-use sqlparser::ast::Visit;
-use sqlparser::ast::Visitor;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
-use std::collections::{BTreeMap, HashSet};
 use std::fmt;
-use std::ops::ControlFlow;
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
@@ -195,19 +192,10 @@ impl<'a> CustomParser<'a> {
                 )))
             }
         } else {
-            tracing::warn!(?self.parser);
-            let stmt = self.parser.parse_create()?;
-            let mut visitor = RelationVistor::default();
-            stmt.visit(&mut visitor);
-
-            tracing::warn!(?stmt, ?visitor);
-
-            for object_name in visitor.0 {
-                validate_object_name(&object_name)?;
-            }
-
             // Fall back to underlying parser.
-            Ok(StatementWithExtensions::Statement(stmt))
+            Ok(StatementWithExtensions::Statement(
+                self.parser.parse_create()?,
+            ))
         }
     }
 
@@ -342,47 +330,22 @@ impl<'a> CustomParser<'a> {
     }
 }
 
-#[derive(Debug, Default)]
-struct RelationVistor(HashSet<ast::ObjectName>);
-
-impl Visitor for RelationVistor {
-    type Break = ();
-
-    fn pre_visit_expr(&mut self, expr: &ast::Expr) -> ControlFlow<Self::Break> {
-        tracing::warn!(?expr, "3");
-
-        match expr {
-            ast::Expr::Identifier(ident) => {
-                self.0.insert(ast::ObjectName(vec![ident.to_owned()]));
-                ControlFlow::Continue(())
-            }
-            _ => ControlFlow::Continue(()),
-        }
-    }
-
-    fn pre_visit_relation(&mut self, relation: &ast::ObjectName) -> ControlFlow<()> {
-        tracing::warn!("1");
-        self.0.insert(relation.to_owned());
-        ControlFlow::Continue(())
-    }
-
-    fn post_visit_relation(&mut self, relation: &ast::ObjectName) -> ControlFlow<()> {
-        tracing::warn!("2");
-        self.0.insert(relation.to_owned());
-        ControlFlow::Continue(())
-    }
-}
-
 /// Validate idents as per [postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
-fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
+pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
     const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
+    if ident.value.len() >= POSTGRES_IDENT_MAX_LENGTH {
+        return Err(ParserError::ParserError(format!(
+            "Ident {ident} is greater than 63 bytes in length"
+        )));
+    }
+    Ok(())
+}
+
+/// Validate object names a `Vec<ast::Idents>`
+pub fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
     for ident in name.0.iter() {
-        if ident.value.len() >= POSTGRES_IDENT_MAX_LENGTH {
-            return Err(ParserError::ParserError(format!(
-                "Ident {ident} is greater than 63 bytes in length"
-            )));
-        }
+        validate_ident(ident)?;
     }
     Ok(())
 }
