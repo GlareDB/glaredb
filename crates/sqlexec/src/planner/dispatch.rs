@@ -1,6 +1,9 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder};
+use datafusion::arrow::array::{
+    Array, BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder,
+};
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
@@ -13,8 +16,8 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
-    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_EXTERNAL_COLUMNS, GLARE_SCHEMAS,
-    GLARE_SESSION_QUERY_METRICS, GLARE_TABLES, GLARE_VIEWS,
+    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
+    GLARE_TABLES, GLARE_VIEWS,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -344,12 +347,12 @@ impl<'a> SystemTableDispatcher<'a> {
     }
 
     fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
-        Ok(if GLARE_TABLES.matches(schema, name) {
+        Ok(if GLARE_DATABASES.matches(schema, name) {
+            Arc::new(self.build_glare_databases())
+        } else if GLARE_TABLES.matches(schema, name) {
             Arc::new(self.build_glare_tables())
         } else if GLARE_COLUMNS.matches(schema, name) {
             Arc::new(self.build_glare_columns())
-        } else if GLARE_EXTERNAL_COLUMNS.matches(schema, name) {
-            Arc::new(self.build_glare_external_columns())
         } else if GLARE_VIEWS.matches(schema, name) {
             Arc::new(self.build_glare_views())
         } else if GLARE_SCHEMAS.matches(schema, name) {
@@ -364,28 +367,71 @@ impl<'a> SystemTableDispatcher<'a> {
         })
     }
 
+    fn build_glare_databases(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_DATABASES.arrow_schema());
+
+        let mut oid = UInt32Builder::new();
+        let mut database_name = StringBuilder::new();
+        let mut builtin = BooleanBuilder::new();
+        let mut external = BooleanBuilder::new();
+
+        for db in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Database)
+        {
+            oid.append_value(db.oid);
+            database_name.append_value(&db.entry.get_meta().name);
+            builtin.append_value(db.builtin);
+            external.append_value(db.entry.get_meta().external);
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oid.finish()),
+                Arc::new(database_name.finish()),
+                Arc::new(builtin.finish()),
+                Arc::new(external.finish()),
+            ],
+        )
+        .unwrap();
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
     fn build_glare_schemas(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_SCHEMAS.arrow_schema());
 
-        let mut oids = UInt32Builder::new();
-        let mut builtins = BooleanBuilder::new();
-        let mut schema_names = StringBuilder::new();
+        let mut oid = UInt32Builder::new();
+        let mut database_oid = UInt32Builder::new();
+        let mut database_name = StringBuilder::new();
+        let mut schema_name = StringBuilder::new();
+        let mut builtin = BooleanBuilder::new();
 
         for schema in self
             .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Schema)
         {
-            oids.append_value(schema.oid);
-            builtins.append_value(schema.builtin);
-            schema_names.append_value(&schema.entry.get_meta().name);
+            oid.append_value(schema.oid);
+            database_oid.append_value(schema.entry.get_meta().parent);
+            database_name.append_value(
+                schema
+                    .parent_entry
+                    .map(|db| db.get_meta().name.as_str())
+                    .unwrap_or("<invalid>"),
+            );
+            schema_name.append_value(&schema.entry.get_meta().name);
+            builtin.append_value(schema.builtin);
         }
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
-                Arc::new(oids.finish()),
-                Arc::new(builtins.finish()),
-                Arc::new(schema_names.finish()),
+                Arc::new(oid.finish()),
+                Arc::new(database_oid.finish()),
+                Arc::new(database_name.finish()),
+                Arc::new(schema_name.finish()),
+                Arc::new(builtin.finish()),
             ],
         )
         .unwrap();
@@ -395,44 +441,48 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_tables(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_TABLES.arrow_schema());
 
-        let mut oids = UInt32Builder::new();
-        let mut builtins = BooleanBuilder::new();
-        let mut schema_oids = UInt32Builder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut table_names = StringBuilder::new();
-        let mut externals = BooleanBuilder::new();
-        let mut connection_oids = UInt32Builder::new();
+        let mut oid = UInt32Builder::new();
+        let mut database_oid = UInt32Builder::new();
+        let mut schema_oid = UInt32Builder::new();
+        let mut schema_name = StringBuilder::new();
+        let mut table_name = StringBuilder::new();
+        let mut builtin = BooleanBuilder::new();
+        let mut external = BooleanBuilder::new();
 
         for table in self
             .catalog()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Table)
         {
-            oids.append_value(table.oid);
-            builtins.append_value(table.builtin);
-            schema_oids.append_value(table.entry.get_meta().parent);
-            schema_names.append_value(
+            oid.append_value(table.oid);
+            schema_oid.append_value(table.entry.get_meta().parent);
+            database_oid.append_value(
                 table
-                    .schema_entry
+                    .parent_entry
+                    .map(|schema| schema.get_meta().parent)
+                    .unwrap_or_default(),
+            );
+            schema_name.append_value(
+                table
+                    .parent_entry
                     .map(|schema| schema.get_meta().name.as_str())
                     .unwrap_or("<invalid>"),
             );
-            table_names.append_value(&table.entry.get_meta().name);
-            externals.append_value(false);
-
-            connection_oids.append_null();
+            table_name.append_value(&table.entry.get_meta().name);
+            builtin.append_value(table.builtin);
+            external.append_value(table.entry.get_meta().external);
         }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
-                Arc::new(oids.finish()),
-                Arc::new(builtins.finish()),
-                Arc::new(schema_oids.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(table_names.finish()),
-                Arc::new(externals.finish()),
-                Arc::new(connection_oids.finish()),
+                Arc::new(oid.finish()),
+                Arc::new(database_oid.finish()),
+                Arc::new(schema_oid.finish()),
+                Arc::new(schema_name.finish()),
+                Arc::new(table_name.finish()),
+                Arc::new(builtin.finish()),
+                Arc::new(external.finish()),
             ],
         )
         .unwrap();
@@ -443,13 +493,13 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_columns(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_COLUMNS.arrow_schema());
 
-        let mut table_oids = UInt32Builder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut table_names = StringBuilder::new();
-        let mut column_names = StringBuilder::new();
-        let mut column_indexes = UInt32Builder::new();
-        let mut data_types = StringBuilder::new();
-        let mut is_nullables = BooleanBuilder::new();
+        let mut schema_oid = UInt32Builder::new();
+        let mut table_oid = UInt32Builder::new();
+        let mut table_name = StringBuilder::new();
+        let mut column_name = StringBuilder::new();
+        let mut column_ordinal = UInt32Builder::new();
+        let mut data_type = StringBuilder::new();
+        let mut is_nullable = BooleanBuilder::new();
 
         for table in self
             .catalog()
@@ -462,82 +512,31 @@ impl<'a> SystemTableDispatcher<'a> {
             };
 
             for (i, col) in ent.columns.iter().enumerate() {
-                table_oids.append_value(table.oid);
-                schema_names.append_value(
+                schema_oid.append_value(
                     table
-                        .schema_entry
-                        .map(|schema| schema.get_meta().name.as_str())
-                        .unwrap_or("<invalid>"),
+                        .parent_entry
+                        .map(|ent| ent.get_meta().id)
+                        .unwrap_or_default(),
                 );
-                table_names.append_value(&table.entry.get_meta().name);
-                column_names.append_value(&col.name);
-                column_indexes.append_value(i as u32);
-                data_types.append_value(col.arrow_type.to_string());
-                is_nullables.append_value(col.nullable);
+                table_oid.append_value(table.oid);
+                table_name.append_value(&table.entry.get_meta().name);
+                column_name.append_value(&col.name);
+                column_ordinal.append_value(i as u32);
+                data_type.append_value(col.arrow_type.to_string());
+                is_nullable.append_value(col.nullable);
             }
         }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
-                Arc::new(table_oids.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(table_names.finish()),
-                Arc::new(column_names.finish()),
-                Arc::new(column_indexes.finish()),
-                Arc::new(data_types.finish()),
-                Arc::new(is_nullables.finish()),
-            ],
-        )
-        .unwrap();
-
-        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
-    }
-
-    fn build_glare_external_columns(&self) -> MemTable {
-        let arrow_schema = Arc::new(GLARE_EXTERNAL_COLUMNS.arrow_schema());
-
-        let mut schema_oids = UInt32Builder::new();
-        let mut table_oids = UInt32Builder::new();
-        let mut column_names = StringBuilder::new();
-        let mut column_indexes = UInt32Builder::new();
-        let mut data_types = StringBuilder::new();
-        let mut pg_data_types = StringBuilder::new();
-        let mut is_nullables = BooleanBuilder::new();
-
-        for table in self
-            .catalog()
-            .iter_entries()
-            .filter(|ent| ent.entry_type() == EntryType::Table && ent.entry.get_meta().external)
-        {
-            let ent = match table.entry {
-                CatalogEntry::Table(ent) => ent,
-                other => unreachable!("unexpected entry type: {:?}", other), // Bug
-            };
-            let schema_oid = table.schema_entry.expect("table with schema").get_meta().id;
-
-            for (i, col) in ent.columns.iter().enumerate() {
-                schema_oids.append_value(schema_oid);
-                table_oids.append_value(table.oid);
-                column_names.append_value(&col.name);
-                column_indexes.append_value(i as u32);
-                data_types.append_value(col.arrow_type.to_string());
-                pg_data_types.append_value(col.arrow_type.to_string()); //TODO update to get pg
-                                                                        //type
-                is_nullables.append_value(col.nullable);
-            }
-        }
-
-        let batch = RecordBatch::try_new(
-            arrow_schema.clone(),
-            vec![
-                Arc::new(schema_oids.finish()),
-                Arc::new(table_oids.finish()),
-                Arc::new(column_names.finish()),
-                Arc::new(column_indexes.finish()),
-                Arc::new(data_types.finish()),
-                Arc::new(pg_data_types.finish()),
-                Arc::new(is_nullables.finish()),
+                Arc::new(schema_oid.finish()),
+                Arc::new(table_oid.finish()),
+                Arc::new(table_name.finish()),
+                Arc::new(column_name.finish()),
+                Arc::new(column_ordinal.finish()),
+                Arc::new(data_type.finish()),
+                Arc::new(is_nullable.finish()),
             ],
         )
         .unwrap();
@@ -548,12 +547,13 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_glare_views(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_VIEWS.arrow_schema());
 
-        let mut oids = UInt32Builder::new();
-        let mut builtins = BooleanBuilder::new();
-        let mut schema_oids = UInt32Builder::new();
-        let mut schema_names = StringBuilder::new();
-        let mut view_names = StringBuilder::new();
-        let mut sqls = StringBuilder::new();
+        let mut oid = UInt32Builder::new();
+        let mut database_oid = UInt32Builder::new();
+        let mut schema_oid = UInt32Builder::new();
+        let mut schema_name = StringBuilder::new();
+        let mut view_name = StringBuilder::new();
+        let mut builtin = BooleanBuilder::new();
+        let mut sql = StringBuilder::new();
 
         for view in self
             .catalog()
@@ -565,27 +565,33 @@ impl<'a> SystemTableDispatcher<'a> {
                 other => panic!("unexpected catalog entry: {:?}", other), // Bug
             };
 
-            oids.append_value(view.oid);
-            builtins.append_value(view.builtin);
-            schema_oids.append_value(view.entry.get_meta().parent);
-            schema_names.append_value(
-                view.schema_entry
+            oid.append_value(view.oid);
+            database_oid.append_value(
+                view.parent_entry
+                    .map(|schema| schema.get_meta().parent)
+                    .unwrap_or_default(),
+            );
+            schema_oid.append_value(view.entry.get_meta().parent);
+            schema_name.append_value(
+                view.parent_entry
                     .map(|schema| schema.get_meta().name.as_str())
                     .unwrap_or("<invalid>"),
             );
-            view_names.append_value(&view.entry.get_meta().name);
-            sqls.append_value(&ent.sql);
+            view_name.append_value(&view.entry.get_meta().name);
+            builtin.append_value(view.builtin);
+            sql.append_value(&ent.sql);
         }
 
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
-                Arc::new(oids.finish()),
-                Arc::new(builtins.finish()),
-                Arc::new(schema_oids.finish()),
-                Arc::new(schema_names.finish()),
-                Arc::new(view_names.finish()),
-                Arc::new(sqls.finish()),
+                Arc::new(oid.finish()),
+                Arc::new(database_oid.finish()),
+                Arc::new(schema_oid.finish()),
+                Arc::new(schema_name.finish()),
+                Arc::new(view_name.finish()),
+                Arc::new(builtin.finish()),
+                Arc::new(sql.finish()),
             ],
         )
         .unwrap();
@@ -596,7 +602,7 @@ impl<'a> SystemTableDispatcher<'a> {
     fn build_session_query_metrics(&self) -> MemTable {
         let num_metrics = self.ctx.get_metrics().num_metrics();
 
-        let mut query_texts = StringBuilder::with_capacity(num_metrics, 20);
+        let mut query_text = StringBuilder::with_capacity(num_metrics, 20);
         let mut result_type = StringBuilder::with_capacity(num_metrics, 10);
         let mut execution_status = StringBuilder::with_capacity(num_metrics, 10);
         let mut error_message = StringBuilder::with_capacity(num_metrics, 20);
@@ -604,7 +610,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut output_rows = UInt64Builder::with_capacity(num_metrics);
 
         for m in self.ctx.get_metrics().iter() {
-            query_texts.append_value(&m.query_text);
+            query_text.append_value(&m.query_text);
             result_type.append_value(m.result_type);
             execution_status.append_value(m.execution_status.as_str());
             error_message.append_option(m.error_message.as_ref());
@@ -616,7 +622,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let batch = RecordBatch::try_new(
             arrow_schema.clone(),
             vec![
-                Arc::new(query_texts.finish()),
+                Arc::new(query_text.finish()),
                 Arc::new(result_type.finish()),
                 Arc::new(execution_status.finish()),
                 Arc::new(error_message.finish()),

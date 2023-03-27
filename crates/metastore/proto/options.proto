@@ -2,6 +2,9 @@
 //
 // These message are used when hooking up external databases or tables to
 // GlareDB.
+//
+// Databases and tables that are not associated with an external system will use
+// the `DatabaseOptionsInternal` or `TableOptionsInternal` options respectively.
 
 // TODO: Breakup "connection strings" to individual components.
 

@@ -67,6 +67,33 @@ pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     columns: ColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("database_name", DataType::Utf8, false),
+        ("builtin", DataType::Boolean, false),
+        ("external", DataType::Boolean, false),
+    ]),
+});
+
+pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "schemas",
+    columns: ColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("database_oid", DataType::UInt32, false),
+        ("database_name", DataType::Utf8, false),
+        ("schema_name", DataType::Utf8, false),
+        ("builtin", DataType::Boolean, false),
+    ]),
+});
+
+pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "tables",
+    columns: ColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("database_oid", DataType::UInt32, false),
+        ("schema_oid", DataType::UInt32, false),
+        ("schema_name", DataType::Utf8, false),
+        ("table_name", DataType::Utf8, false),
+        ("builtin", DataType::Boolean, false),
         ("external", DataType::Boolean, false),
     ]),
 });
@@ -76,35 +103,12 @@ pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     name: "views",
     columns: ColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
-        ("builtin", DataType::Boolean, false),
+        ("database_oid", DataType::UInt32, false),
         ("schema_oid", DataType::UInt32, false),
         ("schema_name", DataType::Utf8, false),
         ("view_name", DataType::Utf8, false),
+        ("builtin", DataType::Boolean, false),
         ("sql", DataType::Utf8, false),
-    ]),
-});
-
-pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "schemas",
-    columns: ColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("builtin", DataType::Boolean, false),
-        ("schema_name", DataType::Utf8, false),
-    ]),
-});
-
-pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "tables",
-    columns: ColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("builtin", DataType::Boolean, false),
-        ("schema_oid", DataType::UInt32, false),
-        ("schema_name", DataType::Utf8, false),
-        ("table_name", DataType::Utf8, false),
-        ("external", DataType::Boolean, false),
-        ("connection_oid", DataType::UInt32, true),
     ]),
 });
 
@@ -112,26 +116,12 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "columns",
     columns: ColumnDefinition::from_tuples([
-        ("table_oid", DataType::UInt32, false),
-        ("schema_name", DataType::Utf8, false),
-        ("table_name", DataType::Utf8, false),
-        ("column_name", DataType::Utf8, false),
-        ("column_index", DataType::UInt32, false),
-        ("data_type", DataType::Utf8, false),
-        ("is_nullable", DataType::Boolean, false),
-    ]),
-});
-
-pub static GLARE_EXTERNAL_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "external_columns",
-    columns: ColumnDefinition::from_tuples([
         ("schema_oid", DataType::UInt32, false),
         ("table_oid", DataType::UInt32, false),
+        ("table_name", DataType::Utf8, false),
         ("column_name", DataType::Utf8, false),
-        ("column_index", DataType::UInt32, false),
+        ("column_ordinal", DataType::UInt32, false),
         ("data_type", DataType::Utf8, false),
-        ("pg_data_type", DataType::Utf8, false), //TODO should this be Type OID
         ("is_nullable", DataType::Boolean, false),
     ]),
 });
@@ -168,11 +158,11 @@ impl BuiltinTable {
     /// Return a vector of all builtin tables.
     pub fn builtins() -> Vec<&'static BuiltinTable> {
         vec![
-            &GLARE_VIEWS,
+            &GLARE_DATABASES,
             &GLARE_SCHEMAS,
+            &GLARE_VIEWS,
             &GLARE_TABLES,
             &GLARE_COLUMNS,
-            &GLARE_EXTERNAL_COLUMNS,
             &GLARE_SESSION_QUERY_METRICS,
         ]
     }
@@ -233,7 +223,7 @@ pub static INFORMATION_SCHEMA_SCHEMATA: Lazy<BuiltinView> = Lazy::new(|| Builtin
     name: "schemata",
     sql: "
 SELECT
-    'default' AS catalog_name,
+    database_name AS catalog_name,
     schema_name AS schema_name,
     null AS schema_owner,
     null AS default_character_set_catalog,
@@ -250,9 +240,9 @@ pub static INFORMATION_SCHEMA_TABLES: Lazy<BuiltinView> = Lazy::new(|| BuiltinVi
 SELECT *
 FROM (
     SELECT
-        'default' AS table_catalog,
-        schema_name AS table_schema,
-        table_name AS table_name,
+        d.database_name AS table_catalog,
+        t.schema_name AS table_schema,
+        t.table_name AS table_name,
         'BASE TABLE' AS table_type,
         null AS self_referencing_column_name,
         null AS reference_generation,
@@ -262,12 +252,12 @@ FROM (
         'NO' AS is_insertable_into,
         'NO' AS is_typed,
         null AS commit_action
-    FROM glare_catalog.tables
+    FROM glare_catalog.tables t INNER JOIN glare_catalog.databases d ON t.database_oid = d.oid
     UNION ALL
     SELECT
-        'default' AS table_catalog,
-        schema_name AS table_schema,
-        view_name AS table_name,
+        d.database_name AS table_catalog,
+        v.schema_name AS table_schema,
+        v.view_name AS table_name,
         'VIEW' AS table_type,
         null AS self_referencing_column_name,
         null AS reference_generation,
@@ -277,7 +267,7 @@ FROM (
         'NO' AS is_insertable_into,
         'NO' AS is_typed,
         null AS commit_action
-    FROM glare_catalog.views
+    FROM glare_catalog.views v INNER JOIN glare_catalog.databases d ON v.database_oid = d.oid
 )",
 });
 
@@ -286,11 +276,11 @@ pub static INFORMATION_SCHEMA_COLUMNS: Lazy<BuiltinView> = Lazy::new(|| BuiltinV
     name: "columns",
     sql: "
 SELECT
-    'default' AS table_catalog,
-    c.schema_name AS table_schema,
+    d.database_name AS table_catalog,
+    s.schema_name AS table_schema,
     c.table_name AS table_name,
     c.column_name AS column_name,
-    c.column_index + 1 AS ordinal_position,
+    c.column_ordinal + 1 AS ordinal_position,
     null AS column_default,
     c.is_nullable AS is_nullable,
     c.data_type AS data_type,
@@ -330,57 +320,9 @@ SELECT
     null AS generation_expression,
     'NO' AS is_updateable
 FROM glare_catalog.columns c
-UNION ALL
-SELECT
-    'default' AS table_catalog,
-    s.schema_name AS table_schema,
-    t.table_name AS table_name,
-    c.column_name AS column_name,
-    c.column_index + 1 AS ordinal_position,
-    null AS column_default,
-    c.is_nullable AS is_nullable,
-    c.pg_data_type AS data_type,
-    null AS character_maximum_length,
-    null AS numeric_precision,
-    null AS numeric_precision_radix,
-    null AS numeric_scale,
-    null AS datetime_precision,
-    null AS interval_type,
-    null AS interval_precision,
-    null AS character_set_catalog,
-    null AS character_set_schema,
-    null AS character_set_name,
-    null AS collation_catalog,
-    null AS collation_schema,
-    null AS collation_name,
-    null AS domain_catalog,
-    null AS domain_schema,
-    null AS domain_name,
-    null AS udt_catalog,
-    null AS udt_schema,
-    null AS udt_name,
-    null AS scope_catalog,
-    null AS scope_schema,
-    null AS scope_name,
-    null AS maximum_cardinality,
-    null AS dtd_identifier,
-    null AS is_self_referencing,
-    null AS is_identity,
-    null AS identity_generation,
-    null AS identity_start,
-    null AS identity_increment,
-    null AS identity_maximum,
-    null AS identity_minimum,
-    null AS identity_cyle,
-    null AS is_generated,
-    null AS generation_expression,
-    'NO' AS is_updateable
-FROM glare_catalog.external_columns c
-    JOIN glare_catalog.tables t
-    ON c.table_oid = t.oid
-    JOIN glare_catalog.schemas s
-    ON c.schema_oid = s.oid
-;",
+INNER JOIN glare_catalog.schemas s ON c.schema_oid = s.oid
+INNER JOIN glare_catalog.databases d ON s.database_oid = d.oid
+",
 });
 
 // Postgres catalog tables.

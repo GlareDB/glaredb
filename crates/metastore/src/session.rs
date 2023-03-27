@@ -9,6 +9,8 @@ use std::sync::Arc;
 pub struct SessionCatalog {
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,
+    /// Map database names to their ids.
+    database_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -20,6 +22,7 @@ impl SessionCatalog {
     pub fn new(state: Arc<CatalogState>) -> SessionCatalog {
         let mut catalog = SessionCatalog {
             state,
+            database_names: HashMap::new(),
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
         };
@@ -38,21 +41,36 @@ impl SessionCatalog {
         self.rebuild_name_maps();
     }
 
-    // TODO
+    /// Resolve a database by name.
     pub fn resolve_database(&self, name: &str) -> Option<&DatabaseEntry> {
-        self.state.entries.values().find_map(|ent| match ent {
-            CatalogEntry::Database(db) if db.meta.name == name => Some(db),
-            _ => None,
-        })
-    }
-
-    /// Resolve a schema by name.
-    pub fn resolve_schema(&self, name: &str) -> Option<&SchemaEntry> {
         // This function will panic if certain invariants aren't held:
         //
         // - If the name is found in the name map, then the associated id must
         //   exist in the catalog state.
-        // - The catalog entry type that the id points to must be a schema.
+        // - The catalog entry type that the id points to must be a database.
+
+        let id = self.database_names.get(name)?;
+        let ent = self
+            .state
+            .entries
+            .get(id)
+            .expect("database name points to invalid id");
+
+        match ent {
+            CatalogEntry::Database(ent) => Some(ent),
+            _ => panic!(
+                "entry type not database; name: {}, id: {}, type: {:?}",
+                name,
+                id,
+                ent.entry_type(),
+            ),
+        }
+    }
+
+    /// Resolve a schema by name.
+    pub fn resolve_schema(&self, name: &str) -> Option<&SchemaEntry> {
+        // Similar invariants as `resolve_database`. If we find an entry in the
+        // schema map, it must exist in the state and must be a schema.
 
         let id = self.schema_names.get(name)?;
         let ent = self
@@ -103,11 +121,11 @@ impl SessionCatalog {
 
     /// Iterate over all entries in this catalog.
     ///
-    /// All non-schema entries will also include an entry pointing to its parent
-    /// schema.
+    /// All non-database entries will also include an entry pointing to its
+    /// parent.
     pub fn iter_entries(&self) -> impl Iterator<Item = NamespacedCatalogEntry> {
         self.state.entries.iter().map(|(oid, entry)| {
-            let schema_entry = if !entry.is_schema() {
+            let parent_entry = if !entry.is_database() {
                 Some(self.state.entries.get(&entry.get_meta().parent).unwrap()) // Bug if it doesn't exist.
             } else {
                 None
@@ -115,20 +133,23 @@ impl SessionCatalog {
             NamespacedCatalogEntry {
                 oid: *oid,
                 builtin: entry.get_meta().builtin,
-                schema_entry,
+                parent_entry,
                 entry,
             }
         })
     }
 
     fn rebuild_name_maps(&mut self) {
+        self.database_names.clear();
         self.schema_names.clear();
         self.schema_objects.clear();
 
         for (id, ent) in &self.state.entries {
             let name = ent.get_meta().name.clone();
 
-            if ent.is_schema() {
+            if ent.is_database() {
+                self.database_names.insert(name, *id);
+            } else if ent.is_schema() {
                 self.schema_names.insert(name, *id);
             } else {
                 let schema_id = ent.get_meta().parent;
@@ -153,9 +174,9 @@ pub struct NamespacedCatalogEntry<'a> {
     pub oid: u32,
     /// Whether or not this entry is builtin.
     pub builtin: bool,
-    /// The parent schema for this entry. This will be `None` when the entry
-    /// itself is a schema.
-    pub schema_entry: Option<&'a CatalogEntry>,
+    /// The parent entry for this entry. This will be `None` when the entry is a
+    /// database entry.
+    pub parent_entry: Option<&'a CatalogEntry>,
     /// The entry.
     pub entry: &'a CatalogEntry,
 }

@@ -9,14 +9,14 @@ set search_path = builtin_tables_test;
 statement ok
 set enable_debug_datasources to t;
 
+halt
+
 # Builtin table should never be external, nor have a connection associated with
 # it.
 query TT
 select external, connection_oid from glare_catalog.tables where schema_name = 'glare_catalog' and table_name = 'tables';
 ----
 f   NULL
-
-halt
 
 statement ok
 create connection c1 for debug;

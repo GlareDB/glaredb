@@ -9,7 +9,7 @@ use crate::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
     ViewEntry,
 };
-use crate::types::options::TableOptions;
+use crate::types::options::{DatabaseOptions, DatabaseOptionsInternal, TableOptions};
 use crate::types::service::Mutation;
 use crate::types::storage::{ExtraState, PersistedCatalog};
 use once_cell::sync::Lazy;
@@ -560,6 +560,20 @@ impl BuiltinCatalog {
 
         for database in BuiltinDatabase::builtins() {
             database_names.insert(database.name.to_string(), database.oid);
+            entries.insert(
+                database.oid,
+                CatalogEntry::Database(DatabaseEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Database,
+                        id: database.oid,
+                        parent: DATABASE_PARENT_ID,
+                        name: database.name.to_string(),
+                        builtin: true,
+                        external: false,
+                    },
+                    options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
+                }),
+            );
         }
 
         for schema in BuiltinSchema::builtins() {
