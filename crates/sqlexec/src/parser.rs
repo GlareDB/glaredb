@@ -4,9 +4,12 @@ use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
-use std::collections::BTreeMap;
+use sqlparser::ast::Visit;
+use sqlparser::ast::Visitor;
 use std::collections::VecDeque;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
+use std::ops::ControlFlow;
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
@@ -190,10 +193,19 @@ impl<'a> CustomParser<'a> {
             // CREATE CONNECTION ...
             self.parse_create_connection()
         } else {
+            tracing::warn!(?self.parser);
+            let stmt = self.parser.parse_create()?;
+            let mut visitor = RelationVistor::default();
+            stmt.visit(&mut visitor);
+
+            tracing::warn!(?stmt, ?visitor);
+
+            for object_name in visitor.0 {
+                validate_object_name(&object_name)?;
+            }
+
             // Fall back to underlying parser.
-            Ok(StatementWithExtensions::Statement(
-                self.parser.parse_create()?,
-            ))
+            Ok(StatementWithExtensions::Statement(stmt))
         }
     }
 
@@ -332,6 +344,37 @@ impl<'a> CustomParser<'a> {
         Ok(StatementWithExtensions::DropConnection(
             DropConnectionStmt { names, if_exists },
         ))
+    }
+}
+
+#[derive(Debug, Default)]
+struct RelationVistor(HashSet<ast::ObjectName>);
+
+impl Visitor for RelationVistor {
+    type Break = ();
+
+    fn pre_visit_expr(&mut self, expr: &ast::Expr) -> ControlFlow<Self::Break> {
+        tracing::warn!(?expr, "3");
+
+        match expr {
+            ast::Expr::Identifier(ident) => {
+                self.0.insert(ast::ObjectName(vec![ident.to_owned()]));
+                ControlFlow::Continue(())
+            }
+            _ => ControlFlow::Continue(()),
+        }
+    }
+
+    fn pre_visit_relation(&mut self, relation: &ast::ObjectName) -> ControlFlow<()> {
+        tracing::warn!("1");
+        self.0.insert(relation.to_owned());
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_relation(&mut self, relation: &ast::ObjectName) -> ControlFlow<()> {
+        tracing::warn!("2");
+        self.0.insert(relation.to_owned());
+        ControlFlow::Continue(())
     }
 }
 
