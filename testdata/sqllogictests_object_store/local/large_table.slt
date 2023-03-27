@@ -3,11 +3,10 @@
 # TODO Due to CSV schema inference errors we can't parse all values see
 # GlareDB/glaredb#697
 halt
-include ./include/conn.slti
 
 statement ok
 CREATE EXTERNAL TABLE large_table
-    FROM testconn
+    FROM local
     OPTIONS (
         location = 'testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv'
     );

@@ -6,42 +6,34 @@ create schema basic_cte;
 statement ok
 set search_path = basic_cte;
 
-halt
-
-statement ok
-create table a(i integer);
-
-statement ok
-insert into a values (42);
-
 query I
-with cte1 as (Select i as j from a) select * from cte1;
+with cte1 as (Select i as j from (values (42)) as a(i)) select * from cte1;
 ----
 42
 
 query I
-with cte1 as (Select i as j from a) select x from cte1 t1(x);
+with cte1 as (Select i as j from (values (42)) as a(i)) select x from cte1 t1(x);
 ----
 42
 
 query I
-with cte1(xxx) as (Select i as j from a) select xxx from cte1;
+with cte1(xxx) as (Select i as j from (values (42)) as a(i)) select xxx from cte1;
 ----
 42
 
 query I
-with cte1(xxx) as (Select i as j from a) select x from cte1 t1(x);
+with cte1(xxx) as (Select i as j from (values (42)) as a(i)) select x from cte1 t1(x);
 ----
 42
 
 query II
-with cte1 as (Select i as j from a), cte2 as (select ref.j as k from cte1 as ref), cte3 as (select ref2.j+1 as i from cte1 as ref2) select * from cte2 , cte3;
+with cte1 as (Select i as j from (values (42)) as a(i)), cte2 as (select ref.j as k from cte1 as ref), cte3 as (select ref2.j+1 as i from cte1 as ref2) select * from cte2 , cte3;
 ----
 42	43
 
 # TODO: Works, order not deterministic
 # query I
-# with cte1 as (select i as j from a), cte2 as (select ref.j as k from cte1 as ref), cte3 as (select ref2.j+1 as i from cte1 as ref2) select * from cte2 union all select * FROM cte3;
+# with cte1 as (select i as j from (values (42)) as a(i)), cte2 as (select ref.j as k from cte1 as ref), cte3 as (select ref2.j+1 as i from cte1 as ref2) select * from cte2 union all select * FROM cte3;
 # ----
 # 42
 # 43
@@ -53,24 +45,23 @@ with cte1 as (select 42), cte1 as (select 42) select * FROM cte1;
 # TODO
 # # reference to CTE before its actually defined
 # query I
-# with cte3 as (select ref2.j as i from cte1 as ref2), cte1 as (Select i as j from a), cte2 as (select ref.j+1 as k from cte1 as ref) select * from cte2 union all select * FROM cte3;
+# with cte3 as (select ref2.j as i from cte1 as ref2), cte1 as (Select i as j from (values (42)) as a(i)), cte2 as (select ref.j+1 as k from cte1 as ref) select * from cte2 union all select * FROM cte3;
 # ----
 # 43
 # 42
 
 # multiple uses of same CTE
 query II
-with cte1 as (Select i as j from a) select * from cte1 cte11, cte1 cte12;
+with cte1 as (Select i as j from (values (42)) as a(i)) select * from cte1 cte11, cte1 cte12;
 ----
 42	42
 
 # refer to CTE in subquery
 query I
-with cte1 as (Select i as j from a) select * from cte1 where j = (select max(j) from cte1 as cte2);
+with cte1 as (Select i as j from (values (42)) as a(i)) select * from cte1 where j = (select max(j) from cte1 as cte2);
 ----
 42
 
-# TODO
 # # multi-column name alias
 # query II
 # with cte1(x, y) as (select 42 a, 84 b) select zzz, y from cte1 t1(zzz);
@@ -80,7 +71,7 @@ with cte1 as (Select i as j from a) select * from cte1 where j = (select max(j) 
 # TODO: Views
 # # use a CTE in a view definition
 # statement ok
-# create view va AS (with cte as (Select i as j from a) select * from cte);
+# create view va AS (with cte as (Select i as j from (values (42)) as a(i)) select * from cte);
 #
 # query I
 # select * from va
@@ -95,7 +86,7 @@ with cte1 as (Select i as j from a) select * from cte1 where j = (select max(j) 
 #
 # # multiple ctes in a view definition
 # statement ok
-# create view vb AS (with cte1 as (Select i as j from a), cte2 as (select ref.j+1 as k from cte1 as ref) select * from cte2);
+# create view vb AS (with cte1 as (Select i as j from (values (42)) as a(i)), cte2 as (select ref.j+1 as k from cte1 as ref) select * from cte2);
 #
 # query I
 # select * from vb

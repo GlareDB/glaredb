@@ -1,11 +1,10 @@
 # Test if large amount of data loads successfully.
 
-include ./include/conn.slti
-
 statement ok
 CREATE EXTERNAL TABLE large_table
-	FROM testconn
+	FROM mysql
 	OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
 		schema = 'glaredb_test',
 		table = 'bikeshare_trips'
 	);

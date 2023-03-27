@@ -103,22 +103,14 @@ message CatalogMetadata {
 }
 
 // The catalog as it exists in object storage.
-//
-// Note that this is very similar to `CatalogState`, however this is very likely
-// a candidate of being broken up into separate objects (e.g. by entry type, or
-// dependent entries). A single blob does the job for now, and its unlikely that
-// this blob will get egregiously large.
 message PersistedCatalog {
-  // The version of this catalog.
-  uint64 version = 1;
+  catalog.CatalogState state = 1;
+  // State that should be persisted that's not already part of the catalog
+  // state.
+  ExtraState extra = 2;
+}
 
-  // All entries in this catalog.
-  //
-  // ID -> Entry
-  map<uint32, catalog.CatalogEntry> entries = 2;
-
+message ExtraState {
   // Persisted oid counter. Used for oid generation for new database objects.
-  uint32 oid_counter = 3;
-
-  // next: 3
+  uint32 oid_counter = 1;
 }

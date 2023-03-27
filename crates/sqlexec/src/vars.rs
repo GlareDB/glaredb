@@ -45,18 +45,6 @@ const GLAREDB_BUILD_VERSION: ServerVar<str> = ServerVar {
 };
 
 // GlareDB specific.
-const BIGQUERY_PREDICATE_PUSHDOWN: ServerVar<bool> = ServerVar {
-    name: "bigquery_predicate_pushdown",
-    value: &true,
-};
-
-// GlareDB specific.
-const POSTGRES_PREDICATE_PUSHDOWN: ServerVar<bool> = ServerVar {
-    name: "postgres_predicate_pushdown",
-    value: &true,
-};
-
-// GlareDB specific.
 const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
     name: "enable_debug_datasources",
     value: &false,
@@ -80,8 +68,6 @@ pub struct SessionVars {
     pub transaction_isolation: ServerVar<str>,
     pub search_path: SessionVar<[String]>,
     pub glaredb_build_version: ServerVar<str>,
-    pub bigquery_predicate_pushdown: SessionVar<bool>,
-    pub postgres_predicate_pushdown: SessionVar<bool>,
     pub enable_debug_datasources: SessionVar<bool>,
     pub force_catalog_refresh: SessionVar<bool>,
 }
@@ -108,10 +94,6 @@ impl SessionVars {
             Ok(&self.search_path)
         } else if name == GLAREDB_BUILD_VERSION.name {
             Ok(&self.glaredb_build_version)
-        } else if name == BIGQUERY_PREDICATE_PUSHDOWN.name {
-            Ok(&self.bigquery_predicate_pushdown)
-        } else if name == POSTGRES_PREDICATE_PUSHDOWN.name {
-            Ok(&self.postgres_predicate_pushdown)
         } else if name == ENABLE_DEBUG_DATASOURCES.name {
             Ok(&self.enable_debug_datasources)
         } else if name == FORCE_CATALOG_REFRESH.name {
@@ -137,10 +119,6 @@ impl SessionVars {
             Err(ExecError::VariableReadonly(
                 GLAREDB_BUILD_VERSION.name.to_string(),
             ))
-        } else if name == BIGQUERY_PREDICATE_PUSHDOWN.name {
-            self.bigquery_predicate_pushdown.set(val)
-        } else if name == POSTGRES_PREDICATE_PUSHDOWN.name {
-            self.postgres_predicate_pushdown.set(val)
         } else if name == ENABLE_DEBUG_DATASOURCES.name {
             self.enable_debug_datasources.set(val)
         } else if name == FORCE_CATALOG_REFRESH.name {
@@ -160,8 +138,6 @@ impl Default for SessionVars {
             transaction_isolation: TRANSACTION_ISOLATION,
             search_path: SessionVar::new(&SEARCH_PATH),
             glaredb_build_version: GLAREDB_BUILD_VERSION,
-            bigquery_predicate_pushdown: SessionVar::new(&BIGQUERY_PREDICATE_PUSHDOWN),
-            postgres_predicate_pushdown: SessionVar::new(&POSTGRES_PREDICATE_PUSHDOWN),
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
             force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
         }
@@ -312,10 +288,7 @@ fn split_comma_delimited(text: &str) -> Vec<String> {
         static ref RE: Regex = Regex::new(SPLIT_ON_UNQUOTED_COMMAS).unwrap();
     }
 
-    RE.find_iter(text)
-        .into_iter()
-        .map(|m| m.as_str().to_string())
-        .collect()
+    RE.find_iter(text).map(|m| m.as_str().to_string()).collect()
 }
 
 impl Value for [String] {

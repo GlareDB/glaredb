@@ -6,15 +6,15 @@ create schema s3;
 statement ok
 set search_path = s3;
 
-include ./include/conn.slti
-
 # Basic test for csv format
 statement ok
 CREATE EXTERNAL TABLE basic
-    FROM testconn
+    FROM s3
     OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
         region = '${AWS_S3_REGION}',
-        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        bucket = '${AWS_S3_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 
@@ -25,10 +25,12 @@ include ../sqllogictests_datasources_common/include/basic.slti
 halt
 statement ok
 CREATE EXTERNAL TABLE basic
-    FROM testconn
+    FROM s3
     OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
         region = '${AWS_S3_REGION}',
-        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        bucket = '${AWS_S3_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 

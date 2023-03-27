@@ -319,7 +319,7 @@ impl QueryData {
                         .unwrap();
                     let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
                         .with_data_type(dt.clone());
-                    (0..rows.len()).into_iter().for_each(|row_idx| {
+                    (0..rows.len()).for_each(|row_idx| {
                         if rows.is_null(row_idx) {
                             arr.append_null();
                         } else {

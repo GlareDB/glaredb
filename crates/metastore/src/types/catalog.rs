@@ -1,6 +1,7 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::arrow;
 use crate::proto::catalog;
+use crate::types::options::{DatabaseOptions, TableOptions};
 use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
@@ -47,22 +48,24 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
 // Arbitrary for arrow's DataType.
 #[derive(Debug, Clone)]
 pub enum CatalogEntry {
+    Database(DatabaseEntry),
     Schema(SchemaEntry),
     Table(TableEntry),
     View(ViewEntry),
-    Connection(ConnectionEntry),
-    ExternalTable(ExternalTableEntry),
 }
 
 impl CatalogEntry {
     pub const fn entry_type(&self) -> EntryType {
         match self {
+            CatalogEntry::Database(_) => EntryType::Database,
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
             CatalogEntry::Table(_) => EntryType::Table,
-            CatalogEntry::Connection(_) => EntryType::Connection,
-            CatalogEntry::ExternalTable(_) => EntryType::ExternalTable,
         }
+    }
+
+    pub const fn is_database(&self) -> bool {
+        matches!(self, CatalogEntry::Database(_))
     }
 
     pub const fn is_schema(&self) -> bool {
@@ -72,11 +75,10 @@ impl CatalogEntry {
     /// Get the entry metadata.
     pub fn get_meta(&self) -> &EntryMeta {
         match self {
+            CatalogEntry::Database(db) => &db.meta,
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
             CatalogEntry::Table(table) => &table.meta,
-            CatalogEntry::Connection(conn) => &conn.meta,
-            CatalogEntry::ExternalTable(tbl) => &tbl.meta,
         }
     }
 }
@@ -85,13 +87,10 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::catalog_entry::Entry) -> Result<Self, Self::Error> {
         Ok(match value {
+            catalog::catalog_entry::Entry::Database(v) => CatalogEntry::Database(v.try_into()?),
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
             catalog::catalog_entry::Entry::Table(v) => CatalogEntry::Table(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
-            catalog::catalog_entry::Entry::Connection(v) => CatalogEntry::Connection(v.try_into()?),
-            catalog::catalog_entry::Entry::ExternalTable(v) => {
-                CatalogEntry::ExternalTable(v.try_into()?)
-            }
         })
     }
 }
@@ -107,13 +106,10 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     type Error = ProtoConvError;
     fn try_from(value: CatalogEntry) -> Result<Self, Self::Error> {
         let ent = match value {
+            CatalogEntry::Database(v) => catalog::catalog_entry::Entry::Database(v.into()),
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
-            CatalogEntry::Connection(v) => catalog::catalog_entry::Entry::Connection(v.into()),
-            CatalogEntry::ExternalTable(v) => {
-                catalog::catalog_entry::Entry::ExternalTable(v.try_into()?)
-            }
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
@@ -121,11 +117,21 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
 
 #[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum EntryType {
+    Database,
     Schema,
-    ExternalTable,
     Table,
     View,
-    Connection,
+}
+
+impl EntryType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EntryType::Database => "database",
+            EntryType::Schema => "schema",
+            EntryType::Table => "table",
+            EntryType::View => "view",
+        }
+    }
 }
 
 impl TryFrom<i32> for EntryType {
@@ -144,11 +150,10 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             catalog::entry_meta::EntryType::Unknown => {
                 return Err(ProtoConvError::ZeroValueEnumVariant("EntryType"))
             }
+            catalog::entry_meta::EntryType::Database => EntryType::Database,
             catalog::entry_meta::EntryType::Schema => EntryType::Schema,
-            catalog::entry_meta::EntryType::ExternalTable => EntryType::ExternalTable,
             catalog::entry_meta::EntryType::Table => EntryType::Table,
             catalog::entry_meta::EntryType::View => EntryType::View,
-            catalog::entry_meta::EntryType::Connection => EntryType::Connection,
         })
     }
 }
@@ -156,11 +161,10 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
 impl From<EntryType> for catalog::entry_meta::EntryType {
     fn from(value: EntryType) -> Self {
         match value {
+            EntryType::Database => catalog::entry_meta::EntryType::Database,
             EntryType::Schema => catalog::entry_meta::EntryType::Schema,
             EntryType::Table => catalog::entry_meta::EntryType::Table,
-            EntryType::ExternalTable => catalog::entry_meta::EntryType::ExternalTable,
             EntryType::View => catalog::entry_meta::EntryType::View,
-            EntryType::Connection => catalog::entry_meta::EntryType::Connection,
         }
     }
 }
@@ -183,6 +187,7 @@ pub struct EntryMeta {
     pub parent: u32,
     pub name: String,
     pub builtin: bool,
+    pub external: bool,
 }
 
 impl From<EntryMeta> for catalog::EntryMeta {
@@ -194,6 +199,7 @@ impl From<EntryMeta> for catalog::EntryMeta {
             parent: value.parent,
             name: value.name,
             builtin: value.builtin,
+            external: value.external,
         }
     }
 }
@@ -207,7 +213,34 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
             parent: value.parent,
             name: value.name,
             builtin: value.builtin,
+            external: value.external,
         })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct DatabaseEntry {
+    pub meta: EntryMeta,
+    pub options: DatabaseOptions,
+}
+
+impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DatabaseEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(DatabaseEntry {
+            meta,
+            options: value.options.required("options")?,
+        })
+    }
+}
+
+impl From<DatabaseEntry> for catalog::DatabaseEntry {
+    fn from(value: DatabaseEntry) -> Self {
+        catalog::DatabaseEntry {
+            meta: Some(value.meta.into()),
+            options: Some(value.options.into()),
+        }
     }
 }
 
@@ -236,6 +269,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 pub struct TableEntry {
     pub meta: EntryMeta,
     pub columns: Vec<ColumnDefinition>,
+    pub options: TableOptions,
 }
 
 impl TryFrom<catalog::TableEntry> for TableEntry {
@@ -249,6 +283,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
                 .into_iter()
                 .map(|col| col.try_into())
                 .collect::<Result<_, _>>()?,
+            options: value.options.required("options".to_string())?,
         })
     }
 }
@@ -263,6 +298,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
                 .into_iter()
                 .map(|col| col.try_into())
                 .collect::<Result<_, _>>()?,
+            options: Some(value.options.into()),
         })
     }
 }
@@ -348,684 +384,6 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
-pub struct ConnectionEntry {
-    pub meta: EntryMeta,
-    pub options: ConnectionOptions,
-}
-
-impl TryFrom<catalog::ConnectionEntry> for ConnectionEntry {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionEntry) -> Result<Self, Self::Error> {
-        let meta: EntryMeta = value.meta.required("meta")?;
-        Ok(ConnectionEntry {
-            meta,
-            options: value.options.required("options")?,
-        })
-    }
-}
-
-impl From<ConnectionEntry> for catalog::ConnectionEntry {
-    fn from(value: ConnectionEntry) -> Self {
-        catalog::ConnectionEntry {
-            meta: Some(value.meta.into()),
-            options: Some(value.options.into()),
-        }
-    }
-}
-
-impl ConnectionEntry {
-    /// Try to get ssh options if this connection is an ssh connection.
-    pub fn try_get_ssh_options(&self) -> Option<&ConnectionOptionsSsh> {
-        match &self.options {
-            ConnectionOptions::Ssh(ssh) => Some(ssh),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ExternalTableEntry {
-    pub meta: EntryMeta,
-    pub connection_id: u32,
-    pub options: TableOptions,
-    pub columns: Vec<ColumnDefinition>,
-}
-
-impl TryFrom<catalog::ExternalTableEntry> for ExternalTableEntry {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ExternalTableEntry) -> Result<Self, Self::Error> {
-        let meta: EntryMeta = value.meta.required("meta")?;
-        Ok(ExternalTableEntry {
-            meta,
-            connection_id: value.connection_id,
-            options: value.options.required("options")?,
-            columns: value
-                .columns
-                .into_iter()
-                .map(|col| col.try_into())
-                .collect::<Result<_, _>>()?,
-        })
-    }
-}
-
-impl TryFrom<ExternalTableEntry> for catalog::ExternalTableEntry {
-    type Error = ProtoConvError;
-    fn try_from(value: ExternalTableEntry) -> Result<Self, Self::Error> {
-        Ok(catalog::ExternalTableEntry {
-            meta: Some(value.meta.into()),
-            connection_id: value.connection_id,
-            options: Some(value.options.into()),
-            columns: value
-                .columns
-                .into_iter()
-                .map(|col| col.try_into())
-                .collect::<Result<_, _>>()?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub enum TableOptions {
-    Debug(TableOptionsDebug),
-    Postgres(TableOptionsPostgres),
-    BigQuery(TableOptionsBigQuery),
-    Mysql(TableOptionsMysql),
-    Local(TableOptionsLocal),
-    Gcs(TableOptionsGcs),
-    S3(TableOptionsS3),
-    Mongo(TableOptionsMongo),
-}
-
-impl TableOptions {
-    pub const DEBUG: &str = "debug";
-    pub const POSTGRES: &str = "postgres";
-    pub const BIGQUERY: &str = "bigquery";
-    pub const MYSQL: &str = "mysql";
-    pub const LOCAL: &str = "local";
-    pub const GCS: &str = "gcs";
-    pub const S3_STORAGE: &str = "s3";
-    pub const MONGO: &str = "mongo";
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TableOptions::Debug(_) => Self::DEBUG,
-            TableOptions::Postgres(_) => Self::POSTGRES,
-            TableOptions::BigQuery(_) => Self::BIGQUERY,
-            TableOptions::Mysql(_) => Self::MYSQL,
-            TableOptions::Local(_) => Self::LOCAL,
-            TableOptions::Gcs(_) => Self::GCS,
-            TableOptions::S3(_) => Self::S3_STORAGE,
-            TableOptions::Mongo(_) => Self::MONGO,
-        }
-    }
-}
-
-impl fmt::Display for TableOptions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl TryFrom<catalog::table_options::Options> for TableOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::table_options::Options) -> Result<Self, Self::Error> {
-        Ok(match value {
-            catalog::table_options::Options::Debug(v) => TableOptions::Debug(v.try_into()?),
-            catalog::table_options::Options::Postgres(v) => TableOptions::Postgres(v.try_into()?),
-            catalog::table_options::Options::Bigquery(v) => TableOptions::BigQuery(v.try_into()?),
-            catalog::table_options::Options::Mysql(v) => TableOptions::Mysql(v.try_into()?),
-            catalog::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
-            catalog::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
-            catalog::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
-            catalog::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
-        })
-    }
-}
-
-impl TryFrom<catalog::TableOptions> for TableOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptions) -> Result<Self, Self::Error> {
-        value.options.required("options")
-    }
-}
-
-impl From<TableOptions> for catalog::table_options::Options {
-    fn from(value: TableOptions) -> Self {
-        match value {
-            TableOptions::Debug(v) => catalog::table_options::Options::Debug(v.into()),
-            TableOptions::Postgres(v) => catalog::table_options::Options::Postgres(v.into()),
-            TableOptions::BigQuery(v) => catalog::table_options::Options::Bigquery(v.into()),
-            TableOptions::Mysql(v) => catalog::table_options::Options::Mysql(v.into()),
-            TableOptions::Local(v) => catalog::table_options::Options::Local(v.into()),
-            TableOptions::Gcs(v) => catalog::table_options::Options::Gcs(v.into()),
-            TableOptions::S3(v) => catalog::table_options::Options::S3(v.into()),
-            TableOptions::Mongo(v) => catalog::table_options::Options::Mongo(v.into()),
-        }
-    }
-}
-
-impl From<TableOptions> for catalog::TableOptions {
-    fn from(value: TableOptions) -> Self {
-        catalog::TableOptions {
-            options: Some(value.into()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsDebug {
-    pub table_type: String,
-}
-
-impl TryFrom<catalog::TableOptionsDebug> for TableOptionsDebug {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsDebug) -> Result<Self, Self::Error> {
-        Ok(TableOptionsDebug {
-            table_type: value.table_type,
-        })
-    }
-}
-
-impl From<TableOptionsDebug> for catalog::TableOptionsDebug {
-    fn from(value: TableOptionsDebug) -> Self {
-        catalog::TableOptionsDebug {
-            table_type: value.table_type,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsPostgres {
-    pub schema: String,
-    pub table: String,
-}
-
-impl TryFrom<catalog::TableOptionsPostgres> for TableOptionsPostgres {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsPostgres) -> Result<Self, Self::Error> {
-        Ok(TableOptionsPostgres {
-            schema: value.schema,
-            table: value.table,
-        })
-    }
-}
-
-impl From<TableOptionsPostgres> for catalog::TableOptionsPostgres {
-    fn from(value: TableOptionsPostgres) -> Self {
-        catalog::TableOptionsPostgres {
-            schema: value.schema,
-            table: value.table,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsBigQuery {
-    pub dataset_id: String,
-    pub table_id: String,
-}
-
-impl TryFrom<catalog::TableOptionsBigQuery> for TableOptionsBigQuery {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsBigQuery) -> Result<Self, Self::Error> {
-        Ok(TableOptionsBigQuery {
-            dataset_id: value.dataset_id,
-            table_id: value.table_id,
-        })
-    }
-}
-
-impl From<TableOptionsBigQuery> for catalog::TableOptionsBigQuery {
-    fn from(value: TableOptionsBigQuery) -> Self {
-        catalog::TableOptionsBigQuery {
-            dataset_id: value.dataset_id,
-            table_id: value.table_id,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsMysql {
-    pub schema: String,
-    pub table: String,
-}
-
-impl TryFrom<catalog::TableOptionsMysql> for TableOptionsMysql {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsMysql) -> Result<Self, Self::Error> {
-        Ok(TableOptionsMysql {
-            schema: value.schema,
-            table: value.table,
-        })
-    }
-}
-
-impl From<TableOptionsMysql> for catalog::TableOptionsMysql {
-    fn from(value: TableOptionsMysql) -> Self {
-        catalog::TableOptionsMysql {
-            schema: value.schema,
-            table: value.table,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsLocal {
-    pub location: String,
-}
-
-impl TryFrom<catalog::TableOptionsLocal> for TableOptionsLocal {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsLocal) -> Result<Self, Self::Error> {
-        Ok(TableOptionsLocal {
-            location: value.location,
-        })
-    }
-}
-
-impl From<TableOptionsLocal> for catalog::TableOptionsLocal {
-    fn from(value: TableOptionsLocal) -> Self {
-        catalog::TableOptionsLocal {
-            location: value.location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsGcs {
-    pub bucket_name: String,
-    pub location: String,
-}
-
-impl TryFrom<catalog::TableOptionsGcs> for TableOptionsGcs {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsGcs) -> Result<Self, Self::Error> {
-        Ok(TableOptionsGcs {
-            bucket_name: value.bucket_name,
-            location: value.location,
-        })
-    }
-}
-
-impl From<TableOptionsGcs> for catalog::TableOptionsGcs {
-    fn from(value: TableOptionsGcs) -> Self {
-        catalog::TableOptionsGcs {
-            bucket_name: value.bucket_name,
-            location: value.location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsS3 {
-    pub region: String,
-    pub bucket_name: String,
-    pub location: String,
-}
-
-impl TryFrom<catalog::TableOptionsS3> for TableOptionsS3 {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsS3) -> Result<Self, Self::Error> {
-        Ok(TableOptionsS3 {
-            region: value.region,
-            bucket_name: value.bucket_name,
-            location: value.location,
-        })
-    }
-}
-
-impl From<TableOptionsS3> for catalog::TableOptionsS3 {
-    fn from(value: TableOptionsS3) -> Self {
-        catalog::TableOptionsS3 {
-            region: value.region,
-            bucket_name: value.bucket_name,
-            location: value.location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsMongo {
-    pub database: String,
-    pub collection: String,
-}
-
-impl TryFrom<catalog::TableOptionsMongo> for TableOptionsMongo {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::TableOptionsMongo) -> Result<Self, Self::Error> {
-        Ok(TableOptionsMongo {
-            database: value.database,
-            collection: value.collection,
-        })
-    }
-}
-
-impl From<TableOptionsMongo> for catalog::TableOptionsMongo {
-    fn from(value: TableOptionsMongo) -> Self {
-        catalog::TableOptionsMongo {
-            database: value.database,
-            collection: value.collection,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub enum ConnectionOptions {
-    Debug(ConnectionOptionsDebug),
-    Postgres(ConnectionOptionsPostgres),
-    BigQuery(ConnectionOptionsBigQuery),
-    Mysql(ConnectionOptionsMysql),
-    Local(ConnectionOptionsLocal),
-    Gcs(ConnectionOptionsGcs),
-    S3(ConnectionOptionsS3),
-    Ssh(ConnectionOptionsSsh),
-    Mongo(ConnectionOptionsMongo),
-}
-
-impl ConnectionOptions {
-    pub const DEBUG: &str = "debug";
-    pub const POSTGRES: &str = "postgres";
-    pub const BIGQUERY: &str = "bigquery";
-    pub const MYSQL: &str = "mysql";
-    pub const LOCAL: &str = "local";
-    pub const GCS: &str = "gcs";
-    pub const S3_STORAGE: &str = "s3";
-    pub const SSH: &str = "ssh";
-    pub const MONGO: &str = "mongo";
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ConnectionOptions::Debug(_) => Self::DEBUG,
-            ConnectionOptions::Postgres(_) => Self::POSTGRES,
-            ConnectionOptions::BigQuery(_) => Self::BIGQUERY,
-            ConnectionOptions::Mysql(_) => Self::MYSQL,
-            ConnectionOptions::Local(_) => Self::LOCAL,
-            ConnectionOptions::Gcs(_) => Self::GCS,
-            ConnectionOptions::S3(_) => Self::S3_STORAGE,
-            ConnectionOptions::Ssh(_) => Self::SSH,
-            ConnectionOptions::Mongo(_) => Self::MONGO,
-        }
-    }
-}
-
-impl fmt::Display for ConnectionOptions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl TryFrom<catalog::connection_options::Options> for ConnectionOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::connection_options::Options) -> Result<Self, Self::Error> {
-        Ok(match value {
-            catalog::connection_options::Options::Debug(v) => {
-                ConnectionOptions::Debug(v.try_into()?)
-            }
-            catalog::connection_options::Options::Postgres(v) => {
-                ConnectionOptions::Postgres(v.try_into()?)
-            }
-            catalog::connection_options::Options::Bigquery(v) => {
-                ConnectionOptions::BigQuery(v.try_into()?)
-            }
-            catalog::connection_options::Options::Mysql(v) => {
-                ConnectionOptions::Mysql(v.try_into()?)
-            }
-            catalog::connection_options::Options::Local(v) => {
-                ConnectionOptions::Local(v.try_into()?)
-            }
-            catalog::connection_options::Options::Gcs(v) => ConnectionOptions::Gcs(v.try_into()?),
-            catalog::connection_options::Options::S3(v) => ConnectionOptions::S3(v.try_into()?),
-            catalog::connection_options::Options::Ssh(v) => ConnectionOptions::Ssh(v.try_into()?),
-            catalog::connection_options::Options::Mongo(v) => {
-                ConnectionOptions::Mongo(v.try_into()?)
-            }
-        })
-    }
-}
-
-impl TryFrom<catalog::ConnectionOptions> for ConnectionOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptions) -> Result<Self, Self::Error> {
-        value.options.required("options")
-    }
-}
-
-impl From<ConnectionOptions> for catalog::connection_options::Options {
-    fn from(value: ConnectionOptions) -> Self {
-        match value {
-            ConnectionOptions::Debug(v) => catalog::connection_options::Options::Debug(v.into()),
-            ConnectionOptions::Postgres(v) => {
-                catalog::connection_options::Options::Postgres(v.into())
-            }
-            ConnectionOptions::BigQuery(v) => {
-                catalog::connection_options::Options::Bigquery(v.into())
-            }
-            ConnectionOptions::Mysql(v) => catalog::connection_options::Options::Mysql(v.into()),
-            ConnectionOptions::Local(v) => catalog::connection_options::Options::Local(v.into()),
-            ConnectionOptions::Gcs(v) => catalog::connection_options::Options::Gcs(v.into()),
-            ConnectionOptions::S3(v) => catalog::connection_options::Options::S3(v.into()),
-            ConnectionOptions::Ssh(v) => catalog::connection_options::Options::Ssh(v.into()),
-            ConnectionOptions::Mongo(v) => catalog::connection_options::Options::Mongo(v.into()),
-        }
-    }
-}
-
-impl From<ConnectionOptions> for catalog::ConnectionOptions {
-    fn from(value: ConnectionOptions) -> Self {
-        catalog::ConnectionOptions {
-            options: Some(value.into()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsDebug {}
-
-impl TryFrom<catalog::ConnectionOptionsDebug> for ConnectionOptionsDebug {
-    type Error = ProtoConvError;
-    fn try_from(_value: catalog::ConnectionOptionsDebug) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsDebug {})
-    }
-}
-
-impl From<ConnectionOptionsDebug> for catalog::ConnectionOptionsDebug {
-    fn from(_value: ConnectionOptionsDebug) -> Self {
-        catalog::ConnectionOptionsDebug {}
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsPostgres {
-    pub connection_string: String,
-    pub ssh_tunnel: Option<u32>,
-}
-
-impl TryFrom<catalog::ConnectionOptionsPostgres> for ConnectionOptionsPostgres {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsPostgres) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsPostgres {
-            connection_string: value.connection_string,
-            ssh_tunnel: value.ssh_tunnel,
-        })
-    }
-}
-
-impl From<ConnectionOptionsPostgres> for catalog::ConnectionOptionsPostgres {
-    fn from(value: ConnectionOptionsPostgres) -> Self {
-        catalog::ConnectionOptionsPostgres {
-            connection_string: value.connection_string,
-            ssh_tunnel: value.ssh_tunnel,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsBigQuery {
-    pub service_account_key: String,
-    pub project_id: String,
-}
-
-impl TryFrom<catalog::ConnectionOptionsBigQuery> for ConnectionOptionsBigQuery {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsBigQuery) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsBigQuery {
-            service_account_key: value.service_account_key,
-            project_id: value.project_id,
-        })
-    }
-}
-
-impl From<ConnectionOptionsBigQuery> for catalog::ConnectionOptionsBigQuery {
-    fn from(value: ConnectionOptionsBigQuery) -> Self {
-        catalog::ConnectionOptionsBigQuery {
-            service_account_key: value.service_account_key,
-            project_id: value.project_id,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsMysql {
-    pub connection_string: String,
-    pub ssh_tunnel: Option<u32>,
-}
-
-impl TryFrom<catalog::ConnectionOptionsMysql> for ConnectionOptionsMysql {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsMysql) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsMysql {
-            connection_string: value.connection_string,
-            ssh_tunnel: value.ssh_tunnel,
-        })
-    }
-}
-
-impl From<ConnectionOptionsMysql> for catalog::ConnectionOptionsMysql {
-    fn from(value: ConnectionOptionsMysql) -> Self {
-        catalog::ConnectionOptionsMysql {
-            connection_string: value.connection_string,
-            ssh_tunnel: value.ssh_tunnel,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsLocal {}
-
-impl TryFrom<catalog::ConnectionOptionsLocal> for ConnectionOptionsLocal {
-    type Error = ProtoConvError;
-    fn try_from(_value: catalog::ConnectionOptionsLocal) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsLocal {})
-    }
-}
-
-impl From<ConnectionOptionsLocal> for catalog::ConnectionOptionsLocal {
-    fn from(_value: ConnectionOptionsLocal) -> Self {
-        catalog::ConnectionOptionsLocal {}
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsGcs {
-    pub service_account_key: String,
-}
-
-impl TryFrom<catalog::ConnectionOptionsGcs> for ConnectionOptionsGcs {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsGcs) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsGcs {
-            service_account_key: value.service_account_key,
-        })
-    }
-}
-
-impl From<ConnectionOptionsGcs> for catalog::ConnectionOptionsGcs {
-    fn from(value: ConnectionOptionsGcs) -> Self {
-        catalog::ConnectionOptionsGcs {
-            service_account_key: value.service_account_key,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsS3 {
-    pub access_key_id: String,
-    pub secret_access_key: String,
-}
-
-impl TryFrom<catalog::ConnectionOptionsS3> for ConnectionOptionsS3 {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsS3) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsS3 {
-            access_key_id: value.access_key_id,
-            secret_access_key: value.secret_access_key,
-        })
-    }
-}
-
-impl From<ConnectionOptionsS3> for catalog::ConnectionOptionsS3 {
-    fn from(value: ConnectionOptionsS3) -> Self {
-        catalog::ConnectionOptionsS3 {
-            access_key_id: value.access_key_id,
-            secret_access_key: value.secret_access_key,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsSsh {
-    pub host: String,
-    pub user: String,
-    pub port: u16,
-    pub keypair: Vec<u8>,
-}
-
-impl TryFrom<catalog::ConnectionOptionsSsh> for ConnectionOptionsSsh {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsSsh) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsSsh {
-            host: value.host,
-            user: value.user,
-            port: value.port.try_into()?,
-            keypair: value.keypair,
-        })
-    }
-}
-
-impl From<ConnectionOptionsSsh> for catalog::ConnectionOptionsSsh {
-    fn from(value: ConnectionOptionsSsh) -> Self {
-        catalog::ConnectionOptionsSsh {
-            host: value.host,
-            user: value.user,
-            port: value.port.into(),
-            keypair: value.keypair,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ConnectionOptionsMongo {
-    pub connection_string: String,
-}
-
-impl TryFrom<catalog::ConnectionOptionsMongo> for ConnectionOptionsMongo {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ConnectionOptionsMongo) -> Result<Self, Self::Error> {
-        Ok(ConnectionOptionsMongo {
-            connection_string: value.connection_string,
-        })
-    }
-}
-
-impl From<ConnectionOptionsMongo> for catalog::ConnectionOptionsMongo {
-    fn from(value: ConnectionOptionsMongo) -> Self {
-        catalog::ConnectionOptionsMongo {
-            connection_string: value.connection_string,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1046,24 +404,6 @@ mod tests {
         fn roundtrip_entry_meta(expected in any::<EntryMeta>()) {
             let p: catalog::EntryMeta = expected.clone().into();
             let got: EntryMeta = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_table_options(expected in any::<TableOptions>()) {
-            let p: catalog::TableOptions = expected.clone().into();
-            let got: TableOptions = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_connection_options(expected in any::<ConnectionOptions>()) {
-            let p: catalog::ConnectionOptions = expected.clone().into();
-            let got: ConnectionOptions = p.try_into().unwrap();
             assert_eq!(expected, got);
         }
     }

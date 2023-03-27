@@ -6,6 +6,8 @@ create schema csv;
 statement ok
 set search_path = csv;
 
+halt
+
 statement ok
 create connection local_filesystem_conn for local;
 

@@ -3,7 +3,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use metastore::types::catalog::{ConnectionOptions, TableOptions};
+use metastore::types::options::{DatabaseOptions, TableOptions};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -75,6 +75,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
     }
 }
 
+#[allow(dead_code)] // Inserts not constructed anywhere (yet)
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
@@ -99,22 +100,29 @@ pub struct Insert {
 /// on working with "external" data that won't be modified like parquet files.
 #[derive(Clone, Debug)]
 pub enum DdlPlan {
+    CreateExternalDatabase(CreateExternalDatabase),
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
-    CreateConnection(CreateConnection),
     CreateView(CreateView),
     DropTables(DropTables),
     DropViews(DropViews),
-    DropConnections(DropConnections),
     DropSchemas(DropSchemas),
+    DropDatabase(DropDatabase),
 }
 
 impl From<DdlPlan> for LogicalPlan {
     fn from(plan: DdlPlan) -> Self {
         LogicalPlan::Ddl(plan)
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateExternalDatabase {
+    pub database_name: String,
+    pub if_not_exists: bool,
+    pub options: DatabaseOptions,
 }
 
 #[derive(Clone, Debug)]
@@ -134,7 +142,6 @@ pub struct CreateTable {
 pub struct CreateExternalTable {
     pub table_name: String,
     pub if_not_exists: bool,
-    pub connection_id: u32,
     pub table_options: TableOptions,
     pub columns: Vec<Field>,
 }
@@ -143,13 +150,6 @@ pub struct CreateExternalTable {
 pub struct CreateTableAs {
     pub table_name: String,
     pub source: DfLogicalPlan,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateConnection {
-    pub connection_name: String,
-    pub if_not_exists: bool,
-    pub options: ConnectionOptions,
 }
 
 #[derive(Clone, Debug)]
@@ -172,14 +172,14 @@ pub struct DropViews {
 }
 
 #[derive(Clone, Debug)]
-pub struct DropConnections {
+pub struct DropSchemas {
     pub names: Vec<String>,
     pub if_exists: bool,
 }
 
 #[derive(Clone, Debug)]
-pub struct DropSchemas {
-    pub names: Vec<String>,
+pub struct DropDatabase {
+    pub name: String,
     pub if_exists: bool,
 }
 

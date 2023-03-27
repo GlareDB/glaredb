@@ -1,11 +1,10 @@
 # Test if large amount of data loads successfully.
 
-include ./include/conn.slti
-
 statement ok
 CREATE EXTERNAL TABLE large_table
-	FROM testconn
+	FROM postgres
 	OPTIONS (
+		postgres_conn = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'bikeshare_trips'
 	);

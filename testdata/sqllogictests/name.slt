@@ -3,6 +3,8 @@
 statement ok
 set enable_debug_datasources to true;
 
+halt
+
 # 63 byte length identifier
 statement ok
 create schema long_schema_123456789123456789123456789123456789123456789123456;

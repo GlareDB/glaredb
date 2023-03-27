@@ -34,6 +34,8 @@ information_schema  tables    VIEW
 query TTR
 select table_name, column_name, ordinal_position from information_schema.columns where table_schema = 'glare_catalog' and table_name = 'schemas' order by ordinal_position;
 ----
-schemas  oid          1
-schemas  builtin      2
-schemas  schema_name  3
+schemas  oid            1
+schemas  database_oid   2
+schemas  database_name  3
+schemas  schema_name    4
+schemas  builtin        5

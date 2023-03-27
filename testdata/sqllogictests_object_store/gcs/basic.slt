@@ -6,14 +6,13 @@ create schema gcs;
 statement ok
 set search_path = gcs;
 
-include ./include/conn.slti
-
 # Test CSV format
 statement ok
 CREATE EXTERNAL TABLE basic
-    FROM testconn
+    FROM gcs
     OPTIONS (
-        bucket_name = '${GCS_BUCKET_NAME}',
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+        bucket = '${GCS_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 
@@ -23,9 +22,10 @@ include ../sqllogictests_datasources_common/include/basic.slti
 halt
 statement ok
 CREATE EXTERNAL TABLE basic
-    FROM testconn
+    FROM gcs
     OPTIONS (
-        bucket_name = '${GCS_BUCKET_NAME}',
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+        bucket = '${GCS_BUCKET_NAME}',
         location = 'bikeshare_stations.parquet'
     );
 

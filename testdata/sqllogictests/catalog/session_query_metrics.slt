@@ -9,6 +9,8 @@ set search_path to session_query_metrics_builtin;
 statement ok
 set enable_debug_datasources to t;
 
+halt
+
 statement ok
 create connection d1 for debug;
 

@@ -6,6 +6,7 @@
 
 pub mod arrow;
 pub mod catalog;
+pub mod options;
 pub mod service;
 pub mod storage;
 

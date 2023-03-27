@@ -1,8 +1,0 @@
-# Include file to create postgres connection
-
-statement ok
-CREATE CONNECTION IF NOT EXISTS testconn
-	FOR postgres
-	OPTIONS (
-		postgres_conn = '${POSTGRES_CONN_STRING}',
-	);

@@ -4,7 +4,6 @@ use std::net::SocketAddr;
 use std::os::unix::prelude::PermissionsExt;
 use std::time::Duration;
 
-use metastore::types::catalog::ConnectionOptionsSsh;
 use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
 use ssh_key::sec1::der::zeroize::Zeroizing;
 use ssh_key::{LineEnding, PrivateKey};
@@ -145,19 +144,6 @@ impl SshTunnelAccess {
             )
         })?;
         listener.local_addr()
-    }
-}
-
-impl TryFrom<&ConnectionOptionsSsh> for SshTunnelAccess {
-    type Error = Error;
-    fn try_from(value: &ConnectionOptionsSsh) -> Result<Self> {
-        let keypair = SshKey::from_bytes(&value.keypair)?;
-        Ok(SshTunnelAccess {
-            host: value.host.clone(),
-            user: value.user.clone(),
-            port: value.port,
-            keypair,
-        })
     }
 }
 

@@ -1,7 +1,0 @@
-# Include file to create mysql connection
-
-statement ok
-CREATE CONNECTION IF NOT EXISTS testconn
-    FOR mysql OPTIONS (
-        mysql_conn = '${MYSQL_CONN_STRING}',
-    );

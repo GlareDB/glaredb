@@ -32,14 +32,18 @@ pub enum MetastoreError {
     #[error("Invalid database id: {0:?}")]
     InvalidDatabaseId(Vec<u8>),
 
-    #[error("Schema {schema} has non-zero parent: {parent}")]
-    SchemaHasNonZeroParent { schema: u32, parent: u32 },
+    #[error("Database {database} has non-zero parent: {parent}")]
+    DatabaseHasNonZeroParent { database: u32, parent: u32 },
 
     #[error("Schema {schema} has {num_objects} child objects")]
     SchemaHasChildren { schema: u32, num_objects: usize },
 
-    #[error("Object {object} has invalid parent id: {parent}")]
-    ObjectHasInvalidParentId { object: u32, parent: u32 },
+    #[error("Object {object} of type '{object_type}' has invalid parent id: {parent}")]
+    ObjectHasInvalidParentId {
+        object: u32,
+        parent: u32,
+        object_type: &'static str,
+    },
 
     #[error("Failed in-process startup: {0}")]
     FailedInProcessStartup(String),
@@ -49,6 +53,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
+
+    #[error("Feature unimplemented: {0}")]
+    Unimplemented(&'static str),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;
