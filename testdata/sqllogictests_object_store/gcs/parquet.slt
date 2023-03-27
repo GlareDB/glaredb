@@ -11,7 +11,7 @@ CREATE EXTERNAL TABLE userdata1
     FROM gcs
     OPTIONS (
         service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
-        bucket_name = '${GCS_BUCKET_NAME}',
+        bucket = '${GCS_BUCKET_NAME}',
         location = 'userdata1.parquet'
     );
 

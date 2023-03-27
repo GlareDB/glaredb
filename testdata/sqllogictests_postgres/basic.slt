@@ -1,4 +1,4 @@
-# Basic tests for postgres external tables 
+# Basic tests for postgres external tables
 
 statement ok
 CREATE EXTERNAL TABLE basic

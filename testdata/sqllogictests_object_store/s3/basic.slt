@@ -14,7 +14,7 @@ CREATE EXTERNAL TABLE basic
         access_key_id = '${AWS_ACCESS_KEY_ID}',
         secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
         region = '${AWS_S3_REGION}',
-        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        bucket = '${AWS_S3_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 
@@ -30,7 +30,7 @@ CREATE EXTERNAL TABLE basic
         access_key_id = '${AWS_ACCESS_KEY_ID}',
         secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
         region = '${AWS_S3_REGION}',
-        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        bucket = '${AWS_S3_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 

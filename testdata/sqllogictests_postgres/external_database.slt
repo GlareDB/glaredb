@@ -1,0 +1,13 @@
+# Basic test for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE basic
+	FROM postgres
+	OPTIONS (
+		postgres_conn = '${POSTGRES_CONN_STRING}',
+	);
+
+query I
+SELECT count(*) FROM basic.public.bikeshare_stations;
+----
+102

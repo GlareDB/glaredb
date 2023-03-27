@@ -12,7 +12,7 @@ CREATE EXTERNAL TABLE basic
     FROM gcs
     OPTIONS (
         service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
-        bucket_name = '${GCS_BUCKET_NAME}',
+        bucket = '${GCS_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 
@@ -25,7 +25,7 @@ CREATE EXTERNAL TABLE basic
     FROM gcs
     OPTIONS (
         service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
-        bucket_name = '${GCS_BUCKET_NAME}',
+        bucket = '${GCS_BUCKET_NAME}',
         location = 'bikeshare_stations.parquet'
     );
 
