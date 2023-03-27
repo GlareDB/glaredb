@@ -1,6 +1,7 @@
 //! AST visitors for preprocessing queries before planning.
 use crate::context::SessionContext;
 use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
+use metastore::builtins::DEFAULT_CATALOG;
 use std::ops::ControlFlow;
 
 #[derive(Debug, thiserror::Error)]
@@ -35,7 +36,8 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
         fn find_oid(ctx: &SessionContext, rel: &str) -> Option<u32> {
             let catalog = ctx.get_session_catalog();
             for schema in ctx.implicit_search_path_iter() {
-                if let Some(ent) = catalog.resolve_entry(schema, rel) {
+                // TODO
+                if let Some(ent) = catalog.resolve_entry(DEFAULT_CATALOG, schema, rel) {
                     // Table found.
                     return Some(ent.get_meta().id);
                 }

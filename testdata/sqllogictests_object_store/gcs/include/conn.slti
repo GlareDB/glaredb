@@ -1,7 +1,0 @@
-# Include file to create gcs connection
-
-statement ok
-CREATE CONNECTION IF NOT EXISTS testconn
-    FOR gcs OPTIONS (
-        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
-    );

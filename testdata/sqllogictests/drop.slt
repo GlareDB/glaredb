@@ -20,6 +20,8 @@ select schema_name from glare_catalog.schemas where schema_name='drop_table';
 
 # Test drop schema with objects, drop connection and drop table
 
+halt
+
 statement ok
 create schema drop_table;
 

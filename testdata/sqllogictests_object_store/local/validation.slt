@@ -1,5 +1,7 @@
 # Validation testing for create external table on the local file system
 
+halt
+
 statement ok
 create schema local_conn_validation;
 

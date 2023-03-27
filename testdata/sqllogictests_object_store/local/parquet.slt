@@ -6,11 +6,9 @@ create schema parquet_local;
 statement ok
 set search_path = parquet_local;
 
-include ./include/conn.slti
-
 statement ok
 CREATE EXTERNAL TABLE userdata1
-    FROM testconn
+    FROM local
     OPTIONS (
         location = 'testdata/parquet/userdata1.parquet'
     );

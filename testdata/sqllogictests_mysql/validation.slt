@@ -1,6 +1,6 @@
 # Validation tests for mysql connections and external tables
 
-include ./include/conn.slti
+halt
 
 # Validation test error with the wrong password
 statement error

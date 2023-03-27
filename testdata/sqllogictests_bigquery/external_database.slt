@@ -1,0 +1,14 @@
+# Basic test for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE basic
+	FROM bigquery
+	OPTIONS (
+		service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+		project_id = '${GCP_PROJECT_ID}'
+	);
+
+query I
+SELECT count(*) FROM basic.${BIGQUERY_DATASET_ID}.bikeshare_stations;
+----
+102

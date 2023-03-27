@@ -6,14 +6,14 @@ create schema parquet_s3;
 statement ok
 set search_path = parquet_s3;
 
-include ./include/conn.slti
-
 statement ok
 CREATE EXTERNAL TABLE userdata1
-    FROM testconn
+    FROM s3
     OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
         region = '${AWS_S3_REGION}',
-        bucket_name = '${AWS_S3_BUCKET_NAME}',
+        bucket = '${AWS_S3_BUCKET_NAME}',
         location = 'userdata1.parquet'
     );
 

@@ -46,6 +46,8 @@ pub enum ExecutionResult {
     WriteSuccess,
     /// Table created.
     CreateTable,
+    /// Database created.
+    CreateDatabase,
     /// Schema created.
     CreateSchema,
     /// A view was created.
@@ -58,10 +60,10 @@ pub enum ExecutionResult {
     DropTables,
     /// Views dropped.
     DropViews,
-    /// Connections dropped.
-    DropConnections,
     /// Schemas dropped.
     DropSchemas,
+    /// Database dropped.
+    DropDatabase,
 }
 
 impl ExecutionResult {
@@ -75,14 +77,15 @@ impl ExecutionResult {
             ExecutionResult::Rollback => "rollback",
             ExecutionResult::WriteSuccess => "write_success",
             ExecutionResult::CreateTable => "create_table",
+            ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
             ExecutionResult::CreateConnection => "create_connection",
             ExecutionResult::SetLocal => "set_local",
             ExecutionResult::DropTables => "drop_tables",
             ExecutionResult::DropViews => "drop_views",
-            ExecutionResult::DropConnections => "drop_connections",
             ExecutionResult::DropSchemas => "drop_schemas",
+            ExecutionResult::DropDatabase => "drop_database",
         }
     }
 }
@@ -102,14 +105,15 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Rollback => write!(f, "rollback"),
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
+            ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::CreateConnection => write!(f, "create connection"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropViews => write!(f, "drop views"),
-            ExecutionResult::DropConnections => write!(f, "drop connections"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
+            ExecutionResult::DropDatabase => write!(f, "drop database"),
         }
     }
 }
@@ -178,8 +182,8 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
-        self.ctx.create_connection(plan).await?;
+    pub(crate) async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+        self.ctx.create_database(plan).await?;
         Ok(())
     }
 
@@ -198,13 +202,13 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn drop_connections(&mut self, plan: DropConnections) -> Result<()> {
-        self.ctx.drop_connections(plan).await?;
+    pub(crate) async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
+        self.ctx.drop_schemas(plan).await?;
         Ok(())
     }
 
-    pub(crate) async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
-        self.ctx.drop_schemas(plan).await?;
+    pub(crate) async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
+        self.ctx.drop_database(plan).await?;
         Ok(())
     }
 
@@ -297,6 +301,10 @@ impl Session {
                 self.create_external_table(plan).await?;
                 ExecutionResult::CreateTable
             }
+            LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)) => {
+                self.create_database(plan).await?;
+                ExecutionResult::CreateDatabase
+            }
             LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
                 self.create_table_as(plan).await?;
                 ExecutionResult::CreateTable
@@ -304,10 +312,6 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;
                 ExecutionResult::CreateSchema
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateConnection(plan)) => {
-                self.create_connection(plan).await?;
-                ExecutionResult::CreateConnection
             }
             LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
                 self.create_view(plan).await?;
@@ -321,13 +325,13 @@ impl Session {
                 self.drop_views(plan).await?;
                 ExecutionResult::DropViews
             }
-            LogicalPlan::Ddl(DdlPlan::DropConnections(plan)) => {
-                self.drop_connections(plan).await?;
-                ExecutionResult::DropConnections
-            }
             LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
                 self.drop_schemas(plan).await?;
                 ExecutionResult::DropSchemas
+            }
+            LogicalPlan::Ddl(DdlPlan::DropDatabase(plan)) => {
+                self.drop_database(plan).await?;
+                ExecutionResult::DropDatabase
             }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert(plan).await?;

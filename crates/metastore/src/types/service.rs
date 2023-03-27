@@ -1,16 +1,18 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::service;
-use crate::types::catalog::{ColumnDefinition, ConnectionOptions, TableOptions};
+use crate::types::catalog::ColumnDefinition;
+use crate::types::options::{DatabaseOptions, TableOptions};
 use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum Mutation {
+    DropDatabase(DropDatabase),
     DropSchema(DropSchema),
     DropObject(DropObject),
     CreateSchema(CreateSchema),
     CreateView(CreateView),
-    CreateConnection(CreateConnection),
     CreateExternalTable(CreateExternalTable),
+    CreateExternalDatabase(CreateExternalDatabase),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -24,15 +26,16 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
     type Error = ProtoConvError;
     fn try_from(value: service::mutation::Mutation) -> Result<Self, Self::Error> {
         Ok(match value {
+            service::mutation::Mutation::DropDatabase(v) => Mutation::DropDatabase(v.try_into()?),
             service::mutation::Mutation::DropSchema(v) => Mutation::DropSchema(v.try_into()?),
             service::mutation::Mutation::DropObject(v) => Mutation::DropObject(v.try_into()?),
             service::mutation::Mutation::CreateSchema(v) => Mutation::CreateSchema(v.try_into()?),
             service::mutation::Mutation::CreateView(v) => Mutation::CreateView(v.try_into()?),
-            service::mutation::Mutation::CreateConnection(v) => {
-                Mutation::CreateConnection(v.try_into()?)
-            }
             service::mutation::Mutation::CreateExternalTable(v) => {
                 Mutation::CreateExternalTable(v.try_into()?)
+            }
+            service::mutation::Mutation::CreateExternalDatabase(v) => {
+                Mutation::CreateExternalDatabase(v.try_into()?)
             }
         })
     }
@@ -42,15 +45,16 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
     type Error = ProtoConvError;
     fn try_from(value: Mutation) -> Result<Self, Self::Error> {
         Ok(match value {
+            Mutation::DropDatabase(v) => service::mutation::Mutation::DropDatabase(v.into()),
             Mutation::DropSchema(v) => service::mutation::Mutation::DropSchema(v.into()),
             Mutation::DropObject(v) => service::mutation::Mutation::DropObject(v.into()),
             Mutation::CreateSchema(v) => service::mutation::Mutation::CreateSchema(v.into()),
             Mutation::CreateView(v) => service::mutation::Mutation::CreateView(v.into()),
-            Mutation::CreateConnection(v) => {
-                service::mutation::Mutation::CreateConnection(v.into())
-            }
             Mutation::CreateExternalTable(v) => {
                 service::mutation::Mutation::CreateExternalTable(v.try_into()?)
+            }
+            Mutation::CreateExternalDatabase(v) => {
+                service::mutation::Mutation::CreateExternalDatabase(v.into())
             }
         })
     }
@@ -62,6 +66,32 @@ impl TryFrom<Mutation> for service::Mutation {
         Ok(service::Mutation {
             mutation: Some(value.try_into()?),
         })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DropDatabase {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+impl TryFrom<service::DropDatabase> for DropDatabase {
+    type Error = ProtoConvError;
+    fn try_from(value: service::DropDatabase) -> Result<Self, Self::Error> {
+        // TODO: Check if string is zero value.
+        Ok(DropDatabase {
+            name: value.name,
+            if_exists: value.if_exists,
+        })
+    }
+}
+
+impl From<DropDatabase> for service::DropDatabase {
+    fn from(value: DropDatabase) -> Self {
+        service::DropDatabase {
+            name: value.name,
+            if_exists: value.if_exists,
+        }
     }
 }
 
@@ -169,41 +199,9 @@ impl From<CreateView> for service::CreateView {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct CreateConnection {
-    pub schema: String,
-    pub name: String,
-    pub options: ConnectionOptions,
-    pub if_not_exists: bool,
-}
-
-impl TryFrom<service::CreateConnection> for CreateConnection {
-    type Error = ProtoConvError;
-    fn try_from(value: service::CreateConnection) -> Result<Self, Self::Error> {
-        Ok(CreateConnection {
-            schema: value.schema,
-            name: value.name,
-            options: value.options.required("options")?,
-            if_not_exists: value.if_not_exists,
-        })
-    }
-}
-
-impl From<CreateConnection> for service::CreateConnection {
-    fn from(value: CreateConnection) -> Self {
-        service::CreateConnection {
-            schema: value.schema,
-            name: value.name,
-            options: Some(value.options.into()),
-            if_not_exists: value.if_not_exists,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
-    pub connection_id: u32,
     pub options: TableOptions,
     pub if_not_exists: bool,
     pub columns: Vec<ColumnDefinition>,
@@ -216,7 +214,6 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
         Ok(CreateExternalTable {
             schema: value.schema,
             name: value.name,
-            connection_id: value.connection_id,
             options: value.options.required("options")?,
             if_not_exists: value.if_not_exists,
             columns: value
@@ -234,7 +231,6 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
         Ok(service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
-            connection_id: value.connection_id,
             options: Some(value.options.into()),
             if_not_exists: value.if_not_exists,
             columns: value
@@ -243,6 +239,34 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
                 .map(|col| col.try_into())
                 .collect::<Result<_, _>>()?,
         })
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateExternalDatabase {
+    pub name: String,
+    pub options: DatabaseOptions,
+    pub if_not_exists: bool,
+}
+
+impl TryFrom<service::CreateExternalDatabase> for CreateExternalDatabase {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateExternalDatabase) -> Result<Self, Self::Error> {
+        Ok(CreateExternalDatabase {
+            name: value.name,
+            options: value.options.required("options")?,
+            if_not_exists: value.if_not_exists,
+        })
+    }
+}
+
+impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
+    fn from(value: CreateExternalDatabase) -> Self {
+        service::CreateExternalDatabase {
+            name: value.name,
+            options: Some(value.options.into()),
+            if_not_exists: value.if_not_exists,
+        }
     }
 }
 

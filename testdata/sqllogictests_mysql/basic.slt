@@ -1,11 +1,10 @@
 # Basic tests for mysql external tables 
 
-include ./include/conn.slti
-
 statement ok
 CREATE EXTERNAL TABLE basic
-	FROM testconn
+	FROM mysql
 	OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
 		schema = 'glaredb_test',
 		table = 'bikeshare_stations'
 	);

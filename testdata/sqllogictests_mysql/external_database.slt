@@ -1,0 +1,13 @@
+# Basic test for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE basic
+	FROM mysql
+	OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
+	);
+
+query I
+SELECT count(*) FROM basic.glaredb_test.bikeshare_stations;
+----
+102

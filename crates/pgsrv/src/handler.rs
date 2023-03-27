@@ -587,6 +587,9 @@ where
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
             ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
+            ExecutionResult::CreateDatabase => {
+                Self::command_complete(conn, "CREATE DATABASE").await?
+            }
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
             ExecutionResult::CreateConnection => {
@@ -595,10 +598,8 @@ where
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,
-            ExecutionResult::DropConnections => {
-                Self::command_complete(conn, "DROP CONNECTION").await?
-            }
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
+            ExecutionResult::DropDatabase => Self::command_complete(conn, "DROP DATABASE").await?,
         };
         Ok(())
     }

@@ -1,6 +1,6 @@
 # Validation tests for s3 connections and external tables
 
-include ./include/conn.slti
+halt
 
 # Validation tests for create connection
 

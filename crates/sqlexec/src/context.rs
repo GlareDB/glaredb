@@ -13,11 +13,11 @@ use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datasource_common::ssh::SshTunnelAccess;
 use futures::future::BoxFuture;
+use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{self, ColumnDefinition, ConnectionEntry, ConnectionOptions};
+use metastore::types::catalog::ColumnDefinition;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -117,7 +117,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        let (schema, name) = self.resolve_object_reference(plan.table_name.into())?;
+        let (_, schema, name) = self.resolve_object_reference(plan.table_name.into())?;
         let columns = plan
             .columns
             .into_iter()
@@ -131,7 +131,6 @@ impl SessionContext {
             service::CreateExternalTable {
                 schema,
                 name,
-                connection_id: plan.connection_id,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
                 columns,
@@ -150,21 +149,20 @@ impl SessionContext {
         Ok(())
     }
 
-    pub async fn create_connection(&mut self, plan: CreateConnection) -> Result<()> {
-        let (schema, name) = self.resolve_object_reference(plan.connection_name.into())?;
-        self.mutate_catalog([Mutation::CreateConnection(service::CreateConnection {
-            schema,
-            name,
-            options: plan.options,
-            if_not_exists: plan.if_not_exists,
-        })])
+    pub async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+        self.mutate_catalog([Mutation::CreateExternalDatabase(
+            service::CreateExternalDatabase {
+                name: plan.database_name,
+                if_not_exists: plan.if_not_exists,
+                options: plan.options,
+            },
+        )])
         .await?;
-
         Ok(())
     }
 
     pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
-        let (schema, name) = self.resolve_object_reference(plan.view_name.into())?;
+        let (_, schema, name) = self.resolve_object_reference(plan.view_name.into())?;
         self.mutate_catalog([Mutation::CreateView(service::CreateView {
             schema,
             name,
@@ -179,7 +177,7 @@ impl SessionContext {
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            let (schema, name) = self.resolve_object_reference(name.into())?;
+            let (_, schema, name) = self.resolve_object_reference(name.into())?;
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
@@ -196,24 +194,7 @@ impl SessionContext {
     pub async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            let (schema, name) = self.resolve_object_reference(name.into())?;
-            drops.push(Mutation::DropObject(service::DropObject {
-                schema,
-                name,
-                if_exists: plan.if_exists,
-            }));
-        }
-
-        self.mutate_catalog(drops).await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more connections.
-    pub async fn drop_connections(&mut self, plan: DropConnections) -> Result<()> {
-        let mut drops = Vec::with_capacity(plan.names.len());
-        for name in plan.names {
-            let (schema, name) = self.resolve_object_reference(name.into())?;
+            let (_, schema, name) = self.resolve_object_reference(name.into())?;
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
@@ -241,74 +222,13 @@ impl SessionContext {
         Ok(())
     }
 
-    /// Get a connection entry from the catalog by name.
-    pub fn get_connection_by_name(&self, name: &str) -> Result<&ConnectionEntry> {
-        let (schema, name) = self.resolve_object_reference(name.into())?;
-        let ent = self
-            .metastore_catalog
-            .resolve_entry(&schema, &name)
-            .ok_or(ExecError::MissingConnectionByName { schema, name })?;
-
-        match ent {
-            catalog::CatalogEntry::Connection(ent) => Ok(ent),
-            other => Err(ExecError::UnexpectedEntryType {
-                got: other.entry_type(),
-                want: catalog::EntryType::Connection,
-            }),
-        }
-    }
-
-    /// Get a connection entry from the catalog by id.
-    pub fn get_connection_by_oid(&self, oid: u32) -> Result<&ConnectionEntry> {
-        let ent = self
-            .metastore_catalog
-            .get_by_oid(oid)
-            .ok_or(ExecError::MissingConnectionByOid { oid })?;
-
-        match ent {
-            catalog::CatalogEntry::Connection(ent) => Ok(ent),
-            other => Err(ExecError::UnexpectedEntryType {
-                got: other.entry_type(),
-                want: catalog::EntryType::Connection,
-            }),
-        }
-    }
-
-    /// Get an ssh tunnel access info from the catalog, along with its id.
-    ///
-    /// Errors if a connection doesn't exist with the given name, or if the
-    /// connection isn't an ssh connection.
-    pub fn get_ssh_tunnel_access_by_name(
-        &self,
-        name: &str,
-    ) -> Result<(u32, SshTunnelAccess), ExecError> {
-        let conn = self.get_connection_by_name(name)?;
-        let ssh_opts = conn
-            .try_get_ssh_options()
-            .ok_or(ExecError::InvalidConnectionType {
-                expected: ConnectionOptions::SSH,
-                got: conn.options.as_str(),
-            })?;
-
-        let access = ssh_opts.try_into()?;
-        Ok((conn.meta.id, access))
-    }
-
-    /// Get an ssh tunnel access info from the catalog by oid..
-    ///
-    /// Errors if a connection doesn't exist with the given name, or if the
-    /// connection isn't an ssh connection.
-    pub fn get_ssh_tunnel_access_by_oid(&self, oid: u32) -> Result<SshTunnelAccess, ExecError> {
-        let conn = self.get_connection_by_oid(oid)?;
-        let ssh_opts = conn
-            .try_get_ssh_options()
-            .ok_or(ExecError::InvalidConnectionType {
-                expected: ConnectionOptions::SSH,
-                got: conn.options.as_str(),
-            })?;
-
-        let access = ssh_opts.try_into()?;
-        Ok(access)
+    pub async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
+        self.mutate_catalog([Mutation::DropDatabase(service::DropDatabase {
+            name: plan.name,
+            if_exists: plan.if_exists,
+        })])
+        .await?;
+        Ok(())
     }
 
     /// Get a reference to the session variables.
@@ -491,17 +411,23 @@ impl SessionContext {
     }
 
     /// Resolves a reference for an object that existing inside a schema.
-    fn resolve_object_reference(&self, name: Cow<'_, str>) -> Result<(String, String)> {
+    fn resolve_object_reference(&self, name: Cow<'_, str>) -> Result<(String, String, String)> {
         let reference = TableReference::from(name.as_ref());
         match reference {
             TableReference::Bare { .. } => {
                 let schema = self.first_nonimplicit_schema()?.to_string();
-                Ok((schema, name.to_string()))
+                Ok((DEFAULT_CATALOG.to_string(), schema, name.to_string()))
             }
-            TableReference::Partial { schema, table }
-            | TableReference::Full { schema, table, .. } => {
-                Ok((schema.to_string(), table.to_string()))
-            }
+            TableReference::Partial { schema, table } => Ok((
+                DEFAULT_CATALOG.to_string(),
+                schema.to_string(),
+                table.to_string(),
+            )),
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => Ok((catalog.to_string(), schema.to_string(), table.to_string())),
         }
     }
 

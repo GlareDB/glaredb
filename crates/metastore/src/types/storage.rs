@@ -1,7 +1,6 @@
-use super::ProtoConvError;
+use super::{FromOptionalField, ProtoConvError};
 use crate::proto::storage;
-use crate::types::catalog::CatalogEntry;
-use std::collections::HashMap;
+use crate::types::catalog::CatalogState;
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -121,22 +120,16 @@ impl From<CatalogMetadata> for storage::CatalogMetadata {
 
 #[derive(Debug, Clone)]
 pub struct PersistedCatalog {
-    pub version: u64,
-    pub entries: HashMap<u32, CatalogEntry>,
-    pub oid_counter: u32,
+    pub state: CatalogState,
+    pub extra: ExtraState,
 }
 
 impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
     type Error = ProtoConvError;
     fn try_from(value: storage::PersistedCatalog) -> Result<Self, Self::Error> {
-        let mut entries = HashMap::with_capacity(value.entries.len());
-        for (id, ent) in value.entries {
-            entries.insert(id, ent.try_into()?);
-        }
         Ok(PersistedCatalog {
-            version: value.version,
-            entries,
-            oid_counter: value.oid_counter,
+            state: value.state.required("state".to_string())?,
+            extra: value.extra.required("extra".to_string())?,
         })
     }
 }
@@ -145,16 +138,30 @@ impl TryFrom<PersistedCatalog> for storage::PersistedCatalog {
     type Error = ProtoConvError;
     fn try_from(value: PersistedCatalog) -> Result<Self, Self::Error> {
         Ok(storage::PersistedCatalog {
-            version: value.version,
-            entries: value
-                .entries
-                .into_iter()
-                .map(|(id, ent)| match ent.try_into() {
-                    Ok(ent) => Ok((id, ent)),
-                    Err(e) => Err(e),
-                })
-                .collect::<Result<_, _>>()?,
+            state: Some(value.state.try_into()?),
+            extra: Some(value.extra.into()),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExtraState {
+    pub oid_counter: u32,
+}
+
+impl TryFrom<storage::ExtraState> for ExtraState {
+    type Error = ProtoConvError;
+    fn try_from(value: storage::ExtraState) -> Result<Self, Self::Error> {
+        Ok(ExtraState {
             oid_counter: value.oid_counter,
         })
+    }
+}
+
+impl From<ExtraState> for storage::ExtraState {
+    fn from(value: ExtraState) -> Self {
+        storage::ExtraState {
+            oid_counter: value.oid_counter,
+        }
     }
 }

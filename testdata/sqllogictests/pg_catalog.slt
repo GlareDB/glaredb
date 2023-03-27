@@ -47,6 +47,8 @@ create schema pg_catalog_test;
 statement ok
 set search_path to pg_catalog_test;
 
+halt
+
 statement ok
 create connection c1 for debug;
 

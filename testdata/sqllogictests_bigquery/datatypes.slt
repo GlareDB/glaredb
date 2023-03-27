@@ -1,12 +1,12 @@
 # Test if the datasource supports the different datatypes (and NULLs).
 
-include ./include/conn.slti
-
 # Create an external table that connects to the datatypes table.
 statement ok
 CREATE EXTERNAL TABLE datatypes
-	FROM testconn
+	FROM bigquery
 	OPTIONS (
+		service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+		project_id = '${GCP_PROJECT_ID}',
 		dataset_id = '${BIGQUERY_DATASET_ID}',
 		table_id = 'datatypes'
 	);

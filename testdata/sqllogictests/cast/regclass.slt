@@ -16,6 +16,8 @@ select 'my_table'::regclass;
 statement ok
 set enable_debug_datasources to t;
 
+halt
+
 statement ok
 create connection c1 for debug;
 

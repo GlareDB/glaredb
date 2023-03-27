@@ -1,11 +1,10 @@
-# Basic tests for postgres external tables 
-
-include ./include/conn.slti
+# Basic tests for postgres external tables
 
 statement ok
 CREATE EXTERNAL TABLE basic
-	FROM testconn
+	FROM postgres
 	OPTIONS (
+		postgres_conn = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'bikeshare_stations'
 	);

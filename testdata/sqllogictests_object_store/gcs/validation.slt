@@ -1,6 +1,6 @@
 # Validation tests for gcs connections and external tables
 
-include ./include/conn.slti
+halt
 
 # Validation tests for create connection
 

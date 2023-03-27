@@ -3,7 +3,8 @@ use crate::storage::lease::{RemoteLease, RemoteLeaser};
 use crate::storage::{
     Result, SingletonStorageObject, StorageError, StorageObject, VersionedStorageObject,
 };
-use crate::types::storage::{CatalogMetadata, PersistedCatalog};
+use crate::types::catalog::CatalogState;
+use crate::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use bytes::BytesMut;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
@@ -64,9 +65,13 @@ impl Storage {
         // Create the new catalog. This is always safe to write directly to
         // visible since the content should always be the same.
         let first_catalog: storage::PersistedCatalog = PersistedCatalog {
-            version: 0,
-            entries: HashMap::new(),
-            oid_counter: FIRST_AVAILABLE_ID,
+            state: CatalogState {
+                version: 0,
+                entries: HashMap::new(),
+            },
+            extra: ExtraState {
+                oid_counter: FIRST_AVAILABLE_ID,
+            },
         }
         .try_into()?;
         let mut bs = BytesMut::new();
@@ -191,11 +196,11 @@ impl Storage {
 
         // New metadata to write.
         let metadata = CatalogMetadata {
-            latest_version: catalog.version,
+            latest_version: catalog.state.version,
             last_written_by: self.process_id,
         };
 
-        let catalog_obj = PERSISTENT_CATALOG_OBJECT.with_version(catalog.version);
+        let catalog_obj = PERSISTENT_CATALOG_OBJECT.with_version(catalog.state.version);
 
         let proto: storage::PersistedCatalog = catalog.try_into()?;
         let mut bs = BytesMut::new();
@@ -282,15 +287,15 @@ mod tests {
 
         let mut catalog = storage.read_catalog(db_id).await.unwrap();
 
-        let old_version = catalog.version;
-        catalog.version += 1;
+        let old_version = catalog.state.version;
+        catalog.state.version += 1;
         storage
             .write_catalog(db_id, old_version, catalog.clone())
             .await
             .unwrap();
 
         let updated = storage.read_catalog(db_id).await.unwrap();
-        assert_eq!(1, updated.version);
+        assert_eq!(1, updated.state.version);
 
         // Check that we can't write using out of date version.
         storage.write_catalog(db_id, 0, catalog).await.unwrap_err();
@@ -309,8 +314,8 @@ mod tests {
         // Reads should work.
         let mut catalog = storage.read_catalog(db_id).await.unwrap();
 
-        let old_version = catalog.version;
-        catalog.version += 1;
+        let old_version = catalog.state.version;
+        catalog.state.version += 1;
         // Write should fail, can't acquire lease.
         storage
             .write_catalog(db_id, old_version, catalog.clone())

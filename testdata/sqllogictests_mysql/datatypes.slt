@@ -1,36 +1,38 @@
 # Basic tests for postgres external tables 
 
-include ./include/conn.slti
-
 # Create an external table that connects to the datatypes tables
 statement ok
 CREATE EXTERNAL TABLE numeric_datatypes
-    FROM testconn
+    FROM mysql
     OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
         schema = 'glaredb_test',
         table = 'numeric_datatypes'
     );
 
 statement ok
 CREATE EXTERNAL TABLE string_datatypes
-    FROM testconn
+    FROM mysql
     OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
         schema = 'glaredb_test',
         table = 'string_datatypes'
     );
 
 statement ok
 CREATE EXTERNAL TABLE date_time_datatypes
-    FROM testconn
+    FROM mysql
     OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
         schema = 'glaredb_test',
         table = 'date_time_datatypes'
     );
 
 statement ok
 CREATE EXTERNAL TABLE column_attributes
-    FROM testconn
+    FROM mysql
     OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
         schema = 'glaredb_test',
         table = 'column_attributes'
     );
