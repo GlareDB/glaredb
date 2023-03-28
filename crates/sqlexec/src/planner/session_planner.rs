@@ -1,6 +1,7 @@
 use crate::context::SessionContext;
 use crate::parser::{
-    CreateExternalDatabaseStmt, CreateExternalTableStmt, DropDatabaseStmt, StatementWithExtensions,
+    validate_ident, validate_object_name, CreateExternalDatabaseStmt, CreateExternalTableStmt,
+    DropDatabaseStmt, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -318,11 +319,23 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::CreateSchema {
                 schema_name,
                 if_not_exists,
-            } => Ok(DdlPlan::CreateSchema(CreateSchema {
-                schema_name: schema_name.to_string(),
-                if_not_exists,
-            })
-            .into()),
+            } => {
+                // Validate the schema name idents
+                match &schema_name {
+                    ast::SchemaName::Simple(name) => validate_object_name(name)?,
+                    ast::SchemaName::UnnamedAuthorization(ident) => validate_ident(ident)?,
+                    ast::SchemaName::NamedAuthorization(name, ident) => {
+                        validate_object_name(name)?;
+                        validate_ident(ident)?
+                    }
+                }
+
+                Ok(DdlPlan::CreateSchema(CreateSchema {
+                    schema_name: schema_name.to_string(),
+                    if_not_exists,
+                })
+                .into())
+            }
 
             // Normal tables.
             ast::Statement::CreateTable {
@@ -334,6 +347,7 @@ impl<'a> SessionPlanner<'a> {
                 query: None,
                 ..
             } => {
+                validate_object_name(&name)?;
                 let mut arrow_cols = Vec::with_capacity(columns.len());
                 for column in columns.into_iter() {
                     let dt = convert_data_type(&column.data_type)?;
@@ -358,6 +372,7 @@ impl<'a> SessionPlanner<'a> {
                 query: Some(query),
                 ..
             } => {
+                validate_object_name(&name)?;
                 let source = planner.sql_statement_to_plan(ast::Statement::Query(query))?;
                 Ok(DdlPlan::CreateTableAs(CreateTableAs {
                     table_name: name.to_string(),
@@ -376,6 +391,7 @@ impl<'a> SessionPlanner<'a> {
                 with_options,
                 ..
             } => {
+                validate_object_name(&name)?;
                 if !columns.is_empty() {
                     return Err(PlanError::UnsupportedFeature("named columns in views"));
                 }
