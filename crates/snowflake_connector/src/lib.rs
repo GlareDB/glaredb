@@ -5,6 +5,8 @@ use crate::req::SnowflakeClient;
 
 use datafusion::arrow::record_batch::RecordBatch;
 
+pub use crate::query::snowflake_to_arrow_datatype;
+
 mod auth;
 mod query;
 mod req;
@@ -102,6 +104,7 @@ impl Connection {
         self.session.close(&self.client).await
     }
 
+    // FIXME: Support parameter bindings.
     pub async fn query(&self, sql: String) -> Result<RecordBatch> {
         let query = Query { sql };
         query.exec(&self.client, &self.session).await
