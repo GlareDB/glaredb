@@ -1,31 +1,21 @@
-# Validation tests for gcs connections and external tables
+# Validation tests for gcs external tables
 
-halt
-
-# Validation tests for create connection
-
-# Validation test for connection with empty key
-statement ok
-CREATE CONNECTION empty_key
-    FOR gcs OPTIONS (
-        service_account_key = '',
-    );
-
+# Validation test for external table with empty key
 statement error
 CREATE EXTERNAL TABLE empty_key_table
-    FROM empty_key
+    FROM gcs
     OPTIONS (
+        service_account_key = '',
         bucket_name = '${GCS_BUCKET_NAME}',
         location = 'bikeshare_stations.csv'
     );
 
-# Validation test for create external table
-
 # Validation test with the wrong location
 statement error
 CREATE EXTERNAL TABLE missing_table
-    FROM testconn
+    FROM gcs
     OPTIONS (
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
         bucket_name = '${GCS_BUCKET_NAME}',
         location = 'missing_table.parquet'
     );
@@ -33,8 +23,9 @@ CREATE EXTERNAL TABLE missing_table
 # Validation test with the wrong bucket name
 statement error
 CREATE EXTERNAL TABLE wrong_bucket_name
-    FROM testconn
+    FROM gcs
     OPTIONS (
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
         bucket_name = '${GCS_BUCKET_NAME}-wrong-bucket',
         location = 'bikeshare_stations.csv'
     );

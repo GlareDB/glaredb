@@ -16,13 +16,8 @@ select 'my_table'::regclass;
 statement ok
 set enable_debug_datasources to t;
 
-halt
-
 statement ok
-create connection c1 for debug;
-
-statement ok
-create external table my_table from c1 options(table_type = 'never_ending');
+create external table my_table from debug options(table_type = 'never_ending');
 
 query T
 select 'my_table'::regclass > 2000;
