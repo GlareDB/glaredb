@@ -327,18 +327,24 @@ impl From<TableOptionsInternal> for options::TableOptionsInternal {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsDebug {}
+pub struct TableOptionsDebug {
+    pub table_type: String,
+}
 
 impl TryFrom<options::TableOptionsDebug> for TableOptionsDebug {
     type Error = ProtoConvError;
-    fn try_from(_value: options::TableOptionsDebug) -> Result<Self, Self::Error> {
-        Ok(TableOptionsDebug {})
+    fn try_from(value: options::TableOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(TableOptionsDebug {
+            table_type: value.table_type,
+        })
     }
 }
 
 impl From<TableOptionsDebug> for options::TableOptionsDebug {
-    fn from(_value: TableOptionsDebug) -> Self {
-        options::TableOptionsDebug {}
+    fn from(value: TableOptionsDebug) -> Self {
+        options::TableOptionsDebug {
+            table_type: value.table_type,
+        }
     }
 }
 

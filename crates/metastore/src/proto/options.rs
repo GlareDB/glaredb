@@ -91,7 +91,10 @@ pub mod table_options {
 pub struct TableOptionsInternal {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TableOptionsDebug {}
+pub struct TableOptionsDebug {
+    #[prost(string, tag = "1")]
+    pub table_type: ::prost::alloc::string::String,
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptionsPostgres {

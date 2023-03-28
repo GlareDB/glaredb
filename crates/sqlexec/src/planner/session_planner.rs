@@ -13,6 +13,7 @@ use datafusion::arrow::datatypes::{
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasource_debug::DebugTableType;
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -20,10 +21,12 @@ use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
+    TableOptionsS3,
 };
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use tracing::debug;
 
 /// Plan SQL statements for a session.
@@ -281,6 +284,18 @@ impl<'a> SessionPlanner<'a> {
                         }),
                         // TODO: return column info for this datasource
                         vec![],
+                    )
+                }
+                TableOptions::DEBUG => {
+                    let typ = remove_required_opt(m, "table_type")?;
+                    let typ = DebugTableType::from_str(&typ)?;
+                    let columns = typ.arrow_schema().fields;
+
+                    (
+                        TableOptions::Debug(TableOptionsDebug {
+                            table_type: typ.to_string(),
+                        }),
+                        columns,
                     )
                 }
                 other => return Err(internal!("unsupported datasource: {}", other)),

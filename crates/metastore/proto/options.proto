@@ -60,7 +60,7 @@ message TableOptions {
 
 message TableOptionsInternal {}
 
-message TableOptionsDebug {}
+message TableOptionsDebug { string table_type = 1; }
 
 message TableOptionsPostgres {
   string connection_string = 1;
