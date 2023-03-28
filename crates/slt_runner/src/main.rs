@@ -5,7 +5,7 @@ use glaredb::server::{Server, ServerConfig};
 use glob::glob;
 use regex::{Captures, Regex};
 use sqllogictest::{
-    parse, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
+    parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -216,7 +216,8 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &PathBuf) -> Result<Vec<Record<
 
     let mut records = vec![];
 
-    let parsed_records = parse(&script).map_err(|e| {
+    let script_name = path.to_str().unwrap();
+    let parsed_records = parse_with_name(&script, script_name).map_err(|e| {
         anyhow!(
             "error while parsing '{}': {}",
             path.to_string_lossy(),
