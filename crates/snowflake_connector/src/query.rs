@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::Session,
+    datatype::SnowflakeDataType,
     errors::{Result, SnowflakeError},
     req::{RequestId, SnowflakeClient},
 };
@@ -32,10 +33,23 @@ enum QueryResultFormat {
 }
 
 #[derive(Debug, Serialize)]
-struct QueryBindParameter {
+pub struct QueryBindParameter {
     #[serde(rename = "type")]
-    r#type: String,
-    value: serde_json::Value,
+    r#type: SnowflakeDataType,
+    value: String,
+}
+
+impl QueryBindParameter {
+    fn new<S: ToString>(ty: SnowflakeDataType, val: S) -> Self {
+        QueryBindParameter {
+            r#type: ty,
+            value: val.to_string(),
+        }
+    }
+
+    pub fn new_text<S: ToString>(val: S) -> Self {
+        Self::new(SnowflakeDataType::Text, val)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -102,33 +116,33 @@ struct QueryData {
 }
 
 pub fn snowflake_to_arrow_datatype(
-    dt: &str,
+    dt: SnowflakeDataType,
     precision: Option<i64>,
     scale: Option<i64>,
 ) -> DataType {
-    match dt.to_lowercase().as_str() {
-        "binary" => DataType::Binary,
-        "boolean" => DataType::Boolean,
-        "any" | "array" | "object" | "char" | "text" | "variant" => DataType::Utf8,
-        "real" => DataType::Float64,
-        "fixed" | "number" => {
+    use SnowflakeDataType as Dt;
+    match dt {
+        Dt::Binary => DataType::Binary,
+        Dt::Boolean => DataType::Boolean,
+        Dt::Any | Dt::Array | Dt::Object | Dt::Char | Dt::Text | Dt::Variant => DataType::Utf8,
+        Dt::Real => DataType::Float64,
+        Dt::Fixed | Dt::Number => {
             let (precision, scale) = (precision.unwrap() as u8, scale.unwrap() as i8);
             DataType::Decimal128(precision, scale)
         }
-        "date" => DataType::Date32,
-        "time" => DataType::Time64(TimeUnit::Nanosecond),
-        "timestamp" | "timestamp_ntz" => DataType::Timestamp(TimeUnit::Nanosecond, None),
-        "timestamp_tz" | "timestamp_ltz" => {
+        Dt::Date => DataType::Date32,
+        Dt::Time => DataType::Time64(TimeUnit::Nanosecond),
+        Dt::Timestamp | Dt::TimestampNtz => DataType::Timestamp(TimeUnit::Nanosecond, None),
+        Dt::TimestampTz | Dt::TimestampLtz => {
             DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string()))
         }
-        dt => unreachable!("programming error: snowflake datatype '{dt}' isn't implemented"),
     }
 }
 
 fn snowflake_to_arrow_schema(rowtype: Vec<QueryDataRowType>) -> Schema {
     let mut fields = Vec::new();
     for r in rowtype.into_iter() {
-        let datatype = snowflake_to_arrow_datatype(&r.r#type, r.precision, r.scale);
+        let datatype = snowflake_to_arrow_datatype(r.r#type, r.precision, r.scale);
         let field = Field::new(r.name, datatype, r.nullable);
         fields.push(field);
     }
@@ -444,7 +458,7 @@ struct QueryDataRowType {
     name: String,
 
     #[serde(rename = "type")]
-    r#type: String,
+    r#type: SnowflakeDataType,
 
     precision: Option<i64>,
     scale: Option<i64>,
@@ -454,6 +468,7 @@ struct QueryDataRowType {
 
 pub struct Query {
     pub sql: String,
+    pub bindings: Vec<QueryBindParameter>,
 }
 
 impl Query {
@@ -464,6 +479,21 @@ impl Query {
             // snowflake server.
         }
 
+        let bindings = if self.bindings.is_empty() {
+            None
+        } else {
+            let bindings: HashMap<_, _> = self
+                .bindings
+                .into_iter()
+                .enumerate()
+                .map(|(i, b)| {
+                    let k = (i + 1).to_string();
+                    (k, b)
+                })
+                .collect();
+            Some(bindings)
+        };
+
         let res: QueryResponse = client
             .execute(
                 QUERY_ENDPOINT,
@@ -472,6 +502,7 @@ impl Query {
                 },
                 &QueryBody {
                     sql_text: self.sql,
+                    bindings,
                     ..Default::default()
                 },
                 Some(&session.token),
