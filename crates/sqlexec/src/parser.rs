@@ -332,14 +332,20 @@ impl<'a> CustomParser<'a> {
 
 /// Validate idents as per [postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
-fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
+pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
     const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
+    if ident.value.len() >= POSTGRES_IDENT_MAX_LENGTH {
+        return Err(ParserError::ParserError(format!(
+            "Ident {ident} is greater than 63 bytes in length"
+        )));
+    }
+    Ok(())
+}
+
+/// Validate object names a `Vec<ast::Idents>`
+pub fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
     for ident in name.0.iter() {
-        if ident.value.len() >= POSTGRES_IDENT_MAX_LENGTH {
-            return Err(ParserError::ParserError(format!(
-                "Ident {ident} is greater than 63 bytes in length"
-            )));
-        }
+        validate_ident(ident)?;
     }
     Ok(())
 }

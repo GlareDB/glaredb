@@ -3,43 +3,24 @@
 statement ok
 set enable_debug_datasources to true;
 
-halt
-
 # 63 byte length identifier
 statement ok
 create schema long_schema_123456789123456789123456789123456789123456789123456;
 
-statement ok
-create connection long_conn_12345678912345678912345678912345678912345678912345678 for debug;
-
-statement ok
-create connection long_schema_123456789123456789123456789123456789123456789123456.long_conn_12345678912345678912345678912345678912345678912345678 for debug;
-
-# Currently schemas and views and other idents can be any length
-statement ok
+# 64 byte length identifier
+statement error greater than 63 bytes
 create schema long_schema_64_1234567891234567891234567891234567891234567891234;
-
-# 64 byte schmea
-statement error
-create connection long_schema_64_1234567891234567891234567891234567891234567891234.long_conn_12345678912345678912345678912345678912345678912345678 for debug;
-
-statement ok
-create schema short;
 
 # test identifier starting with a number
 statement error
 create schema 11short;
 
-statement error
-create connection short.11abc for debug;
-
-# 64 byte connection name
-statement error
-create connection short.long_conn_123456789123456789123456789123456789123456789123456789 for debug;
+statement ok
+create schema short;
 
 # 64 byte external table name
-statement ok
-create connection short.debug_conn for debug;
+statement error greater than 63 bytes
+create external table short.long_table_12345678912345678912345678912345678912345678912345678 from local options (location = 'testdata/parquet/userdata1.parquet');
 
-statement error
-create external table short.long_table_12345678912345678912345678912345678912345678912345678 from debug_conn options (table_type = 'error_during_execution');
+statement error greater than 63 bytes
+create view short.long_view_123456789123456789123456789123456789123456789123456789 as select 1;
