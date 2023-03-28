@@ -69,11 +69,21 @@ impl<'a> SessionPlanner<'a> {
         let db_options = match stmt.datasource.to_lowercase().as_str() {
             DatabaseOptions::POSTGRES => {
                 let connection_string = remove_required_opt(m, "postgres_conn")?;
+                PostgresAccessor::validate_external_database(&connection_string, None)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
                 DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
             }
             DatabaseOptions::BIGQUERY => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
                 let project_id = remove_required_opt(m, "project_id")?;
+                BigQueryAccessor::validate_external_database(&service_account_key, &project_id)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
                 DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
                     service_account_key,
                     project_id,
@@ -81,10 +91,16 @@ impl<'a> SessionPlanner<'a> {
             }
             DatabaseOptions::MYSQL => {
                 let connection_string = remove_required_opt(m, "mysql_conn")?;
+                MysqlAccessor::validate_external_database(&connection_string, None)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
                 DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
             }
             DatabaseOptions::MONGO => {
                 let connection_string = remove_required_opt(m, "mongo_conn")?;
+                // TODO: Validate external db connection
                 DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),

@@ -28,8 +28,11 @@ use datafusion::physical_plan::{
 };
 use datasource_common::util;
 use futures::{Stream, StreamExt};
-use gcp_bigquery_client::model::{field_type::FieldType, table::Table};
 use gcp_bigquery_client::Client as BigQueryClient;
+use gcp_bigquery_client::{
+    model::{field_type::FieldType, table::Table},
+    project::GetOptions,
+};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -73,6 +76,29 @@ impl BigQueryAccessor {
         };
 
         Ok(BigQueryAccessor { access, metadata })
+    }
+
+    /// Validate big query external database
+    pub async fn validate_external_database(
+        service_account_key: &str,
+        project_id: &str,
+    ) -> Result<()> {
+        let client = {
+            let key = serde_json::from_str(service_account_key)?;
+            BigQueryClient::from_service_account_key(key, true).await?
+        };
+
+        let project_list = client.project().list(GetOptions::default()).await?;
+
+        project_list
+            .projects
+            .iter()
+            .flatten()
+            .flat_map(|p| &p.id)
+            .find(|p| p.as_str() == project_id)
+            .ok_or(BigQueryError::ProjectReadPerm(project_id.to_owned()))?;
+
+        Ok(())
     }
 
     /// Validate big query connection and access to table
