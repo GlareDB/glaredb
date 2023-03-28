@@ -69,6 +69,7 @@ pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("database_name", DataType::Utf8, false),
         ("builtin", DataType::Boolean, false),
         ("external", DataType::Boolean, false),
+        ("datasource", DataType::Utf8, false),
     ]),
 });
 
@@ -95,6 +96,7 @@ pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("table_name", DataType::Utf8, false),
         ("builtin", DataType::Boolean, false),
         ("external", DataType::Boolean, false),
+        ("datasource", DataType::Utf8, false),
     ]),
 });
 
@@ -213,6 +215,18 @@ pub struct BuiltinView {
     pub name: &'static str,
     pub sql: &'static str,
 }
+
+pub static GLARE_EXTERNAL_DATASOURCES: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: INTERNAL_SCHEMA,
+    name: "external_datasources",
+    sql: "
+WITH datasources(oid, name, datasource, object_type, external) AS (
+    SELECT oid, database_name, datasource, 'database', external FROM glare_catalog.databases
+    UNION
+    SELECT oid, table_name, datasource, 'table', external FROM glare_catalog.tables
+)
+SELECT * FROM datasources WHERE external = true",
+});
 
 // Information schema tables.
 //
@@ -442,6 +456,7 @@ FROM (VALUES (NULL, NULL, NULL, NULL)) WHERE false", // Create empty table for n
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
+            &GLARE_EXTERNAL_DATASOURCES,
             &INFORMATION_SCHEMA_SCHEMATA,
             &INFORMATION_SCHEMA_TABLES,
             &INFORMATION_SCHEMA_COLUMNS,
