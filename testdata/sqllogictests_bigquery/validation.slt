@@ -1,32 +1,32 @@
-# Validation tests for big query connections and external tables
-
-halt
-
-# Validation tests for create connection
+# Validation tests for big query external database and external tables
 
 # Validation test with empty key
 statement error
-CREATE CONNECTION empty_key
-    FOR bigquery OPTIONS (
+CREATE EXTERNAL TABLE empty_key
+    FROM bigquery OPTIONS (
         service_account_key = '',
         project_id = '${GCP_PROJECT_ID}',
+        dataset_id = '${BIGQUERY_DATASET_ID}',
+        table_id = 'datatypes'
     );
 
 # Validation test with non-existent project
 statement error
-CREATE CONNECTION non_existant_project
-    FOR bigquery OPTIONS (
+CREATE EXTERNAL TABLE non_existant_project
+    FROM bigquery OPTIONS (
         service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
         project_id = '${GCP_PROJECT_ID}-bad-project',
+        dataset_id = '${BIGQUERY_DATASET_ID}',
+        table_id = 'datatypes'
     );
-
-# Validation test for create external table
 
 # Validation test with the wrong table_id
 statement error
 CREATE EXTERNAL TABLE missing_table
-    FROM testconn
+    FROM bigquery
     OPTIONS (
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+        project_id = '${GCP_PROJECT_ID}',
         dataset_id = '${BIGQUERY_DATASET_ID}',
         table_id = 'missing_table'
     );
@@ -34,8 +34,10 @@ CREATE EXTERNAL TABLE missing_table
 # Validation test with the wrong dataset_id
 statement error
 CREATE EXTERNAL TABLE missing_schema
-    FROM testconn
+    FROM bigquery
     OPTIONS (
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+        project_id = '${GCP_PROJECT_ID}',
         dataset_id = 'missing_schema',
         table_id = 'datatypes'
     );

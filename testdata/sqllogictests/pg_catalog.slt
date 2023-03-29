@@ -47,13 +47,8 @@ create schema pg_catalog_test;
 statement ok
 set search_path to pg_catalog_test;
 
-halt
-
 statement ok
-create connection c1 for debug;
-
-statement ok
-create external table pg_description from c1 options (table_type = 'never_ending');
+create external table pg_description from debug options (table_type = 'never_ending');
 
 # Selecting from `pg_description` will select from the builtin table, not the
 # table we just created.

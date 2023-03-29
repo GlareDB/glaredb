@@ -113,8 +113,8 @@ impl MysqlAccessor {
         Ok((conn, Some(session)))
     }
 
-    /// Validate mysql connection
-    pub async fn validate_connection(
+    /// Validate mysql external database
+    pub async fn validate_external_database(
         connection_string: &str,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<()> {

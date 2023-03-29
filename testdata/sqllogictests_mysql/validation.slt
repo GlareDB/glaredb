@@ -1,28 +1,32 @@
-# Validation tests for mysql connections and external tables
-
-halt
+# Validation tests for mysql external database and external tables
 
 # Validation test error with the wrong password
 statement error
-CREATE CONNECTION wrong_password
-    FOR mysql
+CREATE EXTERNAL TABLE wrong_password
+    FROM mysql
     OPTIONS (
         mysql_conn = 'mysql://root:wrong_password@127.0.0.1:3307/glaredb_test',
+        schema = 'glaredb_test',
+        table = 'numeric_datatypes'
     );
 
 statement error
-CREATE CONNECTION non_existant_user
-    FOR mysql
+CREATE EXTERNAL TABLE non_existant_user
+    FROM mysql
     OPTIONS (
         mysql_conn = 'mysql://missing@127.0.0.1:3307/glaredb_test',
+        schema = 'glaredb_test',
+        table = 'numeric_datatypes'
     );
 
 # Validation test error with the wrong host
 statement error
-CREATE CONNECTION wrong_host
-    FOR mysql
+CREATE EXTERNAL TABLE wrong_host
+    FROM mysql
     OPTIONS (
         mysql_conn = 'mysql://root@non-existant:3307/glaredb_test',
+        schema = 'glaredb_test',
+        table = 'numeric_datatypes'
     );
 
 # Validation test error with the wrong table name
@@ -30,6 +34,7 @@ statement error
 CREATE EXTERNAL TABLE missing_table
     FROM testconn
     OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
         schema = 'glaredb_test',
         table = 'missing_table'
     );
@@ -39,6 +44,7 @@ statement error
 CREATE EXTERNAL TABLE missing_schema
     FROM testconn
     OPTIONS (
+        mysql_conn = '${MYSQL_CONN_STRING}',
         schema = 'missing_schema',
         table = 'numeric_datatypes'
     );
