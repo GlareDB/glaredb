@@ -9,13 +9,8 @@ set search_path to session_query_metrics_builtin;
 statement ok
 set enable_debug_datasources to t;
 
-halt
-
 statement ok
-create connection d1 for debug;
-
-statement ok
-create external table t1 from d1 options (table_type = 'never_ending');
+create external table t1 from debug options (table_type = 'never_ending');
 
 # Query we'll want to look for in the metrics table.
 statement ok
@@ -38,7 +33,7 @@ query  success  18
 # Now check the errors get recorded for execution errors.
 
 statement ok
-create external table t2 from d1 options (table_type = 'error_during_execution');
+create external table t2 from debug options (table_type = 'error_during_execution');
 
 statement error
 select * from t2;

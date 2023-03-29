@@ -18,44 +18,38 @@ query T
 select schema_name from glare_catalog.schemas where schema_name='drop_table';
 ----
 
-# Test drop schema with objects, drop connection and drop table
-
-halt
+# Test drop schema with objects and drop table
 
 statement ok
 create schema drop_table;
 
 statement ok
-set search_path = drop_table;
+create external table test
+    from local
+    options (
+        location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
+    );
 
-statement ok
-set enable_debug_datasources to true;
-
-statement ok
-create connection debug_conn for debug;
-
-statement ok
-create external table test from debug_conn options (table_type = 'never_ending');
-
-query III
-select * from test limit 1;
+query TI
+select c1, c3 from test limit 1;
 ----
-1 2 3
-
-# We cannot drop a schema before removing the table and connection (child
-# objects on schema)
-statement error
-drop schema drop_table;
-
-query T
-select schema_name from glare_catalog.schemas where schema_name='drop_table';
-----
-drop_table
-
-# Drop view
+t 123
 
 statement ok
 create view test_view as select 1;
+
+# TODO fix dropping parent objects before child objects
+# We cannot drop a schema before removing the table or views (child objects on
+# schema)
+# statement error
+# drop schema drop_table;
+
+# query T
+# select schema_name from glare_catalog.schemas where schema_name='drop_table';
+# ----
+# drop_table
+
+# Drop view
 
 statement ok
 drop view test_view;
@@ -70,7 +64,7 @@ query TT
 select schema_name, view_name from glare_catalog.views where schema_name='drop_table' and view_name='test_view';
 ----
 
-# Drop table and connection (child objects on schema)
+# Drop table and child objects on schema
 statement ok
 drop table test;
 
@@ -82,19 +76,6 @@ drop table if exists test;
 
 query TT
 select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
-----
-
-statement ok
-drop connection debug_conn;
-
-statement error
-drop connection debug_conn;
-
-statement ok
-drop connection if exists debug_conn;
-
-query TT
-select schema_name, connection_name from glare_catalog.connections where schema_name='drop_table' and connection_name='debug_conn';
 ----
 
 # Now that all dependent objects have been dropped we can drop the schema

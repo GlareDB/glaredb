@@ -9,8 +9,6 @@ set search_path = debug_datasources;
 statement ok
 set enable_debug_datasources to false;
 
-halt
-
 # Ensure we can't create a debug connection if above var is false.
 
 statement error
@@ -22,10 +20,7 @@ statement ok
 set enable_debug_datasources to true;
 
 statement ok
-create connection debug_conn for debug;
-
-statement ok
-create external table error_table from debug_conn options (table_type = 'error_during_execution');
+create external table error_table from debug options (table_type = 'error_during_execution');
 
 # Should always error.
 
@@ -34,10 +29,10 @@ select * from error_table;
 
 # validate external column catalog info
 query TITTT
-select column_name, column_index, data_type, pg_data_type, is_nullable
-    from glare_catalog.external_columns c
+select column_name, column_ordinal, data_type, is_nullable
+    from glare_catalog.columns c
     join glare_catalog.tables t
     on c.table_oid = t.oid
     where t.table_name = 'error_table';
 ----
-a 0 Int32 Int32 f
+a 0 Int32 f

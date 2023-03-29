@@ -1,35 +1,40 @@
-# Validation tests for postgres connections and external tables
-
-halt
+# Validation tests for postgres external database and external tables
 
 # Validation test error with the wrong password
 statement error
-CREATE CONNECTION wrong_password
-	FOR postgres
+CREATE EXTERNAL TABLE wrong_password
+	FROM postgres
 	OPTIONS (
 		postgres_conn = 'host=localhost port=5432 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
+		schema = 'public',
+		table = 'datatypes'
 	);
 
 statement error
-CREATE CONNECTION non_existant_user
-	FOR postgres
+CREATE EXTERNAL TABLE non_existant_user
+	FROM postgres
 	OPTIONS (
 		postgres_conn = 'host=localhost port=5432 user=missing password=password dbname=glaredb_test sslmode=disable',
+		schema = 'public',
+		table = 'datatypes'
 	);
 
 # Validation test error with the wrong host
 statement error
-CREATE CONNECTION wrong_host
-	FOR postgres
+CREATE EXTERNAL TABLE wrong_host
+	FROM postgres
 	OPTIONS (
 		postgres_conn = 'host=non-existant port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+		schema = 'public',
+		table = 'datatypes'
 	);
 
 # Validation test error with the wrong table name
 statement error
 CREATE EXTERNAL TABLE missing_table
-	FROM testconn
+	FROM postgres
 	OPTIONS (
+		postgres_conn = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'missing_table'
 	);
@@ -37,8 +42,9 @@ CREATE EXTERNAL TABLE missing_table
 # Validation test error with the wrong table name
 statement error
 CREATE EXTERNAL TABLE missing_schema
-	FROM testconn
+	FROM postgres
 	OPTIONS (
+		postgres_conn = '${POSTGRES_CONN_STRING}',
 		schema = 'missing_schema',
 		table = 'datatypes'
 	);

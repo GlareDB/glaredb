@@ -6,13 +6,8 @@ create schema csv;
 statement ok
 set search_path = csv;
 
-halt
-
 statement ok
-create connection local_filesystem_conn for local;
-
-statement ok
-create external table bikeshare_stations from local_filesystem_conn options(location='${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
+create external table bikeshare_stations from local options(location='${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
 
 query I
 select count(*) from bikeshare_stations;

@@ -6,6 +6,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -26,6 +27,7 @@ use metastore::types::options::{
     TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
     TableOptionsPostgres, TableOptionsS3,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::error;
 
@@ -218,7 +220,10 @@ impl<'a> SessionDispatcher<'a> {
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         match &table.options {
             TableOptions::Internal(TableOptionsInternal {}) => unimplemented!(),
-            TableOptions::Debug(TableOptionsDebug {}) => unimplemented!(),
+            TableOptions::Debug(TableOptionsDebug { table_type }) => {
+                let provider = DebugTableType::from_str(table_type)?;
+                Ok(provider.into_table_provider())
+            }
             TableOptions::Postgres(TableOptionsPostgres {
                 connection_string,
                 schema,
