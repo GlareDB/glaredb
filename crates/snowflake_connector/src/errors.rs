@@ -23,6 +23,9 @@ pub enum SnowflakeError {
 
     #[error("Invalid connection parameters: {0}")]
     InvalidConnectionParameters(String),
+
+    #[error("Invalid snowflake data-type: {0}")]
+    InvalidSnowflakeDataType(String),
 }
 
 pub type Result<T, E = SnowflakeError> = std::result::Result<T, E>;

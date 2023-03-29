@@ -5,10 +5,13 @@ use crate::req::SnowflakeClient;
 
 use datafusion::arrow::record_batch::RecordBatch;
 
+pub use crate::query::{snowflake_to_arrow_datatype, QueryBindParameter};
+
 mod auth;
 mod query;
 mod req;
 
+pub mod datatype;
 pub mod errors;
 
 #[derive(Debug)]
@@ -102,8 +105,12 @@ impl Connection {
         self.session.close(&self.client).await
     }
 
-    pub async fn query(&self, sql: String) -> Result<RecordBatch> {
-        let query = Query { sql };
+    pub async fn query(
+        &self,
+        sql: String,
+        bindings: Vec<QueryBindParameter>,
+    ) -> Result<RecordBatch> {
+        let query = Query { sql, bindings };
         query.exec(&self.client, &self.session).await
     }
 }

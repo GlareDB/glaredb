@@ -2,9 +2,11 @@ use std::{collections::HashMap, io::Cursor, sync::Arc};
 
 use datafusion::arrow::{
     array::{
-        Array, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Decimal128Builder,
-        Float64Builder, Int16Array, Int32Array, Int64Array, Int64Builder, Int8Array, StringBuilder,
-        StructArray, Time64NanosecondBuilder, TimestampNanosecondBuilder,
+        Array, ArrayRef, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Date32Array,
+        Date32Builder, Decimal128Array, Decimal128Builder, Float64Array, Float64Builder,
+        Int16Array, Int32Array, Int64Array, Int64Builder, Int8Array, StringArray, StringBuilder,
+        StructArray, Time64NanosecondArray, Time64NanosecondBuilder, TimestampNanosecondArray,
+        TimestampNanosecondBuilder,
     },
     datatypes::{DataType, Field, Schema, TimeUnit},
     ipc::reader::StreamReader,
@@ -14,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::Session,
+    datatype::SnowflakeDataType,
     errors::{Result, SnowflakeError},
     req::{RequestId, SnowflakeClient},
 };
@@ -30,10 +33,23 @@ enum QueryResultFormat {
 }
 
 #[derive(Debug, Serialize)]
-struct QueryBindParameter {
+pub struct QueryBindParameter {
     #[serde(rename = "type")]
-    r#type: String,
-    value: serde_json::Value,
+    typ: SnowflakeDataType,
+    value: String,
+}
+
+impl QueryBindParameter {
+    fn new<S: ToString>(typ: SnowflakeDataType, val: S) -> Self {
+        QueryBindParameter {
+            typ,
+            value: val.to_string(),
+        }
+    }
+
+    pub fn new_text<S: ToString>(val: S) -> Self {
+        Self::new(SnowflakeDataType::Text, val)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -99,26 +115,34 @@ struct QueryData {
     query_result_format: Option<QueryResultFormat>,
 }
 
+pub fn snowflake_to_arrow_datatype(
+    dt: SnowflakeDataType,
+    precision: Option<i64>,
+    scale: Option<i64>,
+) -> DataType {
+    use SnowflakeDataType as Dt;
+    match dt {
+        Dt::Binary => DataType::Binary,
+        Dt::Boolean => DataType::Boolean,
+        Dt::Any | Dt::Array | Dt::Object | Dt::Char | Dt::Text | Dt::Variant => DataType::Utf8,
+        Dt::Real => DataType::Float64,
+        Dt::Fixed | Dt::Number => {
+            let (precision, scale) = (precision.unwrap() as u8, scale.unwrap() as i8);
+            DataType::Decimal128(precision, scale)
+        }
+        Dt::Date => DataType::Date32,
+        Dt::Time => DataType::Time64(TimeUnit::Nanosecond),
+        Dt::Timestamp | Dt::TimestampNtz => DataType::Timestamp(TimeUnit::Nanosecond, None),
+        Dt::TimestampTz | Dt::TimestampLtz => {
+            DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string()))
+        }
+    }
+}
+
 fn snowflake_to_arrow_schema(rowtype: Vec<QueryDataRowType>) -> Schema {
     let mut fields = Vec::new();
     for r in rowtype.into_iter() {
-        let datatype = match r.r#type.to_lowercase().as_str() {
-            "binary" => DataType::Binary,
-            "boolean" => DataType::Boolean,
-            "any" | "array" | "object" | "char" | "text" | "variant" => DataType::Utf8,
-            "real" => DataType::Float64,
-            "fixed" => {
-                let (precision, scale) = (r.precision.unwrap() as u8, r.scale.unwrap() as i8);
-                DataType::Decimal128(precision, scale)
-            }
-            "date" => DataType::Date32,
-            "time" => DataType::Time64(TimeUnit::Nanosecond),
-            "timestamp" | "timestamp_ntz" => DataType::Timestamp(TimeUnit::Nanosecond, None),
-            "timestamp_tz" | "timestamp_ltz" => {
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string()))
-            }
-            dt => unreachable!("programming error: snowflake datatype '{dt}' isn't implemented"),
-        };
+        let datatype = snowflake_to_arrow_datatype(r.typ, r.precision, r.scale);
         let field = Field::new(r.name, datatype, r.nullable);
         fields.push(field);
     }
@@ -155,6 +179,23 @@ macro_rules! make_ipc_column {
             arr.append_option(row)
         });
         Arc::new(arr.finish())
+    }};
+}
+
+macro_rules! merge_ipc_column_using {
+    ($arr:expr, $cols:expr, $as_arr:ty) => {{
+        for col in $cols {
+            let col: &$as_arr = col.as_any().downcast_ref().unwrap();
+            col.iter().for_each(|v| $arr.append_option(v));
+        }
+        Arc::new($arr.finish())
+    }};
+}
+
+macro_rules! merge_ipc_column {
+    ($builder:ty, $cap:expr, $cols:expr, $as_arr:ty) => {{
+        let mut arr = <$builder>::with_capacity($cap);
+        merge_ipc_column_using!(arr, $cols, $as_arr)
     }};
 }
 
@@ -259,88 +300,150 @@ impl QueryData {
         Ok(record_batch)
     }
 
-    fn ipc_to_arrow(self) -> Result<RecordBatch> {
-        let mut buf = Vec::new();
-        base64_engine.decode_vec(
-            self.rowset_base64
-                .expect("rowset_base64 should exist in query result"),
-            &mut buf,
-        )?;
-        let mut buf = Cursor::new(buf);
-        let reader = StreamReader::try_new(&mut buf, None)?;
-        let batch = reader
-            .into_iter()
-            .next()
-            .expect("ipc stream reader iterator should return at-least one batch")?;
-
-        let expected_schema =
-            snowflake_to_arrow_schema(self.rowtype.expect("rowtype should exist in query result"));
-        let actual_schema = batch.schema();
-
-        let mut columns = Vec::with_capacity(expected_schema.fields.len());
-
-        for (col_idx, (expected_field, actual_field)) in expected_schema
-            .fields
-            .iter()
-            .zip(actual_schema.fields.iter())
-            .enumerate()
-        {
-            let col = batch.column(col_idx);
-
-            let col: ArrayRef = match (expected_field.data_type(), actual_field.data_type()) {
-                (dt @ DataType::Decimal128(_, _), DataType::Int8) => {
-                    make_ipc_column!(col, Int8Array, |r| r as i128, Decimal128Builder, dt)
-                }
-                (dt @ DataType::Decimal128(_, _), DataType::Int16) => {
-                    make_ipc_column!(col, Int16Array, |r| r as i128, Decimal128Builder, dt)
-                }
-                (dt @ DataType::Decimal128(_, _), DataType::Int32) => {
-                    make_ipc_column!(col, Int32Array, |r| r as i128, Decimal128Builder, dt)
-                }
-                (dt @ DataType::Decimal128(_, _), DataType::Int64) => {
-                    make_ipc_column!(col, Int64Array, |r| r as i128, Decimal128Builder, dt)
-                }
-                (dt @ DataType::Time64(TimeUnit::Nanosecond), DataType::Int64) => {
-                    make_ipc_column!(col, Int64Array, |r| r, Time64NanosecondBuilder, dt)
-                }
-                (dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz), DataType::Struct(_)) => {
-                    let rows: &StructArray = col.as_any().downcast_ref().unwrap();
-                    let seconds = rows
-                        .column_by_name("epoch")
-                        .expect("column 'epoch' should exist in time struct")
-                        .as_any()
-                        .downcast_ref::<Int64Array>()
-                        .unwrap();
-                    let nanos = rows
-                        .column_by_name("fraction")
-                        .expect("column 'fraction' should exist in time struct")
-                        .as_any()
-                        .downcast_ref::<Int32Array>()
-                        .unwrap();
-                    let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
-                        .with_data_type(dt.clone());
-                    (0..rows.len()).for_each(|row_idx| {
-                        if rows.is_null(row_idx) {
-                            arr.append_null();
-                        } else {
-                            let t = seconds.value(row_idx) * 1_000_000_000;
-                            let t = t + nanos.value(row_idx) as i64;
-                            arr.append_value(t);
-                        }
-                    });
-                    Arc::new(arr.finish())
-                }
-                (expected, actual) if expected == actual => Arc::clone(col),
-                (expected, actual) => unreachable!(
-                    "programming error: conversion from '{actual}' to '{expected}' not supported for snowflake"
-                ),
-            };
-
-            columns.push(col);
+    fn cast_ipc_col(expected_field: &Field, actual_field: &Field, col: &ArrayRef) -> ArrayRef {
+        match (expected_field.data_type(), actual_field.data_type()) {
+            (dt @ DataType::Decimal128(_, _), DataType::Int8) => {
+                make_ipc_column!(col, Int8Array, |r| r as i128, Decimal128Builder, dt)
+            }
+            (dt @ DataType::Decimal128(_, _), DataType::Int16) => {
+                make_ipc_column!(col, Int16Array, |r| r as i128, Decimal128Builder, dt)
+            }
+            (dt @ DataType::Decimal128(_, _), DataType::Int32) => {
+                make_ipc_column!(col, Int32Array, |r| r as i128, Decimal128Builder, dt)
+            }
+            (dt @ DataType::Decimal128(_, _), DataType::Int64) => {
+                make_ipc_column!(col, Int64Array, |r| r as i128, Decimal128Builder, dt)
+            }
+            (dt @ DataType::Time64(TimeUnit::Nanosecond), DataType::Int64) => {
+                make_ipc_column!(col, Int64Array, |r| r, Time64NanosecondBuilder, dt)
+            }
+            (dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz), DataType::Struct(_)) => {
+                let rows: &StructArray = col.as_any().downcast_ref().unwrap();
+                let seconds = rows
+                    .column_by_name("epoch")
+                    .expect("column 'epoch' should exist in time struct")
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .unwrap();
+                let nanos = rows
+                    .column_by_name("fraction")
+                    .expect("column 'fraction' should exist in time struct")
+                    .as_any()
+                    .downcast_ref::<Int32Array>()
+                    .unwrap();
+                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
+                    .with_data_type(dt.clone());
+                (0..rows.len()).for_each(|row_idx| {
+                    if rows.is_null(row_idx) {
+                        arr.append_null();
+                    } else {
+                        let t = seconds.value(row_idx) * 1_000_000_000;
+                        let t = t + nanos.value(row_idx) as i64;
+                        arr.append_value(t);
+                    }
+                });
+                Arc::new(arr.finish())
+            }
+            (expected, actual) if expected == actual => Arc::clone(col),
+            (expected, actual) => unreachable!(
+                "programming error: conversion from '{actual}' to '{expected}' not supported for snowflake"
+            ),
         }
+    }
 
-        // let batch = RecordBatch::try_new(actual_schema, columns)?;
-        let batch = RecordBatch::try_new(Arc::new(expected_schema), columns)?;
+    fn merge_ipc_columns(dt: &DataType, cols: Vec<ArrayRef>) -> ArrayRef {
+        let cap = cols.iter().fold(0, |acc, c| acc + c.len());
+        match dt {
+            DataType::Boolean => {
+                merge_ipc_column!(BooleanBuilder, cap, cols, BooleanArray)
+            }
+            DataType::Utf8 => {
+                let mut arr = StringBuilder::with_capacity(cap, cap * 16);
+                merge_ipc_column_using!(arr, cols, StringArray)
+            }
+            DataType::Binary => {
+                let mut arr = BinaryBuilder::with_capacity(cap, cap * 16);
+                merge_ipc_column_using!(arr, cols, BinaryArray)
+            }
+            DataType::Float64 => {
+                merge_ipc_column!(Float64Builder, cap, cols, Float64Array)
+            }
+            DataType::Int64 => {
+                merge_ipc_column!(Int64Builder, cap, cols, Int64Array)
+            }
+            dt @ DataType::Decimal128(_s, _p) => {
+                let mut arr = Decimal128Builder::with_capacity(cap).with_data_type(dt.clone());
+                merge_ipc_column_using!(arr, cols, Decimal128Array)
+            }
+            DataType::Date32 => {
+                merge_ipc_column!(Date32Builder, cap, cols, Date32Array)
+            }
+            DataType::Time64(TimeUnit::Nanosecond) => {
+                merge_ipc_column!(Time64NanosecondBuilder, cap, cols, Time64NanosecondArray)
+            }
+            dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz) => {
+                let mut arr =
+                    TimestampNanosecondBuilder::with_capacity(cap).with_data_type(dt.clone());
+                merge_ipc_column_using!(arr, cols, TimestampNanosecondArray)
+            }
+            dt => unreachable!("programming error: column of type '{dt}' cannot be merged"),
+        }
+    }
+
+    fn ipc_to_arrow(self) -> Result<RecordBatch> {
+        let expected_schema = Arc::new(snowflake_to_arrow_schema(
+            self.rowtype.expect("rowtype should exist in query result"),
+        ));
+
+        let rowset_base64 = self.rowset_base64.unwrap_or(String::new());
+
+        let columns = if rowset_base64.is_empty() {
+            // Create empty columns for the record batch.
+            expected_schema
+                .fields
+                .iter()
+                .map(|f| Self::merge_ipc_columns(f.data_type(), vec![]))
+                .collect()
+        } else {
+            let mut buf = Vec::new();
+            base64_engine.decode_vec(rowset_base64, &mut buf)?;
+
+            let mut buf = Cursor::new(buf);
+            let reader = StreamReader::try_new(&mut buf, None)?;
+            let actual_schema = reader.schema();
+
+            let mut batches = Vec::new();
+            for batch in reader {
+                let batch = batch?;
+                batches.push(batch);
+            }
+
+            let mut columns = Vec::with_capacity(expected_schema.fields.len());
+            for (col_idx, (expected_field, actual_field)) in expected_schema
+                .fields
+                .iter()
+                .zip(actual_schema.fields.iter())
+                .enumerate()
+            {
+                let mut cols = Vec::with_capacity(batches.len());
+
+                // Normalize all the columns to use appropriate types (cast when-
+                // ever required).
+                for batch in batches.iter() {
+                    let col = batch.column(col_idx);
+                    let col = Self::cast_ipc_col(expected_field, actual_field, col);
+                    cols.push(col);
+                }
+
+                // Merge columns in order to get single column.
+                let col = Self::merge_ipc_columns(expected_field.data_type(), cols);
+                columns.push(col);
+            }
+
+            columns
+        };
+
+        let batch = RecordBatch::try_new(expected_schema, columns)?;
         Ok(batch)
     }
 }
@@ -365,7 +468,7 @@ struct QueryDataRowType {
     name: String,
 
     #[serde(rename = "type")]
-    r#type: String,
+    typ: SnowflakeDataType,
 
     precision: Option<i64>,
     scale: Option<i64>,
@@ -375,6 +478,7 @@ struct QueryDataRowType {
 
 pub struct Query {
     pub sql: String,
+    pub bindings: Vec<QueryBindParameter>,
 }
 
 impl Query {
@@ -385,6 +489,21 @@ impl Query {
             // snowflake server.
         }
 
+        let bindings = if self.bindings.is_empty() {
+            None
+        } else {
+            let bindings: HashMap<_, _> = self
+                .bindings
+                .into_iter()
+                .enumerate()
+                .map(|(i, b)| {
+                    let k = (i + 1).to_string();
+                    (k, b)
+                })
+                .collect();
+            Some(bindings)
+        };
+
         let res: QueryResponse = client
             .execute(
                 QUERY_ENDPOINT,
@@ -393,6 +512,7 @@ impl Query {
                 },
                 &QueryBody {
                     sql_text: self.sql,
+                    bindings,
                     ..Default::default()
                 },
                 Some(&session.token),
