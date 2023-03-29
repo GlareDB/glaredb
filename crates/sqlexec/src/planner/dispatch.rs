@@ -386,6 +386,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut database_name = StringBuilder::new();
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
+        let mut datasource = StringBuilder::new();
 
         for db in self
             .catalog()
@@ -396,6 +397,13 @@ impl<'a> SystemTableDispatcher<'a> {
             database_name.append_value(&db.entry.get_meta().name);
             builtin.append_value(db.builtin);
             external.append_value(db.entry.get_meta().external);
+
+            let db = match db.entry {
+                CatalogEntry::Database(db) => db,
+                other => panic!("unexpected entry type: {:?}", other), // Bug
+            };
+
+            datasource.append_value(db.options.as_str());
         }
 
         let batch = RecordBatch::try_new(
@@ -405,6 +413,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(database_name.finish()),
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
+                Arc::new(datasource.finish()),
             ],
         )
         .unwrap();
@@ -460,6 +469,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut table_name = StringBuilder::new();
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
+        let mut datasource = StringBuilder::new();
 
         for table in self
             .catalog()
@@ -483,6 +493,13 @@ impl<'a> SystemTableDispatcher<'a> {
             table_name.append_value(&table.entry.get_meta().name);
             builtin.append_value(table.builtin);
             external.append_value(table.entry.get_meta().external);
+
+            let table = match table.entry {
+                CatalogEntry::Table(table) => table,
+                other => panic!("unexpected entry type: {:?}", other), // Bug
+            };
+
+            datasource.append_value(table.options.as_str());
         }
 
         let batch = RecordBatch::try_new(
@@ -495,6 +512,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(table_name.finish()),
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
+                Arc::new(datasource.finish()),
             ],
         )
         .unwrap();
