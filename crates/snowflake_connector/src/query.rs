@@ -333,7 +333,7 @@ impl QueryData {
                     .unwrap();
                 let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
                     .with_data_type(dt.clone());
-                (0..rows.len()).into_iter().for_each(|row_idx| {
+                (0..rows.len()).for_each(|row_idx| {
                     if rows.is_null(row_idx) {
                         arr.append_null();
                     } else {
@@ -351,9 +351,9 @@ impl QueryData {
         }
     }
 
-    fn merge_ipc_columns(cols: Vec<ArrayRef>) -> ArrayRef {
+    fn merge_ipc_columns(dt: &DataType, cols: Vec<ArrayRef>) -> ArrayRef {
         let cap = cols.iter().fold(0, |acc, c| acc + c.len());
-        match cols.first().expect("need at-least one column").data_type() {
+        match dt {
             DataType::Boolean => {
                 merge_ipc_column!(BooleanBuilder, cap, cols, BooleanArray)
             }
@@ -391,47 +391,57 @@ impl QueryData {
     }
 
     fn ipc_to_arrow(self) -> Result<RecordBatch> {
-        let mut buf = Vec::new();
-        base64_engine.decode_vec(
-            self.rowset_base64
-                .expect("rowset_base64 should exist in query result"),
-            &mut buf,
-        )?;
-        let mut buf = Cursor::new(buf);
-        let reader = StreamReader::try_new(&mut buf, None)?;
-        let actual_schema = reader.schema();
         let expected_schema = Arc::new(snowflake_to_arrow_schema(
             self.rowtype.expect("rowtype should exist in query result"),
         ));
 
-        let mut bat_iter = reader.into_iter();
-        let mut batches = Vec::new();
-        while let Some(batch) = bat_iter.next() {
-            let batch = batch?;
-            batches.push(batch);
-        }
+        let rowset_base64 = self.rowset_base64.unwrap_or(String::new());
 
-        let mut columns = Vec::with_capacity(expected_schema.fields.len());
-        for (col_idx, (expected_field, actual_field)) in expected_schema
-            .fields
-            .iter()
-            .zip(actual_schema.fields.iter())
-            .enumerate()
-        {
-            let mut cols = Vec::with_capacity(batches.len());
+        let columns = if rowset_base64.is_empty() {
+            // Create empty columns for the record batch.
+            expected_schema
+                .fields
+                .iter()
+                .map(|f| Self::merge_ipc_columns(f.data_type(), vec![]))
+                .collect()
+        } else {
+            let mut buf = Vec::new();
+            base64_engine.decode_vec(rowset_base64, &mut buf)?;
 
-            // Normalize all the columns to use appropriate types (cast when-
-            // ever required).
-            for batch in batches.iter() {
-                let col = batch.column(col_idx);
-                let col = Self::cast_ipc_col(expected_field, actual_field, col);
-                cols.push(col);
+            let mut buf = Cursor::new(buf);
+            let reader = StreamReader::try_new(&mut buf, None)?;
+            let actual_schema = reader.schema();
+
+            let mut batches = Vec::new();
+            for batch in reader {
+                let batch = batch?;
+                batches.push(batch);
             }
 
-            // Merge columns in order to get single column.
-            let col = Self::merge_ipc_columns(cols);
-            columns.push(col);
-        }
+            let mut columns = Vec::with_capacity(expected_schema.fields.len());
+            for (col_idx, (expected_field, actual_field)) in expected_schema
+                .fields
+                .iter()
+                .zip(actual_schema.fields.iter())
+                .enumerate()
+            {
+                let mut cols = Vec::with_capacity(batches.len());
+
+                // Normalize all the columns to use appropriate types (cast when-
+                // ever required).
+                for batch in batches.iter() {
+                    let col = batch.column(col_idx);
+                    let col = Self::cast_ipc_col(expected_field, actual_field, col);
+                    cols.push(col);
+                }
+
+                // Merge columns in order to get single column.
+                let col = Self::merge_ipc_columns(expected_field.data_type(), cols);
+                columns.push(col);
+            }
+
+            columns
+        };
 
         let batch = RecordBatch::try_new(expected_schema, columns)?;
         Ok(batch)
