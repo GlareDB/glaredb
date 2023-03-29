@@ -35,14 +35,14 @@ enum QueryResultFormat {
 #[derive(Debug, Serialize)]
 pub struct QueryBindParameter {
     #[serde(rename = "type")]
-    r#type: SnowflakeDataType,
+    typ: SnowflakeDataType,
     value: String,
 }
 
 impl QueryBindParameter {
-    fn new<S: ToString>(ty: SnowflakeDataType, val: S) -> Self {
+    fn new<S: ToString>(typ: SnowflakeDataType, val: S) -> Self {
         QueryBindParameter {
-            r#type: ty,
+            typ,
             value: val.to_string(),
         }
     }
@@ -142,7 +142,7 @@ pub fn snowflake_to_arrow_datatype(
 fn snowflake_to_arrow_schema(rowtype: Vec<QueryDataRowType>) -> Schema {
     let mut fields = Vec::new();
     for r in rowtype.into_iter() {
-        let datatype = snowflake_to_arrow_datatype(r.r#type, r.precision, r.scale);
+        let datatype = snowflake_to_arrow_datatype(r.typ, r.precision, r.scale);
         let field = Field::new(r.name, datatype, r.nullable);
         fields.push(field);
     }
@@ -468,7 +468,7 @@ struct QueryDataRowType {
     name: String,
 
     #[serde(rename = "type")]
-    r#type: SnowflakeDataType,
+    typ: SnowflakeDataType,
 
     precision: Option<i64>,
     scale: Option<i64>,
