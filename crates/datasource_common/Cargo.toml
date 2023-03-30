@@ -10,6 +10,8 @@ metastore = {path = "../metastore"}
 repr = {path = "../repr"}
 openssh = "0.9.9"
 rand = "0.8.5"
+async-trait = "0.1.67"
+futures = "0.3.27"
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
 tempfile = "3.4.0"
 thiserror = "1.0"

@@ -18,6 +18,8 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datasource_common::errors::DatasourceCommonError;
+use datasource_common::listing::{VirtualLister, VirtualSchemas, VirtualTables};
 use datasource_common::ssh::SshTunnelAccess;
 use datasource_common::util;
 use errors::{PostgresError, Result};
@@ -44,13 +46,10 @@ pub struct PostgresTableAccess {
     pub schema: String,
     /// The table or view name inside of postgres.
     pub name: String,
-    /// Database connection string.
-    pub connection_string: String,
 }
 
 #[derive(Debug)]
 pub struct PostgresAccessor {
-    access: PostgresTableAccess,
     /// The Postgres client.
     client: tokio_postgres::Client,
     /// Handle for the underlying Postgres connection.
@@ -63,19 +62,13 @@ pub struct PostgresAccessor {
 
 impl PostgresAccessor {
     /// Connect to a postgres instance.
-    pub async fn connect(
-        access: PostgresTableAccess,
-        ssh_tunnel: Option<SshTunnelAccess>,
-    ) -> Result<Self> {
+    pub async fn connect(conn_str: &str, ssh_tunnel: Option<SshTunnelAccess>) -> Result<Self> {
         let (client, conn_handle) = match ssh_tunnel {
-            None => Self::connect_direct(&access.connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(&access.connection_string, &ssh_tunnel).await?
-            }
+            None => Self::connect_direct(&conn_str).await?,
+            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(&conn_str, &ssh_tunnel).await?,
         };
 
         Ok(PostgresAccessor {
-            access,
             client,
             conn_handle,
         })
@@ -146,14 +139,13 @@ impl PostgresAccessor {
 
     /// Validate postgres connection and access to table and retrieve arrow schema
     pub async fn validate_table_access(
+        conn_str: &str,
         access: &PostgresTableAccess,
         ssh_tunnel: Option<&SshTunnelAccess>,
     ) -> Result<ArrowSchema> {
         let (client, _) = match ssh_tunnel {
-            None => Self::connect_direct(&access.connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
-            }
+            None => Self::connect_direct(&conn_str).await?,
+            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(&conn_str, ssh_tunnel).await?,
         };
 
         let query = format!(
@@ -223,6 +215,7 @@ ORDER BY attnum;
 
     pub async fn into_table_provider(
         self,
+        access: PostgresTableAccess,
         predicate_pushdown: bool,
     ) -> Result<PostgresTableProvider> {
         // Every operation in this accessor will happen in a single transaction.
@@ -235,10 +228,11 @@ ORDER BY attnum;
             .await?;
 
         let (arrow_schema, pg_types) =
-            Self::get_table_schema(&self.client, &self.access.schema, &self.access.name).await?;
+            Self::get_table_schema(&self.client, &access.schema, &access.name).await?;
 
         Ok(PostgresTableProvider {
             predicate_pushdown,
+            table_access: access,
             accessor: Arc::new(self),
             arrow_schema: Arc::new(arrow_schema),
             pg_types: Arc::new(pg_types),
@@ -246,8 +240,63 @@ ORDER BY attnum;
     }
 }
 
+#[async_trait]
+impl VirtualLister for PostgresAccessor {
+    async fn list_schemas(&self) -> Result<VirtualSchemas, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let rows = self
+            .client
+            .query("SELECT schema_name FROM information_schema.schemata", &[])
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+
+        let mut schema_names: Vec<String> = Vec::with_capacity(rows.len());
+        for row in rows {
+            schema_names.push(
+                row.try_get(0)
+                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
+            )
+        }
+
+        Ok(VirtualSchemas { schema_names })
+    }
+
+    async fn list_tables(&self) -> Result<VirtualTables, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let rows = self
+            .client
+            .query(
+                "SELECT table_schema, table_name FROM information_schema.tables",
+                &[],
+            )
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+
+        let mut table_schemas: Vec<String> = Vec::with_capacity(rows.len());
+        let mut table_names: Vec<String> = Vec::with_capacity(rows.len());
+        for row in rows {
+            table_schemas.push(
+                row.try_get(0)
+                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
+            );
+            table_names.push(
+                row.try_get(1)
+                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
+            );
+        }
+
+        Ok(VirtualTables {
+            table_schemas,
+            table_names,
+        })
+    }
+}
+
 pub struct PostgresTableProvider {
     predicate_pushdown: bool,
+    table_access: PostgresTableAccess,
     accessor: Arc<PostgresAccessor>,
     arrow_schema: ArrowSchemaRef,
     pg_types: Arc<Vec<PostgresType>>,
@@ -328,9 +377,9 @@ impl TableProvider for PostgresTableProvider {
         // Build copy query.
         let query = format!(
             "COPY (SELECT {} FROM {}.{} {} {} {}) TO STDOUT (FORMAT binary)",
-            projection_string,           // SELECT <str>
-            self.accessor.access.schema, // FROM <schema>
-            self.accessor.access.name,   // .<table>
+            projection_string,        // SELECT <str>
+            self.table_access.schema, // FROM <schema>
+            self.table_access.name,   // .<table>
             // [WHERE]
             if predicate_string.is_empty() {
                 ""
@@ -348,7 +397,7 @@ impl TableProvider for PostgresTableProvider {
 
         Ok(Arc::new(BinaryCopyExec {
             predicate: predicate_string,
-            accessor: self.accessor.clone(),
+            table_access: self.table_access.clone(),
             pg_types: projected_types,
             arrow_schema: projected_schema,
             opener,
@@ -359,7 +408,7 @@ impl TableProvider for PostgresTableProvider {
 /// Copy data from the source Postgres table using the binary copy protocol.
 struct BinaryCopyExec {
     predicate: String,
-    accessor: Arc<PostgresAccessor>,
+    table_access: PostgresTableAccess,
     pg_types: Arc<Vec<PostgresType>>,
     arrow_schema: ArrowSchemaRef,
     opener: StreamOpener,
@@ -413,8 +462,8 @@ impl ExecutionPlan for BinaryCopyExec {
         write!(
             f,
             "BinaryCopyExec: schema={}, name={}, predicate={}",
-            self.accessor.access.schema,
-            self.accessor.access.name,
+            self.table_access.schema,
+            self.table_access.name,
             if self.predicate.is_empty() {
                 "None"
             } else {

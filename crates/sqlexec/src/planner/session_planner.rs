@@ -130,18 +130,18 @@ impl<'a> SessionPlanner<'a> {
                     let access = PostgresTableAccess {
                         schema,
                         name: table,
-                        connection_string,
                     };
 
-                    let arrow_schema = PostgresAccessor::validate_table_access(&access, None)
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                    let arrow_schema =
+                        PostgresAccessor::validate_table_access(&connection_string, &access, None)
+                            .await
+                            .map_err(|e| PlanError::InvalidExternalTable {
+                                source: Box::new(e),
+                            })?;
 
                     (
                         TableOptions::Postgres(TableOptionsPostgres {
-                            connection_string: access.connection_string,
+                            connection_string,
                             schema: access.schema,
                             table: access.name,
                         }),

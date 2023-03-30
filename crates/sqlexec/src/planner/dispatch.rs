@@ -1,11 +1,15 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder};
+use datafusion::arrow::array::{
+    BooleanBuilder, StringArray, StringBuilder, UInt32Builder, UInt64Builder,
+};
+use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasource_common::listing::{EmptyLister, VirtualLister, VirtualSchemas, VirtualTables};
 use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
@@ -15,7 +19,8 @@ use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
-    GLARE_TABLES, GLARE_VIEWS,
+    GLARE_TABLES, GLARE_VIEWS, VIRTUAL_SCHEMA, VIRTUAL_SCHEMA_SCHEMATA_TABLE,
+    VIRTUAL_SCHEMA_TABLES_TABLE,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -41,6 +46,9 @@ pub enum DispatchError {
 
     #[error("Missing builtin table; schema: {schema}, name: {name}")]
     MissingBuiltinTable { schema: String, name: String },
+
+    #[error("Missing virtual table; name: {name}")]
+    MissingVirtualTable { name: String },
 
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
@@ -72,7 +80,7 @@ pub enum DispatchError {
     #[error(transparent)]
     MongoDatasource(#[from] datasource_mongodb::errors::MongoError),
     #[error(transparent)]
-    CommonDatasource(#[from] datasource_common::errors::Error),
+    CommonDatasource(#[from] datasource_common::errors::DatasourceCommonError),
 }
 
 impl DispatchError {
@@ -161,6 +169,13 @@ impl<'a> SessionDispatcher<'a> {
         schema: &str,
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
+        // Short circuit if query is referencing a schema that doesn't actually
+        // exist on the data source.
+        if schema == VIRTUAL_SCHEMA {
+            let dispatcher = VirtualSchemaDispatcher::new(db, name);
+            return dispatcher.dispatch().await;
+        }
+
         match &db.options {
             DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Debug(_) => unimplemented!(),
@@ -168,11 +183,10 @@ impl<'a> SessionDispatcher<'a> {
                 let table_access = PostgresTableAccess {
                     schema: schema.to_string(),
                     name: name.to_string(),
-                    connection_string: connection_string.clone(),
                 };
 
-                let accessor = PostgresAccessor::connect(table_access, None).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let accessor = PostgresAccessor::connect(connection_string, None).await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
             DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
@@ -232,11 +246,10 @@ impl<'a> SessionDispatcher<'a> {
                 let table_access = PostgresTableAccess {
                     schema: schema.clone(),
                     name: table.clone(),
-                    connection_string: connection_string.clone(),
                 };
 
-                let accessor = PostgresAccessor::connect(table_access, None).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let accessor = PostgresAccessor::connect(connection_string, None).await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
             TableOptions::BigQuery(TableOptionsBigQuery {
@@ -662,5 +675,90 @@ impl<'a> SystemTableDispatcher<'a> {
         )
         .unwrap();
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+}
+
+struct VirtualSchemaDispatcher<'a> {
+    db: &'a DatabaseEntry,
+    name: &'a str,
+}
+
+impl<'a> VirtualSchemaDispatcher<'a> {
+    fn new(db: &'a DatabaseEntry, name: &'a str) -> Self {
+        VirtualSchemaDispatcher { db, name }
+    }
+
+    async fn dispatch(&self) -> Result<Arc<dyn TableProvider>> {
+        // TODO: These arrows schemas will likely be stored elsewhere. This
+        // currently a bit experimental, so easier to keep it all in one place.
+        match self.name {
+            VIRTUAL_SCHEMA_SCHEMATA_TABLE => {
+                let lister = self.get_lister().await?;
+                let list = lister.list_schemas().await?;
+
+                let arrow_schema = Arc::new(ArrowSchema::new(vec![Field::new(
+                    "schema_name",
+                    DataType::Utf8,
+                    false,
+                )]));
+
+                let schemas = StringArray::from(
+                    list.schema_names
+                        .into_iter()
+                        .map(|s| Some(s))
+                        .collect::<Vec<_>>(),
+                );
+
+                let batch =
+                    RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schemas)]).unwrap();
+                let table = MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap();
+
+                Ok(Arc::new(table))
+            }
+            VIRTUAL_SCHEMA_TABLES_TABLE => {
+                let lister = self.get_lister().await?;
+                let list = lister.list_tables().await?;
+
+                let arrow_schema = Arc::new(ArrowSchema::new(vec![
+                    Field::new("table_schema", DataType::Utf8, false),
+                    Field::new("table_name", DataType::Utf8, false),
+                ]));
+
+                let table_schemas = StringArray::from(
+                    list.table_schemas
+                        .into_iter()
+                        .map(|s| Some(s))
+                        .collect::<Vec<_>>(),
+                );
+                let table_names = StringArray::from(
+                    list.table_names
+                        .into_iter()
+                        .map(|s| Some(s))
+                        .collect::<Vec<_>>(),
+                );
+
+                let batch = RecordBatch::try_new(
+                    arrow_schema.clone(),
+                    vec![Arc::new(table_schemas), Arc::new(table_names)],
+                )
+                .unwrap();
+                let table = MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap();
+
+                Ok(Arc::new(table))
+            }
+            other => Err(DispatchError::MissingVirtualTable {
+                name: other.to_string(),
+            }),
+        }
+    }
+
+    async fn get_lister(&self) -> Result<Box<dyn VirtualLister>> {
+        match &self.db.options {
+            DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
+                let accessor = PostgresAccessor::connect(connection_string, None).await?;
+                Ok(Box::new(accessor))
+            }
+            _ => Ok(Box::new(EmptyLister)),
+        }
     }
 }

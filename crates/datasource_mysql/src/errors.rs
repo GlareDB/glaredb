@@ -10,7 +10,7 @@ pub enum MysqlError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
-    Ssh(#[from] datasource_common::errors::Error),
+    Ssh(#[from] datasource_common::errors::DatasourceCommonError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),

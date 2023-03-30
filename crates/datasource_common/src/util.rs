@@ -13,7 +13,7 @@ use datafusion::{
 };
 use repr::str::encode::*;
 
-use crate::errors::{Error, Result};
+use crate::errors::{DatasourceCommonError, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Datasource {
@@ -87,7 +87,11 @@ pub fn encode_literal_to_text(
                 .expect("scalar value should be a valid date");
             encode_date(buf, &naive)?;
         }
-        s => return Err(Error::UnsupportedDatafusionScalar(s.get_datatype())),
+        s => {
+            return Err(DatasourceCommonError::UnsupportedDatafusionScalar(
+                s.get_datatype(),
+            ))
+        }
     };
     if is_literal_quotable(datasource, lit) {
         buf.write_str("'")?;
@@ -251,7 +255,7 @@ mod tests {
                 (Ok(_), None) => assert!(false, "expected error, got result: {}", buf),
                 (Err(e1), None) => {
                     let dt = case.literal.get_datatype();
-                    assert!(matches!(e1, Error::UnsupportedDatafusionScalar(ty) if ty == dt));
+                    assert!(matches!(e1, DatasourceCommonError::UnsupportedDatafusionScalar(ty) if ty == dt));
                 }
                 (Err(e), Some(s)) => assert!(false, "expected result: {}, got error: {}", s, e),
             };

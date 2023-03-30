@@ -1444,8 +1444,10 @@ dependencies = [
 name = "datasource_common"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "datafusion",
+ "futures",
  "metastore",
  "openssh",
  "rand 0.8.5",

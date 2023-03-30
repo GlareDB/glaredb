@@ -13,7 +13,7 @@ use tokio::fs::File;
 use tokio::net::TcpListener;
 use tracing::{debug, trace};
 
-use crate::errors::{Error, Result};
+use crate::errors::{DatasourceCommonError, Result};
 
 #[derive(Debug, Clone)]
 pub struct SshKey {
@@ -102,13 +102,13 @@ impl SshTunnelAccess {
                         debug!("port already in use, testing another port");
                     }
                     e => {
-                        return Err(Error::SshPortForward(e));
+                        return Err(DatasourceCommonError::SshPortForward(e));
                     }
                 },
             };
         }
         // If unable to find a port after 10 attempts
-        Err(Error::NoOpenPorts)
+        Err(DatasourceCommonError::NoOpenPorts)
     }
 
     /// Generate temproary keyfile using the given private_key

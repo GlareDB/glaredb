@@ -30,6 +30,14 @@ pub const INTERNAL_SCHEMA: &str = "glare_catalog";
 pub const INFORMATION_SCHEMA: &str = "information_schema";
 pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 
+/// A schema that only exists in external databases.
+///
+/// This is used to dispatch to a "view" that internally fetches schema and
+/// table information from the external data source.
+pub const VIRTUAL_SCHEMA: &str = "virtual_datasource_schema";
+pub const VIRTUAL_SCHEMA_SCHEMATA_TABLE: &str = "schemata";
+pub const VIRTUAL_SCHEMA_TABLES_TABLE: &str = "tables";
+
 /// First oid available for other builtin objects.
 ///
 /// All builtin schemas have a stable oid since all objects, including user

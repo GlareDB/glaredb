@@ -114,7 +114,7 @@ pub enum ExecError {
     DatasourceDebug(#[from] datasource_debug::errors::DebugError),
 
     #[error(transparent)]
-    DatasourceCommon(#[from] datasource_common::errors::Error),
+    DatasourceCommon(#[from] datasource_common::errors::DatasourceCommonError),
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
