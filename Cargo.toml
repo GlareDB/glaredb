@@ -1,5 +1,8 @@
 [workspace]
 members = ["crates/*"]
 
+[profile.release]
+lto = "thin"
+
 [patch.crates-io]
 object_store = { git = "https://github.com/glaredb/arrow-rs.git", branch = "content-length" }
