@@ -64,8 +64,8 @@ impl PostgresAccessor {
     /// Connect to a postgres instance.
     pub async fn connect(conn_str: &str, ssh_tunnel: Option<SshTunnelAccess>) -> Result<Self> {
         let (client, conn_handle) = match ssh_tunnel {
-            None => Self::connect_direct(&conn_str).await?,
-            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(&conn_str, &ssh_tunnel).await?,
+            None => Self::connect_direct(conn_str).await?,
+            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(conn_str, &ssh_tunnel).await?,
         };
 
         Ok(PostgresAccessor {
@@ -144,8 +144,8 @@ impl PostgresAccessor {
         ssh_tunnel: Option<&SshTunnelAccess>,
     ) -> Result<ArrowSchema> {
         let (client, _) = match ssh_tunnel {
-            None => Self::connect_direct(&conn_str).await?,
-            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(&conn_str, ssh_tunnel).await?,
+            None => Self::connect_direct(conn_str).await?,
+            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(conn_str, ssh_tunnel).await?,
         };
 
         let query = format!(

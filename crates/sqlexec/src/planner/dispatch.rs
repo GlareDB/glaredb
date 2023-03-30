@@ -9,7 +9,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::listing::{EmptyLister, VirtualLister, VirtualSchemas, VirtualTables};
+use datasource_common::listing::{EmptyLister, VirtualLister};
 use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
@@ -678,6 +678,10 @@ impl<'a> SystemTableDispatcher<'a> {
     }
 }
 
+/// A dispatcher for dispatching to virtual tables for external databases.
+///
+/// This is unlikely to be documented for public use. The use case for it to be
+/// able to lazily load schemas/tables in the dashboard.
 struct VirtualSchemaDispatcher<'a> {
     db: &'a DatabaseEntry,
     name: &'a str,
@@ -702,12 +706,8 @@ impl<'a> VirtualSchemaDispatcher<'a> {
                     false,
                 )]));
 
-                let schemas = StringArray::from(
-                    list.schema_names
-                        .into_iter()
-                        .map(|s| Some(s))
-                        .collect::<Vec<_>>(),
-                );
+                let schemas =
+                    StringArray::from(list.schema_names.into_iter().map(Some).collect::<Vec<_>>());
 
                 let batch =
                     RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schemas)]).unwrap();
@@ -724,18 +724,10 @@ impl<'a> VirtualSchemaDispatcher<'a> {
                     Field::new("table_name", DataType::Utf8, false),
                 ]));
 
-                let table_schemas = StringArray::from(
-                    list.table_schemas
-                        .into_iter()
-                        .map(|s| Some(s))
-                        .collect::<Vec<_>>(),
-                );
-                let table_names = StringArray::from(
-                    list.table_names
-                        .into_iter()
-                        .map(|s| Some(s))
-                        .collect::<Vec<_>>(),
-                );
+                let table_schemas =
+                    StringArray::from(list.table_schemas.into_iter().map(Some).collect::<Vec<_>>());
+                let table_names =
+                    StringArray::from(list.table_names.into_iter().map(Some).collect::<Vec<_>>());
 
                 let batch = RecordBatch::try_new(
                     arrow_schema.clone(),
