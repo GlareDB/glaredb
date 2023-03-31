@@ -20,7 +20,7 @@ datasource_common = {path = "../datasource_common"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 sqlparser = "0.32.0"
-serde_json = "1.0.94"
+serde_json = "1.0.95"
 datafusion = "20.0"
 futures = "0.3.28"
 tracing = "0.1"
