@@ -15,7 +15,7 @@ futures = "0.3.27"
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
 tempfile = "3.5.0"
 thiserror = "1.0"
-tokio = { version = "1.26.0", features = ["full"] }
+tokio = { version = "1.27.0", features = ["full"] }
 tracing = "0.1"
 datafusion = "20.0"
 chrono = "0.4.24"
