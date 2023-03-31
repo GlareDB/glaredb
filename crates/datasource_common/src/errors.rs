@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum DatasourceCommonError {
     #[error(transparent)]
     OpenSsh(#[from] openssh::Error),
 
@@ -15,6 +15,15 @@ pub enum Error {
     #[error("Failed to find an open port to open the SSH tunnel")]
     NoOpenPorts,
 
+    #[error("Listing schemas for this data source is unsupported.")]
+    ListingSchemasUnsupported,
+
+    #[error("Listing tables for this data source is unsupported.")]
+    ListingTablesUnsupported,
+
+    #[error(transparent)]
+    ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
+
     #[error("Scalar of type '{0}' not supported")]
     UnsupportedDatafusionScalar(datafusion::arrow::datatypes::DataType),
 
@@ -25,4 +34,4 @@ pub enum Error {
     FmtError(#[from] core::fmt::Error),
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = DatasourceCommonError> = std::result::Result<T, E>;

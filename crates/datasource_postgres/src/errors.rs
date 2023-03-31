@@ -22,7 +22,7 @@ pub enum PostgresError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error("Failed to create SSH Tunnel: {0}")]
-    Ssh(#[from] datasource_common::errors::Error),
+    Ssh(#[from] datasource_common::errors::DatasourceCommonError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
