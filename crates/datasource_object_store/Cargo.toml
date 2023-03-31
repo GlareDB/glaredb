@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0"
 tracing = "0.1"
-futures = "0.3.27"
+futures = "0.3.28"
 async-trait = "0.1.67"
 datafusion = "20.0"
 serde = { version = "1.0", features = ["derive"] }
