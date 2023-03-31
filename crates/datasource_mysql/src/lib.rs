@@ -457,12 +457,16 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
             DataType::UInt64 => make_column!(UInt64Builder, rows, col_idx),
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
             DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
-            dt @ DataType::Decimal128(..) => {
+            dt @ DataType::Decimal128(_precision, scale) => {
                 let mut arr = Decimal128Builder::new().with_data_type(dt.to_owned());
                 for row in rows.iter() {
                     let val: Option<rust_decimal::Decimal> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    let val = val.map(|v| v.mantissa());
+                    let val = val.map(|mut v| {
+                        // Rescale because the scales probably don't match!
+                        v.rescale(*scale as u32);
+                        v.mantissa()
+                    });
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())

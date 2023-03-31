@@ -1,7 +1,7 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DatabaseOptions {
-    #[prost(oneof = "database_options::Options", tags = "1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "database_options::Options", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub options: ::core::option::Option<database_options::Options>,
 }
 /// Nested message and enum types in `DatabaseOptions`.
@@ -21,6 +21,8 @@ pub mod database_options {
         Mysql(super::DatabaseOptionsMysql),
         #[prost(message, tag = "6")]
         Mongo(super::DatabaseOptionsMongo),
+        #[prost(message, tag = "7")]
+        Snowflake(super::DatabaseOptionsSnowflake),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -57,8 +59,24 @@ pub struct DatabaseOptionsMongo {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DatabaseOptionsSnowflake {
+    #[prost(string, tag = "1")]
+    pub account_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub login_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub password: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub database_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub warehouse: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub role_name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TableOptions {
-    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(oneof = "table_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10")]
     pub options: ::core::option::Option<table_options::Options>,
 }
 /// Nested message and enum types in `TableOptions`.
@@ -84,6 +102,8 @@ pub mod table_options {
         Mysql(super::TableOptionsMysql),
         #[prost(message, tag = "9")]
         Mongo(super::TableOptionsMongo),
+        #[prost(message, tag = "10")]
+        Snowflake(super::TableOptionsSnowflake),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -166,4 +186,24 @@ pub struct TableOptionsMongo {
     pub database: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub collection: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TableOptionsSnowflake {
+    #[prost(string, tag = "1")]
+    pub account_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub login_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub password: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub database_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub warehouse: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub role_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub table_name: ::prost::alloc::string::String,
 }

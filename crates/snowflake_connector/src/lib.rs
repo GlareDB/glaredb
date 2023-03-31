@@ -3,9 +3,7 @@ use crate::errors::{Result, SnowflakeError};
 use crate::query::Query;
 use crate::req::SnowflakeClient;
 
-use datafusion::arrow::record_batch::RecordBatch;
-
-pub use crate::query::{snowflake_to_arrow_datatype, QueryBindParameter};
+pub use crate::query::{snowflake_to_arrow_datatype, QueryBindParameter, QueryResultChunk};
 
 mod auth;
 mod query;
@@ -109,7 +107,7 @@ impl Connection {
         &self,
         sql: String,
         bindings: Vec<QueryBindParameter>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<QueryResultChunk> {
         let query = Query { sql, bindings };
         query.exec(&self.client, &self.session).await
     }

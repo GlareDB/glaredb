@@ -12,6 +12,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use repr::str::encode::*;
+use rust_decimal::Decimal;
 
 use crate::errors::{DatasourceCommonError, Result};
 
@@ -20,6 +21,7 @@ pub enum Datasource {
     Postgres,
     MySql,
     BigQuery,
+    Snowflake,
 }
 
 /// Returns true if the literal expression encoding should be wrapped inside
@@ -31,7 +33,8 @@ fn is_literal_quotable(datasource: Datasource, lit: &ScalarValue) -> bool {
         | ScalarValue::Int32(_)
         | ScalarValue::Int64(_)
         | ScalarValue::Float32(_)
-        | ScalarValue::Float64(_) => false,
+        | ScalarValue::Float64(_)
+        | ScalarValue::Decimal128(..) => false,
         ScalarValue::Binary(_) if datasource == Datasource::MySql => false,
         _ => true,
     }
@@ -63,6 +66,9 @@ pub fn encode_literal_to_text(
         ScalarValue::Binary(Some(v)) if datasource == Datasource::MySql => {
             encode_binary_mysql(buf, v)?
         }
+        ScalarValue::Binary(Some(v)) if datasource == Datasource::Snowflake => {
+            encode_binary_snowflake(buf, v)?
+        }
         ScalarValue::Binary(Some(v)) => encode_binary(buf, v)?,
         ScalarValue::TimestampNanosecond(Some(v), tz) => {
             let naive = Utc.timestamp_nanos(*v).naive_utc();
@@ -86,6 +92,10 @@ pub fn encode_literal_to_text(
                 .checked_add_signed(Duration::days(*v as i64))
                 .expect("scalar value should be a valid date");
             encode_date(buf, &naive)?;
+        }
+        ScalarValue::Decimal128(Some(v), _precision, scale) => {
+            let decimal = Decimal::from_i128_with_scale(*v, *scale as u32);
+            encode_decimal(buf, &decimal)?;
         }
         s => {
             return Err(DatasourceCommonError::UnsupportedDatafusionScalar(
@@ -205,6 +215,11 @@ mod tests {
                 expected: Some("0x616263"),
             },
             TestCase {
+                datasource: Snowflake,
+                literal: ScalarValue::Binary(Some(b"abc".to_vec())),
+                expected: Some("'616263'"),
+            },
+            TestCase {
                 datasource: Postgres,
                 literal: ScalarValue::TimestampNanosecond(Some(938709124 * 1_000_000_000), None),
                 expected: Some("'1999-09-30 16:32:04'"),
@@ -244,6 +259,11 @@ mod tests {
                 datasource: Postgres,
                 literal: ScalarValue::Date32(Some(10_864)),
                 expected: Some("'1999-09-30'"),
+            },
+            TestCase {
+                datasource: Postgres,
+                literal: ScalarValue::Decimal128(Some(123456), 38, 3),
+                expected: Some("123.456"),
             },
         ];
 

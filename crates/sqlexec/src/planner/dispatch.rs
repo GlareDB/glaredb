@@ -17,6 +17,7 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
+use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
     GLARE_TABLES, GLARE_VIEWS, VIRTUAL_SCHEMA, VIRTUAL_SCHEMA_SCHEMATA_TABLE,
@@ -28,9 +29,9 @@ use metastore::types::catalog::{
 };
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsPostgres, TableOptionsS3,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions, TableOptionsBigQuery,
+    TableOptionsDebug, TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo,
+    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -79,6 +80,8 @@ pub enum DispatchError {
     ObjectStoreDatasource(#[from] datasource_object_store::errors::ObjectStoreSourceError),
     #[error(transparent)]
     MongoDatasource(#[from] datasource_mongodb::errors::MongoError),
+    #[error(transparent)]
+    SnowflakeDatasource(#[from] datasource_snowflake::errors::DatasourceSnowflakeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasource_common::errors::DatasourceCommonError),
 }
@@ -228,6 +231,38 @@ impl<'a> SessionDispatcher<'a> {
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
             }
+            DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+                account_name,
+                login_name,
+                password,
+                database_name,
+                warehouse,
+                role_name,
+            }) => {
+                let schema_name = schema.to_string();
+                let table_name = name.to_string();
+                let role_name = if role_name.is_empty() {
+                    None
+                } else {
+                    Some(role_name.clone())
+                };
+
+                let access_info = SnowflakeTableAccess {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name,
+                    schema_name,
+                    table_name,
+                };
+                let accessor = SnowflakeAccessor::connect(access_info).await?;
+                let provider = accessor
+                    .into_table_provider(/* predicate_pushdown = */ true)
+                    .await?;
+                Ok(Arc::new(provider))
+            }
         }
     }
 
@@ -299,6 +334,38 @@ impl<'a> SessionDispatcher<'a> {
                 let accessor = MongoAccessor::connect(access_info).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
                 let provider = table_accessor.into_table_provider().await?;
+                Ok(Arc::new(provider))
+            }
+            TableOptions::Snowflake(TableOptionsSnowflake {
+                account_name,
+                login_name,
+                password,
+                database_name,
+                warehouse,
+                role_name,
+                schema_name,
+                table_name,
+            }) => {
+                let role_name = if role_name.is_empty() {
+                    None
+                } else {
+                    Some(role_name.clone())
+                };
+
+                let access_info = SnowflakeTableAccess {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name,
+                    schema_name: schema_name.clone(),
+                    table_name: table_name.clone(),
+                };
+                let accessor = SnowflakeAccessor::connect(access_info).await?;
+                let provider = accessor
+                    .into_table_provider(/* predicate_pushdown = */ true)
+                    .await?;
                 Ok(Arc::new(provider))
             }
             TableOptions::Local(TableOptionsLocal { location }) => {
