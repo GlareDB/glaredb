@@ -12,14 +12,14 @@ bytesutil = {path = "../bytesutil"}
 pgrepr = {path = "../pgrepr"}
 thiserror = "1.0"
 tracing = "0.1"
-futures = "0.3.27"
-async-trait = "0.1.67"
+futures = "0.3.28"
+async-trait = "0.1.68"
 datafusion = "20.0"
 tokio-util = { version = "0.7.7", features = ["codec"] }
 bytes = "1.4.0"
 tokio = { version = "1", features = ["full"] }
 openssl = "0.10.48"
-reqwest = { version = "0.11.15", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11.16", default-features = false, features = ["json", "rustls-tls"] }
 tokio-openssl = "0.6.3"
 uuid = { version = "1.3.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tokio-postgres = "0.7.7"
