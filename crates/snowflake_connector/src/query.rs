@@ -1,16 +1,18 @@
 use std::{collections::HashMap, io::Cursor, sync::Arc};
 
-use datafusion::arrow::{
-    array::{
-        Array, ArrayRef, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Date32Array,
-        Date32Builder, Decimal128Array, Decimal128Builder, Float64Array, Float64Builder,
-        Int16Array, Int32Array, Int64Array, Int64Builder, Int8Array, StringArray, StringBuilder,
-        StructArray, Time64NanosecondArray, Time64NanosecondBuilder, TimestampNanosecondArray,
-        TimestampNanosecondBuilder,
+use datafusion::{
+    arrow::{
+        array::{
+            Array, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Decimal128Builder,
+            Float64Builder, Int16Array, Int32Array, Int64Array, Int64Builder, Int8Array,
+            StringBuilder, StructArray, Time64NanosecondBuilder, TimestampNanosecondBuilder,
+        },
+        datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
+        error::ArrowError,
+        ipc::reader::StreamReader,
+        record_batch::RecordBatch,
     },
-    datatypes::{DataType, Field, Schema, TimeUnit},
-    ipc::reader::StreamReader,
-    record_batch::RecordBatch,
+    scalar::ScalarValue,
 };
 use serde::{Deserialize, Serialize};
 
@@ -115,6 +117,20 @@ struct QueryData {
     query_result_format: Option<QueryResultFormat>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QueryDataRowType {
+    name: String,
+
+    #[serde(rename = "type")]
+    typ: SnowflakeDataType,
+
+    precision: Option<i64>,
+    scale: Option<i64>,
+
+    nullable: bool,
+}
+
 pub fn snowflake_to_arrow_datatype(
     dt: SnowflakeDataType,
     precision: Option<i64>,
@@ -170,44 +186,9 @@ macro_rules! make_json_column {
     }};
 }
 
-macro_rules! make_ipc_column {
-    ($col:expr, $from_arr:ty, $map_fn:expr, $builder:ty, $dt:expr) => {{
-        let rows: &$from_arr = $col.as_any().downcast_ref().unwrap();
-        let mut arr = <$builder>::with_capacity(rows.len()).with_data_type($dt.clone());
-        rows.iter().for_each(|row| {
-            let row = row.map($map_fn);
-            arr.append_option(row)
-        });
-        Arc::new(arr.finish())
-    }};
-}
-
-macro_rules! merge_ipc_column_using {
-    ($arr:expr, $cols:expr, $as_arr:ty) => {{
-        for col in $cols {
-            let col: &$as_arr = col.as_any().downcast_ref().unwrap();
-            col.iter().for_each(|v| $arr.append_option(v));
-        }
-        Arc::new($arr.finish())
-    }};
-}
-
-macro_rules! merge_ipc_column {
-    ($builder:ty, $cap:expr, $cols:expr, $as_arr:ty) => {{
-        let mut arr = <$builder>::with_capacity($cap);
-        merge_ipc_column_using!(arr, $cols, $as_arr)
-    }};
-}
-
 impl QueryData {
-    fn json_to_arrow(self) -> Result<RecordBatch> {
-        let schema =
-            snowflake_to_arrow_schema(self.rowtype.expect("rowtype should exist in query result"));
-        let fields = &schema.fields;
-
-        let rows = self.rowset.expect("rowset should exist in query result");
-
-        let mut columns: Vec<ArrayRef> = Vec::with_capacity(fields.len());
+    fn json_to_arrow(schema: SchemaRef, rows: Vec<Vec<Option<String>>>) -> Result<RecordBatchIter> {
+        let mut columns: Vec<ArrayRef> = Vec::with_capacity(schema.fields.len());
         for (col_idx, field) in schema.fields.iter().enumerate() {
             let col: ArrayRef = match field.data_type() {
                 DataType::Boolean => {
@@ -296,11 +277,47 @@ impl QueryData {
             columns.push(col);
         }
 
-        let record_batch = RecordBatch::try_new(Arc::new(schema), columns)?;
-        Ok(record_batch)
+        let record_batch = RecordBatch::try_new(schema, columns)?;
+        Ok(RecordBatchIter::Exact(Some(record_batch)))
     }
 
-    fn cast_ipc_col(expected_field: &Field, actual_field: &Field, col: &ArrayRef) -> ArrayRef {
+    fn ipc_to_arrow(schema: SchemaRef, rowset_base64: String) -> Result<RecordBatchIter> {
+        if rowset_base64.is_empty() {
+            // Return an empty record batch in case of empty result
+            Ok(RecordBatchIter::Exact(Some(RecordBatch::new_empty(schema))))
+        } else {
+            let mut buf = Vec::new();
+            base64_engine.decode_vec(rowset_base64, &mut buf)?;
+
+            let buf = Cursor::new(buf);
+            let reader = StreamReader::try_new(buf, None)?;
+            Ok(RecordBatchIter::Stream { reader, schema })
+        }
+    }
+}
+
+pub enum RecordBatchIter {
+    Stream {
+        reader: StreamReader<Cursor<Vec<u8>>>,
+        schema: SchemaRef,
+    },
+    Exact(Option<RecordBatch>),
+}
+
+macro_rules! make_ipc_column {
+    ($col:expr, $from_arr:ty, $map_fn:expr, $builder:ty, $dt:expr) => {{
+        let rows: &$from_arr = $col.as_any().downcast_ref().unwrap();
+        let mut arr = <$builder>::with_capacity(rows.len()).with_data_type($dt.clone());
+        rows.iter().for_each(|row| {
+            let row = row.map($map_fn);
+            arr.append_option(row)
+        });
+        Arc::new(arr.finish())
+    }};
+}
+
+impl RecordBatchIter {
+    fn normalize_column(expected_field: &Field, actual_field: &Field, col: &ArrayRef) -> ArrayRef {
         match (expected_field.data_type(), actual_field.data_type()) {
             (dt @ DataType::Decimal128(_, _), DataType::Int8) => {
                 make_ipc_column!(col, Int8Array, |r| r as i128, Decimal128Builder, dt)
@@ -351,129 +368,164 @@ impl QueryData {
         }
     }
 
-    fn merge_ipc_columns(dt: &DataType, cols: Vec<ArrayRef>) -> ArrayRef {
-        let cap = cols.iter().fold(0, |acc, c| acc + c.len());
-        match dt {
-            DataType::Boolean => {
-                merge_ipc_column!(BooleanBuilder, cap, cols, BooleanArray)
-            }
-            DataType::Utf8 => {
-                let mut arr = StringBuilder::with_capacity(cap, cap * 16);
-                merge_ipc_column_using!(arr, cols, StringArray)
-            }
-            DataType::Binary => {
-                let mut arr = BinaryBuilder::with_capacity(cap, cap * 16);
-                merge_ipc_column_using!(arr, cols, BinaryArray)
-            }
-            DataType::Float64 => {
-                merge_ipc_column!(Float64Builder, cap, cols, Float64Array)
-            }
-            DataType::Int64 => {
-                merge_ipc_column!(Int64Builder, cap, cols, Int64Array)
-            }
-            dt @ DataType::Decimal128(_s, _p) => {
-                let mut arr = Decimal128Builder::with_capacity(cap).with_data_type(dt.clone());
-                merge_ipc_column_using!(arr, cols, Decimal128Array)
-            }
-            DataType::Date32 => {
-                merge_ipc_column!(Date32Builder, cap, cols, Date32Array)
-            }
-            DataType::Time64(TimeUnit::Nanosecond) => {
-                merge_ipc_column!(Time64NanosecondBuilder, cap, cols, Time64NanosecondArray)
-            }
-            dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz) => {
-                let mut arr =
-                    TimestampNanosecondBuilder::with_capacity(cap).with_data_type(dt.clone());
-                merge_ipc_column_using!(arr, cols, TimestampNanosecondArray)
-            }
-            dt => unreachable!("programming error: column of type '{dt}' cannot be merged"),
+    fn next_batch(
+        schema: SchemaRef,
+        batch: Result<RecordBatch, ArrowError>,
+    ) -> Result<RecordBatch> {
+        let batch = batch?;
+        let actual_schema = batch.schema();
+        let mut columns = Vec::with_capacity(schema.fields.len());
+        for (col_idx, (expected_field, actual_field)) in schema
+            .fields
+            .iter()
+            .zip(actual_schema.fields.iter())
+            .enumerate()
+        {
+            let col = batch.column(col_idx);
+            let col = Self::normalize_column(expected_field, actual_field, col);
+            columns.push(col);
         }
-    }
 
-    fn ipc_to_arrow(self) -> Result<RecordBatch> {
-        let expected_schema = Arc::new(snowflake_to_arrow_schema(
-            self.rowtype.expect("rowtype should exist in query result"),
-        ));
-
-        let rowset_base64 = self.rowset_base64.unwrap_or(String::new());
-
-        let columns = if rowset_base64.is_empty() {
-            // Create empty columns for the record batch.
-            expected_schema
-                .fields
-                .iter()
-                .map(|f| Self::merge_ipc_columns(f.data_type(), vec![]))
-                .collect()
-        } else {
-            let mut buf = Vec::new();
-            base64_engine.decode_vec(rowset_base64, &mut buf)?;
-
-            let mut buf = Cursor::new(buf);
-            let reader = StreamReader::try_new(&mut buf, None)?;
-            let actual_schema = reader.schema();
-
-            let mut batches = Vec::new();
-            for batch in reader {
-                let batch = batch?;
-                batches.push(batch);
-            }
-
-            let mut columns = Vec::with_capacity(expected_schema.fields.len());
-            for (col_idx, (expected_field, actual_field)) in expected_schema
-                .fields
-                .iter()
-                .zip(actual_schema.fields.iter())
-                .enumerate()
-            {
-                let mut cols = Vec::with_capacity(batches.len());
-
-                // Normalize all the columns to use appropriate types (cast when-
-                // ever required).
-                for batch in batches.iter() {
-                    let col = batch.column(col_idx);
-                    let col = Self::cast_ipc_col(expected_field, actual_field, col);
-                    cols.push(col);
-                }
-
-                // Merge columns in order to get single column.
-                let col = Self::merge_ipc_columns(expected_field.data_type(), cols);
-                columns.push(col);
-            }
-
-            columns
-        };
-
-        let batch = RecordBatch::try_new(expected_schema, columns)?;
+        let batch = RecordBatch::try_new(schema, columns)?;
         Ok(batch)
     }
 }
 
-impl TryFrom<QueryData> for RecordBatch {
-    type Error = SnowflakeError;
+impl Iterator for RecordBatchIter {
+    type Item = Result<RecordBatch>;
 
-    fn try_from(data: QueryData) -> Result<Self, Self::Error> {
-        match &data
-            .query_result_format
-            .expect("query_result_format should exist in query result")
-        {
-            QueryResultFormat::Json => data.json_to_arrow(),
-            QueryResultFormat::Arrow => data.ipc_to_arrow(),
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Exact(batch) => Ok(batch.take()).transpose(),
+            Self::Stream { reader, schema } => reader
+                .next()
+                .map(|batch| Self::next_batch(schema.clone(), batch)),
         }
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct QueryDataRowType {
-    name: String,
+pub struct QueryResultChunk {
+    schema: SchemaRef,
+    iter: RecordBatchIter,
+}
 
-    #[serde(rename = "type")]
-    typ: SnowflakeDataType,
+impl TryFrom<QueryData> for QueryResultChunk {
+    type Error = SnowflakeError;
 
-    precision: Option<i64>,
-    scale: Option<i64>,
+    fn try_from(data: QueryData) -> Result<Self, Self::Error> {
+        let schema = Arc::new(snowflake_to_arrow_schema(
+            data.rowtype.expect("rowtype should exist in query result"),
+        ));
 
-    nullable: bool,
+        let query_result_format = data
+            .query_result_format
+            .expect("query_result_format should exist in query result");
+
+        let iter = match query_result_format {
+            QueryResultFormat::Json => {
+                let rows = data
+                    .rowset
+                    .expect("rowset should exist in query result for json format");
+                QueryData::json_to_arrow(schema.clone(), rows)?
+            }
+            QueryResultFormat::Arrow => {
+                let rowset_base64 = data.rowset_base64.unwrap_or(String::new());
+                QueryData::ipc_to_arrow(schema.clone(), rowset_base64)?
+            }
+        };
+
+        Ok(Self { schema, iter })
+    }
+}
+
+impl QueryResultChunk {
+    pub fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    pub fn into_row_iter(self) -> QueryResultRowIter {
+        QueryResultRowIter {
+            schema: self.schema,
+            iter: self.iter,
+            curr_batch: None,
+            curr_row: 0,
+        }
+    }
+}
+
+impl IntoIterator for QueryResultChunk {
+    type Item = Result<RecordBatch>;
+    type IntoIter = RecordBatchIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter
+    }
+}
+
+pub struct QueryResultRowIter {
+    schema: SchemaRef,
+    iter: RecordBatchIter,
+    curr_batch: Option<RecordBatch>,
+    curr_row: usize,
+}
+
+impl QueryResultRowIter {
+    fn try_next_batch(&mut self) -> Result<()> {
+        let batch = self.iter.next().transpose()?;
+        self.curr_batch = batch;
+        self.curr_row = 0;
+        Ok(())
+    }
+
+    fn next_row(&mut self) -> Result<Option<QueryResultRow>> {
+        if self.curr_batch.is_none()
+            || self.curr_row >= self.curr_batch.as_ref().unwrap().num_rows()
+        {
+            self.try_next_batch()?;
+        }
+
+        // Here we definitely know if there exists a batch or not.
+        let curr_batch = if let Some(curr) = &self.curr_batch {
+            curr
+        } else {
+            return Ok(None);
+        };
+
+        // Advance row
+        let row = self.curr_row;
+        self.curr_row += 1;
+
+        Ok(Some(QueryResultRow {
+            schema: self.schema.clone(),
+            row,
+            cols: curr_batch.columns(),
+        }))
+    }
+
+    pub async fn next(&mut self) -> Option<Result<QueryResultRow>> {
+        self.next_row().transpose()
+    }
+}
+
+pub struct QueryResultRow<'a> {
+    schema: SchemaRef,
+    row: usize,
+    cols: &'a [ArrayRef],
+}
+
+impl<'a> QueryResultRow<'a> {
+    pub fn get_column(&self, col_idx: usize) -> Option<Result<ScalarValue>> {
+        fn get_scalar(col: &ArrayRef, row_idx: usize) -> Result<ScalarValue> {
+            let scalar = ScalarValue::try_from_array(&col, row_idx)?;
+            Ok(scalar)
+        }
+        self.cols.get(col_idx).map(|col| get_scalar(col, self.row))
+    }
+
+    pub fn get_column_by_name(&self, col_name: &str) -> Option<Result<ScalarValue>> {
+        let (col_idx, _) = self.schema.column_with_name(col_name)?;
+        self.get_column(col_idx)
+    }
 }
 
 pub struct Query {
@@ -482,7 +534,11 @@ pub struct Query {
 }
 
 impl Query {
-    pub async fn exec(self, client: &SnowflakeClient, session: &Session) -> Result<RecordBatch> {
+    pub async fn exec(
+        self,
+        client: &SnowflakeClient,
+        session: &Session,
+    ) -> Result<QueryResultChunk> {
         if !session.token.is_valid() {
             // TODO: session.refresh_token()
             // For now just let the query go and return the error from the

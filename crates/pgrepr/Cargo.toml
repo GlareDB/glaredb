@@ -16,3 +16,4 @@ dtoa = "1.0.6"
 chrono = "0.4.24"
 chrono-tz = "0.8.1"
 tracing = "0.1"
+rust_decimal = { version = "1.29.0", features = ["db-tokio-postgres"] }

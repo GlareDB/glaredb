@@ -22,6 +22,7 @@
 // | BigQuery           | yes                | yes             |
 // | MySQL              | yes                | yes             |
 // | MongoDB            | yes                | yes             |
+// | Snowflake          | yes                | yes             |
 // | Local object store | no                 | yes             |
 // | GCS                | no                 | yes             |
 // | S3                 | no                 | yes             |

@@ -22,8 +22,9 @@ message DatabaseOptions {
     DatabaseOptionsBigQuery bigquery = 4;
     DatabaseOptionsMysql mysql = 5;
     DatabaseOptionsMongo mongo = 6;
+    DatabaseOptionsSnowflake snowflake = 7;
   }
-  // next: 7
+  // next: 8
 }
 
 message DatabaseOptionsInternal {}
@@ -41,6 +42,15 @@ message DatabaseOptionsMysql { string connection_string = 1; }
 
 message DatabaseOptionsMongo { string connection_string = 1; }
 
+message DatabaseOptionsSnowflake {
+  string account_name = 1;
+  string login_name = 2;
+  string password = 3;
+  string database_name = 4;
+  string warehouse = 5;
+  string role_name = 6;
+}
+
 // Table options
 
 message TableOptions {
@@ -54,8 +64,9 @@ message TableOptions {
     TableOptionsS3 s3 = 7;
     TableOptionsMysql mysql = 8;
     TableOptionsMongo mongo = 9;
+    TableOptionsSnowflake snowflake = 10;
   }
-  // next: 10
+  // next: 11
 }
 
 message TableOptionsInternal {}
@@ -101,4 +112,15 @@ message TableOptionsMongo {
   string connection_string = 1;
   string database = 2;
   string collection = 3;
+}
+
+message TableOptionsSnowflake {
+  string account_name = 1;
+  string login_name = 2;
+  string password = 3;
+  string database_name = 4;
+  string warehouse = 5;
+  string role_name = 6;
+  string schema_name = 7;
+  string table_name = 8;
 }

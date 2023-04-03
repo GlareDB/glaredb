@@ -1513,6 +1513,7 @@ dependencies = [
  "openssh",
  "rand 0.8.5",
  "repr",
+ "rust_decimal",
  "ssh-key",
  "tempfile",
  "thiserror",
@@ -1600,6 +1601,20 @@ dependencies = [
  "tokio-postgres",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "datasource_snowflake"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "datafusion",
+ "datasource_common",
+ "futures",
+ "snowflake_connector",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -3526,6 +3541,7 @@ dependencies = [
  "dtoa",
  "num-traits",
  "repr",
+ "rust_decimal",
  "thiserror",
  "tokio-postgres",
  "tracing",
@@ -3664,6 +3680,20 @@ dependencies = [
  "log",
  "wepoll-ffi",
  "windows-sys 0.42.0",
+]
+
+[[package]]
+name = "postgres"
+version = "0.19.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "960c214283ef8f0027974c03e9014517ced5db12f021a9abb66185a5751fab0a"
+dependencies = [
+ "bytes",
+ "fallible-iterator",
+ "futures-util",
+ "log",
+ "tokio",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -4094,6 +4124,7 @@ dependencies = [
  "chrono",
  "dtoa",
  "num-traits",
+ "rust_decimal",
  "thiserror",
 ]
 
@@ -4235,10 +4266,12 @@ dependencies = [
  "byteorder",
  "bytes",
  "num-traits",
+ "postgres",
  "rand 0.8.5",
  "rkyv",
  "serde",
  "serde_json",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -4832,6 +4865,7 @@ dependencies = [
  "datasource_mysql",
  "datasource_object_store",
  "datasource_postgres",
+ "datasource_snowflake",
  "futures",
  "lazy_static",
  "metastore",

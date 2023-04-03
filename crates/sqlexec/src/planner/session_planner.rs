@@ -19,11 +19,12 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
+use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
-    TableOptionsS3,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions, TableOptionsBigQuery,
+    TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -102,6 +103,22 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string = remove_required_opt(m, "mongo_conn")?;
                 // TODO: Validate external db connection
                 DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
+            }
+            DatabaseOptions::SNOWFLAKE => {
+                let account_name = remove_required_opt(m, "account_name")?;
+                let login_name = remove_required_opt(m, "login_name")?;
+                let password = remove_required_opt(m, "password")?;
+                let database_name = remove_required_opt(m, "database_name")?;
+                let warehouse = remove_required_opt(m, "warehouse")?;
+                let role_name = remove_optional_opt(m, "role_name").unwrap_or(String::new());
+                DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+                    account_name,
+                    login_name,
+                    password,
+                    database_name,
+                    warehouse,
+                    role_name,
+                })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
@@ -218,6 +235,46 @@ impl<'a> SessionPlanner<'a> {
                         }),
                         // TODO: return column info for this datasource
                         vec![],
+                    )
+                }
+                TableOptions::SNOWFLAKE => {
+                    let account_name = remove_required_opt(m, "account_name")?;
+                    let login_name = remove_required_opt(m, "login_name")?;
+                    let password = remove_required_opt(m, "password")?;
+                    let database_name = remove_required_opt(m, "database_name")?;
+                    let warehouse = remove_required_opt(m, "warehouse")?;
+                    let role_name = remove_optional_opt(m, "role_name");
+                    let schema_name = remove_required_opt(m, "schema_name")?;
+                    let table_name = remove_required_opt(m, "table_name")?;
+
+                    let arrow_schema =
+                        SnowflakeAccessor::validate_table_access(SnowflakeTableAccess {
+                            account_name: account_name.clone(),
+                            login_name: login_name.clone(),
+                            password: password.clone(),
+                            database_name: database_name.clone(),
+                            warehouse: warehouse.clone(),
+                            role_name: role_name.clone(),
+                            schema_name: schema_name.clone(),
+                            table_name: table_name.clone(),
+                        })
+                        .await
+                        .map_err(|e| PlanError::InvalidExternalTable {
+                            source: Box::new(e),
+                        })?;
+
+                    (
+                        TableOptions::Snowflake(TableOptionsSnowflake {
+                            account_name,
+                            login_name,
+                            password,
+                            database_name,
+                            warehouse,
+                            role_name: role_name.unwrap_or_default(),
+                            schema_name,
+                            table_name,
+                        }),
+                        arrow_schema.fields,
                     )
                 }
                 TableOptions::LOCAL => {
@@ -709,4 +766,8 @@ fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
 fn remove_required_opt(m: &mut BTreeMap<String, String>, k: &str) -> Result<String> {
     m.remove(k)
         .ok_or_else(|| internal!("missing required option: {}", k))
+}
+
+fn remove_optional_opt(m: &mut BTreeMap<String, String>, k: &str) -> Option<String> {
+    m.remove(k)
 }

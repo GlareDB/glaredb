@@ -10,6 +10,7 @@ use datafusion::{
     },
     scalar::ScalarValue as DfScalar,
 };
+use rust_decimal::Decimal;
 use tokio_postgres::types::Type as PgType;
 
 use crate::{
@@ -41,6 +42,7 @@ pub enum Scalar {
     TimestampTz(DateTime<Tz>),
     Time(NaiveTime),
     Date(NaiveDate),
+    Decimal(Decimal),
     // A datafusion value that isn't yet supported by us. Ultimately we want to
     // remove this and error in case we don't support something explicitly.
     Other(DfScalar),
@@ -106,6 +108,7 @@ impl Scalar {
             Self::TimestampTz(v) => W::write_timestamptz(buf, v),
             Self::Time(v) => W::write_time(buf, v),
             Self::Date(v) => W::write_date(buf, v),
+            Self::Decimal(v) => W::write_decimal(buf, v),
             // If a type is not supported, we try to encode it as text.
             Self::Other(other) => W::write_any(buf, other),
         }
@@ -173,6 +176,10 @@ impl Scalar {
                     .checked_add_signed(Duration::days(v as i64))
                     .expect("scalar value should be a valid date");
                 Self::Date(naive_date)
+            }
+            DfScalar::Decimal128(Some(v), _precision, scale) => {
+                let decimal = Decimal::from_i128_with_scale(v, scale as u32);
+                Self::Decimal(decimal)
             }
 
             other => {
@@ -246,6 +253,15 @@ impl Scalar {
                 let epoch = get_naive_date_time_nano(0).date();
                 let days_since_epoch = v.signed_duration_since(epoch).num_days();
                 DfScalar::Date32(Some(days_since_epoch as i32))
+            }
+            (Self::Decimal(v), arrow_type @ ArrowType::Decimal128(precision, scale)) => {
+                if v.scale() != *scale as u32 {
+                    return Err(PgReprError::InternalError(format!(
+                        "cannot convert from {:?} to arrow type {:?}",
+                        v, arrow_type
+                    )));
+                }
+                DfScalar::Decimal128(Some(v.mantissa()), *precision, *scale)
             }
             (scalar, arrow_type) => {
                 return Err(PgReprError::InternalError(format!(

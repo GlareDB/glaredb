@@ -19,3 +19,4 @@ tokio = { version = "1.27.0", features = ["full"] }
 tracing = "0.1"
 datafusion = "20.0"
 chrono = "0.4.24"
+rust_decimal = "1.29.0"

@@ -13,6 +13,7 @@ pub enum DatabaseOptions {
     BigQuery(DatabaseOptionsBigQuery),
     Mysql(DatabaseOptionsMysql),
     Mongo(DatabaseOptionsMongo),
+    Snowflake(DatabaseOptionsSnowflake),
 }
 
 impl DatabaseOptions {
@@ -22,6 +23,7 @@ impl DatabaseOptions {
     pub const BIGQUERY: &str = "bigquery";
     pub const MYSQL: &str = "mysql";
     pub const MONGO: &str = "mongo";
+    pub const SNOWFLAKE: &str = "snowflake";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -31,6 +33,7 @@ impl DatabaseOptions {
             DatabaseOptions::BigQuery(_) => Self::BIGQUERY,
             DatabaseOptions::Mysql(_) => Self::MYSQL,
             DatabaseOptions::Mongo(_) => Self::MONGO,
+            DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
         }
     }
 }
@@ -57,6 +60,9 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             }
             options::database_options::Options::Mysql(v) => DatabaseOptions::Mysql(v.try_into()?),
             options::database_options::Options::Mongo(v) => DatabaseOptions::Mongo(v.try_into()?),
+            options::database_options::Options::Snowflake(v) => {
+                DatabaseOptions::Snowflake(v.try_into()?)
+            }
         })
     }
 }
@@ -77,6 +83,9 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::BigQuery(v) => options::database_options::Options::Bigquery(v.into()),
             DatabaseOptions::Mysql(v) => options::database_options::Options::Mysql(v.into()),
             DatabaseOptions::Mongo(v) => options::database_options::Options::Mongo(v.into()),
+            DatabaseOptions::Snowflake(v) => {
+                options::database_options::Options::Snowflake(v.into())
+            }
         }
     }
 }
@@ -212,6 +221,43 @@ impl From<DatabaseOptionsMongo> for options::DatabaseOptionsMongo {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DatabaseOptionsSnowflake {
+    pub account_name: String,
+    pub login_name: String,
+    pub password: String,
+    pub database_name: String,
+    pub warehouse: String,
+    pub role_name: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSnowflake> for DatabaseOptionsSnowflake {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSnowflake) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSnowflake {
+            account_name: value.account_name,
+            login_name: value.login_name,
+            password: value.password,
+            database_name: value.database_name,
+            warehouse: value.warehouse,
+            role_name: value.role_name,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
+    fn from(value: DatabaseOptionsSnowflake) -> Self {
+        options::DatabaseOptionsSnowflake {
+            account_name: value.account_name,
+            login_name: value.login_name,
+            password: value.password,
+            database_name: value.database_name,
+            warehouse: value.warehouse,
+            role_name: value.role_name,
+        }
+    }
+}
+
 // Table options
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
@@ -225,6 +271,7 @@ pub enum TableOptions {
     Gcs(TableOptionsGcs),
     S3(TableOptionsS3),
     Mongo(TableOptionsMongo),
+    Snowflake(TableOptionsSnowflake),
 }
 
 impl TableOptions {
@@ -237,6 +284,7 @@ impl TableOptions {
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
     pub const MONGO: &str = "mongo";
+    pub const SNOWFLAKE: &str = "snowflake";
 
     pub const fn new_internal() -> TableOptions {
         TableOptions::Internal(TableOptionsInternal {})
@@ -253,6 +301,7 @@ impl TableOptions {
             TableOptions::Gcs(_) => Self::GCS,
             TableOptions::S3(_) => Self::S3_STORAGE,
             TableOptions::Mongo(_) => Self::MONGO,
+            TableOptions::Snowflake(_) => Self::SNOWFLAKE,
         }
     }
 }
@@ -276,6 +325,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
             options::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
             options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
+            options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
         })
     }
 }
@@ -299,6 +349,7 @@ impl From<TableOptions> for options::table_options::Options {
             TableOptions::Gcs(v) => options::table_options::Options::Gcs(v.into()),
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
             TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
+            TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
         }
     }
 }
@@ -543,6 +594,49 @@ impl From<TableOptionsMongo> for options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsSnowflake {
+    pub account_name: String,
+    pub login_name: String,
+    pub password: String,
+    pub database_name: String,
+    pub warehouse: String,
+    pub role_name: String,
+    pub schema_name: String,
+    pub table_name: String,
+}
+
+impl TryFrom<options::TableOptionsSnowflake> for TableOptionsSnowflake {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsSnowflake) -> Result<Self, Self::Error> {
+        Ok(TableOptionsSnowflake {
+            account_name: value.account_name,
+            login_name: value.login_name,
+            password: value.password,
+            database_name: value.database_name,
+            warehouse: value.warehouse,
+            role_name: value.role_name,
+            schema_name: value.schema_name,
+            table_name: value.table_name,
+        })
+    }
+}
+
+impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
+    fn from(value: TableOptionsSnowflake) -> Self {
+        options::TableOptionsSnowflake {
+            account_name: value.account_name,
+            login_name: value.login_name,
+            password: value.password,
+            database_name: value.database_name,
+            warehouse: value.warehouse,
+            role_name: value.role_name,
+            schema_name: value.schema_name,
+            table_name: value.table_name,
         }
     }
 }

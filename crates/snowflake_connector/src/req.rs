@@ -5,7 +5,7 @@ use reqwest::{
     Client, IntoUrl, Url,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use tracing::info;
+use tracing::trace;
 use uuid::Uuid;
 
 use crate::{
@@ -106,7 +106,9 @@ impl SnowflakeClient {
         let url = self
             .base_url
             .join(url)
-            .map_err(|e| SnowflakeError::UrlParseError(Box::new(e)))?;
+            // The URL crate we use is from the "reqwest" crate which doesn't
+            // expose the error and hence we cast it to a string.
+            .map_err(|e| SnowflakeError::UrlParseError(format!("{e}")))?;
 
         let mut req = self.inner.post(url).query(&params).json(&body);
         if let Some(token) = token {
@@ -124,7 +126,7 @@ impl SnowflakeClient {
         }
 
         let res = res.text().await?;
-        info!(%res, "response");
+        trace!(%res, "response");
 
         let res: R = serde_json::from_str(&res)?;
         Ok(res)

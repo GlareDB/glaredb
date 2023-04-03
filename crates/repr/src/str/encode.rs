@@ -1,6 +1,7 @@
 use chrono::{Datelike, Timelike};
 use dtoa::{Buffer as DtoaBuffer, Float as DtoaFloat};
 use num_traits::{Float as NumFloat, PrimInt as NumInt};
+use rust_decimal::Decimal;
 use std::fmt::{Display, Write};
 
 use crate::error::{ReprError, Result};
@@ -121,6 +122,15 @@ where
     put_binary(buf, v.as_ref())
 }
 
+/// Encode a binary value as a hex string.
+pub fn encode_binary_snowflake<B, V>(buf: &mut B, v: V) -> Result<()>
+where
+    B: Write,
+    V: AsRef<[u8]>,
+{
+    put_binary(buf, v.as_ref())
+}
+
 fn put_binary<B>(buf: &mut B, v: &[u8]) -> Result<()>
 where
     B: Write,
@@ -215,6 +225,15 @@ where
     Ok(())
 }
 
+/// Encode a precision decimal with scale.
+pub fn encode_decimal<B>(buf: &mut B, v: &Decimal) -> Result<()>
+where
+    B: Write,
+{
+    // TODO: Implement formatting like for floating point numbers.
+    put_fmt!(buf, "{v}")
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
@@ -282,6 +301,12 @@ mod tests {
         assert_encode!("\\x170dff0082", encode_binary, &[23, 13, 255, 0, 130]);
 
         assert_encode!("0x170dff0082", encode_binary_mysql, &[23, 13, 255, 0, 130]);
+
+        assert_encode!(
+            "170dff0082",
+            encode_binary_snowflake,
+            &[23, 13, 255, 0, 130],
+        );
 
         let nt = NaiveDateTime::from_timestamp_opt(938689324, 0).unwrap();
         assert_encode!(
@@ -389,5 +414,11 @@ mod tests {
 
         let nd = NaiveDate::from_ymd_opt(0, 9, 30).unwrap();
         assert_encode!("1-09-30 BC", encode_date, &nd);
+
+        assert_encode!(
+            "123.456",
+            encode_decimal,
+            &Decimal::from_i128_with_scale(123456, 3),
+        );
     }
 }

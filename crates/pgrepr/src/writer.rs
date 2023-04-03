@@ -5,6 +5,7 @@ use bytes::BytesMut;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use repr::str::encode::*;
+use rust_decimal::Decimal;
 use tokio_postgres::types::{IsNull, ToSql, Type as PgType};
 
 /// Writer defines the interface for the different kinds of values that can be
@@ -26,6 +27,8 @@ pub trait Writer {
     fn write_timestamptz(buf: &mut BytesMut, v: &DateTime<Tz>) -> Result<()>;
     fn write_time(buf: &mut BytesMut, v: &NaiveTime) -> Result<()>;
     fn write_date(buf: &mut BytesMut, v: &NaiveDate) -> Result<()>;
+
+    fn write_decimal(buf: &mut BytesMut, v: &Decimal) -> Result<()>;
 
     fn write_any<T: Display>(buf: &mut BytesMut, v: &T) -> Result<()> {
         encode_string(buf, v)?;
@@ -94,6 +97,11 @@ impl Writer for TextWriter {
 
     fn write_date(buf: &mut BytesMut, v: &NaiveDate) -> Result<()> {
         encode_date(buf, v)?;
+        Ok(())
+    }
+
+    fn write_decimal(buf: &mut BytesMut, v: &Decimal) -> Result<()> {
+        encode_decimal(buf, v)?;
         Ok(())
     }
 }
@@ -165,14 +173,18 @@ impl Writer for BinaryWriter {
     fn write_date(buf: &mut BytesMut, v: &NaiveDate) -> Result<()> {
         put_to_sql!(buf, DATE, v)
     }
+
+    fn write_decimal(buf: &mut BytesMut, v: &Decimal) -> Result<()> {
+        put_to_sql!(buf, NUMERIC, v)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::writer::{BinaryWriter, TextWriter, Writer};
-    use bytes::BytesMut;
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+    use chrono::TimeZone;
     use chrono_tz::UTC;
+
+    use super::*;
 
     fn assert_buf(buf: &BytesMut, val: &[u8]) {
         let slice = buf.as_ref();
@@ -414,6 +426,11 @@ mod tests {
         let nd = NaiveDate::from_ymd_opt(0, 9, 30).unwrap();
         Writer::write_date(buf, &nd).unwrap();
         assert_buf(buf, b"1-09-30 BC");
+
+        buf.clear();
+        let decimal = Decimal::from_i128_with_scale(3950123456, 6);
+        Writer::write_decimal(buf, &decimal).unwrap();
+        assert_buf(buf, b"3950.123456");
     }
 
     #[test]
@@ -481,5 +498,10 @@ mod tests {
         Writer::write_date(buf, &nd).unwrap();
         // Days since Jan 1, 2000
         assert_buf(buf, (-93_i32).to_be_bytes().as_ref());
+
+        buf.clear();
+        let decimal = Decimal::from_i128_with_scale(3950123456, 6);
+        Writer::write_decimal(buf, &decimal).unwrap();
+        assert_buf(buf, &[0, 3, 0, 0, 0, 0, 0, 6, 15, 110, 4, 210, 21, 224]);
     }
 }
