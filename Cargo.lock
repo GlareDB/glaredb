@@ -412,6 +412,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stripe"
+version = "0.18.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a328ed3276701b3f33127bf785ad4c4cd118e8d80b046ae397507c87730bbdb"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "hex",
+ "hmac",
+ "http-types",
+ "hyper",
+ "hyper-tls",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_qs 0.10.1",
+ "sha2 0.10.6",
+ "smart-default",
+ "smol_str",
+ "thiserror",
+ "tokio",
+ "uuid 0.8.2",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -698,7 +723,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "time 0.3.17",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -1355,7 +1380,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "url",
- "uuid",
+ "uuid 1.3.0",
  "xz2",
  "zstd 0.12.1+zstd.1.5.2",
 ]
@@ -1452,7 +1477,7 @@ dependencies = [
  "regex",
  "sha2 0.10.6",
  "unicode-segmentation",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -1600,7 +1625,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -1615,6 +1640,28 @@ dependencies = [
  "snowflake_connector",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "datasource_stripe"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "async-stream",
+ "async-stripe",
+ "async-trait",
+ "buildenv",
+ "datafusion",
+ "datasource_common",
+ "futures",
+ "metastore",
+ "once_cell",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2187,7 +2234,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -2328,6 +2375,27 @@ name = "http-range-header"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bfe8eed0a9285ef776bb792479ea3834e8b94e13d615c2f66d03dd50a435a29"
+
+[[package]]
+name = "http-types"
+version = "2.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e9b187a72d63adbfba487f48095306ac823049cb504ee195541e91c7775f5ad"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "base64 0.13.1",
+ "futures-lite",
+ "http",
+ "infer",
+ "pin-project-lite",
+ "rand 0.7.3",
+ "serde",
+ "serde_json",
+ "serde_qs 0.8.5",
+ "serde_urlencoded",
+ "url",
+]
 
 [[package]]
 name = "httparse"
@@ -2488,6 +2556,12 @@ dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
 ]
+
+[[package]]
+name = "infer"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64e9829a50b42bb782c1df523f78d332fe371b10c661e78b7a3c34b0198e9fac"
 
 [[package]]
 name = "instant"
@@ -2893,7 +2967,7 @@ dependencies = [
  "tonic-build",
  "tower",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -2952,7 +3026,7 @@ dependencies = [
  "tagptr",
  "thiserror",
  "triomphe",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -2998,7 +3072,7 @@ dependencies = [
  "trust-dns-proto",
  "trust-dns-resolver",
  "typed-builder",
- "uuid",
+ "uuid 1.3.0",
  "webpki-roots",
 ]
 
@@ -3076,7 +3150,7 @@ dependencies = [
  "subprocess",
  "thiserror",
  "time 0.3.17",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -3271,7 +3345,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -3567,7 +3641,7 @@ dependencies = [
  "tokio-postgres",
  "tokio-util",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -3726,7 +3800,7 @@ dependencies = [
  "postgres-protocol",
  "serde",
  "serde_json",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -4599,6 +4673,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7f05c1d5476066defcdfacce1f52fc3cae3af1d3089727100c02ae92e5abbe0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "serde_qs"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7715380eec75f029a4ef7de39a9200e0a63823176b759d055b613f5a87df6a6"
+dependencies = [
+ "percent-encoding",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "serde_qs"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cac3f1e2ca2fe333923a1ae72caca910b98ed0630bb35ef6f8c8517d6e81afa"
+dependencies = [
+ "percent-encoding",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4780,6 +4885,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
 
 [[package]]
+name = "smart-default"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "133659a15339456eeeb07572eb02a91c91e9815e9cbc89566944d2c8d3efdbf6"
+dependencies = [
+ "proc-macro2 1.0.53",
+ "quote 1.0.26",
+ "syn 1.0.107",
+]
+
+[[package]]
+name = "smol_str"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fad6c857cbab2627dcf01ec85a623ca4e7dcb5691cbaa3d7fb7653671f0d09c9"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "snafu"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4823,7 +4948,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -4866,6 +4991,7 @@ dependencies = [
  "datasource_object_store",
  "datasource_postgres",
  "datasource_snowflake",
+ "datasource_stripe",
  "futures",
  "lazy_static",
  "metastore",
@@ -4882,7 +5008,7 @@ dependencies = [
  "tonic",
  "tower",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -5092,7 +5218,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "uuid",
+ "uuid 1.3.0",
 ]
 
 [[package]]
@@ -5723,6 +5849,7 @@ dependencies = [
  "form_urlencoded",
  "idna 0.3.0",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]
@@ -5730,6 +5857,15 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.8",
+]
 
 [[package]]
 name = "uuid"

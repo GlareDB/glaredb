@@ -1,7 +1,7 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DatabaseOptions {
-    #[prost(oneof = "database_options::Options", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "database_options::Options", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
     pub options: ::core::option::Option<database_options::Options>,
 }
 /// Nested message and enum types in `DatabaseOptions`.
@@ -23,6 +23,8 @@ pub mod database_options {
         Mongo(super::DatabaseOptionsMongo),
         #[prost(message, tag = "7")]
         Snowflake(super::DatabaseOptionsSnowflake),
+        #[prost(message, tag = "8")]
+        Stripe(super::DatabaseOptionsSimpleHttp),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -72,6 +74,12 @@ pub struct DatabaseOptionsSnowflake {
     pub warehouse: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub role_name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DatabaseOptionsSimpleHttp {
+    #[prost(string, tag = "1")]
+    pub api_key: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

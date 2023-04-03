@@ -22,9 +22,10 @@ use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSimpleHttp,
+    DatabaseOptionsSnowflake, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -119,6 +120,10 @@ impl<'a> SessionPlanner<'a> {
                     warehouse,
                     role_name,
                 })
+            }
+            DatabaseOptions::STRIPE => {
+                let api_key = remove_required_opt(m, "api_key")?;
+                DatabaseOptions::Stripe(DatabaseOptionsSimpleHttp { api_key })
             }
             DatabaseOptions::DEBUG => DatabaseOptions::Debug(DatabaseOptionsDebug {}),
             other => return Err(internal!("unsupported datasource: {}", other)),

@@ -18,6 +18,7 @@ datasource_snowflake = {path = "../datasource_snowflake"}
 datasource_object_store = {path = "../datasource_object_store"}
 datasource_debug = {path = "../datasource_debug"}
 datasource_common = {path = "../datasource_common"}
+datasource_stripe = {path = "../datasource_stripe"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 sqlparser = "0.32.0"

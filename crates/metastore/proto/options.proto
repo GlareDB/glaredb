@@ -23,8 +23,9 @@ message DatabaseOptions {
     DatabaseOptionsMysql mysql = 5;
     DatabaseOptionsMongo mongo = 6;
     DatabaseOptionsSnowflake snowflake = 7;
+    DatabaseOptionsSimpleHTTP stripe = 8;
   }
-  // next: 8
+  // next: 9
 }
 
 message DatabaseOptionsInternal {}
@@ -50,6 +51,8 @@ message DatabaseOptionsSnowflake {
   string warehouse = 5;
   string role_name = 6;
 }
+
+message DatabaseOptionsSimpleHTTP { string api_key = 1; }
 
 // Table options
 

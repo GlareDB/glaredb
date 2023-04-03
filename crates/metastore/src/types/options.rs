@@ -14,6 +14,7 @@ pub enum DatabaseOptions {
     Mysql(DatabaseOptionsMysql),
     Mongo(DatabaseOptionsMongo),
     Snowflake(DatabaseOptionsSnowflake),
+    Stripe(DatabaseOptionsSimpleHttp),
 }
 
 impl DatabaseOptions {
@@ -24,6 +25,7 @@ impl DatabaseOptions {
     pub const MYSQL: &str = "mysql";
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
+    pub const STRIPE: &str = "stripe";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -34,6 +36,7 @@ impl DatabaseOptions {
             DatabaseOptions::Mysql(_) => Self::MYSQL,
             DatabaseOptions::Mongo(_) => Self::MONGO,
             DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
+            DatabaseOptions::Stripe(_) => Self::STRIPE,
         }
     }
 }
@@ -63,6 +66,7 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             options::database_options::Options::Snowflake(v) => {
                 DatabaseOptions::Snowflake(v.try_into()?)
             }
+            options::database_options::Options::Stripe(v) => DatabaseOptions::Stripe(v.try_into()?),
         })
     }
 }
@@ -86,6 +90,7 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Snowflake(v) => {
                 options::database_options::Options::Snowflake(v.into())
             }
+            DatabaseOptions::Stripe(v) => options::database_options::Options::Stripe(v.into()),
         }
     }
 }
@@ -254,6 +259,28 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
             database_name: value.database_name,
             warehouse: value.warehouse,
             role_name: value.role_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DatabaseOptionsSimpleHttp {
+    pub api_key: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSimpleHttp> for DatabaseOptionsSimpleHttp {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSimpleHttp) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSimpleHttp {
+            api_key: value.api_key,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSimpleHttp> for options::DatabaseOptionsSimpleHttp {
+    fn from(value: DatabaseOptionsSimpleHttp) -> Self {
+        options::DatabaseOptionsSimpleHttp {
+            api_key: value.api_key,
         }
     }
 }

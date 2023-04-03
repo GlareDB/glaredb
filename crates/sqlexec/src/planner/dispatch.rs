@@ -18,6 +18,7 @@ use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
+use datasource_stripe::StripeAccessor;
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
     GLARE_TABLES, GLARE_VIEWS, VIRTUAL_SCHEMA, VIRTUAL_SCHEMA_SCHEMATA_TABLE,
@@ -29,10 +30,10 @@ use metastore::types::catalog::{
 };
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake,
+    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSimpleHttp,
+    DatabaseOptionsSnowflake, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -83,6 +84,8 @@ pub enum DispatchError {
     MongoDatasource(#[from] datasource_mongodb::errors::MongoError),
     #[error(transparent)]
     SnowflakeDatasource(#[from] datasource_snowflake::errors::DatasourceSnowflakeError),
+    #[error(transparent)]
+    StripeDatasource(#[from] datasource_stripe::errors::StripeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasource_common::errors::DatasourceCommonError),
 }
@@ -266,6 +269,19 @@ impl<'a> SessionDispatcher<'a> {
                 let provider = accessor
                     .into_table_provider(/* predicate_pushdown = */ true)
                     .await?;
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::Stripe(DatabaseOptionsSimpleHttp { api_key }) => {
+                if schema != "api" {
+                    return Err(DispatchError::MissingEntry {
+                        schema: schema.to_string(),
+                        name: name.to_string(),
+                    });
+                }
+
+                let accessor = StripeAccessor::connect(api_key).await?;
+                let provider = accessor.into_table_provider(name).await?;
+
                 Ok(Arc::new(provider))
             }
         }
