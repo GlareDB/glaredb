@@ -28,10 +28,11 @@ use metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
 use metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions, TableOptionsBigQuery,
-    TableOptionsDebug, TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
+    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -181,7 +182,11 @@ impl<'a> SessionDispatcher<'a> {
 
         match &db.options {
             DatabaseOptions::Internal(_) => unimplemented!(),
-            DatabaseOptions::Debug(_) => unimplemented!(),
+            DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
+                // Use name of the table as table type here.
+                let provider = DebugTableType::from_str(name)?;
+                Ok(provider.into_table_provider())
+            }
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let table_access = PostgresTableAccess {
                     schema: schema.to_string(),

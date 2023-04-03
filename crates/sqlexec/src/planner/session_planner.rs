@@ -21,10 +21,10 @@ use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
 use metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions, TableOptionsBigQuery,
-    TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
+    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
+    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -120,6 +120,7 @@ impl<'a> SessionPlanner<'a> {
                     role_name,
                 })
             }
+            DatabaseOptions::DEBUG => DatabaseOptions::Debug(DatabaseOptionsDebug {}),
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
@@ -527,6 +528,7 @@ impl<'a> SessionPlanner<'a> {
 
                 Ok(DdlPlan::DropTables(DropTables { if_exists, names }).into())
             }
+
             // Drop views
             ast::Statement::Drop {
                 object_type: ObjectType::View,
