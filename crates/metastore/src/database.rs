@@ -325,8 +325,16 @@ impl State {
 
         for mutation in mutations {
             match mutation {
-                Mutation::DropDatabase(_drop_database) => {
-                    return Err(MetastoreError::Unimplemented("DROP DATABASE"))
+                Mutation::DropDatabase(drop_database) => {
+                    // TODO: Dependency checking (for child objects like views, etc.)
+                    let if_exists = drop_database.if_exists;
+                    let database_id = match self.database_names.remove(&drop_database.name) {
+                        None if if_exists => return Ok(()),
+                        None => return Err(MetastoreError::MissingDatabase(drop_database.name)),
+                        Some(id) => id,
+                    };
+
+                    self.entries.remove(&database_id).unwrap();
                 }
                 Mutation::DropSchema(drop_schema) => {
                     let if_exists = drop_schema.if_exists;
@@ -352,7 +360,7 @@ impl State {
 
                     self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
                 }
-                // Can drop db objects like tables and connections
+                // Can drop db objects like tables and views
                 Mutation::DropObject(drop_object) => {
                     // TODO: Dependency checking (for child objects like tables, views, etc.)
                     let if_exists = drop_object.if_exists;
@@ -406,7 +414,8 @@ impl State {
                     };
                     self.entries.insert(oid, CatalogEntry::Database(ent));
 
-                    // TODO: Add to "database" map.
+                    // Add to database map
+                    self.database_names.insert(create_database.name, oid);
                 }
                 Mutation::CreateSchema(create_schema) => {
                     // TODO: If not exists.

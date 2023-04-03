@@ -17,6 +17,9 @@ pub enum MetastoreError {
     #[error("Missing database catalog: {0}")]
     MissingCatalog(uuid::Uuid),
 
+    #[error("Missing database: {0}")]
+    MissingDatabase(String),
+
     #[error("Missing schema: {0}")]
     MissingNamedSchema(String),
 

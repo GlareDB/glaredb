@@ -1,4 +1,27 @@
-# Tests drop schema and drop objects
+# Tests drop database, schema and drop objects
+
+# Test dropping databases
+
+statement ok
+create external database drop_db from debug;
+
+query TTT
+select database_name, external, datasource from glare_catalog.databases where database_name='drop_db';
+----
+drop_db t debug
+
+statement ok
+drop database drop_db;
+
+statement error
+drop database drop_db;
+
+statement ok
+drop database if exists drop_db;
+
+query TTT
+select database_name, external, datasource from glare_catalog.databases where database_name='drop_db';
+----
 
 # Test dropping empty schema
 

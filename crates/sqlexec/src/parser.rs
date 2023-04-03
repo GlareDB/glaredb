@@ -105,6 +105,7 @@ pub enum StatementWithExtensions {
     CreateExternalTable(CreateExternalTableStmt),
     /// Create external database extension.
     CreateExternalDatabase(CreateExternalDatabaseStmt),
+    /// Drop database extension.
     DropDatabase(DropDatabaseStmt),
 }
 
