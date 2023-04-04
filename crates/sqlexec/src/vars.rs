@@ -20,6 +20,11 @@ const APPLICATION_NAME: ServerVar<str> = ServerVar {
     value: "",
 };
 
+const CLIENT_ENCODING: ServerVar<str> = ServerVar {
+    name: "client_encoding",
+    value: "UTF8",
+};
+
 const EXTRA_FLOAT_DIGITS: ServerVar<i32> = ServerVar {
     name: "extra_float_digits",
     value: &1,
@@ -64,6 +69,7 @@ const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
 pub struct SessionVars {
     pub server_version: ServerVar<str>,
     pub application_name: SessionVar<str>,
+    pub client_encoding: SessionVar<str>,
     pub extra_floating_digits: SessionVar<i32>,
     pub transaction_isolation: ServerVar<str>,
     pub search_path: SessionVar<[String]>,
@@ -76,7 +82,11 @@ impl SessionVars {
     /// Return an iterator to the variables that should be sent to the client on
     /// session start.
     pub fn startup_vars_iter(&self) -> impl Iterator<Item = &dyn AnyVar> {
-        let vars: [&dyn AnyVar; 2] = [&self.server_version, &self.application_name];
+        let vars: [&dyn AnyVar; 3] = [
+            &self.server_version,
+            &self.application_name,
+            &self.client_encoding,
+        ];
         vars.into_iter()
     }
 
@@ -86,6 +96,8 @@ impl SessionVars {
             Ok(&self.server_version)
         } else if name == APPLICATION_NAME.name {
             Ok(&self.application_name)
+        } else if name == CLIENT_ENCODING.name {
+            Ok(&self.client_encoding)
         } else if name == EXTRA_FLOAT_DIGITS.name {
             Ok(&self.extra_floating_digits)
         } else if name == TRANSACTION_ISOLATION.name {
@@ -109,6 +121,8 @@ impl SessionVars {
             Err(ExecError::VariableReadonly(SERVER_VERSION.name.to_string()))
         } else if name == APPLICATION_NAME.name {
             self.application_name.set(val)
+        } else if name == CLIENT_ENCODING.name {
+            self.client_encoding.set(val)
         } else if name == EXTRA_FLOAT_DIGITS.name {
             self.extra_floating_digits.set(val)
         } else if name == TRANSACTION_ISOLATION.name {
@@ -134,6 +148,7 @@ impl Default for SessionVars {
         SessionVars {
             server_version: SERVER_VERSION,
             application_name: SessionVar::new(&APPLICATION_NAME),
+            client_encoding: SessionVar::new(&CLIENT_ENCODING),
             extra_floating_digits: SessionVar::new(&EXTRA_FLOAT_DIGITS),
             transaction_isolation: TRANSACTION_ISOLATION,
             search_path: SessionVar::new(&SEARCH_PATH),
