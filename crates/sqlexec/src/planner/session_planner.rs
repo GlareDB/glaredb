@@ -1,7 +1,7 @@
 use crate::context::SessionContext;
 use crate::parser::{
     validate_ident, validate_object_name, CreateExternalDatabaseStmt, CreateExternalTableStmt,
-    DropDatabaseStmt, StatementWithExtensions,
+    DropDatabaseStmt, OptionValue, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -27,6 +27,7 @@ use metastore::types::options::{
     TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
 use std::collections::BTreeMap;
+use std::env;
 use std::str::FromStr;
 use tracing::debug;
 
@@ -110,7 +111,7 @@ impl<'a> SessionPlanner<'a> {
                 let password = remove_required_opt(m, "password")?;
                 let database_name = remove_required_opt(m, "database_name")?;
                 let warehouse = remove_required_opt(m, "warehouse")?;
-                let role_name = remove_optional_opt(m, "role_name").unwrap_or(String::new());
+                let role_name = remove_optional_opt(m, "role_name")?.unwrap_or_default();
                 DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
                     account_name,
                     login_name,
@@ -244,7 +245,7 @@ impl<'a> SessionPlanner<'a> {
                     let password = remove_required_opt(m, "password")?;
                     let database_name = remove_required_opt(m, "database_name")?;
                     let warehouse = remove_required_opt(m, "warehouse")?;
-                    let role_name = remove_optional_opt(m, "role_name");
+                    let role_name = remove_optional_opt(m, "role_name")?;
                     let schema_name = remove_required_opt(m, "schema_name")?;
                     let table_name = remove_required_opt(m, "table_name")?;
 
@@ -765,11 +766,37 @@ fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
     statement.into_iter().eq(transaction_isolation_level)
 }
 
-fn remove_required_opt(m: &mut BTreeMap<String, String>, k: &str) -> Result<String> {
-    m.remove(k)
-        .ok_or_else(|| internal!("missing required option: {}", k))
+fn remove_required_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<String> {
+    let opt = remove_optional_opt(m, k)?;
+    opt.ok_or_else(|| internal!("missing required option: {}", k))
 }
 
-fn remove_optional_opt(m: &mut BTreeMap<String, String>, k: &str) -> Option<String> {
-    m.remove(k)
+fn remove_optional_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<Option<String>> {
+    let val = match m.remove(k) {
+        Some(v) => v,
+        None => return Ok(None),
+    };
+
+    fn get_env(k: &str, upper: bool) -> Result<String> {
+        let key = format!("glaredb_secret_{k}");
+        let key = if upper {
+            key.to_uppercase()
+        } else {
+            key.to_lowercase()
+        };
+        env::var(key).map_err(|e| internal!("invalid secret '{k}': {e}"))
+    }
+
+    let opt = match val {
+        OptionValue::Literal(l) => l,
+        OptionValue::Secret(s) => {
+            if let Ok(opt) = get_env(&s, /* uppercase: */ true) {
+                opt
+            } else {
+                get_env(&s, /* uppercase: */ false)?
+            }
+        }
+    };
+
+    Ok(Some(opt))
 }
