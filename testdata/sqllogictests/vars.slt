@@ -12,11 +12,15 @@ show client_encoding;
 ----
 UTF8
 
-query T
+query R
 show extra_float_digits;
 ----
 1
 
+query R
+show statement_timeout;
+----
+0
 
 # Update vars
 
@@ -48,3 +52,10 @@ show extra_float_digits;
 ----
 3
 
+statement ok
+set statement_timeout = 13275;
+
+query R
+show statement_timeout;
+----
+13275
