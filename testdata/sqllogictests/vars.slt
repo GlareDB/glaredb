@@ -1,5 +1,25 @@
 # Session variables.
 
+# Defaults
+
+query T
+show application_name;
+----
+(empty)
+
+query T
+show client_encoding;
+----
+UTF8
+
+query T
+show extra_float_digits;
+----
+1
+
+
+# Update vars
+
 statement ok
 set application_name = 'Test Application';
 
@@ -27,3 +47,4 @@ query T
 show extra_float_digits;
 ----
 3
+
