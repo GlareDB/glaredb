@@ -30,6 +30,11 @@ const EXTRA_FLOAT_DIGITS: ServerVar<i32> = ServerVar {
     value: &1,
 };
 
+const STATEMENT_TIMEOUT: ServerVar<i32> = ServerVar {
+    name: "statement_timeout",
+    value: &0,
+};
+
 const TRANSACTION_ISOLATION: ServerVar<str> = ServerVar {
     name: "transaction_isolation",
     value: "read uncommitted",
@@ -71,6 +76,7 @@ pub struct SessionVars {
     pub application_name: SessionVar<str>,
     pub client_encoding: SessionVar<str>,
     pub extra_floating_digits: SessionVar<i32>,
+    pub statement_timeout: SessionVar<i32>,
     pub transaction_isolation: ServerVar<str>,
     pub search_path: SessionVar<[String]>,
     pub glaredb_build_version: ServerVar<str>,
@@ -100,6 +106,8 @@ impl SessionVars {
             Ok(&self.client_encoding)
         } else if name == EXTRA_FLOAT_DIGITS.name {
             Ok(&self.extra_floating_digits)
+        } else if name == STATEMENT_TIMEOUT.name {
+            Ok(&self.statement_timeout)
         } else if name == TRANSACTION_ISOLATION.name {
             Ok(&self.transaction_isolation)
         } else if name == SEARCH_PATH.name {
@@ -125,6 +133,8 @@ impl SessionVars {
             self.client_encoding.set(val)
         } else if name == EXTRA_FLOAT_DIGITS.name {
             self.extra_floating_digits.set(val)
+        } else if name == STATEMENT_TIMEOUT.name {
+            self.statement_timeout.set(val)
         } else if name == TRANSACTION_ISOLATION.name {
             Err(ExecError::VariableReadonly(SERVER_VERSION.name.to_string()))
         } else if name == SEARCH_PATH.name {
@@ -150,6 +160,7 @@ impl Default for SessionVars {
             application_name: SessionVar::new(&APPLICATION_NAME),
             client_encoding: SessionVar::new(&CLIENT_ENCODING),
             extra_floating_digits: SessionVar::new(&EXTRA_FLOAT_DIGITS),
+            statement_timeout: SessionVar::new(&STATEMENT_TIMEOUT),
             transaction_isolation: TRANSACTION_ISOLATION,
             search_path: SessionVar::new(&SEARCH_PATH),
             glaredb_build_version: GLAREDB_BUILD_VERSION,
