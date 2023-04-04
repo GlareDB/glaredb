@@ -14,6 +14,26 @@ pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
     Ok(stmts)
 }
 
+/// Contains the value parsed from Options(...).
+///
+/// `CREATE ... OPTIONS ( abc = 'def' )` will return the value `Literal("def")`
+/// for option "abc" where as `OPTIONS ( abc = SECRET def )` will return
+/// `Secret(def)` for key "abc".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptionValue {
+    Literal(String),
+    Secret(String),
+}
+
+impl fmt::Display for OptionValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(s) => write!(f, "'{s}'"),
+            Self::Secret(s) => write!(f, "SECRET {s}"),
+        }
+    }
+}
+
 /// DDL extension for GlareDB's external tables.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalTableStmt {
@@ -24,7 +44,7 @@ pub struct CreateExternalTableStmt {
     /// Data source type.
     pub datasource: String,
     /// Datasource specific options.
-    pub options: BTreeMap<String, String>,
+    pub options: BTreeMap<String, OptionValue>,
 }
 
 impl fmt::Display for CreateExternalTableStmt {
@@ -38,7 +58,7 @@ impl fmt::Display for CreateExternalTableStmt {
         let opts = self
             .options
             .iter()
-            .map(|(k, v)| format!("{} = '{}'", k, v))
+            .map(|(k, v)| format!("{} = {}", k, v))
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -57,7 +77,7 @@ pub struct CreateExternalDatabaseStmt {
     /// The data source type the connection is for.
     pub datasource: String,
     /// Datasource specific options.
-    pub options: BTreeMap<String, String>,
+    pub options: BTreeMap<String, OptionValue>,
 }
 
 impl fmt::Display for CreateExternalDatabaseStmt {
@@ -71,7 +91,7 @@ impl fmt::Display for CreateExternalDatabaseStmt {
         let opts = self
             .options
             .iter()
-            .map(|(k, v)| format!("{} = '{}'", k, v))
+            .map(|(k, v)| format!("{} = {}", k, v))
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -264,7 +284,7 @@ impl<'a> CustomParser<'a> {
     }
 
     /// Parse options for a datasource.
-    fn parse_datasource_options(&mut self) -> Result<BTreeMap<String, String>, ParserError> {
+    fn parse_datasource_options(&mut self) -> Result<BTreeMap<String, OptionValue>, ParserError> {
         let mut options = BTreeMap::new();
 
         // No options provided.
@@ -275,11 +295,18 @@ impl<'a> CustomParser<'a> {
         self.parser.expect_token(&Token::LParen)?;
 
         loop {
-            let key = self.parser.parse_identifier()?.to_string();
+            let key = self.parser.parse_identifier()?.value;
             self.parser.expect_token(&Token::Eq)?;
-            let value = self.parser.parse_literal_string()?;
 
-            options.insert(key.to_string(), value.to_string());
+            // Check if we have a secret value.
+            let is_secret = self.consume_token(&Token::make_keyword("SECRET"));
+            let value = if is_secret {
+                OptionValue::Secret(self.parser.parse_identifier()?.value)
+            } else {
+                OptionValue::Literal(self.parser.parse_literal_string()?)
+            };
+
+            options.insert(key, value);
             let comma = self.parser.consume_token(&Token::Comma);
 
             if self.parser.consume_token(&Token::RParen) {
@@ -360,7 +387,15 @@ mod tests {
         let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
-            "host=localhost user=postgres".to_string(),
+            OptionValue::Literal("host=localhost user=postgres".to_string()),
+        );
+        options.insert(
+            "schema".to_string(),
+            OptionValue::Literal("public".to_string()),
+        );
+        options.insert(
+            "table".to_string(),
+            OptionValue::Secret("pg_table".to_string()),
         );
         let stmt = CreateExternalTableStmt {
             name: "test".to_string(),
@@ -370,21 +405,28 @@ mod tests {
         };
 
         let out = stmt.to_string();
-        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres')", out);
+        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
     }
 
     #[test]
     fn external_table_parse() {
-        let sql = "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public')";
+        let sql = "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public', table=secret pg_table)";
         let mut stmts = CustomParser::parse_sql(sql).unwrap();
 
         let stmt = stmts.pop_front().unwrap();
         let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
-            "host=localhost user=postgres".to_string(),
+            OptionValue::Literal("host=localhost user=postgres".to_string()),
         );
-        options.insert("schema".to_string(), "public".to_string());
+        options.insert(
+            "schema".to_string(),
+            OptionValue::Literal("public".to_string()),
+        );
+        options.insert(
+            "table".to_string(),
+            OptionValue::Secret("pg_table".to_string()),
+        );
 
         assert_eq!(
             StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
