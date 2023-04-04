@@ -1,6 +1,6 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::engine::SessionInfo;
-use crate::errors::{internal, ExecError, Result};
+use crate::errors::{ExecError, Result};
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
@@ -292,7 +292,17 @@ impl Session {
     }
 
     async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
+        // Note that transaction support is fake, in that we don't currently do
+        // anything and do not provide any transactional semantics.
+        //
+        // We stub out transaction commands since many tools (even BI ones) will
+        // try to open a transaction for some queries.
         let result = match plan {
+            LogicalPlan::Transaction(plan) => match plan {
+                TransactionPlan::Begin => ExecutionResult::Begin,
+                TransactionPlan::Commit => ExecutionResult::Commit,
+                TransactionPlan::Abort => ExecutionResult::Rollback,
+            },
             LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
                 self.create_table(plan).await?;
                 ExecutionResult::CreateTable
@@ -353,7 +363,6 @@ impl Session {
                 let stream = self.show_variable(plan)?;
                 ExecutionResult::ShowVariable { stream }
             }
-            other => return Err(internal!("unimplemented logical plan: {:?}", other)),
         };
 
         Ok(result)
