@@ -113,8 +113,7 @@ WHERE
             .await?;
 
         let mut fields = Vec::new();
-        let mut res = res.into_row_iter();
-        while let Some(row) = res.next().await {
+        for row in res.into_row_iter() {
             let row = row?;
             let col_name = match row.get_column_by_name("COLUMN_NAME").unwrap()? {
                 // Convert the column name to lowercase since we every name

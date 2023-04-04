@@ -498,22 +498,26 @@ impl QueryResultRowIter {
         Ok(Some(QueryResultRow {
             schema: self.schema.clone(),
             row,
-            cols: curr_batch.columns(),
+            cols: curr_batch.columns().to_vec(),
         }))
     }
+}
 
-    pub async fn next(&mut self) -> Option<Result<QueryResultRow>> {
+impl Iterator for QueryResultRowIter {
+    type Item = Result<QueryResultRow>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         self.next_row().transpose()
     }
 }
 
-pub struct QueryResultRow<'a> {
+pub struct QueryResultRow {
     schema: SchemaRef,
     row: usize,
-    cols: &'a [ArrayRef],
+    cols: Vec<ArrayRef>,
 }
 
-impl<'a> QueryResultRow<'a> {
+impl QueryResultRow {
     pub fn get_column(&self, col_idx: usize) -> Option<Result<ScalarValue>> {
         fn get_scalar(col: &ArrayRef, row_idx: usize) -> Result<ScalarValue> {
             let scalar = ScalarValue::try_from_array(&col, row_idx)?;
