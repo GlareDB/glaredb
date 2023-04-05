@@ -35,6 +35,16 @@ const STATEMENT_TIMEOUT: ServerVar<i32> = ServerVar {
     value: &0,
 };
 
+const TIMEZONE: ServerVar<str> = ServerVar {
+    name: "TimeZone",
+    value: "UTC",
+};
+
+const DATESTYLE: ServerVar<str> = ServerVar {
+    name: "DateStyle",
+    value: "ISO",
+};
+
 const TRANSACTION_ISOLATION: ServerVar<str> = ServerVar {
     name: "transaction_isolation",
     value: "read uncommitted",
@@ -77,6 +87,8 @@ pub struct SessionVars {
     pub client_encoding: SessionVar<str>,
     pub extra_floating_digits: SessionVar<i32>,
     pub statement_timeout: SessionVar<i32>,
+    pub timezone: SessionVar<str>,
+    pub datestyle: SessionVar<str>,
     pub transaction_isolation: ServerVar<str>,
     pub search_path: SessionVar<[String]>,
     pub glaredb_build_version: ServerVar<str>,
@@ -98,25 +110,29 @@ impl SessionVars {
 
     /// Get a value for a variable.
     pub fn get(&self, name: &str) -> Result<&dyn AnyVar> {
-        if name == SERVER_VERSION.name {
+        if name.eq_ignore_ascii_case(SERVER_VERSION.name) {
             Ok(&self.server_version)
-        } else if name == APPLICATION_NAME.name {
+        } else if name.eq_ignore_ascii_case(APPLICATION_NAME.name) {
             Ok(&self.application_name)
-        } else if name == CLIENT_ENCODING.name {
+        } else if name.eq_ignore_ascii_case(CLIENT_ENCODING.name) {
             Ok(&self.client_encoding)
-        } else if name == EXTRA_FLOAT_DIGITS.name {
+        } else if name.eq_ignore_ascii_case(EXTRA_FLOAT_DIGITS.name) {
             Ok(&self.extra_floating_digits)
-        } else if name == STATEMENT_TIMEOUT.name {
+        } else if name.eq_ignore_ascii_case(STATEMENT_TIMEOUT.name) {
             Ok(&self.statement_timeout)
-        } else if name == TRANSACTION_ISOLATION.name {
+        } else if name.eq_ignore_ascii_case(TIMEZONE.name) {
+            Ok(&self.timezone)
+        } else if name.eq_ignore_ascii_case(DATESTYLE.name) {
+            Ok(&self.datestyle)
+        } else if name.eq_ignore_ascii_case(TRANSACTION_ISOLATION.name) {
             Ok(&self.transaction_isolation)
-        } else if name == SEARCH_PATH.name {
+        } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
             Ok(&self.search_path)
-        } else if name == GLAREDB_BUILD_VERSION.name {
+        } else if name.eq_ignore_ascii_case(GLAREDB_BUILD_VERSION.name) {
             Ok(&self.glaredb_build_version)
-        } else if name == ENABLE_DEBUG_DATASOURCES.name {
+        } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
             Ok(&self.enable_debug_datasources)
-        } else if name == FORCE_CATALOG_REFRESH.name {
+        } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
             Ok(&self.force_catalog_refresh)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
@@ -125,27 +141,31 @@ impl SessionVars {
 
     /// Try to set a value for a variable.
     pub fn set(&mut self, name: &str, val: &str) -> Result<()> {
-        if name == SERVER_VERSION.name {
+        if name.eq_ignore_ascii_case(SERVER_VERSION.name) {
             Err(ExecError::VariableReadonly(SERVER_VERSION.name.to_string()))
-        } else if name == APPLICATION_NAME.name {
+        } else if name.eq_ignore_ascii_case(APPLICATION_NAME.name) {
             self.application_name.set(val)
-        } else if name == CLIENT_ENCODING.name {
+        } else if name.eq_ignore_ascii_case(CLIENT_ENCODING.name) {
             self.client_encoding.set(val)
-        } else if name == EXTRA_FLOAT_DIGITS.name {
+        } else if name.eq_ignore_ascii_case(EXTRA_FLOAT_DIGITS.name) {
             self.extra_floating_digits.set(val)
-        } else if name == STATEMENT_TIMEOUT.name {
+        } else if name.eq_ignore_ascii_case(STATEMENT_TIMEOUT.name) {
             self.statement_timeout.set(val)
-        } else if name == TRANSACTION_ISOLATION.name {
+        } else if name.eq_ignore_ascii_case(TIMEZONE.name) {
+            self.timezone.set(val)
+        } else if name.eq_ignore_ascii_case(DATESTYLE.name) {
+            self.datestyle.set(val)
+        } else if name.eq_ignore_ascii_case(TRANSACTION_ISOLATION.name) {
             Err(ExecError::VariableReadonly(SERVER_VERSION.name.to_string()))
-        } else if name == SEARCH_PATH.name {
+        } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
             self.search_path.set(val)
-        } else if name == GLAREDB_BUILD_VERSION.name {
+        } else if name.eq_ignore_ascii_case(GLAREDB_BUILD_VERSION.name) {
             Err(ExecError::VariableReadonly(
                 GLAREDB_BUILD_VERSION.name.to_string(),
             ))
-        } else if name == ENABLE_DEBUG_DATASOURCES.name {
+        } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
             self.enable_debug_datasources.set(val)
-        } else if name == FORCE_CATALOG_REFRESH.name {
+        } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
             self.force_catalog_refresh.set(val)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
@@ -161,6 +181,8 @@ impl Default for SessionVars {
             client_encoding: SessionVar::new(&CLIENT_ENCODING),
             extra_floating_digits: SessionVar::new(&EXTRA_FLOAT_DIGITS),
             statement_timeout: SessionVar::new(&STATEMENT_TIMEOUT),
+            timezone: SessionVar::new(&TIMEZONE),
+            datestyle: SessionVar::new(&DATESTYLE),
             transaction_isolation: TRANSACTION_ISOLATION,
             search_path: SessionVar::new(&SEARCH_PATH),
             glaredb_build_version: GLAREDB_BUILD_VERSION,
