@@ -22,6 +22,16 @@ show statement_timeout;
 ----
 0
 
+query T
+show timezone;
+----
+UTC
+
+query T
+show datestyle;
+----
+ISO
+
 # Update vars
 
 statement ok
@@ -59,3 +69,14 @@ query R
 show statement_timeout;
 ----
 13275
+
+# Case insensitive
+
+statement ok
+set TimeZone = 'UTC';
+
+statement ok
+set timezone = 'UTC';
+
+statement ok
+set TIMEZONE = 'UTC';
