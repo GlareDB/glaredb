@@ -4,7 +4,7 @@ statement ok
 CREATE EXTERNAL TABLE large_table
 	FROM mysql
 	OPTIONS (
-        mysql_conn = '${MYSQL_CONN_STRING}',
+        connection_string = '${MYSQL_CONN_STRING}',
 		schema = 'glaredb_test',
 		table = 'bikeshare_trips'
 	);

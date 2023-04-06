@@ -5,7 +5,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_password
     FROM mysql
     OPTIONS (
-        mysql_conn = 'mysql://root:wrong_password@127.0.0.1:3307/glaredb_test',
+        connection_string = 'mysql://root:wrong_password@127.0.0.1:3307/glaredb_test',
         schema = 'glaredb_test',
         table = 'numeric_datatypes'
     );
@@ -14,7 +14,7 @@ statement error
 CREATE EXTERNAL TABLE non_existant_user
     FROM mysql
     OPTIONS (
-        mysql_conn = 'mysql://missing@127.0.0.1:3307/glaredb_test',
+        connection_string = 'mysql://missing@127.0.0.1:3307/glaredb_test',
         schema = 'glaredb_test',
         table = 'numeric_datatypes'
     );
@@ -24,7 +24,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_host
     FROM mysql
     OPTIONS (
-        mysql_conn = 'mysql://root@non-existant:3307/glaredb_test',
+        connection_string = 'mysql://root@non-existant:3307/glaredb_test',
         schema = 'glaredb_test',
         table = 'numeric_datatypes'
     );
@@ -34,7 +34,7 @@ statement error
 CREATE EXTERNAL TABLE missing_table
     FROM testconn
     OPTIONS (
-        mysql_conn = '${MYSQL_CONN_STRING}',
+        connection_string = '${MYSQL_CONN_STRING}',
         schema = 'glaredb_test',
         table = 'missing_table'
     );
@@ -44,7 +44,7 @@ statement error
 CREATE EXTERNAL TABLE missing_schema
     FROM testconn
     OPTIONS (
-        mysql_conn = '${MYSQL_CONN_STRING}',
+        connection_string = '${MYSQL_CONN_STRING}',
         schema = 'missing_schema',
         table = 'numeric_datatypes'
     );

@@ -5,7 +5,7 @@ statement ok
 CREATE EXTERNAL TABLE datatypes
 	FROM postgres
 	OPTIONS (
-		postgres_conn = '${POSTGRES_CONN_STRING}',
+		connection_string = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'datatypes'
 	);

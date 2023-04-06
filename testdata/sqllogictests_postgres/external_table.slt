@@ -1,0 +1,42 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE external_table
+	FROM postgres
+	OPTIONS (
+		connection_string = '${POSTGRES_CONN_STRING}',
+		schema = 'public',
+		table = 'bikeshare_stations',
+	);
+
+query I
+SELECT count(*) FROM external_table;
+----
+102
+
+statement ok
+DROP TABLE external_table;
+
+# Test if we can create external tables using expanded options.
+
+# TODO: Use env vars instead of hard-coding values
+statement ok
+CREATE EXTERNAL TABLE external_table
+	FROM postgres
+	OPTIONS (
+		host = 'localhost',
+		port = '5432',
+		user = 'glaredb',
+		password = 'password',
+		database = 'glaredb_test',
+		schema = 'public',
+		table = 'bikeshare_stations',
+	);
+
+query I
+SELECT count(*) FROM external_table;
+----
+102
+
+statement ok
+DROP TABLE external_table;

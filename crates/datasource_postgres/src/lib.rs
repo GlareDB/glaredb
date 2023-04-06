@@ -39,6 +39,48 @@ use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, CopyOutStream, NoTls};
 use tracing::warn;
 
+#[derive(Debug)]
+pub enum PostgresDbConnection {
+    ConnectionString(String),
+    Parameters {
+        host: String,
+        port: Option<u16>,
+        user: String,
+        password: Option<String>,
+        database: String,
+    },
+}
+
+impl PostgresDbConnection {
+    pub fn connection_string(&self) -> String {
+        match self {
+            Self::ConnectionString(s) => s.to_owned(),
+            Self::Parameters {
+                host,
+                port,
+                user,
+                password,
+                database,
+            } => {
+                let mut conn_str = String::from("postgres://");
+                // Credentials
+                write!(&mut conn_str, "{user}").unwrap();
+                if let Some(password) = password {
+                    write!(&mut conn_str, ":{password}").unwrap();
+                }
+                // Address
+                write!(&mut conn_str, "@{host}").unwrap();
+                if let Some(port) = port {
+                    write!(&mut conn_str, ":{port}").unwrap();
+                }
+                // Database
+                write!(&mut conn_str, "/{database}").unwrap();
+                conn_str
+            }
+        }
+    }
+}
+
 /// Information needed for accessing an external Postgres table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostgresTableAccess {
@@ -897,6 +939,53 @@ mod tests {
     use datafusion::common::Column;
     use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    #[test]
+    fn connection_string() {
+        let conn_str = PostgresDbConnection::ConnectionString(
+            "postgres://prod:password123@127.0.0.1:5432/glaredb".to_string(),
+        )
+        .connection_string();
+        assert_eq!(
+            &conn_str,
+            "postgres://prod:password123@127.0.0.1:5432/glaredb"
+        );
+
+        let conn_str = PostgresDbConnection::Parameters {
+            host: "127.0.0.1".to_string(),
+            port: Some(5432),
+            user: "prod".to_string(),
+            password: Some("password123".to_string()),
+            database: "glaredb".to_string(),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(
+            &conn_str,
+            "postgres://prod:password123@127.0.0.1:5432/glaredb"
+        );
+
+        // Missing password.
+        let conn_str = PostgresDbConnection::Parameters {
+            host: "127.0.0.1".to_string(),
+            port: Some(5432),
+            user: "prod".to_string(),
+            password: None,
+            database: "glaredb".to_string(),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "postgres://prod@127.0.0.1:5432/glaredb");
+
+        // Missing port.
+        let conn_str = PostgresDbConnection::Parameters {
+            host: "127.0.0.1".to_string(),
+            port: None,
+            user: "prod".to_string(),
+            password: Some("password123".to_string()),
+            database: "glaredb".to_string(),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "postgres://prod:password123@127.0.0.1/glaredb");
+    }
 
     #[test]
     fn valid_expr_string() {

@@ -5,7 +5,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_password
 	FROM postgres
 	OPTIONS (
-		postgres_conn = 'host=localhost port=5432 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=localhost port=5432 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
 		schema = 'public',
 		table = 'datatypes'
 	);
@@ -14,7 +14,7 @@ statement error
 CREATE EXTERNAL TABLE non_existant_user
 	FROM postgres
 	OPTIONS (
-		postgres_conn = 'host=localhost port=5432 user=missing password=password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=localhost port=5432 user=missing password=password dbname=glaredb_test sslmode=disable',
 		schema = 'public',
 		table = 'datatypes'
 	);
@@ -24,7 +24,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_host
 	FROM postgres
 	OPTIONS (
-		postgres_conn = 'host=non-existant port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=non-existant port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
 		schema = 'public',
 		table = 'datatypes'
 	);
@@ -34,7 +34,7 @@ statement error
 CREATE EXTERNAL TABLE missing_table
 	FROM postgres
 	OPTIONS (
-		postgres_conn = '${POSTGRES_CONN_STRING}',
+		connection_string = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'missing_table'
 	);
@@ -44,7 +44,7 @@ statement error
 CREATE EXTERNAL TABLE missing_schema
 	FROM postgres
 	OPTIONS (
-		postgres_conn = '${POSTGRES_CONN_STRING}',
+		connection_string = '${POSTGRES_CONN_STRING}',
 		schema = 'missing_schema',
 		table = 'datatypes'
 	);

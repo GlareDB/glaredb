@@ -27,6 +27,9 @@ pub enum MongoError {
         datafusion::arrow::datatypes::DataType,
     ),
 
+    #[error("Invalid protocol: {0}")]
+    InvalidProtocol(String),
+
     #[error(transparent)]
     Mongo(#[from] mongodb::error::Error),
 

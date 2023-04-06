@@ -1,13 +1,36 @@
 # Basic test for external database.
 
 statement ok
-CREATE EXTERNAL DATABASE basic
+CREATE EXTERNAL DATABASE external_database
 	FROM mysql
 	OPTIONS (
-        mysql_conn = '${MYSQL_CONN_STRING}',
+		connection_string = '${MYSQL_CONN_STRING}',
 	);
 
 query I
-SELECT count(*) FROM basic.glaredb_test.bikeshare_stations;
+SELECT count(*) FROM external_database.glaredb_test.bikeshare_stations;
 ----
 102
+
+statement ok
+DROP DATABASE external_database;
+
+# Check if external database works with expanded options.
+
+statement ok
+CREATE EXTERNAL DATABASE external_database
+	FROM mysql
+	OPTIONS (
+		host = '127.0.0.1',
+		port = '3307',
+		user = 'root',
+		database = 'glaredb_test',
+	);
+
+query I
+SELECT count(*) FROM external_database.glaredb_test.bikeshare_stations;
+----
+102
+
+statement ok
+DROP DATABASE external_database;
