@@ -4,7 +4,9 @@ use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescriptionBuilder, FrontendMessage,
     SqlState, StartupMessage, TransactionStatus,
 };
-use crate::proxy::{ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_USER_ID_KEY};
+use crate::proxy::{
+    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY, GLAREDB_USER_ID_KEY,
+};
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -131,12 +133,15 @@ impl ProtocolHandler {
 
         let mut framed = FramedConn::new(conn);
 
-        // Get database id and user id from params.
+        // Get params.
         let db_id = self
             .read_proxy_key_val(&mut framed, &GLAREDB_DATABASE_ID_KEY, &params)
             .await?;
         let user_id = self
             .read_proxy_key_val(&mut framed, &GLAREDB_USER_ID_KEY, &params)
+            .await?;
+        let max_datasource_count = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_MAX_DATASOURCE_COUNT_KEY, &params)
             .await?;
 
         // Handle password
@@ -153,7 +158,11 @@ impl ProtocolHandler {
             None => return Ok(()),
         }
 
-        let mut sess = match self.engine.new_session(user_id, conn_id, db_id).await {
+        let mut sess = match self
+            .engine
+            .new_session(user_id, conn_id, db_id, max_datasource_count)
+            .await
+        {
             Ok(sess) => sess,
             Err(e) => {
                 framed

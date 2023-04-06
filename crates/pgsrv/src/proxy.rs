@@ -87,6 +87,31 @@ impl ProxyKey<bool> for BoolProxyKey {
     }
 }
 
+/// A proxy key who's value should be parsed as a u16.
+#[derive(Debug)]
+pub struct UsizeProxyKey {
+    /// Key to look for in params.
+    key: &'static str,
+    /// Default to use if key not found _and_ db is running locally.
+    local_default: usize,
+}
+
+impl ProxyKey<usize> for UsizeProxyKey {
+    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<usize> {
+        match params.get(self.key) {
+            Some(val) => match val.parse::<usize>() {
+                Ok(n) => Ok(n),
+                Err(_) => Err(PgSrvError::InvalidValueForProxyKey {
+                    key: self.key,
+                    value: val.clone(),
+                }),
+            },
+            None if local => Ok(self.local_default),
+            None => Err(PgSrvError::MissingProxyKey(self.key)),
+        }
+    }
+}
+
 /// Param key for setting the database id in startup params. Added by pgsrv
 /// during proxying.
 pub const GLAREDB_DATABASE_ID_KEY: UuidProxyKey = UuidProxyKey {
@@ -106,6 +131,12 @@ pub const GLAREDB_USER_ID_KEY: UuidProxyKey = UuidProxyKey {
 pub const GLAREDB_IS_SYSTEM_KEY: BoolProxyKey = BoolProxyKey {
     key: "glaredb_is_system",
     local_default: false,
+};
+
+/// Param key for the max number ofdatasources allowed. Added by pgsrv during proxying.
+pub const GLAREDB_MAX_DATASOURCE_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
+    key: "max_datasource_count",
+    local_default: 3,
 };
 
 /// ProxyHandler proxies connections to some database instance. Connections are
