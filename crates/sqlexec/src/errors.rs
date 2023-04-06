@@ -107,6 +107,9 @@ pub enum ExecError {
     #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
     NonSshConnection,
 
+    #[error("Cannot create additional data sources. Max: {0}, Current: {1}")]
+    MaxDatasourceCount(usize, usize),
+
     #[error("internal error: {0}")]
     Internal(String),
 

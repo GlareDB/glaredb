@@ -111,12 +111,26 @@ impl SessionContext {
         &mut self.metrics
     }
 
+    pub fn get_datasource_count(&mut self) -> usize {
+        self.metastore_catalog
+            .iter_entries()
+            .filter(|ent| ent.entry.get_meta().external)
+            .count()
+    }
+
     /// Create a table.
     pub fn create_table(&self, _plan: CreateTable) -> Result<()> {
         Err(ExecError::UnsupportedFeature("CREATE TABLE"))
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
+        if self.get_datasource_count() >= self.info.max_datasource_count {
+            return Err(ExecError::MaxDatasourceCount(
+                self.info.max_datasource_count,
+                self.get_datasource_count(),
+            ));
+        }
+
         let (_, schema, name) = self.resolve_object_reference(plan.table_name.into())?;
         let columns = plan
             .columns
@@ -149,7 +163,14 @@ impl SessionContext {
         Ok(())
     }
 
-    pub async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+    pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+        if self.get_datasource_count() >= self.info.max_datasource_count {
+            return Err(ExecError::MaxDatasourceCount(
+                self.info.max_datasource_count,
+                self.get_datasource_count(),
+            ));
+        }
+
         self.mutate_catalog([Mutation::CreateExternalDatabase(
             service::CreateExternalDatabase {
                 name: plan.database_name,
