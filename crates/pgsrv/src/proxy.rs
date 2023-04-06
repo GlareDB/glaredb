@@ -254,7 +254,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         params.insert(GLAREDB_USER_ID_KEY.key.to_string(), db_details.user_id);
         params.insert(
             GLAREDB_MAX_DATASOURCE_COUNT_KEY.key.to_string(),
-            db_details.max_datasource_count,
+            db_details.max_datasource_count.to_string(),
         );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
