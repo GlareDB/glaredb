@@ -163,7 +163,14 @@ impl SessionContext {
         Ok(())
     }
 
-    pub async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+    pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
+        if self.get_datasource_count() >= self.info.max_datasource_count {
+            return Err(ExecError::MaxDatasourceCount(
+                self.info.max_datasource_count,
+                self.get_datasource_count(),
+            ));
+        }
+
         self.mutate_catalog([Mutation::CreateExternalDatabase(
             service::CreateExternalDatabase {
                 name: plan.database_name,

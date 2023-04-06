@@ -87,7 +87,7 @@ impl ProxyKey<bool> for BoolProxyKey {
     }
 }
 
-/// A proxy key who's value should be parsed as a u16.
+/// A proxy key who's value should be parsed as a usize.
 #[derive(Debug)]
 pub struct UsizeProxyKey {
     /// Key to look for in params.

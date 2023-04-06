@@ -183,7 +183,7 @@ impl Session {
     }
 
     pub(crate) async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        self.ctx.create_database(plan).await?;
+        self.ctx.create_external_database(plan).await?;
         Ok(())
     }
 
