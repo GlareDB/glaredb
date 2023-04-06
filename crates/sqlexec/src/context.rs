@@ -124,7 +124,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if !(self.get_datasource_count() < self.info.max_datasource_count) {
+        if self.get_datasource_count() >= self.info.max_datasource_count {
             return Err(ExecError::MaxDatasourceCount(
                 self.info.max_datasource_count,
                 self.get_datasource_count(),
