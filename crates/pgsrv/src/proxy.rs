@@ -136,7 +136,7 @@ pub const GLAREDB_IS_SYSTEM_KEY: BoolProxyKey = BoolProxyKey {
 /// Param key for the max number ofdatasources allowed. Added by pgsrv during proxying.
 pub const GLAREDB_MAX_DATASOURCE_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "max_datasource_count",
-    local_default: 3,
+    local_default: 100,
 };
 
 /// ProxyHandler proxies connections to some database instance. Connections are
@@ -252,6 +252,10 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
             db_details.database_id,
         );
         params.insert(GLAREDB_USER_ID_KEY.key.to_string(), db_details.user_id);
+        params.insert(
+            GLAREDB_MAX_DATASOURCE_COUNT_KEY.key.to_string(),
+            db_details.max_datasource_count,
+        );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
 
