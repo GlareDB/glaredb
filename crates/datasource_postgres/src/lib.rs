@@ -19,7 +19,7 @@ use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualSchemas, VirtualTables};
+use datasource_common::listing::{VirtualLister, VirtualSchemas, VirtualTable, VirtualTables};
 use datasource_common::ssh::SshTunnelAccess;
 use datasource_common::util;
 use errors::{PostgresError, Result};
@@ -274,23 +274,21 @@ impl VirtualLister for PostgresAccessor {
             .await
             .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
 
-        let mut table_schemas: Vec<String> = Vec::with_capacity(rows.len());
-        let mut table_names: Vec<String> = Vec::with_capacity(rows.len());
+        let mut tables: Vec<VirtualTable> = Vec::with_capacity(rows.len());
         for row in rows {
-            table_schemas.push(
-                row.try_get(0)
-                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
-            );
-            table_names.push(
-                row.try_get(1)
-                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
-            );
+            let schema_name = row
+                .try_get(0)
+                .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+            let table_name = row
+                .try_get(1)
+                .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+            tables.push(VirtualTable {
+                schema_name,
+                table_name,
+            })
         }
 
-        Ok(VirtualTables {
-            table_schemas,
-            table_names,
-        })
+        Ok(VirtualTables { tables })
     }
 }
 

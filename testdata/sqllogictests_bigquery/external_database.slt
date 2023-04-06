@@ -12,3 +12,10 @@ query I
 SELECT count(*) FROM basic.${BIGQUERY_DATASET_ID}.bikeshare_stations;
 ----
 102
+
+query T
+SELECT count(*)
+	FROM basic.virtual_datasource_schema.schemas
+	WHERE schema_name = '${BIGQUERY_DATASET_ID}';
+----
+public  bikeshare_stations

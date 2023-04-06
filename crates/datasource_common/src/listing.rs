@@ -11,12 +11,14 @@ pub struct VirtualSchemas {
 }
 
 #[derive(Debug, Clone)]
+pub struct VirtualTable {
+    pub schema_name: String,
+    pub table_name: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct VirtualTables {
-    // These two vectors should always be the same length. Keeping the data as
-    // vectors instead of create a vector of structs makes conversion into arrow
-    // arrays easier.
-    pub table_schemas: Vec<String>,
-    pub table_names: Vec<String>,
+    pub tables: Vec<VirtualTable>,
 }
 
 #[async_trait]
@@ -40,9 +42,6 @@ impl VirtualLister for EmptyLister {
     }
 
     async fn list_tables(&self) -> Result<VirtualTables> {
-        Ok(VirtualTables {
-            table_schemas: Vec::new(),
-            table_names: Vec::new(),
-        })
+        Ok(VirtualTables { tables: Vec::new() })
     }
 }

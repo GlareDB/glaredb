@@ -778,8 +778,11 @@ impl<'a> VirtualSchemaDispatcher<'a> {
                     false,
                 )]));
 
-                let schemas =
-                    StringArray::from(list.schema_names.into_iter().map(Some).collect::<Vec<_>>());
+                let schemas = list
+                    .schema_names
+                    .into_iter()
+                    .map(Some)
+                    .collect::<StringArray>();
 
                 let batch =
                     RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schemas)]).unwrap();
@@ -796,14 +799,18 @@ impl<'a> VirtualSchemaDispatcher<'a> {
                     Field::new("table_name", DataType::Utf8, false),
                 ]));
 
-                let table_schemas =
-                    StringArray::from(list.table_schemas.into_iter().map(Some).collect::<Vec<_>>());
-                let table_names =
-                    StringArray::from(list.table_names.into_iter().map(Some).collect::<Vec<_>>());
+                let (mut table_schemas, mut table_names): (StringBuilder, StringBuilder) = list
+                    .tables
+                    .into_iter()
+                    .map(|table| (Some(table.schema_name), Some(table.table_name)))
+                    .unzip();
 
                 let batch = RecordBatch::try_new(
                     arrow_schema.clone(),
-                    vec![Arc::new(table_schemas), Arc::new(table_names)],
+                    vec![
+                        Arc::new(table_schemas.finish()),
+                        Arc::new(table_names.finish()),
+                    ],
                 )
                 .unwrap();
                 let table = MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap();

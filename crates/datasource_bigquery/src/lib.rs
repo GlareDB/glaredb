@@ -26,12 +26,16 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
+use datasource_common::errors::DatasourceCommonError;
+use datasource_common::listing::{VirtualLister, VirtualSchemas, VirtualTables};
 use datasource_common::util;
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryFutureExt};
 use gcp_bigquery_client::Client as BigQueryClient;
 use gcp_bigquery_client::{
+    dataset,
     model::{field_type::FieldType, table::Table},
     project::GetOptions,
+    table,
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -148,6 +152,39 @@ impl BigQueryAccessor {
             predicate_pushdown,
             arrow_schema: Arc::new(arrow_schema),
         })
+    }
+}
+
+#[async_trait]
+impl VirtualLister for BigQueryAccessor {
+    async fn list_schemas(&self) -> Result<VirtualSchemas, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let datasets = self
+            .metadata
+            .dataset()
+            .list(
+                &self.access.gcp_project_id,
+                dataset::ListOptions::default().all(true),
+            )
+            .map_err(|e| ListingErrBoxed(Box::new(BigQueryError::from(e))))
+            .await?;
+
+        let names = datasets
+            .datasets
+            .into_iter()
+            .map(|d| d.dataset_reference.dataset_id)
+            .collect();
+
+        Ok(VirtualSchemas {
+            schema_names: names,
+        })
+    }
+
+    async fn list_tables(&self) -> Result<VirtualTables, DatasourceCommonError> {
+        // TODO: Will need to be a bit more sophisticated to grab schema names
+        // from filters.
+        Ok(VirtualTables { tables: Vec::new() })
     }
 }
 
