@@ -250,7 +250,7 @@ pub mod metastore_service_client {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
-            D: std::convert::TryInto<tonic::transport::Endpoint>,
+            D: TryInto<tonic::transport::Endpoint>,
             D::Error: Into<StdError>,
         {
             let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
@@ -306,13 +306,32 @@ pub mod metastore_service_client {
             self.inner = self.inner.accept_compressed(encoding);
             self
         }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
         /// Initialize a database catalog.
         ///
         /// Idempotent, safe to call multiple times.
         pub async fn initialize_catalog(
             &mut self,
             request: impl tonic::IntoRequest<super::InitializeCatalogRequest>,
-        ) -> Result<tonic::Response<super::InitializeCatalogResponse>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::InitializeCatalogResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -326,7 +345,15 @@ pub mod metastore_service_client {
             let path = http::uri::PathAndQuery::from_static(
                 "/metastore.service.MetastoreService/InitializeCatalog",
             );
-            self.inner.unary(request.into_request(), path, codec).await
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "metastore.service.MetastoreService",
+                        "InitializeCatalog",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
         }
         /// Fetch the catalog for some database.
         ///
@@ -336,7 +363,10 @@ pub mod metastore_service_client {
         pub async fn fetch_catalog(
             &mut self,
             request: impl tonic::IntoRequest<super::FetchCatalogRequest>,
-        ) -> Result<tonic::Response<super::FetchCatalogResponse>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::FetchCatalogResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -350,13 +380,18 @@ pub mod metastore_service_client {
             let path = http::uri::PathAndQuery::from_static(
                 "/metastore.service.MetastoreService/FetchCatalog",
             );
-            self.inner.unary(request.into_request(), path, codec).await
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("metastore.service.MetastoreService", "FetchCatalog"),
+                );
+            self.inner.unary(req, path, codec).await
         }
         /// Mutate a database's catalog.
         pub async fn mutate_catalog(
             &mut self,
             request: impl tonic::IntoRequest<super::MutateRequest>,
-        ) -> Result<tonic::Response<super::MutateResponse>, tonic::Status> {
+        ) -> std::result::Result<tonic::Response<super::MutateResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -370,7 +405,15 @@ pub mod metastore_service_client {
             let path = http::uri::PathAndQuery::from_static(
                 "/metastore.service.MetastoreService/MutateCatalog",
             );
-            self.inner.unary(request.into_request(), path, codec).await
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "metastore.service.MetastoreService",
+                        "MutateCatalog",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
         }
     }
 }
@@ -387,7 +430,10 @@ pub mod metastore_service_server {
         async fn initialize_catalog(
             &self,
             request: tonic::Request<super::InitializeCatalogRequest>,
-        ) -> Result<tonic::Response<super::InitializeCatalogResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::InitializeCatalogResponse>,
+            tonic::Status,
+        >;
         /// Fetch the catalog for some database.
         ///
         /// The returned catalog will be the latest catalog that this metastore node
@@ -396,18 +442,23 @@ pub mod metastore_service_server {
         async fn fetch_catalog(
             &self,
             request: tonic::Request<super::FetchCatalogRequest>,
-        ) -> Result<tonic::Response<super::FetchCatalogResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::FetchCatalogResponse>,
+            tonic::Status,
+        >;
         /// Mutate a database's catalog.
         async fn mutate_catalog(
             &self,
             request: tonic::Request<super::MutateRequest>,
-        ) -> Result<tonic::Response<super::MutateResponse>, tonic::Status>;
+        ) -> std::result::Result<tonic::Response<super::MutateResponse>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct MetastoreServiceServer<T: MetastoreService> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
+        max_decoding_message_size: Option<usize>,
+        max_encoding_message_size: Option<usize>,
     }
     struct _Inner<T>(Arc<T>);
     impl<T: MetastoreService> MetastoreServiceServer<T> {
@@ -420,6 +471,8 @@ pub mod metastore_service_server {
                 inner,
                 accept_compression_encodings: Default::default(),
                 send_compression_encodings: Default::default(),
+                max_decoding_message_size: None,
+                max_encoding_message_size: None,
             }
         }
         pub fn with_interceptor<F>(
@@ -443,6 +496,22 @@ pub mod metastore_service_server {
             self.send_compression_encodings.enable(encoding);
             self
         }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.max_decoding_message_size = Some(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.max_encoding_message_size = Some(limit);
+            self
+        }
     }
     impl<T, B> tonic::codegen::Service<http::Request<B>> for MetastoreServiceServer<T>
     where
@@ -456,7 +525,7 @@ pub mod metastore_service_server {
         fn poll_ready(
             &mut self,
             _cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
+        ) -> Poll<std::result::Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
@@ -478,7 +547,7 @@ pub mod metastore_service_server {
                             &mut self,
                             request: tonic::Request<super::InitializeCatalogRequest>,
                         ) -> Self::Future {
-                            let inner = self.0.clone();
+                            let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 (*inner).initialize_catalog(request).await
                             };
@@ -487,6 +556,8 @@ pub mod metastore_service_server {
                     }
                     let accept_compression_encodings = self.accept_compression_encodings;
                     let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
@@ -496,6 +567,10 @@ pub mod metastore_service_server {
                             .apply_compression_config(
                                 accept_compression_encodings,
                                 send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
                             );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -518,7 +593,7 @@ pub mod metastore_service_server {
                             &mut self,
                             request: tonic::Request<super::FetchCatalogRequest>,
                         ) -> Self::Future {
-                            let inner = self.0.clone();
+                            let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 (*inner).fetch_catalog(request).await
                             };
@@ -527,6 +602,8 @@ pub mod metastore_service_server {
                     }
                     let accept_compression_encodings = self.accept_compression_encodings;
                     let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
@@ -536,6 +613,10 @@ pub mod metastore_service_server {
                             .apply_compression_config(
                                 accept_compression_encodings,
                                 send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
                             );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -558,7 +639,7 @@ pub mod metastore_service_server {
                             &mut self,
                             request: tonic::Request<super::MutateRequest>,
                         ) -> Self::Future {
-                            let inner = self.0.clone();
+                            let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 (*inner).mutate_catalog(request).await
                             };
@@ -567,6 +648,8 @@ pub mod metastore_service_server {
                     }
                     let accept_compression_encodings = self.accept_compression_encodings;
                     let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
@@ -576,6 +659,10 @@ pub mod metastore_service_server {
                             .apply_compression_config(
                                 accept_compression_encodings,
                                 send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
                             );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -604,12 +691,14 @@ pub mod metastore_service_server {
                 inner,
                 accept_compression_encodings: self.accept_compression_encodings,
                 send_compression_encodings: self.send_compression_encodings,
+                max_decoding_message_size: self.max_decoding_message_size,
+                max_encoding_message_size: self.max_encoding_message_size,
             }
         }
     }
     impl<T: MetastoreService> Clone for _Inner<T> {
         fn clone(&self) -> Self {
-            Self(self.0.clone())
+            Self(Arc::clone(&self.0))
         }
     }
     impl<T: std::fmt::Debug> std::fmt::Debug for _Inner<T> {
