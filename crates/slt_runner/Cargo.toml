@@ -11,7 +11,7 @@ glaredb = {path = "../glaredb"}
 metastore = {path = "../metastore"}
 tokio = { version = "1", features = ["full"] }
 sqllogictest = "0.13.2"
-tokio-postgres = "0.7.7"
+tokio-postgres = "0.7.8"
 object_store = {version = "0.5", features = ["gcp"]}
 anyhow = "1.0"
 clap = { version = "4.2.1", features = ["derive"] }

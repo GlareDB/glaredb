@@ -9,7 +9,7 @@ edition = "2021"
 logutil = {path = "../logutil"}
 object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
-tonic = { version = "0.8", features = ["transport", "tls", "tls-roots"] }
+tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"
 thiserror = "1.0"
@@ -27,4 +27,4 @@ tower = "0.4"
 futures = "0.3.28"
 
 [build-dependencies]
-tonic-build = "0.8"
+tonic-build = "0.9"

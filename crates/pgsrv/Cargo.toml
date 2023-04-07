@@ -18,8 +18,8 @@ datafusion = "20.0"
 tokio-util = { version = "0.7.7", features = ["codec"] }
 bytes = "1.4.0"
 tokio = { version = "1", features = ["full"] }
-openssl = "0.10.48"
+openssl = "0.10.49"
 reqwest = { version = "0.11.16", default-features = false, features = ["json", "rustls-tls"] }
 tokio-openssl = "0.6.3"
 uuid = { version = "1.3.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
-tokio-postgres = "0.7.7"
+tokio-postgres = "0.7.8"
