@@ -101,6 +101,7 @@
         generated-certs = pkgs.stdenv.mkDerivation {
           name = "generated-certs";
           buildInputs = [pkgs.openssl pkgs.coreutils];
+          src = ./scripts;
           installPhase = "./scripts/gen-certs.sh && mkdir -p $out/certs && cp server.{crt,key} $out/certs/.";
         };
 
