@@ -16,7 +16,7 @@ pub struct DatabaseDetails {
     /// ID of the user initiating the connection (UUID).
     pub user_id: String,
     /// Max number of data sources allowed
-    pub max_datasource_count: String,
+    pub max_datasource_count: usize,
 }
 
 #[async_trait]
