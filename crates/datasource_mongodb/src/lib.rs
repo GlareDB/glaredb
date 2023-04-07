@@ -5,7 +5,7 @@ mod builder;
 mod exec;
 mod infer;
 
-use crate::errors::Result;
+use crate::errors::{MongoError, Result};
 use crate::exec::MongoBsonExec;
 use crate::infer::TableSampler;
 use async_trait::async_trait;
@@ -19,7 +19,94 @@ use mongodb::bson::{Document, RawDocumentBuf};
 use mongodb::Collection;
 use mongodb::{options::ClientOptions, Client};
 use std::any::Any;
+use std::fmt::{Display, Write};
+use std::str::FromStr;
 use std::sync::Arc;
+
+#[derive(Debug)]
+pub enum MongoProtocol {
+    MongoDb,
+    MongoDbSrv,
+}
+
+impl Default for MongoProtocol {
+    fn default() -> Self {
+        Self::MongoDb
+    }
+}
+
+impl MongoProtocol {
+    const MONGODB: &'static str = "mongodb";
+    const MONGODB_SRV: &'static str = "mongodb+srv";
+}
+
+impl FromStr for MongoProtocol {
+    type Err = MongoError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let proto = match s {
+            Self::MONGODB => Self::MongoDb,
+            Self::MONGODB_SRV => Self::MongoDbSrv,
+            s => return Err(MongoError::InvalidProtocol(s.to_owned())),
+        };
+        Ok(proto)
+    }
+}
+
+impl Display for MongoProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::MongoDb => Self::MONGODB,
+            Self::MongoDbSrv => Self::MONGODB_SRV,
+        };
+        f.write_str(s)
+    }
+}
+
+#[derive(Debug)]
+pub enum MongoDbConnection {
+    ConnectionString(String),
+    Parameters {
+        protocol: MongoProtocol,
+        host: String,
+        port: Option<u16>,
+        user: String,
+        password: Option<String>,
+    },
+}
+
+impl MongoDbConnection {
+    pub fn connection_string(&self) -> String {
+        match self {
+            Self::ConnectionString(s) => s.to_owned(),
+            Self::Parameters {
+                protocol,
+                host,
+                port,
+                user,
+                password,
+            } => {
+                let mut conn_str = String::new();
+                // Protocol
+                write!(&mut conn_str, "{protocol}://").unwrap();
+                // Credentials
+                write!(&mut conn_str, "{user}").unwrap();
+                if let Some(password) = password {
+                    write!(&mut conn_str, ":{password}").unwrap();
+                }
+                // Address
+                write!(&mut conn_str, "@{host}").unwrap();
+                if matches!(protocol, MongoProtocol::MongoDb) {
+                    // Only attempt to write port if the protocol is "mongodb"
+                    if let Some(port) = port {
+                        write!(&mut conn_str, ":{port}").unwrap();
+                    }
+                }
+                conn_str
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct MongoAccessInfo {
@@ -142,5 +229,61 @@ impl TableProvider for MongoTableProvider {
             self.collection.clone(),
             limit,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connection_string() {
+        let conn_str = MongoDbConnection::ConnectionString(
+            "mongodb://prod:password123@127.0.0.1:5432".to_string(),
+        )
+        .connection_string();
+        assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1:5432");
+
+        let conn_str = MongoDbConnection::Parameters {
+            protocol: MongoProtocol::MongoDb,
+            host: "127.0.0.1".to_string(),
+            port: Some(5432),
+            user: "prod".to_string(),
+            password: Some("password123".to_string()),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1:5432");
+
+        let conn_str = MongoDbConnection::Parameters {
+            protocol: MongoProtocol::MongoDbSrv,
+            host: "127.0.0.1".to_string(),
+            port: Some(5432),
+            user: "prod".to_string(),
+            password: Some("password123".to_string()),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "mongodb+srv://prod:password123@127.0.0.1");
+
+        // Missing password.
+        let conn_str = MongoDbConnection::Parameters {
+            protocol: Default::default(),
+            host: "127.0.0.1".to_string(),
+            port: Some(5432),
+            user: "prod".to_string(),
+            password: None,
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "mongodb://prod@127.0.0.1:5432");
+
+        // Missing port.
+        let conn_str = MongoDbConnection::Parameters {
+            protocol: Default::default(),
+            host: "127.0.0.1".to_string(),
+            port: None,
+            user: "prod".to_string(),
+            password: Some("password123".to_string()),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1");
     }
 }

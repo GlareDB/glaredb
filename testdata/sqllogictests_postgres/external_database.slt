@@ -1,14 +1,36 @@
-# Basic test for external database.
+# Basic tests for external database.
 
 statement ok
-CREATE EXTERNAL DATABASE basic
+CREATE EXTERNAL DATABASE external_db
 	FROM postgres
 	OPTIONS (
-		postgres_conn = '${POSTGRES_CONN_STRING}',
+		connection_string = '${POSTGRES_CONN_STRING}',
 	);
 
 query I
-SELECT count(*) FROM basic.public.bikeshare_stations;
+SELECT count(*) FROM external_db.public.bikeshare_stations;
+----
+102
+
+statement ok
+DROP DATABASE external_db;
+
+# Test if we can create external database using expanded options.
+
+# TODO: Use env vars instead of hard-coding values
+statement ok
+CREATE EXTERNAL DATABASE external_db
+	FROM postgres
+	OPTIONS (
+		host = 'localhost',
+		port = '5432',
+		user = 'glaredb',
+		password = 'password',
+		database = 'glaredb_test',
+	);
+
+query I
+SELECT count(*) FROM external_db.public.bikeshare_stations;
 ----
 102
 
@@ -16,7 +38,10 @@ SELECT count(*) FROM basic.public.bikeshare_stations;
 
 query TT
 SELECT table_schema, table_name
-	FROM basic.virtual_datasource_schema.tables
+	FROM external_db.virtual_datasource_schema.tables
 	WHERE table_schema = 'public' AND table_name = 'bikeshare_stations';
 ----
 public  bikeshare_stations
+
+statement ok
+DROP DATABASE external_db;

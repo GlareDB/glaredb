@@ -14,11 +14,12 @@ use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_debug::DebugTableType;
-use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
+use datasource_mongodb::{MongoDbConnection, MongoProtocol};
+use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
-use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
+use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
@@ -70,7 +71,7 @@ impl<'a> SessionPlanner<'a> {
 
         let db_options = match stmt.datasource.to_lowercase().as_str() {
             DatabaseOptions::POSTGRES => {
-                let connection_string = remove_required_opt(m, "postgres_conn")?;
+                let connection_string = get_pg_conn_str(m)?;
                 PostgresAccessor::validate_external_database(&connection_string, None)
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
@@ -92,7 +93,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::MYSQL => {
-                let connection_string = remove_required_opt(m, "mysql_conn")?;
+                let connection_string = get_mysql_conn_str(m)?;
                 MysqlAccessor::validate_external_database(&connection_string, None)
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
@@ -101,7 +102,7 @@ impl<'a> SessionPlanner<'a> {
                 DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
             }
             DatabaseOptions::MONGO => {
-                let connection_string = remove_required_opt(m, "mongo_conn")?;
+                let connection_string = get_mongo_conn_str(m)?;
                 // TODO: Validate external db connection
                 DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
             }
@@ -142,7 +143,7 @@ impl<'a> SessionPlanner<'a> {
         let (external_table_options, external_table_columns) =
             match stmt.datasource.to_lowercase().as_str() {
                 TableOptions::POSTGRES => {
-                    let connection_string = remove_required_opt(m, "postgres_conn")?;
+                    let connection_string = get_pg_conn_str(m)?;
                     let schema = remove_required_opt(m, "schema")?;
                     let table = remove_required_opt(m, "table")?;
 
@@ -198,7 +199,7 @@ impl<'a> SessionPlanner<'a> {
                     )
                 }
                 TableOptions::MYSQL => {
-                    let connection_string = remove_required_opt(m, "mysql_conn")?;
+                    let connection_string = get_mysql_conn_str(m)?;
                     let schema = remove_required_opt(m, "schema")?;
                     let table = remove_required_opt(m, "table")?;
 
@@ -225,7 +226,7 @@ impl<'a> SessionPlanner<'a> {
                     )
                 }
                 TableOptions::MONGO => {
-                    let connection_string = remove_required_opt(m, "mongo_conn")?;
+                    let connection_string = get_mongo_conn_str(m)?;
                     let database = remove_required_opt(m, "database")?;
                     let collection = remove_required_opt(m, "collection")?;
 
@@ -730,6 +731,95 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
                 sql_type
             )),
         }
+}
+
+fn get_pg_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
+    let conn = match remove_optional_opt(m, "connection_string")? {
+        Some(conn_str) => PostgresDbConnection::ConnectionString(conn_str),
+        None => {
+            let host = remove_required_opt(m, "host")?;
+            let port = match remove_optional_opt(m, "port")? {
+                Some(p) => {
+                    let p: u16 = p.parse()?;
+                    Some(p)
+                }
+                None => None,
+            };
+            let user = remove_required_opt(m, "user")?;
+            let password = remove_optional_opt(m, "password")?;
+            let database = remove_required_opt(m, "database")?;
+            PostgresDbConnection::Parameters {
+                host,
+                port,
+                user,
+                password,
+                database,
+            }
+        }
+    };
+
+    Ok(conn.connection_string())
+}
+
+fn get_mysql_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
+    let conn = match remove_optional_opt(m, "connection_string")? {
+        Some(conn_str) => MysqlDbConnection::ConnectionString(conn_str),
+        None => {
+            let host = remove_required_opt(m, "host")?;
+            let port = match remove_optional_opt(m, "port")? {
+                Some(p) => {
+                    let p: u16 = p.parse()?;
+                    Some(p)
+                }
+                None => None,
+            };
+            let user = remove_required_opt(m, "user")?;
+            let password = remove_optional_opt(m, "password")?;
+            let database = remove_required_opt(m, "database")?;
+            MysqlDbConnection::Parameters {
+                host,
+                port,
+                user,
+                password,
+                database,
+            }
+        }
+    };
+
+    Ok(conn.connection_string())
+}
+
+fn get_mongo_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
+    let conn = match remove_optional_opt(m, "connection_string")? {
+        Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
+        None => {
+            let protocol: MongoProtocol = match remove_optional_opt(m, "protocol")? {
+                Some(p) => p
+                    .parse()
+                    .map_err(|e| internal!("Cannot parse mongo protocol: {e}"))?,
+                None => Default::default(),
+            };
+            let host = remove_required_opt(m, "host")?;
+            let port = match remove_optional_opt(m, "port")? {
+                Some(p) => {
+                    let p: u16 = p.parse()?;
+                    Some(p)
+                }
+                None => None,
+            };
+            let user = remove_required_opt(m, "user")?;
+            let password = remove_optional_opt(m, "password")?;
+            MongoDbConnection::Parameters {
+                protocol,
+                host,
+                port,
+                user,
+                password,
+            }
+        }
+    };
+
+    Ok(conn.connection_string())
 }
 
 /// Returns a validated `DataType` for the specified precision and

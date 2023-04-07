@@ -4,7 +4,7 @@ statement ok
 CREATE EXTERNAL TABLE large_table
 	FROM postgres
 	OPTIONS (
-		postgres_conn = '${POSTGRES_CONN_STRING}',
+		connection_string = '${POSTGRES_CONN_STRING}',
 		schema = 'public',
 		table = 'bikeshare_trips'
 	);
