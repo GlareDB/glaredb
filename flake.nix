@@ -95,7 +95,7 @@
 
         # Build all dependencies. Built dependencies will be reused across checks
         # and builds.
-        cargoArtifacts = craneLib.buildDepsOnly ({} // common-build-args);
+        cargoArtifacts = craneLib.buildDepsOnly common-build-args;
 
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
@@ -104,6 +104,25 @@
           src = ./scripts;
           installPhase = "./scripts/gen-certs.sh && mkdir -p $out/certs && cp server.{crt,key} $out/certs/.";
         };
+
+        # GlareDB binary.
+        glaredb-bin = craneLib.buildPackage ({
+          inherit cargoArtifacts;
+          pname = "glaredb";
+          cargoExtraArgs = "--bin glaredb";
+        } // common-build-args);
+
+        slt-runner-bin = craneLib.buildPackage ({
+          inherit cargoArtifacts;
+          pname = "slt-runner";
+          cargoExtraArgs = "--bin slt_runner";
+        } // common-build-args);
+
+        pgprototest-bin = craneLib.buildPackage ({
+          inherit cargoArtifacts;
+          pname = "pgprototest";
+          cargoExtraArgs = "--bin pgprototest";
+        } // common-build-args);
 
         # Utilities that are helpful to have in the container for debugging
         # purposes.
@@ -159,9 +178,9 @@
         # Checks ran in CI. This includes linting and testing.
         checks = {
           # Ensure the packages can be built.
-          glaredb-bin = packages.glaredb-bin;
-          slt-runner-bin = packages.slt-runner-bin;
-          pgprototest-bin = packages.pgprototest-bin;
+          inherit glaredb-bin;
+          inherit slt-runner-bin;
+          inherit pgprototest-bin;
 
           # Run clippy.
           clippy-check = craneLib.cargoClippy ({
@@ -191,11 +210,9 @@
         packages = {
           generated-certs = generated-certs;
 
-          # GlareDB binary.
-          glaredb-bin = craneLib.buildPackage ({
-            pname = "glaredb";
-            cargoExtraArgs = "--bin glaredb";
-          } // common-build-args);
+          inherit glaredb-bin;
+          inherit slt-runner-bin;
+          inherit pgprototest-bin;
 
           # GlareDB image.
           glaredb-image = mkContainer {
@@ -210,15 +227,6 @@
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 
-          slt-runner-bin = craneLib.buildPackage ({
-            pname = "slt-runner";
-            cargoExtraArgs = "--bin slt_runner";
-          } // common-build-args);
-
-          pgprototest-bin = craneLib.buildPackage ({
-            pname = "pgprototest";
-            cargoExtraArgs = "--bin pgprototest";
-          } // common-build-args);
         };
 
         # Runnable applications.
