@@ -518,7 +518,7 @@ dependencies = [
  "prost",
  "prost-types",
  "tonic 0.8.3",
- "tonic-build",
+ "tonic-build 0.8.4",
  "yup-oauth2 5.1.0",
 ]
 
@@ -2883,7 +2883,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic 0.9.1",
- "tonic-build",
+ "tonic-build 0.9.1",
  "tower",
  "tracing",
  "uuid",
