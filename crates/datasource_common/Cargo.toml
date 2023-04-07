@@ -17,6 +17,6 @@ tempfile = "3.5.0"
 thiserror = "1.0"
 tokio = { version = "1.27.0", features = ["full"] }
 tracing = "0.1"
-datafusion = "20.0"
+datafusion = "21.1"
 chrono = "0.4.24"
 rust_decimal = "1.29.0"

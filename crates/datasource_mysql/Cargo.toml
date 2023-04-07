@@ -13,7 +13,7 @@ futures = "0.3.28"
 async-trait = "0.1.68"
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3.4"
-datafusion = "20.0"
+datafusion = "21.1"
 serde = { version = "1.0", features = ["derive"] }
 mysql_async = "0.31.3"
 mysql_common = { version = "*", features = ["chrono"] }

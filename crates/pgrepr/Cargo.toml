@@ -9,7 +9,7 @@ edition = "2021"
 repr = { path = "../repr" }
 thiserror = "1.0"
 bytes = "1.4.0"
-datafusion = "20.0"
+datafusion = "21.1"
 tokio-postgres = { version = "0.7.7", features = ["with-uuid-1", "with-serde_json-1", "with-chrono-0_4"] }
 num-traits = "0.2.15"
 dtoa = "1.0.6"
