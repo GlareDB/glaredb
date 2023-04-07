@@ -193,7 +193,6 @@
 
           # GlareDB binary.
           glaredb-bin = craneLib.buildPackage ({
-            inherit cargoArtifacts;
             pname = "glaredb";
             cargoExtraArgs = "--bin glaredb";
           } // common-build-args);
@@ -212,13 +211,11 @@
           };
 
           slt-runner-bin = craneLib.buildPackage ({
-            inherit cargoArtifacts;
             pname = "slt-runner";
             cargoExtraArgs = "--bin slt_runner";
           } // common-build-args);
 
           pgprototest-bin = craneLib.buildPackage ({
-            inherit cargoArtifacts;
             pname = "pgprototest";
             cargoExtraArgs = "--bin pgprototest";
           } // common-build-args);
