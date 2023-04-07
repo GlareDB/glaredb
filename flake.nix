@@ -106,23 +106,26 @@
         };
 
         # GlareDB binary.
-        glaredb-bin = craneLib.buildPackage ({
+        glaredb-bin = craneLib.buildPackage (common-build-args // {
           inherit cargoArtifacts;
           pname = "glaredb";
           cargoExtraArgs = "--bin glaredb";
-        } // common-build-args);
+          doCheck = false; # Skip tests, handled by a seperate step.
+        });
 
-        slt-runner-bin = craneLib.buildPackage ({
+        slt-runner-bin = craneLib.buildPackage (common-build-args // {
           inherit cargoArtifacts;
           pname = "slt-runner";
           cargoExtraArgs = "--bin slt_runner";
-        } // common-build-args);
+          doCheck = false; # Skip tests, handled by a seperate step.
+        });
 
-        pgprototest-bin = craneLib.buildPackage ({
+        pgprototest-bin = craneLib.buildPackage (common-build-args // {
           inherit cargoArtifacts;
           pname = "pgprototest";
           cargoExtraArgs = "--bin pgprototest";
-        } // common-build-args);
+          doCheck = false; # Skip tests, handled by a seperate step.
+        });
 
         # Utilities that are helpful to have in the container for debugging
         # purposes.
@@ -183,27 +186,27 @@
           inherit pgprototest-bin;
 
           # Run clippy.
-          clippy-check = craneLib.cargoClippy ({
+          clippy-check = craneLib.cargoClippy (common-build-args // {
             inherit cargoArtifacts;
             cargoClippyExtraArgs = "--all-features -- --deny warnings";
-          } // common-build-args);
+          });
 
           # Run tests.
-          tests-check = craneLib.cargoNextest ({
+          tests-check = craneLib.cargoNextest (common-build-args // {
             inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
-          } // common-build-args);
+          });
 
           # Check formatting.
-          fmt-check = craneLib.cargoFmt ({
+          fmt-check = craneLib.cargoFmt (common-build-args // {
             inherit cargoArtifacts;
-          } // common-build-args);
+          });
 
           # Check docs (and doc tests).
-          crate-docs = craneLib.cargoDoc ({
+          crate-docs = craneLib.cargoDoc (common-build-args // {
             inherit cargoArtifacts;
-          } // common-build-args);
+          });
         };
 
         # Buildable packages.
