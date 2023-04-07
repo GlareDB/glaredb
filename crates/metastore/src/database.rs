@@ -396,8 +396,11 @@ impl State {
                     self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::CreateExternalDatabase(create_database) => {
-                    // TODO: If not exists.
-                    // TODO: Need to do slight refactor to hold database names.
+                    match self.database_names.get(&create_database.name) {
+                        Some(_) if create_database.if_not_exists => return Ok(()), // Already exists, nothing to do.
+                        Some(_) => return Err(MetastoreError::DuplicateName(create_database.name)),
+                        None => (),
+                    }
 
                     // Create new entry
                     let oid = self.next_oid();
@@ -674,7 +677,12 @@ impl BuiltinCatalog {
 mod tests {
     use super::*;
     use crate::storage::persist::Storage;
-    use crate::types::service::{CreateSchema, CreateView, DropSchema};
+    use crate::types::options::DatabaseOptionsDebug;
+    use crate::types::options::TableOptionsDebug;
+    use crate::types::service::DropDatabase;
+    use crate::types::service::{
+        CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
+    };
     use object_store::memory::InMemory;
     use std::collections::HashSet;
 
@@ -919,48 +927,137 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn duplicate_names_if_not_exists() {
-    //     let db = new_catalog().await;
-    //     let initial = version(&db).await;
+    #[tokio::test]
+    async fn duplicate_table_names_if_not_exists() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
 
-    //     // Add schema.
-    //     let state = db
-    //         .try_mutate(
-    //             initial,
-    //             vec![Mutation::CreateSchema(CreateSchema {
-    //                 name: "mushroom".to_string(),
-    //             })],
-    //         )
-    //         .await
-    //         .unwrap();
+        // Add schema.
+        let state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "mushroom".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
 
-    //     // Duplicate connection, no failure.
-    //     let _ = db
-    //         .try_mutate(
-    //             state.version,
-    //             vec![Mutation::CreateView(CreateView {
-    //                 schema: "public".to_string(),
-    //                 name: "bowser".to_string(),
-    //                 sql: "select 1".to_string(),
-    //             })],
-    //         )
-    //         .await
-    //         .unwrap();
+        // Try to add two tables with the same name, each with "if not exists"
+        // set to true.
+        let mutation = Mutation::CreateExternalTable(CreateExternalTable {
+            schema: "mushroom".to_string(),
+            name: "bowser".to_string(),
+            options: TableOptions::Debug(TableOptionsDebug {
+                table_type: String::new(),
+            }),
+            if_not_exists: true,
+            columns: Vec::new(),
+        });
+        let _ = db
+            .try_mutate(state.version, vec![mutation.clone(), mutation])
+            .await
+            .unwrap();
 
-    //     // Check that the duplicate connection we tried to create is not in the
-    //     // state.
-    //     let state = db.get_state().await.unwrap();
-    //     let ents: Vec<_> = state
-    //         .entries
-    //         .iter()
-    //         .filter(|(_, ent)| ent.get_meta().name == "bowser")
-    //         .collect();
-    //     assert!(
-    //         ents.len() == 1,
-    //         "found more than one 'bowser' entry (found {}): {:?}",
-    //         ents.len(),
-    //         ents
-    //     );
-    // }
+        // Check that the duplicate connection we tried to create is not in the
+        // state.
+        let state = db.get_state().await.unwrap();
+        let ents: Vec<_> = state
+            .entries
+            .iter()
+            .filter(|(_, ent)| ent.get_meta().name == "bowser")
+            .collect();
+        assert!(
+            ents.len() == 1,
+            "found more than one 'bowser' entry (found {}): {:?}",
+            ents.len(),
+            ents
+        );
+    }
+
+    #[tokio::test]
+    async fn duplicate_database_names() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        let state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
+                    name: "bq".to_string(),
+                    options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Should fail if "if not exists" set to false.
+        let _ = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
+                    name: "bq".to_string(),
+                    options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap_err();
+
+        // Should pass if "if not exists" set to true.
+        let state = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
+                    name: "bq".to_string(),
+                    options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
+                    if_not_exists: true,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Drop database.
+        let state = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::DropDatabase(DropDatabase {
+                    name: "bq".to_string(),
+                    if_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Now should be able to create new database with name.
+        let _state = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
+                    name: "bq".to_string(),
+                    options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn drop_database_if_exists() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        let _state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::DropDatabase(DropDatabase {
+                    name: "doesntexist".to_string(),
+                    if_exists: true,
+                })],
+            )
+            .await
+            .unwrap();
+    }
 }
