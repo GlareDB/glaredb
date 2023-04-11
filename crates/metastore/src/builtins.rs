@@ -34,9 +34,9 @@ pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 ///
 /// This is used to dispatch to a "view" that internally fetches schema and
 /// table information from the external data source.
-pub const VIRTUAL_SCHEMA: &str = "virtual_datasource_schema";
-pub const VIRTUAL_SCHEMA_SCHEMATA_TABLE: &str = "schemata";
-pub const VIRTUAL_SCHEMA_TABLES_TABLE: &str = "tables";
+pub const VIRTUAL_CATALOG_SCHEMA: &str = "virtual_catalog";
+pub const VIRTUAL_CATALOG_SCHEMATA_TABLE: &str = "schemata";
+pub const VIRTUAL_CATALOG_TABLES_TABLE: &str = "tables";
 
 /// First oid available for other builtin objects.
 ///

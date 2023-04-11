@@ -19,6 +19,8 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
+use datasource_common::errors::DatasourceCommonError;
+use datasource_common::listing::{VirtualLister, VirtualTable};
 use errors::DebugError;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -121,6 +123,46 @@ impl DebugTableType {
 
     pub fn into_table_provider(self) -> Arc<dyn TableProvider> {
         Arc::new(DebugTableProvider { typ: self })
+    }
+}
+
+pub struct DebugVirtualLister;
+
+#[async_trait]
+impl VirtualLister for DebugVirtualLister {
+    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
+        Ok((0..2).map(|i| format!("schema_{i}")).collect())
+    }
+
+    async fn list_tables(
+        &self,
+        schema: Option<&str>,
+    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+        if let Some(schema) = schema {
+            if schema == "debug_schema" {
+                // This schema doesn't actually exist but we want to check if
+                // we get the schema from the filters correctly.
+                let tables: Vec<_> = (0..2)
+                    .map(|i| VirtualTable {
+                        schema: schema.to_owned(),
+                        table: format!("table_{i}"),
+                    })
+                    .collect();
+                return Ok(tables);
+            }
+        }
+
+        let schema_list = self.list_schemas().await.unwrap();
+        let mut tables = Vec::new();
+        for schema in schema_list.iter() {
+            for i in 0..2 {
+                tables.push(VirtualTable {
+                    schema: schema.clone(),
+                    table: format!("table_{i}"),
+                });
+            }
+        }
+        Ok(tables)
     }
 }
 

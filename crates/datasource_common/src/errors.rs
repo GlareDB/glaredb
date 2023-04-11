@@ -15,11 +15,8 @@ pub enum DatasourceCommonError {
     #[error("Failed to find an open port to open the SSH tunnel")]
     NoOpenPorts,
 
-    #[error("Listing schemas for this data source is unsupported.")]
-    ListingSchemasUnsupported,
-
-    #[error("Listing tables for this data source is unsupported.")]
-    ListingTablesUnsupported,
+    #[error("Unknown virtual catalog table: {0}")]
+    UnknownVirtualCatalogTable(String),
 
     #[error(transparent)]
     ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),

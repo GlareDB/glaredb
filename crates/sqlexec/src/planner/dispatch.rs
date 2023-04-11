@@ -1,16 +1,15 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use datafusion::arrow::array::{
-    BooleanBuilder, StringArray, StringBuilder, UInt32Builder, UInt64Builder,
-};
-use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::listing::{EmptyLister, VirtualLister};
-use datasource_debug::DebugTableType;
+use datasource_common::listing::{
+    EmptyLister, VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister,
+};
+use datasource_debug::{DebugTableType, DebugVirtualLister};
 use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -20,8 +19,7 @@ use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
-    GLARE_TABLES, GLARE_VIEWS, VIRTUAL_SCHEMA, VIRTUAL_SCHEMA_SCHEMATA_TABLE,
-    VIRTUAL_SCHEMA_TABLES_TABLE,
+    GLARE_TABLES, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -48,9 +46,6 @@ pub enum DispatchError {
 
     #[error("Missing builtin table; schema: {schema}, name: {name}")]
     MissingBuiltinTable { schema: String, name: String },
-
-    #[error("Missing virtual table; name: {name}")]
-    MissingVirtualTable { name: String },
 
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
@@ -175,8 +170,8 @@ impl<'a> SessionDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         // Short circuit if query is referencing a schema that doesn't actually
         // exist on the data source.
-        if schema == VIRTUAL_SCHEMA {
-            let dispatcher = VirtualSchemaDispatcher::new(db, name);
+        if schema == VIRTUAL_CATALOG_SCHEMA {
+            let dispatcher = VirtualCatalogDispatcher::new(db, name);
             return dispatcher.dispatch().await;
         }
 
@@ -754,75 +749,31 @@ impl<'a> SystemTableDispatcher<'a> {
 ///
 /// This is unlikely to be documented for public use. The use case for it to be
 /// able to lazily load schemas/tables in the dashboard.
-struct VirtualSchemaDispatcher<'a> {
+struct VirtualCatalogDispatcher<'a> {
     db: &'a DatabaseEntry,
-    name: &'a str,
+    table_name: &'a str,
 }
 
-impl<'a> VirtualSchemaDispatcher<'a> {
-    fn new(db: &'a DatabaseEntry, name: &'a str) -> Self {
-        VirtualSchemaDispatcher { db, name }
+impl<'a> VirtualCatalogDispatcher<'a> {
+    fn new(db: &'a DatabaseEntry, table_name: &'a str) -> Self {
+        VirtualCatalogDispatcher { db, table_name }
     }
 
     async fn dispatch(&self) -> Result<Arc<dyn TableProvider>> {
-        // TODO: These arrows schemas will likely be stored elsewhere. This
-        // currently a bit experimental, so easier to keep it all in one place.
-        match self.name {
-            VIRTUAL_SCHEMA_SCHEMATA_TABLE => {
-                let lister = self.get_lister().await?;
-                let list = lister.list_schemas().await?;
-
-                let arrow_schema = Arc::new(ArrowSchema::new(vec![Field::new(
-                    "schema_name",
-                    DataType::Utf8,
-                    false,
-                )]));
-
-                let schemas =
-                    StringArray::from(list.schema_names.into_iter().map(Some).collect::<Vec<_>>());
-
-                let batch =
-                    RecordBatch::try_new(arrow_schema.clone(), vec![Arc::new(schemas)]).unwrap();
-                let table = MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap();
-
-                Ok(Arc::new(table))
-            }
-            VIRTUAL_SCHEMA_TABLES_TABLE => {
-                let lister = self.get_lister().await?;
-                let list = lister.list_tables().await?;
-
-                let arrow_schema = Arc::new(ArrowSchema::new(vec![
-                    Field::new("table_schema", DataType::Utf8, false),
-                    Field::new("table_name", DataType::Utf8, false),
-                ]));
-
-                let table_schemas =
-                    StringArray::from(list.table_schemas.into_iter().map(Some).collect::<Vec<_>>());
-                let table_names =
-                    StringArray::from(list.table_names.into_iter().map(Some).collect::<Vec<_>>());
-
-                let batch = RecordBatch::try_new(
-                    arrow_schema.clone(),
-                    vec![Arc::new(table_schemas), Arc::new(table_names)],
-                )
-                .unwrap();
-                let table = MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap();
-
-                Ok(Arc::new(table))
-            }
-            other => Err(DispatchError::MissingVirtualTable {
-                name: other.to_string(),
-            }),
-        }
+        let catalog: VirtualCatalogTable = self.table_name.parse()?;
+        let lister = self.get_lister().await?;
+        Ok(Arc::new(VirtualCatalogTableProvider::new(lister, catalog)))
     }
 
     async fn get_lister(&self) -> Result<Box<dyn VirtualLister>> {
-        match &self.db.options {
+        let lister: Box<dyn VirtualLister> = match &self.db.options {
+            DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let accessor = PostgresAccessor::connect(connection_string, None).await?;
-                Ok(Box::new(accessor))
+                Box::new(accessor)
             }
-            _ => Ok(Box::new(EmptyLister)),
-        }
+            _ => Box::new(EmptyLister),
+        };
+        Ok(lister)
     }
 }
