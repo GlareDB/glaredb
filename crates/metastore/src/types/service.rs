@@ -279,6 +279,7 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct AlterTableRename {
+    pub schema: String,
     pub name: String,
     pub new_name: String,
     pub if_exists: bool,
@@ -289,6 +290,7 @@ impl TryFrom<service::AlterTableRename> for AlterTableRename {
     fn try_from(value: service::AlterTableRename) -> Result<Self, Self::Error> {
         // TODO: Check if string are zero value.
         Ok(AlterTableRename {
+            schema: value.schema,
             name: value.name,
             new_name: value.new_name,
             if_exists: value.if_exists,
@@ -299,6 +301,7 @@ impl TryFrom<service::AlterTableRename> for AlterTableRename {
 impl From<AlterTableRename> for service::AlterTableRename {
     fn from(value: AlterTableRename) -> Self {
         service::AlterTableRename {
+            schema: value.schema,
             name: value.name,
             new_name: value.new_name,
             if_exists: value.if_exists,

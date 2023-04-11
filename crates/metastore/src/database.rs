@@ -495,7 +495,52 @@ impl State {
                     )?;
                 }
                 Mutation::AlterTableRename(alter_table_rename) => {
-                    // do stuff
+                    let if_exists = alter_table_rename.if_exists;
+
+                    let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingNamedSchema(
+                                alter_table_rename.schema,
+                            ))
+                        }
+                        Some(id) => *id,
+                    };
+
+                    let objs = match self.schema_objects.get_mut(&schema_id) {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_table_rename.schema,
+                                name: alter_table_rename.name,
+                            })
+                        }
+                        Some(objs) => objs,
+                    };
+
+                    let ent = match objs.objects.get(&alter_table_rename.name) {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_table_rename.schema,
+                                name: alter_table_rename.name,
+                            })
+                        }
+                        Some(id) => id,
+                    };
+
+                    let entry = match self.entries.get(ent) {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_table_rename.schema,
+                                name: alter_table_rename.name,
+                            })
+                        }
+                        Some(e) => e,
+                    };
+
+                    // how do I change this from CatalogEntry to TableEntry?
                 }
             }
         }

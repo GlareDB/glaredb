@@ -160,10 +160,12 @@ pub struct CreateExternalDatabase {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AlterTableRename {
     #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
+    pub schema: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
     pub new_name: ::prost::alloc::string::String,
-    #[prost(bool, tag = "3")]
+    #[prost(bool, tag = "4")]
     pub if_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
