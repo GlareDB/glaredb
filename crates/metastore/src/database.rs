@@ -495,6 +495,10 @@ impl State {
                     )?;
                 }
                 Mutation::AlterTableRename(alter_table_rename) => {
+                    if self.schema_names.contains_key(&alter_table_rename.new_name) {
+                        return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
+                    }
+
                     let if_exists = alter_table_rename.if_exists;
 
                     let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
@@ -518,7 +522,7 @@ impl State {
                         Some(objs) => objs,
                     };
 
-                    let ent = match objs.objects.get(&alter_table_rename.name) {
+                    let oid = match objs.objects.get(&alter_table_rename.name) {
                         None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
@@ -529,7 +533,7 @@ impl State {
                         Some(id) => id,
                     };
 
-                    let entry = match self.entries.get(ent) {
+                    let mut table = match self.entries.remove(oid) {
                         None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
@@ -537,10 +541,20 @@ impl State {
                                 name: alter_table_rename.name,
                             })
                         }
-                        Some(e) => e,
+                        Some(e) => match e {
+                            CatalogEntry::Table(ent) => ent,
+                            other => panic!("unexpected entry type: {:?}", other),
+                        },
                     };
 
-                    // how do I change this from CatalogEntry to TableEntry?
+                    table.meta.name = alter_table_rename.new_name;
+
+                    self.try_insert_entry_for_schema(
+                        CatalogEntry::Table(table.clone()),
+                        schema_id,
+                        table.meta.id,
+                        false,
+                    )?;
                 }
             }
         }
