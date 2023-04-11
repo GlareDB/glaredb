@@ -194,6 +194,17 @@ impl SessionContext {
         Ok(())
     }
 
+    pub async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
+        self.mutate_catalog([Mutation::AlterTableRename(service::AlterTableRename {
+            name: plan.name,
+            new_name: plan.new_name,
+            if_exists: plan.if_exists,
+        })])
+        .await?;
+
+        Ok(())
+    }
+
     /// Drop one or more tables.
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());

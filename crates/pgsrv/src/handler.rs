@@ -604,6 +604,9 @@ where
             ExecutionResult::CreateConnection => {
                 Self::command_complete(conn, "CREATE CONNECTION").await?
             }
+            ExecutionResult::AlterTableRename => {
+                Self::command_complete(conn, "ALTER TABLE").await?
+            }
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,

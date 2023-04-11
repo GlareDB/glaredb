@@ -27,6 +27,7 @@ use metastore::types::options::{
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
     TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
+use sqlparser::ast::AlterTableOperation;
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
@@ -514,6 +515,20 @@ impl<'a> SessionPlanner<'a> {
 
             stmt @ ast::Statement::Insert { .. } => {
                 Err(PlanError::UnsupportedSQLStatement(stmt.to_string()))
+            }
+
+            ast::Statement::AlterTable {
+                name,
+                operation: AlterTableOperation::RenameTable { table_name },
+            } => {
+                validate_object_name(&name)?;
+                validate_object_name(&table_name)?;
+                Ok(DdlPlan::AlterTableRaname(AlterTableRename {
+                    name: name.to_string(),
+                    new_name: table_name.to_string(),
+                    if_exists: false,
+                })
+                .into())
             }
 
             // Drop tables

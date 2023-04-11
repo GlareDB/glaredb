@@ -494,6 +494,9 @@ impl State {
                         create_ext.if_not_exists,
                     )?;
                 }
+                Mutation::AlterTableRename(alter_table_rename) => {
+                    // do stuff
+                }
             }
         }
 

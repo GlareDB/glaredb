@@ -33,7 +33,9 @@ pub enum ExecutionResult {
         plan: Arc<dyn ExecutionPlan>,
     },
     /// Showing a variable.
-    ShowVariable { stream: SendableRecordBatchStream }, // TODO: We don't need to make a stream for this.
+    ShowVariable {
+        stream: SendableRecordBatchStream,
+    }, // TODO: We don't need to make a stream for this.
     /// No statement provided.
     EmptyQuery,
     /// Transaction started.
@@ -54,6 +56,7 @@ pub enum ExecutionResult {
     CreateView,
     /// A connection was created.
     CreateConnection,
+    AlterTableRename,
     /// A client local variable was set.
     SetLocal,
     /// Tables dropped.
@@ -81,6 +84,7 @@ impl ExecutionResult {
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
             ExecutionResult::CreateConnection => "create_connection",
+            ExecutionResult::AlterTableRename => "alter_table_rename",
             ExecutionResult::SetLocal => "set_local",
             ExecutionResult::DropTables => "drop_tables",
             ExecutionResult::DropViews => "drop_views",
@@ -109,6 +113,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::CreateConnection => write!(f, "create connection"),
+            ExecutionResult::AlterTableRename => write!(f, "alter table rename"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropViews => write!(f, "drop views"),
@@ -189,6 +194,11 @@ impl Session {
 
     pub(crate) async fn create_view(&mut self, plan: CreateView) -> Result<()> {
         self.ctx.create_view(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
+        self.ctx.alter_table_rename(plan).await?;
         Ok(())
     }
 
@@ -326,6 +336,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
                 self.create_view(plan).await?;
                 ExecutionResult::CreateView
+            }
+            LogicalPlan::Ddl(DdlPlan::AlterTableRaname(plan)) => {
+                self.alter_table_rename(plan).await?;
+                ExecutionResult::AlterTableRename
             }
             LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
                 self.drop_tables(plan).await?;

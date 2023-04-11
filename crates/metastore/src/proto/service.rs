@@ -13,17 +13,7 @@ pub struct InitializeCatalogResponse {
 }
 /// Nested message and enum types in `InitializeCatalogResponse`.
 pub mod initialize_catalog_response {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Status {
         Unknown = 0,
@@ -72,7 +62,7 @@ pub struct FetchCatalogResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Mutation {
-    #[prost(oneof = "mutation::Mutation", tags = "8, 1, 2, 3, 4, 6, 7")]
+    #[prost(oneof = "mutation::Mutation", tags = "8, 1, 2, 3, 4, 6, 7, 9")]
     pub mutation: ::core::option::Option<mutation::Mutation>,
 }
 /// Nested message and enum types in `Mutation`.
@@ -94,6 +84,8 @@ pub mod mutation {
         CreateExternalTable(super::CreateExternalTable),
         #[prost(message, tag = "7")]
         CreateExternalDatabase(super::CreateExternalDatabase),
+        #[prost(message, tag = "9")]
+        AlterTableRename(super::AlterTableRename),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -166,6 +158,16 @@ pub struct CreateExternalDatabase {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AlterTableRename {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub new_name: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MutateRequest {
     /// Mutate the catalog for this database.
     #[prost(bytes = "vec", tag = "1")]
@@ -195,17 +197,7 @@ pub struct MutateResponse {
 }
 /// Nested message and enum types in `MutateResponse`.
 pub mod mutate_response {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Status {
         Unknown = 0,
@@ -240,8 +232,8 @@ pub mod mutate_response {
 /// Generated client implementations.
 pub mod metastore_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct MetastoreServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -285,9 +277,8 @@ pub mod metastore_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + Send + Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             MetastoreServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -328,31 +319,23 @@ pub mod metastore_service_client {
         pub async fn initialize_catalog(
             &mut self,
             request: impl tonic::IntoRequest<super::InitializeCatalogRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::InitializeCatalogResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::InitializeCatalogResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/metastore.service.MetastoreService/InitializeCatalog",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "metastore.service.MetastoreService",
-                        "InitializeCatalog",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "metastore.service.MetastoreService",
+                "InitializeCatalog",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Fetch the catalog for some database.
@@ -363,28 +346,23 @@ pub mod metastore_service_client {
         pub async fn fetch_catalog(
             &mut self,
             request: impl tonic::IntoRequest<super::FetchCatalogRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::FetchCatalogResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::FetchCatalogResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/metastore.service.MetastoreService/FetchCatalog",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("metastore.service.MetastoreService", "FetchCatalog"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "metastore.service.MetastoreService",
+                "FetchCatalog",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Mutate a database's catalog.
@@ -392,27 +370,21 @@ pub mod metastore_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::MutateRequest>,
         ) -> std::result::Result<tonic::Response<super::MutateResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/metastore.service.MetastoreService/MutateCatalog",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "metastore.service.MetastoreService",
-                        "MutateCatalog",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "metastore.service.MetastoreService",
+                "MutateCatalog",
+            ));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -430,10 +402,7 @@ pub mod metastore_service_server {
         async fn initialize_catalog(
             &self,
             request: tonic::Request<super::InitializeCatalogRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::InitializeCatalogResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::InitializeCatalogResponse>, tonic::Status>;
         /// Fetch the catalog for some database.
         ///
         /// The returned catalog will be the latest catalog that this metastore node
@@ -442,10 +411,7 @@ pub mod metastore_service_server {
         async fn fetch_catalog(
             &self,
             request: tonic::Request<super::FetchCatalogRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::FetchCatalogResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::FetchCatalogResponse>, tonic::Status>;
         /// Mutate a database's catalog.
         async fn mutate_catalog(
             &self,
@@ -475,10 +441,7 @@ pub mod metastore_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -534,23 +497,18 @@ pub mod metastore_service_server {
                 "/metastore.service.MetastoreService/InitializeCatalog" => {
                     #[allow(non_camel_case_types)]
                     struct InitializeCatalogSvc<T: MetastoreService>(pub Arc<T>);
-                    impl<
-                        T: MetastoreService,
-                    > tonic::server::UnaryService<super::InitializeCatalogRequest>
-                    for InitializeCatalogSvc<T> {
+                    impl<T: MetastoreService>
+                        tonic::server::UnaryService<super::InitializeCatalogRequest>
+                        for InitializeCatalogSvc<T>
+                    {
                         type Response = super::InitializeCatalogResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::InitializeCatalogRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                (*inner).initialize_catalog(request).await
-                            };
+                            let fut = async move { (*inner).initialize_catalog(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -580,23 +538,18 @@ pub mod metastore_service_server {
                 "/metastore.service.MetastoreService/FetchCatalog" => {
                     #[allow(non_camel_case_types)]
                     struct FetchCatalogSvc<T: MetastoreService>(pub Arc<T>);
-                    impl<
-                        T: MetastoreService,
-                    > tonic::server::UnaryService<super::FetchCatalogRequest>
-                    for FetchCatalogSvc<T> {
+                    impl<T: MetastoreService>
+                        tonic::server::UnaryService<super::FetchCatalogRequest>
+                        for FetchCatalogSvc<T>
+                    {
                         type Response = super::FetchCatalogResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FetchCatalogRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                (*inner).fetch_catalog(request).await
-                            };
+                            let fut = async move { (*inner).fetch_catalog(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -626,23 +579,17 @@ pub mod metastore_service_server {
                 "/metastore.service.MetastoreService/MutateCatalog" => {
                     #[allow(non_camel_case_types)]
                     struct MutateCatalogSvc<T: MetastoreService>(pub Arc<T>);
-                    impl<
-                        T: MetastoreService,
-                    > tonic::server::UnaryService<super::MutateRequest>
-                    for MutateCatalogSvc<T> {
+                    impl<T: MetastoreService> tonic::server::UnaryService<super::MutateRequest>
+                        for MutateCatalogSvc<T>
+                    {
                         type Response = super::MutateResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::MutateRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                (*inner).mutate_catalog(request).await
-                            };
+                            let fut = async move { (*inner).mutate_catalog(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -669,18 +616,14 @@ pub mod metastore_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
