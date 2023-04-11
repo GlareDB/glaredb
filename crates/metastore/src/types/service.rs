@@ -288,7 +288,6 @@ pub struct AlterTableRename {
 impl TryFrom<service::AlterTableRename> for AlterTableRename {
     type Error = ProtoConvError;
     fn try_from(value: service::AlterTableRename) -> Result<Self, Self::Error> {
-        // TODO: Check if string are zero value.
         Ok(AlterTableRename {
             schema: value.schema,
             name: value.name,

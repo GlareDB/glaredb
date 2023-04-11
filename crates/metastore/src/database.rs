@@ -511,7 +511,7 @@ impl State {
                         Some(id) => *id,
                     };
 
-                    let objs = match self.schema_objects.get_mut(&schema_id) {
+                    let objs = match self.schema_objects.get(&schema_id) {
                         None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
