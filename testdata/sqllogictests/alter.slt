@@ -1,0 +1,25 @@
+# Tests alter table
+
+statement ok
+create schema rename_tables_test;
+
+statement ok
+set search_path = rename_tables_test;
+
+statement ok
+set enable_debug_datasources to t;
+
+statement ok
+create external table t1 from debug options (table_type = 'never_ending');
+
+statement ok
+alter table t1 rename to t2;
+
+statement error
+alter table t1 rename to t2;
+
+statement ok
+create external table t1 from debug options (table_type = 'never_ending');
+
+statement error
+alter table t1 rename to t2;

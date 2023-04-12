@@ -494,6 +494,63 @@ impl State {
                         create_ext.if_not_exists,
                     )?;
                 }
+                Mutation::AlterTableRename(alter_table_rename) => {
+                    if self.schema_names.contains_key(&alter_table_rename.new_name) {
+                        return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
+                    }
+
+                    let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
+                        None => {
+                            return Err(MetastoreError::MissingNamedSchema(
+                                alter_table_rename.schema,
+                            ))
+                        }
+                        Some(id) => *id,
+                    };
+
+                    let objs = match self.schema_objects.get(&schema_id) {
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_table_rename.schema,
+                                name: alter_table_rename.name,
+                            })
+                        }
+                        Some(objs) => objs,
+                    };
+
+                    let oid = match objs.objects.get(&alter_table_rename.name) {
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_table_rename.schema,
+                                name: alter_table_rename.name,
+                            })
+                        }
+                        Some(id) => id,
+                    };
+
+                    let mut table = match self.entries.remove(oid) {
+                        None => {
+                            debug_assert!(false, "missing object '{oid}' in entries");
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_table_rename.schema,
+                                name: alter_table_rename.name,
+                            });
+                        }
+                        Some(e) => match e {
+                            CatalogEntry::Table(ent) => ent,
+                            other => panic!("unexpected entry type: {:?}", other),
+                        },
+                    };
+
+                    table.meta.name = alter_table_rename.new_name;
+
+                    self.try_insert_entry_for_schema(
+                        CatalogEntry::Table(table.clone()),
+                        schema_id,
+                        table.meta.id,
+                        false,
+                    )?;
+                }
             }
         }
 

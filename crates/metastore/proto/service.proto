@@ -41,6 +41,7 @@ message Mutation {
     CreateView create_view = 4;
     CreateExternalTable create_external_table = 6;
     CreateExternalDatabase create_external_database = 7;
+    AlterTableRename alter_table_rename = 9;
   }
   // next: 7
 }
@@ -83,6 +84,12 @@ message CreateExternalDatabase {
   options.DatabaseOptions options = 2;
   bool if_not_exists = 3;
   // next: 4
+}
+
+message AlterTableRename {
+    string schema = 1;
+    string name = 2;
+    string new_name = 3;
 }
 
 message MutateRequest {

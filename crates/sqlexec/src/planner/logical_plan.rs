@@ -106,6 +106,7 @@ pub enum DdlPlan {
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
     CreateView(CreateView),
+    AlterTableRaname(AlterTableRename),
     DropTables(DropTables),
     DropViews(DropViews),
     DropSchemas(DropSchemas),
@@ -157,6 +158,12 @@ pub struct CreateView {
     pub view_name: String,
     pub num_columns: usize,
     pub sql: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct AlterTableRename {
+    pub name: String,
+    pub new_name: String,
 }
 
 #[derive(Clone, Debug)]

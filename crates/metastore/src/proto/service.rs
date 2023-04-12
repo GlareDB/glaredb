@@ -72,7 +72,7 @@ pub struct FetchCatalogResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Mutation {
-    #[prost(oneof = "mutation::Mutation", tags = "8, 1, 2, 3, 4, 6, 7")]
+    #[prost(oneof = "mutation::Mutation", tags = "8, 1, 2, 3, 4, 6, 7, 9")]
     pub mutation: ::core::option::Option<mutation::Mutation>,
 }
 /// Nested message and enum types in `Mutation`.
@@ -94,6 +94,8 @@ pub mod mutation {
         CreateExternalTable(super::CreateExternalTable),
         #[prost(message, tag = "7")]
         CreateExternalDatabase(super::CreateExternalDatabase),
+        #[prost(message, tag = "9")]
+        AlterTableRename(super::AlterTableRename),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -163,6 +165,16 @@ pub struct CreateExternalDatabase {
     /// next: 4
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AlterTableRename {
+    #[prost(string, tag = "1")]
+    pub schema: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub new_name: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

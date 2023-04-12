@@ -13,6 +13,7 @@ pub enum Mutation {
     CreateView(CreateView),
     CreateExternalTable(CreateExternalTable),
     CreateExternalDatabase(CreateExternalDatabase),
+    AlterTableRename(AlterTableRename),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -37,6 +38,9 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::CreateExternalDatabase(v) => {
                 Mutation::CreateExternalDatabase(v.try_into()?)
             }
+            service::mutation::Mutation::AlterTableRename(v) => {
+                Mutation::AlterTableRename(v.try_into()?)
+            }
         })
     }
 }
@@ -55,6 +59,9 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             }
             Mutation::CreateExternalDatabase(v) => {
                 service::mutation::Mutation::CreateExternalDatabase(v.into())
+            }
+            Mutation::AlterTableRename(v) => {
+                service::mutation::Mutation::AlterTableRename(v.into())
             }
         })
     }
@@ -266,6 +273,34 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
             name: value.name,
             options: Some(value.options.into()),
             if_not_exists: value.if_not_exists,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct AlterTableRename {
+    pub schema: String,
+    pub name: String,
+    pub new_name: String,
+}
+
+impl TryFrom<service::AlterTableRename> for AlterTableRename {
+    type Error = ProtoConvError;
+    fn try_from(value: service::AlterTableRename) -> Result<Self, Self::Error> {
+        Ok(AlterTableRename {
+            schema: value.schema,
+            name: value.name,
+            new_name: value.new_name,
+        })
+    }
+}
+
+impl From<AlterTableRename> for service::AlterTableRename {
+    fn from(value: AlterTableRename) -> Self {
+        service::AlterTableRename {
+            schema: value.schema,
+            name: value.name,
+            new_name: value.new_name,
         }
     }
 }
