@@ -248,7 +248,7 @@ impl<'a> CustomParser<'a> {
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
-                self.parser.parse_create()?,
+                self.parser.parse_alter()?,
             ))
         }
     }
