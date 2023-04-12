@@ -772,6 +772,19 @@ impl<'a> VirtualCatalogDispatcher<'a> {
                 let accessor = PostgresAccessor::connect(connection_string, None).await?;
                 Box::new(accessor)
             }
+            DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+                service_account_key,
+                project_id,
+            }) => {
+                let accessor = BigQueryAccessor::connect(BigQueryTableAccess {
+                    gcp_service_acccount_key_json: service_account_key.to_owned(),
+                    gcp_project_id: project_id.to_owned(),
+                    dataset_id: String::new(),
+                    table_id: String::new(),
+                })
+                .await?;
+                Box::new(accessor)
+            }
             _ => Box::new(EmptyLister),
         };
         Ok(lister)
