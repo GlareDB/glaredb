@@ -118,6 +118,21 @@ impl fmt::Display for DropDatabaseStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterDatabaseRenameStmt {
+    pub name: String,
+    pub new_name: String,
+}
+
+impl fmt::Display for AlterDatabaseRenameStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER DATABASE ")?;
+        write!(f, "{}", self.name)?;
+        write!(f, "RENAME TO ")?;
+        write!(f, "{}", self.new_name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
@@ -127,6 +142,7 @@ pub enum StatementWithExtensions {
     CreateExternalDatabase(CreateExternalDatabaseStmt),
     /// Drop database extension.
     DropDatabase(DropDatabaseStmt),
+    AlterDatabaseRename(AlterDatabaseRenameStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -136,6 +152,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterDatabaseRename(stmt) => write!(f, "{}", stmt),
         }
     }
 }

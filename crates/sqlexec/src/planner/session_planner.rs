@@ -1,7 +1,7 @@
 use crate::context::SessionContext;
 use crate::parser::{
-    validate_ident, validate_object_name, CreateExternalDatabaseStmt, CreateExternalTableStmt,
-    DropDatabaseStmt, OptionValue, StatementWithExtensions,
+    validate_ident, validate_object_name, AlterDatabaseRenameStmt, CreateExternalDatabaseStmt,
+    CreateExternalTableStmt, DropDatabaseStmt, OptionValue, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -61,6 +61,9 @@ impl<'a> SessionPlanner<'a> {
                 self.plan_create_external_database(stmt).await
             }
             StatementWithExtensions::DropDatabase(stmt) => self.plan_drop_database(stmt),
+            StatementWithExtensions::AlterDatabaseRename(stmt) => {
+                self.plan_alter_database_rename(stmt)
+            }
         }
     }
 
@@ -624,6 +627,14 @@ impl<'a> SessionPlanner<'a> {
         Ok(DdlPlan::DropDatabase(DropDatabase {
             name: stmt.name,
             if_exists: stmt.if_exists,
+        })
+        .into())
+    }
+
+    fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
+        Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename {
+            name: stmt.name,
+            new_name: stmt.new_name,
         })
         .into())
     }

@@ -57,6 +57,7 @@ pub enum ExecutionResult {
     /// A connection was created.
     CreateConnection,
     AlterTableRename,
+    AlterDatabaseRename,
     /// A client local variable was set.
     SetLocal,
     /// Tables dropped.
@@ -85,6 +86,7 @@ impl ExecutionResult {
             ExecutionResult::CreateView => "create_view",
             ExecutionResult::CreateConnection => "create_connection",
             ExecutionResult::AlterTableRename => "alter_table_rename",
+            ExecutionResult::AlterDatabaseRename => "alter_database_rename",
             ExecutionResult::SetLocal => "set_local",
             ExecutionResult::DropTables => "drop_tables",
             ExecutionResult::DropViews => "drop_views",
@@ -114,6 +116,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::CreateConnection => write!(f, "create connection"),
             ExecutionResult::AlterTableRename => write!(f, "alter table rename"),
+            ExecutionResult::AlterDatabaseRename => write!(f, "alter database rename"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropViews => write!(f, "drop views"),
@@ -199,6 +202,11 @@ impl Session {
 
     pub(crate) async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
         self.ctx.alter_table_rename(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
+        self.ctx.alter_database_rename(plan).await?;
         Ok(())
     }
 
@@ -340,6 +348,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::AlterTableRaname(plan)) => {
                 self.alter_table_rename(plan).await?;
                 ExecutionResult::AlterTableRename
+            }
+            LogicalPlan::Ddl(DdlPlan::AlterDatabaseRename(plan)) => {
+                self.alter_database_rename(plan).await?;
+                ExecutionResult::AlterDatabaseRename
             }
             LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
                 self.drop_tables(plan).await?;

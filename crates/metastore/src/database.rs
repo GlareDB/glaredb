@@ -551,6 +551,68 @@ impl State {
                         false,
                     )?;
                 }
+                Mutation::AlterDatabaseRename(alter_database_rename) => {
+                    if self
+                        .schema_names
+                        .contains_key(&alter_database_rename.new_name)
+                    {
+                        return Err(MetastoreError::DuplicateName(
+                            alter_database_rename.new_name,
+                        ));
+                    }
+
+                    let schema_id = match self.schema_names.get(&alter_database_rename.schema) {
+                        None => {
+                            return Err(MetastoreError::MissingNamedSchema(
+                                alter_database_rename.schema,
+                            ))
+                        }
+                        Some(id) => *id,
+                    };
+
+                    let objs = match self.schema_objects.get(&schema_id) {
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_database_rename.schema,
+                                name: alter_database_rename.name,
+                            })
+                        }
+                        Some(objs) => objs,
+                    };
+
+                    let oid = match objs.objects.get(&alter_database_rename.name) {
+                        None => {
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_database_rename.schema,
+                                name: alter_database_rename.name,
+                            })
+                        }
+                        Some(id) => id,
+                    };
+
+                    let mut db = match self.entries.remove(oid) {
+                        None => {
+                            debug_assert!(false, "missing object '{oid}' in entries");
+                            return Err(MetastoreError::MissingNamedObject {
+                                schema: alter_database_rename.schema,
+                                name: alter_database_rename.name,
+                            });
+                        }
+                        Some(e) => match e {
+                            CatalogEntry::Database(ent) => ent,
+                            other => panic!("unexpected entry type: {:?}", other),
+                        },
+                    };
+
+                    db.meta.name = alter_database_rename.new_name;
+
+                    self.try_insert_entry_for_schema(
+                        CatalogEntry::Database(db.clone()),
+                        schema_id,
+                        db.meta.id,
+                        false,
+                    )?;
+                }
             }
         }
 

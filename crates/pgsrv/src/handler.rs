@@ -607,6 +607,9 @@ where
             ExecutionResult::AlterTableRename => {
                 Self::command_complete(conn, "ALTER TABLE").await?
             }
+            ExecutionResult::AlterDatabaseRename => {
+                Self::command_complete(conn, "ALTER DATABASE").await?
+            }
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,

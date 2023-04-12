@@ -42,6 +42,7 @@ message Mutation {
     CreateExternalTable create_external_table = 6;
     CreateExternalDatabase create_external_database = 7;
     AlterTableRename alter_table_rename = 9;
+    AlterDatabaseRename alter_database_rename = 10;
   }
   // next: 7
 }
@@ -87,6 +88,12 @@ message CreateExternalDatabase {
 }
 
 message AlterTableRename {
+    string schema = 1;
+    string name = 2;
+    string new_name = 3;
+}
+
+message AlterDatabaseRename {
     string schema = 1;
     string name = 2;
     string new_name = 3;
