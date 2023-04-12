@@ -526,7 +526,6 @@ impl<'a> SessionPlanner<'a> {
                 Ok(DdlPlan::AlterTableRaname(AlterTableRename {
                     name: name.to_string(),
                     new_name: table_name.to_string(),
-                    if_exists: false,
                 })
                 .into())
             }

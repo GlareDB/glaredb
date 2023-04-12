@@ -200,7 +200,6 @@ impl SessionContext {
             schema,
             name,
             new_name: plan.new_name,
-            if_exists: plan.if_exists,
         })])
         .await?;
 

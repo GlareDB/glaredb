@@ -499,10 +499,7 @@ impl State {
                         return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
                     }
 
-                    let if_exists = alter_table_rename.if_exists;
-
                     let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
-                        None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedSchema(
                                 alter_table_rename.schema,
@@ -512,7 +509,6 @@ impl State {
                     };
 
                     let objs = match self.schema_objects.get(&schema_id) {
-                        None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_table_rename.schema,
@@ -523,7 +519,6 @@ impl State {
                     };
 
                     let oid = match objs.objects.get(&alter_table_rename.name) {
-                        None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_table_rename.schema,

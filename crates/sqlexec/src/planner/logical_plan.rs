@@ -164,7 +164,6 @@ pub struct CreateView {
 pub struct AlterTableRename {
     pub name: String,
     pub new_name: String,
-    pub if_exists: bool,
 }
 
 #[derive(Clone, Debug)]

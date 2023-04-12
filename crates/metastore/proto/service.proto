@@ -90,7 +90,6 @@ message AlterTableRename {
     string schema = 1;
     string name = 2;
     string new_name = 3;
-    bool if_exists = 4;
 }
 
 message MutateRequest {

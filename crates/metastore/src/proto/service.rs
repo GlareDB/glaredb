@@ -175,8 +175,6 @@ pub struct AlterTableRename {
     pub name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub new_name: ::prost::alloc::string::String,
-    #[prost(bool, tag = "4")]
-    pub if_exists: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
