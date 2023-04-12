@@ -10,9 +10,6 @@ use bigquery_storage::yup_oauth2::{
     ServiceAccountAuthenticator,
 };
 use bigquery_storage::{BufferedArrowIpcReader, Client};
-use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
 use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -25,6 +22,12 @@ use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+};
+use datafusion::{
+    arrow::datatypes::{
+        DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    },
+    physical_plan::memory::MemoryExec,
 };
 use datasource_common::{
     errors::DatasourceCommonError,
@@ -297,6 +300,11 @@ impl TableProvider for BigQueryTableProvider {
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         let num_partitions = sess.len_streams();
+        if num_partitions == 0 {
+            // When there's nothing to send, we can just return an empty exec.
+            let exec = MemoryExec::try_new(&[], projected_schema, None)?;
+            return Ok(Arc::new(exec));
+        }
 
         let (send, recv) = async_channel::bounded(num_partitions);
         tokio::spawn(async move {
