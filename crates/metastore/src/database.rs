@@ -534,12 +534,12 @@ impl State {
                     };
 
                     let mut table = match self.entries.remove(oid) {
-                        None if if_exists => return Ok(()),
                         None => {
+                            debug_assert!(false, "missing object '{oid}' in entries");
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_table_rename.schema,
                                 name: alter_table_rename.name,
-                            })
+                            });
                         }
                         Some(e) => match e {
                             CatalogEntry::Table(ent) => ent,

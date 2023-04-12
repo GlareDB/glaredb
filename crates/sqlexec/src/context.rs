@@ -197,8 +197,8 @@ impl SessionContext {
     pub async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
         let (_, schema, name) = self.resolve_object_reference(plan.name.into())?;
         self.mutate_catalog([Mutation::AlterTableRename(service::AlterTableRename {
-            schema: schema,
-            name: name,
+            schema,
+            name,
             new_name: plan.new_name,
             if_exists: plan.if_exists,
         })])
