@@ -118,6 +118,21 @@ impl fmt::Display for DropDatabaseStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterDatabaseRenameStmt {
+    pub name: String,
+    pub new_name: String,
+}
+
+impl fmt::Display for AlterDatabaseRenameStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER DATABASE ")?;
+        write!(f, "{}", self.name)?;
+        write!(f, " RENAME TO ")?;
+        write!(f, "{}", self.new_name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
@@ -127,6 +142,7 @@ pub enum StatementWithExtensions {
     CreateExternalDatabase(CreateExternalDatabaseStmt),
     /// Drop database extension.
     DropDatabase(DropDatabaseStmt),
+    AlterDatabaseRename(AlterDatabaseRenameStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -136,6 +152,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterDatabaseRename(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -187,6 +204,10 @@ impl<'a> CustomParser<'a> {
                     self.parser.next_token();
                     self.parse_drop()
                 }
+                Keyword::ALTER => {
+                    self.parser.next_token();
+                    self.parse_alter()
+                }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
                 )),
@@ -216,6 +237,18 @@ impl<'a> CustomParser<'a> {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
                 self.parser.parse_create()?,
+            ))
+        }
+    }
+
+    /// Parse a SQL ALTER statement
+    fn parse_alter(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        if self.parser.parse_keyword(Keyword::DATABASE) {
+            self.parse_alter_database()
+        } else {
+            // Fall back to underlying parser.
+            Ok(StatementWithExtensions::Statement(
+                self.parser.parse_alter()?,
             ))
         }
     }
@@ -356,6 +389,20 @@ impl<'a> CustomParser<'a> {
             if_exists,
         }))
     }
+
+    fn parse_alter_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let name = self.parser.parse_identifier()?;
+        if !self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
+            return self.expected("RENAME TO", self.parser.peek_token().token);
+        }
+        let new_name = self.parser.parse_identifier()?;
+        Ok(StatementWithExtensions::AlterDatabaseRename(
+            AlterDatabaseRenameStmt {
+                name: name.value,
+                new_name: new_name.value,
+            },
+        ))
+    }
 }
 
 /// Validate idents as per [postgres identifier
@@ -474,6 +521,19 @@ mod tests {
     #[test]
     fn drop_database_roundtrips() {
         let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn alter_database_roundtrips() {
+        let test_cases = ["ALTER DATABASE my_db RENAME TO your_db"];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

@@ -14,6 +14,7 @@ pub enum Mutation {
     CreateExternalTable(CreateExternalTable),
     CreateExternalDatabase(CreateExternalDatabase),
     AlterTableRename(AlterTableRename),
+    AlterDatabaseRename(AlterDatabaseRename),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -41,6 +42,9 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::AlterTableRename(v) => {
                 Mutation::AlterTableRename(v.try_into()?)
             }
+            service::mutation::Mutation::AlterDatabaseRename(v) => {
+                Mutation::AlterDatabaseRename(v.try_into()?)
+            }
         })
     }
 }
@@ -62,6 +66,9 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             }
             Mutation::AlterTableRename(v) => {
                 service::mutation::Mutation::AlterTableRename(v.into())
+            }
+            Mutation::AlterDatabaseRename(v) => {
+                service::mutation::Mutation::AlterDatabaseRename(v.into())
             }
         })
     }
@@ -299,6 +306,31 @@ impl From<AlterTableRename> for service::AlterTableRename {
     fn from(value: AlterTableRename) -> Self {
         service::AlterTableRename {
             schema: value.schema,
+            name: value.name,
+            new_name: value.new_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct AlterDatabaseRename {
+    pub name: String,
+    pub new_name: String,
+}
+
+impl TryFrom<service::AlterDatabaseRename> for AlterDatabaseRename {
+    type Error = ProtoConvError;
+    fn try_from(value: service::AlterDatabaseRename) -> Result<Self, Self::Error> {
+        Ok(AlterDatabaseRename {
+            name: value.name,
+            new_name: value.new_name,
+        })
+    }
+}
+
+impl From<AlterDatabaseRename> for service::AlterDatabaseRename {
+    fn from(value: AlterDatabaseRename) -> Self {
+        service::AlterDatabaseRename {
             name: value.name,
             new_name: value.new_name,
         }

@@ -1,13 +1,10 @@
 # Tests alter table
 
 statement ok
-create schema rename_tables_test;
+create schema alter_test;
 
 statement ok
-set search_path = rename_tables_test;
-
-statement ok
-set enable_debug_datasources to t;
+set search_path = alter_test;
 
 statement ok
 create external table t1 from debug options (table_type = 'never_ending');
@@ -23,3 +20,20 @@ create external table t1 from debug options (table_type = 'never_ending');
 
 statement error
 alter table t1 rename to t2;
+
+# Tests alter database
+
+statement ok
+create external database d1 from debug;
+
+statement ok
+alter database d1 rename to d2;
+
+statement error
+alter database d1 rename to d2;
+
+statement ok
+create external database d1 from debug;
+
+statement error
+alter database d1 rename to d2;

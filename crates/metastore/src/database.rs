@@ -551,6 +551,38 @@ impl State {
                         false,
                     )?;
                 }
+                Mutation::AlterDatabaseRename(alter_database_rename) => {
+                    if self
+                        .database_names
+                        .contains_key(&alter_database_rename.new_name)
+                    {
+                        return Err(MetastoreError::DuplicateName(
+                            alter_database_rename.new_name,
+                        ));
+                    }
+
+                    let oid = match self.database_names.remove(&alter_database_rename.name) {
+                        None => {
+                            return Err(MetastoreError::MissingDatabase(
+                                alter_database_rename.name,
+                            ));
+                        }
+                        Some(objs) => objs,
+                    };
+                    let ent = match self.entries.get_mut(&oid) {
+                        None => {
+                            return Err(MetastoreError::MissingDatabase(
+                                alter_database_rename.name,
+                            ));
+                        }
+                        Some(ent) => ent,
+                    };
+                    ent.get_meta_mut().name = alter_database_rename.new_name.clone();
+
+                    // Add to database map
+                    self.database_names
+                        .insert(alter_database_rename.new_name, oid);
+                }
             }
         }
 

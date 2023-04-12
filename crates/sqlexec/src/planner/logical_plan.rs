@@ -107,6 +107,7 @@ pub enum DdlPlan {
     CreateTableAs(CreateTableAs),
     CreateView(CreateView),
     AlterTableRaname(AlterTableRename),
+    AlterDatabaseRename(AlterDatabaseRename),
     DropTables(DropTables),
     DropViews(DropViews),
     DropSchemas(DropSchemas),
@@ -188,6 +189,12 @@ pub struct DropSchemas {
 pub struct DropDatabase {
     pub name: String,
     pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct AlterDatabaseRename {
+    pub name: String,
+    pub new_name: String,
 }
 
 #[derive(Clone, Debug)]
