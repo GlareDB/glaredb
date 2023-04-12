@@ -204,6 +204,10 @@ impl<'a> CustomParser<'a> {
                     self.parser.next_token();
                     self.parse_drop()
                 }
+                Keyword::ALTER => {
+                    self.parser.next_token();
+                    self.parse_alter()
+                }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
                 )),
@@ -229,6 +233,18 @@ impl<'a> CustomParser<'a> {
                     next
                 )))
             }
+        } else {
+            // Fall back to underlying parser.
+            Ok(StatementWithExtensions::Statement(
+                self.parser.parse_create()?,
+            ))
+        }
+    }
+
+    /// Parse a SQL ALTER statement
+    fn parse_alter(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        if self.parser.parse_keyword(Keyword::DATABASE) {
+            self.parse_alter_database()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -372,6 +388,20 @@ impl<'a> CustomParser<'a> {
             name: name.value,
             if_exists,
         }))
+    }
+
+    fn parse_alter_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let name = self.parser.parse_identifier()?;
+        if !self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
+            return self.expected("RENAME TO", self.parser.peek_token().token);
+        }
+        let new_name = self.parser.parse_identifier()?;
+        Ok(StatementWithExtensions::AlterDatabaseRename(
+            AlterDatabaseRenameStmt {
+                name: name.value,
+                new_name: new_name.value,
+            },
+        ))
     }
 }
 
