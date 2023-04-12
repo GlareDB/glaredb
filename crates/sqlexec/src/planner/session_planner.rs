@@ -874,7 +874,7 @@ fn remove_optional_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result
         } else {
             key.to_lowercase()
         };
-        env::var(key).map_err(|e| internal!("invalid secret '{k}': {e}"))
+        env::var(key).map_err(|_e| internal!("invalid secret '{k}'"))
     }
 
     let opt = match val {

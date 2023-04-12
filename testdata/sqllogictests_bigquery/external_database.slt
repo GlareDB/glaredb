@@ -1,7 +1,7 @@
 # Basic test for external database.
 
 statement ok
-CREATE EXTERNAL DATABASE basic
+CREATE EXTERNAL DATABASE external_db
 	FROM bigquery
 	OPTIONS (
 		service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
@@ -9,6 +9,29 @@ CREATE EXTERNAL DATABASE basic
 	);
 
 query I
-SELECT count(*) FROM basic.${BIGQUERY_DATASET_ID}.bikeshare_stations;
+SELECT count(*) FROM external_db.${BIGQUERY_DATASET_ID}.bikeshare_stations;
 ----
 102
+
+# Ensure we can query into the virtual schema.
+
+query T
+SELECT * FROM external_db.virtual_catalog.schemata
+	WHERE schema_name = '${BIGQUERY_DATASET_ID}';
+----
+${BIGQUERY_DATASET_ID}
+
+query TT
+SELECT table_schema, table_name
+	FROM external_db.virtual_catalog.tables
+	WHERE table_schema = '${BIGQUERY_DATASET_ID}' AND table_name = 'bikeshare_stations';
+----
+${BIGQUERY_DATASET_ID}  bikeshare_stations
+
+# Error when schema not provided for bigquery.
+statement error
+SELECT table_schema, table_name
+	FROM external_db.virtual_catalog.tables;
+
+statement ok
+DROP DATABASE external_db;
