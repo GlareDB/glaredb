@@ -127,7 +127,7 @@ impl fmt::Display for AlterDatabaseRenameStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ALTER DATABASE ")?;
         write!(f, "{}", self.name)?;
-        write!(f, "RENAME TO ")?;
+        write!(f, " RENAME TO ")?;
         write!(f, "{}", self.new_name)
     }
 }
@@ -521,6 +521,19 @@ mod tests {
     #[test]
     fn drop_database_roundtrips() {
         let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn alter_database_roundtrips() {
+        let test_cases = ["ALTER DATABASE my_db RENAME TO your_db"];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

@@ -207,11 +207,9 @@ impl SessionContext {
     }
 
     pub async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        let (_, schema, name) = self.resolve_object_reference(plan.name.into())?;
         self.mutate_catalog([Mutation::AlterDatabaseRename(
             service::AlterDatabaseRename {
-                schema,
-                name,
+                name: plan.name,
                 new_name: plan.new_name,
             },
         )])

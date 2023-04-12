@@ -94,9 +94,8 @@ message AlterTableRename {
 }
 
 message AlterDatabaseRename {
-    string schema = 1;
-    string name = 2;
-    string new_name = 3;
+    string name = 1;
+    string new_name = 2;
 }
 
 message MutateRequest {

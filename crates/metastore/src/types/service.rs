@@ -314,7 +314,6 @@ impl From<AlterTableRename> for service::AlterTableRename {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct AlterDatabaseRename {
-    pub schema: String,
     pub name: String,
     pub new_name: String,
 }
@@ -323,7 +322,6 @@ impl TryFrom<service::AlterDatabaseRename> for AlterDatabaseRename {
     type Error = ProtoConvError;
     fn try_from(value: service::AlterDatabaseRename) -> Result<Self, Self::Error> {
         Ok(AlterDatabaseRename {
-            schema: value.schema,
             name: value.name,
             new_name: value.new_name,
         })
@@ -333,7 +331,6 @@ impl TryFrom<service::AlterDatabaseRename> for AlterDatabaseRename {
 impl From<AlterDatabaseRename> for service::AlterDatabaseRename {
     fn from(value: AlterDatabaseRename) -> Self {
         service::AlterDatabaseRename {
-            schema: value.schema,
             name: value.name,
             new_name: value.new_name,
         }

@@ -1,6 +1,12 @@
 # Tests alter table
 
 statement ok
+create schema alter_test;
+
+statement ok
+set search_path = alter_test;
+
+statement ok
 create external table t1 from debug options (table_type = 'never_ending');
 
 statement ok

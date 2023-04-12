@@ -182,10 +182,8 @@ pub struct AlterTableRename {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AlterDatabaseRename {
     #[prost(string, tag = "1")]
-    pub schema: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
     pub name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
+    #[prost(string, tag = "2")]
     pub new_name: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]

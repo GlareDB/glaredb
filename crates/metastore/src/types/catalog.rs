@@ -81,6 +81,16 @@ impl CatalogEntry {
             CatalogEntry::Table(table) => &table.meta,
         }
     }
+
+    /// Get a mutable entry metadata referenuce.
+    pub fn get_meta_mut(&mut self) -> &mut EntryMeta {
+        match self {
+            CatalogEntry::Database(db) => &mut db.meta,
+            CatalogEntry::Schema(schema) => &mut schema.meta,
+            CatalogEntry::View(view) => &mut view.meta,
+            CatalogEntry::Table(table) => &mut table.meta,
+        }
+    }
 }
 
 impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {

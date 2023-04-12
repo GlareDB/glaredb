@@ -563,28 +563,21 @@ impl State {
 
                     let oid = match self.database_names.remove(&alter_database_rename.name) {
                         None => {
-                            return Err(MetastoreError::MissingNamedObject {
-                                schema: alter_database_rename.schema,
-                                name: alter_database_rename.name,
-                            })
+                            return Err(MetastoreError::MissingDatabase(
+                                alter_database_rename.name,
+                            ));
                         }
                         Some(objs) => objs,
                     };
-                    let db = match self.entries.remove(&oid) {
+                    let ent = match self.entries.get_mut(&oid) {
                         None => {
                             return Err(MetastoreError::MissingDatabase(
                                 alter_database_rename.name,
                             ));
                         }
-                        Some(e) => match e {
-                            CatalogEntry::Database(ent) => ent,
-                            other => panic!("unexpected entry type: {:?}", other),
-                        },
+                        Some(ent) => ent,
                     };
-                    let mut ent = db.clone();
-                    ent.meta.name = alter_database_rename.new_name.clone();
-
-                    self.entries.insert(oid, CatalogEntry::Database(ent));
+                    ent.get_meta_mut().name = alter_database_rename.new_name.clone();
 
                     // Add to database map
                     self.database_names
