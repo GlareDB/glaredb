@@ -15,11 +15,11 @@ create external table t1 from debug options (table_type = 'never_ending');
 statement ok
 alter table t1 rename to t2;
 
-statement err
+statement error
 alter table t1 rename to t2;
 
 statement ok
 create external table t1 from debug options (table_type = 'never_ending');
 
-statement err
+statement error
 alter table t1 rename to t2;
