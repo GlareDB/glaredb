@@ -38,7 +38,14 @@ SELECT count(*) FROM external_db.public.bikeshare_stations;
 
 query TT
 SELECT table_schema, table_name
-	FROM external_db.virtual_datasource_schema.tables
+	FROM external_db.virtual_catalog.tables
+	WHERE table_name = 'bikeshare_stations';
+----
+public  bikeshare_stations
+
+query TT
+SELECT table_schema, table_name
+	FROM external_db.virtual_catalog.tables
 	WHERE table_schema = 'public' AND table_name = 'bikeshare_stations';
 ----
 public  bikeshare_stations

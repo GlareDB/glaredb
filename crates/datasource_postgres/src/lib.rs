@@ -19,7 +19,7 @@ use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualSchemas, VirtualTables};
+use datasource_common::listing::{VirtualLister, VirtualTable};
 use datasource_common::ssh::SshTunnelAccess;
 use datasource_common::util;
 use errors::{PostgresError, Result};
@@ -284,7 +284,7 @@ ORDER BY attnum;
 
 #[async_trait]
 impl VirtualLister for PostgresAccessor {
-    async fn list_schemas(&self) -> Result<VirtualSchemas, DatasourceCommonError> {
+    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
         let rows = self
@@ -301,38 +301,53 @@ impl VirtualLister for PostgresAccessor {
             )
         }
 
-        Ok(VirtualSchemas { schema_names })
+        Ok(schema_names)
     }
 
-    async fn list_tables(&self) -> Result<VirtualTables, DatasourceCommonError> {
+    async fn list_tables(
+        &self,
+        schema: Option<&str>,
+    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
-        let rows = self
-            .client
-            .query(
-                "SELECT table_schema, table_name FROM information_schema.tables",
-                &[],
-            )
-            .await
-            .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+        let rows_res = if let Some(schema) = schema {
+            self.client
+                .query(
+                    "
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE
+    table_schema = $1
+                ",
+                    &[&schema],
+                )
+                .await
+        } else {
+            self.client
+                .query(
+                    "SELECT table_schema, table_name FROM information_schema.tables",
+                    &[],
+                )
+                .await
+        };
+        let rows = rows_res.map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
 
-        let mut table_schemas: Vec<String> = Vec::with_capacity(rows.len());
-        let mut table_names: Vec<String> = Vec::with_capacity(rows.len());
+        let mut virtual_tables = Vec::with_capacity(rows.len());
         for row in rows {
-            table_schemas.push(
-                row.try_get(0)
-                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
-            );
-            table_names.push(
-                row.try_get(1)
-                    .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?,
-            );
-        }
+            let row_schema: String = row
+                .try_get(0)
+                .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
 
-        Ok(VirtualTables {
-            table_schemas,
-            table_names,
-        })
+            let table = row
+                .try_get(1)
+                .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+
+            virtual_tables.push(VirtualTable {
+                schema: row_schema,
+                table,
+            });
+        }
+        Ok(virtual_tables)
     }
 }
 

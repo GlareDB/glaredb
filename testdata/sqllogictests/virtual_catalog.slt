@@ -1,0 +1,35 @@
+# Test the basic queries on virtual lister
+
+statement ok
+CREATE EXTERNAL DATABASE virt_cat FROM debug;
+
+query T rowsort
+SELECT * FROM virt_cat.virtual_catalog.schemata;
+----
+schema_0
+schema_1
+
+query TT rowsort
+SELECT * FROM virt_cat.virtual_catalog.tables;
+----
+schema_0  table_0
+schema_0  table_1
+schema_1  table_0
+schema_1  table_1
+
+# Check if the special filter "where table_schema = '...'"
+
+query TT rowsort
+SELECT * FROM virt_cat.virtual_catalog.tables WHERE table_schema = 'debug_schema';
+----
+debug_schema  table_0
+debug_schema  table_1
+
+query TT rowsort
+SELECT * FROM virt_cat.virtual_catalog.tables WHERE 'debug_schema' = table_schema;
+----
+debug_schema  table_0
+debug_schema  table_1
+
+statement ok
+DROP DATABASE virt_cat;
