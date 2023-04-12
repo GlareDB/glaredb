@@ -574,7 +574,7 @@ impl State {
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_database_rename.schema,
-                                name: alter_database_rename.name,
+                                name: alter_database_rename.name + "x",
                             })
                         }
                         Some(objs) => objs,
@@ -584,7 +584,7 @@ impl State {
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_database_rename.schema,
-                                name: alter_database_rename.name,
+                                name: alter_database_rename.name + "y",
                             })
                         }
                         Some(id) => id,
@@ -595,7 +595,7 @@ impl State {
                             debug_assert!(false, "missing object '{oid}' in entries");
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_database_rename.schema,
-                                name: alter_database_rename.name,
+                                name: alter_database_rename.name + "z",
                             });
                         }
                         Some(e) => match e {
