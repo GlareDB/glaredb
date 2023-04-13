@@ -58,33 +58,39 @@ type BigQueryStorage = Client<DefaultConnector>;
 /// Information needed to access an external BigQuery table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BigQueryTableAccess {
-    /// Service account key for accessing BigQuery.
-    ///
-    /// The service account should have 'BigQuery Data Viewer' and 'BigQuery Job
-    /// User' permissions.
-    pub gcp_service_acccount_key_json: String,
-    pub gcp_project_id: String,
     pub dataset_id: String,
     pub table_id: String,
 }
 
 pub struct BigQueryAccessor {
-    access: BigQueryTableAccess,
     /// Client for getting the metadata for a table.
     metadata: BigQueryClient,
+    /// GCP auth and project info.
+    gcp_service_account_key_json: String,
+    gcp_project_id: String,
 }
 
 impl BigQueryAccessor {
     /// Connect to the bigquery instance.
-    pub async fn connect(access: BigQueryTableAccess) -> Result<Self> {
+    ///
+    /// The service account should have 'BigQuery Data Viewer' and 'BigQuery Job
+    /// User' permissions.
+    pub async fn connect(
+        gcp_service_account_key_json: String,
+        gcp_project_id: String,
+    ) -> Result<Self> {
         // TODO: We end up deserializing the key twice. Once for this client,
         // and again for the storage client during query execution.
         let metadata = {
-            let key = serde_json::from_str(&access.gcp_service_acccount_key_json)?;
+            let key = serde_json::from_str(&gcp_service_account_key_json)?;
             BigQueryClient::from_service_account_key(key, true).await?
         };
 
-        Ok(BigQueryAccessor { access, metadata })
+        Ok(BigQueryAccessor {
+            metadata,
+            gcp_service_account_key_json,
+            gcp_project_id,
+        })
     }
 
     /// Validate big query external database
@@ -111,9 +117,13 @@ impl BigQueryAccessor {
     }
 
     /// Validate big query connection and access to table
-    pub async fn validate_table_access(access: &BigQueryTableAccess) -> Result<()> {
+    pub async fn validate_table_access(
+        gcp_service_account_key_json: &str,
+        gcp_project_id: &str,
+        access: &BigQueryTableAccess,
+    ) -> Result<()> {
         let client = {
-            let key = serde_json::from_str(&access.gcp_service_acccount_key_json)?;
+            let key = serde_json::from_str(gcp_service_account_key_json)?;
             let sa = ServiceAccountAuthenticator::builder(key)
                 .build()
                 .await
@@ -121,11 +131,8 @@ impl BigQueryAccessor {
             BigQueryStorage::new(sa).await?
         };
 
-        let table = bigquery_storage::Table::new(
-            &access.gcp_project_id,
-            &access.dataset_id,
-            &access.table_id,
-        );
+        let table =
+            bigquery_storage::Table::new(gcp_project_id, &access.dataset_id, &access.table_id);
 
         client
             .read_session_builder(table)
@@ -138,22 +145,25 @@ impl BigQueryAccessor {
 
     pub async fn into_table_provider(
         self,
+        table_access: BigQueryTableAccess,
         predicate_pushdown: bool,
     ) -> Result<BigQueryTableProvider> {
         let table_meta = self
             .metadata
             .table()
             .get(
-                &self.access.gcp_project_id,
-                &self.access.dataset_id,
-                &self.access.table_id,
+                &self.gcp_project_id,
+                &table_access.dataset_id,
+                &table_access.table_id,
                 None,
             )
             .await?;
         let arrow_schema = bigquery_table_to_arrow_schema(&table_meta)?;
 
         Ok(BigQueryTableProvider {
-            access: self.access,
+            access: table_access,
+            gcp_service_account_key_json: self.gcp_service_account_key_json,
+            gcp_project_id: self.gcp_project_id,
             predicate_pushdown,
             arrow_schema: Arc::new(arrow_schema),
         })
@@ -169,7 +179,7 @@ impl VirtualLister for BigQueryAccessor {
             .metadata
             .dataset()
             .list(
-                &self.access.gcp_project_id,
+                &self.gcp_project_id,
                 dataset::ListOptions::default().all(true),
             )
             .await
@@ -198,7 +208,7 @@ impl VirtualLister for BigQueryAccessor {
             .metadata
             .table()
             .list(
-                &self.access.gcp_project_id,
+                &self.gcp_project_id,
                 dataset_id,
                 table::ListOptions::default(),
             )
@@ -221,6 +231,8 @@ impl VirtualLister for BigQueryAccessor {
 
 pub struct BigQueryTableProvider {
     access: BigQueryTableAccess,
+    gcp_service_account_key_json: String,
+    gcp_project_id: String,
     predicate_pushdown: bool,
     arrow_schema: ArrowSchemaRef,
 }
@@ -255,7 +267,7 @@ impl TableProvider for BigQueryTableProvider {
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // TODO: Fix duplicated key deserialization.
         let storage = {
-            let key = serde_json::from_str(&self.access.gcp_service_acccount_key_json)
+            let key = serde_json::from_str(&self.gcp_service_account_key_json)
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
             let sa = ServiceAccountAuthenticator::builder(key).build().await?;
             BigQueryStorage::new(sa)
@@ -270,7 +282,7 @@ impl TableProvider for BigQueryTableProvider {
         };
 
         let mut builder = storage.read_session_builder(bigquery_storage::Table::new(
-            &self.access.gcp_project_id,
+            &self.gcp_project_id,
             &self.access.dataset_id,
             &self.access.table_id,
         ));
