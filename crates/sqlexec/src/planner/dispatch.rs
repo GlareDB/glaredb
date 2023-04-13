@@ -197,25 +197,24 @@ impl<'a> SessionDispatcher<'a> {
                 project_id,
             }) => {
                 let table_access = BigQueryTableAccess {
-                    gcp_service_acccount_key_json: service_account_key.clone(),
-                    gcp_project_id: project_id.clone(),
                     dataset_id: schema.to_string(),
                     table_id: name.to_string(),
                 };
 
-                let accessor = BigQueryAccessor::connect(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let accessor =
+                    BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
+                        .await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
             DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
                 let table_access = MysqlTableAccess {
                     schema: schema.to_string(),
                     name: name.to_string(),
-                    connection_string: connection_string.clone(),
                 };
 
-                let accessor = MysqlAccessor::connect(table_access, None).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let accessor = MysqlAccessor::connect(connection_string, None).await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
             DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
@@ -294,14 +293,14 @@ impl<'a> SessionDispatcher<'a> {
                 table_id,
             }) => {
                 let table_access = BigQueryTableAccess {
-                    gcp_service_acccount_key_json: service_account_key.to_string(),
-                    gcp_project_id: project_id.to_string(),
                     dataset_id: dataset_id.to_string(),
                     table_id: table_id.to_string(),
                 };
 
-                let accessor = BigQueryAccessor::connect(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let accessor =
+                    BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
+                        .await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
             TableOptions::Mysql(TableOptionsMysql {
@@ -312,11 +311,10 @@ impl<'a> SessionDispatcher<'a> {
                 let table_access = MysqlTableAccess {
                     schema: schema.clone(),
                     name: table.clone(),
-                    connection_string: connection_string.clone(),
                 };
 
-                let accessor = MysqlAccessor::connect(table_access, None).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let accessor = MysqlAccessor::connect(connection_string, None).await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
             TableOptions::Mongo(TableOptionsMongo {
@@ -767,6 +765,7 @@ impl<'a> VirtualCatalogDispatcher<'a> {
 
     async fn get_lister(&self) -> Result<Box<dyn VirtualLister>> {
         let lister: Box<dyn VirtualLister> = match &self.db.options {
+            DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let accessor = PostgresAccessor::connect(connection_string, None).await?;
@@ -776,13 +775,13 @@ impl<'a> VirtualCatalogDispatcher<'a> {
                 service_account_key,
                 project_id,
             }) => {
-                let accessor = BigQueryAccessor::connect(BigQueryTableAccess {
-                    gcp_service_acccount_key_json: service_account_key.to_owned(),
-                    gcp_project_id: project_id.to_owned(),
-                    dataset_id: String::new(),
-                    table_id: String::new(),
-                })
-                .await?;
+                let accessor =
+                    BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
+                        .await?;
+                Box::new(accessor)
+            }
+            DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
+                let accessor = MysqlAccessor::connect(connection_string, None).await?;
                 Box::new(accessor)
             }
             _ => Box::new(EmptyLister),

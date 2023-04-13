@@ -22,6 +22,8 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
+use datasource_common::errors::DatasourceCommonError;
+use datasource_common::listing::{VirtualLister, VirtualTable};
 use datasource_common::ssh::SshTunnelAccess;
 use datasource_common::util;
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -86,13 +88,10 @@ pub struct MysqlTableAccess {
     pub schema: String,
     /// The table or view name inside of mysql.
     pub name: String,
-    /// Database connection string.
-    pub connection_string: String,
 }
 
 #[derive(Debug)]
 pub struct MysqlAccessor {
-    access: MysqlTableAccess,
     conn: RwLock<Conn>,
     /// `Session` for the underlying ssh tunnel
     ///
@@ -103,22 +102,18 @@ pub struct MysqlAccessor {
 impl MysqlAccessor {
     /// Connect to a mysql instance.
     pub async fn connect(
-        access: MysqlTableAccess,
+        connection_string: &str,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<Self> {
         let (conn, _ssh_tunnel) = match ssh_tunnel {
-            None => Self::connect_direct(&access.connection_string).await?,
+            None => Self::connect_direct(connection_string).await?,
             Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
             }
         };
         let conn = RwLock::new(conn);
 
-        Ok(Self {
-            access,
-            conn,
-            _ssh_tunnel,
-        })
+        Ok(Self { conn, _ssh_tunnel })
     }
 
     async fn connect_direct(connection_string: &str) -> Result<(Conn, Option<Session>)> {
@@ -173,13 +168,14 @@ impl MysqlAccessor {
 
     /// Validate mysql connection and access to table
     pub async fn validate_table_access(
+        connection_string: &str,
         access: &MysqlTableAccess,
         ssh_tunnel: Option<SshTunnelAccess>,
     ) -> Result<()> {
         let (mut conn, _ssh_tunnel) = match ssh_tunnel {
-            None => Self::connect_direct(&access.connection_string).await?,
+            None => Self::connect_direct(connection_string).await?,
             Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(&access.connection_string, ssh_tunnel).await?
+                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
             }
         };
 
@@ -193,6 +189,7 @@ impl MysqlAccessor {
 
     pub async fn into_table_provider(
         mut self,
+        table_access: MysqlTableAccess,
         predicate_pushdown: bool,
     ) -> Result<MysqlTableProvider> {
         let conn = self.conn.get_mut();
@@ -201,7 +198,7 @@ impl MysqlAccessor {
             .exec_iter(
                 format!(
                     "SELECT * FROM {}.{} where false",
-                    self.access.schema, self.access.name
+                    table_access.schema, table_access.name
                 ),
                 (),
             )
@@ -214,14 +211,70 @@ impl MysqlAccessor {
 
         Ok(MysqlTableProvider {
             predicate_pushdown,
+            table_access,
             accessor: Arc::new(self),
             arrow_schema: Arc::new(arrow_schema),
         })
     }
 }
 
+#[async_trait]
+impl VirtualLister for MysqlAccessor {
+    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let mut conn = self.conn.write().await;
+
+        let cols = conn
+            .exec_iter("SELECT schema_name FROM information_schema.schemata", ())
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        let cols: Vec<String> = cols
+            .collect_and_drop()
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(cols)
+    }
+
+    async fn list_tables(
+        &self,
+        schema: Option<&str>,
+    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+        const INFO_SCHEMA_TABLES_QUERY: &str =
+            "SELECT table_schema, table_name FROM information_schema.tables";
+
+        let mut conn = self.conn.write().await;
+
+        let cols = if let Some(schema) = schema {
+            conn.exec_iter(
+                format!("{} WHERE table_schema = ?", INFO_SCHEMA_TABLES_QUERY),
+                (schema,),
+            )
+        } else {
+            conn.exec_iter(INFO_SCHEMA_TABLES_QUERY, ())
+        }
+        .await
+        .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        let cols = cols
+            .map_and_drop(|mut row| {
+                let schema: String = row.take(0).expect("value of row must exist");
+                let table: String = row.take(1).expect("value of row must exist");
+                VirtualTable { schema, table }
+            })
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(cols)
+    }
+}
+
 pub struct MysqlTableProvider {
     predicate_pushdown: bool,
+    table_access: MysqlTableAccess,
     accessor: Arc<MysqlAccessor>,
     arrow_schema: ArrowSchemaRef,
 }
@@ -290,9 +343,9 @@ impl TableProvider for MysqlTableProvider {
         // Build copy query.
         let query: String = format!(
             "SELECT {} FROM {}.{} {} {} {}",
-            projection_string,           // SELECT <str>
-            self.accessor.access.schema, // FROM <schema>
-            self.accessor.access.name,   // .<table>
+            projection_string,        // SELECT <str>
+            self.table_access.schema, // FROM <schema>
+            self.table_access.name,   // .<table>
             // [WHERE]
             if predicate_string.is_empty() {
                 ""
@@ -306,6 +359,7 @@ impl TableProvider for MysqlTableProvider {
 
         Ok(Arc::new(MysqlExec {
             predicate: predicate_string,
+            table_access: self.table_access.clone(),
             accessor: self.accessor.clone(),
             query,
             arrow_schema: projected_schema,
@@ -316,6 +370,7 @@ impl TableProvider for MysqlTableProvider {
 #[derive(Debug)]
 struct MysqlExec {
     predicate: String,
+    table_access: MysqlTableAccess,
     accessor: Arc<MysqlAccessor>,
     query: String,
     arrow_schema: ArrowSchemaRef,
@@ -370,8 +425,8 @@ impl ExecutionPlan for MysqlExec {
         write!(
             f,
             "MysqlExec: schema={}, name={}, predicate={}",
-            self.accessor.access.schema,
-            self.accessor.access.name,
+            self.table_access.schema,
+            self.table_access.name,
             if self.predicate.is_empty() {
                 "None"
             } else {

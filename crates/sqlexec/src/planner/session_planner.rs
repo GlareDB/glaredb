@@ -144,242 +144,241 @@ impl<'a> SessionPlanner<'a> {
         mut stmt: CreateExternalTableStmt,
     ) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
-        let (external_table_options, external_table_columns) =
-            match stmt.datasource.to_lowercase().as_str() {
-                TableOptions::POSTGRES => {
-                    let connection_string = get_pg_conn_str(m)?;
-                    let schema = remove_required_opt(m, "schema")?;
-                    let table = remove_required_opt(m, "table")?;
+        let (external_table_options, external_table_columns) = match stmt
+            .datasource
+            .to_lowercase()
+            .as_str()
+        {
+            TableOptions::POSTGRES => {
+                let connection_string = get_pg_conn_str(m)?;
+                let schema = remove_required_opt(m, "schema")?;
+                let table = remove_required_opt(m, "table")?;
 
-                    let access = PostgresTableAccess {
-                        schema,
-                        name: table,
-                    };
+                let access = PostgresTableAccess {
+                    schema,
+                    name: table,
+                };
 
-                    let arrow_schema =
-                        PostgresAccessor::validate_table_access(&connection_string, &access, None)
-                            .await
-                            .map_err(|e| PlanError::InvalidExternalTable {
-                                source: Box::new(e),
-                            })?;
-
-                    (
-                        TableOptions::Postgres(TableOptionsPostgres {
-                            connection_string,
-                            schema: access.schema,
-                            table: access.name,
-                        }),
-                        arrow_schema.fields,
-                    )
-                }
-                TableOptions::BIGQUERY => {
-                    let service_account_key = remove_required_opt(m, "service_account_key")?;
-                    let project_id = remove_required_opt(m, "project_id")?;
-                    let dataset_id = remove_required_opt(m, "dataset_id")?;
-                    let table_id = remove_required_opt(m, "table_id")?;
-
-                    let access = BigQueryTableAccess {
-                        gcp_service_acccount_key_json: service_account_key,
-                        gcp_project_id: project_id,
-                        dataset_id,
-                        table_id,
-                    };
-
-                    BigQueryAccessor::validate_table_access(&access)
+                let arrow_schema =
+                    PostgresAccessor::validate_table_access(&connection_string, &access, None)
                         .await
                         .map_err(|e| PlanError::InvalidExternalTable {
                             source: Box::new(e),
                         })?;
 
-                    (
-                        TableOptions::BigQuery(TableOptionsBigQuery {
-                            service_account_key: access.gcp_service_acccount_key_json,
-                            project_id: access.gcp_project_id,
-                            dataset_id: access.dataset_id,
-                            table_id: access.table_id,
-                        }),
-                        // TODO: return column info for this datasource
-                        vec![],
-                    )
-                }
-                TableOptions::MYSQL => {
-                    let connection_string = get_mysql_conn_str(m)?;
-                    let schema = remove_required_opt(m, "schema")?;
-                    let table = remove_required_opt(m, "table")?;
-
-                    let access = MysqlTableAccess {
-                        schema,
-                        name: table,
+                (
+                    TableOptions::Postgres(TableOptionsPostgres {
                         connection_string,
-                    };
+                        schema: access.schema,
+                        table: access.name,
+                    }),
+                    arrow_schema.fields,
+                )
+            }
+            TableOptions::BIGQUERY => {
+                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let project_id = remove_required_opt(m, "project_id")?;
+                let dataset_id = remove_required_opt(m, "dataset_id")?;
+                let table_id = remove_required_opt(m, "table_id")?;
 
-                    MysqlAccessor::validate_table_access(&access, None)
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                let access = BigQueryTableAccess {
+                    dataset_id,
+                    table_id,
+                };
 
-                    (
-                        TableOptions::Mysql(TableOptionsMysql {
-                            connection_string: access.connection_string,
-                            schema: access.schema,
-                            table: access.name,
-                        }),
-                        // TODO: return column info for this datasource
-                        vec![],
-                    )
-                }
-                TableOptions::MONGO => {
-                    let connection_string = get_mongo_conn_str(m)?;
-                    let database = remove_required_opt(m, "database")?;
-                    let collection = remove_required_opt(m, "collection")?;
+                BigQueryAccessor::validate_table_access(&service_account_key, &project_id, &access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
-                    (
-                        TableOptions::Mongo(TableOptionsMongo {
-                            connection_string,
-                            database,
-                            collection,
-                        }),
-                        // TODO: return column info for this datasource
-                        vec![],
-                    )
-                }
-                TableOptions::SNOWFLAKE => {
-                    let account_name = remove_required_opt(m, "account_name")?;
-                    let login_name = remove_required_opt(m, "login_name")?;
-                    let password = remove_required_opt(m, "password")?;
-                    let database_name = remove_required_opt(m, "database_name")?;
-                    let warehouse = remove_required_opt(m, "warehouse")?;
-                    let role_name = remove_optional_opt(m, "role_name")?;
-                    let schema_name = remove_required_opt(m, "schema_name")?;
-                    let table_name = remove_required_opt(m, "table_name")?;
+                (
+                    TableOptions::BigQuery(TableOptionsBigQuery {
+                        service_account_key,
+                        project_id,
+                        dataset_id: access.dataset_id,
+                        table_id: access.table_id,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
+            }
+            TableOptions::MYSQL => {
+                let connection_string = get_mysql_conn_str(m)?;
+                let schema = remove_required_opt(m, "schema")?;
+                let table = remove_required_opt(m, "table")?;
 
-                    let arrow_schema =
-                        SnowflakeAccessor::validate_table_access(SnowflakeTableAccess {
-                            account_name: account_name.clone(),
-                            login_name: login_name.clone(),
-                            password: password.clone(),
-                            database_name: database_name.clone(),
-                            warehouse: warehouse.clone(),
-                            role_name: role_name.clone(),
-                            schema_name: schema_name.clone(),
-                            table_name: table_name.clone(),
-                        })
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                let access = MysqlTableAccess {
+                    schema,
+                    name: table,
+                };
 
-                    (
-                        TableOptions::Snowflake(TableOptionsSnowflake {
-                            account_name,
-                            login_name,
-                            password,
-                            database_name,
-                            warehouse,
-                            role_name: role_name.unwrap_or_default(),
-                            schema_name,
-                            table_name,
-                        }),
-                        arrow_schema.fields,
-                    )
-                }
-                TableOptions::LOCAL => {
-                    let location = remove_required_opt(m, "location")?;
+                MysqlAccessor::validate_table_access(&connection_string, &access, None)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
-                    let access = LocalTableAccess {
-                        location: location.clone(),
-                        file_type: None,
-                    };
+                (
+                    TableOptions::Mysql(TableOptionsMysql {
+                        connection_string,
+                        schema: access.schema,
+                        table: access.name,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
+            }
+            TableOptions::MONGO => {
+                let connection_string = get_mongo_conn_str(m)?;
+                let database = remove_required_opt(m, "database")?;
+                let collection = remove_required_opt(m, "collection")?;
 
-                    LocalAccessor::validate_table_access(access)
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                (
+                    TableOptions::Mongo(TableOptionsMongo {
+                        connection_string,
+                        database,
+                        collection,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
+            }
+            TableOptions::SNOWFLAKE => {
+                let account_name = remove_required_opt(m, "account_name")?;
+                let login_name = remove_required_opt(m, "login_name")?;
+                let password = remove_required_opt(m, "password")?;
+                let database_name = remove_required_opt(m, "database_name")?;
+                let warehouse = remove_required_opt(m, "warehouse")?;
+                let role_name = remove_optional_opt(m, "role_name")?;
+                let schema_name = remove_required_opt(m, "schema_name")?;
+                let table_name = remove_required_opt(m, "table_name")?;
 
-                    (
-                        TableOptions::Local(TableOptionsLocal { location }),
-                        // TODO: return column info for this datasource
-                        vec![],
-                    )
-                }
-                TableOptions::GCS => {
-                    let service_account_key = remove_required_opt(m, "service_account_key")?;
-                    let bucket = remove_required_opt(m, "bucket")?;
-                    let location = remove_required_opt(m, "location")?;
+                let arrow_schema = SnowflakeAccessor::validate_table_access(SnowflakeTableAccess {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name: role_name.clone(),
+                    schema_name: schema_name.clone(),
+                    table_name: table_name.clone(),
+                })
+                .await
+                .map_err(|e| PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                })?;
 
-                    let access = GcsTableAccess {
-                        bucket_name: bucket,
-                        service_acccount_key_json: service_account_key,
-                        location,
-                        file_type: None,
-                    };
+                (
+                    TableOptions::Snowflake(TableOptionsSnowflake {
+                        account_name,
+                        login_name,
+                        password,
+                        database_name,
+                        warehouse,
+                        role_name: role_name.unwrap_or_default(),
+                        schema_name,
+                        table_name,
+                    }),
+                    arrow_schema.fields,
+                )
+            }
+            TableOptions::LOCAL => {
+                let location = remove_required_opt(m, "location")?;
 
-                    GcsAccessor::validate_table_access(access.clone())
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                let access = LocalTableAccess {
+                    location: location.clone(),
+                    file_type: None,
+                };
 
-                    (
-                        TableOptions::Gcs(TableOptionsGcs {
-                            service_account_key: access.service_acccount_key_json,
-                            bucket: access.bucket_name,
-                            location: access.location,
-                        }),
-                        // TODO: return column info for this datasource
-                        vec![],
-                    )
-                }
-                TableOptions::S3_STORAGE => {
-                    let access_key_id = remove_required_opt(m, "access_key_id")?;
-                    let secret_access_key = remove_required_opt(m, "secret_access_key")?;
-                    let region = remove_required_opt(m, "region")?;
-                    let bucket = remove_required_opt(m, "bucket")?;
-                    let location = remove_required_opt(m, "location")?;
+                LocalAccessor::validate_table_access(access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
-                    let access = S3TableAccess {
-                        region,
-                        bucket_name: bucket,
-                        access_key_id,
-                        secret_access_key,
-                        location,
-                        file_type: None,
-                    };
+                (
+                    TableOptions::Local(TableOptionsLocal { location }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
+            }
+            TableOptions::GCS => {
+                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let bucket = remove_required_opt(m, "bucket")?;
+                let location = remove_required_opt(m, "location")?;
 
-                    S3Accessor::validate_table_access(access.clone())
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                let access = GcsTableAccess {
+                    bucket_name: bucket,
+                    service_acccount_key_json: service_account_key,
+                    location,
+                    file_type: None,
+                };
 
-                    (
-                        TableOptions::S3(TableOptionsS3 {
-                            access_key_id: access.access_key_id,
-                            secret_access_key: access.secret_access_key,
-                            region: access.region,
-                            bucket: access.bucket_name,
-                            location: access.location,
-                        }),
-                        // TODO: return column info for this datasource
-                        vec![],
-                    )
-                }
-                TableOptions::DEBUG => {
-                    let typ = remove_required_opt(m, "table_type")?;
-                    let typ = DebugTableType::from_str(&typ)?;
-                    let columns = typ.arrow_schema().fields;
+                GcsAccessor::validate_table_access(access.clone())
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
-                    (
-                        TableOptions::Debug(TableOptionsDebug {
-                            table_type: typ.to_string(),
-                        }),
-                        columns,
-                    )
-                }
-                other => return Err(internal!("unsupported datasource: {}", other)),
-            };
+                (
+                    TableOptions::Gcs(TableOptionsGcs {
+                        service_account_key: access.service_acccount_key_json,
+                        bucket: access.bucket_name,
+                        location: access.location,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
+            }
+            TableOptions::S3_STORAGE => {
+                let access_key_id = remove_required_opt(m, "access_key_id")?;
+                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
+                let region = remove_required_opt(m, "region")?;
+                let bucket = remove_required_opt(m, "bucket")?;
+                let location = remove_required_opt(m, "location")?;
+
+                let access = S3TableAccess {
+                    region,
+                    bucket_name: bucket,
+                    access_key_id,
+                    secret_access_key,
+                    location,
+                    file_type: None,
+                };
+
+                S3Accessor::validate_table_access(access.clone())
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
+
+                (
+                    TableOptions::S3(TableOptionsS3 {
+                        access_key_id: access.access_key_id,
+                        secret_access_key: access.secret_access_key,
+                        region: access.region,
+                        bucket: access.bucket_name,
+                        location: access.location,
+                    }),
+                    // TODO: return column info for this datasource
+                    vec![],
+                )
+            }
+            TableOptions::DEBUG => {
+                let typ = remove_required_opt(m, "table_type")?;
+                let typ = DebugTableType::from_str(&typ)?;
+                let columns = typ.arrow_schema().fields;
+
+                (
+                    TableOptions::Debug(TableOptionsDebug {
+                        table_type: typ.to_string(),
+                    }),
+                    columns,
+                )
+            }
+            other => return Err(internal!("unsupported datasource: {}", other)),
+        };
 
         let plan = CreateExternalTable {
             table_name: stmt.name,
