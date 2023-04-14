@@ -6,9 +6,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::listing::{
-    EmptyLister, VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister,
-};
+use datasource_common::listing::{VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister};
 use datasource_debug::{DebugTableType, DebugVirtualLister};
 use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
@@ -16,7 +14,7 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
-use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
+use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
     GLARE_TABLES, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
@@ -246,19 +244,21 @@ impl<'a> SessionDispatcher<'a> {
                     Some(role_name.clone())
                 };
 
-                let access_info = SnowflakeTableAccess {
+                let conn_params = SnowflakeDbConnection {
                     account_name: account_name.clone(),
                     login_name: login_name.clone(),
                     password: password.clone(),
                     database_name: database_name.clone(),
                     warehouse: warehouse.clone(),
                     role_name,
+                };
+                let access_info = SnowflakeTableAccess {
                     schema_name,
                     table_name,
                 };
-                let accessor = SnowflakeAccessor::connect(access_info).await?;
+                let accessor = SnowflakeAccessor::connect(conn_params).await?;
                 let provider = accessor
-                    .into_table_provider(/* predicate_pushdown = */ true)
+                    .into_table_provider(access_info, /* predicate_pushdown = */ true)
                     .await?;
                 Ok(Arc::new(provider))
             }
@@ -350,19 +350,21 @@ impl<'a> SessionDispatcher<'a> {
                     Some(role_name.clone())
                 };
 
-                let access_info = SnowflakeTableAccess {
+                let conn_params = SnowflakeDbConnection {
                     account_name: account_name.clone(),
                     login_name: login_name.clone(),
                     password: password.clone(),
                     database_name: database_name.clone(),
                     warehouse: warehouse.clone(),
                     role_name,
+                };
+                let access_info = SnowflakeTableAccess {
                     schema_name: schema_name.clone(),
                     table_name: table_name.clone(),
                 };
-                let accessor = SnowflakeAccessor::connect(access_info).await?;
+                let accessor = SnowflakeAccessor::connect(conn_params).await?;
                 let provider = accessor
-                    .into_table_provider(/* predicate_pushdown = */ true)
+                    .into_table_provider(access_info, /* predicate_pushdown = */ true)
                     .await?;
                 Ok(Arc::new(provider))
             }
@@ -791,7 +793,30 @@ impl<'a> VirtualCatalogDispatcher<'a> {
                 let accessor = MongoAccessor::connect(access_info).await?;
                 Box::new(accessor)
             }
-            _ => Box::new(EmptyLister),
+            DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+                account_name,
+                login_name,
+                password,
+                database_name,
+                warehouse,
+                role_name,
+            }) => {
+                let role_name = if role_name.is_empty() {
+                    None
+                } else {
+                    Some(role_name.clone())
+                };
+                let conn_params = SnowflakeDbConnection {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name,
+                };
+                let accessor = SnowflakeAccessor::connect(conn_params).await?;
+                Box::new(accessor)
+            }
         };
         Ok(lister)
     }
