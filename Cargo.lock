@@ -520,14 +520,14 @@ dependencies = [
 [[package]]
 name = "bigquery-storage"
 version = "0.1.2"
-source = "git+https://github.com/glaredb/bigquery-storage?branch=master#40f5170c92f7837e61d090b9ef2281133e40b049"
+source = "git+https://github.com/glaredb/bigquery-storage?branch=master#4cc08a22d9d2f0ec7c2cb2a99779881233ee8677"
 dependencies = [
  "futures",
  "hyper",
  "prost",
  "prost-types",
- "tonic 0.8.3",
- "tonic-build 0.8.4",
+ "tonic",
+ "tonic-build",
  "yup-oauth2 5.1.0",
 ]
 
@@ -2226,7 +2226,7 @@ dependencies = [
  "sqlexec",
  "telemetry",
  "tokio",
- "tonic 0.9.1",
+ "tonic",
  "tracing",
  "uuid",
 ]
@@ -2924,8 +2924,8 @@ dependencies = [
  "prost-types",
  "thiserror",
  "tokio",
- "tonic 0.9.1",
- "tonic-build 0.9.1",
+ "tonic",
+ "tonic-build",
  "tower",
  "tracing",
  "uuid",
@@ -5035,7 +5035,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
- "tonic 0.9.1",
+ "tonic",
  "tower",
  "tracing",
  "uuid",
@@ -5576,41 +5576,6 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f219fad3b929bef19b1f86fbc0358d35daed8f2cac972037ac0dc10bbb8d5fb"
-dependencies = [
- "async-stream",
- "async-trait",
- "axum",
- "base64 0.13.1",
- "bytes",
- "futures-core",
- "futures-util",
- "h2",
- "http",
- "http-body",
- "hyper",
- "hyper-timeout",
- "percent-encoding",
- "pin-project",
- "prost",
- "prost-derive",
- "rustls-native-certs 0.6.2",
- "rustls-pemfile",
- "tokio",
- "tokio-rustls 0.23.4",
- "tokio-stream",
- "tokio-util",
- "tower",
- "tower-layer",
- "tower-service",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "tonic"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38bd8e87955eb13c1986671838177d6792cdc52af9bffced0d2c8a9a7f741ab3"
@@ -5639,19 +5604,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "tonic-build"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bf5e9b9c0f7e0a7c027dcfaba7b2c60816c7049171f679d99ee2ff65d0de8c4"
-dependencies = [
- "prettyplease",
- "proc-macro2 1.0.53",
- "prost-build",
- "quote 1.0.26",
- "syn 1.0.107",
 ]
 
 [[package]]
@@ -5731,16 +5683,6 @@ checksum = "24eb03ba0eab1fd845050058ce5e616558e8f8d8fca633e6b163fe25c797213a"
 dependencies = [
  "once_cell",
  "valuable",
-]
-
-[[package]]
-name = "tracing-futures"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
-dependencies = [
- "pin-project",
- "tracing",
 ]
 
 [[package]]
@@ -5845,7 +5787,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
