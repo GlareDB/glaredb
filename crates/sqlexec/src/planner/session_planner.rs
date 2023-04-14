@@ -11,6 +11,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
+use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_debug::DebugTableType;
@@ -27,7 +28,6 @@ use metastore::types::options::{
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
     TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
-use sqlparser::ast::AlterTableOperation;
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
