@@ -30,6 +30,9 @@ pub enum MongoError {
     #[error("Invalid protocol: {0}")]
     InvalidProtocol(String),
 
+    #[error("Missing schema: Cannot list tables for multiple schemas")]
+    MissingSchemaForVirtualLister,
+
     #[error(transparent)]
     Mongo(#[from] mongodb::error::Error),
 
