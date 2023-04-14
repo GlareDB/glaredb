@@ -784,6 +784,13 @@ impl<'a> VirtualCatalogDispatcher<'a> {
                 let accessor = MysqlAccessor::connect(connection_string, None).await?;
                 Box::new(accessor)
             }
+            DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
+                let access_info = MongoAccessInfo {
+                    connection_string: connection_string.clone(),
+                };
+                let accessor = MongoAccessor::connect(access_info).await?;
+                Box::new(accessor)
+            }
             _ => Box::new(EmptyLister),
         };
         Ok(lister)
