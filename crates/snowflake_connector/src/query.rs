@@ -449,6 +449,7 @@ impl QueryResultChunk {
             iter: self.iter,
             curr_batch: None,
             curr_row: 0,
+            initialized: false,
         }
     }
 }
@@ -467,31 +468,42 @@ pub struct QueryResultRowIter {
     iter: RecordBatchIter,
     curr_batch: Option<RecordBatch>,
     curr_row: usize,
+    // If the iteration has been initialized. This happens after the first call
+    // to `iter.next()`.
+    initialized: bool,
 }
 
 impl QueryResultRowIter {
     fn try_next_batch(&mut self) -> Result<()> {
-        let batch = self.iter.next().transpose()?;
-        self.curr_batch = batch;
-        self.curr_row = 0;
+        while let Some(curr_batch) = self.curr_batch.as_ref() {
+            if self.curr_row < curr_batch.num_rows() {
+                break;
+            }
+            self.curr_batch = self.iter.next().transpose()?;
+            self.curr_row = 0;
+        }
         Ok(())
     }
 
     fn next_row(&mut self) -> Result<Option<QueryResultRow>> {
-        if self.curr_batch.is_none()
-            || self.curr_row >= self.curr_batch.as_ref().unwrap().num_rows()
-        {
-            self.try_next_batch()?;
+        if !self.initialized {
+            // Get the first batch when `next()` is called for the first time.
+            self.curr_batch = self.iter.next().transpose()?;
+            self.initialized = true;
         }
 
+        // Try getting the next batch if required (i.e., the current one is
+        // exhausted).
+        self.try_next_batch()?;
+
         // Here we definitely know if there exists a batch or not.
-        let curr_batch = if let Some(curr) = &self.curr_batch {
-            curr
+        let curr_batch = if let Some(curr_batch) = self.curr_batch.as_ref() {
+            curr_batch
         } else {
             return Ok(None);
         };
 
-        // Advance row
+        // Advance row.
         let row = self.curr_row;
         self.curr_row += 1;
 

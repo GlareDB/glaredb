@@ -20,6 +20,8 @@ use datafusion::{
     logical_expr::{Expr, TableProviderFilterPushDown, TableType},
     physical_plan::ExecutionPlan,
 };
+use datasource_common::errors::DatasourceCommonError;
+use datasource_common::listing::{VirtualLister, VirtualTable};
 use datasource_common::util;
 use futures::{Stream, StreamExt};
 use snowflake_connector::QueryResultChunk;
@@ -31,36 +33,39 @@ use snowflake_connector::{
 use crate::errors::Result;
 
 #[derive(Debug, Clone)]
-pub struct SnowflakeTableAccess {
+pub struct SnowflakeDbConnection {
     pub account_name: String,
     pub login_name: String,
     pub password: String,
     pub database_name: String,
     pub warehouse: String,
     pub role_name: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SnowflakeTableAccess {
     pub schema_name: String,
     pub table_name: String,
 }
 
 pub struct SnowflakeAccessor {
     conn: SnowflakeConnection,
-    access: SnowflakeTableAccess,
 }
 
 impl SnowflakeAccessor {
-    pub async fn connect(access: SnowflakeTableAccess) -> Result<Self> {
-        let conn = Self::build_conn(access.clone()).await?;
-        Ok(Self { conn, access })
+    pub async fn connect(conn_params: SnowflakeDbConnection) -> Result<Self> {
+        let conn = Self::build_conn(conn_params).await?;
+        Ok(Self { conn })
     }
 
-    async fn build_conn(access: SnowflakeTableAccess) -> Result<SnowflakeConnection> {
-        let mut conn = SnowflakeConnection::builder(access.account_name, access.login_name)
-            .password(access.password)
-            .database_name(access.database_name)
-            .schema_name(access.schema_name)
-            .warehouse(access.warehouse);
+    async fn build_conn(conn_params: SnowflakeDbConnection) -> Result<SnowflakeConnection> {
+        let mut conn =
+            SnowflakeConnection::builder(conn_params.account_name, conn_params.login_name)
+                .password(conn_params.password)
+                .database_name(conn_params.database_name)
+                .warehouse(conn_params.warehouse);
 
-        if let Some(role_name) = access.role_name {
+        if let Some(role_name) = conn_params.role_name {
             conn = conn.role_name(role_name);
         }
 
@@ -68,23 +73,29 @@ impl SnowflakeAccessor {
         Ok(conn)
     }
 
-    pub async fn validate_table_access(access: SnowflakeTableAccess) -> Result<ArrowSchema> {
-        let accessor = Self::connect(access).await?;
+    pub async fn validate_table_access(
+        conn_params: SnowflakeDbConnection,
+        table_access: &SnowflakeTableAccess,
+    ) -> Result<ArrowSchema> {
+        let accessor = Self::connect(conn_params).await?;
 
         // Validate if the connection is Ok
-        let query = format!("SELECT * FROM {} WHERE FALSE", accessor.access.table_name);
+        let query = format!(
+            "SELECT * FROM {}.{} WHERE FALSE",
+            table_access.schema_name, table_access.table_name
+        );
         let _res = accessor.conn.query(query, vec![]).await?;
 
         // Get table schema
-        accessor.get_table_schema().await
+        accessor.get_table_schema(table_access).await
     }
 
-    async fn get_table_schema(&self) -> Result<ArrowSchema> {
+    async fn get_table_schema(&self, table_access: &SnowflakeTableAccess) -> Result<ArrowSchema> {
         // Snowflake stores data as upper-case. Maybe this won't be an issue
         // when we use bindings but for now, manually transform everything to
         // uppercase values.
-        let table_schema = self.access.schema_name.to_uppercase();
-        let table_name = self.access.table_name.to_uppercase();
+        let table_schema = table_access.schema_name.to_uppercase();
+        let table_name = table_access.table_name.to_uppercase();
 
         // TODO: There's time precision as well (nanos, micros...). Currently
         // assuming everything as default nanos. Test if setting precision
@@ -145,20 +156,107 @@ WHERE
 
     pub async fn into_table_provider(
         self,
+        table_access: SnowflakeTableAccess,
         predicate_pushdown: bool,
     ) -> Result<SnowflakeTableProvider> {
-        let arrow_schema = self.get_table_schema().await?;
+        let arrow_schema = self.get_table_schema(&table_access).await?;
 
         Ok(SnowflakeTableProvider {
             predicate_pushdown,
+            table_access,
             accessor: Arc::new(self),
             arrow_schema: Arc::new(arrow_schema),
         })
     }
 }
 
+#[async_trait]
+impl VirtualLister for SnowflakeAccessor {
+    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let res = self
+            .conn
+            .query(
+                "SELECT schema_name FROM information_schema.schemata".to_string(),
+                Vec::new(),
+            )
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        let mut schema_list = Vec::new();
+        for row in res.into_row_iter() {
+            let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+            let schema = match row
+                .get_column(0)
+                .unwrap()
+                .map_err(|e| ListingErrBoxed(Box::new(e)))?
+            {
+                ScalarValue::Utf8(Some(v)) => v,
+                _ => unreachable!(),
+            };
+            schema_list.push(schema);
+        }
+
+        Ok(schema_list)
+    }
+
+    async fn list_tables(
+        &self,
+        schema: Option<&str>,
+    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        const LIST_TABLES_QUERY: &str =
+            "SELECT table_schema, table_name FROM information_schema.tables";
+        let (query, bindings) = if let Some(schema) = schema {
+            (
+                format!("{LIST_TABLES_QUERY} WHERE table_schema = ?"),
+                vec![QueryBindParameter::new_text(schema)],
+            )
+        } else {
+            (LIST_TABLES_QUERY.to_owned(), Vec::new())
+        };
+
+        let res = self
+            .conn
+            .query(query, bindings)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        let mut tables_list = Vec::new();
+        for row in res.into_row_iter() {
+            let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+            let schema = match row
+                .get_column_by_name("TABLE_SCHEMA")
+                .unwrap()
+                .map_err(|e| ListingErrBoxed(Box::new(e)))?
+            {
+                ScalarValue::Utf8(Some(v)) => v,
+                _ => unreachable!(),
+            };
+
+            let table = match row
+                .get_column_by_name("TABLE_NAME")
+                .unwrap()
+                .map_err(|e| ListingErrBoxed(Box::new(e)))?
+            {
+                ScalarValue::Utf8(Some(v)) => v,
+                _ => unreachable!(),
+            };
+
+            tables_list.push(VirtualTable { schema, table });
+        }
+
+        Ok(tables_list)
+    }
+}
+
 pub struct SnowflakeTableProvider {
     predicate_pushdown: bool,
+    table_access: SnowflakeTableAccess,
     accessor: Arc<SnowflakeAccessor>,
     arrow_schema: ArrowSchemaRef,
 }
@@ -217,9 +315,10 @@ impl TableProvider for SnowflakeTableProvider {
         };
 
         let query = format!(
-            "SELECT {} FROM {} {} {} {}",
+            "SELECT {} FROM {}.{} {} {} {}",
             projection_string,
-            self.accessor.access.table_name,
+            self.table_access.schema_name,
+            self.table_access.table_name,
             if predicate_string.is_empty() {
                 ""
             } else {

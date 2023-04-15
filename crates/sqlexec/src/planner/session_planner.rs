@@ -21,7 +21,7 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
-use datasource_snowflake::{SnowflakeAccessor, SnowflakeTableAccess};
+use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
@@ -254,20 +254,26 @@ impl<'a> SessionPlanner<'a> {
                 let schema_name = remove_required_opt(m, "schema_name")?;
                 let table_name = remove_required_opt(m, "table_name")?;
 
-                let arrow_schema = SnowflakeAccessor::validate_table_access(SnowflakeTableAccess {
+                let conn_params = SnowflakeDbConnection {
                     account_name: account_name.clone(),
                     login_name: login_name.clone(),
                     password: password.clone(),
                     database_name: database_name.clone(),
                     warehouse: warehouse.clone(),
                     role_name: role_name.clone(),
-                    schema_name: schema_name.clone(),
-                    table_name: table_name.clone(),
-                })
-                .await
-                .map_err(|e| PlanError::InvalidExternalTable {
-                    source: Box::new(e),
-                })?;
+                };
+
+                let access_info = SnowflakeTableAccess {
+                    schema_name,
+                    table_name,
+                };
+
+                let arrow_schema =
+                    SnowflakeAccessor::validate_table_access(conn_params, &access_info)
+                        .await
+                        .map_err(|e| PlanError::InvalidExternalTable {
+                            source: Box::new(e),
+                        })?;
 
                 (
                     TableOptions::Snowflake(TableOptionsSnowflake {
@@ -277,8 +283,8 @@ impl<'a> SessionPlanner<'a> {
                         database_name,
                         warehouse,
                         role_name: role_name.unwrap_or_default(),
-                        schema_name,
-                        table_name,
+                        schema_name: access_info.schema_name,
+                        table_name: access_info.table_name,
                     }),
                     arrow_schema.fields,
                 )
