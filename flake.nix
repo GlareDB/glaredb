@@ -151,11 +151,19 @@
           ++ buildInputs
           ++ nativeBuildInputs;
 
+        # Build all dependencies. Built dependencies will be reused across
+        # checks and builds.
+        cargoArtifacts = craneLib.buildDepsOnly (common-build-args // {
+          pname = "glaredb-artifacts";
+          doCheck = false;
+        });
+
         # GlareDB binary.
         #
-        # This is also used for cargo artifacts (since this pretty much builds
-        # everything).
+        # This is also used for cargo artifacts for downstream targets (since
+        # this pretty much builds everything).
         glaredb-bin = craneLib.buildPackage (common-build-args // {
+          inherit cargoArtifacts;
           pname = "glaredb";
           cargoExtraArgs = "--bin glaredb";
           doCheck = false;
