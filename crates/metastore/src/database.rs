@@ -396,6 +396,7 @@ impl State {
                     self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::CreateExternalDatabase(create_database) => {
+                    validate_object_name(&create_database.name)?;
                     match self.database_names.get(&create_database.name) {
                         Some(_) if create_database.if_not_exists => return Ok(()), // Already exists, nothing to do.
                         Some(_) => return Err(MetastoreError::DuplicateName(create_database.name)),
@@ -760,6 +761,19 @@ impl BuiltinCatalog {
             schema_objects,
         })
     }
+}
+
+// validate object name
+fn validate_object_name(name: &String) -> Result<()> {
+    const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
+    if name.len() >= POSTGRES_IDENT_MAX_LENGTH {
+        return Err(MetastoreError::InvalidNameLength {
+            length: name.len(),
+            max: POSTGRES_IDENT_MAX_LENGTH,
+        });
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
