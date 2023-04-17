@@ -217,7 +217,7 @@ impl Scalar {
                 Self::TimestampTz(v),
                 arrow_type @ ArrowType::Timestamp(TimeUnit::Microsecond, Some(tz)),
             ) => {
-                if tz != v.timezone().name() {
+                if tz.as_ref() != v.timezone().name() {
                     return Err(PgReprError::InternalError(format!(
                         "cannot convert from {:?} to arrow type {:?}",
                         v, arrow_type
@@ -231,7 +231,7 @@ impl Scalar {
                 Self::TimestampTz(v),
                 arrow_type @ ArrowType::Timestamp(TimeUnit::Nanosecond, Some(tz)),
             ) => {
-                if tz != v.timezone().name() {
+                if tz.as_ref() != v.timezone().name() {
                     return Err(PgReprError::InternalError(format!(
                         "cannot convert from {:?} to arrow type {:?}",
                         v, arrow_type

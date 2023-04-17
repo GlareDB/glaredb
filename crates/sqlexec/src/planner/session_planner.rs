@@ -8,7 +8,7 @@ use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use datafusion::arrow::datatypes::{
-    DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
+    DataType, Field, Fields, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
@@ -31,6 +31,7 @@ use metastore::types::options::{
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
+use std::sync::Arc;
 use tracing::debug;
 
 /// Plan SQL statements for a session.
@@ -200,7 +201,7 @@ impl<'a> SessionPlanner<'a> {
                         table_id: access.table_id,
                     }),
                     // TODO: return column info for this datasource
-                    vec![],
+                    Fields::empty(),
                 )
             }
             TableOptions::MYSQL => {
@@ -226,7 +227,7 @@ impl<'a> SessionPlanner<'a> {
                         table: access.name,
                     }),
                     // TODO: return column info for this datasource
-                    vec![],
+                    Fields::empty(),
                 )
             }
             TableOptions::MONGO => {
@@ -241,7 +242,7 @@ impl<'a> SessionPlanner<'a> {
                         collection,
                     }),
                     // TODO: return column info for this datasource
-                    vec![],
+                    Fields::empty(),
                 )
             }
             TableOptions::SNOWFLAKE => {
@@ -306,7 +307,7 @@ impl<'a> SessionPlanner<'a> {
                 (
                     TableOptions::Local(TableOptionsLocal { location }),
                     // TODO: return column info for this datasource
-                    vec![],
+                    Fields::empty(),
                 )
             }
             TableOptions::GCS => {
@@ -334,7 +335,7 @@ impl<'a> SessionPlanner<'a> {
                         location: access.location,
                     }),
                     // TODO: return column info for this datasource
-                    vec![],
+                    Fields::empty(),
                 )
             }
             TableOptions::S3_STORAGE => {
@@ -368,7 +369,7 @@ impl<'a> SessionPlanner<'a> {
                         location: access.location,
                     }),
                     // TODO: return column info for this datasource
-                    vec![],
+                    Fields::empty(),
                 )
             }
             TableOptions::DEBUG => {
@@ -386,11 +387,18 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
+        // TODO: This will go away when we remove getting the columns for an
+        // external table.
+        let columns = external_table_columns
+            .into_iter()
+            .map(|f| f.as_ref().clone())
+            .collect();
+
         let plan = CreateExternalTable {
             table_name: stmt.name,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
-            columns: external_table_columns,
+            columns,
         };
 
         Ok(DdlPlan::CreateExternalTable(plan).into())
@@ -655,7 +663,7 @@ fn convert_data_type(sql_type: &ast::DataType) -> Result<DataType> {
         ast::DataType::Array(Some(inner_sql_type)) => {
             let data_type = convert_simple_data_type(inner_sql_type)?;
 
-            Ok(DataType::List(Box::new(Field::new(
+            Ok(DataType::List(Arc::new(Field::new(
                 "field", data_type, true,
             ))))
         }

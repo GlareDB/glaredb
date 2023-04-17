@@ -228,7 +228,7 @@ mod tests {
                 datasource: Postgres,
                 literal: ScalarValue::TimestampNanosecond(
                     Some(938709124 * 1_000_000_000),
-                    Some("UTC".to_string()),
+                    Some("UTC".into()),
                 ),
                 expected: Some("'1999-09-30 16:32:04+00'"),
             },
@@ -241,7 +241,7 @@ mod tests {
                 datasource: Postgres,
                 literal: ScalarValue::TimestampMicrosecond(
                     Some(938709124 * 1_000_000),
-                    Some("UTC".to_string()),
+                    Some("UTC".into()),
                 ),
                 expected: Some("'1999-09-30 16:32:04+00'"),
             },
@@ -288,12 +288,12 @@ mod tests {
             Field::new("c1", DataType::Int32, true),
             Field::new(
                 "c2",
-                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_string())),
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
                 true,
             ),
             Field::new(
                 "c3",
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
                 true,
             ),
             Field::new("c4", DataType::Time64(TimeUnit::Microsecond), true),
@@ -304,12 +304,12 @@ mod tests {
             Field::new("c1", DataType::Int32, true),
             Field::new(
                 "c2",
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
                 true,
             ),
             Field::new(
                 "c3",
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
                 true,
             ),
             Field::new("c4", DataType::Time64(TimeUnit::Nanosecond), true),
@@ -324,7 +324,7 @@ mod tests {
             },
             {
                 let mut c2 = TimestampMicrosecondBuilder::new().with_data_type(
-                    DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".to_string())),
+                    DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
                 );
                 c2.append_value(1);
                 Arc::new(c2.finish())
@@ -332,7 +332,7 @@ mod tests {
             {
                 let mut c3 = TimestampNanosecondBuilder::new().with_data_type(DataType::Timestamp(
                     TimeUnit::Nanosecond,
-                    Some("UTC".to_string()),
+                    Some("UTC".into()),
                 ));
                 c3.append_value(1);
                 Arc::new(c3.finish())
@@ -358,14 +358,14 @@ mod tests {
                 },
                 {
                     let mut c2 = TimestampNanosecondBuilder::new().with_data_type(
-                        DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
                     );
                     c2.append_value(1_000);
                     Arc::new(c2.finish())
                 },
                 {
                     let mut c3 = TimestampNanosecondBuilder::new().with_data_type(
-                        DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string())),
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
                     );
                     c3.append_value(1);
                     Arc::new(c3.finish())
@@ -387,7 +387,7 @@ mod tests {
 
         let res_batch = normalize_batch(&orig_batch).unwrap();
 
-        assert_eq!(res_batch.schema().fields(), &expected_fields);
+        assert_eq!(res_batch.schema().fields(), &expected_fields.into());
         assert_eq!(res_batch.columns(), &expected_arrays);
     }
 }

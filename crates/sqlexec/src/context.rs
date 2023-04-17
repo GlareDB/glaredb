@@ -571,7 +571,7 @@ impl PreparedStatement {
     pub fn output_fields(&self) -> Option<OutputFields<'_>> {
         self.output_schema.as_ref().map(|s| OutputFields {
             len: s.fields.len(),
-            arrow_fields: s.fields.iter(),
+            arrow_fields: s.fields.into_iter(),
             pg_types: self.output_pg_types.iter(),
             result_formats: None,
         })
@@ -603,7 +603,7 @@ impl Portal {
 /// Iterator over the various fields of output schema.
 pub struct OutputFields<'a> {
     len: usize,
-    arrow_fields: slice::Iter<'a, ArrowField>,
+    arrow_fields: slice::Iter<'a, Arc<ArrowField>>,
     pg_types: slice::Iter<'a, PgType>,
     result_formats: Option<slice::Iter<'a, Format>>,
 }

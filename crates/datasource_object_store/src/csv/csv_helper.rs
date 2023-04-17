@@ -56,7 +56,7 @@ impl FileOpener for CsvOpener {
                 GetResult::Stream(s) => {
                     let mut first_chunk = true;
                     let s = s.map_err(Into::<DataFusionError>::into);
-                    let decoder = file_compression_type.convert_stream(s)?;
+                    let decoder = file_compression_type.convert_stream(Box::pin(s))?;
                     Ok(newline_delimited_stream(decoder)
                         .map_ok(move |bytes| {
                             let reader = config.open(bytes.reader(), first_chunk);

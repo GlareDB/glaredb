@@ -3,7 +3,10 @@
 //! Note this uses the re-exported Arrow types from Datafusion.
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::arrow;
-use datafusion::arrow::datatypes::{DataType, Field, IntervalUnit, TimeUnit, UnionMode};
+use datafusion::arrow::datatypes::{
+    DataType, Field, IntervalUnit, TimeUnit, UnionFields, UnionMode,
+};
+use std::sync::Arc;
 
 impl TryFrom<&arrow::ArrowType> for DataType {
     type Error = ProtoConvError;
@@ -51,7 +54,7 @@ impl TryFrom<&arrow::arrow_type::ArrowTypeEnum> for DataType {
                 parse_i32_to_time_unit(time_unit)?,
                 match timezone.len() {
                     0 => None,
-                    _ => Some(timezone.to_owned()),
+                    _ => Some(timezone.as_str().into()),
                 },
             ),
             arrow_type::ArrowTypeEnum::Time32(time_unit) => {
@@ -68,23 +71,23 @@ impl TryFrom<&arrow::arrow_type::ArrowTypeEnum> for DataType {
             }
             arrow_type::ArrowTypeEnum::List(list) => {
                 let list_type = list.as_ref().field_type.as_deref().required("field_type")?;
-                DataType::List(Box::new(list_type))
+                DataType::List(Arc::new(list_type))
             }
             arrow_type::ArrowTypeEnum::LargeList(list) => {
                 let list_type = list.as_ref().field_type.as_deref().required("field_type")?;
-                DataType::LargeList(Box::new(list_type))
+                DataType::LargeList(Arc::new(list_type))
             }
             arrow_type::ArrowTypeEnum::FixedSizeList(list) => {
                 let list_type = list.as_ref().field_type.as_deref().required("field_type")?;
                 let list_size = list.list_size;
-                DataType::FixedSizeList(Box::new(list_type), list_size)
+                DataType::FixedSizeList(Arc::new(list_type), list_size)
             }
             arrow_type::ArrowTypeEnum::Struct(strct) => DataType::Struct(
                 strct
                     .sub_field_types
                     .iter()
-                    .map(|field| field.try_into())
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .map(Field::try_from)
+                    .collect::<Result<_, _>>()?,
             ),
             arrow_type::ArrowTypeEnum::Union(union) => {
                 let union_mode = arrow::UnionMode::from_i32(union.union_mode).ok_or(
@@ -94,19 +97,19 @@ impl TryFrom<&arrow::arrow_type::ArrowTypeEnum> for DataType {
                     arrow::UnionMode::Dense => UnionMode::Dense,
                     arrow::UnionMode::Sparse => UnionMode::Sparse,
                 };
-                let union_types = union
+                let union_fields = union
                     .union_types
                     .iter()
                     .map(TryInto::try_into)
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .collect::<Result<Vec<Field>, _>>()?;
 
                 // Default to index based type ids if not provided
-                let type_ids = match union.type_ids.is_empty() {
-                    true => (0..union_types.len() as i8).collect(),
+                let type_ids: Vec<_> = match union.type_ids.is_empty() {
+                    true => (0..union_fields.len() as i8).collect(),
                     false => union.type_ids.iter().map(|i| *i as i8).collect(),
                 };
 
-                DataType::Union(union_types, type_ids, union_mode)
+                DataType::Union(UnionFields::new(type_ids, union_fields), union_mode)
             }
             arrow_type::ArrowTypeEnum::Dictionary(dict) => {
                 let key_datatype = dict.as_ref().key.as_deref().required("key")?;
@@ -148,7 +151,7 @@ impl TryFrom<&DataType> for arrow::arrow_type::ArrowTypeEnum {
             DataType::Float64 => Self::Float64(EmptyMessage {}),
             DataType::Timestamp(time_unit, timezone) => Self::Timestamp(arrow::Timestamp {
                 time_unit: arrow::TimeUnit::from(time_unit) as i32,
-                timezone: timezone.to_owned().unwrap_or_default(),
+                timezone: timezone.as_deref().unwrap_or("").to_string(),
             }),
             DataType::Date32 => Self::Date32(EmptyMessage {}),
             DataType::Date64 => Self::Date64(EmptyMessage {}),
@@ -180,21 +183,21 @@ impl TryFrom<&DataType> for arrow::arrow_type::ArrowTypeEnum {
             DataType::Struct(struct_fields) => Self::Struct(arrow::Struct {
                 sub_field_types: struct_fields
                     .iter()
-                    .map(|field| field.try_into())
+                    .map(|field| field.as_ref().try_into())
                     .collect::<Result<Vec<_>, ProtoConvError>>()?,
             }),
-            DataType::Union(union_types, type_ids, union_mode) => {
+            DataType::Union(fields, union_mode) => {
                 let union_mode = match union_mode {
                     UnionMode::Sparse => arrow::UnionMode::Sparse,
                     UnionMode::Dense => arrow::UnionMode::Dense,
                 };
                 Self::Union(arrow::Union {
-                    union_types: union_types
+                    union_types: fields
                         .iter()
-                        .map(|field| field.try_into())
+                        .map(|(_, field)| field.as_ref().try_into())
                         .collect::<Result<Vec<_>, ProtoConvError>>()?,
                     union_mode: union_mode.into(),
-                    type_ids: type_ids.iter().map(|x| *x as i32).collect(),
+                    type_ids: fields.iter().map(|(x, _)| x as i32).collect(),
                 })
             }
             DataType::Dictionary(key_type, value_type) => {
