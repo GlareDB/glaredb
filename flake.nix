@@ -41,7 +41,17 @@
         ];
 
         # Configure crane using the pinned toolchain.
-        craneLib = crane.lib.${system}.overrideToolchain fenixToolchain;
+        craneLibFenix = crane.lib.${system}.overrideToolchain fenixToolchain;
+
+        craneLib = (craneLibFenix).overrideScope' (final: prev: {
+          # We override the behavior of `mkCargoDerivation` by adding a wrapper which
+          # will set a default value of `CARGO_PROFILE` when not set by the caller.
+          # This change will automatically be propagated to any other functions built
+          # on top of it (like `buildPackage`, `cargoBuild`, etc.)
+          mkCargoDerivation = args: prev.mkCargoDerivation ({
+            CARGO_PROFILE = ""; # Unset cargo profile (crate defaults to release, we don't need release for most things).
+          } // args);
+        });
 
         # Run-time dependencies.
         buildInputs = [
@@ -151,36 +161,38 @@
           ++ buildInputs
           ++ nativeBuildInputs;
 
-        # Build all dependencies. Built dependencies will be reused across
-        # checks and builds.
-        cargoArtifacts = craneLib.buildDepsOnly (common-build-args // {
-          pname = "glaredb-artifacts";
-          doCheck = false;
-        });
-
         # GlareDB binary.
         #
         # This is also used for cargo artifacts for downstream targets (since
         # this pretty much builds everything).
         glaredb-bin = craneLib.buildPackage (common-build-args // {
-          inherit cargoArtifacts;
           pname = "glaredb";
           cargoExtraArgs = "--bin glaredb";
           doCheck = false;
           doInstallCargoArtifacts = true;
         });
 
-        # GlareDB image.
+        # GlareDB binary built with release profile.
+        glaredb-bin-release = craneLib.buildPackage (common-build-args // {
+          CARGO_PROFILE = "release";
+          pname = "glaredb-release";
+          cargoExtraArgs = "--bin glaredb";
+          doCheck = false;
+          doInstallCargoArtifacts = true;
+        });
+
+
+        # GlareDB image (with release).
         glaredb-image = mkContainer {
           name = "glaredb";
           contents = [
             pkgs.openssh
-            glaredb-bin
+            glaredb-bin-release
             # Generated certs used for SSL connections in pgsrv. GlareDB
             # proper does not currently use certs.
             generated-certs
           ];
-          config.Cmd = ["${glaredb-bin}/bin/glaredb"];
+          config.Cmd = ["${glaredb-bin-release}/bin/glaredb"];
         };
 
         # SLT runner binary.
@@ -234,6 +246,7 @@
         packages = {
           inherit generated-certs;
           inherit glaredb-bin;
+          inherit glaredb-bin-release;
           inherit glaredb-image;
           inherit slt-runner-bin;
           inherit pgprototest-bin;
