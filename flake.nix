@@ -73,7 +73,7 @@
         # Common configuration for all builds.
         #
         # This tracks our build inputs and the source files we'll be building with.
-        common-build-args = rec {
+        common-build-args = {
           inherit buildInputs nativeBuildInputs;
 
           # Filter source to to only include the files we care about for
@@ -93,13 +93,17 @@
           GIT_TAG_OVERRIDE = self.rev or "dirty";
         };
 
+        # Disable release mode. We don't need it for most things.
+        common-build-args-test = common-build-args // {
+          CARGO_PROFILE = "";
+        };
+
         # Build all dependencies. Built dependencies will be reused across
         # checks and builds.
-        cargoArtifacts = craneLib.buildDepsOnly ({
-          version = "0.0.1"; # Dummy value
+        cargoArtifacts = craneLib.buildDepsOnly (common-build-args-test // {
           pname = "glaredb";
           doCheck = false; # Tests ran altogether at a later stage.
-        } // common-build-args);
+        });
 
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
@@ -168,27 +172,27 @@
           pgprototest-bin = packages.pgprototest-bin;
 
           # Run clippy.
-          clippy-check = craneLib.cargoClippy ({
+          clippy-check = craneLib.cargoClippy (common-build-args-test // {
             inherit cargoArtifacts;
             cargoClippyExtraArgs = "--all-features -- --deny warnings";
-          } // common-build-args);
+          });
 
           # Run tests.
-          tests-check = craneLib.cargoNextest ({
+          tests-check = craneLib.cargoNextest (common-build-args-test // {
             inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
-          } // common-build-args);
+          });
 
           # Check formatting.
-          fmt-check = craneLib.cargoFmt ({
+          fmt-check = craneLib.cargoFmt (common-build-args-test // {
             inherit cargoArtifacts;
-          } // common-build-args);
+          });
 
           # Check docs (and doc tests).
-          crate-docs = craneLib.cargoDoc ({
+          crate-docs = craneLib.cargoDoc (common-build-args-test // {
             inherit cargoArtifacts;
-          } // common-build-args);
+          });
         };
 
         # Buildable packages.
@@ -196,19 +200,26 @@
           generated-certs = generated-certs;
 
           # GlareDB binary.
-          glaredb-bin = craneLib.buildPackage ({
+          glaredb-bin = craneLib.buildPackage (common-build-args-test // {
             inherit cargoArtifacts;
-            version = "0.0.1"; # Dummy value
             pname = "glaredb";
             cargoExtraArgs = "--bin glaredb";
-          } // common-build-args);
+            doCheck = false;
+          });
+
+          # GlareDB binary built for release.
+          glaredb-bin-release = craneLib.buildPackage (common-build-args // {
+            pname = "glaredb-release";
+            cargoExtraArgs = "--release --bin glaredb";
+            doCheck = false;
+          });
 
           # GlareDB image.
           glaredb-image = mkContainer {
             name = "glaredb";
             contents = [
               pkgs.openssh
-              packages.glaredb-bin
+              packages.glaredb-bin-release
               # Generated certs used for SSL connections in pgsrv. GlareDB
               # proper does not currently use certs.
               generated-certs
@@ -216,19 +227,19 @@
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 
-          slt-runner-bin = craneLib.buildPackage ({
+          slt-runner-bin = craneLib.buildPackage (common-build-args-test // {
             inherit cargoArtifacts;
             pname = "slt-runner";
-            version = "0.0.1"; # Dummy value
             cargoExtraArgs = "--bin slt_runner";
-          } // common-build-args);
+            doCheck = false;
+          });
 
-          pgprototest-bin = craneLib.buildPackage ({
+          pgprototest-bin = craneLib.buildPackage (common-build-args-test // {
             inherit cargoArtifacts;
             pname = "pgprototest";
-            version = "0.0.1"; # Dummy value
             cargoExtraArgs = "--bin pgprototest";
-          } // common-build-args);
+            doCheck = false;
+          });
         };
 
         # Runnable applications.
