@@ -49,7 +49,7 @@
           # This change will automatically be propagated to any other functions built
           # on top of it (like `buildPackage`, `cargoBuild`, etc.)
           mkCargoDerivation = args: prev.mkCargoDerivation ({
-            CARGO_PROFILE = ""; # Unset cargo profile (crate defaults to release, we don't need release for most things).
+            CARGO_PROFILE = "test"; # Default to "test" profile for quick builds.
           } // args);
         });
 
