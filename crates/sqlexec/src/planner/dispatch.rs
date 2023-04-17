@@ -8,7 +8,7 @@ use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::listing::{VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister};
 use datasource_debug::{DebugTableType, DebugVirtualLister};
-use datasource_mongodb::{MongoAccessInfo, MongoAccessor, MongoTableAccessInfo};
+use datasource_mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -216,14 +216,11 @@ impl<'a> SessionDispatcher<'a> {
                 Ok(Arc::new(provider))
             }
             DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
-                let access_info = MongoAccessInfo {
-                    connection_string: connection_string.clone(),
-                };
                 let table_info = MongoTableAccessInfo {
                     database: schema.to_string(), // A mongodb database is pretty much a schema.
                     collection: name.to_string(),
                 };
-                let accessor = MongoAccessor::connect(access_info).await?;
+                let accessor = MongoAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
@@ -322,14 +319,11 @@ impl<'a> SessionDispatcher<'a> {
                 database,
                 collection,
             }) => {
-                let access_info = MongoAccessInfo {
-                    connection_string: connection_string.clone(),
-                };
                 let table_info = MongoTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
                 };
-                let accessor = MongoAccessor::connect(access_info).await?;
+                let accessor = MongoAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
@@ -787,10 +781,7 @@ impl<'a> VirtualCatalogDispatcher<'a> {
                 Box::new(accessor)
             }
             DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
-                let access_info = MongoAccessInfo {
-                    connection_string: connection_string.clone(),
-                };
-                let accessor = MongoAccessor::connect(access_info).await?;
+                let accessor = MongoAccessor::connect(connection_string).await?;
                 Box::new(accessor)
             }
             DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {

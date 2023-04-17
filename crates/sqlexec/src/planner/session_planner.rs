@@ -15,7 +15,7 @@ use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_debug::DebugTableType;
-use datasource_mongodb::{MongoDbConnection, MongoProtocol};
+use datasource_mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
 use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
@@ -108,7 +108,12 @@ impl<'a> SessionPlanner<'a> {
             }
             DatabaseOptions::MONGO => {
                 let connection_string = get_mongo_conn_str(m)?;
-                // TODO: Validate external db connection
+                // Validate the accessor
+                MongoAccessor::validate_external_database(connection_string.as_str())
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
                 DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
@@ -117,14 +122,26 @@ impl<'a> SessionPlanner<'a> {
                 let password = remove_required_opt(m, "password")?;
                 let database_name = remove_required_opt(m, "database_name")?;
                 let warehouse = remove_required_opt(m, "warehouse")?;
-                let role_name = remove_optional_opt(m, "role_name")?.unwrap_or_default();
+                let role_name = remove_optional_opt(m, "role_name")?;
+                SnowflakeAccessor::validate_external_database(SnowflakeDbConnection {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name: role_name.clone(),
+                })
+                .await
+                .map_err(|e| PlanError::InvalidExternalDatabase {
+                    source: Box::new(e),
+                })?;
                 DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
                     account_name,
                     login_name,
                     password,
                     database_name,
                     warehouse,
-                    role_name,
+                    role_name: role_name.unwrap_or_default(),
                 })
             }
             DatabaseOptions::DEBUG => DatabaseOptions::Debug(DatabaseOptionsDebug {}),
