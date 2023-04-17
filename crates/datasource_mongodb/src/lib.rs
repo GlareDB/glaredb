@@ -17,7 +17,7 @@ use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::ExecutionPlan;
 use datasource_common::errors::DatasourceCommonError;
 use datasource_common::listing::{VirtualLister, VirtualTable};
-use mongodb::bson::{Document, RawDocumentBuf};
+use mongodb::bson::{Bson, Document, RawDocumentBuf};
 use mongodb::Collection;
 use mongodb::{options::ClientOptions, Client};
 use std::any::Any;
@@ -111,22 +111,28 @@ impl MongoDbConnection {
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoAccessInfo {
-    pub connection_string: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct MongoAccessor {
     client: Client,
 }
 
 impl MongoAccessor {
-    pub async fn connect(info: MongoAccessInfo) -> Result<MongoAccessor> {
-        let mut opts = ClientOptions::parse(&info.connection_string).await?;
+    pub async fn connect(connection_string: &str) -> Result<MongoAccessor> {
+        let mut opts = ClientOptions::parse(connection_string).await?;
         opts.app_name = Some("GlareDB (MongoDB Data source)".to_string());
         let client = Client::with_options(opts)?;
 
         Ok(MongoAccessor { client })
+    }
+
+    pub async fn validate_external_database(connection_string: &str) -> Result<()> {
+        let accessor = Self::connect(connection_string).await?;
+        let mut filter = Document::new();
+        filter.insert("name".to_string(), Bson::String("glaredb".to_string()));
+        let _ = accessor
+            .client
+            .list_database_names(Some(filter), None)
+            .await?;
+        Ok(())
     }
 
     pub fn into_table_accessor(self, info: MongoTableAccessInfo) -> MongoTableAccessor {

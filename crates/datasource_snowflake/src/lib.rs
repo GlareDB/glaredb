@@ -73,6 +73,16 @@ impl SnowflakeAccessor {
         Ok(conn)
     }
 
+    pub async fn validate_external_database(conn_params: SnowflakeDbConnection) -> Result<()> {
+        let accessor = Self::connect(conn_params).await?;
+
+        // Validate if the connection is Ok
+        let query = "SELECT 1".to_string();
+        let _res = accessor.conn.query(query, Vec::new()).await?;
+
+        Ok(())
+    }
+
     pub async fn validate_table_access(
         conn_params: SnowflakeDbConnection,
         table_access: &SnowflakeTableAccess,
