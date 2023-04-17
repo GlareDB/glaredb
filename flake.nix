@@ -198,23 +198,12 @@
             cargoExtraArgs = "--bin glaredb";
           } // common-build-args);
 
-          # GlareDB binary using the release profile.
-          #
-          # This is a separate target since enabling LTO can cause build times
-          # to go up.
-          glaredb-bin-release = craneLib.buildPackage ({
-            inherit cargoArtifacts;
-            pname = "glaredb-release";
-            cargoExtraArgs = "--release --bin glaredb";
-          } // common-build-args);
-
-
           # GlareDB image.
           glaredb-image = mkContainer {
             name = "glaredb";
             contents = [
               pkgs.openssh
-              packages.glaredb-bin-release
+              packages.glaredb-bin
               # Generated certs used for SSL connections in pgsrv. GlareDB
               # proper does not currently use certs.
               generated-certs
