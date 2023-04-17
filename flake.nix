@@ -158,20 +158,59 @@
           ++ buildInputs
           ++ nativeBuildInputs;
 
+        # GlareDB binary.
+        glaredb-bin = craneLib.buildPackage (common-build-args // {
+          inherit cargoArtifacts;
+          pname = "glaredb";
+          cargoExtraArgs = "--bin glaredb";
+          doCheck = false;
+        });
+
+        # GlareDB image.
+        glaredb-image = mkContainer {
+          name = "glaredb";
+          contents = [
+            pkgs.openssh
+            glaredb-bin
+            # Generated certs used for SSL connections in pgsrv. GlareDB
+            # proper does not currently use certs.
+            generated-certs
+          ];
+          config.Cmd = ["${glaredb-bin}/bin/glaredb"];
+        };
+
+        # SLT runner binary.
+        slt-runner-bin = craneLib.buildPackage (common-build-args // {
+          inherit cargoArtifacts;
+          pname = "slt-runner";
+          cargoExtraArgs = "--bin slt_runner";
+          doCheck = false;
+        });
+
+        # pgprototest binary.
+        pgprototest-bin = craneLib.buildPackage (common-build-args // {
+          inherit cargoArtifacts;
+          pname = "pgprototest";
+          cargoExtraArgs = "--bin pgprototest";
+          doCheck = false;
+        });
+
       in rec {
         # Checks ran in CI. This includes linting and testing.
         checks = {
-          # Run clippy.
-          clippy-check = craneLib.cargoClippy (common-build-args // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-features -- --deny warnings";
-          });
+          inherit glaredb-bin;
 
           # Run tests.
           tests-check = craneLib.cargoNextest (common-build-args // {
             inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
+          });
+
+          # Run clippy.
+          clippy-check = craneLib.cargoClippy (common-build-args // {
+            inherit cargoArtifacts;
+            cargoClippyExtraArgs = "--all-features -- --deny warnings";
           });
 
           # Check formatting.
@@ -187,57 +226,26 @@
 
         # Buildable packages.
         packages = {
-          generated-certs = generated-certs;
-
-          # GlareDB binary.
-          glaredb-bin = craneLib.buildPackage (common-build-args // {
-            inherit cargoArtifacts;
-            pname = "glaredb";
-            cargoExtraArgs = "--bin glaredb";
-            doCheck = false;
-          });
-
-          # GlareDB image.
-          glaredb-image = mkContainer {
-            name = "glaredb";
-            contents = [
-              pkgs.openssh
-              packages.glaredb-bin
-              # Generated certs used for SSL connections in pgsrv. GlareDB
-              # proper does not currently use certs.
-              generated-certs
-            ];
-            config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
-          };
-
-          slt-runner-bin = craneLib.buildPackage (common-build-args // {
-            inherit cargoArtifacts;
-            pname = "slt-runner";
-            cargoExtraArgs = "--bin slt_runner";
-            doCheck = false;
-          });
-
-          pgprototest-bin = craneLib.buildPackage (common-build-args // {
-            inherit cargoArtifacts;
-            pname = "pgprototest";
-            cargoExtraArgs = "--bin pgprototest";
-            doCheck = false;
-          });
+          inherit generated-certs;
+          inherit glaredb-bin;
+          inherit glaredb-image;
+          inherit slt-runner-bin;
+          inherit pgprototest-bin;
         };
 
         # Runnable applications.
         apps = {
           glaredb = {
             type = "app";
-            program = "${packages.glaredb-bin}/bin/glaredb";
+            program = "${glaredb-bin}/bin/glaredb";
           };
           slt-runner = {
             type = "app";
-            program = "${packages.slt-runner-bin}/bin/slt_runner";
+            program = "${slt-runner-bin}/bin/slt_runner";
           };
           pgprototest = {
             type = "app";
-            program = "${packages.pgprototest-bin}/bin/pgprototest";
+            program = "${pgprototest-bin}/bin/pgprototest";
           };
           default = apps.glaredb;
         };

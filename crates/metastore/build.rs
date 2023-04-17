@@ -1,7 +1,3 @@
-use std::path::PathBuf;
-
-const GEN_MODULE_DIR: &str = "src/proto/";
-
 fn main() {
     tonic_build::configure()
         .build_server(true)
