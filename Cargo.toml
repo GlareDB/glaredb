@@ -4,5 +4,10 @@ members = ["crates/*"]
 [profile.release]
 lto = "thin"
 
+[workspace.dependencies]
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "463ec30" }
+
+
 [patch.crates-io]
 object_store = { git = "https://github.com/glaredb/arrow-rs.git", branch = "content-length" }
+

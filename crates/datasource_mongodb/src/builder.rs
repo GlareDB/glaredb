@@ -5,7 +5,7 @@ use datafusion::arrow::array::{
     Float64Builder, Int32Builder, Int64Builder, StringBuilder, StructArray,
     TimestampMicrosecondBuilder, TimestampMillisecondBuilder,
 };
-use datafusion::arrow::datatypes::{DataType, Field, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 use mongodb::bson::{RawBsonRef, RawDocument};
 use std::any::Any;
 use std::collections::HashMap;
@@ -17,19 +17,19 @@ use std::sync::Arc;
 /// Failures to append either a record or null will put the builder in an
 /// undefined state.
 pub struct RecordStructBuilder {
-    fields: Vec<Field>,
+    fields: Fields,
     builders: Vec<Box<dyn ArrayBuilder>>,
     field_index: HashMap<String, usize>,
 }
 
 impl RecordStructBuilder {
-    pub fn new_with_capacity(fields: Vec<Field>, capacity: usize) -> Result<RecordStructBuilder> {
-        let builders = column_builders_for_fields(&fields, capacity)?;
+    pub fn new_with_capacity(fields: Fields, capacity: usize) -> Result<RecordStructBuilder> {
+        let builders = column_builders_for_fields(fields.clone(), capacity)?;
         Self::new_with_builders(fields, builders)
     }
 
     pub fn new_with_builders(
-        fields: Vec<Field>,
+        fields: Fields,
         builders: Vec<Box<dyn ArrayBuilder>>,
     ) -> Result<RecordStructBuilder> {
         if fields.len() != builders.len() {
@@ -98,7 +98,7 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn into_fields_and_builders(self) -> (Vec<Field>, Vec<Box<dyn ArrayBuilder>>) {
+    pub fn into_fields_and_builders(self) -> (Fields, Vec<Box<dyn ArrayBuilder>>) {
         (self.fields, self.builders)
     }
 }
@@ -117,7 +117,11 @@ impl ArrayBuilder for RecordStructBuilder {
         let builders = std::mem::take(&mut self.builders);
         let arrays = builders.into_iter().map(|mut b| b.finish());
 
-        let pairs: Vec<(Field, Arc<dyn Array>)> = fields.into_iter().zip(arrays).collect();
+        let pairs: Vec<(Field, Arc<dyn Array>)> = fields
+            .into_iter()
+            .map(|f| f.as_ref().clone())
+            .zip(arrays)
+            .collect();
 
         let array: StructArray = pairs.into();
 
@@ -128,8 +132,11 @@ impl ArrayBuilder for RecordStructBuilder {
         let fields = self.fields.clone();
         let arrays: Vec<Arc<dyn Array>> = self.builders.iter().map(|b| b.finish_cloned()).collect();
 
-        let pairs: Vec<(Field, Arc<dyn Array>)> =
-            fields.into_iter().zip(arrays.into_iter()).collect();
+        let pairs: Vec<(Field, Arc<dyn Array>)> = fields
+            .into_iter()
+            .map(|f| f.as_ref().clone())
+            .zip(arrays)
+            .collect();
 
         let array: StructArray = pairs.into();
 
@@ -333,12 +340,12 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
 }
 
 fn column_builders_for_fields(
-    fields: &[Field],
+    fields: Fields,
     capacity: usize,
 ) -> Result<Vec<Box<dyn ArrayBuilder>>> {
     let mut cols = Vec::with_capacity(capacity);
 
-    for field in fields {
+    for field in fields.into_iter() {
         let col: Box<dyn ArrayBuilder> = match field.data_type() {
             DataType::Boolean => Box::new(BooleanBuilder::with_capacity(capacity)),
             DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
@@ -351,7 +358,7 @@ fn column_builders_for_fields(
             DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
             DataType::Decimal128(_, _) => Box::new(Decimal128Builder::with_capacity(capacity)), // TODO: Can collect avg when inferring schema.
             DataType::Struct(fields) => {
-                let nested = column_builders_for_fields(fields, capacity)?;
+                let nested = column_builders_for_fields(fields.clone(), capacity)?;
                 Box::new(RecordStructBuilder::new_with_builders(
                     fields.clone(),
                     nested,

@@ -97,7 +97,7 @@ impl BuiltinScalarFunction {
         match self {
             BuiltinScalarFunction::Version => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
             BuiltinScalarFunction::CurrentSchemas => Arc::new(|_| {
-                Ok(Arc::new(DataType::List(Box::new(Field::new(
+                Ok(Arc::new(DataType::List(Arc::new(Field::new(
                     "",
                     DataType::Utf8,
                     false,
@@ -135,7 +135,7 @@ impl BuiltinScalarFunction {
                     let schemas = schemas.clone();
                     Ok(ColumnarValue::Scalar(ScalarValue::List(
                         Some(schemas),
-                        Box::new(Field::new("", DataType::Utf8, false)),
+                        Arc::new(Field::new("", DataType::Utf8, false)),
                     )))
                 })
             }

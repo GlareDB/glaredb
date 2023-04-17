@@ -85,7 +85,7 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::Array(_) => DataType::Utf8, // TODO: Proper type.
         Bson::Document(nested) => {
             let fields = fields_from_document(depth + 1, nested)?;
-            DataType::Struct(fields)
+            DataType::Struct(fields.into())
         }
         Bson::Boolean(_) => DataType::Boolean,
         Bson::Null => DataType::Null,
@@ -121,7 +121,10 @@ fn merge_schemas(schemas: impl IntoIterator<Item = ArrowSchema>) -> Result<Arrow
                     merge_field(&mut existing.1, field)?;
                 }
                 None => {
-                    fields.insert(field.name().clone(), OrderedField(idx, field));
+                    fields.insert(
+                        field.name().clone(),
+                        OrderedField(idx, field.as_ref().clone()),
+                    );
                 }
             };
         }
@@ -135,7 +138,7 @@ fn merge_schemas(schemas: impl IntoIterator<Item = ArrowSchema>) -> Result<Arrow
 }
 
 /// Merge fields with best-effort type widening.
-fn merge_field(left: &mut Field, right: Field) -> Result<()> {
+fn merge_field(left: &mut Field, right: &Field) -> Result<()> {
     let dt = match (left.data_type(), right.data_type()) {
         (&DataType::Null, right) => right.clone(),
         (&DataType::Int32 | &DataType::Int64 | &DataType::Float64, &DataType::Float64) => {

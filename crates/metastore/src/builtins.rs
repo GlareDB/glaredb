@@ -161,7 +161,7 @@ impl BuiltinTable {
             self.columns
                 .iter()
                 .map(|col| ArrowField::new(&col.name, col.arrow_type.clone(), col.nullable))
-                .collect(),
+                .collect::<Vec<_>>(),
         )
     }
 

@@ -851,7 +851,7 @@ fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Res
             &PostgresType::BYTEA => DataType::Binary,
             &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Nanosecond, None),
             &PostgresType::TIMESTAMPTZ => {
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string()))
+                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into()))
             }
             &PostgresType::TIME => DataType::Time64(TimeUnit::Nanosecond),
             &PostgresType::DATE => DataType::Date32,

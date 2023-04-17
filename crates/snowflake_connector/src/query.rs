@@ -150,7 +150,7 @@ pub fn snowflake_to_arrow_datatype(
         Dt::Time => DataType::Time64(TimeUnit::Nanosecond),
         Dt::Timestamp | Dt::TimestampNtz => DataType::Timestamp(TimeUnit::Nanosecond, None),
         Dt::TimestampTz | Dt::TimestampLtz => {
-            DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_string()))
+            DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into()))
         }
     }
 }

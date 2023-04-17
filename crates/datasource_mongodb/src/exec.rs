@@ -2,7 +2,7 @@ use crate::builder::RecordStructBuilder;
 use crate::errors::{MongoError, Result};
 use async_stream::stream;
 use datafusion::arrow::array::Array;
-use datafusion::arrow::datatypes::{Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
@@ -185,7 +185,7 @@ impl RecordBatchStream for BsonStream {
 
 fn document_chunk_to_record_batch<E: Into<MongoError>>(
     chunk: Vec<Result<RawDocumentBuf, E>>,
-    fields: Vec<Field>,
+    fields: Fields,
 ) -> Result<RecordBatch> {
     let chunk = chunk
         .into_iter()

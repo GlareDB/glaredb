@@ -518,9 +518,7 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
             // This cast is done when the stream is received by using the
             // `datasource_common::util::normalize_batch` function.
             FieldType::Datetime => DataType::Timestamp(TimeUnit::Nanosecond, None),
-            FieldType::Timestamp => {
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_owned()))
-            }
+            FieldType::Timestamp => DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
             FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),
             FieldType::Numeric => DataType::Decimal128(38, 9),
             FieldType::Geography => DataType::Utf8,

@@ -108,12 +108,12 @@ impl<'a> PlanContextBuilder<'a> {
         reference: &OwnedTableReference,
     ) -> Result<Arc<dyn TableProvider>, PlanError> {
         let dispatcher = SessionDispatcher::new(self.ctx);
-        match reference.as_table_reference() {
+        match &reference {
             TableReference::Bare { table } => {
                 for schema in self.ctx.implicit_search_path_iter() {
                     // TODO
                     match dispatcher
-                        .dispatch_access(DEFAULT_CATALOG, schema, &table)
+                        .dispatch_access(DEFAULT_CATALOG, schema, table)
                         .await
                     {
                         Ok(table) => return Ok(table),
@@ -133,7 +133,7 @@ impl<'a> PlanContextBuilder<'a> {
             TableReference::Partial { schema, table } => {
                 // TODO
                 let table = dispatcher
-                    .dispatch_access(DEFAULT_CATALOG, &schema, &table)
+                    .dispatch_access(DEFAULT_CATALOG, schema, table)
                     .await?;
                 Ok(table)
             }
@@ -142,9 +142,7 @@ impl<'a> PlanContextBuilder<'a> {
                 schema,
                 table,
             } => {
-                let table = dispatcher
-                    .dispatch_access(&catalog, &schema, &table)
-                    .await?;
+                let table = dispatcher.dispatch_access(catalog, schema, table).await?;
                 Ok(table)
             }
         }

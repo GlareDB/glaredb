@@ -684,9 +684,7 @@ fn try_create_arrow_schema(cols: &[MysqlColumn]) -> Result<ArrowSchema> {
                 col.decimals(),
                 i8::try_from(col.column_length() - col.decimals() as u32)?,
             ),
-            MYSQL_TYPE_TIMESTAMP => {
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".to_owned()))
-            }
+            MYSQL_TYPE_TIMESTAMP => DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
             MYSQL_TYPE_DATE => DataType::Date32,
             MYSQL_TYPE_TIME => DataType::Time64(TimeUnit::Nanosecond),
             MYSQL_TYPE_YEAR => DataType::Int16,
