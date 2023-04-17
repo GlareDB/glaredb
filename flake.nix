@@ -93,13 +93,6 @@
           GIT_TAG_OVERRIDE = self.rev or "dirty";
         };
 
-        # Build all dependencies. Built dependencies will be reused across
-        # checks and builds.
-        cargoArtifacts = craneLib.buildDepsOnly (common-build-args // {
-          pname = "glaredb";
-          doCheck = false; # Tests ran altogether at a later stage.
-        });
-
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
           name = "generated-certs";
@@ -159,11 +152,14 @@
           ++ nativeBuildInputs;
 
         # GlareDB binary.
+        #
+        # This is also used for cargo artifacts (since this pretty much builds
+        # everything).
         glaredb-bin = craneLib.buildPackage (common-build-args // {
-          inherit cargoArtifacts;
           pname = "glaredb";
           cargoExtraArgs = "--bin glaredb";
           doCheck = false;
+          doInstallCargoArtifacts = true;
         });
 
         # GlareDB image.
@@ -181,7 +177,7 @@
 
         # SLT runner binary.
         slt-runner-bin = craneLib.buildPackage (common-build-args // {
-          inherit cargoArtifacts;
+          cargoArtifacts = glaredb-bin;
           pname = "slt-runner";
           cargoExtraArgs = "--bin slt_runner";
           doCheck = false;
@@ -189,7 +185,7 @@
 
         # pgprototest binary.
         pgprototest-bin = craneLib.buildPackage (common-build-args // {
-          inherit cargoArtifacts;
+          cargoArtifacts = glaredb-bin;
           pname = "pgprototest";
           cargoExtraArgs = "--bin pgprototest";
           doCheck = false;
@@ -199,28 +195,30 @@
         # Checks ran in CI. This includes linting and testing.
         checks = {
           inherit glaredb-bin;
+          inherit slt-runner-bin;
+          inherit pgprototest-bin;
 
           # Run tests.
           tests-check = craneLib.cargoNextest (common-build-args // {
-            inherit cargoArtifacts;
+            cargoArtifacts = glaredb-bin;
             partitions = 1;
             partitionType = "count";
           });
 
           # Run clippy.
           clippy-check = craneLib.cargoClippy (common-build-args // {
-            inherit cargoArtifacts;
+            cargoArtifacts = glaredb-bin;
             cargoClippyExtraArgs = "--all-features -- --deny warnings";
           });
 
           # Check formatting.
           fmt-check = craneLib.cargoFmt (common-build-args // {
-            inherit cargoArtifacts;
+            cargoArtifacts = glaredb-bin;
           });
 
           # Check docs (and doc tests).
           crate-docs = craneLib.cargoDoc (common-build-args // {
-            inherit cargoArtifacts;
+            cargoArtifacts = glaredb-bin;
           });
         };
 
