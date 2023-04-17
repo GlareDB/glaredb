@@ -93,14 +93,9 @@
           GIT_TAG_OVERRIDE = self.rev or "dirty";
         };
 
-        # Disable release mode. We don't need it for most things.
-        common-build-args-test = common-build-args // {
-          CARGO_PROFILE = "";
-        };
-
         # Build all dependencies. Built dependencies will be reused across
         # checks and builds.
-        cargoArtifacts = craneLib.buildDepsOnly (common-build-args-test // {
+        cargoArtifacts = craneLib.buildDepsOnly (common-build-args // {
           pname = "glaredb";
           doCheck = false; # Tests ran altogether at a later stage.
         });
@@ -166,31 +161,26 @@
       in rec {
         # Checks ran in CI. This includes linting and testing.
         checks = {
-          # Ensure the packages can be built.
-          glaredb-bin = packages.glaredb-bin;
-          slt-runner-bin = packages.slt-runner-bin;
-          pgprototest-bin = packages.pgprototest-bin;
-
           # Run clippy.
-          clippy-check = craneLib.cargoClippy (common-build-args-test // {
+          clippy-check = craneLib.cargoClippy (common-build-args // {
             inherit cargoArtifacts;
             cargoClippyExtraArgs = "--all-features -- --deny warnings";
           });
 
           # Run tests.
-          tests-check = craneLib.cargoNextest (common-build-args-test // {
+          tests-check = craneLib.cargoNextest (common-build-args // {
             inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
           });
 
           # Check formatting.
-          fmt-check = craneLib.cargoFmt (common-build-args-test // {
+          fmt-check = craneLib.cargoFmt (common-build-args // {
             inherit cargoArtifacts;
           });
 
           # Check docs (and doc tests).
-          crate-docs = craneLib.cargoDoc (common-build-args-test // {
+          crate-docs = craneLib.cargoDoc (common-build-args // {
             inherit cargoArtifacts;
           });
         };
@@ -200,17 +190,10 @@
           generated-certs = generated-certs;
 
           # GlareDB binary.
-          glaredb-bin = craneLib.buildPackage (common-build-args-test // {
+          glaredb-bin = craneLib.buildPackage (common-build-args // {
             inherit cargoArtifacts;
             pname = "glaredb";
             cargoExtraArgs = "--bin glaredb";
-            doCheck = false;
-          });
-
-          # GlareDB binary built for release.
-          glaredb-bin-release = craneLib.buildPackage (common-build-args // {
-            pname = "glaredb-release";
-            cargoExtraArgs = "--release --bin glaredb";
             doCheck = false;
           });
 
@@ -219,7 +202,7 @@
             name = "glaredb";
             contents = [
               pkgs.openssh
-              packages.glaredb-bin-release
+              packages.glaredb-bin
               # Generated certs used for SSL connections in pgsrv. GlareDB
               # proper does not currently use certs.
               generated-certs
@@ -227,14 +210,14 @@
             config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
           };
 
-          slt-runner-bin = craneLib.buildPackage (common-build-args-test // {
+          slt-runner-bin = craneLib.buildPackage (common-build-args // {
             inherit cargoArtifacts;
             pname = "slt-runner";
             cargoExtraArgs = "--bin slt_runner";
             doCheck = false;
           });
 
-          pgprototest-bin = craneLib.buildPackage (common-build-args-test // {
+          pgprototest-bin = craneLib.buildPackage (common-build-args // {
             inherit cargoArtifacts;
             pname = "pgprototest";
             cargoExtraArgs = "--bin pgprototest";
