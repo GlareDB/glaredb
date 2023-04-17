@@ -5,7 +5,7 @@ members = ["crates/*"]
 lto = "thin"
 
 [workspace.dependencies]
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", branch = "main" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "463ec3074318c5bf31a6a1377ab5f01159d8a2ce" }
 
 
 [patch.crates-io]
