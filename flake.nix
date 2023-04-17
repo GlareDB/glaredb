@@ -93,9 +93,13 @@
           GIT_TAG_OVERRIDE = self.rev or "dirty";
         };
 
-        # Build all dependencies. Built dependencies will be reused across checks
-        # and builds.
-        cargoArtifacts = craneLib.buildDepsOnly ({} // common-build-args);
+        # Build all dependencies. Built dependencies will be reused across
+        # checks and builds.
+        cargoArtifacts = craneLib.buildDepsOnly ({
+          version = "0.0.1"; # Dummy value
+          pname = "glaredb";
+          doCheck = false; # Tests ran altogether at a later stage.
+        } // common-build-args);
 
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
@@ -194,6 +198,7 @@
           # GlareDB binary.
           glaredb-bin = craneLib.buildPackage ({
             inherit cargoArtifacts;
+            version = "0.0.1"; # Dummy value
             pname = "glaredb";
             cargoExtraArgs = "--bin glaredb";
           } // common-build-args);
@@ -214,12 +219,14 @@
           slt-runner-bin = craneLib.buildPackage ({
             inherit cargoArtifacts;
             pname = "slt-runner";
+            version = "0.0.1"; # Dummy value
             cargoExtraArgs = "--bin slt_runner";
           } // common-build-args);
 
           pgprototest-bin = craneLib.buildPackage ({
             inherit cargoArtifacts;
             pname = "pgprototest";
+            version = "0.0.1"; # Dummy value
             cargoExtraArgs = "--bin pgprototest";
           } // common-build-args);
         };
