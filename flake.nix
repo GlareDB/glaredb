@@ -161,17 +161,11 @@
           ++ buildInputs
           ++ nativeBuildInputs;
 
-        cargoArtifacts = craneLib.buildDepsOnly ({
-          pname = "glaredb-artifacts";
-          doCheck = false;
-        } // common-build-args);
-
         # GlareDB binary.
         #
         # This is also used for cargo artifacts for downstream targets (since
         # this pretty much builds everything).
         glaredb-bin = craneLib.buildPackage (common-build-args // {
-          inherit cargoArtifacts;
           pname = "glaredb";
           cargoExtraArgs = "--bin glaredb";
           doCheck = false;
