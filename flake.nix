@@ -41,17 +41,7 @@
         ];
 
         # Configure crane using the pinned toolchain.
-        craneLibFenix = crane.lib.${system}.overrideToolchain fenixToolchain;
-
-        craneLib = (craneLibFenix).overrideScope' (final: prev: {
-          # We override the behavior of `mkCargoDerivation` by adding a wrapper which
-          # will set a default value of `CARGO_PROFILE` when not set by the caller.
-          # This change will automatically be propagated to any other functions built
-          # on top of it (like `buildPackage`, `cargoBuild`, etc.)
-          mkCargoDerivation = args: prev.mkCargoDerivation ({
-            CARGO_PROFILE = ""; # Unset profile (crane defaults to release)
-          } // args);
-        });
+        craneLib = crane.lib.${system}.overrideToolchain fenixToolchain;
 
         # Run-time dependencies.
         buildInputs = [
@@ -161,6 +151,11 @@
           ++ buildInputs
           ++ nativeBuildInputs;
 
+        cargoArtifacts = craneLib.buildDepsOnly ({
+          pname = "glaredb-artifacts";
+          doCheck = false;
+        } // common-build-args);
+
         # GlareDB binary.
         #
         # This is also used for cargo artifacts for downstream targets (since
@@ -172,27 +167,17 @@
           doInstallCargoArtifacts = true;
         });
 
-        # GlareDB binary built with release profile.
-        glaredb-bin-release = craneLib.buildPackage (common-build-args // {
-          CARGO_PROFILE = "release";
-          pname = "glaredb-release";
-          cargoExtraArgs = "--bin glaredb";
-          doCheck = false;
-          doInstallCargoArtifacts = true;
-        });
-
-
         # GlareDB image (with release).
         glaredb-image = mkContainer {
           name = "glaredb";
           contents = [
             pkgs.openssh
-            glaredb-bin-release
+            glaredb-bin
             # Generated certs used for SSL connections in pgsrv. GlareDB
             # proper does not currently use certs.
             generated-certs
           ];
-          config.Cmd = ["${glaredb-bin-release}/bin/glaredb"];
+          config.Cmd = ["${glaredb-bin}/bin/glaredb"];
         };
 
         # SLT runner binary.
@@ -246,7 +231,6 @@
         packages = {
           inherit generated-certs;
           inherit glaredb-bin;
-          inherit glaredb-bin-release;
           inherit glaredb-image;
           inherit slt-runner-bin;
           inherit pgprototest-bin;
