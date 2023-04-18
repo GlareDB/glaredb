@@ -719,10 +719,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "buildenv"
-version = "0.1.0"
-
-[[package]]
 name = "bumpalo"
 version = "3.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2201,7 +2197,6 @@ name = "glaredb"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "buildenv",
  "clap",
  "logutil",
  "metastore",
@@ -4966,7 +4961,6 @@ dependencies = [
 name = "sqlexec"
 version = "0.1.0"
 dependencies = [
- "buildenv",
  "datafusion",
  "datasource_bigquery",
  "datasource_common",

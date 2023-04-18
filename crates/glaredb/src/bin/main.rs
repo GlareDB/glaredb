@@ -96,8 +96,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     logutil::init(cli.verbose, cli.json_logging);
 
-    let version = buildenv::git_tag();
-    info!(%version, "starting...");
+    info!("starting...");
 
     match cli.command {
         Commands::Server {

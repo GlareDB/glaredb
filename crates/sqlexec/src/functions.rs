@@ -11,10 +11,6 @@ use std::sync::Arc;
 /// Additional built-in scalar functions.
 #[derive(Debug, Copy, Clone)]
 pub enum BuiltinScalarFunction {
-    /// 'version' -> String
-    /// Get the version of this db instance.
-    Version,
-
     /// 'connection_id' -> String
     /// Get the connection id that this session was started with.
     ConnectionId,
@@ -33,7 +29,6 @@ impl BuiltinScalarFunction {
         // TODO: We can probably move to some fancier function resolution in the
         // future.
         Some(match name {
-            "version" => BuiltinScalarFunction::Version,
             "connection_id" => BuiltinScalarFunction::ConnectionId,
 
             // Postgres system functions.
@@ -67,7 +62,6 @@ impl BuiltinScalarFunction {
     /// Get the name of the built-in function.
     fn name(&self) -> &'static str {
         match self {
-            BuiltinScalarFunction::Version => "version",
             BuiltinScalarFunction::ConnectionId => "connection_id",
             BuiltinScalarFunction::CurrentSchemas => "current_schemas",
         }
@@ -76,9 +70,6 @@ impl BuiltinScalarFunction {
     /// Get the signature for a function.
     fn signature(&self) -> Signature {
         match self {
-            BuiltinScalarFunction::Version => {
-                Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
-            }
             BuiltinScalarFunction::ConnectionId => {
                 Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
             }
@@ -95,7 +86,6 @@ impl BuiltinScalarFunction {
     /// Get the return type for a function.
     fn return_type(&self) -> ReturnTypeFunction {
         match self {
-            BuiltinScalarFunction::Version => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
             BuiltinScalarFunction::CurrentSchemas => Arc::new(|_| {
                 Ok(Arc::new(DataType::List(Arc::new(Field::new(
                     "",
@@ -113,11 +103,6 @@ impl BuiltinScalarFunction {
     /// the session (e.g. retrieving configuration values).
     fn impl_function(&self, sess: &SessionContext) -> ScalarFunctionImplementation {
         match self {
-            BuiltinScalarFunction::Version => Arc::new(|_| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                    buildenv::git_tag().to_string(),
-                ))))
-            }),
             BuiltinScalarFunction::CurrentSchemas => {
                 let schemas: Vec<_> = sess
                     .get_session_vars()

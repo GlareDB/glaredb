@@ -96,11 +96,6 @@
           # The `prost` crate uses `protoc` for parsing protobuf files. Ensure it
           # can find the one we're providing with nix.
           PROTOC = "${pkgs.protobuf}/bin/protoc";
-
-          # Used during build time to inject the git revision into the binary.
-          #
-          # See the `buildenv` crate.
-          GIT_TAG_OVERRIDE = self.rev or "dirty";
         };
 
         # Derivation for generating and including SSL certs.
