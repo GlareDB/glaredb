@@ -2,6 +2,13 @@ name: GlareDB CI
 
 on: [push, workflow_dispatch]
 
+# Jobs:
+# build -> Builds binaries. This will build and cache deps as well.
+# test -> Runs tests, using cache from 'build'.
+# integration -> Runs integration tests, using cache from 'build'.
+#
+# Cachix is used for caching.
+
 jobs:
   build:
     name: Build
