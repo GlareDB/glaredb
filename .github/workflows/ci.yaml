@@ -3,32 +3,41 @@ name: GlareDB CI
 on: [push, workflow_dispatch]
 
 jobs:
-  pre_test:
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    concurrency:
-      group: ci-${{ github.ref }}
-      cancel-in-progress: true
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v4
-        with:
-          concurrent_skipping: 'same_content_newer'
-          skip_after_successful_duplicate: 'true'
-          paths_ignore: '["**/README.md", "**/docs/**"]'
-          cancel_others: 'true'
-
-
-  test:
-    needs: pre_test
-    if: ${{ needs.pre_test.outputs.should_skip != 'true' }}
-    name: CI
+  build:
+    name: Build
     runs-on: ubuntu-latest-8-cores
     concurrency:
-      group: ci-${{ github.ref }}
+      group: build-ci-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+     - name: Checkout
+       uses: actions/checkout@v3
+
+     - name: Install nix
+       uses: cachix/install-nix-action@v20
+       with:
+         extra_nix_config: |
+           access-tokens = github=${{ github.token }}
+
+     - name: Configure Cachix
+       uses: cachix/cachix-action@v12
+       continue-on-error: true
+       with:
+         name: glaredb-ci
+         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+     - name: Build
+       run: |
+         nix build .#glaredb-bin
+         nix build .#slt-runner-bin
+         nix build .#pgprototest-bin
+
+  test:
+    needs: build
+    name: Tests
+    runs-on: ubuntu-latest-8-cores
+    concurrency:
+      group: test-ci-${{ github.ref }}
       cancel-in-progress: true
 
     env:
@@ -56,6 +65,37 @@ jobs:
 
       - name: Run Checks
         run: nix flake check -L
+
+  integration:
+    needs: build
+    name: Integration tests
+    runs-on: ubuntu-latest-8-cores
+    concurrency:
+      group: ds-ci-${{ github.ref }}
+      cancel-in-progress: true
+
+    env:
+      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      GCP_PROJECT_ID: glaredb-artifacts
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v20
+        with:
+          extra_nix_config: |
+            access-tokens = github=${{ github.token }}
+
+      - name: Configure Cachix
+        uses: cachix/cachix-action@v12
+        continue-on-error: true
+        with:
+          name: glaredb-ci
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
