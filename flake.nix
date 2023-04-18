@@ -41,7 +41,17 @@
         ];
 
         # Configure crane using the pinned toolchain.
-        craneLib = crane.lib.${system}.overrideToolchain fenixToolchain;
+        craneLibFenix = crane.lib.${system}.overrideToolchain fenixToolchain;
+
+        craneLib = (craneLibFenix).overrideScope' (final: prev: {
+          # We override the behavior of `mkCargoDerivation` by adding a wrapper which
+          # will set a default value of `CARGO_PROFILE` when not set by the caller.
+          # This change will automatically be propagated to any other functions built
+          # on top of it (like `buildPackage`, `cargoBuild`, etc.)
+          mkCargoDerivation = args: prev.mkCargoDerivation ({
+            CARGO_PROFILE = ""; # Unset profile (crane defaults to release)
+          } // args);
+        });
 
         # Run-time dependencies.
         buildInputs = [
