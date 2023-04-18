@@ -172,17 +172,26 @@
           doInstallCargoArtifacts = true;
         });
 
+        # Release binary.
+        glaredb-bin-release = craneLib.buildPackage (common-build-args // {
+          CARGO_PROFILE = "release";
+          pname = "glaredb-release";
+          cargoExtraArgs = "--bin glaredb";
+          doCheck = false;
+        });
+
+
         # GlareDB image (with release).
         glaredb-image = mkContainer {
           name = "glaredb";
           contents = [
             pkgs.openssh
-            glaredb-bin
+            glaredb-bin-release
             # Generated certs used for SSL connections in pgsrv. GlareDB
             # proper does not currently use certs.
             generated-certs
           ];
-          config.Cmd = ["${glaredb-bin}/bin/glaredb"];
+          config.Cmd = ["${glaredb-bin-release}/bin/glaredb"];
         };
 
         # SLT runner binary.
