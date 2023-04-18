@@ -49,7 +49,7 @@
           # This change will automatically be propagated to any other functions built
           # on top of it (like `buildPackage`, `cargoBuild`, etc.)
           mkCargoDerivation = args: prev.mkCargoDerivation ({
-            CARGO_PROFILE = "test"; # Default to "test" profile for quick builds.
+            CARGO_PROFILE = ""; # Unset profile (crane defaults to release)
           } // args);
         });
 
