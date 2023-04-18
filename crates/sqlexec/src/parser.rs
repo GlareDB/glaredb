@@ -405,11 +405,9 @@ impl<'a> CustomParser<'a> {
     }
 }
 
-/// Validate idents as per [postgres identifier
-/// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
 pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
-   metastore::validation::validate_object_name(&ident.value).map_err(|e| ParserError::ParserError(e.to_string()))
-    }
+    metastore::validation::validate_object_name(&ident.value)
+        .map_err(|e| ParserError::ParserError(e.to_string()))
 }
 
 /// Validate object names a `Vec<ast::Idents>`
