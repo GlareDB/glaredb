@@ -89,7 +89,7 @@
           # Filter source to to only include the files we care about for
           # building.
           src = lib.cleanSourceWith {
-            src = ./.;
+            src = craneLib.path ./.;
             filter = filterSources;
           };
 
