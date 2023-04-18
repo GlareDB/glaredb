@@ -3,6 +3,9 @@ pub enum MetastoreError {
     #[error("Duplicate name: {0}")]
     DuplicateName(String),
 
+    #[error("Invalid object name length: {length}, max: {max}")]
+    InvalidNameLength { length: usize, max: usize },
+
     #[error("Duplicate object names found during load; name {name}, schema: {schema}, first: {first}, second: {second}")]
     DuplicateNameFoundDuringLoad {
         name: String,

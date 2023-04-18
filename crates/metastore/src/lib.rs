@@ -6,6 +6,7 @@ pub mod proto;
 pub mod session;
 pub mod srv;
 pub mod types;
+pub mod validation;
 
 mod database;
 mod storage;

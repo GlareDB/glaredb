@@ -8,7 +8,7 @@ statement ok
 create schema long_schema_123456789123456789123456789123456789123456789123456;
 
 # 64 byte length identifier
-statement error greater than 63 bytes
+statement error
 create schema long_schema_64_1234567891234567891234567891234567891234567891234;
 
 # test identifier starting with a number
@@ -19,8 +19,20 @@ statement ok
 create schema short;
 
 # 64 byte external table name
-statement error greater than 63 bytes
+statement error
 create external table short.long_table_12345678912345678912345678912345678912345678912345678 from local options (location = 'testdata/parquet/userdata1.parquet');
 
-statement error greater than 63 bytes
+statement error
 create view short.long_view_123456789123456789123456789123456789123456789123456789 as select 1;
+
+statement ok
+create external database long_name from debug;
+
+statement error
+alter database long_name rename to long_table_12345678912345678912345678912345678912345678912345678;
+
+statement ok
+create external table short.t1 from debug options (table_type = 'never_ending');
+
+statement error
+alter table short.t1 rename to short.long_table_12345678912345678912345678912345678912345678912345678;
