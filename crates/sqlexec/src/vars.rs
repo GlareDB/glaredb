@@ -59,12 +59,6 @@ lazy_static! {
 }
 
 // GlareDB specific.
-const GLAREDB_BUILD_VERSION: ServerVar<str> = ServerVar {
-    name: "glaredb_build_version",
-    value: buildenv::git_tag(),
-};
-
-// GlareDB specific.
 const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
     name: "enable_debug_datasources",
     value: &false,
@@ -91,7 +85,6 @@ pub struct SessionVars {
     pub datestyle: SessionVar<str>,
     pub transaction_isolation: ServerVar<str>,
     pub search_path: SessionVar<[String]>,
-    pub glaredb_build_version: ServerVar<str>,
     pub enable_debug_datasources: SessionVar<bool>,
     pub force_catalog_refresh: SessionVar<bool>,
 }
@@ -128,8 +121,6 @@ impl SessionVars {
             Ok(&self.transaction_isolation)
         } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
             Ok(&self.search_path)
-        } else if name.eq_ignore_ascii_case(GLAREDB_BUILD_VERSION.name) {
-            Ok(&self.glaredb_build_version)
         } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
             Ok(&self.enable_debug_datasources)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
@@ -159,10 +150,6 @@ impl SessionVars {
             Err(ExecError::VariableReadonly(SERVER_VERSION.name.to_string()))
         } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
             self.search_path.set(val)
-        } else if name.eq_ignore_ascii_case(GLAREDB_BUILD_VERSION.name) {
-            Err(ExecError::VariableReadonly(
-                GLAREDB_BUILD_VERSION.name.to_string(),
-            ))
         } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
             self.enable_debug_datasources.set(val)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
@@ -185,7 +172,6 @@ impl Default for SessionVars {
             datestyle: SessionVar::new(&DATESTYLE),
             transaction_isolation: TRANSACTION_ISOLATION,
             search_path: SessionVar::new(&SEARCH_PATH),
-            glaredb_build_version: GLAREDB_BUILD_VERSION,
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
             force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
         }

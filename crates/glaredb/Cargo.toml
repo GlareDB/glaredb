@@ -9,7 +9,6 @@ path = "src/bin/main.rs"
 
 [dependencies]
 logutil = {path = "../logutil"}
-buildenv = {path = "../buildenv"}
 sqlexec = {path = "../sqlexec"}
 telemetry = {path = "../telemetry"}
 pgsrv = {path = "../pgsrv"}

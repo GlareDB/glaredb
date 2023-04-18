@@ -6,7 +6,6 @@ edition = {workspace = true}
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-buildenv = {path = "../buildenv"}
 pgrepr = {path = "../pgrepr"}
 metastore = {path = "../metastore"}
 telemetry = {path = "../telemetry"}
