@@ -408,13 +408,12 @@ impl<'a> CustomParser<'a> {
 /// Validate idents as per [postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
 pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
-    const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
-    if ident.value.len() >= POSTGRES_IDENT_MAX_LENGTH {
-        return Err(ParserError::ParserError(format!(
-            "Ident {ident} is greater than 63 bytes in length"
-        )));
+    match metastore::validation::validate_object_name(&ident.value) {
+        Err(err) => {
+            return Err(ParserError::ParserError(err.to_string()));
+        }
+        Ok(()) => Ok(()),
     }
-    Ok(())
 }
 
 /// Validate object names a `Vec<ast::Idents>`

@@ -12,6 +12,7 @@ use crate::types::catalog::{
 use crate::types::options::{DatabaseOptions, DatabaseOptionsInternal, TableOptions};
 use crate::types::service::Mutation;
 use crate::types::storage::{ExtraState, PersistedCatalog};
+use crate::validation::validate_object_name;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
@@ -422,6 +423,7 @@ impl State {
                     self.database_names.insert(create_database.name, oid);
                 }
                 Mutation::CreateSchema(create_schema) => {
+                    validate_object_name(&create_schema.name)?;
                     // TODO: If not exists.
                     if self.schema_names.contains_key(&create_schema.name) {
                         return Err(MetastoreError::DuplicateName(create_schema.name));
@@ -445,6 +447,7 @@ impl State {
                     self.schema_names.insert(create_schema.name, oid);
                 }
                 Mutation::CreateView(create_view) => {
+                    validate_object_name(&create_view.name)?;
                     // TODO: If not exists.
 
                     let schema_id = self.get_schema_id(&create_view.schema)?;
@@ -471,6 +474,7 @@ impl State {
                     )?;
                 }
                 Mutation::CreateExternalTable(create_ext) => {
+                    validate_object_name(&create_ext.name)?;
                     let schema_id = self.get_schema_id(&create_ext.schema)?;
 
                     // Create new entry.
@@ -496,6 +500,7 @@ impl State {
                     )?;
                 }
                 Mutation::AlterTableRename(alter_table_rename) => {
+                    validate_object_name(&alter_table_rename.new_name)?;
                     if self.schema_names.contains_key(&alter_table_rename.new_name) {
                         return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
                     }
@@ -553,6 +558,7 @@ impl State {
                     )?;
                 }
                 Mutation::AlterDatabaseRename(alter_database_rename) => {
+                    validate_object_name(&alter_database_rename.new_name)?;
                     if self
                         .database_names
                         .contains_key(&alter_database_rename.new_name)
@@ -761,19 +767,6 @@ impl BuiltinCatalog {
             schema_objects,
         })
     }
-}
-
-// validate object name
-fn validate_object_name(name: &String) -> Result<()> {
-    const POSTGRES_IDENT_MAX_LENGTH: usize = 64;
-    if name.len() >= POSTGRES_IDENT_MAX_LENGTH {
-        return Err(MetastoreError::InvalidNameLength {
-            length: name.len(),
-            max: POSTGRES_IDENT_MAX_LENGTH,
-        });
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
