@@ -41,7 +41,17 @@
         ];
 
         # Configure crane using the pinned toolchain.
-        craneLib = crane.lib.${system}.overrideToolchain fenixToolchain;
+        craneLibFenix = crane.lib.${system}.overrideToolchain fenixToolchain;
+
+        craneLib = (craneLibFenix).overrideScope' (final: prev: {
+          # We override the behavior of `mkCargoDerivation` by adding a wrapper which
+          # will set a default value of `CARGO_PROFILE` when not set by the caller.
+          # This change will automatically be propagated to any other functions built
+          # on top of it (like `buildPackage`, `cargoBuild`, etc.)
+          mkCargoDerivation = args: prev.mkCargoDerivation ({
+            CARGO_PROFILE = ""; # Unset profile (crane defaults to release)
+          } // args);
+        });
 
         # Run-time dependencies.
         buildInputs = [
@@ -73,7 +83,7 @@
         # Common configuration for all builds.
         #
         # This tracks our build inputs and the source files we'll be building with.
-        common-build-args = rec {
+        common-build-args = {
           inherit buildInputs nativeBuildInputs;
 
           # Filter source to to only include the files we care about for
@@ -92,10 +102,6 @@
           # See the `buildenv` crate.
           GIT_TAG_OVERRIDE = self.rev or "dirty";
         };
-
-        # Build all dependencies. Built dependencies will be reused across checks
-        # and builds.
-        cargoArtifacts = craneLib.buildDepsOnly ({} // common-build-args);
 
         # Derivation for generating and including SSL certs.
         generated-certs = pkgs.stdenv.mkDerivation {
@@ -155,99 +161,110 @@
           ++ buildInputs
           ++ nativeBuildInputs;
 
+        # GlareDB binary.
+        #
+        # This is also used for cargo artifacts for downstream targets (since
+        # this pretty much builds everything).
+        glaredb-bin = craneLib.buildPackage (common-build-args // {
+          pname = "glaredb";
+          cargoExtraArgs = "--bin glaredb";
+          doCheck = false;
+          doInstallCargoArtifacts = true;
+        });
+
+        # GlareDB binary built with release profile.
+        glaredb-bin-release = craneLib.buildPackage (common-build-args // {
+          CARGO_PROFILE = "release";
+          pname = "glaredb-release";
+          cargoExtraArgs = "--bin glaredb";
+          doCheck = false;
+          doInstallCargoArtifacts = true;
+        });
+
+
+        # GlareDB image (with release).
+        glaredb-image = mkContainer {
+          name = "glaredb";
+          contents = [
+            pkgs.openssh
+            glaredb-bin-release
+            # Generated certs used for SSL connections in pgsrv. GlareDB
+            # proper does not currently use certs.
+            generated-certs
+          ];
+          config.Cmd = ["${glaredb-bin-release}/bin/glaredb"];
+        };
+
+        # SLT runner binary.
+        slt-runner-bin = craneLib.buildPackage (common-build-args // {
+          cargoArtifacts = glaredb-bin;
+          pname = "slt-runner";
+          cargoExtraArgs = "--bin slt_runner";
+          doCheck = false;
+        });
+
+        # pgprototest binary.
+        pgprototest-bin = craneLib.buildPackage (common-build-args // {
+          cargoArtifacts = glaredb-bin;
+          pname = "pgprototest";
+          cargoExtraArgs = "--bin pgprototest";
+          doCheck = false;
+        });
+
       in rec {
         # Checks ran in CI. This includes linting and testing.
         checks = {
-          # Ensure the packages can be built.
-          glaredb-bin = packages.glaredb-bin;
-          slt-runner-bin = packages.slt-runner-bin;
-          pgprototest-bin = packages.pgprototest-bin;
-
-          # Run clippy.
-          clippy-check = craneLib.cargoClippy ({
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-features -- --deny warnings";
-          } // common-build-args);
+          inherit glaredb-bin;
+          inherit slt-runner-bin;
+          inherit pgprototest-bin;
 
           # Run tests.
-          tests-check = craneLib.cargoNextest ({
-            inherit cargoArtifacts;
+          tests-check = craneLib.cargoNextest (common-build-args // {
+            cargoArtifacts = glaredb-bin;
             partitions = 1;
             partitionType = "count";
-          } // common-build-args);
+          });
+
+          # Run clippy.
+          clippy-check = craneLib.cargoClippy (common-build-args // {
+            cargoArtifacts = glaredb-bin;
+            cargoClippyExtraArgs = "--all-features -- --deny warnings";
+          });
 
           # Check formatting.
-          fmt-check = craneLib.cargoFmt ({
-            inherit cargoArtifacts;
-          } // common-build-args);
+          fmt-check = craneLib.cargoFmt (common-build-args // {
+            cargoArtifacts = glaredb-bin;
+          });
 
           # Check docs (and doc tests).
-          crate-docs = craneLib.cargoDoc ({
-            inherit cargoArtifacts;
-          } // common-build-args);
+          crate-docs = craneLib.cargoDoc (common-build-args // {
+            cargoArtifacts = glaredb-bin;
+          });
         };
 
         # Buildable packages.
         packages = {
-          generated-certs = generated-certs;
-
-          # GlareDB binary.
-          glaredb-bin = craneLib.buildPackage ({
-            inherit cargoArtifacts;
-            pname = "glaredb";
-            cargoExtraArgs = "--bin glaredb";
-          } // common-build-args);
-
-          # GlareDB binary using the release profile.
-          #
-          # This is a separate target since enabling LTO can cause build times
-          # to go up.
-          glaredb-bin-release = craneLib.buildPackage ({
-            inherit cargoArtifacts;
-            pname = "glaredb-release";
-            cargoExtraArgs = "--release --bin glaredb";
-          } // common-build-args);
-
-
-          # GlareDB image.
-          glaredb-image = mkContainer {
-            name = "glaredb";
-            contents = [
-              pkgs.openssh
-              packages.glaredb-bin-release
-              # Generated certs used for SSL connections in pgsrv. GlareDB
-              # proper does not currently use certs.
-              generated-certs
-            ];
-            config.Cmd = ["${packages.glaredb-bin}/bin/glaredb"];
-          };
-
-          slt-runner-bin = craneLib.buildPackage ({
-            inherit cargoArtifacts;
-            pname = "slt-runner";
-            cargoExtraArgs = "--bin slt_runner";
-          } // common-build-args);
-
-          pgprototest-bin = craneLib.buildPackage ({
-            inherit cargoArtifacts;
-            pname = "pgprototest";
-            cargoExtraArgs = "--bin pgprototest";
-          } // common-build-args);
+          inherit generated-certs;
+          inherit glaredb-bin;
+          inherit glaredb-bin-release;
+          inherit glaredb-image;
+          inherit slt-runner-bin;
+          inherit pgprototest-bin;
         };
 
         # Runnable applications.
         apps = {
           glaredb = {
             type = "app";
-            program = "${packages.glaredb-bin}/bin/glaredb";
+            program = "${glaredb-bin}/bin/glaredb";
           };
           slt-runner = {
             type = "app";
-            program = "${packages.slt-runner-bin}/bin/slt_runner";
+            program = "${slt-runner-bin}/bin/slt_runner";
           };
           pgprototest = {
             type = "app";
-            program = "${packages.pgprototest-bin}/bin/pgprototest";
+            program = "${pgprototest-bin}/bin/pgprototest";
           };
           default = apps.glaredb;
         };

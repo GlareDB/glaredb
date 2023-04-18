@@ -1,13 +1,21 @@
 //! Generated protobuf code.
-//!
-//! Changes made to any of these modules will be overwritten during build.
-#[rustfmt::skip]
-pub mod arrow;
-#[rustfmt::skip]
-pub mod catalog;
-#[rustfmt::skip]
-pub mod service;
-#[rustfmt::skip]
-pub mod storage;
-#[rustfmt::skip]
-pub mod options;
+
+pub mod arrow {
+    tonic::include_proto!("metastore.arrow");
+}
+
+pub mod catalog {
+    tonic::include_proto!("metastore.catalog");
+}
+
+pub mod service {
+    tonic::include_proto!("metastore.service");
+}
+
+pub mod storage {
+    tonic::include_proto!("metastore.storage");
+}
+
+pub mod options {
+    tonic::include_proto!("metastore.options");
+}
