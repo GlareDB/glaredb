@@ -17,6 +17,8 @@ pub struct DatabaseDetails {
     pub user_id: String,
     /// Max number of data sources allowed
     pub max_datasource_count: usize,
+    /// Memory limit applied to session in bytes
+    pub memory_limit_bytes: usize,
 }
 
 #[async_trait]

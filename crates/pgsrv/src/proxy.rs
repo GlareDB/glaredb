@@ -262,6 +262,10 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
             GLAREDB_MAX_DATASOURCE_COUNT_KEY.key.to_string(),
             db_details.max_datasource_count.to_string(),
         );
+        params.insert(
+            GLAREDB_MEMORY_LIMIT_BYTES_KEY.key.to_string(),
+            db_details.memory_limit_bytes.to_string(),
+        );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
 
