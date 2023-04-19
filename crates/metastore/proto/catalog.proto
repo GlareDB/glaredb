@@ -31,7 +31,6 @@ syntax = "proto3";
 
 package metastore.catalog;
 
-import "arrow.proto";
 import "options.proto";
 
 // The state of the catalog at some version.
@@ -120,8 +119,7 @@ message SchemaEntry {
 message TableEntry {
   EntryMeta meta = 1;
 
-  // Columns in the table.
-  repeated ColumnDefinition columns = 2;
+  reserved 2; // Column fields
 
   options.TableOptions options = 3;
 
@@ -135,19 +133,4 @@ message ViewEntry {
   string sql = 2;
 
   // next: 3
-}
-
-message ColumnDefinition {
-  // Name of the column in the table.
-  string name = 1;
-
-  // Field is nullable.
-  bool nullable = 2;
-
-  // Arrow type for the field.
-  //
-  // Note this will likely need to be expanded for complex types.
-  arrow.ArrowType arrow_type = 3;
-
-  // next: 4
 }

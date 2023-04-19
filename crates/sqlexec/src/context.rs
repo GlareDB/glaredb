@@ -18,7 +18,6 @@ use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::ColumnDefinition;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -139,22 +138,12 @@ impl SessionContext {
         }
 
         let (_, schema, name) = self.resolve_object_reference(plan.table_name.into())?;
-        let columns = plan
-            .columns
-            .into_iter()
-            .map(|field| ColumnDefinition {
-                name: field.name().to_owned(),
-                nullable: field.is_nullable(),
-                arrow_type: field.data_type().to_owned(),
-            })
-            .collect();
         self.mutate_catalog([Mutation::CreateExternalTable(
             service::CreateExternalTable {
                 schema,
                 name,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
-                columns,
             },
         )])
         .await?;

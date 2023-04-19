@@ -12,6 +12,25 @@ syntax = "proto3";
 
 package metastore.options;
 
+import "arrow.proto";
+
+// Some options allow us to know the columns in tables upfront (particularly the
+// internal table options).
+message InternalColumnDefinition {
+  // Name of the column in the table.
+  string name = 1;
+
+  // Field is nullable.
+  bool nullable = 2;
+
+  // Arrow type for the field.
+  //
+  // Note this will likely need to be expanded for complex types.
+  arrow.ArrowType arrow_type = 3;
+
+  // next: 4
+}
+
 // Database options
 
 message DatabaseOptions {
@@ -69,7 +88,10 @@ message TableOptions {
   // next: 11
 }
 
-message TableOptionsInternal {}
+message TableOptionsInternal {
+  // Columns in the table.
+  repeated InternalColumnDefinition columns = 1;
+}
 
 message TableOptionsDebug { string table_type = 1; }
 

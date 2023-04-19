@@ -1,7 +1,64 @@
 use super::{FromOptionalField, ProtoConvError};
+use crate::proto::arrow;
 use crate::proto::options;
+use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
 use std::fmt;
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct InternalColumnDefinition {
+    pub name: String,
+    pub nullable: bool,
+    // TODO: change proptest strategy to select random DataType
+    #[proptest(value("DataType::Utf8"))]
+    pub arrow_type: DataType,
+}
+
+impl InternalColumnDefinition {
+    /// Create a vec of column definitions.
+    ///
+    /// Tuples are in the form of:
+    /// (name, datatype, nullable)
+    pub fn from_tuples<C, N>(cols: C) -> Vec<InternalColumnDefinition>
+    where
+        C: IntoIterator<Item = (N, DataType, bool)>,
+        N: Into<String>,
+    {
+        cols.into_iter()
+            .map(|(name, arrow_type, nullable)| InternalColumnDefinition {
+                name: name.into(),
+                nullable,
+                arrow_type,
+            })
+            .collect()
+    }
+}
+
+impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
+    type Error = ProtoConvError;
+    fn try_from(value: options::InternalColumnDefinition) -> Result<Self, Self::Error> {
+        let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
+        Ok(InternalColumnDefinition {
+            name: value.name,
+            nullable: value.nullable,
+            arrow_type,
+        })
+    }
+}
+
+// TODO: Try to make this just `From`. Would require some additional conversions
+// for the arrow types.
+impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
+    type Error = ProtoConvError;
+    fn try_from(value: InternalColumnDefinition) -> Result<Self, Self::Error> {
+        let arrow_type = arrow::ArrowType::try_from(&value.arrow_type)?;
+        Ok(options::InternalColumnDefinition {
+            name: value.name,
+            nullable: value.nullable,
+            arrow_type: Some(arrow_type),
+        })
+    }
+}
 
 // Database options
 
@@ -286,8 +343,8 @@ impl TableOptions {
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
 
-    pub const fn new_internal() -> TableOptions {
-        TableOptions::Internal(TableOptionsInternal {})
+    pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
+        TableOptions::Internal(TableOptionsInternal { columns })
     }
 
     pub fn as_str(&self) -> &'static str {
@@ -337,10 +394,11 @@ impl TryFrom<options::TableOptions> for TableOptions {
     }
 }
 
-impl From<TableOptions> for options::table_options::Options {
-    fn from(value: TableOptions) -> Self {
-        match value {
-            TableOptions::Internal(v) => options::table_options::Options::Internal(v.into()),
+impl TryFrom<TableOptions> for options::table_options::Options {
+    type Error = ProtoConvError;
+    fn try_from(value: TableOptions) -> Result<Self, Self::Error> {
+        Ok(match value {
+            TableOptions::Internal(v) => options::table_options::Options::Internal(v.try_into()?),
             TableOptions::Debug(v) => options::table_options::Options::Debug(v.into()),
             TableOptions::Postgres(v) => options::table_options::Options::Postgres(v.into()),
             TableOptions::BigQuery(v) => options::table_options::Options::Bigquery(v.into()),
@@ -350,30 +408,46 @@ impl From<TableOptions> for options::table_options::Options {
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
             TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
-        }
+        })
     }
 }
 
-impl From<TableOptions> for options::TableOptions {
-    fn from(value: TableOptions) -> Self {
-        options::TableOptions {
-            options: Some(value.into()),
-        }
+impl TryFrom<TableOptions> for options::TableOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: TableOptions) -> Result<Self, Self::Error> {
+        Ok(options::TableOptions {
+            options: Some(value.try_into()?),
+        })
     }
 }
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct TableOptionsInternal {}
+pub struct TableOptionsInternal {
+    pub columns: Vec<InternalColumnDefinition>,
+}
 
 impl TryFrom<options::TableOptionsInternal> for TableOptionsInternal {
     type Error = ProtoConvError;
-    fn try_from(_value: options::TableOptionsInternal) -> Result<Self, Self::Error> {
-        Ok(TableOptionsInternal {})
+    fn try_from(value: options::TableOptionsInternal) -> Result<Self, Self::Error> {
+        Ok(TableOptionsInternal {
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
-impl From<TableOptionsInternal> for options::TableOptionsInternal {
-    fn from(_value: TableOptionsInternal) -> Self {
-        options::TableOptionsInternal {}
+impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
+    type Error = ProtoConvError;
+    fn try_from(value: TableOptionsInternal) -> Result<Self, Self::Error> {
+        Ok(options::TableOptionsInternal {
+            columns: value
+                .columns
+                .into_iter()
+                .map(|col| col.try_into())
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
@@ -650,7 +724,7 @@ mod tests {
     proptest! {
         #[test]
         fn roundtrip_table_options(expected in any::<TableOptions>()) {
-            let p: options::TableOptions = expected.clone().into();
+            let p: options::TableOptions = expected.clone().try_into().unwrap();
             let got: TableOptions = p.try_into().unwrap();
             assert_eq!(expected, got);
         }

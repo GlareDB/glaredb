@@ -264,7 +264,7 @@ impl<'a> SessionDispatcher<'a> {
 
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         match &table.options {
-            TableOptions::Internal(TableOptionsInternal {}) => unimplemented!(),
+            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider())
@@ -615,7 +615,12 @@ impl<'a> SystemTableDispatcher<'a> {
                 other => panic!("unexpected entry type: {:?}", other), // Bug
             };
 
-            for (i, col) in ent.columns.iter().enumerate() {
+            let cols = match ent.get_internal_columns() {
+                Some(cols) => cols,
+                None => continue,
+            };
+
+            for (i, col) in cols.iter().enumerate() {
                 schema_oid.append_value(
                     table
                         .parent_entry

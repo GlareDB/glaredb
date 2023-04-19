@@ -1,8 +1,7 @@
+use super::options::{InternalColumnDefinition, TableOptionsInternal};
 use super::{FromOptionalField, ProtoConvError};
-use crate::proto::arrow;
 use crate::proto::catalog;
 use crate::types::options::{DatabaseOptions, TableOptions};
-use datafusion::arrow::datatypes::DataType;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;
@@ -278,8 +277,17 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 #[derive(Debug, Clone)]
 pub struct TableEntry {
     pub meta: EntryMeta,
-    pub columns: Vec<ColumnDefinition>,
     pub options: TableOptions,
+}
+
+impl TableEntry {
+    /// Try to get the columns for this table if available.
+    pub fn get_internal_columns(&self) -> Option<&[InternalColumnDefinition]> {
+        match &self.options {
+            TableOptions::Internal(TableOptionsInternal { columns, .. }) => Some(columns),
+            _ => None,
+        }
+    }
 }
 
 impl TryFrom<catalog::TableEntry> for TableEntry {
@@ -288,11 +296,6 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(TableEntry {
             meta,
-            columns: value
-                .columns
-                .into_iter()
-                .map(|col| col.try_into())
-                .collect::<Result<_, _>>()?,
             options: value.options.required("options".to_string())?,
         })
     }
@@ -303,67 +306,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
     fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
         Ok(catalog::TableEntry {
             meta: Some(value.meta.into()),
-            columns: value
-                .columns
-                .into_iter()
-                .map(|col| col.try_into())
-                .collect::<Result<_, _>>()?,
-            options: Some(value.options.into()),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct ColumnDefinition {
-    pub name: String,
-    pub nullable: bool,
-    // TODO: change proptest strategy to select random DataType
-    #[proptest(value("DataType::Utf8"))]
-    pub arrow_type: DataType,
-}
-
-impl ColumnDefinition {
-    /// Create a vec of column definitions.
-    ///
-    /// Tuples are in the form of:
-    /// (name, datatype, nullable)
-    pub fn from_tuples<C, N>(cols: C) -> Vec<ColumnDefinition>
-    where
-        C: IntoIterator<Item = (N, DataType, bool)>,
-        N: Into<String>,
-    {
-        cols.into_iter()
-            .map(|(name, arrow_type, nullable)| ColumnDefinition {
-                name: name.into(),
-                nullable,
-                arrow_type,
-            })
-            .collect()
-    }
-}
-
-impl TryFrom<catalog::ColumnDefinition> for ColumnDefinition {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::ColumnDefinition) -> Result<Self, Self::Error> {
-        let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
-        Ok(ColumnDefinition {
-            name: value.name,
-            nullable: value.nullable,
-            arrow_type,
-        })
-    }
-}
-
-// TODO: Try to make this just `From`. Would require some additional conversions
-// for the arrow types.
-impl TryFrom<ColumnDefinition> for catalog::ColumnDefinition {
-    type Error = ProtoConvError;
-    fn try_from(value: ColumnDefinition) -> Result<Self, Self::Error> {
-        let arrow_type = arrow::ArrowType::try_from(&value.arrow_type)?;
-        Ok(catalog::ColumnDefinition {
-            name: value.name,
-            nullable: value.nullable,
-            arrow_type: Some(arrow_type),
+            options: Some(value.options.try_into()?),
         })
     }
 }

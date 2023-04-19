@@ -76,8 +76,7 @@ message CreateExternalTable {
   string name = 2;
   options.TableOptions options = 3;
   bool if_not_exists = 4;
-  repeated catalog.ColumnDefinition columns = 5;
-  // next: 7
+  // next: 5
 }
 
 message CreateExternalDatabase {
@@ -88,14 +87,14 @@ message CreateExternalDatabase {
 }
 
 message AlterTableRename {
-    string schema = 1;
-    string name = 2;
-    string new_name = 3;
+  string schema = 1;
+  string name = 2;
+  string new_name = 3;
 }
 
 message AlterDatabaseRename {
-    string name = 1;
-    string new_name = 2;
+  string name = 1;
+  string new_name = 2;
 }
 
 message MutateRequest {

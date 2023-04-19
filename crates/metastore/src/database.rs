@@ -489,7 +489,6 @@ impl State {
                             external: true,
                         },
                         options: create_ext.options,
-                        columns: create_ext.columns,
                     };
 
                     self.try_insert_entry_for_schema(
@@ -720,8 +719,7 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                     },
-                    options: TableOptions::new_internal(),
-                    columns: table.columns.clone(),
+                    options: TableOptions::new_internal(table.columns.clone()),
                 }),
             );
             schema_objects
@@ -1048,7 +1046,6 @@ mod tests {
                 table_type: String::new(),
             }),
             if_not_exists: true,
-            columns: Vec::new(),
         });
         let _ = db
             .try_mutate(state.version, vec![mutation.clone(), mutation])

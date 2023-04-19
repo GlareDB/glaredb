@@ -8,7 +8,7 @@ use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
+    DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
@@ -162,11 +162,7 @@ impl<'a> SessionPlanner<'a> {
         mut stmt: CreateExternalTableStmt,
     ) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
-        let (external_table_options, external_table_columns) = match stmt
-            .datasource
-            .to_lowercase()
-            .as_str()
-        {
+        let external_table_options = match stmt.datasource.to_lowercase().as_str() {
             TableOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
                 let schema = remove_required_opt(m, "schema")?;
@@ -177,21 +173,17 @@ impl<'a> SessionPlanner<'a> {
                     name: table,
                 };
 
-                let arrow_schema =
-                    PostgresAccessor::validate_table_access(&connection_string, &access, None)
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                let _ = PostgresAccessor::validate_table_access(&connection_string, &access, None)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
-                (
-                    TableOptions::Postgres(TableOptionsPostgres {
-                        connection_string,
-                        schema: access.schema,
-                        table: access.name,
-                    }),
-                    arrow_schema.fields,
-                )
+                TableOptions::Postgres(TableOptionsPostgres {
+                    connection_string,
+                    schema: access.schema,
+                    table: access.name,
+                })
             }
             TableOptions::BIGQUERY => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
@@ -210,16 +202,12 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                (
-                    TableOptions::BigQuery(TableOptionsBigQuery {
-                        service_account_key,
-                        project_id,
-                        dataset_id: access.dataset_id,
-                        table_id: access.table_id,
-                    }),
-                    // TODO: return column info for this datasource
-                    Fields::empty(),
-                )
+                TableOptions::BigQuery(TableOptionsBigQuery {
+                    service_account_key,
+                    project_id,
+                    dataset_id: access.dataset_id,
+                    table_id: access.table_id,
+                })
             }
             TableOptions::MYSQL => {
                 let connection_string = get_mysql_conn_str(m)?;
@@ -237,30 +225,22 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                (
-                    TableOptions::Mysql(TableOptionsMysql {
-                        connection_string,
-                        schema: access.schema,
-                        table: access.name,
-                    }),
-                    // TODO: return column info for this datasource
-                    Fields::empty(),
-                )
+                TableOptions::Mysql(TableOptionsMysql {
+                    connection_string,
+                    schema: access.schema,
+                    table: access.name,
+                })
             }
             TableOptions::MONGO => {
                 let connection_string = get_mongo_conn_str(m)?;
                 let database = remove_required_opt(m, "database")?;
                 let collection = remove_required_opt(m, "collection")?;
 
-                (
-                    TableOptions::Mongo(TableOptionsMongo {
-                        connection_string,
-                        database,
-                        collection,
-                    }),
-                    // TODO: return column info for this datasource
-                    Fields::empty(),
-                )
+                TableOptions::Mongo(TableOptionsMongo {
+                    connection_string,
+                    database,
+                    collection,
+                })
             }
             TableOptions::SNOWFLAKE => {
                 let account_name = remove_required_opt(m, "account_name")?;
@@ -286,26 +266,22 @@ impl<'a> SessionPlanner<'a> {
                     table_name,
                 };
 
-                let arrow_schema =
-                    SnowflakeAccessor::validate_table_access(conn_params, &access_info)
-                        .await
-                        .map_err(|e| PlanError::InvalidExternalTable {
-                            source: Box::new(e),
-                        })?;
+                let _ = SnowflakeAccessor::validate_table_access(conn_params, &access_info)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
 
-                (
-                    TableOptions::Snowflake(TableOptionsSnowflake {
-                        account_name,
-                        login_name,
-                        password,
-                        database_name,
-                        warehouse,
-                        role_name: role_name.unwrap_or_default(),
-                        schema_name: access_info.schema_name,
-                        table_name: access_info.table_name,
-                    }),
-                    arrow_schema.fields,
-                )
+                TableOptions::Snowflake(TableOptionsSnowflake {
+                    account_name,
+                    login_name,
+                    password,
+                    database_name,
+                    warehouse,
+                    role_name: role_name.unwrap_or_default(),
+                    schema_name: access_info.schema_name,
+                    table_name: access_info.table_name,
+                })
             }
             TableOptions::LOCAL => {
                 let location = remove_required_opt(m, "location")?;
@@ -321,11 +297,7 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                (
-                    TableOptions::Local(TableOptionsLocal { location }),
-                    // TODO: return column info for this datasource
-                    Fields::empty(),
-                )
+                TableOptions::Local(TableOptionsLocal { location })
             }
             TableOptions::GCS => {
                 let service_account_key = remove_required_opt(m, "service_account_key")?;
@@ -345,15 +317,11 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                (
-                    TableOptions::Gcs(TableOptionsGcs {
-                        service_account_key: access.service_acccount_key_json,
-                        bucket: access.bucket_name,
-                        location: access.location,
-                    }),
-                    // TODO: return column info for this datasource
-                    Fields::empty(),
-                )
+                TableOptions::Gcs(TableOptionsGcs {
+                    service_account_key: access.service_acccount_key_json,
+                    bucket: access.bucket_name,
+                    location: access.location,
+                })
             }
             TableOptions::S3_STORAGE => {
                 let access_key_id = remove_required_opt(m, "access_key_id")?;
@@ -377,45 +345,29 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                (
-                    TableOptions::S3(TableOptionsS3 {
-                        access_key_id: access.access_key_id,
-                        secret_access_key: access.secret_access_key,
-                        region: access.region,
-                        bucket: access.bucket_name,
-                        location: access.location,
-                    }),
-                    // TODO: return column info for this datasource
-                    Fields::empty(),
-                )
+                TableOptions::S3(TableOptionsS3 {
+                    access_key_id: access.access_key_id,
+                    secret_access_key: access.secret_access_key,
+                    region: access.region,
+                    bucket: access.bucket_name,
+                    location: access.location,
+                })
             }
             TableOptions::DEBUG => {
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
-                let columns = typ.arrow_schema().fields;
 
-                (
-                    TableOptions::Debug(TableOptionsDebug {
-                        table_type: typ.to_string(),
-                    }),
-                    columns,
-                )
+                TableOptions::Debug(TableOptionsDebug {
+                    table_type: typ.to_string(),
+                })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
-
-        // TODO: This will go away when we remove getting the columns for an
-        // external table.
-        let columns = external_table_columns
-            .into_iter()
-            .map(|f| f.as_ref().clone())
-            .collect();
 
         let plan = CreateExternalTable {
             table_name: stmt.name,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
-            columns,
         };
 
         Ok(DdlPlan::CreateExternalTable(plan).into())
