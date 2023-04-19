@@ -10,7 +10,8 @@ use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::config::{CatalogOptions, ConfigOptions};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
-use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::execution::memory_pool::GreedyMemoryPool;
+use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use futures::future::BoxFuture;
@@ -78,7 +79,13 @@ impl SessionContext {
         config_opts.catalog = catalog_opts;
         let config: SessionConfig = config_opts.into();
 
-        let runtime = Arc::new(RuntimeEnv::default());
+        // new datafusion runtime env with memory pool
+        let mut runtime = Arc::new(RuntimeEnv::default());
+        if info.memory_limit_bytes > 0 {
+            let pool = Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes));
+            let rc = RuntimeConfig::default().with_memory_pool(pool);
+            runtime = Arc::new(RuntimeEnv::new(rc).unwrap());
+        }
         let state = SessionState::with_config_rt(config, runtime);
 
         // Note that we do not replace the default catalog list on the state. We

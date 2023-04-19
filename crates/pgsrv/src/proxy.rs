@@ -139,6 +139,12 @@ pub const GLAREDB_MAX_DATASOURCE_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     local_default: 100,
 };
 
+/// Param key for the memory limit in bytes. Added by pgsrv during proxying.
+pub const GLAREDB_MEMORY_LIMIT_BYTES_KEY: UsizeProxyKey = UsizeProxyKey {
+    key: "memory_limit_bytes",
+    local_default: 0,
+};
+
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.
 ///
@@ -255,6 +261,10 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         params.insert(
             GLAREDB_MAX_DATASOURCE_COUNT_KEY.key.to_string(),
             db_details.max_datasource_count.to_string(),
+        );
+        params.insert(
+            GLAREDB_MEMORY_LIMIT_BYTES_KEY.key.to_string(),
+            db_details.memory_limit_bytes.to_string(),
         );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
