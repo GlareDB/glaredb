@@ -142,7 +142,7 @@ pub const GLAREDB_MAX_DATASOURCE_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
 /// Param key for the memory limit in bytes. Added by pgsrv during proxying.
 pub const GLAREDB_MEMORY_LIMIT_BYTES_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "memory_limit_bytes",
-    local_default: 1000 * 1024 * 1024,
+    local_default: 0,
 };
 
 /// ProxyHandler proxies connections to some database instance. Connections are

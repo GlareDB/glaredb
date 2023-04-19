@@ -80,9 +80,12 @@ impl SessionContext {
         let config: SessionConfig = config_opts.into();
 
         // new datafusion runtime env with memory pool
-        let pool = Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes));
-        let rc = RuntimeConfig::default().with_memory_pool(pool);
-        let runtime = Arc::new(RuntimeEnv::new(rc).unwrap());
+        let mut runtime = Arc::new(RuntimeEnv::default());
+        if info.memory_limit_bytes > 0 {
+            let pool = Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes));
+            let rc = RuntimeConfig::default().with_memory_pool(pool);
+            runtime = Arc::new(RuntimeEnv::new(rc).unwrap());
+        }
         let state = SessionState::with_config_rt(config, runtime);
 
         // Note that we do not replace the default catalog list on the state. We
