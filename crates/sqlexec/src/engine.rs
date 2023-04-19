@@ -19,7 +19,7 @@ pub struct SessionInfo {
     pub conn_id: Uuid,
     // Max datasource count allowed.
     pub max_datasource_count: usize,
-    // Max datasource count allowed.
+    // Memory limit applied to the session.
     pub memory_limit_bytes: usize,
 }
 
