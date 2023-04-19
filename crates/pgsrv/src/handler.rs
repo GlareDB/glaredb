@@ -5,7 +5,8 @@ use crate::messages::{
     SqlState, StartupMessage, TransactionStatus,
 };
 use crate::proxy::{
-    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY, GLAREDB_USER_ID_KEY,
+    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
+    GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
@@ -143,6 +144,9 @@ impl ProtocolHandler {
         let max_datasource_count = self
             .read_proxy_key_val(&mut framed, &GLAREDB_MAX_DATASOURCE_COUNT_KEY, &params)
             .await?;
+        let memory_limit_bytes = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_MEMORY_LIMIT_BYTES_KEY, &params)
+            .await?;
 
         // Handle password
         framed
@@ -160,7 +164,13 @@ impl ProtocolHandler {
 
         let mut sess = match self
             .engine
-            .new_session(user_id, conn_id, db_id, max_datasource_count)
+            .new_session(
+                user_id,
+                conn_id,
+                db_id,
+                max_datasource_count,
+                memory_limit_bytes,
+            )
             .await
         {
             Ok(sess) => sess,

@@ -19,6 +19,8 @@ pub struct SessionInfo {
     pub conn_id: Uuid,
     // Max datasource count allowed.
     pub max_datasource_count: usize,
+    // Max datasource count allowed.
+    pub memory_limit_bytes: usize,
 }
 
 /// Wrapper around the database catalog.
@@ -46,6 +48,7 @@ impl Engine {
         conn_id: Uuid,
         database_id: Uuid,
         max_datasource_count: usize,
+        memory_limit_bytes: usize,
     ) -> Result<Session> {
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
 
@@ -54,6 +57,7 @@ impl Engine {
             user_id,
             conn_id,
             max_datasource_count,
+            memory_limit_bytes,
         });
 
         let state = metastore.get_cached_state().await?;
