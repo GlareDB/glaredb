@@ -368,7 +368,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
 ///
 /// 1. First try to get the org id from startup options parameter.
 /// 2. If there are no options, try from the database name
-///    if in the form of `<org_id>/<db_name>` org `<org_name>/<db_name>`.
+///    if in the form of `<org_id>/<db_name>` or `<org_name>/<db_name>`.
 /// 3. Lastly, fallback to the hostname. This will only be
 ///    possible if the connection is encrypted using SNI.
 fn get_org_and_db_name<'a>(
