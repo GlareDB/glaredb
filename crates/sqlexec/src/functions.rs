@@ -138,11 +138,6 @@ impl BuiltinScalarFunction {
     }
 }
 
-/// Trait defining methods needed for pg related functions.
-pub trait PgContext: Sync + Send {
-    fn oid_is_visible(&self, oid: u32) -> bool;
-}
-
 #[derive(Debug, Clone)]
 pub struct PgFunctionBuilder;
 
