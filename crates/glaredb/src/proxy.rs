@@ -28,7 +28,7 @@ impl Proxy {
             }
         };
 
-        let auth = CloudAuthenticator::new(api_addr);
+        let auth = CloudAuthenticator::new(api_addr)?;
         Ok(Proxy {
             handler: Arc::new(ProxyHandler::new(auth, ssl_conf)),
         })
