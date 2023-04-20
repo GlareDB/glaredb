@@ -132,8 +132,8 @@ impl SessionCatalog {
     pub fn iter_entries(&self) -> impl Iterator<Item = NamespacedCatalogEntry> {
         self.state
             .entries
-            .iter()
-            .map(|(_oid, entry)| self.as_namespaced_entry(entry))
+            .values()
+            .map(|entry| self.as_namespaced_entry(entry))
     }
 
     fn as_namespaced_entry<'a>(&'a self, ent: &'a CatalogEntry) -> NamespacedCatalogEntry<'a> {

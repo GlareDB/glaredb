@@ -158,7 +158,7 @@ impl PgFunctionBuilder {
             }
         }
 
-        let idents: Vec<_> = name.split(".").collect();
+        let idents: Vec<_> = name.split('.').collect();
         if idents.len() == 1 {
             // No qualification.
             return None;
