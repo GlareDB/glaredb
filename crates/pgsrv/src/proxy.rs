@@ -578,10 +578,10 @@ mod tests {
             },
             // "Omit" org name.
             //
-            // If someone tries to hit the root proxy endpoint, has SNI enable,
-            // and doesn't specify an org name anywhere else, the we'll pull out
-            // "proxy" as the org name. This test case serves to document that
-            // this behavior is known.
+            // If someone tries to hit the root proxy endpoint, has SNI enabled,
+            // and doesn't specify an org name anywhere else, then we'll pull
+            // out "proxy" as the org name. This test case serves to document
+            // that this behavior is known.
             //
             // Why not error if we find "proxy" as an org name?
             //
