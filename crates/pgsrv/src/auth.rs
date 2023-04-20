@@ -1,7 +1,7 @@
 use crate::errors::{PgSrvError, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::fmt;
+use uuid::Uuid;
 
 /// Connection details for a database. Returned by the connection authenticator.
 #[derive(Deserialize, Debug, Clone)]
@@ -22,26 +22,35 @@ pub struct DatabaseDetails {
 }
 
 #[async_trait]
-pub trait ConnectionAuthenticator: Sync + Send + fmt::Debug {
+pub trait ConnectionAuthenticator: Sync + Send {
     /// Authenticate a database connection.
     async fn authenticate(
         &self,
         user: &str,
         password: &str,
         db_name: &str,
-        org_id: &str,
+        org: &str,
     ) -> Result<DatabaseDetails>;
 }
 
 /// Authentice connections using the Cloud service.
-#[derive(Debug)]
 pub struct CloudAuthenticator {
-    api_url: String, // TODO: Use CloudClient.
+    api_url: String,
+    client: reqwest::Client,
 }
 
 impl CloudAuthenticator {
-    pub fn new(api_url: String) -> Self {
-        CloudAuthenticator { api_url }
+    pub fn new(api_url: String) -> Result<Self> {
+        use reqwest::header;
+
+        let mut default_headers = header::HeaderMap::new();
+        default_headers.insert(header::AUTHORIZATION, "Basic 6tCvEVBkD91q4KhjGVtT".parse()?);
+
+        let client = reqwest::Client::builder()
+            .default_headers(default_headers)
+            .build()?;
+
+        Ok(CloudAuthenticator { api_url, client })
     }
 }
 
@@ -52,23 +61,30 @@ impl ConnectionAuthenticator for CloudAuthenticator {
         user: &str,
         password: &str,
         db_name: &str,
-        org_id: &str,
+        org: &str,
     ) -> Result<DatabaseDetails> {
-        let client = reqwest::Client::builder().build()?;
+        let query = if Uuid::try_parse(org).is_ok() {
+            [
+                ("user", user),
+                ("password", password),
+                ("name", db_name),
+                ("org", org),
+            ]
+        } else {
+            [
+                ("user", user),
+                ("password", password),
+                ("name", db_name),
+                ("orgname", org),
+            ]
+        };
 
-        let query = &[
-            ("user", user),
-            ("password", password),
-            ("name", db_name),
-            ("org", org_id),
-        ];
-
-        let res = client
+        let res = self
+            .client
             .get(format!(
                 "{}/api/internal/databases/authenticate",
                 &self.api_url
             ))
-            .header("Authorization", "Basic 6tCvEVBkD91q4KhjGVtT")
             .query(&query)
             .send()
             .await?;
@@ -109,7 +125,7 @@ impl ConnectionAuthenticator for StaticAuthenticator {
         _user: &str,
         _password: &str,
         _db_name: &str,
-        _org_id: &str,
+        _org: &str,
     ) -> Result<DatabaseDetails> {
         Ok(self.details.clone())
     }

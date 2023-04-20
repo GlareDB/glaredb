@@ -351,7 +351,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
                 let options = parse_options(params);
 
                 let (org_id, db_name) =
-                    get_org_id_and_db_name(hostname.as_ref(), db_name, options.as_ref())?;
+                    get_org_and_db_name(hostname.as_ref(), db_name, options.as_ref())?;
 
                 let details = self
                     .authenticator
@@ -364,13 +364,14 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
     }
 }
 
-/// Get the org_id and the db_name.
+/// Get an org identifier (either id or name) and the db_name.
 ///
 /// 1. First try to get the org id from startup options parameter.
-/// 2. If there are no options, try from the hostname. This will only be
+/// 2. If there are no options, try from the database name
+///    if in the form of `<org_id>/<db_name>` org `<org_name>/<db_name>`.
+/// 3. Lastly, fallback to the hostname. This will only be
 ///    possible if the connection is encrypted using SNI.
-/// 3. Lastly, fallback to the database name as `<org_id>/<db_name>`.
-fn get_org_id_and_db_name<'a>(
+fn get_org_and_db_name<'a>(
     hostname: Option<&'a String>,
     db_name: &'a String,
     options: Option<&'a HashMap<String, String>>,
@@ -384,9 +385,6 @@ fn get_org_id_and_db_name<'a>(
         let hostname = hostname?;
         let parts = hostname.split_once('.')?;
         let org_id = parts.0;
-        // Since a subdomain doesn't definitely indicate it's an org id, verify
-        // if this is valid by parsing it as a UUID.
-        let _ = Uuid::try_parse(org_id).ok()?;
         Some(org_id)
     }
 
@@ -398,12 +396,12 @@ fn get_org_id_and_db_name<'a>(
         return Ok((org_id, db_name));
     }
 
-    if let Some(org_id) = get_org_id_from_hostname(hostname) {
-        return Ok((org_id, db_name));
-    }
-
     if let Some(ids) = get_org_id_from_dbname(db_name) {
         return Ok(ids);
+    }
+
+    if let Some(org_id) = get_org_id_from_hostname(hostname) {
+        return Ok((org_id, db_name));
     }
 
     Err(PgSrvError::MissingOrgId)
@@ -528,6 +526,101 @@ mod tests {
                     "unexpectedly got error: {}, expected value: {}",
                     e, expected
                 ),
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_org_dbname() {
+        #[derive(Debug)]
+        struct TestCase {
+            hostname: Option<&'static str>,
+            db_name: &'static str,
+            options: Option<&'static [(&'static str, &'static str)]>,
+            expected: Option<(&'static str, &'static str)>,
+        }
+
+        let test_cases = vec![
+            // Org name in db name.
+            TestCase {
+                hostname: None,
+                db_name: "my-org/db",
+                options: None,
+                expected: Some(("my-org", "db")),
+            },
+            // Org name in hostname.
+            TestCase {
+                hostname: Some("my-org.proxy.glaredb.com"),
+                db_name: "db",
+                options: None,
+                expected: Some(("my-org", "db")),
+            },
+            // Org name in options.
+            TestCase {
+                hostname: Some("proxy.glaredb.com"),
+                db_name: "db",
+                options: Some(&[("org", "my-org")]),
+                expected: Some(("my-org", "db")),
+            },
+            // Can't find org name.
+            TestCase {
+                hostname: None,
+                db_name: "db",
+                options: None,
+                expected: None,
+            },
+            // Prefer org name in db name.
+            TestCase {
+                hostname: Some("a.proxy.glaredb.com"),
+                db_name: "b/db",
+                options: None,
+                expected: Some(("b", "db")),
+            },
+            // "Omit" org name.
+            //
+            // If someone tries to hit the root proxy endpoint, has SNI enable,
+            // and doesn't specify an org name anywhere else, the we'll pull out
+            // "proxy" as the org name. This test case serves to document that
+            // this behavior is known.
+            //
+            // Why not error if we find "proxy" as an org name?
+            //
+            // I would prefer to keep glaredb pretty dumb in terms of what
+            // hostname is used for proxying. For example, we may end up using
+            // something like "us-central1.proxy.glaredb.com" for proxying in
+            // different regions/clouds, and I would prefer not having to update
+            // glaredb logic to account for that.
+            //
+            // So what happens if there's an org named "proxy"?
+            //
+            // Oh well. We'll be checking against that org. If the user isn't a
+            // part of it, they'll just fail the credential check. Longer term
+            // we might want to block more org names (e.g. "proxy") on Cloud
+            // side.
+            TestCase {
+                hostname: Some("proxy.glaredb.com"),
+                db_name: "db",
+                options: None,
+                expected: Some(("proxy", "db")),
+            },
+        ];
+
+        for tc in test_cases {
+            println!("test case: {tc:?}");
+            let hostname = tc.hostname.map(|s| s.to_owned());
+            let db_name = tc.db_name.to_owned();
+            let options: Option<HashMap<_, _>> = tc.options.map(|vals| {
+                vals.iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect()
+            });
+            let out = get_org_and_db_name(hostname.as_ref(), &db_name, options.as_ref());
+
+            match (tc.expected, out) {
+                (Some(a), Ok(b)) => assert_eq!(a, b),
+                (Some(a), Err(e)) => panic!("expected some: {a:?}, got error: {e}"),
+                (None, Ok(b)) => panic!("expected error, got {b:?}"),
+                _ => (),
             }
         }
     }

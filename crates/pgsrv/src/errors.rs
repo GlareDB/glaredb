@@ -80,4 +80,7 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    ReqwestHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
 }
