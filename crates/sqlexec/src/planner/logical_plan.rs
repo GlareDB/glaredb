@@ -145,7 +145,6 @@ pub struct CreateExternalTable {
     pub table_name: String,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
-    pub columns: Vec<Field>,
 }
 
 #[derive(Clone, Debug)]

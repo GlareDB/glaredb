@@ -13,7 +13,7 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
-use crate::types::catalog::ColumnDefinition;
+use crate::types::options::InternalColumnDefinition;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
@@ -66,13 +66,13 @@ impl BuiltinDatabase {
 pub struct BuiltinTable {
     pub schema: &'static str,
     pub name: &'static str,
-    pub columns: Vec<ColumnDefinition>,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "databases",
-    columns: ColumnDefinition::from_tuples([
+    columns: InternalColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("database_name", DataType::Utf8, false),
         ("builtin", DataType::Boolean, false),
@@ -84,7 +84,7 @@ pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
 pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "schemas",
-    columns: ColumnDefinition::from_tuples([
+    columns: InternalColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("database_oid", DataType::UInt32, false),
         ("database_name", DataType::Utf8, false),
@@ -96,7 +96,7 @@ pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
 pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "tables",
-    columns: ColumnDefinition::from_tuples([
+    columns: InternalColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("database_oid", DataType::UInt32, false),
         ("schema_oid", DataType::UInt32, false),
@@ -111,7 +111,7 @@ pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
 pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "views",
-    columns: ColumnDefinition::from_tuples([
+    columns: InternalColumnDefinition::from_tuples([
         ("oid", DataType::UInt32, false),
         ("database_oid", DataType::UInt32, false),
         ("schema_oid", DataType::UInt32, false),
@@ -125,7 +125,7 @@ pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
 pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "columns",
-    columns: ColumnDefinition::from_tuples([
+    columns: InternalColumnDefinition::from_tuples([
         ("schema_oid", DataType::UInt32, false),
         ("table_oid", DataType::UInt32, false),
         ("table_name", DataType::Utf8, false),
@@ -139,7 +139,7 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
 pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "session_query_metrics",
-    columns: ColumnDefinition::from_tuples([
+    columns: InternalColumnDefinition::from_tuples([
         ("query_text", DataType::Utf8, false),
         ("result_type", DataType::Utf8, false),
         ("execution_status", DataType::Utf8, false),

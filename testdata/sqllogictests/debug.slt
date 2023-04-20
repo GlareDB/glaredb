@@ -27,12 +27,3 @@ create external table error_table from debug options (table_type = 'error_during
 statement error
 select * from error_table;
 
-# validate external column catalog info
-query TITTT
-select column_name, column_ordinal, data_type, is_nullable
-    from glare_catalog.columns c
-    join glare_catalog.tables t
-    on c.table_oid = t.oid
-    where t.table_name = 'error_table';
-----
-a 0 Int32 f
