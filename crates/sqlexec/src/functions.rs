@@ -6,7 +6,9 @@ use datafusion::logical_expr::{
     ColumnarValue, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature,
     TypeSignature, Volatility,
 };
+use metastore::builtins::POSTGRES_SCHEMA;
 use std::sync::Arc;
+use tracing::warn;
 
 /// Additional built-in scalar functions.
 #[derive(Debug, Copy, Clone)]
@@ -132,6 +134,127 @@ impl BuiltinScalarFunction {
                     ))))
                 })
             }
+        }
+    }
+}
+
+/// Trait defining methods needed for pg related functions.
+pub trait PgContext: Sync + Send {
+    fn oid_is_visible(&self, oid: u32) -> bool;
+}
+
+#[derive(Debug, Clone)]
+pub struct PgFunctionBuilder;
+
+impl PgFunctionBuilder {
+    /// Try to get a postres function by name.
+    ///
+    /// If `implicit_pg_schema` is true, try to resolve the function as if the
+    /// postgres schema is in the search path.
+    pub fn try_from_name(name: &str, implicit_pg_schema: bool) -> Option<Arc<ScalarUDF>> {
+        if implicit_pg_schema {
+            if let Some(func) = Self::try_from_unqualified(name) {
+                return Some(func);
+            }
+        }
+
+        let idents: Vec<_> = name.split(".").collect();
+        if idents.len() == 1 {
+            // No qualification.
+            return None;
+        }
+        if idents.len() != 2 {
+            warn!(
+                ?idents,
+                "received pg function name with more than two idents"
+            );
+            return None;
+        }
+        if idents[0] != POSTGRES_SCHEMA {
+            return None;
+        }
+        Self::try_from_unqualified(idents[1])
+    }
+
+    fn try_from_unqualified(name: &str) -> Option<Arc<ScalarUDF>> {
+        let func = match name {
+            "pg_get_userbyid" => pg_get_userbyid(),
+            "pg_table_is_visible" => pg_table_is_visible(),
+            _ => return None,
+        };
+
+        Some(Arc::new(func))
+    }
+}
+
+fn pg_get_userbyid() -> ScalarUDF {
+    ScalarUDF {
+        name: "pg_get_userbyid".to_string(),
+        signature: Signature::new(
+            TypeSignature::Exact(vec![DataType::UInt32]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |_| {
+            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                "unknown".to_string(),
+            ))))
+        }),
+    }
+}
+
+fn pg_table_is_visible() -> ScalarUDF {
+    ScalarUDF {
+        name: "pg_table_is_visible".to_string(),
+        signature: Signature::new(
+            TypeSignature::Exact(vec![DataType::UInt32]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_rules_pg_func() {
+        #[derive(Debug)]
+        struct TestCase {
+            name: &'static str,
+            implicit_pg_schema: bool,
+            is_some: bool,
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "pg_get_userbyid",
+                implicit_pg_schema: false,
+                is_some: false,
+            },
+            TestCase {
+                name: "pg_get_userbyid",
+                implicit_pg_schema: true,
+                is_some: true,
+            },
+            TestCase {
+                name: "pg_catalog.pg_get_userbyid",
+                implicit_pg_schema: true,
+                is_some: true,
+            },
+            TestCase {
+                name: "pg_catalog.pg_get_userbyid",
+                implicit_pg_schema: false,
+                is_some: true,
+            },
+        ];
+
+        for tc in test_cases {
+            println!("test case: {tc:?}");
+            let func = PgFunctionBuilder::try_from_name(tc.name, tc.implicit_pg_schema);
+            assert_eq!(tc.is_some, func.is_some());
         }
     }
 }

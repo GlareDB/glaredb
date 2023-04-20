@@ -461,6 +461,31 @@ SELECT
 FROM (VALUES (NULL, NULL, NULL, NULL)) WHERE false", // Create empty table for now.
 });
 
+pub static PG_DATABASE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_database",
+    sql: "
+SELECT
+    oid as oid,
+    database_name as datname,
+    0 as datdba,
+    0 as encoding,
+    'c' as datlocprovider,
+    false as datistemplate,
+    true as datallowconn,
+    -1 as datconnlimit,
+    0 as datfrozenxid,
+    0 as datminmxid,
+    0 as dattablespace,
+    '' as datcollate,
+    '' as datctyp,
+    '' as daticulocal,
+    '' as datcollversion,
+    [] as datacl
+FROM glare_catalog.databases;
+",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -473,6 +498,7 @@ impl BuiltinView {
             &PG_CLASS,
             &PG_NAMESPACE,
             &PG_DESCRIPTION,
+            &PG_DATABASE,
         ]
     }
 }

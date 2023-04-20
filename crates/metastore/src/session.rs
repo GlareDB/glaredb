@@ -119,24 +119,35 @@ impl SessionCatalog {
         self.state.entries.get(&oid)
     }
 
+    /// Get an entry by its id, along with its parent entry.
+    pub fn get_namespaced_by_oid(&self, oid: u32) -> Option<NamespacedCatalogEntry<'_>> {
+        let ent = self.get_by_oid(oid)?;
+        Some(self.as_namespaced_entry(ent))
+    }
+
     /// Iterate over all entries in this catalog.
     ///
     /// All non-database entries will also include an entry pointing to its
     /// parent.
     pub fn iter_entries(&self) -> impl Iterator<Item = NamespacedCatalogEntry> {
-        self.state.entries.iter().map(|(oid, entry)| {
-            let parent_entry = if !entry.is_database() {
-                Some(self.state.entries.get(&entry.get_meta().parent).unwrap()) // Bug if it doesn't exist.
-            } else {
-                None
-            };
-            NamespacedCatalogEntry {
-                oid: *oid,
-                builtin: entry.get_meta().builtin,
-                parent_entry,
-                entry,
-            }
-        })
+        self.state
+            .entries
+            .iter()
+            .map(|(_oid, entry)| self.as_namespaced_entry(entry))
+    }
+
+    fn as_namespaced_entry<'a>(&'a self, ent: &'a CatalogEntry) -> NamespacedCatalogEntry<'a> {
+        let parent_entry = if !ent.is_database() {
+            Some(self.state.entries.get(&ent.get_meta().parent).unwrap()) // Bug if it doesn't exist.
+        } else {
+            None
+        };
+        NamespacedCatalogEntry {
+            oid: ent.get_meta().id,
+            builtin: ent.get_meta().builtin,
+            parent_entry,
+            entry: ent,
+        }
     }
 
     fn rebuild_name_maps(&mut self) {
