@@ -180,6 +180,8 @@ impl PgFunctionBuilder {
         let func = match name {
             "pg_get_userbyid" => pg_get_userbyid(),
             "pg_table_is_visible" => pg_table_is_visible(),
+            "pg_encoding_to_char" => pg_encoding_to_char(),
+            "array_to_string" => pg_array_to_string(),
             _ => return None,
         };
 
@@ -191,7 +193,7 @@ fn pg_get_userbyid() -> ScalarUDF {
     ScalarUDF {
         name: "pg_get_userbyid".to_string(),
         signature: Signature::new(
-            TypeSignature::Exact(vec![DataType::UInt32]),
+            TypeSignature::Exact(vec![DataType::Int64]),
             Volatility::Immutable,
         ),
         return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
@@ -207,11 +209,67 @@ fn pg_table_is_visible() -> ScalarUDF {
     ScalarUDF {
         name: "pg_table_is_visible".to_string(),
         signature: Signature::new(
-            TypeSignature::Exact(vec![DataType::UInt32]),
+            TypeSignature::Exact(vec![DataType::Int64]),
             Volatility::Immutable,
         ),
         return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-        fun: Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))),
+        fun: Arc::new(move |input| {
+            let is_visible = match get_nth_scalar_value(input, 0) {
+                Some(ScalarValue::Int64(Some(_))) => Some(true),
+                _ => None,
+            };
+
+            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(is_visible)))
+        }),
+    }
+}
+
+fn pg_encoding_to_char() -> ScalarUDF {
+    ScalarUDF {
+        name: "pg_encoding_to_char".to_string(),
+        signature: Signature::new(
+            TypeSignature::Exact(vec![DataType::Int64]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |input| {
+            let enc = match get_nth_scalar_value(input, 0) {
+                Some(ScalarValue::Int64(Some(6))) => Some("UTF8".to_string()),
+                Some(ScalarValue::Int64(Some(_))) => Some("".to_string()),
+                _ => None,
+            };
+
+            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(enc)))
+        }),
+    }
+}
+
+fn pg_array_to_string() -> ScalarUDF {
+    ScalarUDF {
+        name: "array_to_string".to_string(),
+        signature: Signature::new(
+            TypeSignature::Exact(vec![
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+                DataType::Utf8,
+            ]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |_input| {
+            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                "".to_string(),
+            ))))
+        }),
+    }
+}
+
+fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue> {
+    match input.get(n) {
+        Some(input) => match input {
+            ColumnarValue::Scalar(scalar) => Some(scalar.clone()),
+            ColumnarValue::Array(arr) => ScalarValue::try_from_array(arr, 0).ok(),
+        },
+        None => None,
     }
 }
 

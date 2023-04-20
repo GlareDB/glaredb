@@ -24,3 +24,13 @@ WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f', '')
     AND n.nspname <> 'information_schema'
     AND pg_catalog.pg_table_is_visible(c.oid)
 ORDER BY 1, 2;
+
+# \l
+statement ok
+SELECT d.datname AS "Name",
+    pg_catalog.pg_get_userbyid(d.datdba) AS "Owner",
+    pg_catalog.pg_encoding_to_char(d.encoding) AS "Encoding",
+    d.datcollate AS "Collate",
+    d.datctype AS "Ctype",
+    pg_catalog.array_to_string(d.datacl, E'\n') AS "Access privileges"
+FROM pg_catalog.pg_database AS d ORDER BY 1

@@ -478,7 +478,7 @@ SELECT
     0 as datminmxid,
     0 as dattablespace,
     '' as datcollate,
-    '' as datctyp,
+    '' as datctype,
     '' as daticulocal,
     '' as datcollversion,
     [] as datacl
