@@ -17,5 +17,5 @@ datafusion = {workspace = true}
 serde = { version = "1.0", features = ["derive"] }
 chrono = "*"
 rust_decimal = "*"
-mongodb = "2.4.0"
+mongodb = "2.5.0"
 bitvec = "1"
