@@ -1,0 +1,36 @@
+# Queries that are ran by psql slash commands.
+
+# \d
+statement ok
+SELECT n.nspname AS "Schema",
+    c.relname AS "Name",
+    CASE c.relkind WHEN 'r' THEN 'table'
+    WHEN 'v' THEN 'view'
+    WHEN 'm' THEN 'materialized view'
+    WHEN 'i' THEN 'index'
+    WHEN 'S' THEN 'sequence'
+    WHEN 's' THEN 'special'
+    WHEN 't' THEN 'TOAST table'
+    WHEN 'f' THEN 'foreign table'
+    WHEN 'p' THEN 'partitioned table'
+    WHEN 'I' THEN 'partitioned index' END AS "Type",
+    pg_catalog.pg_get_userbyid(c.relowner) AS "Owner"
+FROM pg_catalog.pg_class AS c
+    LEFT JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+    LEFT JOIN pg_catalog.pg_am AS am ON am.oid = c.relam
+WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f', '')
+    AND n.nspname <> 'pg_catalog'
+    AND n.nspname !~ '^pg_toast'
+    AND n.nspname <> 'information_schema'
+    AND pg_catalog.pg_table_is_visible(c.oid)
+ORDER BY 1, 2;
+
+# \l
+statement ok
+SELECT d.datname AS "Name",
+    pg_catalog.pg_get_userbyid(d.datdba) AS "Owner",
+    pg_catalog.pg_encoding_to_char(d.encoding) AS "Encoding",
+    d.datcollate AS "Collate",
+    d.datctype AS "Ctype",
+    pg_catalog.array_to_string(d.datacl, E'\n') AS "Access privileges"
+FROM pg_catalog.pg_database AS d ORDER BY 1

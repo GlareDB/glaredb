@@ -1,5 +1,6 @@
 use crate::context::SessionContext;
 use crate::functions::BuiltinScalarFunction;
+use crate::functions::PgFunctionBuilder;
 use crate::planner::dispatch::SessionDispatcher;
 use crate::planner::errors::PlanError;
 use datafusion::arrow::datatypes::DataType;
@@ -179,7 +180,12 @@ impl<'a> ContextProvider for PartialContextProvider<'a> {
 
     fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
         // TODO: We can build these async too.
-        BuiltinScalarFunction::try_from_name(name).map(|f| Arc::new(f.build_scalar_udf(self.ctx)))
+        match BuiltinScalarFunction::try_from_name(name)
+            .map(|f| Arc::new(f.build_scalar_udf(self.ctx)))
+        {
+            Some(func) => Some(func),
+            None => PgFunctionBuilder::try_from_name(name, true),
+        }
     }
 
     fn get_variable_type(&self, _variable_names: &[String]) -> Option<DataType> {
