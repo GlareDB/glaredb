@@ -3078,9 +3078,9 @@ dependencies = [
 
 [[package]]
 name = "mysql_common"
-version = "0.30.2"
+version = "0.30.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fae0310f87110443ae7da744bf135f22cde18b5b0c0ea10935c7374f5e63c59c"
+checksum = "e6b76684cc6825e9e5f3d9d41968faf04c6f9eb39815dc9827695b1eb5faa826"
 dependencies = [
  "base64 0.21.0",
  "bigdecimal",
