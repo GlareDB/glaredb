@@ -1,0 +1,42 @@
+# Basic tests for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE external_db
+	FROM snowflake
+	OPTIONS (
+		account_name = 'hmpfscx-xo23956',
+		login_name = '${SNOWFLAKE_USERNAME}',
+		password = '${SNOWFLAKE_PASSWORD}',
+		database_name = '${SNOWFLAKE_DATABASE}',
+		warehouse = 'compute_wh',
+		role_name = 'accountadmin',
+	);
+
+query I
+SELECT count(*) FROM external_db.public.bikeshare_stations;
+----
+102
+
+# Ensure we can query into the virtual schema.
+
+query T
+SELECT * FROM external_db.virtual_catalog.schemata WHERE schema_name = 'PUBLIC';
+----
+PUBLIC
+
+query TT
+SELECT table_schema, table_name
+	FROM external_db.virtual_catalog.tables
+	WHERE table_name = 'BIKESHARE_STATIONS';
+----
+PUBLIC  BIKESHARE_STATIONS
+
+query TT
+SELECT table_schema, table_name
+	FROM external_db.virtual_catalog.tables
+	WHERE table_schema = 'PUBLIC' AND table_name = 'BIKESHARE_STATIONS';
+----
+PUBLIC  BIKESHARE_STATIONS
+
+statement ok
+DROP DATABASE external_db;

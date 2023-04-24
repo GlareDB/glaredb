@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Cursor, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, io::Cursor, sync::Arc, vec};
 
 use datafusion::{
     arrow::{
@@ -20,7 +20,7 @@ use crate::{
     auth::Session,
     datatype::SnowflakeDataType,
     errors::{Result, SnowflakeError},
-    req::{RequestId, SnowflakeClient},
+    req::{EmptySerde, ExecMethod, RequestId, SnowflakeChunkDl, SnowflakeClient},
 };
 
 use base64::{engine::general_purpose::STANDARD as base64_engine, Engine};
@@ -99,9 +99,44 @@ struct QueryResponse {
     success: bool,
 }
 
+impl QueryResponse {
+    const QUERY_IN_PROGRESS_CODE: &str = "333333";
+    const ASYNC_QUERY_IN_PROGRESS_CODE: &str = "333334";
+
+    fn is_query_in_progress(&self) -> bool {
+        let code = match self.code.as_ref() {
+            Some(code) => code,
+            None => return false,
+        };
+        code == Self::QUERY_IN_PROGRESS_CODE || code == Self::ASYNC_QUERY_IN_PROGRESS_CODE
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryChunkInfo {
+    pub url: String,
+    pub row_count: i64,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct QueryData {
+    rowtype: Option<Vec<QueryDataRowType>>,
+
+    rowset: Option<Vec<Vec<Option<String>>>>,
+    rowset_base64: Option<String>,
+
+    query_result_format: Option<QueryResultFormat>,
+
+    // To fetch more results from the yet incomplete query (ping-pong).
+    get_result_url: Option<String>,
+
+    // Chunks to download the data from.
+    chunks: Option<Vec<QueryChunkInfo>>,
+    chunk_headers: Option<HashMap<String, String>>,
+    qrmk: Option<String>,
+
     #[allow(unused)]
     total: Option<i64>,
     #[allow(unused)]
@@ -109,12 +144,6 @@ struct QueryData {
     #[allow(unused)]
     query_id: Option<String>,
     // TODO: A lot more other fields...
-    rowtype: Option<Vec<QueryDataRowType>>,
-
-    rowset: Option<Vec<Vec<Option<String>>>>,
-    rowset_base64: Option<String>,
-
-    query_result_format: Option<QueryResultFormat>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,6 +160,25 @@ struct QueryDataRowType {
     nullable: bool,
 }
 
+#[derive(Debug)]
+pub struct SnowflakeTypeMeta {
+    #[allow(unused)]
+    typ: SnowflakeDataType,
+    #[allow(unused)]
+    precision: u32,
+    scale: u32,
+}
+
+impl SnowflakeTypeMeta {
+    fn new(rowtype: &QueryDataRowType) -> Self {
+        Self {
+            typ: rowtype.typ,
+            precision: rowtype.precision.unwrap_or_default() as u32,
+            scale: rowtype.scale.unwrap_or_default() as u32,
+        }
+    }
+}
+
 pub fn snowflake_to_arrow_datatype(
     dt: SnowflakeDataType,
     precision: Option<i64>,
@@ -141,7 +189,7 @@ pub fn snowflake_to_arrow_datatype(
         Dt::Binary => DataType::Binary,
         Dt::Boolean => DataType::Boolean,
         Dt::Any | Dt::Array | Dt::Object | Dt::Char | Dt::Text | Dt::Variant => DataType::Utf8,
-        Dt::Real => DataType::Float64,
+        Dt::Real | Dt::Float => DataType::Float64,
         Dt::Fixed | Dt::Number => {
             let (precision, scale) = (precision.unwrap() as u8, scale.unwrap() as i8);
             DataType::Decimal128(precision, scale)
@@ -186,120 +234,11 @@ macro_rules! make_json_column {
     }};
 }
 
-impl QueryData {
-    fn json_to_arrow(schema: SchemaRef, rows: Vec<Vec<Option<String>>>) -> Result<RecordBatchIter> {
-        let mut columns: Vec<ArrayRef> = Vec::with_capacity(schema.fields.len());
-        for (col_idx, field) in schema.fields.iter().enumerate() {
-            let col: ArrayRef = match field.data_type() {
-                DataType::Boolean => {
-                    make_json_column!(BooleanBuilder, rows, col_idx, |s| s == "1")
-                }
-                DataType::Utf8 => {
-                    let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
-                    make_json_column_using!(arr, rows, col_idx, String::as_str)
-                }
-                DataType::Binary => {
-                    fn parse_binary(s: &String) -> Vec<u8> {
-                        hex::decode(s).expect("value should be a valid hex representation")
-                    }
-                    let mut arr = BinaryBuilder::with_capacity(rows.len(), rows.len() * 16);
-                    make_json_column_using!(arr, rows, col_idx, parse_binary)
-                }
-                DataType::Float64 => {
-                    fn parse_float(s: &str) -> f64 {
-                        s.parse()
-                            .expect("value should be a valid floating point string representation")
-                    }
-                    make_json_column!(Float64Builder, rows, col_idx, parse_float)
-                }
-                DataType::Int64 => {
-                    fn parse_int(s: &str) -> i64 {
-                        s.parse().expect("value should be a valid i64")
-                    }
-                    make_json_column!(Int64Builder, rows, col_idx, parse_int)
-                }
-                dt @ DataType::Decimal128(_, _) => {
-                    fn parse_decimal(s: &str) -> i128 {
-                        let d: rust_decimal::Decimal = s
-                            .parse()
-                            .expect("value should be a valid decimal representation");
-                        d.mantissa()
-                    }
-                    let mut arr =
-                        Decimal128Builder::with_capacity(rows.len()).with_data_type(dt.clone());
-                    make_json_column_using!(arr, rows, col_idx, parse_decimal)
-                }
-                DataType::Date32 => {
-                    fn parse_date(s: &str) -> i32 {
-                        s.parse()
-                            .expect("value should be a valid i32 (number of days)")
-                    }
-                    make_json_column!(Date32Builder, rows, col_idx, parse_date)
-                }
-                DataType::Time64(TimeUnit::Nanosecond) => {
-                    fn parse_time(s: &str) -> i64 {
-                        let times: Vec<i64> = s
-                            .splitn(2, '.')
-                            .map(|v| {
-                                v.parse().expect(
-                                    "value should be a valid time of format <seconds>.<nanos>",
-                                )
-                            })
-                            .collect();
-
-                        let (seconds, nanos) = (times[0], times[1]);
-                        (seconds * 1_000_000_000) + nanos
-                    }
-                    make_json_column!(Time64NanosecondBuilder, rows, col_idx, parse_time)
-                }
-                dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz) => {
-                    fn parse_timestamp(s: &str) -> i64 {
-                        let times: Vec<i64> = s
-                            .splitn(2, '.')
-                            .map(|v| {
-                                v.parse().expect(
-                                    "value should be a valid timestamp of format <seconds since epoch>.<nanos>",
-                                )
-                            })
-                            .collect();
-
-                        let (seconds, nanos) = (times[0], times[1]);
-                        (seconds * 1_000_000_000) + nanos
-                    }
-                    let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
-                        .with_data_type(dt.clone());
-                    make_json_column_using!(arr, rows, col_idx, parse_timestamp)
-                }
-                dt => unreachable!(
-                    "programming error: invalid arrow datatype '{dt}' from json result"
-                ),
-            };
-            columns.push(col);
-        }
-
-        let record_batch = RecordBatch::try_new(schema, columns)?;
-        Ok(RecordBatchIter::Exact(Some(record_batch)))
-    }
-
-    fn ipc_to_arrow(schema: SchemaRef, rowset_base64: String) -> Result<RecordBatchIter> {
-        if rowset_base64.is_empty() {
-            // Return an empty record batch in case of empty result
-            Ok(RecordBatchIter::Exact(Some(RecordBatch::new_empty(schema))))
-        } else {
-            let mut buf = Vec::new();
-            base64_engine.decode_vec(rowset_base64, &mut buf)?;
-
-            let buf = Cursor::new(buf);
-            let reader = StreamReader::try_new(buf, None)?;
-            Ok(RecordBatchIter::Stream { reader, schema })
-        }
-    }
-}
-
 pub enum RecordBatchIter {
     Stream {
         reader: StreamReader<Cursor<Vec<u8>>>,
         schema: SchemaRef,
+        type_metas: Arc<Vec<SnowflakeTypeMeta>>,
     },
     Exact(Option<RecordBatch>),
 }
@@ -317,7 +256,12 @@ macro_rules! make_ipc_column {
 }
 
 impl RecordBatchIter {
-    fn normalize_column(expected_field: &Field, actual_field: &Field, col: &ArrayRef) -> ArrayRef {
+    fn normalize_column(
+        expected_field: &Field,
+        actual_field: &Field,
+        type_meta: &SnowflakeTypeMeta,
+        col: &ArrayRef,
+    ) -> ArrayRef {
         match (expected_field.data_type(), actual_field.data_type()) {
             (dt @ DataType::Decimal128(_, _), DataType::Int8) => {
                 make_ipc_column!(col, Int8Array, |r| r as i128, Decimal128Builder, dt)
@@ -332,19 +276,20 @@ impl RecordBatchIter {
                 make_ipc_column!(col, Int64Array, |r| r as i128, Decimal128Builder, dt)
             }
             (dt @ DataType::Time64(TimeUnit::Nanosecond), DataType::Int64) => {
-                make_ipc_column!(col, Int64Array, |r| r, Time64NanosecondBuilder, dt)
+                make_ipc_column!(col, Int64Array, |r| r * 10_i64.pow(9 - type_meta.scale), Time64NanosecondBuilder, dt)
+            }
+            (dt @ DataType::Time64(TimeUnit::Nanosecond), DataType::Int32) => {
+                make_ipc_column!(col, Int32Array, |r| r as i64 * 10_i64.pow(9 - type_meta.scale), Time64NanosecondBuilder, dt)
             }
             (dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz), DataType::Struct(_)) => {
                 let rows: &StructArray = col.as_any().downcast_ref().unwrap();
                 let seconds = rows
-                    .column_by_name("epoch")
-                    .expect("column 'epoch' should exist in time struct")
+                    .column(0)
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .unwrap();
                 let nanos = rows
-                    .column_by_name("fraction")
-                    .expect("column 'fraction' should exist in time struct")
+                    .column(1)
                     .as_any()
                     .downcast_ref::<Int32Array>()
                     .unwrap();
@@ -361,6 +306,15 @@ impl RecordBatchIter {
                 });
                 Arc::new(arr.finish())
             }
+            (dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz), DataType::Int64) => {
+                fn i64_to_timestamp(r: i64, scale: u32) -> i64 {
+                    let pow = 10_i64.pow(scale);
+                    let sec = r / pow;
+                    let nsec = (r % pow) * 10_i64.pow(9 - scale);
+                    sec * 1_000_000_000 + nsec
+                }
+                make_ipc_column!(col, Int64Array, |r| i64_to_timestamp(r, type_meta.scale), TimestampNanosecondBuilder, dt)
+            }
             (expected, actual) if expected == actual => Arc::clone(col),
             (expected, actual) => unreachable!(
                 "programming error: conversion from '{actual}' to '{expected}' not supported for snowflake"
@@ -370,19 +324,21 @@ impl RecordBatchIter {
 
     fn next_batch(
         schema: SchemaRef,
+        type_metas: Arc<Vec<SnowflakeTypeMeta>>,
         batch: Result<RecordBatch, ArrowError>,
     ) -> Result<RecordBatch> {
         let batch = batch?;
         let actual_schema = batch.schema();
         let mut columns = Vec::with_capacity(schema.fields.len());
-        for (col_idx, (expected_field, actual_field)) in schema
+        for (col_idx, ((expected_field, actual_field), type_meta)) in schema
             .fields
             .iter()
             .zip(actual_schema.fields.iter())
+            .zip(type_metas.iter())
             .enumerate()
         {
             let col = batch.column(col_idx);
-            let col = Self::normalize_column(expected_field, actual_field, col);
+            let col = Self::normalize_column(expected_field, actual_field, type_meta, col);
             columns.push(col);
         }
 
@@ -397,9 +353,13 @@ impl Iterator for RecordBatchIter {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Exact(batch) => Ok(batch.take()).transpose(),
-            Self::Stream { reader, schema } => reader
+            Self::Stream {
+                reader,
+                schema,
+                type_metas,
+            } => reader
                 .next()
-                .map(|batch| Self::next_batch(schema.clone(), batch)),
+                .map(|batch| Self::next_batch(schema.clone(), type_metas.clone(), batch)),
         }
     }
 }
@@ -407,35 +367,6 @@ impl Iterator for RecordBatchIter {
 pub struct QueryResultChunk {
     schema: SchemaRef,
     iter: RecordBatchIter,
-}
-
-impl TryFrom<QueryData> for QueryResultChunk {
-    type Error = SnowflakeError;
-
-    fn try_from(data: QueryData) -> Result<Self, Self::Error> {
-        let schema = Arc::new(snowflake_to_arrow_schema(
-            data.rowtype.expect("rowtype should exist in query result"),
-        ));
-
-        let query_result_format = data
-            .query_result_format
-            .expect("query_result_format should exist in query result");
-
-        let iter = match query_result_format {
-            QueryResultFormat::Json => {
-                let rows = data
-                    .rowset
-                    .expect("rowset should exist in query result for json format");
-                QueryData::json_to_arrow(schema.clone(), rows)?
-            }
-            QueryResultFormat::Arrow => {
-                let rowset_base64 = data.rowset_base64.unwrap_or(String::new());
-                QueryData::ipc_to_arrow(schema.clone(), rowset_base64)?
-            }
-        };
-
-        Ok(Self { schema, iter })
-    }
 }
 
 impl QueryResultChunk {
@@ -460,6 +391,100 @@ impl IntoIterator for QueryResultChunk {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter
+    }
+}
+
+enum QueryChunkMeta {
+    StaticArrow {
+        rowset_base64: String,
+    },
+    StaticJson(Vec<Vec<Option<String>>>),
+    Download {
+        client: SnowflakeChunkDl,
+        info: QueryChunkInfo,
+        format: QueryResultFormat,
+    },
+}
+
+impl Debug for QueryChunkMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StaticArrow { .. } => write!(f, "StaticArrow"),
+            Self::StaticJson(_) => write!(f, "StaticJson"),
+            Self::Download { format, .. } => {
+                write!(f, "Download{format:?}")
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct QueryResultChunkMeta {
+    schema: SchemaRef,
+    type_metas: Arc<Vec<SnowflakeTypeMeta>>,
+    inner: QueryChunkMeta,
+}
+
+impl QueryResultChunkMeta {
+    pub async fn take_chunk(self) -> Result<QueryResultChunk> {
+        let iter = match self.inner {
+            QueryChunkMeta::StaticArrow { rowset_base64 } => {
+                ipc_to_arrow(self.schema.clone(), self.type_metas.clone(), rowset_base64)?
+            }
+            QueryChunkMeta::StaticJson(rowset) => json_to_arrow(self.schema.clone(), rowset)?,
+            QueryChunkMeta::Download {
+                client,
+                info,
+                format,
+            } => {
+                let download = client.download(&info.url).await?;
+                match format {
+                    QueryResultFormat::Json => {
+                        let rowset: Vec<Vec<Option<String>>> = serde_json::from_slice(&download)?;
+                        json_to_arrow(self.schema.clone(), rowset)?
+                    }
+                    QueryResultFormat::Arrow => {
+                        let buf = Cursor::new(download);
+                        let reader = StreamReader::try_new(buf, None)?;
+                        RecordBatchIter::Stream {
+                            reader,
+                            schema: self.schema.clone(),
+                            type_metas: self.type_metas.clone(),
+                        }
+                    }
+                }
+            }
+        };
+        Ok(QueryResultChunk {
+            schema: self.schema,
+            iter,
+        })
+    }
+}
+
+pub struct QueryResult {
+    schema: SchemaRef,
+    type_metas: Arc<Vec<SnowflakeTypeMeta>>,
+    num_chunks: usize,
+    metas: vec::IntoIter<QueryChunkMeta>,
+}
+
+impl QueryResult {
+    pub fn num_chunks(&self) -> usize {
+        self.num_chunks
+    }
+}
+
+impl Iterator for QueryResult {
+    type Item = QueryResultChunkMeta;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_meta = self.metas.next()?;
+        Some(QueryResultChunkMeta {
+            schema: self.schema.clone(),
+            inner: next_meta,
+            type_metas: self.type_metas.clone(),
+        })
     }
 }
 
@@ -550,11 +575,69 @@ pub struct Query {
 }
 
 impl Query {
-    pub async fn exec(
+    pub async fn exec_sync(self, client: &SnowflakeClient, session: &Session) -> Result<()> {
+        let _ = self.exec_sync_internal(client, session).await?;
+        Ok(())
+    }
+
+    pub async fn query_sync(
         self,
         client: &SnowflakeClient,
         session: &Session,
-    ) -> Result<QueryResultChunk> {
+    ) -> Result<QueryResult> {
+        let mut data = self.exec_sync_internal(client, session).await?;
+
+        let rowtype = data.rowtype.expect("rowtype should exist in query result");
+        let type_metas: Vec<_> = rowtype.iter().map(SnowflakeTypeMeta::new).collect();
+        let type_metas = Arc::new(type_metas);
+
+        let schema = Arc::new(snowflake_to_arrow_schema(rowtype));
+
+        let query_result_format = data
+            .query_result_format
+            .expect("query_result_format should exist in query result");
+
+        // There are cases when we get some data along-with "downloadable"
+        // chunks. So get the first meta, even if it's empty. No-harm!
+        let first_meta = match query_result_format {
+            QueryResultFormat::Json => {
+                let rows = data
+                    .rowset
+                    .expect("rowset should exist in query result for json format");
+                QueryChunkMeta::StaticJson(rows)
+            }
+            QueryResultFormat::Arrow => {
+                let rowset_base64 = data.rowset_base64.unwrap_or(String::new());
+                QueryChunkMeta::StaticArrow { rowset_base64 }
+            }
+        };
+        let mut metas = vec![first_meta];
+
+        if let Some(chunks) = data.chunks {
+            let headers = data.chunk_headers.take().unwrap_or_default();
+            let qrmk = data.qrmk.take().unwrap_or_default();
+            let client = SnowflakeChunkDl::new(headers, qrmk)?;
+            let chunks = chunks.into_iter().map(|info| QueryChunkMeta::Download {
+                client: client.clone(),
+                format: query_result_format,
+                info,
+            });
+            metas.extend(chunks);
+        }
+
+        Ok(QueryResult {
+            schema,
+            type_metas,
+            num_chunks: metas.len(),
+            metas: metas.into_iter(),
+        })
+    }
+
+    async fn exec_sync_internal(
+        self,
+        client: &SnowflakeClient,
+        session: &Session,
+    ) -> Result<QueryData> {
         if !session.token.is_valid() {
             // TODO: session.refresh_token()
             // For now just let the query go and return the error from the
@@ -576,12 +659,13 @@ impl Query {
             Some(bindings)
         };
 
-        let res: QueryResponse = client
+        let mut res: QueryResponse = client
             .execute(
+                ExecMethod::Post,
                 QUERY_ENDPOINT,
-                &QueryParams {
+                Some(&QueryParams {
                     request_id: RequestId::new(),
-                },
+                }),
                 &QueryBody {
                     sql_text: self.sql,
                     bindings,
@@ -591,6 +675,20 @@ impl Query {
             )
             .await?;
 
+        while res.is_query_in_progress() {
+            let url = res.data.get_result_url.unwrap_or_default();
+
+            res = client
+                .execute(
+                    ExecMethod::Get,
+                    &url,
+                    /* params = */ EmptySerde::none(),
+                    EmptySerde::new(),
+                    Some(&session.token),
+                )
+                .await?;
+        }
+
         if !res.success {
             return Err(SnowflakeError::QueryError {
                 code: res.code.unwrap_or_default(),
@@ -598,7 +696,119 @@ impl Query {
             });
         }
 
-        // TODO: Check if total == returned else fetch more?
-        res.data.try_into()
+        Ok(res.data)
+    }
+}
+
+fn json_to_arrow(schema: SchemaRef, rows: Vec<Vec<Option<String>>>) -> Result<RecordBatchIter> {
+    let mut columns: Vec<ArrayRef> = Vec::with_capacity(schema.fields.len());
+    for (col_idx, field) in schema.fields.iter().enumerate() {
+        let col: ArrayRef = match field.data_type() {
+            DataType::Boolean => {
+                make_json_column!(BooleanBuilder, rows, col_idx, |s| s == "1")
+            }
+            DataType::Utf8 => {
+                let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
+                make_json_column_using!(arr, rows, col_idx, String::as_str)
+            }
+            DataType::Binary => {
+                fn parse_binary(s: &String) -> Vec<u8> {
+                    hex::decode(s).expect("value should be a valid hex representation")
+                }
+                let mut arr = BinaryBuilder::with_capacity(rows.len(), rows.len() * 16);
+                make_json_column_using!(arr, rows, col_idx, parse_binary)
+            }
+            DataType::Float64 => {
+                fn parse_float(s: &str) -> f64 {
+                    s.parse()
+                        .expect("value should be a valid floating point string representation")
+                }
+                make_json_column!(Float64Builder, rows, col_idx, parse_float)
+            }
+            DataType::Int64 => {
+                fn parse_int(s: &str) -> i64 {
+                    s.parse().expect("value should be a valid i64")
+                }
+                make_json_column!(Int64Builder, rows, col_idx, parse_int)
+            }
+            dt @ DataType::Decimal128(_, _) => {
+                fn parse_decimal(s: &str) -> i128 {
+                    let d: rust_decimal::Decimal = s
+                        .parse()
+                        .expect("value should be a valid decimal representation");
+                    d.mantissa()
+                }
+                let mut arr =
+                    Decimal128Builder::with_capacity(rows.len()).with_data_type(dt.clone());
+                make_json_column_using!(arr, rows, col_idx, parse_decimal)
+            }
+            DataType::Date32 => {
+                fn parse_date(s: &str) -> i32 {
+                    s.parse()
+                        .expect("value should be a valid i32 (number of days)")
+                }
+                make_json_column!(Date32Builder, rows, col_idx, parse_date)
+            }
+            DataType::Time64(TimeUnit::Nanosecond) => {
+                fn parse_time(s: &str) -> i64 {
+                    let times: Vec<i64> = s
+                        .splitn(2, '.')
+                        .map(|v| {
+                            v.parse()
+                                .expect("value should be a valid time of format <seconds>.<nanos>")
+                        })
+                        .collect();
+
+                    let (seconds, nanos) = (times[0], times[1]);
+                    (seconds * 1_000_000_000) + nanos
+                }
+                make_json_column!(Time64NanosecondBuilder, rows, col_idx, parse_time)
+            }
+            dt @ DataType::Timestamp(TimeUnit::Nanosecond, _tz) => {
+                fn parse_timestamp(s: &str) -> i64 {
+                    let times: Vec<i64> = s
+                            .splitn(2, '.')
+                            .map(|v| {
+                                v.parse().expect(
+                                    "value should be a valid timestamp of format <seconds since epoch>.<nanos>",
+                                )
+                            })
+                            .collect();
+
+                    let (seconds, nanos) = (times[0], times[1]);
+                    (seconds * 1_000_000_000) + nanos
+                }
+                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
+                    .with_data_type(dt.clone());
+                make_json_column_using!(arr, rows, col_idx, parse_timestamp)
+            }
+            dt => unreachable!("programming error: invalid arrow datatype '{dt}' from json result"),
+        };
+        columns.push(col);
+    }
+
+    let record_batch = RecordBatch::try_new(schema, columns)?;
+    Ok(RecordBatchIter::Exact(Some(record_batch)))
+}
+
+fn ipc_to_arrow(
+    schema: SchemaRef,
+    type_metas: Arc<Vec<SnowflakeTypeMeta>>,
+    rowset_base64: String,
+) -> Result<RecordBatchIter> {
+    if rowset_base64.is_empty() {
+        // Return an empty record batch in case of empty result
+        Ok(RecordBatchIter::Exact(Some(RecordBatch::new_empty(schema))))
+    } else {
+        let mut buf = Vec::new();
+        base64_engine.decode_vec(rowset_base64, &mut buf)?;
+
+        let buf = Cursor::new(buf);
+        let reader = StreamReader::try_new(buf, None)?;
+        Ok(RecordBatchIter::Stream {
+            reader,
+            schema,
+            type_metas,
+        })
     }
 }

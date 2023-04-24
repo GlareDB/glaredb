@@ -167,6 +167,28 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
    ```
 
+6. **`SNOWFLAKE_DATABASE`**: To run the snowflake tests. Use the string returned
+   from setting up a custom database in the snowflake account (`hmpfscx-
+   xo23956`).
+
+   ```sh
+   export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
+   ```
+
+7. **`SNOWFLAKE_USERNAME`**: To run the snowflake tests. Your snowflake
+   username.
+
+   ```sh
+   export SNOWFLAKE_USERNAME=vaibhavglaredb
+   ```
+
+8. **`SNOWFLAKE_PASSWORD`**: To run the snowflake tests. Set it to the password
+   corresponding to the *SNOWFLAKE_USERNAME*.
+
+   ```sh
+   export SNOWFLAKE_PASSWORD=...
+   ```
+
 ##### Writing Tests
 
 Each test file should start with a short comment describing what the file is

@@ -1,0 +1,34 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+statement ok
+CREATE EXTERNAL DATABASE datatypes
+	FROM snowflake
+	OPTIONS (
+		account_name = 'hmpfscx-xo23956',
+		login_name = '${SNOWFLAKE_USERNAME}',
+		password = '${SNOWFLAKE_PASSWORD}',
+		database_name = '${SNOWFLAKE_DATABASE}',
+		warehouse = 'compute_wh',
+		role_name = 'accountadmin',
+	);
+
+query TRRR
+SELECT c1, c2, c3, c4 FROM datatypes.public.numeric_datatypes;
+----
+t     123.456  123   123.46
+NULL  NULL     NULL  NULL
+
+query TTTTTT
+SELECT c1, c2, c3, c4, c5, c6 FROM datatypes.public.string_datatypes;
+----
+abc   x     3.14  {}    []    \x616263
+NULL  NULL  NULL  NULL  NULL  NULL
+
+query TTTTT
+SELECT c1, c2, c3, c4, c5 FROM datatypes.public.time_datatypes;
+----
+1999-09-30  16:32:04.123  1999-09-30 23:32:04.000123+00  1999-09-30 16:32:04.000001  1999-09-30 11:02:04+00
+NULL        NULL          NULL                           NULL                        NULL
+
+statement ok
+DROP DATABASE datatypes;

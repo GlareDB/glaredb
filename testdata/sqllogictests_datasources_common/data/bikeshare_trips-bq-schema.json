@@ -17,7 +17,7 @@
 	{
     "mode": "NULLABLE",
     "name": "start_time",
-    "type": "TIMESTAMP"
+    "type": "DATETIME"
   },
 	{
     "mode": "NULLABLE",

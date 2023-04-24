@@ -1,0 +1,20 @@
+# Basic tests for snowflake external tables 
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM snowflake
+	OPTIONS (
+		account_name = 'hmpfscx-xo23956',
+		login_name = '${SNOWFLAKE_USERNAME}',
+		password = '${SNOWFLAKE_PASSWORD}',
+		database_name = '${SNOWFLAKE_DATABASE}',
+		warehouse = 'compute_wh',
+		role_name = 'accountadmin',
+		schema_name = 'public',
+		table_name = 'bikeshare_stations'
+	);
+
+include ../sqllogictests_datasources_common/include/basic.slti
+
+statement ok
+DROP TABLE basic;

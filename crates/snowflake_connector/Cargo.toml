@@ -17,6 +17,8 @@ datafusion = {workspace = true}
 hex = "0.4.3"
 rust_decimal = "1.29.1"
 base64 = "0.21.0"
+bytes = "1.4.0"
+flate2 = "1.0.25"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
