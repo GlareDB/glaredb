@@ -1,0 +1,20 @@
+# Test if large amount of data loads successfully.
+
+statement ok
+CREATE EXTERNAL TABLE large_table
+	FROM snowflake
+	OPTIONS (
+		account_name = 'hmpfscx-xo23956',
+		login_name = '${SNOWFLAKE_USERNAME}',
+		password = '${SNOWFLAKE_PASSWORD}',
+		database_name = '${SNOWFLAKE_DATABASE}',
+		warehouse = 'compute_wh',
+		role_name = 'accountadmin',
+		schema_name = 'public',
+		table_name = 'bikeshare_trips'
+	);
+
+include ../sqllogictests_datasources_common/include/large_table.slti
+
+statement ok
+DROP TABLE large_table;

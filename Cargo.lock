@@ -767,7 +767,7 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "bytesutil"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "bytes",
 ]
@@ -1341,8 +1341,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1390,8 +1390,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1404,8 +1404,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-execution"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1421,8 +1421,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1432,8 +1432,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1444,13 +1444,13 @@ dependencies = [
  "hashbrown 0.13.1",
  "itertools",
  "log",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.7.1",
 ]
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1468,6 +1468,7 @@ dependencies = [
  "indexmap",
  "itertools",
  "lazy_static",
+ "libc",
  "md-5",
  "paste",
  "petgraph",
@@ -1480,8 +1481,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1491,8 +1492,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=463ec307#463ec3074318c5bf31a6a1377ab5f01159d8a2ce"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#7aad6c7f45657f6594552e0244aa141a76d7448d"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -1504,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_bigquery"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-channel",
  "async-stream",
@@ -1525,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_common"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1545,7 +1546,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_debug"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -1557,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_mongodb"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1576,7 +1577,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_mysql"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1596,7 +1597,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_object_store"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1610,7 +1611,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_postgres"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1628,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_snowflake"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2196,7 +2197,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2532,7 +2533,7 @@ dependencies = [
 
 [[package]]
 name = "ioutil"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "bytes",
 ]
@@ -2774,7 +2775,7 @@ dependencies = [
 
 [[package]]
 name = "logutil"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2891,7 +2892,7 @@ dependencies = [
 
 [[package]]
 name = "metastore"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3297,7 +3298,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_util"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3556,7 +3557,7 @@ dependencies = [
 
 [[package]]
 name = "pgprototest"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3570,7 +3571,7 @@ dependencies = [
 
 [[package]]
 name = "pgrepr"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "bytes",
  "chrono",
@@ -3587,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "pgsrv"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4200,7 +4201,7 @@ dependencies = [
 
 [[package]]
 name = "repr"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "chrono",
  "dtoa",
@@ -4859,7 +4860,7 @@ dependencies = [
 
 [[package]]
 name = "slt_runner"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4912,11 +4913,13 @@ checksum = "5e9f0ab6ef7eb7353d9119c170a436d1bf248eea575ac42d19d12f4e34130831"
 
 [[package]]
 name = "snowflake_connector"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "base64 0.21.0",
+ "bytes",
  "chrono",
  "datafusion",
+ "flate2",
  "hex",
  "logutil",
  "reqwest",
@@ -4967,7 +4970,7 @@ dependencies = [
 
 [[package]]
 name = "sqlexec"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "datafusion",
  "datasource_bigquery",
@@ -5198,7 +5201,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "telemetry"
-version = "0.1.0"
+version = "0.0.4"
 dependencies = [
  "segment",
  "serde_json",

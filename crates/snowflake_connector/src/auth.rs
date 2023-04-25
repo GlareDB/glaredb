@@ -2,8 +2,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
-use crate::errors::Result;
-use crate::req::{RequestId, SnowflakeClient};
+use crate::errors::{Result, SnowflakeError};
+use crate::req::{EmptySerde, ExecMethod, RequestId, SnowflakeClient};
 
 const SESSION_ENDPOINT: &str = "/session";
 const AUTH_ENDPOINT: &str = "/session/v1/login-request";
@@ -33,9 +33,6 @@ impl Token {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct Empty {}
-
 #[derive(Debug)]
 pub struct Session {
     pub token: Token,
@@ -49,11 +46,12 @@ struct SessionParams {
 
 impl Session {
     pub async fn close(&self, client: &SnowflakeClient) -> Result<()> {
-        let _: Empty = client
+        let _: EmptySerde = client
             .execute(
+                ExecMethod::Post,
                 SESSION_ENDPOINT,
-                &SessionParams { delete: true },
-                &Empty {},
+                Some(&SessionParams { delete: true }),
+                EmptySerde::new(),
                 Some(&self.token),
             )
             .await?;
@@ -65,10 +63,18 @@ impl From<TokenResponse> for Session {
     fn from(value: TokenResponse) -> Self {
         let created_at = Utc::now();
         Self {
-            token: Token::new(value.token, value.validity_in_seconds, created_at),
+            token: Token::new(
+                value.token.expect("token should exist"),
+                value
+                    .validity_in_seconds
+                    .expect("token validity should exist"),
+                created_at,
+            ),
             master_token: Token::new(
-                value.master_token,
-                value.master_validity_in_seconds,
+                value.master_token.expect("master token should exist"),
+                value
+                    .master_validity_in_seconds
+                    .expect("master token validity should exist"),
                 created_at,
             ),
         }
@@ -126,15 +132,18 @@ pub struct AuthOptions {
 #[derive(Debug, Deserialize)]
 struct AuthResponse {
     data: TokenResponse,
+    message: Option<String>,
+    code: Option<String>,
+    success: bool,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TokenResponse {
-    master_token: String,
-    token: String,
-    validity_in_seconds: i64,
-    master_validity_in_seconds: i64,
+    master_token: Option<String>,
+    token: Option<String>,
+    validity_in_seconds: Option<i64>,
+    master_validity_in_seconds: Option<i64>,
 }
 
 impl Authenticator {
@@ -147,6 +156,13 @@ impl Authenticator {
             Self::Default(req) => Self::execute_req(client, req, opts).await?,
         };
 
+        if !res.success {
+            return Err(SnowflakeError::AuthError {
+                code: res.code.unwrap_or_default(),
+                message: res.message.unwrap_or_default(),
+            });
+        }
+
         Ok(res.data.into())
     }
 
@@ -158,8 +174,9 @@ impl Authenticator {
         let params: AuthParams = opts.into();
         client
             .execute(
+                ExecMethod::Post,
                 AUTH_ENDPOINT,
-                &params,
+                Some(&params),
                 &AuthRequest { data: req.into() },
                 /* Token = */ None,
             )

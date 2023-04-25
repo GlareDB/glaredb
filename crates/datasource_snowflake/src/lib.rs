@@ -24,11 +24,11 @@ use datasource_common::errors::DatasourceCommonError;
 use datasource_common::listing::{VirtualLister, VirtualTable};
 use datasource_common::util;
 use futures::{Stream, StreamExt};
-use snowflake_connector::QueryResultChunk;
 use snowflake_connector::{
     datatype::SnowflakeDataType, snowflake_to_arrow_datatype, Connection as SnowflakeConnection,
     QueryBindParameter,
 };
+use snowflake_connector::{QueryResult, QueryResultChunkMeta};
 
 use crate::errors::Result;
 
@@ -78,7 +78,7 @@ impl SnowflakeAccessor {
 
         // Validate if the connection is Ok
         let query = "SELECT 1".to_string();
-        let _res = accessor.conn.query(query, Vec::new()).await?;
+        accessor.conn.exec_sync(query, Vec::new()).await?;
 
         Ok(())
     }
@@ -94,7 +94,7 @@ impl SnowflakeAccessor {
             "SELECT * FROM {}.{} WHERE FALSE",
             table_access.schema_name, table_access.table_name
         );
-        let _res = accessor.conn.query(query, vec![]).await?;
+        let _res = accessor.conn.query_sync(query, vec![]).await?;
 
         // Get table schema
         accessor.get_table_schema(table_access).await
@@ -107,13 +107,9 @@ impl SnowflakeAccessor {
         let table_schema = table_access.schema_name.to_uppercase();
         let table_name = table_access.table_name.to_uppercase();
 
-        // TODO: There's time precision as well (nanos, micros...). Currently
-        // assuming everything as default nanos. Test if setting precision
-        // differently causes any problems, i.e., whether or not internally
-        // the data is stored differently.
         let res = self
             .conn
-            .query(
+            .query_sync(
                 "
 SELECT
     column_name,
@@ -134,31 +130,38 @@ WHERE
             .await?;
 
         let mut fields = Vec::new();
-        for row in res.into_row_iter() {
-            let row = row?;
-            let col_name = match row.get_column_by_name("COLUMN_NAME").unwrap()? {
-                // Convert the column name to lowercase since we every name
-                // we match is case-insensitive.
-                ScalarValue::Utf8(Some(v)) => v.to_lowercase(),
-                _ => unreachable!(),
-            };
-            let data_type: SnowflakeDataType = match row.get_column_by_name("DATA_TYPE").unwrap()? {
-                ScalarValue::Utf8(Some(v)) => v.parse()?,
-                _ => unreachable!(),
-            };
-            let numeric_precision = match row.get_column_by_name("NUMERIC_PRECISION").unwrap()? {
-                ScalarValue::Decimal128(v, _, 0) => v.map(|n| n as i64),
-                _ => unreachable!(),
-            };
-            let numeric_scale = match row.get_column_by_name("NUMERIC_SCALE").unwrap()? {
-                ScalarValue::Decimal128(v, _, 0) => v.map(|n| n as i64),
-                _ => unreachable!(),
-            };
 
-            let arrow_type =
-                snowflake_to_arrow_datatype(data_type, numeric_precision, numeric_scale);
-            let field = Field::new(col_name, arrow_type, /* nullable = */ true);
-            fields.push(field);
+        for meta in res.into_iter() {
+            let chunk = meta.take_chunk().await?;
+
+            for row in chunk.into_row_iter() {
+                let row = row?;
+                let col_name = match row.get_column_by_name("COLUMN_NAME").unwrap()? {
+                    // Convert the column name to lowercase since we every name
+                    // we match is case-insensitive.
+                    ScalarValue::Utf8(Some(v)) => v.to_lowercase(),
+                    _ => unreachable!(),
+                };
+                let data_type: SnowflakeDataType =
+                    match row.get_column_by_name("DATA_TYPE").unwrap()? {
+                        ScalarValue::Utf8(Some(v)) => v.parse()?,
+                        _ => unreachable!(),
+                    };
+                let numeric_precision =
+                    match row.get_column_by_name("NUMERIC_PRECISION").unwrap()? {
+                        ScalarValue::Decimal128(v, _, 0) => v.map(|n| n as i64),
+                        _ => unreachable!(),
+                    };
+                let numeric_scale = match row.get_column_by_name("NUMERIC_SCALE").unwrap()? {
+                    ScalarValue::Decimal128(v, _, 0) => v.map(|n| n as i64),
+                    _ => unreachable!(),
+                };
+
+                let arrow_type =
+                    snowflake_to_arrow_datatype(data_type, numeric_precision, numeric_scale);
+                let field = Field::new(col_name, arrow_type, /* nullable = */ true);
+                fields.push(field);
+            }
         }
 
         Ok(ArrowSchema::new(fields))
@@ -187,7 +190,7 @@ impl VirtualLister for SnowflakeAccessor {
 
         let res = self
             .conn
-            .query(
+            .query_sync(
                 "SELECT schema_name FROM information_schema.schemata".to_string(),
                 Vec::new(),
             )
@@ -195,18 +198,26 @@ impl VirtualLister for SnowflakeAccessor {
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         let mut schema_list = Vec::new();
-        for row in res.into_row_iter() {
-            let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
-            let schema = match row
-                .get_column(0)
-                .unwrap()
-                .map_err(|e| ListingErrBoxed(Box::new(e)))?
-            {
-                ScalarValue::Utf8(Some(v)) => v,
-                _ => unreachable!(),
-            };
-            schema_list.push(schema);
+        for meta in res.into_iter() {
+            let chunk = meta
+                .take_chunk()
+                .await
+                .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+            for row in chunk.into_row_iter() {
+                let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+                let schema = match row
+                    .get_column(0)
+                    .unwrap()
+                    .map_err(|e| ListingErrBoxed(Box::new(e)))?
+                {
+                    ScalarValue::Utf8(Some(v)) => v,
+                    _ => unreachable!(),
+                };
+                schema_list.push(schema);
+            }
         }
 
         Ok(schema_list)
@@ -231,33 +242,41 @@ impl VirtualLister for SnowflakeAccessor {
 
         let res = self
             .conn
-            .query(query, bindings)
+            .query_sync(query, bindings)
             .await
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         let mut tables_list = Vec::new();
-        for row in res.into_row_iter() {
-            let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
-            let schema = match row
-                .get_column_by_name("TABLE_SCHEMA")
-                .unwrap()
-                .map_err(|e| ListingErrBoxed(Box::new(e)))?
-            {
-                ScalarValue::Utf8(Some(v)) => v,
-                _ => unreachable!(),
-            };
+        for meta in res.into_iter() {
+            let chunk = meta
+                .take_chunk()
+                .await
+                .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
-            let table = match row
-                .get_column_by_name("TABLE_NAME")
-                .unwrap()
-                .map_err(|e| ListingErrBoxed(Box::new(e)))?
-            {
-                ScalarValue::Utf8(Some(v)) => v,
-                _ => unreachable!(),
-            };
+            for row in chunk.into_row_iter() {
+                let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
-            tables_list.push(VirtualTable { schema, table });
+                let schema = match row
+                    .get_column_by_name("TABLE_SCHEMA")
+                    .unwrap()
+                    .map_err(|e| ListingErrBoxed(Box::new(e)))?
+                {
+                    ScalarValue::Utf8(Some(v)) => v,
+                    _ => unreachable!(),
+                };
+
+                let table = match row
+                    .get_column_by_name("TABLE_NAME")
+                    .unwrap()
+                    .map_err(|e| ListingErrBoxed(Box::new(e)))?
+                {
+                    ScalarValue::Utf8(Some(v)) => v,
+                    _ => unreachable!(),
+                };
+
+                tables_list.push(VirtualTable { schema, table });
+            }
         }
 
         Ok(tables_list)
@@ -341,14 +360,17 @@ impl TableProvider for SnowflakeTableProvider {
         let result = self
             .accessor
             .conn
-            .query(query, Vec::new())
+            .query_sync(query, Vec::new())
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        let num_partitions = result.num_chunks();
 
         Ok(Arc::new(SnowflakeExec {
             predicate: predicate_string,
             arrow_schema: projection_schema,
-            result: Mutex::new(Some(result)),
+            num_partitions,
+            result: Mutex::new(result),
         }))
     }
 }
@@ -356,11 +378,8 @@ impl TableProvider for SnowflakeTableProvider {
 struct SnowflakeExec {
     predicate: String,
     arrow_schema: ArrowSchemaRef,
-    // TODO: Once we have the async queries implemented on the connector side,
-    // we can fetch the different streams and execute each one in a seperate
-    // partition just like we do in BigQuery. Currently using a simple mutex
-    // and taking the value from the option.
-    result: Mutex<Option<QueryResultChunk>>,
+    num_partitions: usize,
+    result: Mutex<QueryResult>,
 }
 
 impl ExecutionPlan for SnowflakeExec {
@@ -373,7 +392,7 @@ impl ExecutionPlan for SnowflakeExec {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
+        Partitioning::UnknownPartitioning(self.num_partitions)
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
@@ -395,14 +414,16 @@ impl ExecutionPlan for SnowflakeExec {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _ctx: Arc<TaskContext>,
     ) -> DatafusionResult<datafusion::physical_plan::SendableRecordBatchStream> {
-        let result = {
+        let chunk = {
             let mut guard = self.result.lock().unwrap();
-            guard.take().expect("iter shouldn't be None")
+            guard.next().ok_or(DataFusionError::Execution(format!(
+                "missing chunk for partition: {partition}"
+            )))?
         };
-        Ok(Box::pin(ChunkStream::new(self.schema(), result)))
+        Ok(Box::pin(ChunkStream::new(self.schema(), chunk)))
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
@@ -439,10 +460,18 @@ struct ChunkStream {
 }
 
 impl ChunkStream {
-    fn new(schema: ArrowSchemaRef, result: QueryResultChunk) -> Self {
+    fn new(schema: ArrowSchemaRef, meta: QueryResultChunkMeta) -> Self {
         let stream = async_stream::stream! {
-            for batch in result.into_iter() {
+            let chunk = match meta.take_chunk().await {
+                Ok(chunk) => chunk,
+                Err(e) => {
+                    yield Err(DataFusionError::Execution(format!("cannot retrieve chunk: {e}")));
+                    return;
+                },
+            };
+            for batch in chunk.into_iter() {
                 let batch = batch?;
+                let batch = util::normalize_batch(&batch)?;
                 yield Ok(batch);
             }
         };
@@ -505,14 +534,14 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
         }
         Expr::IsTrue(expr) => {
             if write_expr(expr, buf)? {
-                write!(buf, " IS TRUE")?;
+                write!(buf, " = TRUE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
             if write_expr(expr, buf)? {
-                write!(buf, " IS FALSE")?;
+                write!(buf, " = FALSE")?;
             } else {
                 return Ok(false);
             }

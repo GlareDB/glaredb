@@ -3,7 +3,10 @@ use crate::errors::{Result, SnowflakeError};
 use crate::query::Query;
 use crate::req::SnowflakeClient;
 
-pub use crate::query::{snowflake_to_arrow_datatype, QueryBindParameter, QueryResultChunk};
+pub use crate::query::{
+    snowflake_to_arrow_datatype, QueryBindParameter, QueryResult, QueryResultChunk,
+    QueryResultChunkMeta,
+};
 
 mod auth;
 mod query;
@@ -94,6 +97,15 @@ pub struct Connection {
     session: Session,
 }
 
+macro_rules! query_fn {
+    ($fn:ident, $rt:ty) => {
+        pub async fn $fn(&self, sql: String, bindings: Vec<QueryBindParameter>) -> Result<$rt> {
+            let q = Query { sql, bindings };
+            q.$fn(&self.client, &self.session).await
+        }
+    };
+}
+
 impl Connection {
     pub fn builder(account_name: String, login_name: String) -> ConnectionBuilder {
         ConnectionBuilder::new(account_name, login_name)
@@ -103,12 +115,7 @@ impl Connection {
         self.session.close(&self.client).await
     }
 
-    pub async fn query(
-        &self,
-        sql: String,
-        bindings: Vec<QueryBindParameter>,
-    ) -> Result<QueryResultChunk> {
-        let query = Query { sql, bindings };
-        query.exec(&self.client, &self.session).await
-    }
+    query_fn! {exec_sync, ()}
+
+    query_fn! {query_sync, QueryResult}
 }

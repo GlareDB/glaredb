@@ -182,6 +182,7 @@ pub struct DropViews {
 pub struct DropSchemas {
     pub names: Vec<String>,
     pub if_exists: bool,
+    pub cascade: bool,
 }
 
 #[derive(Clone, Debug)]

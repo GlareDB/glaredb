@@ -12,6 +12,8 @@ jobs:
 
     env:
       GCP_PROJECT_ID: glaredb-dev-playground
+      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -22,8 +24,20 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
+      - name: Setup snowsql
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
+
+      - name: Cleanup (Snowflake)
+        run: |
+          export PATH="$HOME/bin:$PATH"
+          ./scripts/cleanup-snowflake-dataset.sh ${{ github.event.pull_request.head.ref }}
 
       - name: Cleanup (BigQuery)
         run: ./scripts/cleanup-bigquery-dataset.sh ${{ github.event.pull_request.head.ref }}
@@ -38,8 +52,11 @@ jobs:
     env:
       GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
       GCP_PROJECT_ID: glaredb-artifacts
-      # Set this so the main BigQuery dataset is updated.
+      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      # Set this so the main database is updated.
       BIGQUERY_USE_MAIN_DATASET: true
+      SNOWFLAKE_USE_MAIN_DATABASE: true
 
     steps:
       - name: Checkout
@@ -50,11 +67,23 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
+      - name: Setup snowsql
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Download testdata from GCS
         run: ./scripts/prepare-testdata.sh
+
+      - name: Update main dataset (Snowflake)
+        run: |
+          export PATH="$HOME/bin:$PATH"
+          ./scripts/create-test-snowflake-db.sh
 
       - name: Update main dataset (BigQuery)
         run: ./scripts/create-test-bigquery-db.sh
