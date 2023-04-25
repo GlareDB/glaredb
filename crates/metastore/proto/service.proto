@@ -55,6 +55,7 @@ message DropDatabase {
 message DropSchema {
   string name = 1;
   bool if_exists = 2;
+  bool cascade = 3;
 }
 
 message DropObject {
