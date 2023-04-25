@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# Create external tables containg TPC-H data with some scale factor, and run
+# TPC-H queries on them.
+#
+# `force_catalog_refresh` is used to ensure loading and querying data use up to
+# date catalogs, but it is not affect the timing that's printed out.
 
 set -e
 
@@ -26,7 +32,11 @@ CREATE EXTERNAL TABLE supplier FROM gcs OPTIONS (service_account_key = '${GCP_SE
 
 for i in $(seq 1 22); do
     echo "query ${i}"
-    psql "${CONNECTION_STRING}" -c "SET search_path TO ${schema};" -c '\timing' -f "./testdata/tpch/${i}.sql" | grep 'Time'
+    psql "${CONNECTION_STRING}" \
+         -c "SET force_catalog_refresh TO true; SELECT 1; SET force_catalog_refresh TO false;" \
+         -c "SET search_path TO ${schema};" \
+         -c '\timing' \
+         -f "./testdata/tpch/${i}.sql" | grep 'Time'
 done;
 
 
