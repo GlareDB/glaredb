@@ -24,5 +24,14 @@ cargo run --release --bin tpch -- convert --input ./data --output ./data-<scale-
 gsutil cp -r ./data-<scale-factor>/* gs://glaredb-benchmarks/data/tpch/sf<scale-factor>
 ```
 
-Where `<scale-factor> is replaced with a number.
+Where `<scale-factor>` is replaced with a number.
 
+The `run-tpch-queries.sh` script can be used to create external tables and
+execute predefined queries against these tables.
+
+``` shell
+export CONNECTION_STRING="my-connection-string"
+export GCP_SERVICE_ACCOUNT_JSON="service-account-json"
+export SCALE_FACTOR=10 # Optional, defaults to 1
+./scripts/run-tpch-queries.sh
+```
