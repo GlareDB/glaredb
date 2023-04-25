@@ -118,7 +118,6 @@ drop table if exists drop_table.test;
 query TT
 select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
 ----
-h h
 
 # Now that all dependent objects have been dropped we can drop the schema
 statement ok
