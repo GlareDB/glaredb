@@ -22,11 +22,20 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
+      - name: Setup snowsql
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Cleanup (Snowflake)
-        run: ./scripts/cleanup-snowflake-dataset.sh ${{ github.event.pull_request.head.ref }}
+        run: |
+          export PATH="$HOME/bin:$PATH"
+          ./scripts/cleanup-snowflake-dataset.sh ${{ github.event.pull_request.head.ref }}
 
       - name: Cleanup (BigQuery)
         run: ./scripts/cleanup-bigquery-dataset.sh ${{ github.event.pull_request.head.ref }}
@@ -54,6 +63,13 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
+      - name: Setup snowsql
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
 
@@ -61,7 +77,9 @@ jobs:
         run: ./scripts/prepare-testdata.sh
 
       - name: Update main dataset (Snowflake)
-        run: ./scripts/create-test-snowflake-db.sh
+        run: |
+          export PATH="$HOME/bin:$PATH"
+          ./scripts/create-test-snowflake-db.sh
 
       - name: Update main dataset (BigQuery)
         run: ./scripts/create-test-bigquery-db.sh
