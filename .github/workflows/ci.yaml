@@ -80,6 +80,8 @@ jobs:
       GCP_PROJECT_ID: glaredb-artifacts
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -103,6 +105,14 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
+      # Setup snowsql (can't use nix coz it's unfree).
+      - name: Setup snowsql
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
 
@@ -114,6 +124,22 @@ jobs:
         run: |
           shopt -s globstar
           nix run .#slt-runner -- -v embedded testdata/sqllogictests/**/*.slt
+
+      - name: SQL Logic Tests (Snowflake)
+        run: |
+          shopt -s globstar
+          export PATH="$HOME/bin:$PATH"
+          if ./scripts/files-changed-in-branch.sh \
+            "scripts/prepare-testdata.sh" \
+            "scripts/create-test-snowflake-db.sh" \
+            "testdata/sqllogictests_datasources_common/data" \
+            "testdata/sqllogictests_snowflake/data"
+          then
+            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
+          else
+            export SNOWFLAKE_DATABASE=glaredb_test
+          fi
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_snowflake/**/*.slt
 
       - name: SQL Logic Tests (BigQuery)
         run: |

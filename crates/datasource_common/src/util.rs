@@ -137,7 +137,13 @@ pub fn normalize_batch(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
     let mut fields = Vec::with_capacity(batch.num_columns());
     for (field, col) in batch.schema().fields().iter().zip(batch.columns()) {
         let col = normalize_column(col)?;
-        let field = Field::new(field.name(), col.data_type().clone(), field.is_nullable());
+        let field = Field::new(
+            // Convert field name to lowercase since everything's case
+            // insensitive for us.
+            field.name().to_lowercase(),
+            col.data_type().clone(),
+            field.is_nullable(),
+        );
         columns.push(col);
         fields.push(field);
     }

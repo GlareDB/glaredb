@@ -4915,8 +4915,10 @@ name = "snowflake_connector"
 version = "0.1.0"
 dependencies = [
  "base64 0.21.0",
+ "bytes",
  "chrono",
  "datafusion",
+ "flate2",
  "hex",
  "logutil",
  "reqwest",

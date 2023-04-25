@@ -15,11 +15,17 @@ pub enum SnowflakeError {
     #[error(transparent)]
     Base64DecodeError(#[from] base64::DecodeError),
 
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
     #[error("Invalid URL: {0}")]
     UrlParseError(String),
 
     #[error("Request errored with status code: {0}")]
     HttpError(reqwest::StatusCode),
+
+    #[error("Snowflake Auth Error ({code}): {message}")]
+    AuthError { code: String, message: String },
 
     #[error("Snowflake Query Error ({code}): {message}")]
     QueryError { code: String, message: String },

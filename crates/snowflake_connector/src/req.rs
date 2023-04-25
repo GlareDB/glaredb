@@ -1,10 +1,11 @@
-use std::time::Duration;
+use std::{collections::HashMap, io::Read, time::Duration};
 
+use flate2::read::GzDecoder;
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE},
+    header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE},
     Client, IntoUrl, Url,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 use uuid::Uuid;
 
@@ -16,6 +17,10 @@ use crate::{
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 const BODY_CONTENT_TYPE: &str = "application/json";
 const REQ_ACCEPT: &str = "application/snowflake";
+
+const HEADER_SSE_C_ALGORITHM: &str = "x-amz-server-side-encryption-customer-algorithm";
+const HEADER_SSE_C_AES_VALUE: &str = "AES256";
+const HEADER_SSE_C_KEY: &str = "x-amz-server-side-encryption-customer-key";
 
 #[derive(Debug)]
 pub struct RequestId(Uuid);
@@ -80,6 +85,27 @@ impl SnowflakeClientBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EmptySerde {}
+
+impl EmptySerde {
+    const EMPTY_SERDE: Self = Self {};
+
+    pub fn new() -> &'static Self {
+        &Self::EMPTY_SERDE
+    }
+
+    pub fn none() -> Option<&'static Self> {
+        None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecMethod {
+    Post,
+    Get,
+}
+
 #[derive(Debug, Clone)]
 pub struct SnowflakeClient {
     base_url: Url,
@@ -93,8 +119,10 @@ impl SnowflakeClient {
 
     pub async fn execute<P, B, R>(
         &self,
+        method: ExecMethod,
         url: &str,
-        params: &P,
+        // Optional params because they can already be in URL
+        params: Option<&P>,
         body: &B,
         token: Option<&Token>,
     ) -> Result<R>
@@ -110,7 +138,15 @@ impl SnowflakeClient {
             // expose the error and hence we cast it to a string.
             .map_err(|e| SnowflakeError::UrlParseError(format!("{e}")))?;
 
-        let mut req = self.inner.post(url).query(&params).json(&body);
+        let mut req = match method {
+            ExecMethod::Post => self.inner.post(url).json(&body),
+            ExecMethod::Get => self.inner.get(url),
+        };
+
+        if let Some(params) = params {
+            req = req.query(&params);
+        }
+
         if let Some(token) = token {
             let val = format!("Snowflake Token=\"{}\"", token.value());
             req = req.header(
@@ -129,6 +165,60 @@ impl SnowflakeClient {
         trace!(%res, "response");
 
         let res: R = serde_json::from_str(&res)?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SnowflakeChunkDl {
+    inner: Client,
+}
+
+impl SnowflakeChunkDl {
+    pub fn new(headers: HashMap<String, String>, qrmk: String) -> Result<Self> {
+        let headers: HeaderMap = if headers.is_empty() {
+            let mut headers = HeaderMap::with_capacity(2);
+            headers.insert(
+                HEADER_SSE_C_ALGORITHM,
+                HeaderValue::from_static(HEADER_SSE_C_AES_VALUE),
+            );
+            headers.insert(
+                HEADER_SSE_C_KEY,
+                HeaderValue::from_str(&qrmk).expect("qrmk value must be valid"),
+            );
+            headers
+        } else {
+            headers
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        HeaderName::from_bytes(k.as_bytes())
+                            .expect("chunk header name should be valid"),
+                        HeaderValue::from_str(&v).expect("chunk header value should be valid"),
+                    )
+                })
+                .collect()
+        };
+
+        let inner = Client::builder().default_headers(headers).build()?;
+        Ok(Self { inner })
+    }
+
+    pub async fn download(&self, url: &str) -> Result<Vec<u8>> {
+        let res = self.inner.get(url).send().await?;
+        if !res.status().is_success() {
+            return Err(SnowflakeError::HttpError(res.status()));
+        }
+        let res = res.bytes().await?;
+        let res = if res[0] == 0x1f && res[1] == 0x8b {
+            // Gzip format, need to decode
+            let mut gz = GzDecoder::new(&res[..]);
+            let mut decoded = Vec::new();
+            gz.read_to_end(&mut decoded)?;
+            decoded
+        } else {
+            res.to_vec()
+        };
         Ok(res)
     }
 }

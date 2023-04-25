@@ -1,0 +1,23 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE external_table
+	FROM snowflake
+	OPTIONS (
+		account_name = 'hmpfscx-xo23956',
+		login_name = '${SNOWFLAKE_USERNAME}',
+		password = '${SNOWFLAKE_PASSWORD}',
+		database_name = '${SNOWFLAKE_DATABASE}',
+		warehouse = 'compute_wh',
+		role_name = 'accountadmin',
+		schema_name = 'public',
+		table_name = 'bikeshare_stations'
+	);
+
+query I
+SELECT count(*) FROM external_table;
+----
+102
+
+statement ok
+DROP TABLE external_table;
