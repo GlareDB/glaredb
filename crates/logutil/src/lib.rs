@@ -115,10 +115,12 @@ fn default_fmt_builder(level: Level) -> SubscriberBuilder {
 /// Default behavior:
 /// - Default to TRACE if filter not specified via RUST_LOG
 /// - Raise h2 to INFO, since it's very noisy at lower levels.
+/// - Raise hyper to INFO, since it's very noisy at lower levels.
 fn with_env_filter(subscriber: impl Subscriber) -> impl Subscriber {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::TRACE.into())
         .from_env_lossy()
-        .add_directive("h2=info".parse().unwrap());
+        .add_directive("h2=info".parse().unwrap())
+        .add_directive("hyper=info".parse().unwrap());
     subscriber.with(filter)
 }
