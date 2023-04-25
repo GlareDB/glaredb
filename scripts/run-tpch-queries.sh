@@ -40,4 +40,7 @@ for i in $(seq 1 22); do
 done;
 
 
-psql "${CONNECTION_STRING}" -c "DROP SCHEMA ${schema} CASCADE;"
+psql "${CONNECTION_STRING}" -c "
+SET force_catalog_refresh TO true;
+DROP SCHEMA ${schema} CASCADE;
+"
