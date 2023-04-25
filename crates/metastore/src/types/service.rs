@@ -112,6 +112,7 @@ impl From<DropDatabase> for service::DropDatabase {
 pub struct DropSchema {
     pub name: String,
     pub if_exists: bool,
+    pub cascade: bool,
 }
 
 impl TryFrom<service::DropSchema> for DropSchema {
@@ -121,6 +122,7 @@ impl TryFrom<service::DropSchema> for DropSchema {
         Ok(DropSchema {
             name: value.name,
             if_exists: value.if_exists,
+            cascade: value.cascade,
         })
     }
 }
@@ -130,6 +132,7 @@ impl From<DropSchema> for service::DropSchema {
         service::DropSchema {
             name: value.name,
             if_exists: value.if_exists,
+            cascade: value.cascade,
         }
     }
 }

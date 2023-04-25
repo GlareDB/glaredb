@@ -47,32 +47,39 @@ statement ok
 create schema drop_table;
 
 statement ok
-create external table test
+create external table drop_table.test
     from local
     options (
         location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
     );
 
 query TI
-select c1, c3 from test limit 1;
+select c1, c3 from drop_table.test limit 1;
 ----
 t 123
 
-statement ok
-create view test_view as select 1;
-
-# TODO fix dropping parent objects before child objects
 # We cannot drop a schema before removing the table or views (child objects on
-# schema)
-# statement error
-# drop schema drop_table;
+# schema) without CASCADE.
+statement error
+drop schema drop_table;
 
-# query T
-# select schema_name from glare_catalog.schemas where schema_name='drop_table';
-# ----
-# drop_table
+query T
+select schema_name from glare_catalog.schemas where schema_name='drop_table';
+----
+drop_table
+
+# Drop schema even with child objects.
+statement ok
+drop schema drop_table cascade;
+
+query TT
+select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
+----
 
 # Drop view
+
+statement ok
+create view test_view as select 1;
 
 statement ok
 drop view test_view;
@@ -88,18 +95,30 @@ select schema_name, view_name from glare_catalog.views where schema_name='drop_t
 ----
 
 # Drop table and child objects on schema
+
 statement ok
-drop table test;
+create schema drop_table;
+
+statement ok
+create external table drop_table.test
+    from local
+    options (
+        location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
+    );
+
+statement ok
+drop table drop_table.test;
 
 statement error
-drop table test;
+drop table drop_table.test;
 
 statement ok
-drop table if exists test;
+drop table if exists drop_table.test;
 
 query TT
 select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
 ----
+h h
 
 # Now that all dependent objects have been dropped we can drop the schema
 statement ok

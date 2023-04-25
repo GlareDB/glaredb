@@ -255,6 +255,7 @@ impl SessionContext {
             drops.push(Mutation::DropSchema(service::DropSchema {
                 name,
                 if_exists: plan.if_exists,
+                cascade: plan.cascade,
             }));
         }
 

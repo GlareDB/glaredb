@@ -549,6 +549,7 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::Drop {
                 object_type: ObjectType::Schema,
                 if_exists,
+                cascade,
                 names,
                 ..
             } => {
@@ -557,7 +558,12 @@ impl<'a> SessionPlanner<'a> {
                     .map(|name| name.to_string())
                     .collect::<Vec<_>>();
 
-                Ok(DdlPlan::DropSchemas(DropSchemas { if_exists, names }).into())
+                Ok(DdlPlan::DropSchemas(DropSchemas {
+                    if_exists,
+                    names,
+                    cascade,
+                })
+                .into())
             }
 
             // "SET ...".

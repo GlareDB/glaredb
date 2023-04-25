@@ -350,6 +350,14 @@ impl State {
                         Some(so) if so.objects.is_empty() => {
                             self.schema_objects.remove(&schema_id);
                         }
+                        Some(_) if drop_schema.cascade => {
+                            // Remove all child objects.
+                            let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
+                            for (_, child_oid) in &objs.objects {
+                                // TODO: Dependency checking.
+                                self.entries.remove(child_oid).unwrap(); // Bug if it doesn't exist.
+                            }
+                        }
                         None => (), // Empty schema that never had any child objects
                         Some(so) => {
                             return Err(MetastoreError::SchemaHasChildren {
@@ -807,6 +815,7 @@ mod tests {
             vec![Mutation::DropSchema(DropSchema {
                 name: "yoshi".to_string(),
                 if_exists: false,
+                cascade: false,
             })],
         )
         .await
@@ -822,6 +831,7 @@ mod tests {
             vec![Mutation::DropSchema(DropSchema {
                 name: "yoshi".to_string(),
                 if_exists: true,
+                cascade: false,
             })],
         )
         .await
@@ -897,6 +907,7 @@ mod tests {
             vec![Mutation::DropSchema(DropSchema {
                 name: "mario".to_string(),
                 if_exists: false,
+                cascade: false,
             })],
         )
         .await
@@ -907,6 +918,45 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+            })],
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn drop_schema_cascade() {
+        let db = new_catalog().await;
+
+        let state = db
+            .try_mutate(
+                version(&db).await,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "mushroom".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+
+        let state = db
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateView(CreateView {
+                    schema: "mushroom".to_string(),
+                    name: "bowser".to_string(),
+                    sql: "select 1".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Drop schema cascade. containing a view.
+        db.try_mutate(
+            state.version,
+            vec![Mutation::DropSchema(DropSchema {
+                name: "mushroom".to_string(),
+                if_exists: false,
+                cascade: true,
             })],
         )
         .await
