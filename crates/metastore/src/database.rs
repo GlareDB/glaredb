@@ -353,7 +353,7 @@ impl State {
                         Some(_) if drop_schema.cascade => {
                             // Remove all child objects.
                             let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
-                            for (_, child_oid) in &objs.objects {
+                            for child_oid in objs.objects.values() {
                                 // TODO: Dependency checking.
                                 self.entries.remove(child_oid).unwrap(); // Bug if it doesn't exist.
                             }
