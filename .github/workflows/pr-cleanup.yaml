@@ -12,6 +12,8 @@ jobs:
 
     env:
       GCP_PROJECT_ID: glaredb-dev-playground
+      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -50,7 +52,9 @@ jobs:
     env:
       GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
       GCP_PROJECT_ID: glaredb-artifacts
-      # Set this so the main BigQuery dataset is updated.
+      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      # Set this so the main database is updated.
       BIGQUERY_USE_MAIN_DATASET: true
       SNOWFLAKE_USE_MAIN_DATABASE: true
 
