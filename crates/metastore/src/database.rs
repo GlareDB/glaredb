@@ -210,8 +210,14 @@ impl DatabaseEntries {
     }
 
     /// Insert an entry.
-    fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Option<CatalogEntry> {
-        self.0.insert(oid, ent)
+    fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
+        if let Some(ent) = self.0.get(&oid) {
+            if ent.get_meta().builtin {
+                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
+            }
+        }
+
+        Ok(self.0.insert(oid, ent))
     }
 }
 
@@ -476,7 +482,7 @@ impl State {
                         },
                         options: create_database.options,
                     };
-                    self.entries.insert(oid, CatalogEntry::Database(ent));
+                    self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
                     // Add to database map
                     self.database_names.insert(create_database.name, oid);
@@ -500,7 +506,7 @@ impl State {
                             external: false,
                         },
                     };
-                    self.entries.insert(oid, CatalogEntry::Schema(ent));
+                    self.entries.insert(oid, CatalogEntry::Schema(ent))?;
 
                     // Add to name map
                     self.schema_names.insert(create_schema.name, oid);
@@ -681,8 +687,8 @@ impl State {
         }
         objs.objects.insert(ent.get_meta().name.clone(), oid);
 
-        // Insert connection.
-        self.entries.insert(oid, ent);
+        // Insert entry.
+        self.entries.insert(oid, ent)?;
         Ok(())
     }
 
