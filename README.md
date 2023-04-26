@@ -130,9 +130,11 @@ Tags should should follow the same format as Cloud (e.g. `v0.0.1`).
 
 To prepare for a release, the steps are as follows:
 
-1. Pull latest main and create tag.
-2. Push tag, wait for image to build.
-3. Update the Cloud terraform to point to the newly tagged image.
+1. Update `Cargo.toml` with the new version and merge to main.
+2. Pull latest main and create tag that matches the version specified in
+   `Cargo.toml`.
+3. Push tag, wait for image to build.
+4. Update the Cloud terraform to point to the newly tagged image.
 
 ## Contributing
 
