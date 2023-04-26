@@ -37,3 +37,8 @@ create external database d1 from debug;
 
 statement error
 alter database d1 rename to d2;
+
+# Prevent altering builtin database.
+
+statement error
+alter database default rename to hello;

@@ -139,7 +139,7 @@ impl DatabaseCatalog {
     fn serializable_state(&self, guard: MutexGuard<State>) -> CatalogState {
         CatalogState {
             version: guard.version,
-            entries: guard.entries.clone(),
+            entries: guard.entries.as_ref().clone(),
         }
     }
 
@@ -179,6 +179,60 @@ impl DatabaseCatalog {
     }
 }
 
+/// A thin wrapper around a hashmap for database entries.
+///
+/// Mutating methods on this type prevent mutating default (builtin) objects.
+#[derive(Debug, Clone)]
+struct DatabaseEntries(HashMap<u32, CatalogEntry>);
+
+impl DatabaseEntries {
+    /// Get a mutable reference to the catalog entry if it exists. Errors if the
+    /// entry is builtin.
+    fn get_mut(&mut self, oid: &u32) -> Result<Option<&mut CatalogEntry>> {
+        match self.0.get_mut(oid) {
+            Some(ent) if ent.get_meta().builtin => {
+                Err(MetastoreError::CannotModifyBuiltin(ent.clone()))
+            }
+            Some(ent) => Ok(Some(ent)),
+            None => Ok(None),
+        }
+    }
+
+    /// Remove an entry. Errors if the entry is builtin.
+    fn remove(&mut self, oid: &u32) -> Result<Option<CatalogEntry>> {
+        if let Some(ent) = self.0.get(oid) {
+            if ent.get_meta().builtin {
+                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
+            }
+        }
+
+        Ok(self.0.remove(oid))
+    }
+
+    /// Insert an entry.
+    fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
+        if let Some(ent) = self.0.get(&oid) {
+            if ent.get_meta().builtin {
+                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
+            }
+        }
+
+        Ok(self.0.insert(oid, ent))
+    }
+}
+
+impl From<HashMap<u32, CatalogEntry>> for DatabaseEntries {
+    fn from(value: HashMap<u32, CatalogEntry>) -> Self {
+        DatabaseEntries(value)
+    }
+}
+
+impl AsRef<HashMap<u32, CatalogEntry>> for DatabaseEntries {
+    fn as_ref(&self) -> &HashMap<u32, CatalogEntry> {
+        &self.0
+    }
+}
+
 /// Inner state of the catalog.
 #[derive(Debug)]
 struct State {
@@ -187,7 +241,7 @@ struct State {
     /// Next OID to use.
     oid_counter: u32,
     /// All entries in the catalog.
-    entries: HashMap<u32, CatalogEntry>,
+    entries: DatabaseEntries,
     /// Map database names to their ids.
     database_names: HashMap<String, u32>,
     /// Map schema names to their ids.
@@ -203,14 +257,11 @@ impl State {
     ///
     /// This will build the schema names and objects maps.
     fn from_persisted(persisted: PersistedCatalog) -> Result<State> {
-        let mut state = State {
-            version: persisted.state.version,
-            oid_counter: persisted.extra.oid_counter,
-            entries: persisted.state.entries,
-            database_names: HashMap::new(),
-            schema_names: HashMap::new(),
-            schema_objects: HashMap::new(),
-        };
+        let mut state = persisted.state;
+
+        let mut database_names = HashMap::new();
+        let mut schema_names = HashMap::new();
+        let mut schema_objects = HashMap::new();
 
         // Sanity check to ensure we didn't accidentally persist builtin
         // objects.
@@ -225,9 +276,9 @@ impl State {
         // Extend with builtin objects.
         let builtin = BUILTIN_CATALOG.clone();
         state.entries.extend(builtin.entries);
-        state.database_names.extend(builtin.database_names);
-        state.schema_names.extend(builtin.schema_names);
-        state.schema_objects.extend(builtin.schema_objects);
+        database_names.extend(builtin.database_names);
+        schema_names.extend(builtin.schema_names);
+        schema_objects.extend(builtin.schema_objects);
 
         // Rebuild name maps for user objects.
         //
@@ -246,9 +297,7 @@ impl State {
                     });
                 }
 
-                state
-                    .database_names
-                    .insert(entry.get_meta().name.clone(), *oid);
+                database_names.insert(entry.get_meta().name.clone(), *oid);
             } else if entry.is_schema() {
                 if entry.get_meta().parent == DATABASE_PARENT_ID {
                     return Err(MetastoreError::ObjectHasInvalidParentId {
@@ -258,9 +307,7 @@ impl State {
                     });
                 }
 
-                state
-                    .schema_names
-                    .insert(entry.get_meta().name.clone(), *oid);
+                schema_names.insert(entry.get_meta().name.clone(), *oid);
             } else {
                 if entry.get_meta().parent == DATABASE_PARENT_ID {
                     return Err(MetastoreError::ObjectHasInvalidParentId {
@@ -272,7 +319,7 @@ impl State {
 
                 let schema_id = entry.get_meta().parent;
 
-                let objects = state.schema_objects.entry(schema_id).or_default();
+                let objects = schema_objects.entry(schema_id).or_default();
                 let existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
                 if let Some(existing) = existing {
                     return Err(MetastoreError::DuplicateNameFoundDuringLoad {
@@ -285,7 +332,16 @@ impl State {
             }
         }
 
-        Ok(state)
+        let internal_state = State {
+            version: state.version,
+            oid_counter: persisted.extra.oid_counter,
+            entries: state.entries.into(),
+            database_names,
+            schema_names,
+            schema_objects,
+        };
+
+        Ok(internal_state)
     }
 
     /// Create a persisted catalog containing only user objects.
@@ -298,6 +354,7 @@ impl State {
                 version: self.version,
                 entries: self
                     .entries
+                    .as_ref()
                     .clone()
                     .into_iter()
                     .filter(|(_, ent)| !ent.get_meta().builtin)
@@ -425,7 +482,7 @@ impl State {
                         },
                         options: create_database.options,
                     };
-                    self.entries.insert(oid, CatalogEntry::Database(ent));
+                    self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
                     // Add to database map
                     self.database_names.insert(create_database.name, oid);
@@ -449,7 +506,7 @@ impl State {
                             external: false,
                         },
                     };
-                    self.entries.insert(oid, CatalogEntry::Schema(ent));
+                    self.entries.insert(oid, CatalogEntry::Schema(ent))?;
 
                     // Add to name map
                     self.schema_names.insert(create_schema.name, oid);
@@ -541,7 +598,7 @@ impl State {
                         Some(id) => id,
                     };
 
-                    let mut table = match self.entries.remove(oid) {
+                    let mut table = match self.entries.remove(oid)? {
                         None => {
                             debug_assert!(false, "missing object '{oid}' in entries");
                             return Err(MetastoreError::MissingNamedObject {
@@ -583,7 +640,7 @@ impl State {
                         }
                         Some(objs) => objs,
                     };
-                    let ent = match self.entries.get_mut(&oid) {
+                    let ent = match self.entries.get_mut(&oid)? {
                         None => {
                             return Err(MetastoreError::MissingDatabase(
                                 alter_database_rename.name,
@@ -630,8 +687,8 @@ impl State {
         }
         objs.objects.insert(ent.get_meta().name.clone(), oid);
 
-        // Insert connection.
-        self.entries.insert(oid, ent);
+        // Insert entry.
+        self.entries.insert(oid, ent)?;
         Ok(())
     }
 
@@ -778,9 +835,11 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtins::DEFAULT_CATALOG;
     use crate::storage::persist::Storage;
     use crate::types::options::DatabaseOptionsDebug;
     use crate::types::options::TableOptionsDebug;
+    use crate::types::service::AlterDatabaseRename;
     use crate::types::service::DropDatabase;
     use crate::types::service::{
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
@@ -1202,5 +1261,29 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn try_modify_default_db() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        let e = db
+            .try_mutate(
+                initial,
+                vec![Mutation::AlterDatabaseRename(AlterDatabaseRename {
+                    name: DEFAULT_CATALOG.to_string(),
+                    new_name: "hello".to_string(),
+                })],
+            )
+            .await
+            .unwrap_err();
+
+        match e {
+            MetastoreError::CannotModifyBuiltin(ent) => {
+                assert_eq!(ent.get_meta().name, DEFAULT_CATALOG);
+            }
+            e => panic!("unexpected error: {:?}", e),
+        }
     }
 }

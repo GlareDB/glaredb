@@ -54,6 +54,9 @@ pub enum MetastoreError {
     #[error("Failed in-process startup: {0}")]
     FailedInProcessStartup(String),
 
+    #[error("Cannot modify builtin object: {0:?}")]
+    CannotModifyBuiltin(crate::types::catalog::CatalogEntry),
+
     #[error(transparent)]
     Storage(#[from] crate::storage::StorageError),
 

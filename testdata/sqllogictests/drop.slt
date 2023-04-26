@@ -126,3 +126,14 @@ drop schema drop_table;
 query T
 select schema_name from glare_catalog.schemas where schema_name='drop_table';
 ----
+
+# Prevent dropping builtin objects.
+
+statement error
+drop database default;
+
+statement error
+drop schema glare_catalog;
+
+statement error
+drop table glare_catalog.databases;
