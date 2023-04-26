@@ -10,6 +10,7 @@ use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedString
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
+use datafusion::common::OwnedTableReference;
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
@@ -28,6 +29,7 @@ use metastore::types::options::{
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
     TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
 };
+use sqlparser::ast::ObjectName;
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
@@ -148,8 +150,10 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
+        let database_name = resolve_ident(stmt.name);
+
         let plan = CreateExternalDatabase {
-            database_name: stmt.name,
+            database_name,
             if_not_exists: stmt.if_not_exists,
             options: db_options,
         };
@@ -364,8 +368,10 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
+        let table_name = object_name_to_table_ref(stmt.name)?;
+
         let plan = CreateExternalTable {
-            table_name: stmt.name,
+            table_name,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
         };
@@ -507,12 +513,12 @@ impl<'a> SessionPlanner<'a> {
                 operation: AlterTableOperation::RenameTable { table_name },
             } => {
                 validate_object_name(&name)?;
+                let name = object_name_to_table_ref(name)?;
+
                 validate_object_name(&table_name)?;
-                Ok(DdlPlan::AlterTableRaname(AlterTableRename {
-                    name: name.to_string(),
-                    new_name: table_name.to_string(),
-                })
-                .into())
+                let new_name = object_name_to_table_ref(table_name)?;
+
+                Ok(DdlPlan::AlterTableRaname(AlterTableRename { name, new_name }).into())
             }
 
             // Drop tables
@@ -522,12 +528,17 @@ impl<'a> SessionPlanner<'a> {
                 names,
                 ..
             } => {
-                let names = names
-                    .into_iter()
-                    .map(|name| name.to_string())
-                    .collect::<Vec<_>>();
-
-                Ok(DdlPlan::DropTables(DropTables { if_exists, names }).into())
+                let mut refs = Vec::with_capacity(names.len());
+                for name in names.into_iter() {
+                    validate_object_name(&name)?;
+                    let r = object_name_to_table_ref(name)?;
+                    refs.push(r);
+                }
+                Ok(DdlPlan::DropTables(DropTables {
+                    if_exists,
+                    names: refs,
+                })
+                .into())
             }
 
             // Drop views
@@ -577,32 +588,32 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(VariablePlan::SetVariable(SetVariable {
-                variable,
-                values: value,
-            })
-            .into()),
+            } => {
+                let variable = object_name_to_string(variable);
+
+                Ok(VariablePlan::SetVariable(SetVariable {
+                    variable,
+                    values: value,
+                })
+                .into())
+            }
 
             // "SHOW ..."
             //
             // Show the value of a variable.
             ast::Statement::ShowVariable { mut variable } => {
-                if variable.len() != 1 {
-                    if is_show_transaction_isolation_level(&variable) {
-                        // Consider the special case where the query is:
-                        // "SHOW TRANSACTION ISOLATION LEVEL".
-                        // This is an alias of "SHOW transaction_isolation".
-                        return Ok(VariablePlan::ShowVariable(ShowVariable {
-                            variable: "transaction_isolation".to_owned(),
-                        })
-                        .into());
-                    }
-                    return Err(internal!("invalid variable ident: {:?}", variable));
-                }
-                let variable = variable
-                    .pop()
-                    .ok_or_else(|| internal!("missing ident for variable name"))?
-                    .value;
+                // Normalize variables
+                variable.iter_mut().for_each(resolve_ident_in_place);
+
+                let variable = if is_show_transaction_isolation_level(&variable) {
+                    // SHOW TRANSACTION ISOLATION LEVEL
+                    // Alias of "SHOW transaction_isolation".
+                    "transaction_isolation".to_string()
+                } else if variable.is_empty() {
+                    return Err(internal!("expecting one variable to show"));
+                } else {
+                    object_name_to_string(ObjectName(variable))
+                };
 
                 Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
             }
@@ -612,20 +623,83 @@ impl<'a> SessionPlanner<'a> {
     }
 
     fn plan_drop_database(&self, stmt: DropDatabaseStmt) -> Result<LogicalPlan> {
+        let mut names = Vec::with_capacity(stmt.names.len());
+        for name in stmt.names.into_iter() {
+            validate_ident(&name)?;
+            let name = resolve_ident(name);
+            names.push(name);
+        }
+
         Ok(DdlPlan::DropDatabase(DropDatabase {
-            name: stmt.name,
+            names,
             if_exists: stmt.if_exists,
         })
         .into())
     }
 
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
-        Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename {
-            name: stmt.name,
-            new_name: stmt.new_name,
-        })
-        .into())
+        validate_ident(&stmt.name)?;
+        let name = resolve_ident(stmt.name);
+
+        validate_ident(&stmt.new_name)?;
+        let new_name = resolve_ident(stmt.new_name);
+
+        Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename { name, new_name }).into())
     }
+}
+
+/// Resolves an ident in place (unquoted -> lowercase else case sensitive).
+fn resolve_ident_in_place(ident: &mut Ident) {
+    if ident.quote_style.is_none() {
+        ident.value.make_ascii_lowercase();
+    }
+}
+
+/// Resolves an ident (unquoted -> lowercase else case sensitive).
+fn resolve_ident(ident: Ident) -> String {
+    let mut ident = ident;
+    resolve_ident_in_place(&mut ident);
+    ident.value
+}
+
+fn object_name_to_table_ref(name: ObjectName) -> Result<OwnedTableReference> {
+    fn pop_value(idents: &mut Vec<Ident>) -> String {
+        resolve_ident(idents.pop().unwrap())
+    }
+
+    let mut name = name;
+    let idents = &mut name.0;
+
+    let refer = match idents.len() {
+        1 => {
+            let table = pop_value(idents);
+            OwnedTableReference::bare(table)
+        }
+        2 => {
+            let table = pop_value(idents);
+            let schema = pop_value(idents);
+            OwnedTableReference::partial(schema, table)
+        }
+        3 => {
+            let table = pop_value(idents);
+            let schema = pop_value(idents);
+            let catalog = pop_value(idents);
+            OwnedTableReference::full(catalog, schema, table)
+        }
+        _ => return Err(internal!("invalid object name: {}", name)),
+    };
+
+    Ok(refer)
+}
+
+/// Convert the object name into string. This should not be used in case of
+/// table reference, rather is there only for session variables.
+fn object_name_to_string(name: ObjectName) -> String {
+    name.0
+        .into_iter()
+        .map(resolve_ident)
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 /// Convert a ast data type to an arrow data type.
@@ -859,14 +933,23 @@ fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> Result<DataT
     }
 }
 
-/// Is the "SHOW ..." statement equivalent to "SHOW TRANSACTION ISOLATION LEVEL".
+/// If the "SHOW ..." statement equivalent to "SHOW TRANSACTION ISOLATION
+/// LEVEL", return the variable for which to show the value.
 fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
     let statement = ["transaction", "isolation", "level"];
     if statement.len() != variable.len() {
         return false;
     }
-    let transaction_isolation_level = variable.iter().map(|i| i.value.to_lowercase());
-    statement.into_iter().eq(transaction_isolation_level)
+
+    for (var, s) in variable.iter().zip(statement.into_iter()) {
+        if var.quote_style.is_some() {
+            return false;
+        }
+        if var.value != s {
+            return false;
+        }
+    }
+    true
 }
 
 fn remove_required_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<String> {

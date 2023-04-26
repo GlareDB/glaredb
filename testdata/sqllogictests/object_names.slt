@@ -1,0 +1,92 @@
+# Tests for creating external databases and tables
+
+# Table names
+
+statement ok
+CREATE EXTERNAL TABLE obj_name_table FROM debug OPTIONS ( table_type = 'never_ending' );
+
+statement error
+CREATE EXTERNAL TABLE Obj_Name_Table FROM debug OPTIONS ( table_type = 'never_ending' );
+
+statement ok
+CREATE EXTERNAL TABLE "Obj_Name_Table" FROM debug OPTIONS ( table_type = 'never_ending' );
+
+query TTT rowsort
+SELECT * FROM "Obj_Name_Table" LIMIT 1;
+----
+1 2 3
+
+query TTT rowsort
+SELECT * FROM Obj_Name_Table LIMIT 1;
+----
+1 2 3
+
+statement error
+ALTER TABLE "Obj_Name_Table" RENAME TO "obj_name_table";
+
+statement ok
+DROP TABLE Obj_Name_Table;
+
+statement ok
+ALTER TABLE "Obj_Name_Table" RENAME TO "obj_name_table";
+
+statement error
+DROP TABLE "Obj_Name_Table";
+
+statement error
+SELECT * FROM "Obj_Name_Table" LIMIT 1;
+
+query TTT
+SELECT * FROM Obj_Name_Table LIMIT 1;
+----
+1 2 3
+
+statement ok
+DROP TABLE "obj_name_table";
+
+# Database names
+
+statement ok
+CREATE EXTERNAL DATABASE obj_name_database FROM debug;
+
+statement error
+CREATE EXTERNAL DATABASE Obj_Name_Database FROM debug;
+
+statement ok
+CREATE EXTERNAL DATABASE "Obj_Name_Database" FROM debug;
+
+query TTT rowsort
+SELECT * FROM "Obj_Name_Database".public.Never_Ending LIMIT 1;
+----
+1 2 3
+
+query TTT rowsort
+SELECT * FROM Obj_Name_Database.public.Never_Ending LIMIT 1;
+----
+1 2 3
+
+statement error
+ALTER DATABASE "Obj_Name_Database" RENAME TO "obj_name_database";
+
+statement ok
+DROP DATABASE Obj_Name_Database;
+
+statement ok
+ALTER DATABASE "Obj_Name_Database" RENAME TO "obj_name_database";
+
+statement error
+DROP DATABASE "Obj_Name_Database";
+
+statement error
+SELECT * FROM "Obj_Name_Database".public.Never_Ending LIMIT 1;
+
+statement error
+SELECT * FROM "Obj_Name_Database.public.Never_Ending" LIMIT 1;
+
+query TTT
+SELECT * FROM Obj_Name_Database.public.Never_Ending LIMIT 1;
+----
+1 2 3
+
+statement ok
+DROP DATABASE "obj_name_database";

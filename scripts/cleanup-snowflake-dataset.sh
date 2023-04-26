@@ -7,7 +7,7 @@ set -e
 GIT_BRANCH="$1"
 
 SNOWFLAKE_DB=$(./scripts/get-sanitized-name.sh "$GIT_BRANCH")
-SNOWFLAKE_DB="glaredb_test_$BQ_DATASET"
+SNOWFLAKE_DB="glaredb_test_$SNOWFLAKE_DB"
 
 # This will be recognized by SnowSQL
 export SNOWSQL_PWD="$SNOWFLAKE_PASSWORD"

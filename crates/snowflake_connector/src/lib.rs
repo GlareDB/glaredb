@@ -97,15 +97,6 @@ pub struct Connection {
     session: Session,
 }
 
-macro_rules! query_fn {
-    ($fn:ident, $rt:ty) => {
-        pub async fn $fn(&self, sql: String, bindings: Vec<QueryBindParameter>) -> Result<$rt> {
-            let q = Query { sql, bindings };
-            q.$fn(&self.client, &self.session).await
-        }
-    };
-}
-
 impl Connection {
     pub fn builder(account_name: String, login_name: String) -> ConnectionBuilder {
         ConnectionBuilder::new(account_name, login_name)
@@ -115,7 +106,17 @@ impl Connection {
         self.session.close(&self.client).await
     }
 
-    query_fn! {exec_sync, ()}
+    pub async fn exec_sync(&self, sql: String, bindings: Vec<QueryBindParameter>) -> Result<()> {
+        let q = Query { sql, bindings };
+        q.exec_sync(&self.client, &self.session).await
+    }
 
-    query_fn! {query_sync, QueryResult}
+    pub async fn query_sync(
+        &self,
+        sql: String,
+        bindings: Vec<QueryBindParameter>,
+    ) -> Result<QueryResult> {
+        let q = Query { sql, bindings };
+        q.query_sync(&self.client, &self.session).await
+    }
 }

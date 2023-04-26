@@ -23,6 +23,33 @@ query TTT
 select database_name, external, datasource from glare_catalog.databases where database_name='drop_db';
 ----
 
+# Test dropping multiple databases
+
+statement ok
+create external database drop_db1 from debug;
+
+statement ok
+create external database drop_db2 from debug;
+
+query T
+select a from drop_db1.public.never_ending LIMIT 1;
+----
+1
+
+query T rowsort
+select b from drop_db2.public.never_ending LIMIT 1;
+----
+2
+
+statement ok
+drop database drop_db1, drop_db2;
+
+statement error
+select a from drop_db1.public.never_ending LIMIT 1;
+
+statement error
+select b from drop_db2.public.never_ending LIMIT 1;
+
 # Test dropping empty schema
 
 statement ok
@@ -114,6 +141,33 @@ drop table drop_table.test;
 
 statement ok
 drop table if exists drop_table.test;
+
+# Test dropping multiple tables
+
+statement ok
+create external table drop_table1 from debug options ( table_type = 'never_ending' );
+
+statement ok
+create external table drop_table2 from debug options ( table_type = 'never_ending' );
+
+query T
+select a from drop_table1 limit 1;
+----
+1
+
+query T
+select b from drop_table2 limit 1;
+----
+2
+
+statement ok
+drop table drop_table1, drop_table2;
+
+statement error
+select a from drop_table1 limit 1;
+
+statement error
+select b from drop_table2 limit 1;
 
 query TT
 select schema_name, table_name from glare_catalog.tables where schema_name='drop_table' and table_name='test';
