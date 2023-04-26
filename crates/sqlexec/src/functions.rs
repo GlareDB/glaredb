@@ -177,6 +177,9 @@ impl PgFunctionBuilder {
             "pg_table_is_visible" => pg_table_is_visible(),
             "pg_encoding_to_char" => pg_encoding_to_char(),
             "array_to_string" => pg_array_to_string(),
+            "has_schema_privilege" => pg_has_schema_privilege(),
+            "has_database_privilege" => pg_has_database_privilege(),
+            "has_table_privilege" => pg_has_table_privilege(),
             _ => return None,
         };
 
@@ -255,6 +258,51 @@ fn pg_array_to_string() -> ScalarUDF {
                 "".to_string(),
             ))))
         }),
+    }
+}
+
+fn pg_has_schema_privilege() -> ScalarUDF {
+    ScalarUDF {
+        name: "has_schema_privilege".to_string(),
+        signature: Signature::new(
+            TypeSignature::OneOf(vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+            ]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))),
+    }
+}
+
+fn pg_has_database_privilege() -> ScalarUDF {
+    ScalarUDF {
+        name: "has_database_privilege".to_string(),
+        signature: Signature::new(
+            TypeSignature::OneOf(vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+            ]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))),
+    }
+}
+
+fn pg_has_table_privilege() -> ScalarUDF {
+    ScalarUDF {
+        name: "has_table_privilege".to_string(),
+        signature: Signature::new(
+            TypeSignature::OneOf(vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+            ]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))),
     }
 }
 

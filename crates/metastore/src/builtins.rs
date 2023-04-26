@@ -486,6 +486,36 @@ FROM glare_catalog.databases;
 ",
 });
 
+pub static PG_TABLE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_table",
+    sql: "
+SELECT
+    schema_name as schemaname,
+    table_name as tablename,
+    '' as tableowner,
+    '' as tablespace,
+    false as hasindexes,
+    false as hasrules,
+    false as hastriggers,
+    false as rowsecurity
+FROM glare_catalog.tables;
+",
+});
+
+pub static PG_VIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_views",
+    sql: "
+SELECT
+    schema_name as schemaname,
+    view_name as viewname,
+    '' as viewowner,
+    sql as definition
+FROM glare_catalog.views;
+",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -499,6 +529,8 @@ impl BuiltinView {
             &PG_NAMESPACE,
             &PG_DESCRIPTION,
             &PG_DATABASE,
+            &PG_TABLE,
+            &PG_VIEWS,
         ]
     }
 }
