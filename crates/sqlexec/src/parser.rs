@@ -4,6 +4,7 @@ use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
+use sqlparser::ast::{Ident, ObjectName};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
@@ -38,7 +39,7 @@ impl fmt::Display for OptionValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalTableStmt {
     /// Name of the table.
-    pub name: String,
+    pub name: ObjectName,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
     /// Data source type.
@@ -71,7 +72,7 @@ impl fmt::Display for CreateExternalTableStmt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalDatabaseStmt {
     /// Name of the database as it exists in GlareDB.
-    pub name: String,
+    pub name: Ident,
     /// Optionally don't error if database exists.
     pub if_not_exists: bool,
     /// The data source type the connection is for.
@@ -102,7 +103,7 @@ impl fmt::Display for CreateExternalDatabaseStmt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropDatabaseStmt {
-    pub name: String,
+    pub names: Vec<Ident>,
     pub if_exists: bool,
 }
 
@@ -112,15 +113,19 @@ impl fmt::Display for DropDatabaseStmt {
         if self.if_exists {
             write!(f, "IF EXISTS ")?;
         }
-
-        write!(f, "{}", self.name)
+        let mut sep = "";
+        for name in self.names.iter() {
+            write!(f, "{sep}{name}")?;
+            sep = ", ";
+        }
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterDatabaseRenameStmt {
-    pub name: String,
-    pub new_name: String,
+    pub name: Ident,
+    pub new_name: Ident,
 }
 
 impl fmt::Display for AlterDatabaseRenameStmt {
@@ -142,6 +147,7 @@ pub enum StatementWithExtensions {
     CreateExternalDatabase(CreateExternalDatabaseStmt),
     /// Drop database extension.
     DropDatabase(DropDatabaseStmt),
+    // Alter database extension (rename).
     AlterDatabaseRename(AlterDatabaseRenameStmt),
 }
 
@@ -277,7 +283,7 @@ impl<'a> CustomParser<'a> {
 
         Ok(StatementWithExtensions::CreateExternalTable(
             CreateExternalTableStmt {
-                name: name.to_string(),
+                name,
                 if_not_exists,
                 datasource,
                 options,
@@ -289,8 +295,9 @@ impl<'a> CustomParser<'a> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-        let name = self.parser.parse_object_name()?;
-        validate_object_name(&name)?;
+
+        let name = self.parser.parse_identifier()?;
+        validate_ident(&name)?;
 
         // FROM datasource
         self.parser.expect_keyword(Keyword::FROM)?;
@@ -301,7 +308,7 @@ impl<'a> CustomParser<'a> {
 
         Ok(StatementWithExtensions::CreateExternalDatabase(
             CreateExternalDatabaseStmt {
-                name: name.to_string(),
+                name,
                 if_not_exists,
                 datasource,
                 options,
@@ -383,24 +390,34 @@ impl<'a> CustomParser<'a> {
 
     fn parse_drop_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
-        let name = self.parser.parse_identifier()?;
+
+        let names = self
+            .parser
+            .parse_comma_separated(Parser::parse_identifier)?;
+
+        for name in names.iter() {
+            validate_ident(name)?;
+        }
+
         Ok(StatementWithExtensions::DropDatabase(DropDatabaseStmt {
-            name: name.value,
+            names,
             if_exists,
         }))
     }
 
     fn parse_alter_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let name = self.parser.parse_identifier()?;
+        validate_ident(&name)?;
+
         if !self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
             return self.expected("RENAME TO", self.parser.peek_token().token);
         }
+
         let new_name = self.parser.parse_identifier()?;
+        validate_ident(&new_name)?;
+
         Ok(StatementWithExtensions::AlterDatabaseRename(
-            AlterDatabaseRenameStmt {
-                name: name.value,
-                new_name: new_name.value,
-            },
+            AlterDatabaseRenameStmt { name, new_name },
         ))
     }
 }
@@ -438,7 +455,7 @@ mod tests {
             OptionValue::Secret("pg_table".to_string()),
         );
         let stmt = CreateExternalTableStmt {
-            name: "test".to_string(),
+            name: ObjectName(vec![Ident::new("test")]),
             if_not_exists: false,
             datasource: "postgres".to_string(),
             options,
@@ -470,7 +487,7 @@ mod tests {
 
         assert_eq!(
             StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
-                name: "test".to_string(),
+                name: ObjectName(vec![Ident::new("test")]),
                 if_not_exists: false,
                 datasource: "postgres".to_string(),
                 options,

@@ -32,6 +32,16 @@ show datestyle;
 ----
 ISO
 
+query T
+show transaction_isolation;
+----
+read uncommitted
+
+query T
+show transaction isolation level;
+----
+read uncommitted
+
 # Update vars
 
 statement ok

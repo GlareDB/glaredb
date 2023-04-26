@@ -500,7 +500,8 @@ impl State {
                         meta: EntryMeta {
                             entry_type: EntryType::Schema,
                             id: oid,
-                            parent: DATABASE_DEFAULT.oid, // Schemas can only be created in the default builtin database for now.
+                            // Schemas can only be created in the default builtin database for now.
+                            parent: DATABASE_DEFAULT.oid,
                             name: create_schema.name.clone(),
                             builtin: false,
                             external: false,
@@ -578,7 +579,7 @@ impl State {
                         Some(id) => *id,
                     };
 
-                    let objs = match self.schema_objects.get(&schema_id) {
+                    let objs = match self.schema_objects.get_mut(&schema_id) {
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_table_rename.schema,
@@ -588,7 +589,7 @@ impl State {
                         Some(objs) => objs,
                     };
 
-                    let oid = match objs.objects.get(&alter_table_rename.name) {
+                    let oid = match objs.objects.remove(&alter_table_rename.name) {
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_table_rename.schema,
@@ -598,18 +599,9 @@ impl State {
                         Some(id) => id,
                     };
 
-                    let mut table = match self.entries.remove(oid)? {
-                        None => {
-                            debug_assert!(false, "missing object '{oid}' in entries");
-                            return Err(MetastoreError::MissingNamedObject {
-                                schema: alter_table_rename.schema,
-                                name: alter_table_rename.name,
-                            });
-                        }
-                        Some(e) => match e {
-                            CatalogEntry::Table(ent) => ent,
-                            other => panic!("unexpected entry type: {:?}", other),
-                        },
+                    let mut table = match self.entries.remove(&oid)?.unwrap() {
+                        CatalogEntry::Table(ent) => ent,
+                        other => unreachable!("unexpected entry type: {:?}", other),
                     };
 
                     table.meta.name = alter_table_rename.new_name;
@@ -640,14 +632,8 @@ impl State {
                         }
                         Some(objs) => objs,
                     };
-                    let ent = match self.entries.get_mut(&oid)? {
-                        None => {
-                            return Err(MetastoreError::MissingDatabase(
-                                alter_database_rename.name,
-                            ));
-                        }
-                        Some(ent) => ent,
-                    };
+
+                    let ent = self.entries.get_mut(&oid)?.unwrap();
                     ent.get_meta_mut().name = alter_database_rename.new_name.clone();
 
                     // Add to database map

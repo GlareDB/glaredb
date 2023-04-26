@@ -21,6 +21,9 @@ create external table t1 from debug options (table_type = 'never_ending');
 statement error
 alter table t1 rename to t2;
 
+statement ok
+drop table if exists t1, t2;
+
 # Tests alter database
 
 statement ok
@@ -42,3 +45,6 @@ alter database d1 rename to d2;
 
 statement error
 alter database default rename to hello;
+
+statement ok
+drop database if exists d1, d2;

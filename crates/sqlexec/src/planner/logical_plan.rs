@@ -1,5 +1,6 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
@@ -142,7 +143,7 @@ pub struct CreateTable {
 
 #[derive(Clone, Debug)]
 pub struct CreateExternalTable {
-    pub table_name: String,
+    pub table_name: OwnedTableReference,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
 }
@@ -162,13 +163,13 @@ pub struct CreateView {
 
 #[derive(Clone, Debug)]
 pub struct AlterTableRename {
-    pub name: String,
-    pub new_name: String,
+    pub name: OwnedTableReference,
+    pub new_name: OwnedTableReference,
 }
 
 #[derive(Clone, Debug)]
 pub struct DropTables {
-    pub names: Vec<String>,
+    pub names: Vec<OwnedTableReference>,
     pub if_exists: bool,
 }
 
@@ -187,7 +188,7 @@ pub struct DropSchemas {
 
 #[derive(Clone, Debug)]
 pub struct DropDatabase {
-    pub name: String,
+    pub names: Vec<String>,
     pub if_exists: bool,
 }
 
@@ -224,13 +225,13 @@ impl From<VariablePlan> for LogicalPlan {
 
 #[derive(Clone, Debug)]
 pub struct SetVariable {
-    pub variable: ast::ObjectName,
+    pub variable: String,
     pub values: Vec<ast::Expr>,
 }
 
 impl SetVariable {
     /// Try to convert the value into a string.
-    pub fn try_into_string(&self) -> Result<String> {
+    pub fn try_value_into_string(&self) -> Result<String> {
         let expr_to_string = |expr: &ast::Expr| {
             Ok(match expr {
                 ast::Expr::Identifier(_) | ast::Expr::CompoundIdentifier(_) => expr.to_string(),

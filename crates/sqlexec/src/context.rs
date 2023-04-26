@@ -137,7 +137,9 @@ impl SessionContext {
             ));
         }
 
-        let (_, schema, name) = self.resolve_object_reference(plan.table_name.into())?;
+        let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
+        // TODO: Check if catalog is valid
+
         self.mutate_catalog([Mutation::CreateExternalTable(
             service::CreateExternalTable {
                 schema,
@@ -191,11 +193,13 @@ impl SessionContext {
     }
 
     pub async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
-        let (_, schema, name) = self.resolve_object_reference(plan.name.into())?;
+        let (_, schema, name) = self.resolve_table_ref(plan.name)?;
+        let (_, _, new_name) = self.resolve_table_ref(plan.new_name)?;
+        // TODO: Check that the schema and catalog names are same.
         self.mutate_catalog([Mutation::AlterTableRename(service::AlterTableRename {
             schema,
             name,
-            new_name: plan.new_name,
+            new_name,
         })])
         .await?;
 
@@ -217,8 +221,8 @@ impl SessionContext {
     /// Drop one or more tables.
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
-        for name in plan.names {
-            let (_, schema, name) = self.resolve_object_reference(name.into())?;
+        for r in plan.names {
+            let (_, schema, name) = self.resolve_table_ref(r)?;
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
@@ -264,12 +268,21 @@ impl SessionContext {
         Ok(())
     }
 
+    /// Drop one or more databases.
     pub async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
-        self.mutate_catalog([Mutation::DropDatabase(service::DropDatabase {
-            name: plan.name,
-            if_exists: plan.if_exists,
-        })])
-        .await?;
+        let drops: Vec<_> = plan
+            .names
+            .into_iter()
+            .map(|name| {
+                Mutation::DropDatabase(service::DropDatabase {
+                    name,
+                    if_exists: plan.if_exists,
+                })
+            })
+            .collect();
+
+        self.mutate_catalog(drops).await?;
+
         Ok(())
     }
 
@@ -452,13 +465,41 @@ impl SessionContext {
         Ok(())
     }
 
+    fn resolve_table_ref(&self, r: TableReference<'_>) -> Result<(String, String, String)> {
+        let r = match r {
+            TableReference::Bare { table } => {
+                let schema = self.first_nonimplicit_schema()?;
+                (
+                    DEFAULT_CATALOG.to_owned(),
+                    schema.to_owned(),
+                    table.into_owned(),
+                )
+            }
+            TableReference::Partial { schema, table } => (
+                DEFAULT_CATALOG.to_owned(),
+                schema.into_owned(),
+                table.into_owned(),
+            ),
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => (
+                catalog.into_owned(),
+                schema.into_owned(),
+                table.into_owned(),
+            ),
+        };
+        Ok(r)
+    }
+
     /// Resolves a reference for an object that existing inside a schema.
     fn resolve_object_reference(&self, name: Cow<'_, str>) -> Result<(String, String, String)> {
         let reference = TableReference::from(name.as_ref());
         match reference {
-            TableReference::Bare { .. } => {
+            TableReference::Bare { table } => {
                 let schema = self.first_nonimplicit_schema()?.to_string();
-                Ok((DEFAULT_CATALOG.to_string(), schema, name.to_string()))
+                Ok((DEFAULT_CATALOG.to_string(), schema, table.to_string()))
             }
             TableReference::Partial { schema, table } => Ok((
                 DEFAULT_CATALOG.to_string(),
