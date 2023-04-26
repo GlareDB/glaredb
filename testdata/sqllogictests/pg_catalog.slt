@@ -17,6 +17,15 @@ select * from pg_catalog.pg_class;
 statement ok
 select * from pg_catalog.pg_description;
 
+statement ok
+select * from pg_catalog.pg_database;
+
+statement ok
+select * from pg_catalog.pg_table;
+
+statement ok
+select * from pg_catalog.pg_views;
+
 # We also implicitly include `pg_catalog` in the search path, so each of the
 # above tables can also be reference with the bare table name.
 
@@ -34,6 +43,15 @@ select * from pg_class;
 
 statement ok
 select * from pg_description;
+
+statement ok
+select * from pg_database;
+
+statement ok
+select * from pg_table;
+
+statement ok
+select * from pg_views;
 
 # Note that this doesn't stop us from creating tables with the same name
 # (matches postgres behavior).
