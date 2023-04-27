@@ -487,17 +487,11 @@ impl<'a> SessionPlanner<'a> {
                 validate_object_name(&name)?;
                 let name = object_name_to_table_ref(name)?;
 
-                if !columns.is_empty() {
-                    return Err(PlanError::UnsupportedFeature("named columns in views"));
-                }
-
                 if !with_options.is_empty() {
                     return Err(PlanError::UnsupportedFeature("view options"));
                 }
 
-                // Also validates that the view body is either a SELECT or
-                // VALUES.
-                let num_columns = match query.body.as_ref() {
+                match query.body.as_ref() {
                     ast::SetExpr::Select(select) => select.projection.len(),
                     ast::SetExpr::Values(values) => {
                         values.rows.first().map(|first| first.len()).unwrap_or(0)
@@ -509,10 +503,24 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
+                // Check that this is a valid body.
+                // TODO: Avoid cloning.
+                let input = planner.sql_statement_to_plan(ast::Statement::Query(query.clone()))?;
+
+                let columns: Vec<_> = columns.into_iter().map(normalize_ident).collect();
+                // Only validate number of aliases equals number of fields in
+                // the ouput if aliases were actually provided.
+                if !columns.is_empty() && input.schema().fields().len() != columns.len() {
+                    return Err(PlanError::InvalidNumberOfAliasesForView {
+                        sql: query.to_string(),
+                        aliases: columns,
+                    });
+                }
+
                 Ok(DdlPlan::CreateView(CreateView {
                     view_name: name,
-                    num_columns,
                     sql: query.to_string(),
+                    columns,
                     or_replace,
                 })
                 .into())

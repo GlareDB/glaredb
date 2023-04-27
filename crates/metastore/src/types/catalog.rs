@@ -315,6 +315,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
 pub struct ViewEntry {
     pub meta: EntryMeta,
     pub sql: String,
+    pub columns: Vec<String>,
 }
 
 impl TryFrom<catalog::ViewEntry> for ViewEntry {
@@ -324,6 +325,7 @@ impl TryFrom<catalog::ViewEntry> for ViewEntry {
         Ok(ViewEntry {
             meta,
             sql: value.sql,
+            columns: value.columns,
         })
     }
 }
@@ -333,6 +335,7 @@ impl From<ViewEntry> for catalog::ViewEntry {
         catalog::ViewEntry {
             meta: Some(value.meta.into()),
             sql: value.sql,
+            columns: value.columns,
         }
     }
 }

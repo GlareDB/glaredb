@@ -8,10 +8,12 @@ use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+use datafusion::common::Column as DfColumn;
 use datafusion::config::{CatalogOptions, ConfigOptions};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
+use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use futures::future::BoxFuture;
@@ -186,6 +188,7 @@ impl SessionContext {
             name,
             sql: plan.sql,
             or_replace: plan.or_replace,
+            columns: plan.columns,
         })])
         .await?;
 
@@ -429,6 +432,7 @@ impl SessionContext {
     pub(crate) fn late_view_plan<'a, 'b: 'a>(
         &'a self,
         sql: &'b str,
+        columns: &'b [String],
     ) -> BoxFuture<Result<datafusion::logical_expr::LogicalPlan, PlanError>> {
         // TODO: Instead of doing late planning, we should instead try to insert
         // the contents of the view into the parent query prior to any planning.
@@ -445,7 +449,18 @@ impl SessionContext {
             let planner = SessionPlanner::new(self);
 
             let plan = planner.plan_ast(statements.pop_front().unwrap()).await?;
-            let df_plan = plan.try_into_datafusion_plan()?;
+            let mut df_plan = plan.try_into_datafusion_plan()?;
+
+            // Wrap logical plan in projection if the view was defined with
+            // column aliases.
+            if !columns.is_empty() {
+                let fields = df_plan.schema().fields().clone();
+                df_plan = DfLogicalPlanBuilder::from(df_plan)
+                    .project(fields.iter().zip(columns.iter()).map(|(field, alias)| {
+                        DfExpr::Column(DfColumn::new_unqualified(field.name())).alias(alias)
+                    }))?
+                    .build()?;
+            }
 
             Ok(df_plan)
         })

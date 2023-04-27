@@ -132,5 +132,8 @@ message ViewEntry {
   // The sql statement for materializing the view.
   string sql = 2;
 
-  // next: 3
+  // Output column aliases. If length of zero, no aliases have been defined.
+  repeated string columns = 3;
+
+  // next: 4
 }
