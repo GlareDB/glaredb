@@ -159,6 +159,7 @@ pub struct CreateView {
     pub view_name: OwnedTableReference,
     pub num_columns: usize,
     pub sql: String,
+    pub or_replace: bool,
 }
 
 #[derive(Clone, Debug)]

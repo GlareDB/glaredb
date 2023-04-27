@@ -476,7 +476,7 @@ impl<'a> SessionPlanner<'a> {
 
             // Views
             ast::Statement::CreateView {
-                or_replace: false,
+                or_replace,
                 materialized: false,
                 name,
                 columns,
@@ -513,6 +513,7 @@ impl<'a> SessionPlanner<'a> {
                     view_name: name,
                     num_columns,
                     sql: query.to_string(),
+                    or_replace,
                 })
                 .into())
             }

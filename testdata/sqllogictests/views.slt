@@ -41,3 +41,31 @@ select * from with_values order by 1;
 ----
 1  2
 3  4
+
+# Replace views
+
+statement ok
+create view my_view as select 1;
+
+query I
+select * from my_view;
+----
+1
+
+statement error
+create view my_view as select 2;
+
+# No change should have been made.
+query I
+select * from my_view;
+----
+1
+
+statement ok
+create or replace view my_view as select 3;
+
+# View should have been replaced.
+query I
+select * from my_view;
+----
+3

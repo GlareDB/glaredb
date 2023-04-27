@@ -233,6 +233,25 @@ impl AsRef<HashMap<u32, CatalogEntry>> for DatabaseEntries {
     }
 }
 
+/// Determine behavior of creates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CreatePolicy {
+    /// Corresponds to 'IF NOT EXISTS' clauses.
+    ///
+    /// Suppresses error if there already exists an object with the same name.
+    CreateIfNotExists,
+
+    /// Corresponds to 'OR REPLACE' clauses.
+    ///
+    /// Replaces an existing object with the same name.
+    CreateOrReplace,
+
+    /// A plain 'CREATE'.
+    ///
+    /// Errors if there exists an object with the same name.
+    Create,
+}
+
 /// Inner state of the catalog.
 #[derive(Debug)]
 struct State {
@@ -514,7 +533,6 @@ impl State {
                 }
                 Mutation::CreateView(create_view) => {
                     validate_object_name(&create_view.name)?;
-                    // TODO: If not exists.
 
                     let schema_id = self.get_schema_id(&create_view.schema)?;
 
@@ -532,11 +550,17 @@ impl State {
                         sql: create_view.sql,
                     };
 
+                    let policy = if create_view.or_replace {
+                        CreatePolicy::CreateOrReplace
+                    } else {
+                        CreatePolicy::Create
+                    };
+
                     self.try_insert_entry_for_schema(
                         CatalogEntry::View(ent),
                         schema_id,
                         oid,
-                        /* if_not_exists = */ false,
+                        policy,
                     )?;
                 }
                 Mutation::CreateExternalTable(create_ext) => {
@@ -557,11 +581,17 @@ impl State {
                         options: create_ext.options,
                     };
 
+                    let policy = if create_ext.if_not_exists {
+                        CreatePolicy::CreateIfNotExists
+                    } else {
+                        CreatePolicy::Create
+                    };
+
                     self.try_insert_entry_for_schema(
                         CatalogEntry::Table(ent),
                         schema_id,
                         oid,
-                        create_ext.if_not_exists,
+                        policy,
                     )?;
                 }
                 Mutation::AlterTableRename(alter_table_rename) => {
@@ -610,7 +640,7 @@ impl State {
                         CatalogEntry::Table(table.clone()),
                         schema_id,
                         table.meta.id,
-                        false,
+                        CreatePolicy::Create,
                     )?;
                 }
                 Mutation::AlterDatabaseRename(alter_database_rename) => {
@@ -648,33 +678,41 @@ impl State {
 
     /// Try to insert an entry for a schema.
     ///
-    /// Errors if there already exists an entry with the same name in the
-    /// schema. Consequentially this means all entries in a schema share the
-    /// same namespace even for different entry types. E.g. a connection cannot
-    /// have the same name as a table.
+    /// Errors depending on the create policy.
     fn try_insert_entry_for_schema(
         &mut self,
         ent: CatalogEntry,
         schema_id: u32,
         oid: u32,
-        if_not_exists: bool,
+        create_policy: CreatePolicy,
     ) -> Result<()> {
         // Insert new entry for schema. Checks if there exists an
         // object with the same name.
         let objs = self.schema_objects.entry(schema_id).or_default();
 
-        if objs.objects.contains_key(&ent.get_meta().name) {
-            if if_not_exists {
-                // Entry already exists so return early with success when the
-                // "IF NOT EXISTS" clause used.
-                return Ok(());
+        match create_policy {
+            CreatePolicy::CreateIfNotExists => {
+                if objs.objects.contains_key(&ent.get_meta().name) {
+                    return Ok(());
+                }
+                objs.objects.insert(ent.get_meta().name.clone(), oid);
+                self.entries.insert(oid, ent)?;
             }
-            return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
+            CreatePolicy::CreateOrReplace => {
+                if let Some(existing_oid) = objs.objects.insert(ent.get_meta().name.clone(), oid) {
+                    self.entries.remove(&existing_oid)?;
+                }
+                self.entries.insert(oid, ent)?;
+            }
+            CreatePolicy::Create => {
+                if objs.objects.contains_key(&ent.get_meta().name) {
+                    return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
+                }
+                objs.objects.insert(ent.get_meta().name.clone(), oid);
+                self.entries.insert(oid, ent)?;
+            }
         }
-        objs.objects.insert(ent.get_meta().name.clone(), oid);
 
-        // Insert entry.
-        self.entries.insert(oid, ent)?;
         Ok(())
     }
 
@@ -902,6 +940,7 @@ mod tests {
                     schema: "numbers".to_string(),
                     name: i.to_string(),
                     sql: format!("select {i}"),
+                    or_replace: false,
                 })
             })
             .collect();
@@ -990,6 +1029,7 @@ mod tests {
                     schema: "mushroom".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
@@ -1029,6 +1069,7 @@ mod tests {
                 schema: "luigi".to_string(),
                 name: "peach".to_string(),
                 sql: "select 1".to_string(),
+                or_replace: false,
             })],
         )
         .await
@@ -1041,10 +1082,55 @@ mod tests {
                 schema: "luigi".to_string(),
                 name: "peach".to_string(),
                 sql: "select 2".to_string(),
+                or_replace: false,
             })],
         )
         .await
         .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn replace_view() {
+        let db = new_catalog().await;
+
+        // Add view.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "public".to_string(),
+                name: "wario".to_string(),
+                sql: "select 1".to_string(),
+                or_replace: false,
+            })],
+        )
+        .await
+        .unwrap();
+
+        // Try to replace with specifying 'or replace'.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "public".to_string(),
+                name: "wario".to_string(),
+                sql: "select 2".to_string(),
+                or_replace: false,
+            })],
+        )
+        .await
+        .unwrap_err();
+
+        // Replace view.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "public".to_string(),
+                name: "wario".to_string(),
+                sql: "select 3".to_string(),
+                or_replace: true,
+            })],
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1069,6 +1155,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
@@ -1082,6 +1169,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
@@ -1095,6 +1183,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
