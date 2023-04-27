@@ -130,13 +130,13 @@ pub struct CreateExternalDatabase {
 
 #[derive(Clone, Debug)]
 pub struct CreateSchema {
-    pub schema_name: String,
+    pub schema_name: SchemaReference,
     pub if_not_exists: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateTable {
-    pub table_name: String,
+    pub table_name: OwnedTableReference,
     pub if_not_exists: bool,
     pub columns: Vec<Field>,
 }
@@ -150,13 +150,13 @@ pub struct CreateExternalTable {
 
 #[derive(Clone, Debug)]
 pub struct CreateTableAs {
-    pub table_name: String,
+    pub table_name: OwnedTableReference,
     pub source: DfLogicalPlan,
 }
 
 #[derive(Clone, Debug)]
 pub struct CreateView {
-    pub view_name: String,
+    pub view_name: OwnedTableReference,
     pub num_columns: usize,
     pub sql: String,
 }
@@ -175,13 +175,13 @@ pub struct DropTables {
 
 #[derive(Clone, Debug)]
 pub struct DropViews {
-    pub names: Vec<String>,
+    pub names: Vec<OwnedTableReference>,
     pub if_exists: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct DropSchemas {
-    pub names: Vec<String>,
+    pub names: Vec<SchemaReference>,
     pub if_exists: bool,
     pub cascade: bool,
 }
@@ -256,4 +256,12 @@ impl SetVariable {
 #[derive(Clone, Debug)]
 pub struct ShowVariable {
     pub variable: String,
+}
+
+/// [`SchemaReference`] represents a multi-part schema that may require further
+/// resolution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SchemaReference {
+    Bare { schema: String },
+    Full { schema: String, catalog: String },
 }

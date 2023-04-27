@@ -21,7 +21,6 @@ use metastore::session::SessionCatalog;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::slice;
 use std::sync::Arc;
@@ -154,10 +153,10 @@ impl SessionContext {
 
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
-        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema {
-            name: plan.schema_name,
-        })])
-        .await?;
+        let (_, name) = Self::resolve_schema_ref(plan.schema_name);
+        // TODO: if_not_exists
+        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema { name })])
+            .await?;
         Ok(())
     }
 
@@ -181,7 +180,7 @@ impl SessionContext {
     }
 
     pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
-        let (_, schema, name) = self.resolve_object_reference(plan.view_name.into())?;
+        let (_, schema, name) = self.resolve_table_ref(plan.view_name)?;
         self.mutate_catalog([Mutation::CreateView(service::CreateView {
             schema,
             name,
@@ -239,7 +238,7 @@ impl SessionContext {
     pub async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for name in plan.names {
-            let (_, schema, name) = self.resolve_object_reference(name.into())?;
+            let (_, schema, name) = self.resolve_table_ref(name)?;
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
@@ -254,14 +253,18 @@ impl SessionContext {
 
     /// Drop one or more schemas.
     pub async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
-        let mut drops = Vec::with_capacity(plan.names.len());
-        for name in plan.names {
-            drops.push(Mutation::DropSchema(service::DropSchema {
-                name,
-                if_exists: plan.if_exists,
-                cascade: plan.cascade,
-            }));
-        }
+        let drops: Vec<_> = plan
+            .names
+            .into_iter()
+            .map(|name| {
+                let (_, name) = Self::resolve_schema_ref(name);
+                Mutation::DropSchema(service::DropSchema {
+                    name,
+                    if_exists: plan.if_exists,
+                    cascade: plan.cascade,
+                })
+            })
+            .collect();
 
         self.mutate_catalog(drops).await?;
 
@@ -465,6 +468,15 @@ impl SessionContext {
         Ok(())
     }
 
+    /// Resolve schema reference.
+    fn resolve_schema_ref(r: SchemaReference) -> (String, String) {
+        match r {
+            SchemaReference::Bare { schema } => (DEFAULT_CATALOG.to_owned(), schema),
+            SchemaReference::Full { schema, catalog } => (catalog, schema),
+        }
+    }
+
+    /// Resolve table reference for objects that live inside a schema.
     fn resolve_table_ref(&self, r: TableReference<'_>) -> Result<(String, String, String)> {
         let r = match r {
             TableReference::Bare { table } => {
@@ -491,27 +503,6 @@ impl SessionContext {
             ),
         };
         Ok(r)
-    }
-
-    /// Resolves a reference for an object that existing inside a schema.
-    fn resolve_object_reference(&self, name: Cow<'_, str>) -> Result<(String, String, String)> {
-        let reference = TableReference::from(name.as_ref());
-        match reference {
-            TableReference::Bare { table } => {
-                let schema = self.first_nonimplicit_schema()?.to_string();
-                Ok((DEFAULT_CATALOG.to_string(), schema, table.to_string()))
-            }
-            TableReference::Partial { schema, table } => Ok((
-                DEFAULT_CATALOG.to_string(),
-                schema.to_string(),
-                table.to_string(),
-            )),
-            TableReference::Full {
-                catalog,
-                schema,
-                table,
-            } => Ok((catalog.to_string(), schema.to_string(), table.to_string())),
-        }
     }
 
     /// Iterate over all values in the search path.

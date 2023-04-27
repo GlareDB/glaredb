@@ -11,9 +11,10 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::OwnedTableReference;
-use datafusion::sql::planner::SqlToRel;
+use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, SqlToRel};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
+use datafusion::sql::TableReference;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
@@ -150,7 +151,7 @@ impl<'a> SessionPlanner<'a> {
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
-        let database_name = resolve_ident(stmt.name);
+        let database_name = normalize_ident(stmt.name);
 
         let plan = CreateExternalDatabase {
             database_name,
@@ -403,18 +404,27 @@ impl<'a> SessionPlanner<'a> {
                 schema_name,
                 if_not_exists,
             } => {
-                // Validate the schema name idents
-                match &schema_name {
-                    ast::SchemaName::Simple(name) => validate_object_name(name)?,
-                    ast::SchemaName::UnnamedAuthorization(ident) => validate_ident(ident)?,
-                    ast::SchemaName::NamedAuthorization(name, ident) => {
-                        validate_object_name(name)?;
-                        validate_ident(ident)?
+                // TODO: Schema Authorization
+                let schema_name = match schema_name {
+                    ast::SchemaName::Simple(name) => {
+                        validate_object_name(&name)?;
+                        object_name_to_schema_ref(name)?
                     }
-                }
+                    ast::SchemaName::UnnamedAuthorization(ident) => {
+                        validate_ident(&ident)?;
+                        SchemaReference::Bare {
+                            schema: normalize_ident(ident),
+                        }
+                    }
+                    ast::SchemaName::NamedAuthorization(name, ident) => {
+                        validate_object_name(&name)?;
+                        validate_ident(&ident)?;
+                        object_name_to_schema_ref(name)?
+                    }
+                };
 
                 Ok(DdlPlan::CreateSchema(CreateSchema {
-                    schema_name: schema_name.to_string(),
+                    schema_name,
                     if_not_exists,
                 })
                 .into())
@@ -431,6 +441,8 @@ impl<'a> SessionPlanner<'a> {
                 ..
             } => {
                 validate_object_name(&name)?;
+                let table_name = object_name_to_table_ref(name)?;
+
                 let mut arrow_cols = Vec::with_capacity(columns.len());
                 for column in columns.into_iter() {
                     let dt = convert_data_type(&column.data_type)?;
@@ -439,7 +451,7 @@ impl<'a> SessionPlanner<'a> {
                 }
 
                 Ok(DdlPlan::CreateTable(CreateTable {
-                    table_name: name.to_string(),
+                    table_name,
                     columns: arrow_cols,
                     if_not_exists,
                 })
@@ -456,12 +468,10 @@ impl<'a> SessionPlanner<'a> {
                 ..
             } => {
                 validate_object_name(&name)?;
+                let table_name = object_name_to_table_ref(name)?;
+
                 let source = planner.sql_statement_to_plan(ast::Statement::Query(query))?;
-                Ok(DdlPlan::CreateTableAs(CreateTableAs {
-                    table_name: name.to_string(),
-                    source,
-                })
-                .into())
+                Ok(DdlPlan::CreateTableAs(CreateTableAs { table_name, source }).into())
             }
 
             // Views
@@ -475,9 +485,12 @@ impl<'a> SessionPlanner<'a> {
                 ..
             } => {
                 validate_object_name(&name)?;
+                let name = object_name_to_table_ref(name)?;
+
                 if !columns.is_empty() {
                     return Err(PlanError::UnsupportedFeature("named columns in views"));
                 }
+
                 if !with_options.is_empty() {
                     return Err(PlanError::UnsupportedFeature("view options"));
                 }
@@ -497,7 +510,7 @@ impl<'a> SessionPlanner<'a> {
                 };
 
                 Ok(DdlPlan::CreateView(CreateView {
-                    view_name: name.to_string(),
+                    view_name: name,
                     num_columns,
                     sql: query.to_string(),
                 })
@@ -548,12 +561,17 @@ impl<'a> SessionPlanner<'a> {
                 names,
                 ..
             } => {
-                let names = names
-                    .into_iter()
-                    .map(|name| name.to_string())
-                    .collect::<Vec<_>>();
-
-                Ok(DdlPlan::DropViews(DropViews { if_exists, names }).into())
+                let mut refs = Vec::with_capacity(names.len());
+                for name in names.into_iter() {
+                    validate_object_name(&name)?;
+                    let r = object_name_to_table_ref(name)?;
+                    refs.push(r);
+                }
+                Ok(DdlPlan::DropViews(DropViews {
+                    if_exists,
+                    names: refs,
+                })
+                .into())
             }
 
             // Drop schemas
@@ -564,14 +582,15 @@ impl<'a> SessionPlanner<'a> {
                 names,
                 ..
             } => {
-                let names = names
-                    .into_iter()
-                    .map(|name| name.to_string())
-                    .collect::<Vec<_>>();
-
+                let mut refs = Vec::with_capacity(names.len());
+                for name in names.into_iter() {
+                    validate_object_name(&name)?;
+                    let r = object_name_to_schema_ref(name)?;
+                    refs.push(r);
+                }
                 Ok(DdlPlan::DropSchemas(DropSchemas {
                     if_exists,
-                    names,
+                    names: refs,
                     cascade,
                 })
                 .into())
@@ -588,31 +607,29 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => {
-                let variable = object_name_to_string(variable);
-
-                Ok(VariablePlan::SetVariable(SetVariable {
-                    variable,
-                    values: value,
-                })
-                .into())
-            }
+            } => Ok(VariablePlan::SetVariable(SetVariable {
+                variable: variable.to_string(),
+                values: value,
+            })
+            .into()),
 
             // "SHOW ..."
             //
             // Show the value of a variable.
-            ast::Statement::ShowVariable { mut variable } => {
+            ast::Statement::ShowVariable { variable } => {
                 // Normalize variables
-                variable.iter_mut().for_each(resolve_ident_in_place);
+                let mut variable: Vec<_> = variable.into_iter().map(normalize_ident).collect();
 
                 let variable = if is_show_transaction_isolation_level(&variable) {
                     // SHOW TRANSACTION ISOLATION LEVEL
                     // Alias of "SHOW transaction_isolation".
                     "transaction_isolation".to_string()
-                } else if variable.is_empty() {
-                    return Err(internal!("expecting one variable to show"));
+                } else if variable.len() != 1 {
+                    return Err(internal!(
+                        "expecting only one variable to show, found: {variable:?}"
+                    ));
                 } else {
-                    object_name_to_string(ObjectName(variable))
+                    variable.pop().unwrap()
                 };
 
                 Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
@@ -626,7 +643,7 @@ impl<'a> SessionPlanner<'a> {
         let mut names = Vec::with_capacity(stmt.names.len());
         for name in stmt.names.into_iter() {
             validate_ident(&name)?;
-            let name = resolve_ident(name);
+            let name = normalize_ident(name);
             names.push(name);
         }
 
@@ -639,67 +656,39 @@ impl<'a> SessionPlanner<'a> {
 
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
         validate_ident(&stmt.name)?;
-        let name = resolve_ident(stmt.name);
+        let name = normalize_ident(stmt.name);
 
         validate_ident(&stmt.new_name)?;
-        let new_name = resolve_ident(stmt.new_name);
+        let new_name = normalize_ident(stmt.new_name);
 
         Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename { name, new_name }).into())
     }
 }
 
-/// Resolves an ident in place (unquoted -> lowercase else case sensitive).
-fn resolve_ident_in_place(ident: &mut Ident) {
-    if ident.quote_style.is_none() {
-        ident.value.make_ascii_lowercase();
-    }
-}
-
 /// Resolves an ident (unquoted -> lowercase else case sensitive).
-fn resolve_ident(ident: Ident) -> String {
-    let mut ident = ident;
-    resolve_ident_in_place(&mut ident);
-    ident.value
+fn normalize_ident(ident: Ident) -> String {
+    let normalizer = IdentNormalizer::new(/* normalize = */ true);
+    normalizer.normalize(ident)
 }
 
 fn object_name_to_table_ref(name: ObjectName) -> Result<OwnedTableReference> {
-    fn pop_value(idents: &mut Vec<Ident>) -> String {
-        resolve_ident(idents.pop().unwrap())
-    }
-
-    let mut name = name;
-    let idents = &mut name.0;
-
-    let refer = match idents.len() {
-        1 => {
-            let table = pop_value(idents);
-            OwnedTableReference::bare(table)
-        }
-        2 => {
-            let table = pop_value(idents);
-            let schema = pop_value(idents);
-            OwnedTableReference::partial(schema, table)
-        }
-        3 => {
-            let table = pop_value(idents);
-            let schema = pop_value(idents);
-            let catalog = pop_value(idents);
-            OwnedTableReference::full(catalog, schema, table)
-        }
-        _ => return Err(internal!("invalid object name: {}", name)),
-    };
-
-    Ok(refer)
+    let r = object_name_to_table_reference(name, /* enable_normalization = */ true)?;
+    Ok(r)
 }
 
-/// Convert the object name into string. This should not be used in case of
-/// table reference, rather is there only for session variables.
-fn object_name_to_string(name: ObjectName) -> String {
-    name.0
-        .into_iter()
-        .map(resolve_ident)
-        .collect::<Vec<_>>()
-        .join(".")
+fn object_name_to_schema_ref(name: ObjectName) -> Result<SchemaReference> {
+    let r = match object_name_to_table_ref(name)? {
+        // Table becomes the schema and schema becomes the catalog.
+        TableReference::Bare { table } => SchemaReference::Bare {
+            schema: table.into_owned(),
+        },
+        TableReference::Partial { schema, table } => SchemaReference::Full {
+            schema: table.into_owned(),
+            catalog: schema.into_owned(),
+        },
+        tr => return Err(internal!("invalid schema object: {tr}")),
+    };
+    Ok(r)
 }
 
 /// Convert a ast data type to an arrow data type.
@@ -935,21 +924,9 @@ fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> Result<DataT
 
 /// If the "SHOW ..." statement equivalent to "SHOW TRANSACTION ISOLATION
 /// LEVEL", return the variable for which to show the value.
-fn is_show_transaction_isolation_level(variable: &Vec<Ident>) -> bool {
-    let statement = ["transaction", "isolation", "level"];
-    if statement.len() != variable.len() {
-        return false;
-    }
-
-    for (var, s) in variable.iter().zip(statement.into_iter()) {
-        if var.quote_style.is_some() {
-            return false;
-        }
-        if var.value != s {
-            return false;
-        }
-    }
-    true
+fn is_show_transaction_isolation_level(variable: &[String]) -> bool {
+    const TRANSACTION_ISOLATION_LEVEL_STMT: [&str; 3] = ["transaction", "isolation", "level"];
+    variable.iter().eq(TRANSACTION_ISOLATION_LEVEL_STMT.iter())
 }
 
 fn remove_required_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<String> {
