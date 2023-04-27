@@ -90,3 +90,88 @@ SELECT * FROM Obj_Name_Database.public.Never_Ending LIMIT 1;
 
 statement ok
 DROP DATABASE "obj_name_database";
+
+# View names
+
+statement ok
+CREATE VIEW obj_name_view AS VALUES (1, 2);
+
+statement error
+CREATE VIEW Obj_Name_View AS VALUES (3, 4);
+
+statement ok
+CREATE VIEW "Obj_Name_View" AS VALUES (3, 4);
+
+query II
+SELECT * FROM Obj_Name_View;
+----
+1 2
+
+query II
+SELECT * FROM "Obj_Name_View";
+----
+3 4
+
+statement ok
+DROP VIEW "obj_name_view";
+
+statement error
+DROP VIEW Obj_Name_View;
+
+statement error
+SELECT * FROM Obj_Name_View;
+
+query II
+SELECT * FROM "Obj_Name_View";
+----
+3 4
+
+statement ok
+DROP VIEW "Obj_Name_View";
+
+# Schema names
+
+statement ok
+CREATE SCHEMA obj_name_schema;
+
+statement error
+CREATE SCHEMA Obj_Name_Schema;
+
+statement ok
+CREATE SCHEMA "Obj_Name_Schema";
+
+statement ok
+CREATE VIEW Obj_Name_Schema.schema_table AS VALUES (1, 2);
+
+query II
+SELECT * FROM Obj_Name_Schema.schema_table;
+----
+1 2
+
+statement ok
+CREATE VIEW "Obj_Name_Schema".schema_table AS VALUES (3, 4);
+
+statement error
+SELECT * FROM "Obj_Name_Schema.schema_table";
+
+query II
+SELECT * FROM "Obj_Name_Schema".schema_table;
+----
+3 4
+
+statement ok
+DROP SCHEMA "obj_name_schema" CASCADE;
+
+statement error
+DROP SCHEMA Obj_Name_Schema;
+
+statement error
+SELECT * FROM obj_name_schema.schema_table;
+
+query II
+SELECT * FROM "Obj_Name_Schema"."schema_table";
+----
+3 4
+
+statement ok
+DROP SCHEMA "Obj_Name_Schema" CASCADE;
