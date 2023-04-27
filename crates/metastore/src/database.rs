@@ -514,7 +514,6 @@ impl State {
                 }
                 Mutation::CreateView(create_view) => {
                     validate_object_name(&create_view.name)?;
-                    // TODO: If not exists.
 
                     let schema_id = self.get_schema_id(&create_view.schema)?;
 
@@ -902,6 +901,7 @@ mod tests {
                     schema: "numbers".to_string(),
                     name: i.to_string(),
                     sql: format!("select {i}"),
+                    or_replace: false,
                 })
             })
             .collect();
@@ -990,6 +990,7 @@ mod tests {
                     schema: "mushroom".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
@@ -1029,6 +1030,7 @@ mod tests {
                 schema: "luigi".to_string(),
                 name: "peach".to_string(),
                 sql: "select 1".to_string(),
+                or_replace: false,
             })],
         )
         .await
@@ -1041,10 +1043,55 @@ mod tests {
                 schema: "luigi".to_string(),
                 name: "peach".to_string(),
                 sql: "select 2".to_string(),
+                or_replace: false,
             })],
         )
         .await
         .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn replace_view() {
+        let db = new_catalog().await;
+
+        // Add view.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "public".to_string(),
+                name: "wario".to_string(),
+                sql: "select 1".to_string(),
+                or_replace: false,
+            })],
+        )
+        .await
+        .unwrap();
+
+        // Try to replace with specifying 'or replace'.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "public".to_string(),
+                name: "wario".to_string(),
+                sql: "select 2".to_string(),
+                or_replace: false,
+            })],
+        )
+        .await
+        .unwrap_err();
+
+        // Replace view.
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateView(CreateView {
+                schema: "public".to_string(),
+                name: "wario".to_string(),
+                sql: "select 3".to_string(),
+                or_replace: true,
+            })],
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1069,6 +1116,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
@@ -1082,6 +1130,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
@@ -1095,6 +1144,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await

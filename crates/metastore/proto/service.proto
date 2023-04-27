@@ -70,6 +70,7 @@ message CreateView {
   string schema = 1;
   string name = 2;
   string sql = 3;
+  bool or_replace = 4;
 }
 
 message CreateExternalTable {

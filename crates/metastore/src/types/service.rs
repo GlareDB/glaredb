@@ -190,6 +190,7 @@ pub struct CreateView {
     pub schema: String,
     pub name: String,
     pub sql: String,
+    pub or_replace: bool,
 }
 
 impl TryFrom<service::CreateView> for CreateView {
@@ -200,6 +201,7 @@ impl TryFrom<service::CreateView> for CreateView {
             schema: value.schema,
             name: value.name,
             sql: value.sql,
+            or_replace: value.or_replace,
         })
     }
 }
@@ -210,6 +212,7 @@ impl From<CreateView> for service::CreateView {
             schema: value.schema,
             name: value.name,
             sql: value.sql,
+            or_replace: value.or_replace,
         }
     }
 }

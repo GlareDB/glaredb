@@ -186,6 +186,7 @@ impl SessionContext {
             schema,
             name,
             sql: plan.sql,
+            or_replace: plan.or_replace,
         })])
         .await?;
 

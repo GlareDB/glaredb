@@ -553,6 +553,7 @@ mod tests {
                     schema: "public".to_string(),
                     name: "mario".to_string(),
                     sql: "select 1".to_string(),
+                    or_replace: false,
                 })],
             )
             .await
