@@ -15,7 +15,7 @@ tracing = "0.1"
 futures = "0.3.28"
 async-trait = "0.1.68"
 datafusion = {workspace = true}
-tokio-util = { version = "0.7.7", features = ["codec"] }
+tokio-util = { version = "0.7.8", features = ["codec"] }
 bytes = "1.4.0"
 tokio = { version = "1", features = ["full"] }
 openssl = "0.10.51"
