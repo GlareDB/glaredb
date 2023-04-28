@@ -554,6 +554,7 @@ mod tests {
                     name: "mario".to_string(),
                     sql: "select 1".to_string(),
                     or_replace: false,
+                    columns: Vec::new(),
                 })],
             )
             .await

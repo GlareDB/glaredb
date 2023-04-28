@@ -191,6 +191,7 @@ pub struct CreateView {
     pub name: String,
     pub sql: String,
     pub or_replace: bool,
+    pub columns: Vec<String>,
 }
 
 impl TryFrom<service::CreateView> for CreateView {
@@ -202,6 +203,7 @@ impl TryFrom<service::CreateView> for CreateView {
             name: value.name,
             sql: value.sql,
             or_replace: value.or_replace,
+            columns: value.columns,
         })
     }
 }
@@ -213,6 +215,7 @@ impl From<CreateView> for service::CreateView {
             name: value.name,
             sql: value.sql,
             or_replace: value.or_replace,
+            columns: value.columns,
         }
     }
 }

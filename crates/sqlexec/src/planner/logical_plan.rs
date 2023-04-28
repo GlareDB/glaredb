@@ -157,8 +157,8 @@ pub struct CreateTableAs {
 #[derive(Clone, Debug)]
 pub struct CreateView {
     pub view_name: OwnedTableReference,
-    pub num_columns: usize,
     pub sql: String,
+    pub columns: Vec<String>,
     pub or_replace: bool,
 }
 

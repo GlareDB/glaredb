@@ -37,6 +37,9 @@ pub enum PlanError {
     #[error("Invalid view statement: {msg}")]
     InvalidViewStatement { msg: &'static str },
 
+    #[error("Invalid number of column aliases for view body; sql: {sql}, aliases: {aliases:?}")]
+    InvalidNumberOfAliasesForView { sql: String, aliases: Vec<String> },
+
     #[error("An ssh connection is not supported datasource for CREATE EXTERNAL TABLE. An ssh connection must be provided as an optional ssh_tunnel with another connection type")]
     ExternalTableWithSsh,
 

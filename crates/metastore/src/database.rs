@@ -548,6 +548,7 @@ impl State {
                             external: false,
                         },
                         sql: create_view.sql,
+                        columns: create_view.columns,
                     };
 
                     let policy = if create_view.or_replace {
@@ -836,6 +837,7 @@ impl BuiltinCatalog {
                         external: false,
                     },
                     sql: view.sql.to_string(),
+                    columns: Vec::new(),
                 }),
             );
             schema_objects
@@ -941,6 +943,7 @@ mod tests {
                     name: i.to_string(),
                     sql: format!("select {i}"),
                     or_replace: false,
+                    columns: Vec::new(),
                 })
             })
             .collect();
@@ -1030,6 +1033,7 @@ mod tests {
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
                     or_replace: false,
+                    columns: Vec::new(),
                 })],
             )
             .await
@@ -1070,6 +1074,7 @@ mod tests {
                 name: "peach".to_string(),
                 sql: "select 1".to_string(),
                 or_replace: false,
+                columns: Vec::new(),
             })],
         )
         .await
@@ -1083,6 +1088,7 @@ mod tests {
                 name: "peach".to_string(),
                 sql: "select 2".to_string(),
                 or_replace: false,
+                columns: Vec::new(),
             })],
         )
         .await
@@ -1101,6 +1107,7 @@ mod tests {
                 name: "wario".to_string(),
                 sql: "select 1".to_string(),
                 or_replace: false,
+                columns: Vec::new(),
             })],
         )
         .await
@@ -1114,6 +1121,7 @@ mod tests {
                 name: "wario".to_string(),
                 sql: "select 2".to_string(),
                 or_replace: false,
+                columns: Vec::new(),
             })],
         )
         .await
@@ -1127,6 +1135,7 @@ mod tests {
                 name: "wario".to_string(),
                 sql: "select 3".to_string(),
                 or_replace: true,
+                columns: Vec::new(),
             })],
         )
         .await
@@ -1156,6 +1165,7 @@ mod tests {
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
                     or_replace: false,
+                    columns: Vec::new(),
                 })],
             )
             .await
@@ -1170,6 +1180,7 @@ mod tests {
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
                     or_replace: false,
+                    columns: Vec::new(),
                 })],
             )
             .await
@@ -1184,6 +1195,7 @@ mod tests {
                     name: "bowser".to_string(),
                     sql: "select 1".to_string(),
                     or_replace: false,
+                    columns: Vec::new(),
                 })],
             )
             .await

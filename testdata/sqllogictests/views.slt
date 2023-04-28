@@ -42,6 +42,19 @@ select * from with_values order by 1;
 1  2
 3  4
 
+# Alias querying a table.
+
+statement ok
+create external table t1 from debug options (table_type = 'never_ending');
+
+statement ok
+create view view_t1 as select * from t1 limit 1;
+
+query I
+select count(*) from view_t1;
+----
+1
+
 # Replace views
 
 statement ok
@@ -69,3 +82,33 @@ query I
 select * from my_view;
 ----
 3
+
+statement ok
+drop view my_view;
+
+# Views with column aliases.
+
+statement ok
+create view aliased_view(a, b) as select 1, 2;
+
+query II
+select b, a from aliased_view;
+----
+2 1
+
+statement ok
+drop view aliased_view;
+
+# Invalid number of aliases.
+
+statement error
+create view invalid1(a) as select 1, 2;
+
+statement error
+create view invalid2(a, b, c) as select 1, 2;
+
+# Invalid view body
+
+statement error
+create view invalid_body as select * from this_table_doesnt_exist;
+

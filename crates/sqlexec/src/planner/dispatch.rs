@@ -411,7 +411,7 @@ impl<'a> SessionDispatcher<'a> {
     async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
         let plan = self
             .ctx
-            .late_view_plan(&view.sql)
+            .late_view_plan(&view.sql, &view.columns)
             .await
             .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))

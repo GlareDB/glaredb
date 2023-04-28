@@ -71,6 +71,7 @@ message CreateView {
   string name = 2;
   string sql = 3;
   bool or_replace = 4;
+  repeated string columns = 5;
 }
 
 message CreateExternalTable {
