@@ -187,5 +187,11 @@ jobs:
           export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
           nix run .#slt-runner -- -v embedded testdata/sqllogictests_mysql/**/*.slt
 
+      - name: SQL Logic Tests (MongoDB)
+        run: |
+          shopt -s globstar
+          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+          nix run .#slt-runner -- -v embedded testdata/sqllogictests_mongo/**/*.slt
+
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

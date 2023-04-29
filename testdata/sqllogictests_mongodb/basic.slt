@@ -1,0 +1,51 @@
+# Basic tests for mongo external tables
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM mongo
+	OPTIONS (
+		connection_string = '${MONGO_CONN_STRING}',
+		database = 'test',
+		collection = 'bikeshare_stations'
+	);
+
+# Some of these don't work. I copied in a few that are known to work.
+#
+# include ../sqllogictests_datasources_common/include/basic.slti
+
+statement ok
+SELECT * FROM basic;
+
+query I
+SELECT count(*) FROM basic;
+----
+102
+
+query I rowsort
+SELECT station_id FROM basic WHERE power_type = 'non-metered';
+----
+2498
+2563
+3455
+
+query I
+SELECT station_id FROM basic
+	WHERE modified_date > '2021-11-04 02:07:00'
+	AND modified_date <= '2021-11-04 02:24:00'
+	ORDER BY station_id;
+----
+11
+111
+1111
+
+query I nosort
+SELECT station_id FROM basic
+	WHERE council_district > 3
+	    AND council_district <= 5
+	ORDER BY station_id;
+----
+2575
+2711
+2712
+3686
+4058
