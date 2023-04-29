@@ -1,0 +1,19 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE external_table
+	FROM mongo
+	OPTIONS (
+		connection_string = '${MONGO_CONN_STRING}',
+		database = 'test',
+		collection = 'bikeshare_stations',
+	);
+
+query I
+SELECT count(*) FROM external_table;
+----
+102
+
+statement ok
+DROP TABLE external_table;
+

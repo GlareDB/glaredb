@@ -1,0 +1,16 @@
+# Basic tests for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE external_db
+	FROM mongo
+	OPTIONS (
+		connection_string = '${MONGO_CONN_STRING}',
+	);
+
+query I
+SELECT count(*) FROM external_db.test.bikeshare_stations;
+----
+102
+
+statement ok
+DROP DATABASE external_db;
