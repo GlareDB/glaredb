@@ -6,26 +6,26 @@ statement error
 CREATE EXTERNAL DATABASE validation
 	FROM snowflake
 	OPTIONS (
-		account_name = 'hmpfscx-xo23956',
-		login_name = '${SNOWFLAKE_USERNAME}',
+		account = 'hmpfscx-xo23956',
+		username = '${SNOWFLAKE_USERNAME}',
 		password = 'incorrect-password',
-		database_name = '${SNOWFLAKE_DATABASE}',
+		database = '${SNOWFLAKE_DATABASE}',
 		warehouse = 'compute_wh',
-		role_name = 'accountadmin',
+		role = 'accountadmin',
 	);
 
 statement error
 CREATE EXTERNAL TABLE validation
 	FROM snowflake
 	OPTIONS (
-		account_name = 'hmpfscx-xo23956',
-		login_name = '${SNOWFLAKE_USERNAME}',
+		account = 'hmpfscx-xo23956',
+		username = '${SNOWFLAKE_USERNAME}',
 		password = 'incorrect-password',
-		database_name = '${SNOWFLAKE_DATABASE}',
+		database = '${SNOWFLAKE_DATABASE}',
 		warehouse = 'compute_wh',
-		role_name = 'accountadmin',
-		schema_name = 'public',
-		table_name = 'datatypes',
+		role = 'accountadmin',
+		schema = 'public',
+		table = 'datatypes',
 	);
 
 # Incorrect schema/table name
@@ -34,26 +34,26 @@ statement error
 CREATE EXTERNAL TABLE validation
 	FROM snowflake
 	OPTIONS (
-		account_name = 'hmpfscx-xo23956',
-		login_name = '${SNOWFLAKE_USERNAME}',
+		account = 'hmpfscx-xo23956',
+		username = '${SNOWFLAKE_USERNAME}',
 		password = 'incorrect-password',
-		database_name = '${SNOWFLAKE_DATABASE}',
+		database = '${SNOWFLAKE_DATABASE}',
 		warehouse = 'compute_wh',
-		role_name = 'accountadmin',
-		schema_name = 'public',
-		table_name = 'incorrect_table',
+		role = 'accountadmin',
+		schema = 'public',
+		table = 'incorrect_table',
 	);
 
 statement error
 CREATE EXTERNAL TABLE validation
 	FROM snowflake
 	OPTIONS (
-		account_name = 'hmpfscx-xo23956',
-		login_name = '${SNOWFLAKE_USERNAME}',
+		account = 'hmpfscx-xo23956',
+		username = '${SNOWFLAKE_USERNAME}',
 		password = 'incorrect-password',
-		database_name = '${SNOWFLAKE_DATABASE}',
+		database = '${SNOWFLAKE_DATABASE}',
 		warehouse = 'compute_wh',
-		role_name = 'accountadmin',
-		schema_name = 'incorrect_schema',
-		table_name = 'datatypes',
+		role = 'accountadmin',
+		schema = 'incorrect_schema',
+		table = 'datatypes',
 	);
