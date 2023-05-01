@@ -4,12 +4,12 @@ statement ok
 CREATE EXTERNAL DATABASE external_db
 	FROM snowflake
 	OPTIONS (
-		account_name = 'hmpfscx-xo23956',
-		login_name = '${SNOWFLAKE_USERNAME}',
+		account = 'hmpfscx-xo23956',
+		username = '${SNOWFLAKE_USERNAME}',
 		password = '${SNOWFLAKE_PASSWORD}',
-		database_name = '${SNOWFLAKE_DATABASE}',
+		database = '${SNOWFLAKE_DATABASE}',
 		warehouse = 'compute_wh',
-		role_name = 'accountadmin',
+		role = 'accountadmin',
 	);
 
 query I
