@@ -120,12 +120,12 @@ impl<'a> SessionPlanner<'a> {
                 DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
-                let account_name = remove_required_opt(m, "account_name")?;
-                let login_name = remove_required_opt(m, "login_name")?;
+                let account_name = remove_required_opt(m, "account")?;
+                let login_name = remove_required_opt(m, "username")?;
                 let password = remove_required_opt(m, "password")?;
-                let database_name = remove_required_opt(m, "database_name")?;
+                let database_name = remove_required_opt(m, "database")?;
                 let warehouse = remove_required_opt(m, "warehouse")?;
-                let role_name = remove_optional_opt(m, "role_name")?;
+                let role_name = remove_optional_opt(m, "role")?;
                 SnowflakeAccessor::validate_external_database(SnowflakeDbConnection {
                     account_name: account_name.clone(),
                     login_name: login_name.clone(),
@@ -248,14 +248,14 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::SNOWFLAKE => {
-                let account_name = remove_required_opt(m, "account_name")?;
-                let login_name = remove_required_opt(m, "login_name")?;
+                let account_name = remove_required_opt(m, "account")?;
+                let login_name = remove_required_opt(m, "username")?;
                 let password = remove_required_opt(m, "password")?;
-                let database_name = remove_required_opt(m, "database_name")?;
+                let database_name = remove_required_opt(m, "database")?;
                 let warehouse = remove_required_opt(m, "warehouse")?;
-                let role_name = remove_optional_opt(m, "role_name")?;
-                let schema_name = remove_required_opt(m, "schema_name")?;
-                let table_name = remove_required_opt(m, "table_name")?;
+                let role_name = remove_optional_opt(m, "role")?;
+                let schema_name = remove_required_opt(m, "schema")?;
+                let table_name = remove_required_opt(m, "table")?;
 
                 let conn_params = SnowflakeDbConnection {
                     account_name: account_name.clone(),
