@@ -1,5 +1,25 @@
 # Validation tests for big query external database and external tables
 
+# External database validation
+
+# Validation test with wrong key
+statement error
+CREATE EXTERNAL DATABASE wrong_key
+    FROM bigquery OPTIONS (
+        service_account_key = '{"random": "key"}',
+        project_id = '${GCP_PROJECT_ID}',
+    );
+
+# Validation test with non-existent project
+statement error
+CREATE EXTERNAL DATABASE non_existant_project
+    FROM bigquery OPTIONS (
+        service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
+        project_id = '${GCP_PROJECT_ID}-bad-project',
+    );
+
+# External table validation
+
 # Validation test with empty key
 statement error
 CREATE EXTERNAL TABLE empty_key
