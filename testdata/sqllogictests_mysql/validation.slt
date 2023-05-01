@@ -1,5 +1,32 @@
 # Validation tests for mysql external database and external tables
 
+# External database validation
+
+# Validation test error with the wrong password
+statement error
+CREATE EXTERNAL DATABASE wrong_password
+    FROM mysql
+    OPTIONS (
+        connection_string = 'mysql://root:wrong_password@127.0.0.1:3307/glaredb_test',
+    );
+
+statement error
+CREATE EXTERNAL DATABASE non_existant_user
+    FROM mysql
+    OPTIONS (
+        connection_string = 'mysql://missing@127.0.0.1:3307/glaredb_test',
+    );
+
+# Validation test error with the wrong host
+statement error
+CREATE EXTERNAL DATABASE wrong_host
+    FROM mysql
+    OPTIONS (
+        connection_string = 'mysql://root@non-existant:3307/glaredb_test',
+    );
+
+# External table validation
+
 # Validation test error with the wrong password
 statement error
 CREATE EXTERNAL TABLE wrong_password

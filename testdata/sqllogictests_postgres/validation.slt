@@ -1,5 +1,32 @@
 # Validation tests for postgres external database and external tables
 
+# External database validation
+
+# Validation test error with the wrong password
+statement error
+CREATE EXTERNAL DATABASE wrong_password
+	FROM postgres
+	OPTIONS (
+		connection_string = 'host=localhost port=5432 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
+	);
+
+statement error
+CREATE EXTERNAL DATABASE non_existant_user
+	FROM postgres
+	OPTIONS (
+		connection_string = 'host=localhost port=5432 user=missing password=password dbname=glaredb_test sslmode=disable',
+	);
+
+# Validation test error with the wrong host
+statement error
+CREATE EXTERNAL DATABASE wrong_host
+	FROM postgres
+	OPTIONS (
+		connection_string = 'host=non-existant port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+	);
+
+# External table validation
+
 # Validation test error with the wrong password
 statement error
 CREATE EXTERNAL TABLE wrong_password
@@ -39,7 +66,7 @@ CREATE EXTERNAL TABLE missing_table
 		table = 'missing_table'
 	);
 
-# Validation test error with the wrong table name
+# Validation test error with the wrong schema name
 statement error
 CREATE EXTERNAL TABLE missing_schema
 	FROM postgres
