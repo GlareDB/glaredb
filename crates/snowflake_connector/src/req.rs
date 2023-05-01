@@ -3,10 +3,10 @@ use std::{collections::HashMap, io::Read, time::Duration};
 use flate2::read::GzDecoder;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    Client, IntoUrl, Url,
+    Client, IntoUrl, StatusCode, Url,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tracing::trace;
+use tracing::{trace, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -156,16 +156,54 @@ impl SnowflakeClient {
             );
         }
 
-        let res = req.send().await?;
-        if !res.status().is_success() {
-            return Err(SnowflakeError::HttpError(res.status()));
+        const MAX_RETRY_COUNT: usize = 3;
+
+        fn should_retry(count: usize, status: StatusCode) -> bool {
+            let should_not_retry =
+                // If the try count exceeds the limit
+                count >= MAX_RETRY_COUNT
+                // If the request is successful
+                || status.is_success()
+                // or if it's a client error != 429
+                || (status.is_client_error() && status != StatusCode::TOO_MANY_REQUESTS);
+
+            !should_not_retry
         }
 
-        let res = res.text().await?;
-        trace!(%res, "response");
+        for try_count in 0..=MAX_RETRY_COUNT {
+            let res = req
+                .try_clone()
+                .expect("request should be clone-able")
+                .send()
+                .await?;
 
-        let res: R = serde_json::from_str(&res)?;
-        Ok(res)
+            let status = res.status();
+
+            if should_retry(try_count, status) {
+                let retry = try_count + 1;
+                warn!(%retry, %status, "request failed, retrying!");
+                continue;
+            }
+
+            if !status.is_success() {
+                // TODO: Parse error JSON and return with proper error message.
+                return Err(SnowflakeError::HttpError(res.status()));
+            }
+
+            let res = res.text().await?;
+            trace!(%res, "response");
+
+            let res: R = serde_json::from_str(&res)?;
+            return Ok(res);
+        }
+
+        // This is technically unreachable but just to be safe (to avoid panics
+        // in prod) just debug-asserting here.
+        debug_assert!(
+            false,
+            "unreachable: request re-tried even after max count exceeded"
+        );
+        Err(SnowflakeError::HttpError(StatusCode::INTERNAL_SERVER_ERROR))
     }
 }
 
