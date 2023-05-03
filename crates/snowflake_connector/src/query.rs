@@ -731,13 +731,14 @@ fn json_to_arrow(schema: SchemaRef, rows: Vec<Vec<Option<String>>>) -> Result<Re
                 }
                 make_json_column!(Int64Builder, rows, col_idx, parse_int)
             }
-            dt @ DataType::Decimal128(_, _) => {
-                fn parse_decimal(s: &str) -> i128 {
-                    let d: rust_decimal::Decimal = s
+            dt @ DataType::Decimal128(_, scale) => {
+                let parse_decimal = |s: &str| -> i128 {
+                    let mut d: decimal::Decimal128 = s
                         .parse()
                         .expect("value should be a valid decimal representation");
+                    d.rescale(*scale);
                     d.mantissa()
-                }
+                };
                 let mut arr =
                     Decimal128Builder::with_capacity(rows.len()).with_data_type(dt.clone());
                 make_json_column_using!(arr, rows, col_idx, parse_decimal)

@@ -1,7 +1,7 @@
 use chrono::{Datelike, Timelike};
+use decimal::{Decimal, DecimalType};
 use dtoa::{Buffer as DtoaBuffer, Float as DtoaFloat};
 use num_traits::{Float as NumFloat, PrimInt as NumInt};
-use rust_decimal::Decimal;
 use std::fmt::{Display, Write};
 
 use crate::error::{ReprError, Result};
@@ -226,17 +226,18 @@ where
 }
 
 /// Encode a precision decimal with scale.
-pub fn encode_decimal<B>(buf: &mut B, v: &Decimal) -> Result<()>
+pub fn encode_decimal<B, D>(buf: &mut B, v: &Decimal<D>) -> Result<()>
 where
     B: Write,
+    D: DecimalType,
 {
-    // TODO: Implement formatting like for floating point numbers.
     put_fmt!(buf, "{v}")
 }
 
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+    use decimal::Decimal128;
 
     use super::*;
 
@@ -418,7 +419,7 @@ mod tests {
         assert_encode!(
             "123.456",
             encode_decimal,
-            &Decimal::from_i128_with_scale(123456, 3),
+            &Decimal128::new(123456, 3).unwrap(),
         );
     }
 }

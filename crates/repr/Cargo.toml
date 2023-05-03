@@ -10,4 +10,4 @@ thiserror = "1.0"
 num-traits = "0.2.15"
 dtoa = "1.0.6"
 chrono = "0.4.24"
-rust_decimal = "1.29.0"
+decimal = { path = "../decimal" }
