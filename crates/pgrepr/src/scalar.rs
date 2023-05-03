@@ -10,7 +10,7 @@ use datafusion::{
     },
     scalar::ScalarValue as DfScalar,
 };
-use rust_decimal::Decimal;
+use decimal::Decimal128;
 use tokio_postgres::types::Type as PgType;
 
 use crate::{
@@ -42,7 +42,7 @@ pub enum Scalar {
     TimestampTz(DateTime<Tz>),
     Time(NaiveTime),
     Date(NaiveDate),
-    Decimal(Decimal),
+    Decimal(Decimal128),
     // A datafusion value that isn't yet supported by us. Ultimately we want to
     // remove this and error in case we don't support something explicitly.
     Other(DfScalar),
@@ -178,7 +178,8 @@ impl Scalar {
                 Self::Date(naive_date)
             }
             DfScalar::Decimal128(Some(v), _precision, scale) => {
-                let decimal = Decimal::from_i128_with_scale(v, scale as u32);
+                let decimal =
+                    Decimal128::new(v, scale).expect("value should be a valid decimal128");
                 Self::Decimal(decimal)
             }
 
@@ -255,7 +256,7 @@ impl Scalar {
                 DfScalar::Date32(Some(days_since_epoch as i32))
             }
             (Self::Decimal(v), arrow_type @ ArrowType::Decimal128(precision, scale)) => {
-                if v.scale() != *scale as u32 {
+                if v.scale() != *scale {
                     return Err(PgReprError::InternalError(format!(
                         "cannot convert from {:?} to arrow type {:?}",
                         v, arrow_type

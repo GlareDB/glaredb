@@ -1,0 +1,9 @@
+[package]
+name = "decimal"
+version = {workspace = true}
+edition = {workspace = true}
+
+[dependencies]
+thiserror = "1.0"
+num-traits = "0.2.15"
+regex = "1.8.1"

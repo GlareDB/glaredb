@@ -1,13 +1,13 @@
 [package]
 name = "datasource_common"
-version = {workspace = true}
-edition = {workspace = true}
+version = { workspace = true }
+edition = { workspace = true }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-metastore = {path = "../metastore"}
-repr = {path = "../repr"}
+metastore = { path = "../metastore" }
+repr = { path = "../repr" }
 openssh = "0.9.9"
 rand = "0.8.5"
 async-trait = "0.1.67"
@@ -17,6 +17,6 @@ tempfile = "3.5.0"
 thiserror = "1.0"
 tokio = { version = "1.28.0", features = ["full"] }
 tracing = "0.1"
-datafusion = {workspace = true}
+datafusion = { workspace = true }
 chrono = "0.4.24"
-rust_decimal = "1.29.0"
+decimal = { path = "../decimal" }

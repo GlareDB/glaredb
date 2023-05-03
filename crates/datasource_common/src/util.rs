@@ -11,8 +11,8 @@ use datafusion::{
     },
     scalar::ScalarValue,
 };
+use decimal::Decimal128;
 use repr::str::encode::*;
-use rust_decimal::Decimal;
 
 use crate::errors::{DatasourceCommonError, Result};
 
@@ -94,7 +94,7 @@ pub fn encode_literal_to_text(
             encode_date(buf, &naive)?;
         }
         ScalarValue::Decimal128(Some(v), _precision, scale) => {
-            let decimal = Decimal::from_i128_with_scale(*v, *scale as u32);
+            let decimal = Decimal128::new(*v, *scale).expect("value should be a valid decimal128");
             encode_decimal(buf, &decimal)?;
         }
         s => {

@@ -1531,12 +1531,12 @@ dependencies = [
  "async-trait",
  "chrono",
  "datafusion",
+ "decimal",
  "futures",
  "metastore",
  "openssh",
  "rand 0.8.5",
  "repr",
- "rust_decimal",
  "ssh-key",
  "tempfile",
  "thiserror",
@@ -1568,7 +1568,6 @@ dependencies = [
  "datasource_common",
  "futures",
  "mongodb",
- "rust_decimal",
  "serde",
  "thiserror",
  "tokio",
@@ -1639,6 +1638,15 @@ dependencies = [
  "snowflake_connector",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "decimal"
+version = "0.0.5"
+dependencies = [
+ "num-traits",
+ "regex",
+ "thiserror",
 ]
 
 [[package]]
@@ -3590,10 +3598,10 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "datafusion",
+ "decimal",
  "dtoa",
  "num-traits",
  "repr",
- "rust_decimal",
  "thiserror",
  "tokio-postgres",
  "tracing",
@@ -3732,20 +3740,6 @@ dependencies = [
  "log",
  "wepoll-ffi",
  "windows-sys 0.42.0",
-]
-
-[[package]]
-name = "postgres"
-version = "0.19.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "960c214283ef8f0027974c03e9014517ced5db12f021a9abb66185a5751fab0a"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "futures-util",
- "log",
- "tokio",
- "tokio-postgres",
 ]
 
 [[package]]
@@ -4217,9 +4211,9 @@ name = "repr"
 version = "0.0.5"
 dependencies = [
  "chrono",
+ "decimal",
  "dtoa",
  "num-traits",
- "rust_decimal",
  "thiserror",
 ]
 
@@ -4361,12 +4355,10 @@ dependencies = [
  "byteorder",
  "bytes",
  "num-traits",
- "postgres",
  "rand 0.8.5",
  "rkyv",
  "serde",
  "serde_json",
- "tokio-postgres",
 ]
 
 [[package]]
@@ -4932,11 +4924,11 @@ dependencies = [
  "bytes",
  "chrono",
  "datafusion",
+ "decimal",
  "flate2",
  "hex",
  "logutil",
  "reqwest",
- "rust_decimal",
  "serde",
  "serde_json",
  "thiserror",
