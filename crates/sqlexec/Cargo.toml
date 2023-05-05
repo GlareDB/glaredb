@@ -24,7 +24,7 @@ sqlparser = "0.33.0"
 datafusion = {workspace = true}
 futures = "0.3.28"
 tracing = "0.1"
-uuid = { version = "1.3.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.3.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
 object_store = "0.5"
 regex = "1.8"
 lazy_static = "1.4"
