@@ -523,7 +523,7 @@ dependencies = [
 [[package]]
 name = "bigquery-storage"
 version = "0.1.2"
-source = "git+https://github.com/glaredb/bigquery-storage?branch=master#a2a6e61df983e193f001ddfb174c8229814355b1"
+source = "git+https://github.com/glaredb/bigquery-storage?branch=master#f1adb024e7e917c773c09c581f9b25745a9259f4"
 dependencies = [
  "futures",
  "hyper",
