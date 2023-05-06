@@ -184,7 +184,7 @@ impl<'a> ContextProvider for PartialContextProvider<'a> {
             .map(|f| Arc::new(f.build_scalar_udf(self.ctx)))
         {
             Some(func) => Some(func),
-            None => PgFunctionBuilder::try_from_name(name, true),
+            None => PgFunctionBuilder::try_from_name(self.ctx, name, true),
         }
     }
 

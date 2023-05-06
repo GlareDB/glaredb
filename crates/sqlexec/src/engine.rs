@@ -13,8 +13,13 @@ use uuid::Uuid;
 pub struct SessionInfo {
     /// Database id that this session is connected to.
     pub database_id: Uuid,
-    /// ID of the user who initiated the connection.
+    // Name of the database we're connected to.
+    pub database_name: String,
+    /// ID of the user who initiated the connection. This maps to a user account
+    /// on Cloud.
     pub user_id: Uuid,
+    /// Name of the (database) user.
+    pub user_name: String,
     /// Unique connection id.
     pub conn_id: Uuid,
     // Max datasource count allowed.
@@ -42,11 +47,14 @@ impl Engine {
     }
 
     /// Create a new session with the given id.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new_session(
         &self,
         user_id: Uuid,
+        user_name: String,
         conn_id: Uuid,
         database_id: Uuid,
+        database_name: String,
         max_datasource_count: usize,
         memory_limit_bytes: usize,
     ) -> Result<Session> {
@@ -54,7 +62,9 @@ impl Engine {
 
         let info = Arc::new(SessionInfo {
             database_id,
+            database_name,
             user_id,
+            user_name,
             conn_id,
             max_datasource_count,
             memory_limit_bytes,
