@@ -1,0 +1,33 @@
+# Postgres function compatibility
+#
+# Some of these depend on connection values set in the slt runner (e.g. user == 'glaredb')
+#
+# Also note that some of these having special cases when parsing. For example
+# `select current_user;` parses as expected, but `select current_user();` does
+# not.
+#
+# See <https://github.com/sqlparser-rs/sqlparser-rs/pull/561>
+
+statement ok
+set search_path = public;
+
+query T
+select current_schema();
+----
+public
+
+query T
+select current_user;
+----
+glaredb
+
+query T
+select current_database();
+----
+glaredb
+
+query T
+select current_catalog;
+----
+glaredb
+

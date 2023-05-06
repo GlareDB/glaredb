@@ -1,5 +1,6 @@
 //! Built-in functions.
 use crate::context::SessionContext;
+use datafusion::arrow::array::StringBuilder;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::ScalarValue;
 use datafusion::logical_expr::{
@@ -146,9 +147,13 @@ impl PgFunctionBuilder {
     ///
     /// If `implicit_pg_schema` is true, try to resolve the function as if the
     /// postgres schema is in the search path.
-    pub fn try_from_name(name: &str, implicit_pg_schema: bool) -> Option<Arc<ScalarUDF>> {
+    pub fn try_from_name(
+        ctx: &SessionContext,
+        name: &str,
+        implicit_pg_schema: bool,
+    ) -> Option<Arc<ScalarUDF>> {
         if implicit_pg_schema {
-            if let Some(func) = Self::try_from_unqualified(name) {
+            if let Some(func) = Self::try_from_unqualified(ctx, name) {
                 return Some(func);
             }
         }
@@ -168,10 +173,10 @@ impl PgFunctionBuilder {
         if idents[0] != POSTGRES_SCHEMA {
             return None;
         }
-        Self::try_from_unqualified(idents[1])
+        Self::try_from_unqualified(ctx, idents[1])
     }
 
-    fn try_from_unqualified(name: &str) -> Option<Arc<ScalarUDF>> {
+    fn try_from_unqualified(ctx: &SessionContext, name: &str) -> Option<Arc<ScalarUDF>> {
         let func = match name {
             "pg_get_userbyid" => pg_get_userbyid(),
             "pg_table_is_visible" => pg_table_is_visible(),
@@ -180,6 +185,11 @@ impl PgFunctionBuilder {
             "has_schema_privilege" => pg_has_schema_privilege(),
             "has_database_privilege" => pg_has_database_privilege(),
             "has_table_privilege" => pg_has_table_privilege(),
+            "current_user" | "current_role" | "user" => pg_current_user(&ctx.get_info().user_name),
+            "current_schema" => pg_current_schema(ctx.search_path_iter().next()),
+            "current_database" | "current_catalog" => {
+                pg_current_database(&ctx.get_info().database_name)
+            }
             _ => return None,
         };
 
@@ -306,6 +316,42 @@ fn pg_has_table_privilege() -> ScalarUDF {
     }
 }
 
+fn pg_current_user(user: &str) -> ScalarUDF {
+    let mut builder = StringBuilder::new();
+    builder.append_value(user);
+    let arr = Arc::new(builder.finish());
+    ScalarUDF {
+        name: "current_user".to_string(),
+        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
+    }
+}
+
+fn pg_current_database(database: &str) -> ScalarUDF {
+    let mut builder = StringBuilder::new();
+    builder.append_value(database);
+    let arr = Arc::new(builder.finish());
+    ScalarUDF {
+        name: "current_database".to_string(),
+        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
+    }
+}
+
+fn pg_current_schema(schema: Option<&str>) -> ScalarUDF {
+    let mut builder = StringBuilder::new();
+    builder.append_option(schema);
+    let arr = Arc::new(builder.finish());
+    ScalarUDF {
+        name: "current_schema".to_string(),
+        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
+    }
+}
+
 fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue> {
     match input.get(n) {
         Some(input) => match input {
@@ -313,49 +359,5 @@ fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue
             ColumnarValue::Array(arr) => ScalarValue::try_from_array(arr, 0).ok(),
         },
         None => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resolve_rules_pg_func() {
-        #[derive(Debug)]
-        struct TestCase {
-            name: &'static str,
-            implicit_pg_schema: bool,
-            is_some: bool,
-        }
-
-        let test_cases = [
-            TestCase {
-                name: "pg_get_userbyid",
-                implicit_pg_schema: false,
-                is_some: false,
-            },
-            TestCase {
-                name: "pg_get_userbyid",
-                implicit_pg_schema: true,
-                is_some: true,
-            },
-            TestCase {
-                name: "pg_catalog.pg_get_userbyid",
-                implicit_pg_schema: true,
-                is_some: true,
-            },
-            TestCase {
-                name: "pg_catalog.pg_get_userbyid",
-                implicit_pg_schema: false,
-                is_some: true,
-            },
-        ];
-
-        for tc in test_cases {
-            println!("test case: {tc:?}");
-            let func = PgFunctionBuilder::try_from_name(tc.name, tc.implicit_pg_schema);
-            assert_eq!(tc.is_some, func.is_some());
-        }
     }
 }

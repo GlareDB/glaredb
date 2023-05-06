@@ -148,6 +148,10 @@ impl ProtocolHandler {
             .read_proxy_key_val(&mut framed, &GLAREDB_MEMORY_LIMIT_BYTES_KEY, &params)
             .await?;
 
+        // Standard postgres params. These values are used only for informational purposes.
+        let user_name = params.get("user").cloned().unwrap_or_default();
+        let database_name = params.get("database").cloned().unwrap_or_default();
+
         // Handle password
         framed
             .send(BackendMessage::AuthenticationCleartextPassword)
@@ -166,8 +170,10 @@ impl ProtocolHandler {
             .engine
             .new_session(
                 user_id,
+                user_name,
                 conn_id,
                 db_id,
+                database_name,
                 max_datasource_count,
                 memory_limit_bytes,
             )
