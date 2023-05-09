@@ -5,6 +5,7 @@ use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -56,6 +57,10 @@ enum Commands {
         /// API key for segment.
         #[clap(long, value_parser)]
         segment_key: Option<String>,
+
+        /// Path to spill temporary files to.
+        #[clap(long, value_parser)]
+        spill_path: Option<PathBuf>,
     },
 
     /// Starts an instance of the pgsrv proxy.
@@ -104,11 +109,12 @@ fn main() -> Result<()> {
             metastore_addr,
             local,
             mut segment_key,
+            spill_path,
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
-            begin_server(&bind, metastore_addr, segment_key, local)?;
+            begin_server(&bind, metastore_addr, segment_key, local, spill_path)?;
         }
         Commands::Proxy {
             bind,
@@ -152,12 +158,13 @@ fn begin_server(
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     local: bool,
+    spill_path: Option<PathBuf>,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(metastore_addr, segment_key, local).await?;
+        let server = Server::connect(metastore_addr, segment_key, local, spill_path).await?;
         server.serve(conf).await
     })
 }

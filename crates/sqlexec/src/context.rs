@@ -11,6 +11,7 @@ use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as Arro
 use datafusion::common::Column as DfColumn;
 use datafusion::config::{CatalogOptions, ConfigOptions};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
+use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
@@ -24,6 +25,7 @@ use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
@@ -62,14 +64,20 @@ pub struct SessionContext {
 
 impl SessionContext {
     /// Create a new session context with the given catalog.
+    ///
+    /// If `spill_path` is provided, a new disk manager will be created pointing
+    /// to that path. Otherwise the manager will be kept as default (request
+    /// temp files from the OS).
+    ///
+    /// If `info.memory_limit_bytes` is non-zero, a new memory pool will be
+    /// created with the max set to this value.
     pub fn new(
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         metrics: SessionMetrics,
+        spill_path: Option<PathBuf>,
     ) -> SessionContext {
-        // TODO: Pass in datafusion runtime env.
-
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
         let mut catalog_opts = CatalogOptions::default();
@@ -79,13 +87,17 @@ impl SessionContext {
         config_opts.catalog = catalog_opts;
         let config: SessionConfig = config_opts.into();
 
-        // new datafusion runtime env with memory pool
-        let mut runtime = Arc::new(RuntimeEnv::default());
-        if info.memory_limit_bytes > 0 {
-            let pool = Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes));
-            let rc = RuntimeConfig::default().with_memory_pool(pool);
-            runtime = Arc::new(RuntimeEnv::new(rc).unwrap());
+        // Create a new datafusion runtime env with disk manager and memory pool
+        // if needed.
+        let mut conf = RuntimeConfig::default();
+        if let Some(spill_path) = spill_path {
+            conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
+        if info.memory_limit_bytes > 0 {
+            conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes)));
+        }
+        let runtime = Arc::new(RuntimeEnv::new(conf).unwrap());
+
         let state = SessionState::with_config_rt(config, runtime);
 
         // Note that we do not replace the default catalog list on the state. We
