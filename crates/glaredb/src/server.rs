@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::{env, fs};
 
@@ -26,12 +27,18 @@ impl Server {
         metastore_addr: Option<String>,
         segment_key: Option<String>,
         local: bool,
+        spill_path: Option<PathBuf>,
     ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
         let env_tmp = env::temp_dir();
         info!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
+
+        if let Some(spill_path) = &spill_path {
+            info!(?spill_path, "checking spill path");
+            check_spill_path(spill_path)?;
+        }
 
         // Connect to metastore.
         let metastore_client = match (metastore_addr, local) {
@@ -61,7 +68,7 @@ impl Server {
             }
         };
 
-        let engine = Engine::new(metastore_client, Arc::new(tracker)).await?;
+        let engine = Engine::new(metastore_client, Arc::new(tracker), spill_path).await?;
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(engine, local)),
         })
@@ -87,4 +94,14 @@ impl Server {
             );
         }
     }
+}
+
+/// Check that the spill path exists and that it's writable.
+fn check_spill_path(path: &Path) -> Result<()> {
+    fs::create_dir_all(path)?;
+
+    let file = path.join("glaredb_startup_spill_check");
+    fs::write(&file, vec![0, 1, 2, 3])?;
+    fs::remove_file(&file)?;
+    Ok(())
 }

@@ -3,6 +3,7 @@ use crate::metastore::Supervisor;
 use crate::session::Session;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
+use std::path::PathBuf;
 use std::sync::Arc;
 use telemetry::Tracker;
 use tonic::transport::Channel;
@@ -32,6 +33,7 @@ pub struct SessionInfo {
 pub struct Engine {
     supervisor: Supervisor,
     tracker: Arc<Tracker>,
+    spill_path: Option<PathBuf>,
 }
 
 impl Engine {
@@ -39,10 +41,12 @@ impl Engine {
     pub async fn new(
         metastore: MetastoreServiceClient<Channel>,
         tracker: Arc<Tracker>,
+        spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
         Ok(Engine {
             supervisor: Supervisor::new(metastore),
             tracker,
+            spill_path,
         })
     }
 
@@ -73,7 +77,13 @@ impl Engine {
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
-        let session = Session::new(info, catalog, metastore, self.tracker.clone())?;
+        let session = Session::new(
+            info,
+            catalog,
+            metastore,
+            self.tracker.clone(),
+            self.spill_path.clone(),
+        )?;
         Ok(session)
     }
 }

@@ -14,6 +14,7 @@ use datafusion::scalar::ScalarValue;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 use telemetry::Tracker;
 
@@ -145,9 +146,10 @@ impl Session {
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         tracker: Arc<Tracker>,
+        spill_path: Option<PathBuf>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, metrics);
+        let ctx = SessionContext::new(info, catalog, metastore, metrics, spill_path);
         Ok(Session { ctx })
     }
 
