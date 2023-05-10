@@ -101,7 +101,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     logutil::init(cli.verbose, cli.json_logging);
 
-    info!("starting...");
+    info!(version = env!("CARGO_PKG_VERSION"), "starting...");
 
     match cli.command {
         Commands::Server {

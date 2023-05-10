@@ -178,18 +178,19 @@ impl PgFunctionBuilder {
 
     fn try_from_unqualified(ctx: &SessionContext, name: &str) -> Option<Arc<ScalarUDF>> {
         let func = match name {
-            "pg_get_userbyid" => pg_get_userbyid(),
-            "pg_table_is_visible" => pg_table_is_visible(),
-            "pg_encoding_to_char" => pg_encoding_to_char(),
             "array_to_string" => pg_array_to_string(),
-            "has_schema_privilege" => pg_has_schema_privilege(),
-            "has_database_privilege" => pg_has_database_privilege(),
-            "has_table_privilege" => pg_has_table_privilege(),
-            "current_user" | "current_role" | "user" => pg_current_user(&ctx.get_info().user_name),
-            "current_schema" => pg_current_schema(ctx.search_path_iter().next()),
             "current_database" | "current_catalog" => {
                 pg_current_database(&ctx.get_info().database_name)
             }
+            "current_schema" => pg_current_schema(ctx.search_path_iter().next()),
+            "current_user" | "current_role" | "user" => pg_current_user(&ctx.get_info().user_name),
+            "has_database_privilege" => pg_has_database_privilege(),
+            "has_schema_privilege" => pg_has_schema_privilege(),
+            "has_table_privilege" => pg_has_table_privilege(),
+            "pg_encoding_to_char" => pg_encoding_to_char(),
+            "pg_get_userbyid" => pg_get_userbyid(),
+            "pg_table_is_visible" => pg_table_is_visible(),
+            "version" => pg_version(ctx.get_session_vars().glaredb_version.value()),
             _ => return None,
         };
 
@@ -346,6 +347,18 @@ fn pg_current_schema(schema: Option<&str>) -> ScalarUDF {
     let arr = Arc::new(builder.finish());
     ScalarUDF {
         name: "current_schema".to_string(),
+        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
+    }
+}
+
+fn pg_version(version: &str) -> ScalarUDF {
+    let mut builder = StringBuilder::new();
+    builder.append_value(version);
+    let arr = Arc::new(builder.finish());
+    ScalarUDF {
+        name: "version".to_string(),
         signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
         return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
         fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),

@@ -3,8 +3,8 @@ use crate::errors::{ExecError, Result};
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use lazy_static::lazy_static;
 use metastore::builtins::DEFAULT_SCHEMA;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::borrow::{Borrow, ToOwned};
 use std::sync::Arc;
@@ -50,13 +50,19 @@ const TRANSACTION_ISOLATION: ServerVar<str> = ServerVar {
     value: "read uncommitted",
 };
 
-lazy_static! {
-    static ref DEFAULT_SEARCH_PATH: [String; 1] = [DEFAULT_SCHEMA.to_owned()];
-    static ref SEARCH_PATH: ServerVar<[String]> = ServerVar {
-        name: "search_path",
-        value: &*DEFAULT_SEARCH_PATH,
-    };
-}
+static DEFAULT_SEARCH_PATH: Lazy<[String; 1]> = Lazy::new(|| [DEFAULT_SCHEMA.to_owned()]);
+static SEARCH_PATH: Lazy<ServerVar<[String]>> = Lazy::new(|| ServerVar {
+    name: "search_path",
+    value: &*DEFAULT_SEARCH_PATH,
+});
+
+// GlareDB specific.
+static GLAREDB_VERSION_OWNED: Lazy<String> =
+    Lazy::new(|| format!("v{}", env!("CARGO_PKG_VERSION")));
+static GLAREDB_VERSION: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {
+    name: "glaredb_version",
+    value: &GLAREDB_VERSION_OWNED,
+});
 
 // GlareDB specific.
 const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
@@ -87,6 +93,7 @@ pub struct SessionVars {
     pub search_path: SessionVar<[String]>,
     pub enable_debug_datasources: SessionVar<bool>,
     pub force_catalog_refresh: SessionVar<bool>,
+    pub glaredb_version: &'static ServerVar<str>,
 }
 
 impl SessionVars {
@@ -125,6 +132,8 @@ impl SessionVars {
             Ok(&self.enable_debug_datasources)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
             Ok(&self.force_catalog_refresh)
+        } else if name.eq_ignore_ascii_case(GLAREDB_VERSION.name) {
+            Ok(self.glaredb_version)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -154,6 +163,10 @@ impl SessionVars {
             self.enable_debug_datasources.set(val)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
             self.force_catalog_refresh.set(val)
+        } else if name.eq_ignore_ascii_case(GLAREDB_VERSION.name) {
+            Err(ExecError::VariableReadonly(
+                GLAREDB_VERSION.name.to_string(),
+            ))
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -174,6 +187,7 @@ impl Default for SessionVars {
             search_path: SessionVar::new(&SEARCH_PATH),
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
             force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
+            glaredb_version: &GLAREDB_VERSION,
         }
     }
 }
@@ -316,13 +330,14 @@ impl Value for i32 {
 /// Taken from <https://stackoverflow.com/questions/18893390/splitting-on-comma-outside-quotes>
 const SPLIT_ON_UNQUOTED_COMMAS: &str = r#""[^"]*"|[^,]+"#;
 
+static COMMA_RE: Lazy<Regex> = Lazy::new(|| Regex::new(SPLIT_ON_UNQUOTED_COMMAS).unwrap());
+
 /// Split a string on commas, preserving quoted strings.
 fn split_comma_delimited(text: &str) -> Vec<String> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(SPLIT_ON_UNQUOTED_COMMAS).unwrap();
-    }
-
-    RE.find_iter(text).map(|m| m.as_str().to_string()).collect()
+    COMMA_RE
+        .find_iter(text)
+        .map(|m| m.as_str().to_string())
+        .collect()
 }
 
 impl Value for [String] {
