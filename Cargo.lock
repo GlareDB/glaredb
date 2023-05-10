@@ -767,7 +767,7 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "bytesutil"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "bytes",
 ]
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_bigquery"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-channel",
  "async-stream",
@@ -1526,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_common"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1546,7 +1546,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_debug"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_mongodb"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1576,7 +1576,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_mysql"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1596,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_object_store"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1610,7 +1610,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_postgres"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1628,7 +1628,7 @@ dependencies = [
 
 [[package]]
 name = "datasource_snowflake"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1642,7 +1642,7 @@ dependencies = [
 
 [[package]]
 name = "decimal"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "num-traits",
  "regex",
@@ -2205,7 +2205,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -2554,7 +2554,7 @@ dependencies = [
 
 [[package]]
 name = "ioutil"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "bytes",
 ]
@@ -2796,7 +2796,7 @@ dependencies = [
 
 [[package]]
 name = "logutil"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2913,7 +2913,7 @@ dependencies = [
 
 [[package]]
 name = "metastore"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3319,7 +3319,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_util"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "pgprototest"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3593,7 +3593,7 @@ dependencies = [
 
 [[package]]
 name = "pgrepr"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "bytes",
  "chrono",
@@ -3610,7 +3610,7 @@ dependencies = [
 
 [[package]]
 name = "pgsrv"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4209,7 +4209,7 @@ dependencies = [
 
 [[package]]
 name = "repr"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "chrono",
  "decimal",
@@ -4866,7 +4866,7 @@ dependencies = [
 
 [[package]]
 name = "slt_runner"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4919,7 +4919,7 @@ checksum = "5e9f0ab6ef7eb7353d9119c170a436d1bf248eea575ac42d19d12f4e34130831"
 
 [[package]]
 name = "snowflake_connector"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "base64 0.21.0",
  "bytes",
@@ -4976,7 +4976,7 @@ dependencies = [
 
 [[package]]
 name = "sqlexec"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "datafusion",
  "datasource_bigquery",
@@ -4988,9 +4988,9 @@ dependencies = [
  "datasource_postgres",
  "datasource_snowflake",
  "futures",
- "lazy_static",
  "metastore",
  "object_store",
+ "once_cell",
  "pgrepr",
  "regex",
  "serde_json",
@@ -5207,7 +5207,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "telemetry"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "segment",
  "serde_json",

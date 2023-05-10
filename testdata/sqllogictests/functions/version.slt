@@ -1,0 +1,4 @@
+query B
+select starts_with(version(), 'v')
+----
+t

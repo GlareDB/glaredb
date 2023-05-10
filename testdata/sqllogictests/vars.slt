@@ -42,6 +42,10 @@ show transaction isolation level;
 ----
 read uncommitted
 
+# Version not static, can only check that it doesn't error.
+statement ok
+show glaredb_version;
+
 # Update vars
 
 statement ok
