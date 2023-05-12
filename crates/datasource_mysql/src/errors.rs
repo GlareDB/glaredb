@@ -6,6 +6,9 @@ pub enum MysqlError {
     #[error("Unable to convert mysql row value for column {0}: {1}, datatype: {2}")]
     UnsupportedArrowType(usize, String, datafusion::arrow::datatypes::DataType),
 
+    #[error("Unsupported tunnel '{0}' for MySQL")]
+    UnsupportedTunnel(String),
+
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 

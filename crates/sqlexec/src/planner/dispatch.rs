@@ -7,6 +7,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::listing::{VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister};
+use datasource_common::ssh::SshKey;
 use datasource_debug::{DebugTableType, DebugVirtualLister};
 use datasource_mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
@@ -17,7 +18,7 @@ use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
-    GLARE_TABLES, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
+    GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
 };
 use metastore::session::SessionCatalog;
 use metastore::types::catalog::{
@@ -28,7 +29,7 @@ use metastore::types::options::{
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
     TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake,
+    TableOptionsSnowflake, TunnelOptions,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -48,8 +49,8 @@ pub enum DispatchError {
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
 
-    #[error("Unable to retrieve ssh tunnel connection: {0}")]
-    MissingSshTunnel(Box<crate::errors::ExecError>),
+    #[error("Missing tunnel connection: {0}")]
+    MissingTunnel(u32),
 
     #[error("Invalid entry for table dispatch: {0}")]
     InvalidEntryTypeForDispatch(EntryType),
@@ -173,12 +174,14 @@ impl<'a> SessionDispatcher<'a> {
             return dispatcher.dispatch().await;
         }
 
+        let tunnel = self.get_tunnel_opts(db.tunnel_id)?;
+
         match &db.options {
             DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
                 // Use name of the table as table type here.
                 let provider = DebugTableType::from_str(name)?;
-                Ok(provider.into_table_provider())
+                Ok(provider.into_table_provider(tunnel.as_ref()))
             }
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let table_access = PostgresTableAccess {
@@ -186,7 +189,7 @@ impl<'a> SessionDispatcher<'a> {
                     name: name.to_string(),
                 };
 
-                let accessor = PostgresAccessor::connect(connection_string, None).await?;
+                let accessor = PostgresAccessor::connect(connection_string, tunnel).await?;
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
@@ -211,7 +214,7 @@ impl<'a> SessionDispatcher<'a> {
                     name: name.to_string(),
                 };
 
-                let accessor = MysqlAccessor::connect(connection_string, None).await?;
+                let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
@@ -263,11 +266,13 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+        let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
+
         match &table.options {
             TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
-                Ok(provider.into_table_provider())
+                Ok(provider.into_table_provider(tunnel.as_ref()))
             }
             TableOptions::Postgres(TableOptionsPostgres {
                 connection_string,
@@ -279,7 +284,7 @@ impl<'a> SessionDispatcher<'a> {
                     name: table.clone(),
                 };
 
-                let accessor = PostgresAccessor::connect(connection_string, None).await?;
+                let accessor = PostgresAccessor::connect(connection_string, tunnel).await?;
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
@@ -310,7 +315,7 @@ impl<'a> SessionDispatcher<'a> {
                     name: table.clone(),
                 };
 
-                let accessor = MysqlAccessor::connect(connection_string, None).await?;
+                let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
@@ -416,6 +421,25 @@ impl<'a> SessionDispatcher<'a> {
             .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
+
+    fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {
+        let tunnel_options = if let Some(tunnel_id) = tunnel_id {
+            let ent = self
+                .ctx
+                .get_session_catalog()
+                .get_by_oid(tunnel_id)
+                .ok_or(DispatchError::MissingTunnel(tunnel_id))?;
+
+            let ent = match ent {
+                CatalogEntry::Tunnel(ent) => ent,
+                _ => return Err(DispatchError::MissingTunnel(tunnel_id)),
+            };
+            Some(ent.options.clone())
+        } else {
+            None
+        };
+        Ok(tunnel_options)
+    }
 }
 
 /// Dispatch to builtin system tables.
@@ -435,6 +459,8 @@ impl<'a> SystemTableDispatcher<'a> {
     fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
         Ok(if GLARE_DATABASES.matches(schema, name) {
             Arc::new(self.build_glare_databases())
+        } else if GLARE_TUNNELS.matches(schema, name) {
+            Arc::new(self.build_glare_tunnels())
         } else if GLARE_TABLES.matches(schema, name) {
             Arc::new(self.build_glare_tables())
         } else if GLARE_COLUMNS.matches(schema, name) {
@@ -445,6 +471,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_schemas())
         } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
             Arc::new(self.build_session_query_metrics())
+        } else if GLARE_SSH_KEYS.matches(schema, name) {
+            Arc::new(self.build_ssh_keys()?)
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -488,6 +516,44 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
                 Arc::new(datasource.finish()),
+            ],
+        )
+        .unwrap();
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_tunnels(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_TUNNELS.arrow_schema());
+
+        let mut oid = UInt32Builder::new();
+        let mut tunnel_name = StringBuilder::new();
+        let mut builtin = BooleanBuilder::new();
+        let mut tunnel_type = StringBuilder::new();
+
+        for tunnel in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Tunnel)
+        {
+            oid.append_value(tunnel.oid);
+            tunnel_name.append_value(&tunnel.entry.get_meta().name);
+            builtin.append_value(tunnel.builtin);
+
+            let tunnel = match tunnel.entry {
+                CatalogEntry::Tunnel(tunnel) => tunnel,
+                other => unreachable!("unexpected entry type: {other:?}"),
+            };
+
+            tunnel_type.append_value(tunnel.options.as_str());
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oid.finish()),
+                Arc::new(tunnel_name.finish()),
+                Arc::new(builtin.finish()),
+                Arc::new(tunnel_type.finish()),
             ],
         )
         .unwrap();
@@ -741,6 +807,49 @@ impl<'a> SystemTableDispatcher<'a> {
         )
         .unwrap();
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_ssh_keys(&self) -> Result<MemTable> {
+        let arrow_schema = Arc::new(GLARE_SSH_KEYS.arrow_schema());
+
+        let mut ssh_tunnel_oid = UInt32Builder::new();
+        let mut ssh_tunnel_name = StringBuilder::new();
+        let mut public_key = StringBuilder::new();
+
+        for t in self.catalog().iter_entries().filter(|ent| match ent.entry {
+            CatalogEntry::Tunnel(tunnel_entry) => {
+                matches!(tunnel_entry.options, TunnelOptions::Ssh(_))
+            }
+            _ => false,
+        }) {
+            ssh_tunnel_oid.append_value(t.oid);
+            ssh_tunnel_name.append_value(&t.entry.get_meta().name);
+
+            match t.entry {
+                CatalogEntry::Tunnel(tunnel_entry) => match &tunnel_entry.options {
+                    TunnelOptions::Ssh(ssh_options) => {
+                        let key = SshKey::from_bytes(&ssh_options.ssh_key)?;
+                        let key = key.public_key()?;
+                        println!("key = '{key}'");
+                        public_key.append_value(key);
+                    }
+                    _ => unreachable!(),
+                },
+                _ => unreachable!(),
+            }
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(ssh_tunnel_oid.finish()),
+                Arc::new(ssh_tunnel_name.finish()),
+                Arc::new(public_key.finish()),
+            ],
+        )
+        .unwrap();
+
+        Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
     }
 }
 

@@ -43,7 +43,9 @@ pub struct CreateExternalTableStmt {
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
     /// Data source type.
-    pub datasource: String,
+    pub datasource: Ident,
+    /// Optional tunnel to use for connection.
+    pub tunnel: Option<Ident>,
     /// Datasource specific options.
     pub options: BTreeMap<String, OptionValue>,
 }
@@ -55,6 +57,10 @@ impl fmt::Display for CreateExternalTableStmt {
             write!(f, "IF NOT EXISTS ")?;
         }
         write!(f, "{} FROM {} ", self.name, self.datasource)?;
+
+        if let Some(tunnel) = &self.tunnel {
+            write!(f, "TUNNEL {tunnel} ")?;
+        }
 
         let opts = self
             .options
@@ -76,7 +82,9 @@ pub struct CreateExternalDatabaseStmt {
     /// Optionally don't error if database exists.
     pub if_not_exists: bool,
     /// The data source type the connection is for.
-    pub datasource: String,
+    pub datasource: Ident,
+    /// Optional tunnel to use for connection.
+    pub tunnel: Option<Ident>,
     /// Datasource specific options.
     pub options: BTreeMap<String, OptionValue>,
 }
@@ -88,6 +96,10 @@ impl fmt::Display for CreateExternalDatabaseStmt {
             write!(f, "IF NOT EXISTS ")?;
         }
         write!(f, "{} FROM {} ", self.name, self.datasource)?;
+
+        if let Some(tunnel) = &self.tunnel {
+            write!(f, "TUNNEL {tunnel} ")?;
+        }
 
         let opts = self
             .options
@@ -138,6 +150,59 @@ impl fmt::Display for AlterDatabaseRenameStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateTunnelStmt {
+    /// Name of the tunnel as it exists in GlareDB.
+    pub name: Ident,
+    /// Optionally don't error if tunnel exists.
+    pub if_not_exists: bool,
+    /// The tunnel type the connection is for.
+    pub tunnel: Ident,
+    /// Tunnel specific options.
+    pub options: BTreeMap<String, OptionValue>,
+}
+
+impl fmt::Display for CreateTunnelStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CREATE TUNNEL ")?;
+        if self.if_not_exists {
+            write!(f, "IF NOT EXISTS ")?;
+        }
+        write!(f, "{} FROM {} ", self.name, self.tunnel)?;
+
+        let opts = self
+            .options
+            .iter()
+            .map(|(k, v)| format!("{} = {}", k, v))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        write!(f, "OPTIONS ({})", opts)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropTunnelStmt {
+    pub names: Vec<Ident>,
+    pub if_exists: bool,
+}
+
+impl fmt::Display for DropTunnelStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DROP TUNNEL ")?;
+        if self.if_exists {
+            write!(f, "IF EXISTS ")?;
+        }
+        let mut sep = "";
+        for name in self.names.iter() {
+            write!(f, "{sep}{name}")?;
+            sep = ", ";
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
@@ -149,6 +214,10 @@ pub enum StatementWithExtensions {
     DropDatabase(DropDatabaseStmt),
     // Alter database extension (rename).
     AlterDatabaseRename(AlterDatabaseRenameStmt),
+    /// Create tunnel extension.
+    CreateTunnel(CreateTunnelStmt),
+    /// Drop tunnel extension.
+    DropTunnel(DropTunnelStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -159,6 +228,8 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterDatabaseRename(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -227,7 +298,7 @@ impl<'a> CustomParser<'a> {
     /// Parse a SQL CREATE statement
     fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
         if self.parser.parse_keyword(Keyword::EXTERNAL) {
-            // CREATE EXTERNAL TABLE ...
+            // CREATE EXTERNAL ...
             if self.parser.parse_keyword(Keyword::TABLE) {
                 self.parse_create_external_table()
             } else if self.parser.parse_keyword(Keyword::DATABASE) {
@@ -239,6 +310,9 @@ impl<'a> CustomParser<'a> {
                     next
                 )))
             }
+        } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
+            // CREATE TUNNEL ...
+            self.parse_create_tunnel()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -276,16 +350,20 @@ impl<'a> CustomParser<'a> {
 
         // FROM datasource
         self.parser.expect_keyword(Keyword::FROM)?;
-        let datasource = self.parse_datasource()?;
+        let datasource = self.parse_object_type("datasource")?;
+
+        // [TUNNEL ...]
+        let tunnel = self.parse_connection_tunnel()?;
 
         // OPTIONS (..)
-        let options = self.parse_datasource_options()?;
+        let options = self.parse_options()?;
 
         Ok(StatementWithExtensions::CreateExternalTable(
             CreateExternalTableStmt {
                 name,
                 if_not_exists,
                 datasource,
+                tunnel,
                 options,
             },
         ))
@@ -301,30 +379,68 @@ impl<'a> CustomParser<'a> {
 
         // FROM datasource
         self.parser.expect_keyword(Keyword::FROM)?;
-        let datasource = self.parse_datasource()?;
+        let datasource = self.parse_object_type("datasource")?;
+
+        // [TUNNEL ...]
+        let tunnel = self.parse_connection_tunnel()?;
 
         // OPTIONS (..)
-        let options = self.parse_datasource_options()?;
+        let options = self.parse_options()?;
 
         Ok(StatementWithExtensions::CreateExternalDatabase(
             CreateExternalDatabaseStmt {
                 name,
                 if_not_exists,
                 datasource,
+                tunnel,
                 options,
             },
         ))
     }
 
-    fn parse_datasource(&mut self) -> Result<String, ParserError> {
+    fn parse_create_tunnel(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_not_exists =
+            self.parser
+                .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
+
+        let name = self.parser.parse_identifier()?;
+        validate_ident(&name)?;
+
+        // FROM tunnel
+        self.parser.expect_keyword(Keyword::FROM)?;
+        let tunnel = self.parse_object_type("tunnel")?;
+
+        // OPTIONS (..)
+        let options = self.parse_options()?;
+
+        Ok(StatementWithExtensions::CreateTunnel(CreateTunnelStmt {
+            name,
+            if_not_exists,
+            tunnel,
+            options,
+        }))
+    }
+
+    fn parse_object_type(&mut self, object_type: &str) -> Result<Ident, ParserError> {
         match self.parser.next_token().token {
-            Token::Word(w) => Ok(w.value),
-            other => self.expected("datasource", other),
+            Token::Word(w) => Ok(w.to_ident()),
+            other => self.expected(object_type, other),
         }
     }
 
+    fn parse_connection_tunnel(&mut self) -> Result<Option<Ident>, ParserError> {
+        let tunnel = if self.consume_token(&Token::make_keyword("TUNNEL")) {
+            let tunnel = self.parser.parse_identifier()?;
+            validate_ident(&tunnel)?;
+            Some(tunnel)
+        } else {
+            None
+        };
+        Ok(tunnel)
+    }
+
     /// Parse options for a datasource.
-    fn parse_datasource_options(&mut self) -> Result<BTreeMap<String, OptionValue>, ParserError> {
+    fn parse_options(&mut self) -> Result<BTreeMap<String, OptionValue>, ParserError> {
         let mut options = BTreeMap::new();
 
         // No options provided.
@@ -380,6 +496,9 @@ impl<'a> CustomParser<'a> {
         if self.parser.parse_keyword(Keyword::DATABASE) {
             // DROP DATABASE ...
             self.parse_drop_database()
+        } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
+            // DROP TUNNEL ...
+            self.parse_drop_tunnel()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -400,6 +519,23 @@ impl<'a> CustomParser<'a> {
         }
 
         Ok(StatementWithExtensions::DropDatabase(DropDatabaseStmt {
+            names,
+            if_exists,
+        }))
+    }
+
+    fn parse_drop_tunnel(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+
+        let names = self
+            .parser
+            .parse_comma_separated(Parser::parse_identifier)?;
+
+        for name in names.iter() {
+            validate_ident(name)?;
+        }
+
+        Ok(StatementWithExtensions::DropTunnel(DropTunnelStmt {
             names,
             if_exists,
         }))
@@ -454,15 +590,20 @@ mod tests {
             "table".to_string(),
             OptionValue::Secret("pg_table".to_string()),
         );
-        let stmt = CreateExternalTableStmt {
+        let mut stmt = CreateExternalTableStmt {
             name: ObjectName(vec![Ident::new("test")]),
             if_not_exists: false,
-            datasource: "postgres".to_string(),
+            datasource: Ident::new("postgres"),
+            tunnel: None,
             options,
         };
 
         let out = stmt.to_string();
         assert_eq!("CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
+
+        stmt.tunnel = Some(Ident::new("ssh_tunnel"));
+        let out = stmt.to_string();
+        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
     }
 
     #[test]
@@ -485,13 +626,26 @@ mod tests {
             OptionValue::Secret("pg_table".to_string()),
         );
 
+        let mut parsed_stmt = CreateExternalTableStmt {
+            name: ObjectName(vec![Ident::new("test")]),
+            if_not_exists: false,
+            datasource: Ident::new("postgres"),
+            tunnel: None,
+            options,
+        };
+
         assert_eq!(
-            StatementWithExtensions::CreateExternalTable(CreateExternalTableStmt {
-                name: ObjectName(vec![Ident::new("test")]),
-                if_not_exists: false,
-                datasource: "postgres".to_string(),
-                options,
-            }),
+            StatementWithExtensions::CreateExternalTable(parsed_stmt.clone()),
+            stmt
+        );
+
+        let sql = "CREATE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public', table=secret pg_table)";
+        let mut stmts = CustomParser::parse_sql(sql).unwrap();
+
+        let stmt = stmts.pop_front().unwrap();
+        parsed_stmt.tunnel = Some(Ident::new("ssh_tunnel"));
+        assert_eq!(
+            StatementWithExtensions::CreateExternalTable(parsed_stmt),
             stmt
         );
     }
@@ -501,6 +655,8 @@ mod tests {
         let test_cases = [
             "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
         ];
 
         for test_case in test_cases {
@@ -517,6 +673,24 @@ mod tests {
         let test_cases = [
             "CREATE EXTERNAL DATABASE qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE EXTERNAL DATABASE qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn create_tunnel_roundtrips() {
+        let test_cases = [
+            "CREATE TUNNEL qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE TUNNEL IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
         ];
 
         for test_case in test_cases {
@@ -531,6 +705,19 @@ mod tests {
     #[test]
     fn drop_database_roundtrips() {
         let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn drop_tunnel_roundtrips() {
+        let test_cases = ["DROP TUNNEL my_tunnel", "DROP TUNNEL IF EXISTS my_tunnel"];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

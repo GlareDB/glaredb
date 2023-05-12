@@ -1552,6 +1552,7 @@ dependencies = [
  "datafusion",
  "datasource_common",
  "futures",
+ "metastore",
  "serde",
  "thiserror",
 ]
@@ -1584,6 +1585,7 @@ dependencies = [
  "datafusion",
  "datasource_common",
  "futures",
+ "metastore",
  "mysql_async",
  "mysql_common",
  "openssh",
@@ -1617,6 +1619,7 @@ dependencies = [
  "datafusion",
  "datasource_common",
  "futures",
+ "metastore",
  "serde",
  "serde_json",
  "thiserror",

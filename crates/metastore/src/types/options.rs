@@ -420,6 +420,7 @@ impl TryFrom<TableOptions> for options::TableOptions {
         })
     }
 }
+
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct TableOptionsInternal {
     pub columns: Vec<InternalColumnDefinition>,
@@ -711,6 +712,126 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
             role_name: value.role_name,
             schema_name: value.schema_name,
             table_name: value.table_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub enum TunnelOptions {
+    Internal(TunnelOptionsInternal),
+    Debug(TunnelOptionsDebug),
+    Ssh(TunnelOptionsSsh),
+}
+
+impl TunnelOptions {
+    pub const INTERNAL: &str = "internal";
+    pub const DEBUG: &str = "debug";
+    pub const SSH: &str = "ssh";
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Internal(_) => Self::INTERNAL,
+            Self::Debug(_) => Self::DEBUG,
+            Self::Ssh(_) => Self::SSH,
+        }
+    }
+}
+
+impl fmt::Display for TunnelOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl TryFrom<options::tunnel_options::Options> for TunnelOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: options::tunnel_options::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            options::tunnel_options::Options::Internal(v) => Self::Internal(v.try_into()?),
+            options::tunnel_options::Options::Debug(v) => Self::Debug(v.try_into()?),
+            options::tunnel_options::Options::Ssh(v) => Self::Ssh(v.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<options::TunnelOptions> for TunnelOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TunnelOptions) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl From<TunnelOptions> for options::tunnel_options::Options {
+    fn from(value: TunnelOptions) -> Self {
+        match value {
+            TunnelOptions::Internal(v) => options::tunnel_options::Options::Internal(v.into()),
+            TunnelOptions::Debug(v) => options::tunnel_options::Options::Debug(v.into()),
+            TunnelOptions::Ssh(v) => options::tunnel_options::Options::Ssh(v.into()),
+        }
+    }
+}
+
+impl From<TunnelOptions> for options::TunnelOptions {
+    fn from(value: TunnelOptions) -> Self {
+        options::TunnelOptions {
+            options: Some(value.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TunnelOptionsInternal {}
+
+impl TryFrom<options::TunnelOptionsInternal> for TunnelOptionsInternal {
+    type Error = ProtoConvError;
+    fn try_from(_value: options::TunnelOptionsInternal) -> Result<Self, Self::Error> {
+        Ok(TunnelOptionsInternal {})
+    }
+}
+
+impl From<TunnelOptionsInternal> for options::TunnelOptionsInternal {
+    fn from(_value: TunnelOptionsInternal) -> Self {
+        options::TunnelOptionsInternal {}
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TunnelOptionsDebug {}
+
+impl TryFrom<options::TunnelOptionsDebug> for TunnelOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(_value: options::TunnelOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(TunnelOptionsDebug {})
+    }
+}
+
+impl From<TunnelOptionsDebug> for options::TunnelOptionsDebug {
+    fn from(_value: TunnelOptionsDebug) -> Self {
+        options::TunnelOptionsDebug {}
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TunnelOptionsSsh {
+    pub connection_string: String,
+    pub ssh_key: Vec<u8>,
+}
+
+impl TryFrom<options::TunnelOptionsSsh> for TunnelOptionsSsh {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TunnelOptionsSsh) -> Result<Self, Self::Error> {
+        Ok(TunnelOptionsSsh {
+            connection_string: value.connection_string,
+            ssh_key: value.ssh_key,
+        })
+    }
+}
+
+impl From<TunnelOptionsSsh> for options::TunnelOptionsSsh {
+    fn from(value: TunnelOptionsSsh) -> Self {
+        options::TunnelOptionsSsh {
+            connection_string: value.connection_string,
+            ssh_key: value.ssh_key,
         }
     }
 }

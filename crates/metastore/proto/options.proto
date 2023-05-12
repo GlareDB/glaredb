@@ -146,3 +146,22 @@ message TableOptionsSnowflake {
   string schema_name = 7;
   string table_name = 8;
 }
+
+// Tunnel options
+
+message TunnelOptions {
+  oneof options {
+    TunnelOptionsInternal internal = 1;
+    TunnelOptionsDebug debug = 2;
+    TunnelOptionsSsh ssh = 3;
+  }
+}
+
+message TunnelOptionsInternal {}
+
+message TunnelOptionsDebug {}
+
+message TunnelOptionsSsh {
+  string connection_string = 1;
+  bytes ssh_key = 2;
+}

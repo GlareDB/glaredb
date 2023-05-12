@@ -133,7 +133,7 @@ impl MetastoreService for Service {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::catalog::CatalogState;
+    use crate::types::catalog::{CatalogEntry, CatalogState};
     use crate::types::service::{CreateSchema, Mutation};
     use object_store::memory::InMemory;
 
@@ -220,6 +220,6 @@ mod tests {
             .into_iter()
             .find(|ent| ent.get_meta().name == "test_schema")
             .unwrap();
-        assert!(ent.is_schema())
+        assert!(matches!(ent, CatalogEntry::Schema(_)));
     }
 }

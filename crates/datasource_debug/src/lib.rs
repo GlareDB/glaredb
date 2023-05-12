@@ -23,6 +23,7 @@ use datasource_common::errors::DatasourceCommonError;
 use datasource_common::listing::{VirtualLister, VirtualTable};
 use errors::DebugError;
 use futures::Stream;
+use metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;
@@ -57,6 +58,18 @@ impl FromStr for DebugTableType {
     }
 }
 
+/// Validates if the tunnel is supported and returns whether a tunnel is going
+/// to be used or not for  the connection.
+pub fn validate_tunnel_connections(
+    tunnel_opts: Option<&TunnelOptions>,
+) -> Result<bool, DebugError> {
+    match tunnel_opts {
+        None => Ok(false),
+        Some(TunnelOptions::Debug(_)) => Ok(true),
+        Some(other) => Err(DebugError::InvalidTunnel(other.to_string())),
+    }
+}
+
 impl DebugTableType {
     /// Get the arrow schema for the debug table type.
     pub fn arrow_schema(&self) -> ArrowSchema {
@@ -84,19 +97,20 @@ impl DebugTableType {
     }
 
     /// Produces a record batch that matches this debug table's schema.
-    pub fn record_batch(&self) -> RecordBatch {
+    pub fn record_batch(&self, tunnel: bool) -> RecordBatch {
+        let base = if tunnel { 10_i32 } else { 1_i32 };
         match self {
             DebugTableType::ErrorDuringExecution => RecordBatch::try_new(
                 Arc::new(self.arrow_schema()),
-                vec![Arc::new(Int32Array::from_value(1, 30))],
+                vec![Arc::new(Int32Array::from_value(base, 30))],
             )
             .unwrap(),
             DebugTableType::NeverEnding => RecordBatch::try_new(
                 Arc::new(self.arrow_schema()),
                 vec![
-                    Arc::new(Int32Array::from_value(1, 30)),
-                    Arc::new(Int32Array::from_value(2, 30)),
-                    Arc::new(Int32Array::from_value(3, 30)),
+                    Arc::new(Int32Array::from_value(base, 30)),
+                    Arc::new(Int32Array::from_value(base * 2, 30)),
+                    Arc::new(Int32Array::from_value(base * 3, 30)),
                 ],
             )
             .unwrap(),
@@ -106,11 +120,12 @@ impl DebugTableType {
     /// Get a projected record batch for this debug table type.
     pub fn projected_record_batch(
         &self,
+        tunnel: bool,
         projection: Option<&Vec<usize>>,
     ) -> ArrowResult<RecordBatch> {
         match projection {
-            Some(proj) => self.record_batch().project(proj),
-            None => Ok(self.record_batch()),
+            Some(proj) => self.record_batch(tunnel).project(proj),
+            None => Ok(self.record_batch(tunnel)),
         }
     }
 
@@ -121,8 +136,13 @@ impl DebugTableType {
         }
     }
 
-    pub fn into_table_provider(self) -> Arc<dyn TableProvider> {
-        Arc::new(DebugTableProvider { typ: self })
+    pub fn into_table_provider(
+        self,
+        tunnel_opts: Option<&TunnelOptions>,
+    ) -> Arc<dyn TableProvider> {
+        let tunnel = validate_tunnel_connections(tunnel_opts)
+            .expect("datasources should be validated with tunnels before dispatch");
+        Arc::new(DebugTableProvider { typ: self, tunnel })
     }
 }
 
@@ -168,6 +188,7 @@ impl VirtualLister for DebugVirtualLister {
 
 pub struct DebugTableProvider {
     typ: DebugTableType,
+    tunnel: bool,
 }
 
 #[async_trait]
@@ -205,6 +226,7 @@ impl TableProvider for DebugTableProvider {
             typ: self.typ.clone(),
             projection: projection.cloned(),
             limit,
+            tunnel: self.tunnel,
         }))
     }
 }
@@ -214,6 +236,7 @@ struct DebugTableExec {
     typ: DebugTableType,
     projection: Option<Vec<usize>>,
     limit: Option<usize>,
+    tunnel: bool,
 }
 
 impl ExecutionPlan for DebugTableExec {
@@ -262,7 +285,7 @@ impl ExecutionPlan for DebugTableExec {
             DebugTableType::NeverEnding => Box::pin(NeverEndingStream {
                 batch: self
                     .typ
-                    .projected_record_batch(self.projection.as_ref())
+                    .projected_record_batch(self.tunnel, self.projection.as_ref())
                     .unwrap(),
                 curr_count: 0,
                 limit: self.limit,

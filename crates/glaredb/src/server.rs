@@ -3,13 +3,13 @@ use std::sync::Arc;
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
-use metastore::local::start_inprocess_inmemory;
+use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
-use tracing::{debug, debug_span, info, Instrument};
+use tracing::{debug, debug_span, info, warn, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
@@ -27,6 +27,7 @@ impl Server {
         metastore_addr: Option<String>,
         segment_key: Option<String>,
         local: bool,
+        local_file_path: Option<String>,
         spill_path: Option<PathBuf>,
     ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
@@ -48,7 +49,23 @@ impl Server {
             }
             (None, true) => {
                 info!("starting in-process metastore");
-                start_inprocess_inmemory().await?
+                if let Some(path) = local_file_path {
+                    let path: PathBuf = path.into();
+                    if !path.exists() {
+                        fs::create_dir_all(&path)?;
+                    }
+                    if path.exists() && !path.is_dir() {
+                        warn!(
+                            ?path,
+                            "Path is not a valid directory: starting in memory store"
+                        );
+                        start_inprocess_inmemory().await?
+                    } else {
+                        start_inprocess_local(path).await?
+                    }
+                } else {
+                    start_inprocess_inmemory().await?
+                }
             }
             (None, false) => {
                 return Err(anyhow!(

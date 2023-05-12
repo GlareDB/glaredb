@@ -3,7 +3,9 @@ use clap::{Parser, Subcommand};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
+use object_store::local::LocalFileSystem;
 use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
+use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -54,6 +56,11 @@ enum Commands {
         #[clap(short, long, value_parser)]
         local: bool,
 
+        /// Optional file path to store metastore data (to enable persistent
+        /// data storage when in-process store is launched).
+        #[clap(short = 'f', long, value_parser)]
+        local_file_path: Option<String>,
+
         /// API key for segment.
         #[clap(long, value_parser)]
         segment_key: Option<String>,
@@ -94,6 +101,11 @@ enum Commands {
         /// Path to GCP service account to use when connecting to GCS.
         #[clap(short, long, value_parser)]
         service_account_path: Option<String>,
+
+        /// Local file path to store database catalog (for a local persistent
+        /// store).
+        #[clap(short = 'f', long, value_parser)]
+        local_file_path: Option<String>,
     },
 }
 
@@ -108,13 +120,21 @@ fn main() -> Result<()> {
             bind,
             metastore_addr,
             local,
+            local_file_path,
             mut segment_key,
             spill_path,
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
-            begin_server(&bind, metastore_addr, segment_key, local, spill_path)?;
+            begin_server(
+                &bind,
+                metastore_addr,
+                segment_key,
+                local,
+                local_file_path,
+                spill_path,
+            )?;
         }
         Commands::Proxy {
             bind,
@@ -133,13 +153,30 @@ fn main() -> Result<()> {
             bind,
             bucket,
             service_account_path,
+            local_file_path,
         } => {
-            let conf = match (bucket, service_account_path) {
-                (Some(bucket), Some(service_account_path)) => ObjectStoreConfig::Gcs {
+            let conf = match (bucket, service_account_path, local_file_path) {
+                (Some(bucket), Some(service_account_path), None) => ObjectStoreConfig::Gcs {
                     bucket,
                     service_account_path,
                 },
-                (None, None) => ObjectStoreConfig::Memory,
+                (None, None, Some(local_file_path)) => {
+                    let p: PathBuf = local_file_path.into();
+
+                    // Error if the path exists and is not a directory else
+                    // create the directory.
+                    if p.exists() && !p.is_dir() {
+                        return Err(anyhow!(
+                            "Path '{}' is not a valid directory",
+                            p.to_string_lossy()
+                        ));
+                    } else if !p.exists() {
+                        fs::create_dir_all(&p)?;
+                    }
+
+                    ObjectStoreConfig::Local(p)
+                }
+                (None, None, None) => ObjectStoreConfig::Memory,
                 _ => {
                     return Err(anyhow!(
                     "Invalid arguments, 'service-account-path' and 'bucket' must both be provided."
@@ -158,13 +195,21 @@ fn begin_server(
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     local: bool,
+    local_file_path: Option<String>,
     spill_path: Option<PathBuf>,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
-        let server = Server::connect(metastore_addr, segment_key, local, spill_path).await?;
+        let server = Server::connect(
+            metastore_addr,
+            segment_key,
+            local,
+            local_file_path,
+            spill_path,
+        )
+        .await?;
         server.serve(conf).await
     })
 }
@@ -172,6 +217,7 @@ fn begin_server(
 #[derive(Debug)]
 enum ObjectStoreConfig {
     Memory,
+    Local(PathBuf),
     Gcs {
         bucket: String,
         service_account_path: String,
@@ -182,6 +228,7 @@ impl ObjectStoreConfig {
     fn into_object_store(self) -> Result<Arc<dyn ObjectStore>> {
         Ok(match self {
             ObjectStoreConfig::Memory => Arc::new(InMemory::new()),
+            ObjectStoreConfig::Local(path) => Arc::new(LocalFileSystem::new_with_prefix(path)?),
             ObjectStoreConfig::Gcs {
                 bucket,
                 service_account_path,

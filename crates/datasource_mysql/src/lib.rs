@@ -24,9 +24,10 @@ use datafusion::physical_plan::{
 };
 use datasource_common::errors::DatasourceCommonError;
 use datasource_common::listing::{VirtualLister, VirtualTable};
-use datasource_common::ssh::SshTunnelAccess;
+use datasource_common::ssh::{SshKey, SshTunnelAccess};
 use datasource_common::util;
 use futures::{Stream, StreamExt, TryStreamExt};
+use metastore::types::options::TunnelOptions;
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
 use mysql_async::{
@@ -101,19 +102,29 @@ pub struct MysqlAccessor {
 
 impl MysqlAccessor {
     /// Connect to a mysql instance.
-    pub async fn connect(
-        connection_string: &str,
-        ssh_tunnel: Option<SshTunnelAccess>,
-    ) -> Result<Self> {
-        let (conn, _ssh_tunnel) = match ssh_tunnel {
-            None => Self::connect_direct(connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
-            }
-        };
+    pub async fn connect(connection_string: &str, tunnel: Option<TunnelOptions>) -> Result<Self> {
+        let (conn, _ssh_tunnel) = Self::connect_internal(connection_string, tunnel).await?;
         let conn = RwLock::new(conn);
 
         Ok(Self { conn, _ssh_tunnel })
+    }
+
+    async fn connect_internal(
+        connection_string: &str,
+        tunnel: Option<TunnelOptions>,
+    ) -> Result<(Conn, Option<Session>)> {
+        match tunnel {
+            None => Self::connect_direct(connection_string).await,
+            Some(TunnelOptions::Ssh(ssh_options)) => {
+                let keypair = SshKey::from_bytes(&ssh_options.ssh_key)?;
+                let access = SshTunnelAccess {
+                    connection_string: ssh_options.connection_string,
+                    keypair,
+                };
+                Self::connect_with_ssh_tunnel(connection_string, access).await
+            }
+            Some(opt) => Err(MysqlError::UnsupportedTunnel(opt.to_string())),
+        }
     }
 
     async fn connect_direct(connection_string: &str) -> Result<(Conn, Option<Session>)> {
@@ -137,7 +148,7 @@ impl MysqlAccessor {
         let mysql_port = opts.tcp_port();
 
         // Open ssh tunnel
-        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(mysql_host, mysql_port).await?;
+        let (session, tunnel_addr) = ssh_tunnel.create_tunnel(&(mysql_host, mysql_port)).await?;
 
         let opts: Opts = OptsBuilder::from_opts(opts)
             .ip_or_hostname(tunnel_addr.ip().to_string())
@@ -153,14 +164,9 @@ impl MysqlAccessor {
     /// Validate mysql external database
     pub async fn validate_external_database(
         connection_string: &str,
-        ssh_tunnel: Option<SshTunnelAccess>,
+        tunnel: Option<TunnelOptions>,
     ) -> Result<()> {
-        let (mut conn, _ssh_tunnel) = match ssh_tunnel {
-            None => Self::connect_direct(connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
-            }
-        };
+        let (mut conn, _ssh_tunnel) = Self::connect_internal(connection_string, tunnel).await?;
 
         conn.query_drop("SELECT 1").await?;
         Ok(())
@@ -170,14 +176,9 @@ impl MysqlAccessor {
     pub async fn validate_table_access(
         connection_string: &str,
         access: &MysqlTableAccess,
-        ssh_tunnel: Option<SshTunnelAccess>,
+        tunnel: Option<TunnelOptions>,
     ) -> Result<()> {
-        let (mut conn, _ssh_tunnel) = match ssh_tunnel {
-            None => Self::connect_direct(connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(connection_string, ssh_tunnel).await?
-            }
-        };
+        let (mut conn, _ssh_tunnel) = Self::connect_internal(connection_string, tunnel).await?;
 
         let query = format!(
             "SELECT * FROM {}.{} where false",

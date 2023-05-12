@@ -34,9 +34,8 @@ pub enum ExecutionResult {
         plan: Arc<dyn ExecutionPlan>,
     },
     /// Showing a variable.
-    ShowVariable {
-        stream: SendableRecordBatchStream,
-    }, // TODO: We don't need to make a stream for this.
+    // TODO: We don't need to make a stream for this.
+    ShowVariable { stream: SendableRecordBatchStream },
     /// No statement provided.
     EmptyQuery,
     /// Transaction started.
@@ -51,13 +50,17 @@ pub enum ExecutionResult {
     CreateTable,
     /// Database created.
     CreateDatabase,
+    /// Tunnel created.
+    CreateTunnel,
     /// Schema created.
     CreateSchema,
     /// A view was created.
     CreateView,
     /// A connection was created.
     CreateConnection,
+    /// A table was renamed.
     AlterTableRename,
+    /// A database was renamed.
     AlterDatabaseRename,
     /// A client local variable was set.
     SetLocal,
@@ -69,6 +72,8 @@ pub enum ExecutionResult {
     DropSchemas,
     /// Database dropped.
     DropDatabase,
+    /// Tunnel is dropped.
+    DropTunnel,
 }
 
 impl ExecutionResult {
@@ -83,6 +88,7 @@ impl ExecutionResult {
             ExecutionResult::WriteSuccess => "write_success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
+            ExecutionResult::CreateTunnel => "create_tunnel",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
             ExecutionResult::CreateConnection => "create_connection",
@@ -93,6 +99,7 @@ impl ExecutionResult {
             ExecutionResult::DropViews => "drop_views",
             ExecutionResult::DropSchemas => "drop_schemas",
             ExecutionResult::DropDatabase => "drop_database",
+            ExecutionResult::DropTunnel => "drop_tunnel",
         }
     }
 }
@@ -113,6 +120,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
+            ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::CreateConnection => write!(f, "create connection"),
@@ -123,6 +131,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::DropViews => write!(f, "drop views"),
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
             ExecutionResult::DropDatabase => write!(f, "drop database"),
+            ExecutionResult::DropTunnel => write!(f, "drop tunnel"),
         }
     }
 }
@@ -197,6 +206,11 @@ impl Session {
         Ok(())
     }
 
+    pub(crate) async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
+        self.ctx.create_tunnel(plan).await?;
+        Ok(())
+    }
+
     pub(crate) async fn create_view(&mut self, plan: CreateView) -> Result<()> {
         self.ctx.create_view(plan).await?;
         Ok(())
@@ -229,6 +243,11 @@ impl Session {
 
     pub(crate) async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
         self.ctx.drop_database(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn drop_tunnel(&mut self, plan: DropTunnel) -> Result<()> {
+        self.ctx.drop_tunnel(plan).await?;
         Ok(())
     }
 
@@ -334,6 +353,10 @@ impl Session {
                 self.create_database(plan).await?;
                 ExecutionResult::CreateDatabase
             }
+            LogicalPlan::Ddl(DdlPlan::CreateTunnel(plan)) => {
+                self.create_tunnel(plan).await?;
+                ExecutionResult::CreateTunnel
+            }
             LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
                 self.create_table_as(plan).await?;
                 ExecutionResult::CreateTable
@@ -369,6 +392,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::DropDatabase(plan)) => {
                 self.drop_database(plan).await?;
                 ExecutionResult::DropDatabase
+            }
+            LogicalPlan::Ddl(DdlPlan::DropTunnel(plan)) => {
+                self.drop_tunnel(plan).await?;
+                ExecutionResult::DropTunnel
             }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert(plan).await?;

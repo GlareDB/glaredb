@@ -12,3 +12,4 @@ async-trait = "0.1.68"
 serde = { version = "1.0", features = ["derive"] }
 datafusion = {workspace = true}
 datasource_common = { path = "../datasource_common" }
+metastore = { path = "../metastore" }

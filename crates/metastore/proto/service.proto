@@ -43,8 +43,10 @@ message Mutation {
     CreateExternalDatabase create_external_database = 7;
     AlterTableRename alter_table_rename = 9;
     AlterDatabaseRename alter_database_rename = 10;
+    CreateTunnel create_tunnel = 11;
+    DropTunnel drop_tunnel = 12;
   }
-  // next: 7
+  // next: 13
 }
 
 message DropDatabase {
@@ -79,14 +81,16 @@ message CreateExternalTable {
   string name = 2;
   options.TableOptions options = 3;
   bool if_not_exists = 4;
-  // next: 5
+  optional string tunnel = 5;
+  // next: 6
 }
 
 message CreateExternalDatabase {
   string name = 1;
   options.DatabaseOptions options = 2;
   bool if_not_exists = 3;
-  // next: 4
+  optional string tunnel = 4;
+  // next: 5
 }
 
 message AlterTableRename {
@@ -98,6 +102,18 @@ message AlterTableRename {
 message AlterDatabaseRename {
   string name = 1;
   string new_name = 2;
+}
+
+message CreateTunnel {
+  string name = 1;
+  options.TunnelOptions options = 2;
+  bool if_not_exists = 3;
+  // next: 4
+}
+
+message DropTunnel {
+  string name = 1;
+  bool if_exists = 2;
 }
 
 message MutateRequest {

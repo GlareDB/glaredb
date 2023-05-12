@@ -7,12 +7,14 @@ use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
-    ViewEntry,
+    TunnelEntry, ViewEntry,
 };
 use crate::types::options::{DatabaseOptions, DatabaseOptionsInternal, TableOptions};
 use crate::types::service::Mutation;
 use crate::types::storage::{ExtraState, PersistedCatalog};
-use crate::validation::validate_object_name;
+use crate::validation::{
+    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
@@ -186,6 +188,18 @@ impl DatabaseCatalog {
 struct DatabaseEntries(HashMap<u32, CatalogEntry>);
 
 impl DatabaseEntries {
+    /// Get an immutable reference to the catalog entry if it exists. Errors if
+    /// the entry is builtin.
+    fn get(&self, oid: &u32) -> Result<Option<&CatalogEntry>> {
+        match self.0.get(oid) {
+            Some(ent) if ent.get_meta().builtin => {
+                Err(MetastoreError::CannotModifyBuiltin(ent.clone()))
+            }
+            Some(ent) => Ok(Some(ent)),
+            None => Ok(None),
+        }
+    }
+
     /// Get a mutable reference to the catalog entry if it exists. Errors if the
     /// entry is builtin.
     fn get_mut(&mut self, oid: &u32) -> Result<Option<&mut CatalogEntry>> {
@@ -263,6 +277,8 @@ struct State {
     entries: DatabaseEntries,
     /// Map database names to their ids.
     database_names: HashMap<String, u32>,
+    /// Map tunnel names to their ids.
+    tunnel_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -279,6 +295,7 @@ impl State {
         let mut state = persisted.state;
 
         let mut database_names = HashMap::new();
+        let mut tunnel_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
 
@@ -308,45 +325,61 @@ impl State {
             .iter()
             .filter(|(_, ent)| !ent.get_meta().builtin)
         {
-            if entry.is_database() {
-                if entry.get_meta().parent != DATABASE_PARENT_ID {
-                    return Err(MetastoreError::DatabaseHasNonZeroParent {
-                        database: *oid,
-                        parent: entry.get_meta().parent,
-                    });
+            match entry {
+                CatalogEntry::Database(database) => {
+                    if database.meta.parent != DATABASE_PARENT_ID {
+                        return Err(MetastoreError::ObjectHasNonZeroParent {
+                            object: *oid,
+                            parent: database.meta.parent,
+                            object_type: "database",
+                        });
+                    }
+
+                    database_names.insert(database.meta.name.clone(), *oid);
                 }
+                CatalogEntry::Tunnel(tunnel) => {
+                    if tunnel.meta.parent != DATABASE_PARENT_ID {
+                        return Err(MetastoreError::ObjectHasNonZeroParent {
+                            object: *oid,
+                            parent: tunnel.meta.parent,
+                            object_type: "tunnel",
+                        });
+                    }
 
-                database_names.insert(entry.get_meta().name.clone(), *oid);
-            } else if entry.is_schema() {
-                if entry.get_meta().parent == DATABASE_PARENT_ID {
-                    return Err(MetastoreError::ObjectHasInvalidParentId {
-                        object: *oid,
-                        parent: entry.get_meta().parent,
-                        object_type: "schema",
-                    });
+                    tunnel_names.insert(tunnel.meta.name.clone(), *oid);
                 }
+                CatalogEntry::Schema(schema) => {
+                    if schema.meta.parent == DATABASE_PARENT_ID {
+                        return Err(MetastoreError::ObjectHasInvalidParentId {
+                            object: *oid,
+                            parent: schema.meta.parent,
+                            object_type: "schema",
+                        });
+                    }
 
-                schema_names.insert(entry.get_meta().name.clone(), *oid);
-            } else {
-                if entry.get_meta().parent == DATABASE_PARENT_ID {
-                    return Err(MetastoreError::ObjectHasInvalidParentId {
-                        object: *oid,
-                        parent: entry.get_meta().parent,
-                        object_type: entry.get_meta().entry_type.as_str(),
-                    });
+                    schema_names.insert(schema.meta.name.clone(), *oid);
                 }
+                entry => {
+                    if entry.get_meta().parent == DATABASE_PARENT_ID {
+                        return Err(MetastoreError::ObjectHasInvalidParentId {
+                            object: *oid,
+                            parent: entry.get_meta().parent,
+                            object_type: entry.get_meta().entry_type.as_str(),
+                        });
+                    }
 
-                let schema_id = entry.get_meta().parent;
+                    let schema_id = entry.get_meta().parent;
 
-                let objects = schema_objects.entry(schema_id).or_default();
-                let existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
-                if let Some(existing) = existing {
-                    return Err(MetastoreError::DuplicateNameFoundDuringLoad {
-                        name: entry.get_meta().name.clone(),
-                        schema: schema_id,
-                        first: *oid,
-                        second: existing,
-                    });
+                    let objects = schema_objects.entry(schema_id).or_default();
+                    let existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
+                    if let Some(existing) = existing {
+                        return Err(MetastoreError::DuplicateNameFoundDuringLoad {
+                            name: entry.get_meta().name.clone(),
+                            schema: schema_id,
+                            first: *oid,
+                            second: existing,
+                        });
+                    }
                 }
             }
         }
@@ -356,6 +389,7 @@ impl State {
             oid_counter: persisted.extra.oid_counter,
             entries: state.entries.into(),
             database_names,
+            tunnel_names,
             schema_names,
             schema_objects,
         };
@@ -412,6 +446,16 @@ impl State {
                     };
 
                     self.entries.remove(&database_id).unwrap();
+                }
+                Mutation::DropTunnel(drop_tunnel) => {
+                    let if_exists = drop_tunnel.if_exists;
+                    let tunnel_id = match self.tunnel_names.remove(&drop_tunnel.name) {
+                        None if if_exists => return Ok(()),
+                        None => return Err(MetastoreError::MissingTunnel(drop_tunnel.name)),
+                        Some(id) => id,
+                    };
+
+                    self.entries.remove(&tunnel_id).unwrap();
                 }
                 Mutation::DropSchema(drop_schema) => {
                     let if_exists = drop_schema.if_exists;
@@ -488,6 +532,19 @@ impl State {
                         None => (),
                     }
 
+                    // Check if the tunnel exists and validate.
+                    let tunnel_id = if let Some(tunnel_entry) =
+                        self.get_tunnel_entry(create_database.tunnel.as_ref())?
+                    {
+                        validate_database_tunnel_support(
+                            create_database.options.as_str(),
+                            tunnel_entry.options.as_str(),
+                        )?;
+                        Some(tunnel_entry.meta.id)
+                    } else {
+                        None
+                    };
+
                     // Create new entry
                     let oid = self.next_oid();
                     let ent = DatabaseEntry {
@@ -500,11 +557,39 @@ impl State {
                             external: true,
                         },
                         options: create_database.options,
+                        tunnel_id,
                     };
                     self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
                     // Add to database map
                     self.database_names.insert(create_database.name, oid);
+                }
+                Mutation::CreateTunnel(create_tunnel) => {
+                    validate_object_name(&create_tunnel.name)?;
+                    match self.tunnel_names.get(&create_tunnel.name) {
+                        Some(_) if create_tunnel.if_not_exists => return Ok(()), // Already exists, nothing to do.
+                        Some(_) => return Err(MetastoreError::DuplicateName(create_tunnel.name)),
+                        None => (),
+                    }
+
+                    // Create new entry
+                    let oid = self.next_oid();
+                    let ent = TunnelEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::Tunnel,
+                            id: oid,
+                            // The tunnel, just like databases doesn't have any parent.
+                            parent: DATABASE_PARENT_ID,
+                            name: create_tunnel.name.clone(),
+                            builtin: false,
+                            external: true,
+                        },
+                        options: create_tunnel.options,
+                    };
+                    self.entries.insert(oid, CatalogEntry::Tunnel(ent))?;
+
+                    // Add to tunnel map
+                    self.tunnel_names.insert(create_tunnel.name, oid);
                 }
                 Mutation::CreateSchema(create_schema) => {
                     validate_object_name(&create_schema.name)?;
@@ -568,6 +653,19 @@ impl State {
                     validate_object_name(&create_ext.name)?;
                     let schema_id = self.get_schema_id(&create_ext.schema)?;
 
+                    // Check if the tunnel exists and validate.
+                    let tunnel_id = if let Some(tunnel_entry) =
+                        self.get_tunnel_entry(create_ext.tunnel.as_ref())?
+                    {
+                        validate_table_tunnel_support(
+                            create_ext.options.as_str(),
+                            tunnel_entry.options.as_str(),
+                        )?;
+                        Some(tunnel_entry.meta.id)
+                    } else {
+                        None
+                    };
+
                     // Create new entry.
                     let oid = self.next_oid();
                     let ent = TableEntry {
@@ -580,6 +678,7 @@ impl State {
                             external: true,
                         },
                         options: create_ext.options,
+                        tunnel_id,
                     };
 
                     let policy = if create_ext.if_not_exists {
@@ -723,6 +822,23 @@ impl State {
             .cloned()
             .ok_or_else(|| MetastoreError::MissingNamedSchema(name.to_string()))
     }
+
+    fn get_tunnel_entry(&self, tunnel_name: Option<&String>) -> Result<Option<&TunnelEntry>> {
+        let tunnel_entry = if let Some(tunnel) = tunnel_name {
+            let tunnel_id = *self
+                .tunnel_names
+                .get(tunnel)
+                .ok_or(MetastoreError::MissingTunnel(tunnel.clone()))?;
+            let tunnel_entry = match self.entries.get(&tunnel_id)?.expect("entry should exist") {
+                CatalogEntry::Tunnel(tunnel_entry) => tunnel_entry,
+                ent => unreachable!("entry should be a tunnel entry but found: {ent:?}"),
+            };
+            Some(tunnel_entry)
+        } else {
+            None
+        };
+        Ok(tunnel_entry)
+    }
 }
 
 /// Holds names to object ids for a single schema.
@@ -769,6 +885,7 @@ impl BuiltinCatalog {
                         external: false,
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
+                    tunnel_id: None,
                 }),
             );
         }
@@ -810,6 +927,7 @@ impl BuiltinCatalog {
                         external: false,
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
+                    tunnel_id: None,
                 }),
             );
             schema_objects
@@ -954,7 +1072,7 @@ mod tests {
 
         let mut found = HashSet::new();
         for (_, ent) in state.entries {
-            if !ent.is_schema() {
+            if !matches!(ent, CatalogEntry::Schema(_)) {
                 found.insert(ent.get_meta().name.clone());
             }
         }
@@ -1242,6 +1360,7 @@ mod tests {
                 table_type: String::new(),
             }),
             if_not_exists: true,
+            tunnel: None,
         });
         let _ = db
             .try_mutate(state.version, vec![mutation.clone(), mutation])
@@ -1276,6 +1395,7 @@ mod tests {
                     name: "bq".to_string(),
                     options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
                     if_not_exists: false,
+                    tunnel: None,
                 })],
             )
             .await
@@ -1289,6 +1409,7 @@ mod tests {
                     name: "bq".to_string(),
                     options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
                     if_not_exists: false,
+                    tunnel: None,
                 })],
             )
             .await
@@ -1302,6 +1423,7 @@ mod tests {
                     name: "bq".to_string(),
                     options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
                     if_not_exists: true,
+                    tunnel: None,
                 })],
             )
             .await
@@ -1327,6 +1449,7 @@ mod tests {
                     name: "bq".to_string(),
                     options: DatabaseOptions::Debug(DatabaseOptionsDebug {}),
                     if_not_exists: false,
+                    tunnel: None,
                 })],
             )
             .await

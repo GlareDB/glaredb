@@ -20,10 +20,11 @@ use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datasource_common::errors::DatasourceCommonError;
 use datasource_common::listing::{VirtualLister, VirtualTable};
-use datasource_common::ssh::SshTunnelAccess;
+use datasource_common::ssh::{SshKey, SshTunnelAccess};
 use datasource_common::util;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
+use metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -104,16 +105,31 @@ pub struct PostgresAccessor {
 
 impl PostgresAccessor {
     /// Connect to a postgres instance.
-    pub async fn connect(conn_str: &str, ssh_tunnel: Option<SshTunnelAccess>) -> Result<Self> {
-        let (client, conn_handle) = match ssh_tunnel {
-            None => Self::connect_direct(conn_str).await?,
-            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(conn_str, &ssh_tunnel).await?,
-        };
+    pub async fn connect(connection_string: &str, tunnel: Option<TunnelOptions>) -> Result<Self> {
+        let (client, conn_handle) = Self::connect_internal(connection_string, tunnel).await?;
 
         Ok(PostgresAccessor {
             client,
             conn_handle,
         })
+    }
+
+    async fn connect_internal(
+        connection_string: &str,
+        tunnel: Option<TunnelOptions>,
+    ) -> Result<(Client, JoinHandle<()>)> {
+        match tunnel {
+            None => Self::connect_direct(connection_string).await,
+            Some(TunnelOptions::Ssh(ssh_options)) => {
+                let keypair = SshKey::from_bytes(&ssh_options.ssh_key)?;
+                let tunnel_access = SshTunnelAccess {
+                    connection_string: ssh_options.connection_string,
+                    keypair,
+                };
+                Self::connect_with_ssh_tunnel(connection_string, &tunnel_access).await
+            }
+            Some(opt) => Err(PostgresError::UnsupportedTunnel(opt.to_string())),
+        }
     }
 
     async fn connect_direct(connection_string: &str) -> Result<(Client, JoinHandle<()>)> {
@@ -132,20 +148,20 @@ impl PostgresAccessor {
     ) -> Result<(Client, JoinHandle<()>)> {
         let config: Config = connection_string.parse()?;
 
-        // Accept only singular host and port for postgres access
-        let postgres_host = match config.get_hosts() {
-            [Host::Tcp(host)] => host.as_str(),
-            hosts => return Err(PostgresError::IncorrectNumberOfHosts(hosts.to_vec())),
-        };
-        let postgres_port = match config.get_ports() {
-            &[port] => port,
-            &[] => 5432, // default postgres port
-            ports => return Err(PostgresError::TooManyPorts(ports.to_vec())),
-        };
+        let postgres_host = config
+            .get_hosts()
+            .iter()
+            .find_map(|host| match host {
+                Host::Tcp(host) => Some(host.clone()),
+                _ => None,
+            })
+            .ok_or(PostgresError::InvalidPgHosts(config.get_hosts().to_vec()))?;
+
+        let postgres_port = config.get_ports().iter().next().cloned().unwrap_or(5432);
 
         // Open ssh tunnel
         let (session, tunnel_addr) = ssh_tunnel
-            .create_tunnel(postgres_host, postgres_port)
+            .create_tunnel(&(postgres_host, postgres_port))
             .await?;
 
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
@@ -166,14 +182,9 @@ impl PostgresAccessor {
     /// Validate postgres external database
     pub async fn validate_external_database(
         connection_string: &str,
-        ssh_tunnel: Option<SshTunnelAccess>,
+        tunnel: Option<TunnelOptions>,
     ) -> Result<()> {
-        let (client, _) = match ssh_tunnel {
-            None => Self::connect_direct(connection_string).await?,
-            Some(ssh_tunnel) => {
-                Self::connect_with_ssh_tunnel(connection_string, &ssh_tunnel).await?
-            }
-        };
+        let (client, _) = Self::connect_internal(connection_string, tunnel).await?;
 
         client.execute("SELECT 1", &[]).await?;
         Ok(())
@@ -181,14 +192,11 @@ impl PostgresAccessor {
 
     /// Validate postgres connection and access to table and retrieve arrow schema
     pub async fn validate_table_access(
-        conn_str: &str,
+        connection_string: &str,
         access: &PostgresTableAccess,
-        ssh_tunnel: Option<&SshTunnelAccess>,
+        tunnel: Option<TunnelOptions>,
     ) -> Result<ArrowSchema> {
-        let (client, _) = match ssh_tunnel {
-            None => Self::connect_direct(conn_str).await?,
-            Some(ssh_tunnel) => Self::connect_with_ssh_tunnel(conn_str, ssh_tunnel).await?,
-        };
+        let (client, _) = Self::connect_internal(connection_string, tunnel).await?;
 
         let query = format!(
             "SELECT * FROM {}.{} where false",

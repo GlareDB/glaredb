@@ -1,3 +1,4 @@
+use super::options::TunnelOptions;
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::service;
 use crate::types::options::{DatabaseOptions, TableOptions};
@@ -14,6 +15,8 @@ pub enum Mutation {
     CreateExternalDatabase(CreateExternalDatabase),
     AlterTableRename(AlterTableRename),
     AlterDatabaseRename(AlterDatabaseRename),
+    CreateTunnel(CreateTunnel),
+    DropTunnel(DropTunnel),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -44,6 +47,8 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::AlterDatabaseRename(v) => {
                 Mutation::AlterDatabaseRename(v.try_into()?)
             }
+            service::mutation::Mutation::CreateTunnel(v) => Mutation::CreateTunnel(v.try_into()?),
+            service::mutation::Mutation::DropTunnel(v) => Mutation::DropTunnel(v.try_into()?),
         })
     }
 }
@@ -69,6 +74,8 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             Mutation::AlterDatabaseRename(v) => {
                 service::mutation::Mutation::AlterDatabaseRename(v.into())
             }
+            Mutation::CreateTunnel(v) => service::mutation::Mutation::CreateTunnel(v.into()),
+            Mutation::DropTunnel(v) => service::mutation::Mutation::DropTunnel(v.into()),
         })
     }
 }
@@ -226,6 +233,7 @@ pub struct CreateExternalTable {
     pub name: String,
     pub options: TableOptions,
     pub if_not_exists: bool,
+    pub tunnel: Option<String>,
 }
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
@@ -237,6 +245,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             name: value.name,
             options: value.options.required("options")?,
             if_not_exists: value.if_not_exists,
+            tunnel: value.tunnel,
         })
     }
 }
@@ -249,6 +258,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             name: value.name,
             options: Some(value.options.try_into()?),
             if_not_exists: value.if_not_exists,
+            tunnel: value.tunnel,
         })
     }
 }
@@ -258,6 +268,7 @@ pub struct CreateExternalDatabase {
     pub name: String,
     pub options: DatabaseOptions,
     pub if_not_exists: bool,
+    pub tunnel: Option<String>,
 }
 
 impl TryFrom<service::CreateExternalDatabase> for CreateExternalDatabase {
@@ -267,6 +278,7 @@ impl TryFrom<service::CreateExternalDatabase> for CreateExternalDatabase {
             name: value.name,
             options: value.options.required("options")?,
             if_not_exists: value.if_not_exists,
+            tunnel: value.tunnel,
         })
     }
 }
@@ -277,6 +289,7 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
             name: value.name,
             options: Some(value.options.into()),
             if_not_exists: value.if_not_exists,
+            tunnel: value.tunnel,
         }
     }
 }
@@ -330,6 +343,59 @@ impl From<AlterDatabaseRename> for service::AlterDatabaseRename {
         service::AlterDatabaseRename {
             name: value.name,
             new_name: value.new_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateTunnel {
+    pub name: String,
+    pub options: TunnelOptions,
+    pub if_not_exists: bool,
+}
+
+impl TryFrom<service::CreateTunnel> for CreateTunnel {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateTunnel) -> Result<Self, Self::Error> {
+        Ok(CreateTunnel {
+            name: value.name,
+            options: value.options.required("options")?,
+            if_not_exists: value.if_not_exists,
+        })
+    }
+}
+
+impl From<CreateTunnel> for service::CreateTunnel {
+    fn from(value: CreateTunnel) -> Self {
+        service::CreateTunnel {
+            name: value.name,
+            options: Some(value.options.into()),
+            if_not_exists: value.if_not_exists,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DropTunnel {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+impl TryFrom<service::DropTunnel> for DropTunnel {
+    type Error = ProtoConvError;
+    fn try_from(value: service::DropTunnel) -> Result<Self, Self::Error> {
+        Ok(DropTunnel {
+            name: value.name,
+            if_exists: value.if_exists,
+        })
+    }
+}
+
+impl From<DropTunnel> for service::DropTunnel {
+    fn from(value: DropTunnel) -> Self {
+        service::DropTunnel {
+            name: value.name,
+            if_exists: value.if_exists,
         }
     }
 }

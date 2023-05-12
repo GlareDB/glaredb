@@ -102,7 +102,16 @@ fn main() -> Result<()> {
             let pg_addr = pg_listener.local_addr()?;
             let server_conf = ServerConfig { pg_listener };
 
-            let server = Server::connect(metastore_addr, None, true, None).await?;
+            let server = Server::connect(
+                metastore_addr,
+                None,
+                true,
+                // Run the SLT runner with in-memory metastore.
+                None,
+                // Spill-path:
+                None,
+            )
+            .await?;
             tokio::spawn(server.serve(server_conf));
 
             let runner = TestRunner::connect_embedded(pg_addr).await?;
