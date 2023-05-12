@@ -247,16 +247,18 @@ pub struct BuiltinView {
     pub sql: &'static str,
 }
 
-pub static GLARE_EXTERNAL_DATASOURCES: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+pub static GLARE_EXTERNAL_DATASOURCES: Lazy<BuiltinView> = Lazy::new(|| {
+    BuiltinView {
     schema: INTERNAL_SCHEMA,
     name: "external_datasources",
     sql: "
 WITH datasources(oid, name, datasource, object_type, external) AS (
-    SELECT oid, database_name, datasource, 'database', external FROM glare_catalog.databases
+    SELECT oid, 'schema', database_name, datasource, 'database', external FROM glare_catalog.databases
     UNION
     SELECT oid, schema_name, table_name, datasource, 'table', external FROM glare_catalog.tables
 )
 SELECT * FROM datasources WHERE external = true",
+}
 });
 
 // Information schema tables.
