@@ -112,3 +112,13 @@ create view invalid2(a, b, c) as select 1, 2;
 statement error
 create view invalid_body as select * from this_table_doesnt_exist;
 
+# View/CTE name conflict (#968)
+#
+# `external_datasources` makes use of a CTE named 'datasources'. Creating a view
+# of the same name that referenced it previously resulted in a stack overflow.
+
+statement ok
+create view datasources as select * from glare_catalog.external_datasources;
+
+statement ok
+select * from datasources;
