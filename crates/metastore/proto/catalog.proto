@@ -53,6 +53,7 @@ message CatalogEntry {
     SchemaEntry schema = 2;
     TableEntry table = 3;
     ViewEntry view = 4;
+    TunnelEntry tunnel = 5;
   }
 }
 
@@ -72,6 +73,8 @@ message EntryMeta {
     TABLE = 3;
     // Internal view.
     VIEW = 4;
+    // Tunnel to connect with datasources.
+    TUNNEL = 5;
   }
 
   // Type of the entry.
@@ -108,7 +111,8 @@ message EntryMeta {
 message DatabaseEntry {
   EntryMeta meta = 1;
   options.DatabaseOptions options = 2;
-  // next: 3
+  optional uint32 tunnel_id = 3;
+  // next: 4
 }
 
 message SchemaEntry {
@@ -122,8 +126,8 @@ message TableEntry {
   reserved 2; // Column fields
 
   options.TableOptions options = 3;
-
-  // next: 4
+  optional uint32 tunnel_id = 4;
+  // next: 5
 }
 
 message ViewEntry {
@@ -136,4 +140,10 @@ message ViewEntry {
   repeated string columns = 3;
 
   // next: 4
+}
+
+message TunnelEntry {
+  EntryMeta meta = 1;
+  options.TunnelOptions options = 2;
+  // next: 3
 }

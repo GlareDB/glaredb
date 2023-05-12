@@ -24,6 +24,9 @@ pub enum PlanError {
     #[error(transparent)]
     Preprocess(#[from] crate::planner::preprocess::PreprocessError),
 
+    #[error("Invalid tunnel '{tunnel}': {reason}")]
+    InvalidTunnel { tunnel: String, reason: String },
+
     #[error("External database validation failed: {source}")]
     InvalidExternalDatabase {
         source: Box<dyn std::error::Error + Send + Sync>,

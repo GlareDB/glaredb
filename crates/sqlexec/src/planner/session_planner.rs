@@ -1,7 +1,8 @@
 use crate::context::SessionContext;
 use crate::parser::{
     validate_ident, validate_object_name, AlterDatabaseRenameStmt, CreateExternalDatabaseStmt,
-    CreateExternalTableStmt, DropDatabaseStmt, OptionValue, StatementWithExtensions,
+    CreateExternalTableStmt, CreateTunnelStmt, DropDatabaseStmt, DropTunnelStmt, OptionValue,
+    StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -16,6 +17,7 @@ use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datafusion::sql::TableReference;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasource_common::ssh::{SshConnection, SshKey};
 use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
 use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
@@ -28,8 +30,10 @@ use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
+    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
+use metastore::validation::{validate_database_tunnel_support, validate_table_tunnel_support};
 use sqlparser::ast::ObjectName;
 use std::collections::BTreeMap;
 use std::env;
@@ -68,6 +72,8 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::AlterDatabaseRename(stmt) => {
                 self.plan_alter_database_rename(stmt)
             }
+            StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt).await,
+            StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
         }
     }
 
@@ -75,12 +81,24 @@ impl<'a> SessionPlanner<'a> {
         &self,
         mut stmt: CreateExternalDatabaseStmt,
     ) -> Result<LogicalPlan> {
+        let tunnel = stmt.tunnel.map(normalize_ident);
+        let tunnel_options = self.get_tunnel_opts(&tunnel)?;
+        let datasource = normalize_ident(stmt.datasource);
+        if let Some(tunnel_options) = &tunnel_options {
+            // Validate if the tunnel type is supported by the datasource
+            validate_database_tunnel_support(&datasource, tunnel_options.as_str()).map_err(
+                |e| PlanError::InvalidExternalDatabase {
+                    source: Box::new(e),
+                },
+            )?;
+        }
+
         let m = &mut stmt.options;
 
-        let db_options = match stmt.datasource.to_lowercase().as_str() {
+        let db_options = match datasource.as_str() {
             DatabaseOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
-                PostgresAccessor::validate_external_database(&connection_string, None)
+                PostgresAccessor::validate_external_database(&connection_string, tunnel_options)
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
@@ -102,7 +120,7 @@ impl<'a> SessionPlanner<'a> {
             }
             DatabaseOptions::MYSQL => {
                 let connection_string = get_mysql_conn_str(m)?;
-                MysqlAccessor::validate_external_database(&connection_string, None)
+                MysqlAccessor::validate_external_database(&connection_string, tunnel_options)
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
@@ -147,7 +165,10 @@ impl<'a> SessionPlanner<'a> {
                     role_name: role_name.unwrap_or_default(),
                 })
             }
-            DatabaseOptions::DEBUG => DatabaseOptions::Debug(DatabaseOptionsDebug {}),
+            DatabaseOptions::DEBUG => {
+                datasource_debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+                DatabaseOptions::Debug(DatabaseOptionsDebug {})
+            }
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
@@ -157,6 +178,7 @@ impl<'a> SessionPlanner<'a> {
             database_name,
             if_not_exists: stmt.if_not_exists,
             options: db_options,
+            tunnel,
         };
 
         Ok(LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)))
@@ -166,8 +188,21 @@ impl<'a> SessionPlanner<'a> {
         &self,
         mut stmt: CreateExternalTableStmt,
     ) -> Result<LogicalPlan> {
+        let tunnel = stmt.tunnel.map(normalize_ident);
+        let tunnel_options = self.get_tunnel_opts(&tunnel)?;
+        let datasource = normalize_ident(stmt.datasource);
+        if let Some(tunnel_options) = &tunnel_options {
+            // Validate if the tunnel type is supported by the datasource
+            validate_table_tunnel_support(&datasource, tunnel_options.as_str()).map_err(|e| {
+                PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                }
+            })?;
+        }
+
         let m = &mut stmt.options;
-        let external_table_options = match stmt.datasource.to_lowercase().as_str() {
+
+        let external_table_options = match datasource.as_str() {
             TableOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
                 let schema = remove_required_opt(m, "schema")?;
@@ -178,11 +213,15 @@ impl<'a> SessionPlanner<'a> {
                     name: table,
                 };
 
-                let _ = PostgresAccessor::validate_table_access(&connection_string, &access, None)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
+                let _ = PostgresAccessor::validate_table_access(
+                    &connection_string,
+                    &access,
+                    tunnel_options,
+                )
+                .await
+                .map_err(|e| PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                })?;
 
                 TableOptions::Postgres(TableOptionsPostgres {
                     connection_string,
@@ -224,7 +263,7 @@ impl<'a> SessionPlanner<'a> {
                     name: table,
                 };
 
-                MysqlAccessor::validate_table_access(&connection_string, &access, None)
+                MysqlAccessor::validate_table_access(&connection_string, &access, tunnel_options)
                     .await
                     .map_err(|e| PlanError::InvalidExternalTable {
                         source: Box::new(e),
@@ -359,6 +398,8 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::DEBUG => {
+                datasource_debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
 
@@ -375,9 +416,41 @@ impl<'a> SessionPlanner<'a> {
             table_name,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
+            tunnel,
         };
 
         Ok(DdlPlan::CreateExternalTable(plan).into())
+    }
+
+    async fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
+        let m = &mut stmt.options;
+
+        let tunnel_type = normalize_ident(stmt.tunnel);
+
+        let options = match tunnel_type.as_str() {
+            TunnelOptions::INTERNAL => TunnelOptions::Internal(TunnelOptionsInternal {}),
+            TunnelOptions::DEBUG => TunnelOptions::Debug(TunnelOptionsDebug {}),
+            TunnelOptions::SSH => {
+                let connection_string = get_ssh_conn_str(m)?;
+                let ssh_key = SshKey::generate_random()?;
+
+                TunnelOptions::Ssh(TunnelOptionsSsh {
+                    connection_string,
+                    ssh_key: ssh_key.to_bytes()?,
+                })
+            }
+            other => return Err(internal!("unsupported tunnel: {other}")),
+        };
+
+        let name = normalize_ident(stmt.name);
+
+        let plan = CreateTunnel {
+            name,
+            options,
+            if_not_exists: stmt.if_not_exists,
+        };
+
+        Ok(DdlPlan::CreateTunnel(plan).into())
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -663,6 +736,21 @@ impl<'a> SessionPlanner<'a> {
         .into())
     }
 
+    fn plan_drop_tunnel(&self, stmt: DropTunnelStmt) -> Result<LogicalPlan> {
+        let mut names = Vec::with_capacity(stmt.names.len());
+        for name in stmt.names.into_iter() {
+            validate_ident(&name)?;
+            let name = normalize_ident(name);
+            names.push(name);
+        }
+
+        Ok(DdlPlan::DropTunnel(DropTunnel {
+            names,
+            if_exists: stmt.if_exists,
+        })
+        .into())
+    }
+
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
         validate_ident(&stmt.name)?;
         let name = normalize_ident(stmt.name);
@@ -671,6 +759,25 @@ impl<'a> SessionPlanner<'a> {
         let new_name = normalize_ident(stmt.new_name);
 
         Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename { name, new_name }).into())
+    }
+
+    fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {
+        // Check if the tunnel exists, get tunnel options and pass them on for
+        // connection validation.
+        let tunnel_options = if let Some(tunnel) = &tunnel {
+            let ent = self
+                .ctx
+                .get_session_catalog()
+                .resolve_tunnel(tunnel)
+                .ok_or(PlanError::InvalidTunnel {
+                    tunnel: tunnel.to_owned(),
+                    reason: "does not exist".to_string(),
+                })?;
+            Some(ent.options.clone())
+        } else {
+            None
+        };
+        Ok(tunnel_options)
     }
 }
 
@@ -904,6 +1011,25 @@ fn get_mongo_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
         }
     };
 
+    Ok(conn.connection_string())
+}
+
+fn get_ssh_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
+    let conn = match remove_optional_opt(m, "connection_string")? {
+        Some(conn_str) => SshConnection::ConnectionString(conn_str),
+        None => {
+            let host = remove_required_opt(m, "host")?;
+            let port = match remove_optional_opt(m, "port")? {
+                Some(p) => {
+                    let p: u16 = p.parse()?;
+                    Some(p)
+                }
+                None => None,
+            };
+            let user = remove_required_opt(m, "user")?;
+            SshConnection::Parameters { host, port, user }
+        }
+    };
     Ok(conn.connection_string())
 }
 

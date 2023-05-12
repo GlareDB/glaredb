@@ -615,6 +615,7 @@ where
             ExecutionResult::CreateDatabase => {
                 Self::command_complete(conn, "CREATE DATABASE").await?
             }
+            ExecutionResult::CreateTunnel => Self::command_complete(conn, "CREATE TUNNEL").await?,
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
             ExecutionResult::CreateConnection => {
@@ -631,6 +632,7 @@ where
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
             ExecutionResult::DropDatabase => Self::command_complete(conn, "DROP DATABASE").await?,
+            ExecutionResult::DropTunnel => Self::command_complete(conn, "DROP TUNNEL").await?,
         };
         Ok(())
     }

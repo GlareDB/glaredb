@@ -4,7 +4,7 @@ use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use metastore::types::options::{DatabaseOptions, TableOptions};
+use metastore::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -102,6 +102,7 @@ pub struct Insert {
 #[derive(Clone, Debug)]
 pub enum DdlPlan {
     CreateExternalDatabase(CreateExternalDatabase),
+    CreateTunnel(CreateTunnel),
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
@@ -113,6 +114,7 @@ pub enum DdlPlan {
     DropViews(DropViews),
     DropSchemas(DropSchemas),
     DropDatabase(DropDatabase),
+    DropTunnel(DropTunnel),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -126,6 +128,14 @@ pub struct CreateExternalDatabase {
     pub database_name: String,
     pub if_not_exists: bool,
     pub options: DatabaseOptions,
+    pub tunnel: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateTunnel {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub options: TunnelOptions,
 }
 
 #[derive(Clone, Debug)]
@@ -146,6 +156,7 @@ pub struct CreateExternalTable {
     pub table_name: OwnedTableReference,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
+    pub tunnel: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -189,6 +200,12 @@ pub struct DropSchemas {
 
 #[derive(Clone, Debug)]
 pub struct DropDatabase {
+    pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DropTunnel {
     pub names: Vec<String>,
     pub if_exists: bool,
 }

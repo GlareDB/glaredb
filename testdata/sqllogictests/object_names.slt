@@ -91,6 +91,37 @@ SELECT * FROM Obj_Name_Database.public.Never_Ending LIMIT 1;
 statement ok
 DROP DATABASE "obj_name_database";
 
+# Tunnel names
+
+statement ok
+CREATE TUNNEL obj_name_tunnel FROM debug;
+
+statement error
+CREATE TUNNEL Obj_Name_Tunnel FROM debug;
+
+statement ok
+CREATE TUNNEL "Obj_Name_Tunnel" FROM debug;
+
+query TT rowsort
+SELECT tunnel_name FROM glare_catalog.tunnels WHERE tunnel_name LIKE '%bj_%ame_%unnel' AND tunnel_type = 'debug';
+----
+Obj_Name_Tunnel
+obj_name_tunnel
+
+statement ok
+DROP tunnel "obj_name_tunnel";
+
+statement error
+DROP tunnel Obj_Name_tunnel;
+
+query TT rowsort
+SELECT tunnel_name FROM glare_catalog.tunnels WHERE tunnel_name LIKE '%bj_%ame_%unnel' AND tunnel_type = 'debug';
+----
+Obj_Name_Tunnel
+
+statement ok
+DROP tunnel "Obj_Name_Tunnel";
+
 # View names
 
 statement ok

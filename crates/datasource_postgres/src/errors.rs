@@ -6,8 +6,8 @@ pub enum PostgresError {
     #[error("Unknown Postgres OIDs: {0:?}")]
     UnknownPostgresOids(Vec<u32>),
 
-    #[error("Provide one Postgres host to connect: {0:?}")]
-    IncorrectNumberOfHosts(Vec<tokio_postgres::config::Host>),
+    #[error("No valid postgres host found to connect: {0:?}")]
+    InvalidPgHosts(Vec<tokio_postgres::config::Host>),
 
     #[error("Too many ports provided. Provide one port or no ports (default port 5432 will be used): {0:?}")]
     TooManyPorts(Vec<u16>),
@@ -17,6 +17,9 @@ pub enum PostgresError {
 
     #[error("Failed to connect to Postgres instance: {0}")]
     TokioPostgres(#[from] tokio_postgres::Error),
+
+    #[error("Unsupported tunnel '{0}' for Postgres")]
+    UnsupportedTunnel(String),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),

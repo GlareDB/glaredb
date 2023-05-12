@@ -1,4 +1,6 @@
-use crate::types::catalog::{CatalogEntry, CatalogState, DatabaseEntry, EntryType, SchemaEntry};
+use crate::types::catalog::{
+    CatalogEntry, CatalogState, DatabaseEntry, EntryType, SchemaEntry, TunnelEntry,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -11,6 +13,8 @@ pub struct SessionCatalog {
     state: Arc<CatalogState>,
     /// Map database names to their ids.
     database_names: HashMap<String, u32>,
+    /// Map tunnel names to their ids.
+    tunnel_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -23,6 +27,7 @@ impl SessionCatalog {
         let mut catalog = SessionCatalog {
             state,
             database_names: HashMap::new(),
+            tunnel_names: HashMap::new(),
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
         };
@@ -60,6 +65,29 @@ impl SessionCatalog {
             CatalogEntry::Database(ent) => Some(ent),
             _ => panic!(
                 "entry type not database; name: {}, id: {}, type: {:?}",
+                name,
+                id,
+                ent.entry_type(),
+            ),
+        }
+    }
+
+    /// Resolve a tunnel by name.
+    pub fn resolve_tunnel(&self, name: &str) -> Option<&TunnelEntry> {
+        // Similar invariants as `resolve_database`. If we find an entry in the
+        // tunnel map, it must exist in the state and must be a tunnel.
+
+        let id = self.tunnel_names.get(name)?;
+        let ent = self
+            .state
+            .entries
+            .get(id)
+            .expect("tunnel name points to invalid id");
+
+        match ent {
+            CatalogEntry::Tunnel(ent) => Some(ent),
+            _ => panic!(
+                "entry type not tunnel; name: {}, id: {}, type: {:?}",
                 name,
                 id,
                 ent.entry_type(),
@@ -108,8 +136,14 @@ impl SessionCatalog {
             .entries
             .get(obj_id)
             .expect("object name points to invalid id");
-        assert!(!ent.is_schema());
-        assert!(!ent.is_database());
+
+        assert!(
+            // Should be an object inside a schema.
+            !matches!(
+                ent,
+                CatalogEntry::Database(_) | CatalogEntry::Tunnel(_) | CatalogEntry::Schema(_)
+            )
+        );
 
         Some(ent)
     }
@@ -137,10 +171,9 @@ impl SessionCatalog {
     }
 
     fn as_namespaced_entry<'a>(&'a self, ent: &'a CatalogEntry) -> NamespacedCatalogEntry<'a> {
-        let parent_entry = if !ent.is_database() {
-            Some(self.state.entries.get(&ent.get_meta().parent).unwrap()) // Bug if it doesn't exist.
-        } else {
-            None
+        let parent_entry = match ent {
+            CatalogEntry::Database(_) | CatalogEntry::Tunnel(_) => None,
+            _ => Some(self.state.entries.get(&ent.get_meta().parent).unwrap()), // Bug if it doesn't exist.
         };
         NamespacedCatalogEntry {
             oid: ent.get_meta().id,
@@ -152,20 +185,28 @@ impl SessionCatalog {
 
     fn rebuild_name_maps(&mut self) {
         self.database_names.clear();
+        self.tunnel_names.clear();
         self.schema_names.clear();
         self.schema_objects.clear();
 
         for (id, ent) in &self.state.entries {
             let name = ent.get_meta().name.clone();
 
-            if ent.is_database() {
-                self.database_names.insert(name, *id);
-            } else if ent.is_schema() {
-                self.schema_names.insert(name, *id);
-            } else {
-                let schema_id = ent.get_meta().parent;
-                let ent = self.schema_objects.entry(schema_id).or_default();
-                ent.objects.insert(name, *id);
+            match ent {
+                CatalogEntry::Database(_) => {
+                    self.database_names.insert(name, *id);
+                }
+                CatalogEntry::Tunnel(_) => {
+                    self.tunnel_names.insert(name, *id);
+                }
+                CatalogEntry::Schema(_) => {
+                    self.schema_names.insert(name, *id);
+                }
+                _ => {
+                    let schema_id = ent.get_meta().parent;
+                    let ent = self.schema_objects.entry(schema_id).or_default();
+                    ent.objects.insert(name, *id);
+                }
             }
         }
     }
@@ -186,7 +227,7 @@ pub struct NamespacedCatalogEntry<'a> {
     /// Whether or not this entry is builtin.
     pub builtin: bool,
     /// The parent entry for this entry. This will be `None` when the entry is a
-    /// database entry.
+    /// root entry like a database or a tunnel.
     pub parent_entry: Option<&'a CatalogEntry>,
     /// The entry.
     pub entry: &'a CatalogEntry,

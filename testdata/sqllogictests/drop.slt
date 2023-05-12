@@ -50,6 +50,50 @@ select a from drop_db1.public.never_ending LIMIT 1;
 statement error
 select b from drop_db2.public.never_ending LIMIT 1;
 
+# Test dropping tunnels
+
+statement ok
+create tunnel drop_tunnel from debug;
+
+query TT
+select tunnel_name, tunnel_type from glare_catalog.tunnels where tunnel_name='drop_tunnel';
+----
+drop_tunnel debug
+
+statement ok
+drop tunnel drop_tunnel;
+
+statement error
+drop tunnel drop_tunnel;
+
+statement ok
+drop tunnel if exists drop_tunnel;
+
+query TT
+select tunnel_name, tunnel_type from glare_catalog.tunnels where tunnel_name='drop_tunnel';
+----
+
+# Test dropping multiple tunnels
+
+statement ok
+create tunnel drop_tunnel1 from debug;
+
+statement ok
+create tunnel drop_tunnel2 from debug;
+
+query TT rowsort
+select tunnel_name, tunnel_type from glare_catalog.tunnels where tunnel_name like 'drop_tunnel%';
+----
+drop_tunnel1  debug
+drop_tunnel2  debug
+
+statement ok
+drop tunnel drop_tunnel1, drop_tunnel2;
+
+query TT
+select tunnel_name, tunnel_type from glare_catalog.tunnels where tunnel_name like 'drop_tunnel%';
+----
+
 # Test dropping empty schema
 
 statement ok

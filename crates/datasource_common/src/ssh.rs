@@ -1,11 +1,10 @@
-use std::fs::Permissions;
 use std::io;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::os::unix::prelude::PermissionsExt;
 use std::time::Duration;
+use std::{fmt::Write, fs::Permissions};
 
 use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
-use ssh_key::sec1::der::zeroize::Zeroizing;
 use ssh_key::{LineEnding, PrivateKey};
 use tempfile::NamedTempFile;
 use tokio::fs;
@@ -21,13 +20,13 @@ pub struct SshKey {
 }
 
 impl SshKey {
-    /// Generate a random Ed25519 ssh key pair
+    /// Generate a random Ed25519 ssh key pair.
     pub fn generate_random() -> Result<Self> {
         let keypair = PrivateKey::random(rand::thread_rng(), ssh_key::Algorithm::Ed25519)?;
         Ok(Self { keypair })
     }
 
-    /// Recreate ssh key from bytes store in catalog
+    /// Recreate ssh key from bytes store in catalog.
     pub fn from_bytes(keypair: &[u8]) -> Result<Self> {
         let keypair = PrivateKey::from_bytes(keypair)?;
         Ok(Self { keypair })
@@ -38,56 +37,75 @@ impl SshKey {
         Ok(self.keypair.to_bytes()?.to_vec())
     }
 
-    /// Create an OpenSSH-formatted public key as a String
+    /// Create an OpenSSH-formatted public key as a String.
     pub fn public_key(&self) -> Result<String> {
         Ok(self.keypair.public_key().to_openssh()?)
     }
 
-    /// Create an OpenSSH-formatted private key as a String
-    pub(crate) fn private_key(&self) -> Result<Zeroizing<String>> {
-        Ok(self.keypair.to_openssh(LineEnding::default())?)
+    /// Create an OpenSSH-formatted private key as a String.
+    pub(crate) fn to_openssh(&self) -> Result<String> {
+        Ok(self.keypair.to_openssh(LineEnding::default())?.to_string())
+    }
+}
+
+#[derive(Debug)]
+pub enum SshConnection {
+    ConnectionString(String),
+    Parameters {
+        host: String,
+        port: Option<u16>,
+        user: String,
+    },
+}
+
+impl SshConnection {
+    pub fn connection_string(&self) -> String {
+        match self {
+            Self::ConnectionString(s) => s.to_owned(),
+            Self::Parameters { host, port, user } => {
+                let mut conn_str = format!("ssh://{user}@{host}");
+                if let Some(port) = port {
+                    write!(&mut conn_str, ":{port}").unwrap();
+                }
+                conn_str
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SshTunnelAccess {
-    pub host: String,
-    pub user: String,
-    pub port: u16,
+    pub connection_string: String,
     pub keypair: SshKey,
 }
 
 impl SshTunnelAccess {
-    /// Create an ssh tunnel using port fowarding from a random local port to the host specified in
-    /// `SshTunnelAccess`
-    pub async fn create_tunnel(
-        &self,
-        remote_host: &str,
-        remote_port: u16,
-    ) -> Result<(Session, SocketAddr)> {
-        let temp_keyfile =
-            Self::generate_temp_keyfile(self.keypair.private_key()?.as_ref()).await?;
+    /// Create an ssh tunnel using port fowarding from a random local port to
+    /// the host specified in `connection_string`.
+    pub async fn create_tunnel<T>(&self, remote_addr: &T) -> Result<(Session, SocketAddr)>
+    where
+        T: ToSocketAddrs,
+    {
+        let temp_keyfile = Self::generate_temp_keyfile(self.keypair.to_openssh()?.as_ref()).await?;
 
         let tunnel = SessionBuilder::default()
             .known_hosts_check(KnownHosts::Accept)
-            .user(self.user.clone())
-            .port(self.port)
             .keyfile(temp_keyfile.path())
             // Wait 15 seconds before timing out ssh connection attempt
             .connect_timeout(Duration::from_secs(15))
-            .connect(self.host.as_str())
+            .connect(self.connection_string.as_str())
             .await?;
 
+        // Check the status of the connection before proceeding.
         tunnel.check().await?;
 
         // Find open local port and attempt to create tunnel
         // Retry generating a port up to 10 times
         for _ in 0..10 {
             let local_addr = Self::generate_random_port().await?;
-            let remote_addr = (remote_host, remote_port);
 
             let local = openssh::Socket::new(&local_addr)?;
-            let remote = openssh::Socket::new(&remote_addr)?;
+            let remote = openssh::Socket::new(remote_addr)?;
 
             match tunnel
                 .request_port_forward(ForwardType::Local, local, remote)
@@ -149,13 +167,13 @@ impl SshTunnelAccess {
 
 #[cfg(test)]
 mod tests {
-    use crate::ssh::{SshKey, SshTunnelAccess};
+    use crate::ssh::{SshConnection, SshKey, SshTunnelAccess};
 
     #[tokio::test]
     async fn validate_temp_keyfile() {
         let key = SshKey::generate_random().unwrap();
 
-        let private_key = key.private_key().unwrap();
+        let private_key = key.to_openssh().unwrap();
 
         let temp_keyfile = SshTunnelAccess::generate_temp_keyfile(private_key.as_ref())
             .await
@@ -164,5 +182,29 @@ mod tests {
         let keyfile_data = std::fs::read(temp_keyfile.path()).unwrap();
 
         assert_eq!(keyfile_data, private_key.as_bytes());
+    }
+
+    #[test]
+    fn connection_string() {
+        let conn_str = SshConnection::ConnectionString("ssh://prod@127.0.0.1:5432".to_string())
+            .connection_string();
+        assert_eq!(&conn_str, "ssh://prod@127.0.0.1:5432");
+
+        let conn_str = SshConnection::Parameters {
+            host: "127.0.0.1".to_string(),
+            port: Some(5432),
+            user: "prod".to_string(),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "ssh://prod@127.0.0.1:5432");
+
+        // Missing port.
+        let conn_str = SshConnection::Parameters {
+            host: "127.0.0.1".to_string(),
+            port: None,
+            user: "prod".to_string(),
+        };
+        let conn_str = conn_str.connection_string();
+        assert_eq!(&conn_str, "ssh://prod@127.0.0.1");
     }
 }

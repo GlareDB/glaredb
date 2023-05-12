@@ -1,4 +1,4 @@
-use super::options::{InternalColumnDefinition, TableOptionsInternal};
+use super::options::{InternalColumnDefinition, TableOptionsInternal, TunnelOptions};
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::catalog;
 use crate::types::options::{DatabaseOptions, TableOptions};
@@ -51,6 +51,7 @@ pub enum CatalogEntry {
     Schema(SchemaEntry),
     Table(TableEntry),
     View(ViewEntry),
+    Tunnel(TunnelEntry),
 }
 
 impl CatalogEntry {
@@ -60,15 +61,8 @@ impl CatalogEntry {
             CatalogEntry::Schema(_) => EntryType::Schema,
             CatalogEntry::View(_) => EntryType::View,
             CatalogEntry::Table(_) => EntryType::Table,
+            CatalogEntry::Tunnel(_) => EntryType::Tunnel,
         }
-    }
-
-    pub const fn is_database(&self) -> bool {
-        matches!(self, CatalogEntry::Database(_))
-    }
-
-    pub const fn is_schema(&self) -> bool {
-        matches!(self, CatalogEntry::Schema(_))
     }
 
     /// Get the entry metadata.
@@ -78,6 +72,7 @@ impl CatalogEntry {
             CatalogEntry::Schema(schema) => &schema.meta,
             CatalogEntry::View(view) => &view.meta,
             CatalogEntry::Table(table) => &table.meta,
+            CatalogEntry::Tunnel(tunnel) => &tunnel.meta,
         }
     }
 
@@ -88,6 +83,7 @@ impl CatalogEntry {
             CatalogEntry::Schema(schema) => &mut schema.meta,
             CatalogEntry::View(view) => &mut view.meta,
             CatalogEntry::Table(table) => &mut table.meta,
+            CatalogEntry::Tunnel(tunnel) => &mut tunnel.meta,
         }
     }
 }
@@ -100,6 +96,7 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
             catalog::catalog_entry::Entry::Schema(v) => CatalogEntry::Schema(v.try_into()?),
             catalog::catalog_entry::Entry::Table(v) => CatalogEntry::Table(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
+            catalog::catalog_entry::Entry::Tunnel(v) => CatalogEntry::Tunnel(v.try_into()?),
         })
     }
 }
@@ -119,6 +116,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
+            CatalogEntry::Tunnel(v) => catalog::catalog_entry::Entry::Tunnel(v.into()),
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
@@ -130,6 +128,7 @@ pub enum EntryType {
     Schema,
     Table,
     View,
+    Tunnel,
 }
 
 impl EntryType {
@@ -139,6 +138,7 @@ impl EntryType {
             EntryType::Schema => "schema",
             EntryType::Table => "table",
             EntryType::View => "view",
+            EntryType::Tunnel => "tunnel",
         }
     }
 }
@@ -163,6 +163,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             catalog::entry_meta::EntryType::Schema => EntryType::Schema,
             catalog::entry_meta::EntryType::Table => EntryType::Table,
             catalog::entry_meta::EntryType::View => EntryType::View,
+            catalog::entry_meta::EntryType::Tunnel => EntryType::Tunnel,
         })
     }
 }
@@ -174,6 +175,7 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
             EntryType::Schema => catalog::entry_meta::EntryType::Schema,
             EntryType::Table => catalog::entry_meta::EntryType::Table,
             EntryType::View => catalog::entry_meta::EntryType::View,
+            EntryType::Tunnel => catalog::entry_meta::EntryType::Tunnel,
         }
     }
 }
@@ -231,6 +233,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
+    pub tunnel_id: Option<u32>,
 }
 
 impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
@@ -240,6 +243,7 @@ impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
         Ok(DatabaseEntry {
             meta,
             options: value.options.required("options")?,
+            tunnel_id: value.tunnel_id,
         })
     }
 }
@@ -249,6 +253,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
         catalog::DatabaseEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
+            tunnel_id: value.tunnel_id,
         }
     }
 }
@@ -278,6 +283,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
+    pub tunnel_id: Option<u32>,
 }
 
 impl TableEntry {
@@ -297,6 +303,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
         Ok(TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
+            tunnel_id: value.tunnel_id,
         })
     }
 }
@@ -307,6 +314,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
         Ok(catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
+            tunnel_id: value.tunnel_id,
         })
     }
 }
@@ -336,6 +344,32 @@ impl From<ViewEntry> for catalog::ViewEntry {
             meta: Some(value.meta.into()),
             sql: value.sql,
             columns: value.columns,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct TunnelEntry {
+    pub meta: EntryMeta,
+    pub options: TunnelOptions,
+}
+
+impl TryFrom<catalog::TunnelEntry> for TunnelEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::TunnelEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(TunnelEntry {
+            meta,
+            options: value.options.required("options")?,
+        })
+    }
+}
+
+impl From<TunnelEntry> for catalog::TunnelEntry {
+    fn from(value: TunnelEntry) -> Self {
+        catalog::TunnelEntry {
+            meta: Some(value.meta.into()),
+            options: Some(value.options.into()),
         }
     }
 }

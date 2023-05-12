@@ -1,0 +1,78 @@
+# Basic testing for tunnels and datasources.
+
+statement ok
+CREATE TUNNEL debug_tunnel FROM debug;
+
+statement error
+CREATE TUNNEL debug_tunnel FROM debug;
+
+statement ok
+CREATE TUNNEL IF NOT EXISTS debug_tunnel FROM debug;
+
+query TT
+SELECT tunnel_name, tunnel_type FROM glare_catalog.tunnels WHERE tunnel_name = 'debug_tunnel';
+----
+debug_tunnel  debug
+
+# Incorrect tunnel name should error
+
+statement error
+CREATE EXTERNAL DATABASE debug_tunnel_db
+  FROM debug
+  TUNNEL debug_tunnel_abc;
+
+# Try creating a datasource with tunnel
+
+statement ok
+CREATE EXTERNAL DATABASE debug_tunnel_db
+  FROM debug
+  TUNNEL debug_tunnel;
+
+query III
+SELECT a, b, c
+  FROM debug_tunnel_db.public.never_ending
+  LIMIT 1;
+----
+10  20  30
+
+statement ok
+CREATE EXTERNAL TABLE debug_tunnel_table
+  FROM debug
+  TUNNEL debug_tunnel
+  OPTIONS ( table_type = 'never_ending' );
+
+query III
+SELECT a, b, c
+  FROM debug_tunnel_table
+  LIMIT 1;
+----
+10  20  30
+
+# If a datasource doesn't support tunnel, it should error.
+
+statement error
+CREATE EXTERNAL TABLE local_tunnel_table
+  FROM local
+  TUNNEL debug_tunnel
+  OPTIONS (
+    location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'	
+  );
+
+# Just to prove that the csv file exists and the error was due to tunnel.
+statement ok
+CREATE EXTERNAL TABLE local_tunnel_table
+  FROM local
+  OPTIONS (
+    location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'	
+  );
+
+# Cleanup after test
+
+statement ok
+DROP DATABASE debug_tunnel_db;
+
+statement ok
+DROP TABLE local_tunnel_table, debug_tunnel_table;
+
+statement ok
+DROP TUNNEL debug_tunnel;

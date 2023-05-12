@@ -23,6 +23,9 @@ pub enum MetastoreError {
     #[error("Missing database: {0}")]
     MissingDatabase(String),
 
+    #[error("Missing tunnel: {0}")]
+    MissingTunnel(String),
+
     #[error("Missing schema: {0}")]
     MissingNamedSchema(String),
 
@@ -32,14 +35,21 @@ pub enum MetastoreError {
     #[error("Missing entry: {0}")]
     MissingEntry(u32),
 
+    #[error("Tunnel '{tunnel}' not supported by datasource '{datasource}'")]
+    TunnelNotSupportedByDatasource { tunnel: String, datasource: String },
+
     #[error("Catalog version mismatch; have: {have}, need: {need}")]
     VersionMismtatch { have: u64, need: u64 },
 
     #[error("Invalid database id: {0:?}")]
     InvalidDatabaseId(Vec<u8>),
 
-    #[error("Database {database} has non-zero parent: {parent}")]
-    DatabaseHasNonZeroParent { database: u32, parent: u32 },
+    #[error("Object {object} of type '{object_type}' has non-zero parent: {parent}")]
+    ObjectHasNonZeroParent {
+        object: u32,
+        parent: u32,
+        object_type: &'static str,
+    },
 
     #[error("Schema {schema} has {num_objects} child objects")]
     SchemaHasChildren { schema: u32, num_objects: usize },
@@ -62,6 +72,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     ProtoConv(#[from] crate::types::ProtoConvError),
+
+    #[error(transparent)]
+    ObjectStore(#[from] object_store::Error),
 
     #[error("Feature unimplemented: {0}")]
     Unimplemented(&'static str),

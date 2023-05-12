@@ -81,6 +81,17 @@ pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_TUNNELS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "tunnels",
+    columns: InternalColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("tunnel_name", DataType::Utf8, false),
+        ("builtin", DataType::Boolean, false),
+        ("tunnel_type", DataType::Utf8, false),
+    ]),
+});
+
 pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "schemas",
@@ -149,6 +160,16 @@ pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| Builti
     ]),
 });
 
+pub static GLARE_SSH_KEYS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "ssh_keys",
+    columns: InternalColumnDefinition::from_tuples([
+        ("ssh_tunnel_oid", DataType::UInt32, false),
+        ("ssh_tunnel_name", DataType::Utf8, false),
+        ("public_key", DataType::Utf8, false),
+    ]),
+});
+
 impl BuiltinTable {
     /// Check if this table matches the provided schema and name.
     pub fn matches(&self, schema: &str, name: &str) -> bool {
@@ -169,11 +190,13 @@ impl BuiltinTable {
     pub fn builtins() -> Vec<&'static BuiltinTable> {
         vec![
             &GLARE_DATABASES,
+            &GLARE_TUNNELS,
             &GLARE_SCHEMAS,
             &GLARE_VIEWS,
             &GLARE_TABLES,
             &GLARE_COLUMNS,
             &GLARE_SESSION_QUERY_METRICS,
+            &GLARE_SSH_KEYS,
         ]
     }
 }

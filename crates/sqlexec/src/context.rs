@@ -159,6 +159,7 @@ impl SessionContext {
                 name,
                 options: plan.table_options,
                 if_not_exists: plan.if_not_exists,
+                tunnel: plan.tunnel,
             },
         )])
         .await?;
@@ -187,8 +188,21 @@ impl SessionContext {
                 name: plan.database_name,
                 if_not_exists: plan.if_not_exists,
                 options: plan.options,
+                tunnel: plan.tunnel,
             },
         )])
+        .await?;
+        Ok(())
+    }
+
+    pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
+        // TODO: Max tunnel count?
+
+        self.mutate_catalog([Mutation::CreateTunnel(service::CreateTunnel {
+            name: plan.name,
+            if_not_exists: plan.if_not_exists,
+            options: plan.options,
+        })])
         .await?;
         Ok(())
     }
@@ -294,6 +308,24 @@ impl SessionContext {
             .into_iter()
             .map(|name| {
                 Mutation::DropDatabase(service::DropDatabase {
+                    name,
+                    if_exists: plan.if_exists,
+                })
+            })
+            .collect();
+
+        self.mutate_catalog(drops).await?;
+
+        Ok(())
+    }
+
+    /// Drop one or more tunnels.
+    pub async fn drop_tunnel(&mut self, plan: DropTunnel) -> Result<()> {
+        let drops: Vec<_> = plan
+            .names
+            .into_iter()
+            .map(|name| {
+                Mutation::DropTunnel(service::DropTunnel {
                     name,
                     if_exists: plan.if_exists,
                 })

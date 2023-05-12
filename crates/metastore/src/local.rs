@@ -2,13 +2,23 @@ use crate::errors::{MetastoreError, Result};
 use crate::proto::service::metastore_service_client::MetastoreServiceClient;
 use crate::proto::service::metastore_service_server::MetastoreServiceServer;
 use crate::srv::Service;
+use object_store::local::LocalFileSystem;
 use object_store::{memory::InMemory, ObjectStore};
+use std::path::Path;
 use std::sync::Arc;
 use tonic::transport::{Channel, Endpoint, Server, Uri};
 
 /// Starts an in-process, in-memory metastore.
 pub async fn start_inprocess_inmemory() -> Result<MetastoreServiceClient<Channel>> {
     start_inprocess(Arc::new(InMemory::new())).await
+}
+
+/// Starts an in-process, local persistent metastore.
+pub async fn start_inprocess_local(
+    path: impl AsRef<Path>,
+) -> Result<MetastoreServiceClient<Channel>> {
+    let local = LocalFileSystem::new_with_prefix(path)?;
+    start_inprocess(Arc::new(local)).await
 }
 
 /// Starts an in-process metastore service, returning a client for the service.
