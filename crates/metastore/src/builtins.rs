@@ -254,7 +254,7 @@ pub static GLARE_EXTERNAL_DATASOURCES: Lazy<BuiltinView> = Lazy::new(|| BuiltinV
 WITH datasources(oid, name, datasource, object_type, external) AS (
     SELECT oid, database_name, datasource, 'database', external FROM glare_catalog.databases
     UNION
-    SELECT oid, table_name, datasource, 'table', external FROM glare_catalog.tables
+    SELECT oid, schema_name, table_name, datasource, 'table', external FROM glare_catalog.tables
 )
 SELECT * FROM datasources WHERE external = true",
 });
