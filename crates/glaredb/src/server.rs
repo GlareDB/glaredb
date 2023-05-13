@@ -9,7 +9,9 @@ use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
-use tracing::{debug, debug_span, info, warn, Instrument};
+use tokio::signal;
+use tokio::sync::oneshot;
+use tracing::{debug, debug_span, error, info, warn, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
@@ -94,21 +96,61 @@ impl Server {
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
         info!("GlareDB listening...");
-        loop {
-            let (conn, client_addr) = conf.pg_listener.accept().await?;
-            let pg_handler = self.pg_handler.clone();
-            let conn_id = Uuid::new_v4();
-            let span = debug_span!("glaredb_connection", %conn_id);
-            tokio::spawn(
-                async move {
-                    debug!(%client_addr, "client connected (pg)");
-                    match pg_handler.handle_connection(conn_id, conn).await {
-                        Ok(_) => debug!(%client_addr, "client disconnected"),
-                        Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
+
+        // Shutdown handler.
+        let (tx, mut rx) = oneshot::channel();
+        let pg_hander = self.pg_handler.clone();
+        tokio::spawn(async move {
+            match signal::ctrl_c().await {
+                Ok(()) => {
+                    info!("shutdown triggered");
+                    loop {
+                        let sess_count = pg_hander.engine.session_count();
+                        if sess_count == 0 {
+                            // Shutdown!
+                            let _ = tx.send(());
+                            return;
+                        }
+
+                        info!(%sess_count, "shutdown prevented, active sessions");
+
+                        // Still have sessions. Keep looping with some sleep in
+                        // between.
+                        tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                     }
                 }
-                .instrument(span),
-            );
+                Err(err) => {
+                    error!(%err, "unable to listen for shutdown signal");
+                }
+            }
+        });
+
+        loop {
+            tokio::select! {
+                _ = &mut rx => {
+                    info!("shutting down");
+                    return Ok(())
+                }
+
+                result = conf.pg_listener.accept() => {
+                    let (conn, client_addr) = result?;
+
+                    let pg_handler = self.pg_handler.clone();
+                    let conn_id = Uuid::new_v4();
+                    let span = debug_span!("glaredb_connection", %conn_id);
+
+                    tokio::spawn(
+                        async move {
+                            debug!(%client_addr, "client connected (pg)");
+                            match pg_handler.handle_connection(conn_id, conn).await {
+                                Ok(_) => debug!(%client_addr, "client disconnected"),
+                                Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
+                            }
+                        }
+                        .instrument(span),
+                    );
+                }
+            }
         }
     }
 }

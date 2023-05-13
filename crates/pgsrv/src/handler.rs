@@ -23,6 +23,7 @@ use sqlexec::{
 };
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::ops::DerefMut;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
@@ -31,7 +32,7 @@ use uuid::Uuid;
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
 /// protocol.
 pub struct ProtocolHandler {
-    engine: Engine,
+    pub engine: Engine,
     /// If we should consider this database running locally.
     ///
     /// During proxying by pgsrv, additional parameters are added to the startup
@@ -235,9 +236,9 @@ impl ProtocolHandler {
     }
 }
 
-struct ClientSession<C> {
+struct ClientSession<C, S> {
     conn: FramedConn<C>,
-    session: Session,
+    session: S,
 }
 
 /// This helper macro is used so we can call some `get_*` methods on the
@@ -257,11 +258,12 @@ macro_rules! session_do {
     };
 }
 
-impl<C> ClientSession<C>
+impl<C, S> ClientSession<C, S>
 where
     C: AsyncRead + AsyncWrite + Unpin,
+    S: DerefMut<Target = Session>,
 {
-    fn new(session: Session, conn: FramedConn<C>) -> Self {
+    fn new(session: S, conn: FramedConn<C>) -> Self {
         ClientSession { session, conn }
     }
 
