@@ -27,6 +27,10 @@ use uuid::Uuid;
 /// Special id indicating that databases have no parents.
 const DATABASE_PARENT_ID: u32 = 0;
 
+/// Absolute max number of database objects that can exist in the catalog. This
+/// is not configurable when creating a session.
+const MAX_DATABASE_OBJECTS: usize = 2048;
+
 /// A global builtin catalog. This is meant to be cloned for every database
 /// catalog.
 static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new().unwrap());
@@ -225,6 +229,12 @@ impl DatabaseEntries {
 
     /// Insert an entry.
     fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
+        if self.0.len() > MAX_DATABASE_OBJECTS {
+            return Err(MetastoreError::MaxNumberOfObjects {
+                max: MAX_DATABASE_OBJECTS,
+            });
+        }
+
         if let Some(ent) = self.0.get(&oid) {
             if ent.get_meta().builtin {
                 return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));

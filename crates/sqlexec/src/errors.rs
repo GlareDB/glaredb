@@ -46,8 +46,11 @@ pub enum ExecError {
     ExternalTableWithSsh,
 
     // TODO: Need to be more granular about errors from Metastore.
-    #[error("Failed Metastore request: {0}")]
-    MetastoreTonic(#[from] tonic::Status),
+    #[error("Failed Metastore request: {message}")]
+    MetastoreTonic {
+        strategy: metastore::errors::ResolveErrorStrategy,
+        message: String,
+    },
 
     #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
     MetastoreDatabaseWorkerOverload {
@@ -123,6 +126,21 @@ pub enum ExecError {
     PlanError(#[from] crate::planner::errors::PlanError),
 }
 
+impl From<tonic::Status> for ExecError {
+    fn from(value: tonic::Status) -> Self {
+        let strat = value
+            .metadata()
+            .get(metastore::errors::RESOLVE_ERROR_STRATEGY_META)
+            .map(|val| ResolveErrorStrategy::from_bytes(val.as_ref()))
+            .unwrap_or(ResolveErrorStrategy::Unknown);
+
+        Self::MetastoreTonic {
+            strategy: strat,
+            message: value.message().to_string(),
+        }
+    }
+}
+
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
 
 #[allow(unused_macros)]
@@ -132,3 +150,4 @@ macro_rules! internal {
     };
 }
 pub(crate) use internal;
+use metastore::errors::ResolveErrorStrategy;
