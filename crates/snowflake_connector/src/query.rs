@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fmt::Debug, io::Cursor, sync::Arc, vec};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    io::{BufReader, Cursor},
+    sync::Arc,
+    vec,
+};
 
 use datafusion::{
     arrow::{
@@ -236,7 +242,7 @@ macro_rules! make_json_column {
 
 pub enum RecordBatchIter {
     Stream {
-        reader: StreamReader<Cursor<Vec<u8>>>,
+        reader: StreamReader<BufReader<Cursor<Vec<u8>>>>,
         schema: SchemaRef,
         type_metas: Arc<Vec<SnowflakeTypeMeta>>,
     },

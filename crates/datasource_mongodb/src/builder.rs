@@ -117,11 +117,8 @@ impl ArrayBuilder for RecordStructBuilder {
         let builders = std::mem::take(&mut self.builders);
         let arrays = builders.into_iter().map(|mut b| b.finish());
 
-        let pairs: Vec<(Field, Arc<dyn Array>)> = fields
-            .into_iter()
-            .map(|f| f.as_ref().clone())
-            .zip(arrays)
-            .collect();
+        let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
+            fields.into_iter().map(Arc::clone).zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 
@@ -129,14 +126,10 @@ impl ArrayBuilder for RecordStructBuilder {
     }
 
     fn finish_cloned(&self) -> ArrayRef {
-        let fields = self.fields.clone();
         let arrays: Vec<Arc<dyn Array>> = self.builders.iter().map(|b| b.finish_cloned()).collect();
 
-        let pairs: Vec<(Field, Arc<dyn Array>)> = fields
-            .into_iter()
-            .map(|f| f.as_ref().clone())
-            .zip(arrays)
-            .collect();
+        let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
+            self.fields.iter().map(Arc::clone).zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 

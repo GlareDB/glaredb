@@ -24,17 +24,19 @@ pub struct CsvConfig {
 
 impl CsvConfig {
     fn open<R: std::io::Read>(&self, reader: R, first_chunk: bool) -> csv::Reader<R> {
-        let datetime_format = None;
-        csv::Reader::new(
-            reader,
-            Arc::clone(&self.file_schema),
-            self.has_header && first_chunk,
-            Some(self.delimiter),
-            self.batch_size,
-            None,
-            self.file_projection.clone(),
-            datetime_format,
-        )
+        let mut builder = csv::ReaderBuilder::new(self.file_schema.clone())
+            .has_header(self.has_header && first_chunk)
+            .with_delimiter(self.delimiter)
+            .with_batch_size(self.batch_size);
+
+        if let Some(projection) = &self.file_projection {
+            builder = builder.with_projection(projection.clone());
+        }
+
+        // NB: This function never errors. If it ever does (in future after DF
+        // changes), this is a programming error and panic-ing is the correct
+        // thing to do here.
+        builder.build(reader).expect("should be a valid csv reader")
     }
 }
 
