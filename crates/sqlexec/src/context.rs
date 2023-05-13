@@ -546,9 +546,7 @@ impl SessionContext {
                 let version = state.version;
                 self.metastore_catalog.swap_state(state);
 
-                let state = self.metastore.try_mutate(version, mutations).await?;
-
-                state
+                self.metastore.try_mutate(version, mutations).await?
             }
             Err(e) => return Err(e),
         };
