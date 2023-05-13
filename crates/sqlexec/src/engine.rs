@@ -3,10 +3,13 @@ use crate::metastore::Supervisor;
 use crate::session::Session;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use telemetry::Tracker;
 use tonic::transport::Channel;
+use tracing::debug;
 use uuid::Uuid;
 
 /// Static information for database sessions.
@@ -31,9 +34,14 @@ pub struct SessionInfo {
 
 /// Wrapper around the database catalog.
 pub struct Engine {
+    /// Metastore client supervisor.
     supervisor: Supervisor,
+    /// Telemetry.
     tracker: Arc<Tracker>,
+    /// Path to spill temp files.
     spill_path: Option<PathBuf>,
+    /// Number of active sessions.
+    session_counter: Arc<AtomicU64>,
 }
 
 impl Engine {
@@ -47,7 +55,13 @@ impl Engine {
             supervisor: Supervisor::new(metastore),
             tracker,
             spill_path,
+            session_counter: Arc::new(AtomicU64::new(0)),
         })
+    }
+
+    /// Get the current number of sessions.
+    pub fn session_count(&self) -> u64 {
+        self.session_counter.load(Ordering::Relaxed)
     }
 
     /// Create a new session with the given id.
@@ -61,7 +75,7 @@ impl Engine {
         database_name: String,
         max_datasource_count: usize,
         memory_limit_bytes: usize,
-    ) -> Result<Session> {
+    ) -> Result<TrackedSession> {
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
 
         let info = Arc::new(SessionInfo {
@@ -84,6 +98,39 @@ impl Engine {
             self.tracker.clone(),
             self.spill_path.clone(),
         )?;
-        Ok(session)
+
+        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
+        debug!(session_count = prev + 1, "new session opened");
+
+        Ok(TrackedSession {
+            inner: session,
+            session_counter: self.session_counter.clone(),
+        })
+    }
+}
+
+/// A thin wrapper around a session.
+pub struct TrackedSession {
+    inner: Session,
+    session_counter: Arc<AtomicU64>,
+}
+
+impl Deref for TrackedSession {
+    type Target = Session;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for TrackedSession {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl Drop for TrackedSession {
+    fn drop(&mut self) {
+        let prev = self.session_counter.fetch_sub(1, Ordering::Relaxed);
+        debug!(session_counter = prev - 1, "session closed");
     }
 }
