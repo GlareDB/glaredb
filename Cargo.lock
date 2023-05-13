@@ -1342,7 +1342,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1391,7 +1391,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1405,7 +1405,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1422,7 +1422,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1433,7 +1433,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1450,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1482,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1493,7 +1493,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#90775b4832fcc066d41025bc3ab29a5d8b8fbccf"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -5749,7 +5749,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
