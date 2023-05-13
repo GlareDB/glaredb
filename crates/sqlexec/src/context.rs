@@ -20,6 +20,7 @@ use datafusion::sql::TableReference;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
+use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
@@ -511,19 +512,46 @@ impl SessionContext {
     }
 
     /// Attempt to apply mutations to the catalog.
+    ///
+    /// This will retry mutations if we were working with an out of date
+    /// catalog.
     async fn mutate_catalog(
         &mut self,
         mutations: impl IntoIterator<Item = Mutation>,
     ) -> Result<()> {
         // Note that when we have transactions, these shouldn't be sent until
         // commit.
-        let state = self
+        let mutations: Vec<_> = mutations.into_iter().collect();
+
+        let state = match self
             .metastore
-            .try_mutate(
-                self.metastore_catalog.version(),
-                mutations.into_iter().collect(),
-            )
-            .await?;
+            .try_mutate(self.metastore_catalog.version(), mutations.clone())
+            .await
+        {
+            Ok(state) => state,
+            Err(ExecError::MetastoreTonic {
+                strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
+                message,
+            }) => {
+                // Go ahead and refetch the catalog and retry the mutation.
+                //
+                // Note that this relies on metastore _always_ being stricter
+                // when validating mutations. What this means is that retrying
+                // here should be semantically equivalent to manually refreshing
+                // the catalog and rerunning and replanning the query.
+                debug!(error_message = message, "retrying mutations");
+
+                self.metastore.refresh_cached_state().await?;
+                let state = self.metastore.get_cached_state().await?;
+                let version = state.version;
+                self.metastore_catalog.swap_state(state);
+
+                let state = self.metastore.try_mutate(version, mutations).await?;
+
+                state
+            }
+            Err(e) => return Err(e),
+        };
         self.metastore_catalog.swap_state(state);
         Ok(())
     }
