@@ -13,17 +13,25 @@ use tokio::sync::RwLock;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
-use tracing::{debug, debug_span, error, warn, Instrument};
+use tracing::{debug_span, error, info, warn, Instrument};
 use uuid::Uuid;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
 
-/// How often to fetch the latest catalog from Metastore.
-const FETCH_TICK_DUR: Duration = Duration::from_secs(60 * 5);
+/// Configuration values used when starting up a worker.
+#[derive(Debug, Clone, Copy)]
+pub struct WorkerRunConfig {
+    /// How often to fetch the latest catalog from Metastore.
+    fetch_tick_dur: Duration,
+    /// Number of ticks with no session references before the worker exits.
+    max_ticks_before_exit: usize,
+}
 
-/// Number of ticks before the worker exits.
-const MAX_TICKS_BEFORE_EXIT: usize = 3;
+pub const DEFAULT_WORKER_CONFIG: WorkerRunConfig = WorkerRunConfig {
+    fetch_tick_dur: Duration::from_secs(60 * 5),
+    max_ticks_before_exit: 3,
+};
 
 /// Worker client. This client can only make requests for a single database.
 pub struct SupervisorClient {
@@ -204,7 +212,11 @@ pub struct Supervisor {
     /// Note that our current architecture has a one-to-one mapping with
     /// database to node, but this would make it very easy to support
     /// multi-tenant.
+    // TODO: We will want to occasionally clear out dead workers.
     workers: RwLock<HashMap<Uuid, WorkerHandle>>,
+
+    /// Configuration to use for all workers.
+    worker_conf: WorkerRunConfig,
 
     /// GRPC client to metastore. Cloned for each database worker.
     client: MetastoreServiceClient<Channel>,
@@ -212,10 +224,14 @@ pub struct Supervisor {
 
 impl Supervisor {
     /// Create a new worker supervisor.
-    pub fn new(client: MetastoreServiceClient<Channel>) -> Supervisor {
+    pub fn new(
+        client: MetastoreServiceClient<Channel>,
+        worker_conf: WorkerRunConfig,
+    ) -> Supervisor {
         Supervisor {
             workers: RwLock::new(HashMap::new()),
             client,
+            worker_conf,
         }
     }
 
@@ -273,7 +289,7 @@ impl Supervisor {
         // Insert handle.
         let version_hint = worker.version_hint.clone();
         let handle = WorkerHandle {
-            handle: tokio::spawn(worker.run()),
+            handle: tokio::spawn(worker.run(self.worker_conf)),
             version_hint: version_hint.clone(),
             send: send.clone(),
         };
@@ -297,6 +313,16 @@ impl Supervisor {
             std::mem::drop(workers);
             worker.handle.abort();
             let _ = worker.handle.await;
+        }
+    }
+
+    /// Check if a worker is dead. Only used in tests.
+    #[cfg(test)]
+    async fn worker_is_dead(&self, db_id: &Uuid) -> bool {
+        let workers = self.workers.read().await;
+        match workers.get(db_id) {
+            Some(worker) => worker.is_finished(),
+            None => true,
         }
     }
 }
@@ -327,6 +353,10 @@ struct DatabaseWorker {
     /// should update their catalog state.
     ///
     /// This should be updated after setting the cached state.
+    ///
+    /// Note that this reference is never changed during the lifetime of the
+    /// worker. We can use the strong count to determine the number of active
+    /// sessions for this database.
     version_hint: Arc<AtomicU64>,
 
     /// Cached catalog state for the database.
@@ -377,9 +407,17 @@ impl DatabaseWorker {
         ))
     }
 
+    /// Get the number of sessions that are relying on this worker for the
+    /// database's cached catalog.
+    fn session_count_for_db(&self) -> usize {
+        // The worker handle and worker itself have a strong reference to the
+        // version. Don't include those when calculating session count.
+        Arc::strong_count(&self.version_hint) - 2
+    }
+
     /// Runs the worker until it exits from inactivity.
-    async fn run(mut self) {
-        let mut interval = tokio::time::interval(FETCH_TICK_DUR);
+    async fn run(mut self, run_conf: WorkerRunConfig) {
+        let mut interval = tokio::time::interval(run_conf.fetch_tick_dur);
         let mut num_ticks_no_activity = 0;
         loop {
             tokio::select! {
@@ -387,13 +425,15 @@ impl DatabaseWorker {
                     let span = debug_span!("fetch_interval", db_id = %self.db_id);
                     self.fetch().instrument(span).await;
 
-                    // If we're the only reference to the state, start counting
-                    // down to exit. Otherwise reset the counter.
-                    let sc = Arc::strong_count(&self.cached_state);
-                    if sc == 1 {
+                    let sess_count = self.session_count_for_db();
+                    info!(%sess_count, db_id = %self.db_id, "worker fetch interval");
+
+                    // If no sessions using the worker, start counting down to
+                    // exit. Otherwise reset the counter.
+                    if sess_count == 0 {
                         num_ticks_no_activity += 1;
-                        if num_ticks_no_activity >= MAX_TICKS_BEFORE_EXIT {
-                            debug!(db_id = %self.db_id, "exiting database worker");
+                        if num_ticks_no_activity >= run_conf.max_ticks_before_exit {
+                            info!(db_id = %self.db_id, "exiting database worker");
                             return;
                         }
                     } else {
@@ -539,7 +579,7 @@ mod tests {
     async fn simple_mutate() {
         let client = new_local_metastore().await;
 
-        let supervisor = Supervisor::new(client);
+        let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
 
         let conn_id = Uuid::nil();
         let db_id = Uuid::nil();
@@ -567,7 +607,7 @@ mod tests {
     async fn out_of_date_mutate() {
         let client = new_local_metastore().await;
 
-        let supervisor = Supervisor::new(client);
+        let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
 
         let db_id = Uuid::nil();
 
@@ -623,7 +663,7 @@ mod tests {
     async fn restart_worker() {
         let client = new_local_metastore().await;
 
-        let supervisor = Supervisor::new(client);
+        let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
 
         let db_id = Uuid::nil();
         let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
@@ -639,5 +679,41 @@ mod tests {
 
         // Initiate a new client, which should spin up a new worker.
         let _ = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn worker_exits_on_inactivity() {
+        // #984
+        logutil::init_test();
+
+        let client = new_local_metastore().await;
+        let supervisor = Supervisor::new(
+            client,
+            WorkerRunConfig {
+                fetch_tick_dur: Duration::from_millis(100),
+                max_ticks_before_exit: 1,
+            },
+        );
+
+        let db_id = Uuid::nil();
+        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+
+        client.ping().await.unwrap();
+        client.refresh_cached_state().await.unwrap();
+
+        // Worker should still be after exceeding max ticks.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        client.ping().await.unwrap();
+
+        // Drop client, wait for worker to exit.
+        std::mem::drop(client);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Worker should no longer be running.
+        assert!(supervisor.worker_is_dead(&db_id).await);
+
+        // We should be able to init a new client without issue.
+        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        client.ping().await.unwrap();
     }
 }
