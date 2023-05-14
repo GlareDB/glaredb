@@ -4991,6 +4991,7 @@ dependencies = [
  "datasource_postgres",
  "datasource_snowflake",
  "futures",
+ "logutil",
  "metastore",
  "object_store",
  "once_cell",

@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use crate::metastore::Supervisor;
+use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
@@ -52,7 +52,7 @@ impl Engine {
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
         Ok(Engine {
-            supervisor: Supervisor::new(metastore),
+            supervisor: Supervisor::new(metastore, DEFAULT_WORKER_CONFIG),
             tracker,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
