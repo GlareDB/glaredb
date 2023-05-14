@@ -701,7 +701,7 @@ mod tests {
         client.ping().await.unwrap();
         client.refresh_cached_state().await.unwrap();
 
-        // Worker should still be after exceeding max ticks.
+        // Worker should still be here after exceeding max ticks.
         tokio::time::sleep(Duration::from_millis(200)).await;
         client.ping().await.unwrap();
 
