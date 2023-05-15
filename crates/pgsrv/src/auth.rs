@@ -40,11 +40,12 @@ pub struct CloudAuthenticator {
 }
 
 impl CloudAuthenticator {
-    pub fn new(api_url: String) -> Result<Self> {
+    pub fn new(api_url: String, auth_code: String) -> Result<Self> {
         use reqwest::header;
 
         let mut default_headers = header::HeaderMap::new();
-        default_headers.insert(header::AUTHORIZATION, "Basic 6tCvEVBkD91q4KhjGVtT".parse()?);
+        let basic_auth = format!("Basic {auth_code}");
+        default_headers.insert(header::AUTHORIZATION, basic_auth.parse()?);
 
         let client = reqwest::Client::builder()
             .default_headers(default_headers)

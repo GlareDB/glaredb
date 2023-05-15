@@ -85,7 +85,12 @@ enum Commands {
         ssl_server_key: Option<String>,
 
         /// Address of the GlareDB cloud server.
-        api_addr: String,
+        #[clap(long)]
+        cloud_api_addr: String,
+
+        /// Authorization code for communicating with Cloud.
+        #[clap(long)]
+        cloud_auth_code: String,
     },
 
     /// Starts an instance of the Metastore.
@@ -140,12 +145,19 @@ fn main() -> Result<()> {
             bind,
             ssl_server_cert,
             ssl_server_key,
-            api_addr,
+            cloud_api_addr,
+            cloud_auth_code,
         } => {
             let runtime = build_runtime("pgsrv")?;
             runtime.block_on(async move {
                 let pg_listener = TcpListener::bind(bind).await?;
-                let proxy = Proxy::new(api_addr, ssl_server_cert, ssl_server_key).await?;
+                let proxy = Proxy::new(
+                    cloud_api_addr,
+                    cloud_auth_code,
+                    ssl_server_cert,
+                    ssl_server_key,
+                )
+                .await?;
                 proxy.serve(pg_listener).await
             })?;
         }

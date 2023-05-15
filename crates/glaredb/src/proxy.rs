@@ -18,6 +18,7 @@ pub struct Proxy {
 impl Proxy {
     pub async fn new(
         api_addr: String,
+        auth_code: String,
         ssl_server_cert: Option<String>,
         ssl_server_key: Option<String>,
     ) -> Result<Self> {
@@ -31,7 +32,7 @@ impl Proxy {
             }
         };
 
-        let auth = CloudAuthenticator::new(api_addr)?;
+        let auth = CloudAuthenticator::new(api_addr, auth_code)?;
         Ok(Proxy {
             handler: Arc::new(ProxyHandler::new(auth, ssl_conf)),
         })
