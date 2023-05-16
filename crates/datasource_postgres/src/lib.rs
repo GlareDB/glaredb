@@ -3,6 +3,7 @@ pub mod errors;
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
+use datafusion::arrow::array::Decimal128Builder;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -214,6 +215,10 @@ impl PostgresAccessor {
         schema: &str,
         name: &str,
     ) -> Result<(ArrowSchema, Vec<PostgresType>)> {
+        // TODO: Get schema using `information_schema.columns`. You can get
+        // `numeric_precision` and `numeric_scale` as well from there so you
+        // don't have to guess.
+
         // Get oid of table, and approx number of pages for the relation.
         let row = client
             .query_one(
@@ -786,6 +791,24 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
+            dt @ DataType::Decimal128(_p, s) => {
+                let mut arr =
+                    Decimal128Builder::with_capacity(rows.len()).with_data_type(dt.clone());
+                for row in rows.iter() {
+                    let val: Option<rust_decimal::Decimal> = row.try_get(col_idx)?;
+                    let val = match val {
+                        Some(v) => {
+                            let mut v =
+                                decimal::Decimal128::new(v.mantissa(), v.scale().try_into()?)?;
+                            v.rescale(*s);
+                            Some(v.mantissa())
+                        }
+                        None => None,
+                    };
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
             DataType::Timestamp(TimeUnit::Nanosecond, None) => {
                 let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
@@ -857,6 +880,10 @@ fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Res
             | &PostgresType::JSON
             | &PostgresType::UUID => DataType::Utf8,
             &PostgresType::BYTEA => DataType::Binary,
+            // While postgres numerics are "unconstrained" by default, we need
+            // to specify the precision and scale for the column. Setting these
+            // same as bigquery.
+            &PostgresType::NUMERIC => DataType::Decimal128(38, 9),
             &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Nanosecond, None),
             &PostgresType::TIMESTAMPTZ => {
                 DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into()))

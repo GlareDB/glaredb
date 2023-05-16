@@ -32,6 +32,12 @@ pub enum PostgresError {
 
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
+
+    #[error(transparent)]
+    TryFromIntError(#[from] std::num::TryFromIntError),
+
+    #[error(transparent)]
+    DecimalError(#[from] decimal::DecimalError),
 }
 
 pub type Result<T, E = PostgresError> = std::result::Result<T, E>;
