@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS datatypes (
     c15 TIMESTAMP,
     c16 TIME,
     c17 DATE,
-    c18 TIMESTAMPTZ
+    c18 TIMESTAMPTZ,
+    c19 NUMERIC,
+    c20 NUMERIC(10),
+    c21 NUMERIC(10, 5)
 );
 
 INSERT INTO datatypes
@@ -39,7 +42,10 @@ VALUES (
     '1999-09-30 16:32:04',
     '04:32:04 PM',
     '1999-09-30',
-    '1999-09-30 16:32:04 IST'
+    '1999-09-30 16:32:04 IST',
+    12345.6789,
+    12345.6789,
+    12345.67891234
 );
 
 INSERT INTO datatypes(c1) VALUES (NULL); -- inserts nulls

@@ -11,11 +11,11 @@ CREATE EXTERNAL TABLE datatypes
 	);
 
 # Check if we can fetch contents of the datatype table.
-query TIIIRRTTTTTTTTTTTT
+query TIIIRRTTTTTTTTTTTTTTT
 SELECT * FROM datatypes;
 ----
-t     1     2     3     4.5   6.7   a     b     cde   fghi  {"a":[1,2]}  [{"b":null},{"c":true}]  292a485f-a56a-4938-8f1a-bbbbbbbbbbb1  \x62696e  1999-09-30 16:32:04  16:32:04  1999-09-30  1999-09-30 14:32:04+00
-NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL         NULL                     NULL                                  NULL      NULL                 NULL      NULL        NULL
+t     1     2     3     4.5   6.7   a     b     cde   fghi  {"a":[1,2]}  [{"b":null},{"c":true}]  292a485f-a56a-4938-8f1a-bbbbbbbbbbb1  \x62696e  1999-09-30 16:32:04  16:32:04  1999-09-30  1999-09-30 14:32:04+00  12345.678900000  12346.000000000  12345.678910000
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL         NULL                     NULL                                  NULL      NULL                 NULL      NULL        NULL                    NULL             NULL             NULL
 
 halt
 

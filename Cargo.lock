@@ -1618,8 +1618,10 @@ dependencies = [
  "chrono",
  "datafusion",
  "datasource_common",
+ "decimal",
  "futures",
  "metastore",
+ "rust_decimal",
  "serde",
  "serde_json",
  "thiserror",
@@ -3747,6 +3749,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "postgres"
+version = "0.19.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bed5017bc2ff49649c0075d0d7a9d676933c1292480c1d137776fb205b5cd18"
+dependencies = [
+ "bytes",
+ "fallible-iterator",
+ "futures-util",
+ "log",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "postgres-protocol"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4359,10 +4375,12 @@ dependencies = [
  "byteorder",
  "bytes",
  "num-traits",
+ "postgres",
  "rand 0.8.5",
  "rkyv",
  "serde",
  "serde_json",
+ "tokio-postgres",
 ]
 
 [[package]]
