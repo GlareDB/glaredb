@@ -34,7 +34,6 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    // logutil::init(cli.verbose, false);
 
     let files = cli
         .files
@@ -59,7 +58,7 @@ fn main() -> Result<()> {
         let server = Server::connect(None, None, true, None, None).await?;
         tokio::spawn(server.serve(server_conf));
 
-        let mut runner = BenchRunner::connent(pg_addr).await?;
+        let mut runner = BenchRunner::connect(pg_addr).await?;
         let load_path = tokio::fs::read_to_string(PathBuf::from(cli.load)).await?;
         runner.load_sql(load_path).await?;
 
@@ -92,7 +91,7 @@ struct BenchRunner {
 
 impl BenchRunner {
     /// Connect to a database at the given addr.
-    async fn connent(pg_addr: SocketAddr) -> Result<BenchRunner> {
+    async fn connect(pg_addr: SocketAddr) -> Result<BenchRunner> {
         let host = pg_addr.ip().to_string();
         let port = pg_addr.port();
         let (client, conn) = ClientConfig::new()
@@ -144,5 +143,11 @@ impl BenchRunner {
                 &stat.dur.as_secs_f64()
             );
         }
+
+        let total = self
+            .stats
+            .iter()
+            .fold(Duration::ZERO, |acc, stat| acc + stat.dur);
+        eprintln!("Total: {0}s", total.as_secs_f64());
     }
 }
