@@ -64,7 +64,7 @@ A flamegraph can be generated using [cargo-flamegraph](https://github.com/flameg
 Example invocation for generating a flamegraph from a benchmark run:
 
 ```shell
-CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --root --bin bench_runner -- --load ./benchmarks/tpch/load_s10.sql --runs 1 ./benchmarks/tpch/queries/*
+$ CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --root --bin bench_runner -- --load ./benchmarks/tpch/load_s10.sql --runs 1 ./benchmarks/tpch/queries/*
 ```
 
 Note that `--root` is required on MacOS.
