@@ -6,3 +6,5 @@ glaredb_image
 pgsrv_image
 # Downloaded artifacts from GCS
 gcs-artifacts/
+# Outputs from cargo flamegraph
+flamegraph.svg

@@ -9,7 +9,7 @@ use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::Column as DfColumn;
-use datafusion::config::{CatalogOptions, ConfigOptions};
+use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
@@ -84,8 +84,11 @@ impl SessionContext {
         let mut catalog_opts = CatalogOptions::default();
         catalog_opts.create_default_catalog_and_schema = false;
         catalog_opts.information_schema = false;
+        let mut optimizer_opts = OptimizerOptions::default();
+        optimizer_opts.prefer_hash_join = true;
         let mut config_opts = ConfigOptions::new();
         config_opts.catalog = catalog_opts;
+        config_opts.optimizer = optimizer_opts;
         let config: SessionConfig = config_opts.into();
 
         // Create a new datafusion runtime env with disk manager and memory pool
