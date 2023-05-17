@@ -18,6 +18,9 @@ pub enum DatasourceCommonError {
     #[error("Unknown virtual catalog table: {0}")]
     UnknownVirtualCatalogTable(String),
 
+    #[error("Invalid SSH connection string: {0}")]
+    SshConnectionParseError(String),
+
     #[error(transparent)]
     ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
 

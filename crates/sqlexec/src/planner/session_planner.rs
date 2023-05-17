@@ -17,7 +17,7 @@ use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
 use datafusion::sql::TableReference;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::ssh::{SshConnection, SshKey};
+use datasource_common::ssh::{SshConnection, SshConnectionParameters, SshKey};
 use datasource_debug::DebugTableType;
 use datasource_mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
 use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
@@ -1027,7 +1027,7 @@ fn get_ssh_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
                 None => None,
             };
             let user = remove_required_opt(m, "user")?;
-            SshConnection::Parameters { host, port, user }
+            SshConnection::Parameters(SshConnectionParameters { host, port, user })
         }
     };
     Ok(conn.connection_string())

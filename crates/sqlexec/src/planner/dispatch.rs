@@ -7,7 +7,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::listing::{VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister};
-use datasource_common::ssh::SshKey;
+use datasource_common::ssh::{SshConnectionParameters, SshKey};
 use datasource_debug::{DebugTableType, DebugVirtualLister};
 use datasource_mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
@@ -830,7 +830,9 @@ impl<'a> SystemTableDispatcher<'a> {
                     TunnelOptions::Ssh(ssh_options) => {
                         let key = SshKey::from_bytes(&ssh_options.ssh_key)?;
                         let key = key.public_key()?;
-                        println!("key = '{key}'");
+                        let conn_params: SshConnectionParameters =
+                            ssh_options.connection_string.parse()?;
+                        let key = format!("{} {}", key, conn_params.user);
                         public_key.append_value(key);
                     }
                     _ => unreachable!(),
