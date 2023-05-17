@@ -50,8 +50,21 @@ The `download_data.sh` script does just that.
 
 For example, running TPC-H at scale factor 10:
 
-``` shell
+```shell
 $ SCALE_FACTOR=10 ./benchmarks/tpch/download_data.sh
 $ cargo run -r --bin bench_runner bench_runner --load ./benchmarks/tpch/load_s10.sql --runs 1 ./benchmarks/tpch/queries/*
 ```
 
+## Tips and Tricks
+
+### Flamegraph
+
+A flamegraph can be generated using [cargo-flamegraph](https://github.com/flamegraph-rs/flamegraph).
+
+Example invocation for generating a flamegraph from a benchmark run:
+
+```shell
+CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --root --bin bench_runner -- --load ./benchmarks/tpch/load_s10.sql --runs 1 ./benchmarks/tpch/queries/*
+```
+
+Note that `--root` is required on MacOS.
