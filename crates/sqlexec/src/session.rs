@@ -46,6 +46,8 @@ pub enum ExecutionResult {
     Rollback,
     /// Data successfully written.
     WriteSuccess,
+    /// Data successfully copied.
+    CopySuccess,
     /// Table created.
     CreateTable,
     /// Database created.
@@ -86,6 +88,7 @@ impl ExecutionResult {
             ExecutionResult::Commit => "commit",
             ExecutionResult::Rollback => "rollback",
             ExecutionResult::WriteSuccess => "write_success",
+            ExecutionResult::CopySuccess => "copy_success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -118,6 +121,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Commit => write!(f, "commit"),
             ExecutionResult::Rollback => write!(f, "rollback"),
             ExecutionResult::WriteSuccess => write!(f, "write success"),
+            ExecutionResult::CopySuccess => write!(f, "copy success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
@@ -400,6 +404,9 @@ impl Session {
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert(plan).await?;
                 ExecutionResult::WriteSuccess
+            }
+            LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
+                unimplemented!()
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;

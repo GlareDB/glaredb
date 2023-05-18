@@ -22,14 +22,24 @@ pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
 /// `Secret(def)` for key "abc".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionValue {
-    Literal(String),
+    QuotedLiteral(String),
+    Boolean(bool),
+    Number(String),
     Secret(String),
 }
 
 impl fmt::Display for OptionValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Literal(s) => write!(f, "'{s}'"),
+            Self::QuotedLiteral(s) => write!(f, "'{s}'"),
+            Self::Boolean(b) => {
+                if *b {
+                    write!(f, "TRUE")
+                } else {
+                    write!(f, "FALSE")
+                }
+            }
+            Self::Number(n) => write!(f, "{n}"),
             Self::Secret(s) => write!(f, "SECRET {s}"),
         }
     }
@@ -202,6 +212,48 @@ impl fmt::Display for DropTunnelStmt {
     }
 }
 
+/// A source for a COPY TO statement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CopyToSource {
+    Table(ObjectName),
+    Query(ast::Query),
+}
+
+impl fmt::Display for CopyToSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CopyToSource::Table(table) => write!(f, "{table}"),
+            CopyToSource::Query(query) => write!(f, "({query})"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyToStmt {
+    pub source: CopyToSource,
+    pub dest: String,
+    pub options: BTreeMap<String, OptionValue>,
+}
+
+impl fmt::Display for CopyToStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let opts = self
+            .options
+            .iter()
+            .map(|(k, v)| format!("{} {}", k, v))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        write!(f, "COPY {0} TO '{1}'", self.source, self.dest)?;
+        if !opts.is_empty() {
+            write!(f, " ({opts})")?;
+        }
+        write!(f, ";")?;
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
@@ -218,6 +270,8 @@ pub enum StatementWithExtensions {
     CreateTunnel(CreateTunnelStmt),
     /// Drop tunnel extension.
     DropTunnel(DropTunnelStmt),
+    /// Copy to extension.
+    CopyTo(CopyToStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -230,6 +284,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::AlterDatabaseRename(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -285,6 +340,10 @@ impl<'a> CustomParser<'a> {
                     self.parser.next_token();
                     self.parse_alter()
                 }
+                Keyword::COPY => {
+                    self.parser.next_token();
+                    self.parse_copy()
+                }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
                 )),
@@ -293,6 +352,73 @@ impl<'a> CustomParser<'a> {
                 self.parser.parse_statement()?,
             )),
         }
+    }
+
+    fn parse_copy(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        // Parse table or query source.
+        // COPY table ...
+        // or
+        // COPY (select ...) ...
+        let source = if self.parser.consume_token(&Token::LParen) {
+            let query = self.parser.parse_query()?;
+            self.parser.expect_token(&Token::RParen)?;
+            CopyToSource::Query(query)
+        } else {
+            let table_name = self.parser.parse_object_name()?;
+            CopyToSource::Table(table_name)
+        };
+
+        // TO 'source'
+        self.parser.expect_keyword(Keyword::TO)?;
+        let dest = self.parser.parse_literal_string()?;
+
+        // (<options>)
+
+        // TODO: Do we want to unify options here and on data sources?
+        let mut options = BTreeMap::new();
+
+        if self.parser.consume_token(&Token::LParen) {
+            loop {
+                let key = self.parser.parse_identifier()?.value;
+
+                // Check if we have a secret value.
+                let is_secret = self.consume_token(&Token::make_keyword("SECRET"));
+                let value = if is_secret {
+                    OptionValue::Secret(self.parser.parse_identifier()?.value)
+                } else {
+                    match self.parser.parse_value()? {
+                        ast::Value::SingleQuotedString(s) => OptionValue::QuotedLiteral(s),
+                        ast::Value::Boolean(b) => OptionValue::Boolean(b),
+                        ast::Value::Number(n, _) => OptionValue::Number(n),
+                        val => {
+                            return Err(ParserError::ParserError(format!(
+                                "Expected string, boolean, or number, found: {}",
+                                val,
+                            )))
+                        }
+                    }
+                };
+
+                options.insert(key, value);
+                let comma = self.parser.consume_token(&Token::Comma);
+
+                if self.parser.consume_token(&Token::RParen) {
+                    // allow a trailing comma, even though it's not in standard
+                    break;
+                } else if !comma {
+                    return self.expected(
+                        "',' or ')' after option definition",
+                        self.parser.peek_token().token,
+                    );
+                }
+            }
+        }
+
+        Ok(StatementWithExtensions::CopyTo(CopyToStmt {
+            source,
+            dest,
+            options,
+        }))
     }
 
     /// Parse a SQL CREATE statement
@@ -459,7 +585,7 @@ impl<'a> CustomParser<'a> {
             let value = if is_secret {
                 OptionValue::Secret(self.parser.parse_identifier()?.value)
             } else {
-                OptionValue::Literal(self.parser.parse_literal_string()?)
+                OptionValue::QuotedLiteral(self.parser.parse_literal_string()?)
             };
 
             options.insert(key, value);
@@ -580,11 +706,11 @@ mod tests {
         let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
-            OptionValue::Literal("host=localhost user=postgres".to_string()),
+            OptionValue::QuotedLiteral("host=localhost user=postgres".to_string()),
         );
         options.insert(
             "schema".to_string(),
-            OptionValue::Literal("public".to_string()),
+            OptionValue::QuotedLiteral("public".to_string()),
         );
         options.insert(
             "table".to_string(),
@@ -615,11 +741,11 @@ mod tests {
         let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
-            OptionValue::Literal("host=localhost user=postgres".to_string()),
+            OptionValue::QuotedLiteral("host=localhost user=postgres".to_string()),
         );
         options.insert(
             "schema".to_string(),
-            OptionValue::Literal("public".to_string()),
+            OptionValue::QuotedLiteral("public".to_string()),
         );
         options.insert(
             "table".to_string(),
@@ -657,6 +783,7 @@ mod tests {
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE schema.test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
         ];
 
         for test_case in test_cases {
@@ -731,6 +858,25 @@ mod tests {
     #[test]
     fn alter_database_roundtrips() {
         let test_cases = ["ALTER DATABASE my_db RENAME TO your_db"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn copy_to_roundtrip() {
+        let test_cases = [
+            "COPY table TO 's3://bucket';",
+            "COPY table TO 's3://bucket' (option1 'true', option2 'hello');",
+            "COPY (SELECT 1) TO 's3://bucket';",
+            "COPY (SELECT 1) TO 's3://bucket' (option1 'true', option2 'hello');",
+            "COPY table TO 's3://bucket' (bool_opt TRUE, num_opt 1);",
+        ];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

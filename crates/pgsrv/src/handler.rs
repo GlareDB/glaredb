@@ -613,6 +613,7 @@ where
             ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
             ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
+            ExecutionResult::CopySuccess => Self::command_complete(conn, "COPY").await?,
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
             ExecutionResult::CreateDatabase => {
                 Self::command_complete(conn, "CREATE DATABASE").await?

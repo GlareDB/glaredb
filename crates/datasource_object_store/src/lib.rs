@@ -13,6 +13,8 @@ pub mod errors;
 pub mod gcs;
 pub mod local;
 pub mod s3;
+pub mod sink;
+pub mod url;
 
 mod csv;
 mod parquet;

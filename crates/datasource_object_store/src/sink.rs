@@ -1,0 +1,49 @@
+use async_trait::async_trait;
+use crate::errors::{ ObjectStoreSourceError, Result };
+use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
+use datafusion::physical_plan::SendableRecordBatchStream;
+use datasource_common::sink::{Sink, SinkError};
+use futures::{StreamExt, TryStreamExt};
+use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::sync::Arc;
+
+const BUFFER_SIZE: usize = 8 * 1024 * 1024;
+
+#[derive(Debug, Clone)]
+pub struct ParquetSink {
+    store: Arc<dyn ObjectStore>,
+    loc: ObjectPath,
+}
+
+impl ParquetSink {
+    async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> Result<usize> {
+        let schema = stream.schema();
+
+        let (_id, obj_handle) = self.store.put_multipart(&self.loc).await?;
+
+        let props = WriterProperties::builder()
+            .set_created_by("GlareDB".to_string())
+            .build();
+
+        let mut writer = AsyncArrowWriter::try_new(obj_handle, schema, BUFFER_SIZE, Some(props))?;
+        while let Some(batch) = stream.next().await {
+            let batch = batch?;
+            writer.write(&batch).await?;
+        }
+
+        // Calls `shutdown` internally.
+        let stats = writer.close().await?;
+
+        Ok(stats.num_rows as usize)
+    }
+}
+
+#[async_trait]
+impl Sink for ParquetSink {
+    async fn stream_into(&self, mut stream: SendableRecordBatchStream) -> Result<usize, SinkError> {
+        match self.stream_into_inner(stream).await {
+            Ok(n) => Ok(n),
+            Err(e) => Err(datasource_common::sink::SinkError::Boxed(Box::new(e))),
+        }
+    }
+}

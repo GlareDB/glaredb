@@ -4,6 +4,7 @@ use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
+use datasource_object_store::url::ObjectStoreSourceUrl;
 use metastore::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
 
@@ -80,6 +81,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
+    CopyTo(CopyTo),
 }
 
 impl From<WritePlan> for LogicalPlan {
@@ -93,6 +95,18 @@ pub struct Insert {
     pub table_name: String,
     pub columns: Vec<String>,
     pub source: DfLogicalPlan,
+}
+
+#[derive(Clone, Debug)]
+pub enum CopyToOptions {
+    Dummy,
+}
+
+#[derive(Clone, Debug)]
+pub struct CopyTo {
+    pub source: DfLogicalPlan,
+    pub dest: ObjectStoreSourceUrl,
+    pub options: CopyToOptions,
 }
 
 /// Data defintion logical plans.

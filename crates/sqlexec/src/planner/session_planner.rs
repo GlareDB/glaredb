@@ -1,8 +1,9 @@
 use crate::context::SessionContext;
+use crate::errors::ExecError;
 use crate::parser::{
-    validate_ident, validate_object_name, AlterDatabaseRenameStmt, CreateExternalDatabaseStmt,
-    CreateExternalTableStmt, CreateTunnelStmt, DropDatabaseStmt, DropTunnelStmt, OptionValue,
-    StatementWithExtensions,
+    validate_ident, validate_object_name, AlterDatabaseRenameStmt, CopyToSource, CopyToStmt,
+    CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt, DropDatabaseStmt,
+    DropTunnelStmt, OptionValue, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -12,6 +13,9 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::OwnedTableReference;
+use datafusion::logical_expr::{
+    LogicalPlan as DfLogicalPlan, LogicalPlanBuilder as DfLogicalPlanBuilder,
+};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, SqlToRel};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
@@ -24,6 +28,7 @@ use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
+use datasource_object_store::url::ObjectStoreSourceUrl;
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::types::options::{
@@ -74,6 +79,7 @@ impl<'a> SessionPlanner<'a> {
             }
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt).await,
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
+            StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
         }
     }
 
@@ -451,6 +457,28 @@ impl<'a> SessionPlanner<'a> {
         };
 
         Ok(DdlPlan::CreateTunnel(plan).into())
+    }
+
+    async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
+        let source = match stmt.source {
+            CopyToSource::Table(table) => unimplemented!(),
+            CopyToSource::Query(query) => {
+                let statement = ast::Statement::Query(Box::new(query));
+                let builder = PlanContextBuilder::new(self.ctx);
+                let context_provider = builder.build_plan_context(&statement).await?;
+                let planner = SqlToRel::new(&context_provider);
+
+                planner.sql_statement_to_plan(statement)?
+            }
+        };
+
+        let dest = ObjectStoreSourceUrl::parse(&stmt.dest)?;
+
+        Ok(LogicalPlan::Write(WritePlan::CopyTo(CopyTo {
+            source,
+            dest,
+            options: CopyToOptions::Dummy,
+        })))
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -1086,7 +1114,7 @@ fn remove_optional_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result
     }
 
     let opt = match val {
-        OptionValue::Literal(l) => l,
+        OptionValue::QuotedLiteral(l) => l,
         OptionValue::Secret(s) => {
             if let Ok(opt) = get_env(&s, /* uppercase: */ true) {
                 opt
@@ -1094,6 +1122,7 @@ fn remove_optional_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result
                 get_env(&s, /* uppercase: */ false)?
             }
         }
+        other => return Err(PlanError::UnsupportedOptionValue(other)),
     };
 
     Ok(Some(opt))

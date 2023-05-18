@@ -49,6 +49,9 @@ pub enum PlanError {
     #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<crate::parser::StatementWithExtensions>),
 
+    #[error("Unsupported option value: {0}")]
+    UnsupportedOptionValue(crate::parser::OptionValue),
+
     #[error("Exec error: {0}")]
     Exec(Box<crate::errors::ExecError>), // TODO: Try to remove.
 
@@ -60,6 +63,9 @@ pub enum PlanError {
 
     #[error(transparent)]
     DatasourceCommon(#[from] datasource_common::errors::DatasourceCommonError),
+
+    #[error(transparent)]
+    DatasourceObjectStore(#[from] datasource_object_store::errors::ObjectStoreSourceError),
 
     #[error(transparent)]
     ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),

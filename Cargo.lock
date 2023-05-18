@@ -1620,11 +1620,13 @@ dependencies = [
  "async-trait",
  "bytes",
  "datafusion",
+ "datasource_common",
  "futures",
  "object_store",
  "serde",
  "thiserror",
  "tracing",
+ "url",
 ]
 
 [[package]]

@@ -17,6 +17,15 @@ pub enum ObjectStoreSourceError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    UrlParse(#[from] url::ParseError),
+
+    #[error("Unknown object store provider: {0}")]
+    UnknownObjectStoreProvider(String),
+
     #[error("No file extension provided")]
     NoFileExtension,
 
