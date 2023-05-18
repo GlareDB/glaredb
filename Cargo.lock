@@ -1605,9 +1605,11 @@ dependencies = [
  "datafusion",
  "futures",
  "object_store",
+ "parking_lot",
  "serde",
  "thiserror",
  "tracing",
+ "url",
 ]
 
 [[package]]

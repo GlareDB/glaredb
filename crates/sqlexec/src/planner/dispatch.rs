@@ -388,7 +388,9 @@ impl<'a> SessionDispatcher<'a> {
                     file_type: None,
                 };
                 let accessor = GcsAccessor::new(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
+                let provider = accessor
+                    .into_table_provider(self.ctx.get_df_state())
+                    .await?;
                 Ok(provider)
             }
             TableOptions::S3(TableOptionsS3 {

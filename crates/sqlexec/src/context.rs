@@ -17,6 +17,7 @@ use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datasource_object_store::listing::HashedObjectStoreRegistry;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
@@ -97,6 +98,8 @@ impl SessionContext {
         if info.memory_limit_bytes > 0 {
             conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes)));
         }
+        // Custom registry required for the object store data source.
+        conf.object_store_registry = HashedObjectStoreRegistry::default();
         let runtime = Arc::new(RuntimeEnv::new(conf).unwrap());
 
         let state = SessionState::with_config_rt(config, runtime);

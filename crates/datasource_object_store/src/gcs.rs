@@ -1,16 +1,19 @@
-use std::sync::Arc;
-
+use crate::csv::CsvTableProvider;
+use crate::errors::Result;
+use crate::listing::{ListingTableCreator, ObjectStoreHasher, HASH_QUERY_PARAM};
+use crate::parquet::ParquetTableProvider;
+use crate::{file_type_from_path, FileType, TableAccessor};
 use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
+use datafusion::prelude::SessionConfig;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use tracing::trace;
-
-use crate::csv::CsvTableProvider;
-use crate::errors::Result;
-use crate::parquet::ParquetTableProvider;
-use crate::{file_type_from_path, FileType, TableAccessor};
 
 /// Information needed for accessing an external Parquet file on Google Cloud
 /// Storage.
@@ -25,47 +28,45 @@ pub struct GcsTableAccess {
     pub file_type: Option<FileType>,
 }
 
-#[derive(Debug)]
-pub struct GcsAccessor {
-    /// GCS object store access info
-    pub store: Arc<dyn ObjectStore>,
-    /// Meta information for location/object
-    pub meta: Arc<ObjectMeta>,
-    pub file_type: FileType,
+impl ObjectStoreHasher for GcsTableAccess {
+    fn generate_url(&self) -> url::Url {
+        let mut hasher = DefaultHasher::new();
+        self.service_acccount_key_json.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        url::Url::parse(&format!(
+            "gs://{0}/?{1}={2}",
+            self.bucket_name, HASH_QUERY_PARAM, hash
+        ))
+        .unwrap()
+    }
+
+    fn build_object_store(&self) -> Result<Arc<dyn ObjectStore>> {
+        let store = Arc::new(
+            GoogleCloudStorageBuilder::new()
+                .with_service_account_key(&self.service_acccount_key_json)
+                .with_bucket_name(&self.bucket_name)
+                .build()?,
+        );
+        Ok(store)
+    }
 }
 
-impl TableAccessor for GcsAccessor {
-    fn store(&self) -> &Arc<dyn ObjectStore> {
-        &self.store
+impl GcsTableAccess {
+    fn location(&self) -> String {
+        format!("gs://{0}/{1}", self.bucket_name, self.location)
     }
+}
 
-    fn object_meta(&self) -> &Arc<ObjectMeta> {
-        &self.meta
-    }
+#[derive(Debug)]
+pub struct GcsAccessor {
+    pub access: GcsTableAccess,
 }
 
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let store = Arc::new(
-            GoogleCloudStorageBuilder::new()
-                .with_service_account_key(access.service_acccount_key_json)
-                .with_bucket_name(access.bucket_name)
-                .build()?,
-        );
-
-        let location = ObjectStorePath::from(access.location);
-        // Use provided file type or infer from location
-        let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
-        trace!(?location, ?file_type, "location and file type");
-
-        let meta = Arc::new(store.head(&location).await?);
-
-        Ok(Self {
-            store,
-            meta,
-            file_type,
-        })
+        Ok(Self { access })
     }
 
     pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
@@ -81,16 +82,10 @@ impl GcsAccessor {
         Ok(())
     }
 
-    pub async fn into_table_provider(
-        self,
-        predicate_pushdown: bool,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let table_provider: Arc<dyn TableProvider> = match self.file_type {
-            FileType::Parquet => {
-                Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
-            }
-            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
-        };
+    pub async fn into_table_provider(self, state: &SessionState) -> Result<Arc<dyn TableProvider>> {
+        let file_type = self.access.file_type.clone();
+        let location = self.access.location();
+        let table_provider = ListingTableCreator::new(state, self.access, file_type, &location)?;
         Ok(table_provider)
     }
 }

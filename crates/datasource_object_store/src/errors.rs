@@ -20,8 +20,11 @@ pub enum ObjectStoreSourceError {
     #[error("No file extension provided")]
     NoFileExtension,
 
-    #[error("This file type is not supported: {0}")]
-    NotSupportFileType(String),
+    #[error("This file type is unsupported: {0}")]
+    UnsupportedFileType(String),
+
+    #[error("This file compression type is unsupported: {0}")]
+    UnsupportFileCompressionType(String),
 }
 
 pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;
