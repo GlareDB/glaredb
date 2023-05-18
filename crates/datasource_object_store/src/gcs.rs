@@ -1,6 +1,8 @@
 use crate::csv::CsvTableProvider;
 use crate::errors::Result;
-use crate::listing::{ListingTableCreator, ObjectStoreHasher, HASH_QUERY_PARAM};
+use crate::listing::{
+    build_url_with_hash, ListingTableCreator, ObjectStoreHasher, HASH_QUERY_PARAM,
+};
 use crate::parquet::ParquetTableProvider;
 use crate::{file_type_from_path, FileType, TableAccessor};
 use datafusion::datasource::TableProvider;
@@ -30,15 +32,7 @@ pub struct GcsTableAccess {
 
 impl ObjectStoreHasher for GcsTableAccess {
     fn generate_url(&self) -> url::Url {
-        let mut hasher = DefaultHasher::new();
-        self.service_acccount_key_json.hash(&mut hasher);
-        let hash = hasher.finish();
-
-        url::Url::parse(&format!(
-            "gs://{0}/?{1}={2}",
-            self.bucket_name, HASH_QUERY_PARAM, hash
-        ))
-        .unwrap()
+        build_url_with_hash("gs", &self.bucket_name, &self.service_acccount_key_json)
     }
 
     fn build_object_store(&self) -> Result<Arc<dyn ObjectStore>> {

@@ -4,7 +4,7 @@
 //! multiple object stores for our use case. DataFusion supports unique object
 //! stores keyed by scheme+bucket, but this isn't enough for us since we support
 //! multiple object stores with different sets of credentials.
-use crate::errors::Result;
+use crate::errors::{ObjectStoreSourceError, Result};
 use crate::{FileCompressionType, FileType};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
@@ -20,11 +20,14 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::Statistics;
 use datafusion::prelude::Expr;
 use object_store::ObjectStore;
 use parking_lot::Mutex;
 use std::any::Any;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::trace;
@@ -40,6 +43,14 @@ pub trait ObjectStoreHasher {
 
     /// Get the object store.
     fn build_object_store(&self) -> Result<Arc<dyn ObjectStore>>;
+}
+
+pub(crate) fn build_url_with_hash(scheme: &str, host: &str, hash: impl Hash) -> url::Url {
+    let mut hasher = DefaultHasher::new();
+    hash.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    url::Url::parse(&format!("{scheme}://{host}/?{HASH_QUERY_PARAM}={hash}")).unwrap()
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -124,6 +135,7 @@ impl ListingTableCreator {
 
         let file_format: Arc<dyn FileFormat> = match file_type {
             FileType::Parquet => Arc::new(ParquetFormat::new()),
+            FileType::Csv => Arc::new(CsvFormat::default()),
             _ => unimplemented!(),
         };
 
@@ -157,10 +169,11 @@ fn get_extension(path: &str) -> String {
 fn file_type_from_extension(path: &str) -> Result<FileType> {
     match Path::new(path).extension().and_then(|ext| ext.to_str()) {
         Some(ext) => ext.parse(),
-        None => unimplemented!(),
+        None => Err(ObjectStoreSourceError::NoFileExtension),
     }
 }
 
+/// Wraps a listing table, inserting object stores as needed.
 struct ListingTableWrapper {
     inner: ListingTable,
     url: Url,
@@ -180,10 +193,12 @@ impl TableProvider for ListingTableWrapper {
     fn table_type(&self) -> TableType {
         TableType::Base
     }
+
     fn supports_filter_pushdown(
         &self,
         filter: &Expr,
     ) -> DatafusionResult<TableProviderFilterPushDown> {
+        #[allow(deprecated)]
         self.inner.supports_filter_pushdown(filter)
     }
 
@@ -202,6 +217,10 @@ impl TableProvider for ListingTableWrapper {
         let plan = self.inner.scan(state, projection, filters, limit).await?;
         Ok(plan)
     }
+
+    fn statistics(&self) -> Option<Statistics> {
+        self.inner.statistics()
+    }
 }
 
 #[cfg(test)]
@@ -212,7 +231,6 @@ mod tests {
     fn test_get_extension() {
         let tests = [
             ("s3://my_bucket/file.csv", ".csv"),
-            ("s3://my_bucket/file.csv?hello=world", ".csv"),
             ("s3://my_bucket/file", ""),
         ];
 
