@@ -61,6 +61,7 @@ impl ProxyKey<Uuid> for UuidProxyKey {
         Ok(id)
     }
 }
+
 /// A proxy key who's value should be parsed as a bool.
 #[derive(Debug)]
 pub struct BoolProxyKey {

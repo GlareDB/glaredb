@@ -13,4 +13,3 @@ datafusion = { git = "https://github.com/apache/arrow-datafusion.git", branch = 
 
 [patch.crates-io]
 object_store = { git = "https://github.com/glaredb/arrow-rs.git", branch = "content-length" }
-
