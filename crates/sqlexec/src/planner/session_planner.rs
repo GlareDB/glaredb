@@ -14,8 +14,9 @@ use datafusion::arrow::datatypes::{
 };
 use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::{
-    LogicalPlan as DfLogicalPlan, LogicalPlanBuilder as DfLogicalPlanBuilder,
+    LogicalPlan as DfLogicalPlan, LogicalPlanBuilder as DfLogicalPlanBuilder, TableScan,
 };
+use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, SqlToRel};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
@@ -465,11 +466,17 @@ impl<'a> SessionPlanner<'a> {
     }
 
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
+        let builder = PlanContextBuilder::new(self.ctx);
         let source = match stmt.source {
-            CopyToSource::Table(table) => unimplemented!(),
+            CopyToSource::Table(_table) => {
+                // TODO: Sean will come back to this. We need to pull apart a
+                // few things first.
+                return Err(PlanError::UnsupportedFeature(
+                    "COPY ... TO ... with table source",
+                ));
+            }
             CopyToSource::Query(query) => {
                 let statement = ast::Statement::Query(Box::new(query));
-                let builder = PlanContextBuilder::new(self.ctx);
                 let context_provider = builder.build_plan_context(&statement).await?;
                 let planner = SqlToRel::new(&context_provider);
 

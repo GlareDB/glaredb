@@ -19,7 +19,6 @@ use datafusion::physical_plan::execute_stream;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasource_common::sink::Sink;
-use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::sink::csv::CsvSink;
 use datasource_object_store::sink::json::JsonSink;
 use datasource_object_store::sink::parquet::ParquetSink;
