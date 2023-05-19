@@ -31,6 +31,7 @@ impl Server {
         local: bool,
         local_file_path: Option<String>,
         spill_path: Option<PathBuf>,
+        integration_testing: bool,
     ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
@@ -50,7 +51,6 @@ impl Server {
                 MetastoreServiceClient::connect(addr).await?
             }
             (None, true) => {
-                info!("starting in-process metastore");
                 if let Some(path) = local_file_path {
                     let path: PathBuf = path.into();
                     if !path.exists() {
@@ -89,7 +89,7 @@ impl Server {
 
         let engine = Engine::new(metastore_client, Arc::new(tracker), spill_path).await?;
         Ok(Server {
-            pg_handler: Arc::new(ProtocolHandler::new(engine, local)),
+            pg_handler: Arc::new(ProtocolHandler::new(engine, local, integration_testing)),
         })
     }
 

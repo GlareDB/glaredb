@@ -175,7 +175,6 @@
           doCheck = false;
         });
 
-
         # GlareDB image (with release).
         glaredb-image = mkContainer {
           name = "glaredb";
@@ -189,11 +188,11 @@
           config.Cmd = ["${glaredb-bin-release}/bin/glaredb"];
         };
 
-        # SLT runner binary.
-        slt-runner-bin = craneLib.buildPackage (common-build-args // {
+        # Integration test binaries
+        testing-bin = craneLib.buildPackage (common-build-args // {
           cargoArtifacts = glaredb-bin;
-          pname = "slt-runner";
-          cargoExtraArgs = "--bin slt_runner";
+          pname = "testing";
+          cargoExtraArgs = "-p testing";
           doCheck = false;
         });
 
@@ -209,7 +208,7 @@
         # Checks ran in CI. This includes linting and testing.
         checks = {
           inherit glaredb-bin;
-          inherit slt-runner-bin;
+          inherit testing-bin;
           inherit pgprototest-bin;
 
           # Run tests.
@@ -241,7 +240,7 @@
           inherit generated-certs;
           inherit glaredb-bin;
           inherit glaredb-image;
-          inherit slt-runner-bin;
+          inherit testing-bin;
           inherit pgprototest-bin;
         };
 
@@ -251,9 +250,9 @@
             type = "app";
             program = "${glaredb-bin}/bin/glaredb";
           };
-          slt-runner = {
+          sqllogictests = {
             type = "app";
-            program = "${slt-runner-bin}/bin/slt_runner";
+            program = "${testing-bin}/bin/sqllogictests";
           };
           pgprototest = {
             type = "app";

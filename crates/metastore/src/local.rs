@@ -7,9 +7,11 @@ use object_store::{memory::InMemory, ObjectStore};
 use std::path::Path;
 use std::sync::Arc;
 use tonic::transport::{Channel, Endpoint, Server, Uri};
+use tracing::info;
 
 /// Starts an in-process, in-memory metastore.
 pub async fn start_inprocess_inmemory() -> Result<MetastoreServiceClient<Channel>> {
+    info!("starting in-process metastore");
     start_inprocess(Arc::new(InMemory::new())).await
 }
 
@@ -17,6 +19,8 @@ pub async fn start_inprocess_inmemory() -> Result<MetastoreServiceClient<Channel
 pub async fn start_inprocess_local(
     path: impl AsRef<Path>,
 ) -> Result<MetastoreServiceClient<Channel>> {
+    let path = path.as_ref();
+    info!(?path, "starting local metastore");
     let local = LocalFileSystem::new_with_prefix(path)?;
     start_inprocess(Arc::new(local)).await
 }

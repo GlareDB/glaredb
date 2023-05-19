@@ -16,10 +16,12 @@ CREATE EXTERNAL TABLE basic
         location = 'bikeshare_stations.csv'
     );
 
-include ../sqllogictests_datasources_common/include/basic.slti
-
-# TODO add once bikeshare_stations has a parquet format
+# TODO add once bikeshare_stations has a parquet format and issues with CSVs
+# are resolved
 halt
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
+
 statement ok
 CREATE EXTERNAL TABLE basic
     FROM gcs
@@ -29,4 +31,4 @@ CREATE EXTERNAL TABLE basic
         location = 'bikeshare_stations.parquet'
     );
 
-include ../sqllogictests_datasources_common/include/basic.slti
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

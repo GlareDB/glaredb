@@ -11,7 +11,7 @@ CREATE EXTERNAL TABLE basic
 
 # Some of these don't work. I copied in a few that are known to work.
 #
-# include ../sqllogictests_datasources_common/include/basic.slti
+# include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
 
 statement ok
 SELECT * FROM basic;

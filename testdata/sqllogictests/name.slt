@@ -20,7 +20,7 @@ create schema short;
 
 # 64 byte external table name
 statement error
-create external table short.long_table_12345678912345678912345678912345678912345678912345678 from local options (location = 'testdata/parquet/userdata1.parquet');
+create external table short.long_table_12345678912345678912345678912345678912345678912345678 from debug options ( table_type = 'never_ending' );
 
 statement error
 create view short.long_view_123456789123456789123456789123456789123456789123456789 as select 1;

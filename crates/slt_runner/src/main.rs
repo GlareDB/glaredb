@@ -110,6 +110,8 @@ fn main() -> Result<()> {
                 None,
                 // Spill-path:
                 None,
+                // Integration testing:
+                true,
             )
             .await?;
             tokio::spawn(server.serve(server_conf));

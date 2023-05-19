@@ -36,7 +36,7 @@ jobs:
      - name: Build
        run: |
          nix build .#glaredb-bin -L
-         nix build .#slt-runner-bin -L
+         nix build .#testing-bin -L
          nix build .#pgprototest-bin -L
 
   test:
@@ -120,14 +120,8 @@ jobs:
         run: ./scripts/prepare-testdata.sh
 
       - name: SQL Logic Tests
-        # Use globstar to ensure that all subdirectories are expanded.
         run: |
-          shopt -s globstar
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests/**/*.slt
-
-      - name: SQL Logic Tests (Snowflake)
-        run: |
-          shopt -s globstar
+          # Prepare SLT (Snowflake)
           export PATH="$HOME/bin:$PATH"
           if ./scripts/files-changed-in-branch.sh \
             "scripts/prepare-testdata.sh" \
@@ -139,11 +133,8 @@ jobs:
           else
             export SNOWFLAKE_DATABASE=glaredb_test
           fi
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_snowflake/**/*.slt
 
-      - name: SQL Logic Tests (BigQuery)
-        run: |
-          shopt -s globstar
+          # Prepare SLT (BigQuery)
           if ./scripts/files-changed-in-branch.sh \
             "scripts/prepare-testdata.sh" \
             "scripts/create-test-bigquery-db.sh" \
@@ -155,43 +146,22 @@ jobs:
           else
             export BIGQUERY_DATASET_ID=glaredb_test
           fi
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_bigquery/**/*.slt
 
-      - name: SQL Logic Tests (GCS)
-        run: |
-          shopt -s globstar
+          # Prepare SLT (Object store)
           export GCS_BUCKET_NAME=glaredb-test
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/gcs/**/*.slt
-
-      - name: SQL Logic Tests (S3)
-        run: |
-          shopt -s globstar
           export AWS_S3_REGION=us-east-1
           export AWS_S3_BUCKET_NAME=glaredb-test
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/s3/**/*.slt
 
-      - name: SQL Logic Tests (Local Object Store)
-        run: |
-          shopt -s globstar
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_object_store/local/**/*.slt
-
-      - name: SQL Logic Tests (Postgres)
-        run: |
-          shopt -s globstar
+          # Prepare SLT (Postgres)
           export POSTGRES_CONN_STRING=$(./scripts/create-test-postgres-db.sh)
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_postgres/**/*.slt
 
-      - name: SQL Logic Tests (MySQL)
-        run: |
-          shopt -s globstar
+          # Prepare SLT (MySQL)
           export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_mysql/**/*.slt
 
-      - name: SQL Logic Tests (MongoDB)
-        run: |
-          shopt -s globstar
+          # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
-          nix run .#slt-runner -- -v embedded testdata/sqllogictests_mongo/**/*.slt
+
+          nix run .#sqllogictests -- -v
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

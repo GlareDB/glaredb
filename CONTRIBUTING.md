@@ -83,23 +83,73 @@ running database. These should be used when testing the logical output of SQL
 commands (e.g. asserting that a builtin function returns the correct results, or
 ensuring that transactions are appropriately isolated).
 
-Test cases can be found in `testdata/sqllogictest`.
+You can simply run the binary to run all the tests. Test cases can be found in
+`testdata/sqllogictest*`.
 
-`slt_runner` can run either against an external database using the `external`
-subcommand, or spin up an embedded database with the `embedded` subcommand.
+```shell
+cargo run --bin sqllogictests
+```
+
+You might have to set a few environment variables for running tests in
+`testdata/sqllogictests_*`. These are datasource tests. See [Test Environment
+Variables](#test-environment-variables) section for details.
+
+To run basic sqllogictests:
+
+```shell
+cargo run --bin sqllogictests -- 'sqllogictests/*'
+```
+
+This will run all tests in `testdata/sqllogictests` directory. Basically to run
+specific tests you can provide an glob-like regex argument:
+
+```shell
+# Run all the tests prefixed with `sqllogictests/cast/`. These are all the tests
+# in `testdata/sqllogictest/cast` directory.
+#
+# Note the quotes (') around `sqllogictests/cast/*`. This is so the shell
+# doesn't try and expand the argument into files.
+cargo run --bin sqllogictests -- 'sqllogictests/cast/*'
+```
+
+Note that, all the test names don't have `.slt` but the runner only picks up
+files that have this extension. So, to run the test `testdata/sqllogictests/
+simple.slt`, you would run:
+
+```shell
+cargo run --bin sqllogictests -- sqllogictests/simple
+```
+
+To list the test cases, use the `--list` flag. This flag can be used to check
+dry run of all the tests that will run. You can pass the regex along with the
+flag as well.
+
+```shell
+cargo run --bin sqllogictests -- --list '*/full_outer/*'
+```
+
+`sqllogictests` can run either against an external database using the
+`--connection-string` flag, or spin up an embedded database by default.
 
 An example invocation using an embedded database:
 
 ``` shell
-cargo run --bin slt_runner -- embedded --keep-running testdata/sqllogictests/**/*.slt
+cargo run --bin sqllogictests -- --keep-running
 ```
 
 The `--keep-running` flag will keep the GlareDB server up to allow for
-additional debugging. `slt_runner` will print out the address that the GlareDB
-is running on. You can then connect to it via `psql`, for example:
+additional debugging. `sqllogictests` will print out the postgres connection
+string corresponding to the errored test. You can then connect to it via `psql`,
+for example:
 
 ``` shell
-psql "host=localhost dbname=glaredb port=<port> user=glaredb"
+# Logs:
+#
+# connect to the database using connection string:
+#  "host=localhost port=50383 dbname=a2216761-7e80-4156-919f-7c5d56262bac user=glaredb password=glaredb"
+#
+# Connect to the database using:
+psql "host=localhost port=50383 dbname=a2216761-7e80-4156-919f-7c5d56262bac user=glaredb password=glaredb"
 ```
 
 ##### Test data on the cloud
@@ -189,6 +239,13 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export SNOWFLAKE_PASSWORD=...
    ```
 
+9. **`MONGO_CONN_STRING`**: To run the mongodb tests. Use the string returned
+   from setting up the local database:
+
+   ```sh
+   export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+   ```
+
 ##### Writing Tests
 
 Each test file should start with a short comment describing what the file is
@@ -251,22 +308,24 @@ select * from cool_table;
 
 ##### Interpreting Test Output
 
-`slt_runner` stops at the first error encountered.
+`sqllogictests` stops at the first error encountered.
 
-GlareDB logging and `slt_runner` output is currently intermingled. `slt_runner`
-prints everything unadorned, so output will not be prefixed with any logging
-metadata like timestamps or thread IDs.
+GlareDB logging and `sqllogictests` output is currently intermingled.
+`sqllogictests` prints everything unadorned, so output will not be prefixed with
+any logging metadata like timestamps or thread IDs.
 
 Errors in the expected output of a query will print a color-coded diff between
 the expected and actual results:
 
 ``` text
-test fail: test error at testdata/sqllogictests/simple.slt:13: query result mismatch:
+2023-05-19T07:24:58.857496Z ERROR main ThreadId(01) testing::slt::cli: crates/testing/src/slt/cli.rs:209: Error while running test `simple` error=test fail: query result mismatch:
 [SQL] select * from (values (1, 2, 3), (3, 4, 5))
 [Diff]
 1 2 4 <-- RED
 1 2 3 <-- GREEN
 3 4 5
+
+at /path/to/testdata/sqllogictests/simple.slt:13
 
 keeping the server running, addr: [::1]:42219
 CTRL-C to exit
@@ -276,8 +335,10 @@ Other errors not related to comparing expected and actual output (e.g. failing
 to parse, missing function) will look something like the following:
 
 ``` text
-test fail: test error at testdata/sqllogictests/simple.slt:19: statement failed: db error: ERROR: failed to execute: DataFusion(SchemaError(FieldNotFound { qualifier: None, name: "function_does_not_exist", valid_fields: Some([]) }))
+2023-05-19T07:24:58.857496Z ERROR main ThreadId(01) testing::slt::cli: crates/testing/src/slt/cli.rs:209: Error while running test `simple` error=test fail: statement failed: db error: ERROR: failed to execute: DataFusion(SchemaError(FieldNotFound { qualifier: None, name: "function_does_not_exist", valid_fields: Some([]) }))
 [SQL] select function_does_not_exist;
+at testdata/sqllogictests/simple.slt:19
+
 keeping the server running, addr: [::1]:36385
 CTRL-C to exit
 ```

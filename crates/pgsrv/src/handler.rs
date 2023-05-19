@@ -41,10 +41,13 @@ pub struct ProtocolHandler {
     /// that that's ok and to use a set of predefined values instead.
     local: bool,
     ssl_conf: Option<SslConfig>,
+    /// If the server should be configured for integration tests. This is only
+    /// applicable for local databases.
+    integration_testing: bool,
 }
 
 impl ProtocolHandler {
-    pub fn new(engine: Engine, local: bool) -> ProtocolHandler {
+    pub fn new(engine: Engine, local: bool, integration_testing: bool) -> ProtocolHandler {
         ProtocolHandler {
             engine,
             local,
@@ -52,6 +55,7 @@ impl ProtocolHandler {
             // want to hold off on doing that until we have a shared config
             // between the proxy and GlareDB.
             ssl_conf: None,
+            integration_testing,
         }
     }
 
@@ -121,6 +125,11 @@ impl ProtocolHandler {
         }
     }
 
+    /// Whether the server should be configured for integration testing.
+    fn is_integration_testing_enabled(&self) -> bool {
+        self.local && self.integration_testing
+    }
+
     /// Runs the postgres protocol for a connection to completion.
     async fn begin<C>(
         &self,
@@ -152,6 +161,13 @@ impl ProtocolHandler {
         // Standard postgres params. These values are used only for informational purposes.
         let user_name = params.get("user").cloned().unwrap_or_default();
         let database_name = params.get("database").cloned().unwrap_or_default();
+
+        let db_id = if self.is_integration_testing_enabled() {
+            // When in integration testing mode, try to get the database ID from dbname.
+            database_name.parse::<Uuid>().unwrap_or(db_id)
+        } else {
+            db_id
+        };
 
         // Handle password
         framed
