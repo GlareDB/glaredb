@@ -6,6 +6,9 @@ pub enum PlanError {
     #[error("SQL statement currently unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
+    #[error("Missing required option: {0}")]
+    MissingRequiredOption(String),
+
     #[error("Failed to create table provider for '{reference}': {e}")]
     FailedToCreateTableProvider {
         reference: String,

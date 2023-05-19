@@ -347,8 +347,8 @@ impl SessionContext {
     }
 
     pub async fn copy_to(&mut self, plan: CopyTo) -> Result<()> {
-        let service_account = match plan.auth_options {
-            CopyToAuthOptions::Gcs {
+        let service_account = match plan.auth_opts {
+            ObjectStoreAuth::Gcs {
                 service_account_key,
             } => service_account_key,
             _ => unimplemented!(),

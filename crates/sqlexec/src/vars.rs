@@ -76,6 +76,12 @@ const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
     value: &false,
 };
 
+// GlareDB specific.
+const GCS_SERVICE_ACCOUNT_KEY: ServerVar<str> = ServerVar {
+    name: "gcs_service_account_key",
+    value: "",
+};
+
 /// Variables for a session.
 ///
 /// Variables that can be changed are of the `SessionVar` type, and default to
@@ -94,6 +100,7 @@ pub struct SessionVars {
     pub enable_debug_datasources: SessionVar<bool>,
     pub force_catalog_refresh: SessionVar<bool>,
     pub glaredb_version: &'static ServerVar<str>,
+    pub gcs_service_account_key: SessionVar<str>,
 }
 
 impl SessionVars {
@@ -132,6 +139,8 @@ impl SessionVars {
             Ok(&self.enable_debug_datasources)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
             Ok(&self.force_catalog_refresh)
+        } else if name.eq_ignore_ascii_case(GCS_SERVICE_ACCOUNT_KEY.name) {
+            Ok(&self.gcs_service_account_key)
         } else if name.eq_ignore_ascii_case(GLAREDB_VERSION.name) {
             Ok(self.glaredb_version)
         } else {
@@ -163,6 +172,8 @@ impl SessionVars {
             self.enable_debug_datasources.set(val)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
             self.force_catalog_refresh.set(val)
+        } else if name.eq_ignore_ascii_case(GCS_SERVICE_ACCOUNT_KEY.name) {
+            self.gcs_service_account_key.set(val)
         } else if name.eq_ignore_ascii_case(GLAREDB_VERSION.name) {
             Err(ExecError::VariableReadonly(
                 GLAREDB_VERSION.name.to_string(),
@@ -187,6 +198,7 @@ impl Default for SessionVars {
             search_path: SessionVar::new(&SEARCH_PATH),
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
             force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
+            gcs_service_account_key: SessionVar::new(&GCS_SERVICE_ACCOUNT_KEY),
             glaredb_version: &GLAREDB_VERSION,
         }
     }

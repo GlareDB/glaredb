@@ -5,6 +5,18 @@ use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::path::Path;
 use std::str::FromStr;
 
+#[derive(Clone, Debug)]
+pub enum ObjectStoreAuth {
+    S3 {
+        access_key_id: String,
+        secret_access_key: String,
+    },
+    Gcs {
+        service_account_key: String,
+    },
+    None,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ObjectStoreProvider {
     S3,

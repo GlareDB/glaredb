@@ -29,7 +29,7 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_object_store::sink::parquet::ParquetSinkOpts;
-use datasource_object_store::url::ObjectStoreSourceUrl;
+use datasource_object_store::url::{ObjectStoreAuth, ObjectStoreProvider, ObjectStoreSourceUrl};
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::types::options::{
@@ -498,14 +498,26 @@ impl<'a> SessionPlanner<'a> {
             }
         };
 
-        // TODO: Auth opts
+        let mut auth_opts = object_store_auth_from_opts(&stmt.options, dest.get_provider())?;
+        // Fall back to auth values set for the session.
+        match (&auth_opts, dest.get_provider()) {
+            (ObjectStoreAuth::None, ObjectStoreProvider::Gcs) => {
+                let fallback = self.ctx.get_session_vars().gcs_service_account_key.value();
+                if fallback != "" {
+                    auth_opts = ObjectStoreAuth::Gcs {
+                        service_account_key: fallback.to_string(),
+                    }
+                }
+            }
+            _ => (),
+        }
 
         Ok(LogicalPlan::Write(WritePlan::CopyTo(CopyTo {
             source,
             dest,
             format,
             format_opts,
-            auth_options: CopyToAuthOptions::None,
+            auth_opts,
             partition_by: Vec::new(),
         })))
     }
@@ -1121,9 +1133,44 @@ fn is_show_transaction_isolation_level(variable: &[String]) -> bool {
     variable.iter().eq(TRANSACTION_ISOLATION_LEVEL_STMT.iter())
 }
 
+/// Get authentication options depending on the object store provider.
+fn object_store_auth_from_opts(
+    m: &BTreeMap<String, OptionValue>,
+    prov: ObjectStoreProvider,
+) -> Result<ObjectStoreAuth> {
+    let auth = match prov {
+        ObjectStoreProvider::Gcs => match m.get("service_account_key") {
+            Some(v) => ObjectStoreAuth::Gcs {
+                service_account_key: v.to_string(),
+            },
+            None => ObjectStoreAuth::None,
+        },
+        ObjectStoreProvider::S3 => match (m.get("access_key_id"), m.get("secret_access_key")) {
+            (Some(id), Some(secret)) => ObjectStoreAuth::S3 {
+                access_key_id: id.to_string(),
+                secret_access_key: secret.to_string(),
+            },
+            (Some(_), None) => {
+                return Err(PlanError::MissingRequiredOption(
+                    "secret_access_key".to_string(),
+                ))
+            }
+            (None, Some(_)) => {
+                return Err(PlanError::MissingRequiredOption(
+                    "access_key_id".to_string(),
+                ))
+            }
+            _ => ObjectStoreAuth::None,
+        },
+        ObjectStoreProvider::File => ObjectStoreAuth::None,
+    };
+
+    Ok(auth)
+}
+
 fn remove_required_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<String> {
     let opt = remove_optional_opt(m, k)?;
-    opt.ok_or_else(|| internal!("missing required option: {}", k))
+    opt.ok_or_else(|| PlanError::MissingRequiredOption(k.to_string()))
 }
 
 fn remove_optional_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<Option<String>> {

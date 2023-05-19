@@ -4,7 +4,7 @@ use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use datasource_object_store::url::ObjectStoreSourceUrl;
+use datasource_object_store::url::{ObjectStoreAuth, ObjectStoreSourceUrl};
 use metastore::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -101,18 +101,6 @@ pub struct Insert {
 }
 
 #[derive(Clone, Debug)]
-pub enum CopyToAuthOptions {
-    S3 {
-        access_key_id: String,
-        secret_access_key: String,
-    },
-    Gcs {
-        service_account_key: String,
-    },
-    None,
-}
-
-#[derive(Clone, Debug)]
 pub enum CopyFormat {
     Parquet,
 }
@@ -137,7 +125,7 @@ pub enum CopyFormatOpts {
 pub struct CopyTo {
     pub source: DfLogicalPlan,
     pub dest: ObjectStoreSourceUrl,
-    pub auth_options: CopyToAuthOptions,
+    pub auth_opts: ObjectStoreAuth,
     pub format: CopyFormat,
     pub format_opts: CopyFormatOpts,
     pub partition_by: Vec<String>,
