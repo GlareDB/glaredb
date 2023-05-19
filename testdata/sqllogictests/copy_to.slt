@@ -22,7 +22,7 @@ select * from hello;
 # Optionally specify format.
 
 statement ok
-copy (select 1 as a, 2 as b) to '/tmp/hello.parquet' (format parquet);
+copy (select 3 as a, 4 as b) to '/tmp/hello.parquet' (format parquet);
 
 statement ok
 create external table hello2 from local
@@ -31,5 +31,9 @@ create external table hello2 from local
 query II
 select * from hello;
 ----
-1  2
+3  4
 
+# Unsupported format
+
+statement error
+copy (select 5 as a, 6 as b) to '/tmp/hello.parquet' (format parqueson);
