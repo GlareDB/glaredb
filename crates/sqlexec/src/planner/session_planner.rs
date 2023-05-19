@@ -475,7 +475,7 @@ impl<'a> SessionPlanner<'a> {
 
         let dest = ObjectStoreSourceUrl::parse(&stmt.dest)?;
         let format: CopyFormat = match stmt.options.get("format") {
-            Some(OptionValue::QuotedLiteral(s)) => s.parse()?,
+            Some(OptionValue::QuotedLiteral(s) | OptionValue::UnquotedKeyword(s)) => s.parse()?,
             Some(v) => return Err(PlanError::UnsupportedOptionValue(v.clone())),
             None => match dest.extension() {
                 Some(s) => s.parse()?,
@@ -496,6 +496,7 @@ impl<'a> SessionPlanner<'a> {
                 }
                 CopyFormatOpts::Parquet(opts)
             }
+            _ => unimplemented!(),
         };
 
         let mut auth_opts = object_store_auth_from_opts(&stmt.options, dest.get_provider())?;
@@ -515,7 +516,6 @@ impl<'a> SessionPlanner<'a> {
         Ok(LogicalPlan::Write(WritePlan::CopyTo(CopyTo {
             source,
             dest,
-            format,
             format_opts,
             auth_opts,
             partition_by: Vec::new(),

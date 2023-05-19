@@ -362,15 +362,20 @@ impl SessionContext {
                 .build()?,
         );
 
-        // let sink = ParquetSink::new(store, plan.dest.location());
+        let sink: Box<dyn Sink> = match plan.format_opts {
+            CopyFormatOpts::Parquet(opts) => {
+                Box::new(ParquetSink::new(store, plan.dest.location(), opts))
+            }
+            _ => unimplemented!(),
+        };
 
-        // let physical = self
-        //     .get_df_state()
-        //     .create_physical_plan(&plan.source)
-        //     .await?;
-        // let stream = execute_stream(physical, self.task_context())?;
+        let physical = self
+            .get_df_state()
+            .create_physical_plan(&plan.source)
+            .await?;
+        let stream = execute_stream(physical, self.task_context())?;
 
-        // sink.stream_into(stream).await.unwrap();
+        sink.stream_into(stream).await.unwrap();
 
         Ok(())
     }

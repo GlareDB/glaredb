@@ -103,6 +103,8 @@ pub struct Insert {
 #[derive(Clone, Debug)]
 pub enum CopyFormat {
     Parquet,
+    Csv,
+    Json,
 }
 
 impl FromStr for CopyFormat {
@@ -111,6 +113,8 @@ impl FromStr for CopyFormat {
         let lower = s.to_lowercase();
         match lower.as_str() {
             "parquet" => Ok(CopyFormat::Parquet),
+            "csv" => Ok(CopyFormat::Csv),
+            "json" => Ok(CopyFormat::Json),
             _ => Err(PlanError::UnknownCopyFormat(lower)),
         }
     }
@@ -126,7 +130,6 @@ pub struct CopyTo {
     pub source: DfLogicalPlan,
     pub dest: ObjectStoreSourceUrl,
     pub auth_opts: ObjectStoreAuth,
-    pub format: CopyFormat,
     pub format_opts: CopyFormatOpts,
     pub partition_by: Vec<String>,
 }

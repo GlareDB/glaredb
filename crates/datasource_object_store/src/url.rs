@@ -29,7 +29,7 @@ impl FromStr for ObjectStoreProvider {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "s3" => Self::S3,
-            "gcs" => Self::Gcs,
+            "gs" => Self::Gcs,
             "file" => Self::File,
             other => {
                 return Err(ObjectStoreSourceError::UnknownObjectStoreProvider(
