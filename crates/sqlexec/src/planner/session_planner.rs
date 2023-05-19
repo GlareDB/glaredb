@@ -28,6 +28,7 @@ use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
+use datasource_object_store::sink::parquet::ParquetSinkOpts;
 use datasource_object_store::url::ObjectStoreSourceUrl;
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
@@ -473,14 +474,39 @@ impl<'a> SessionPlanner<'a> {
         };
 
         let dest = ObjectStoreSourceUrl::parse(&stmt.dest)?;
+        let format: CopyFormat = match stmt.options.get("format") {
+            Some(OptionValue::QuotedLiteral(s)) => s.parse()?,
+            Some(v) => return Err(PlanError::UnsupportedOptionValue(v.clone())),
+            None => match dest.extension() {
+                Some(s) => s.parse()?,
+                None => return Err(PlanError::UnableToInferCopyFormat),
+            },
+        };
+
+        let format_opts = match format {
+            CopyFormat::Parquet => {
+                let mut opts = ParquetSinkOpts::default();
+                match stmt.options.get("row_group_size") {
+                    Some(OptionValue::Number(n)) => {
+                        let n = n.parse::<usize>()?;
+                        opts.row_group_size = n;
+                    }
+                    Some(v) => return Err(PlanError::UnsupportedOptionValue(v.clone())),
+                    None => (),
+                }
+                CopyFormatOpts::Parquet(opts)
+            }
+        };
+
+        // TODO: Auth opts
 
         Ok(LogicalPlan::Write(WritePlan::CopyTo(CopyTo {
             source,
             dest,
-            options: CopyToOptions::Dummy,
-            auth_options: CopyToAuthOptions::Gcs {
-                service_account_key: String::new(),
-            },
+            format,
+            format_opts,
+            auth_options: CopyToAuthOptions::None,
+            partition_by: Vec::new(),
         })))
     }
 

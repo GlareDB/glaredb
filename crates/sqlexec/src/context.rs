@@ -20,7 +20,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasource_common::sink::Sink;
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasource_object_store::sink::ParquetSink;
+use datasource_object_store::sink::parquet::ParquetSink;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
@@ -361,15 +361,15 @@ impl SessionContext {
                 .build()?,
         );
 
-        let sink = ParquetSink::new(store, plan.dest.location());
+        // let sink = ParquetSink::new(store, plan.dest.location());
 
-        let physical = self
-            .get_df_state()
-            .create_physical_plan(&plan.source)
-            .await?;
-        let stream = execute_stream(physical, self.task_context())?;
+        // let physical = self
+        //     .get_df_state()
+        //     .create_physical_plan(&plan.source)
+        //     .await?;
+        // let stream = execute_stream(physical, self.task_context())?;
 
-        sink.stream_into(stream).await.unwrap();
+        // sink.stream_into(stream).await.unwrap();
 
         Ok(())
     }

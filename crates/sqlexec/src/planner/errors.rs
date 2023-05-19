@@ -52,6 +52,12 @@ pub enum PlanError {
     #[error("Unsupported option value: {0}")]
     UnsupportedOptionValue(crate::parser::OptionValue),
 
+    #[error("Unknown copy format: {0}")]
+    UnknownCopyFormat(String),
+
+    #[error("Unable to infer copy format")]
+    UnableToInferCopyFormat,
+
     #[error("Exec error: {0}")]
     Exec(Box<crate::errors::ExecError>), // TODO: Try to remove.
 

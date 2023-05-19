@@ -10,16 +10,35 @@ use std::sync::Arc;
 const BUFFER_SIZE: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
+pub struct ParquetSinkOpts {
+    pub row_group_size: usize,
+}
+
+impl Default for ParquetSinkOpts {
+    fn default() -> Self {
+        ParquetSinkOpts {
+            row_group_size: 122880,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ParquetSink {
     store: Arc<dyn ObjectStore>,
     loc: ObjectPath,
+    opts: ParquetSinkOpts,
 }
 
 impl ParquetSink {
-    pub fn new(store: Arc<dyn ObjectStore>, loc: impl Into<ObjectPath>) -> ParquetSink {
+    pub fn new(
+        store: Arc<dyn ObjectStore>,
+        loc: impl Into<ObjectPath>,
+        opts: ParquetSinkOpts,
+    ) -> ParquetSink {
         ParquetSink {
             store,
             loc: loc.into(),
+            opts,
         }
     }
 
@@ -30,6 +49,7 @@ impl ParquetSink {
 
         let props = WriterProperties::builder()
             .set_created_by("GlareDB".to_string())
+            .set_max_row_group_size(self.opts.row_group_size)
             .build();
 
         let mut writer = AsyncArrowWriter::try_new(obj_handle, schema, BUFFER_SIZE, Some(props))?;

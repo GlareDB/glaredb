@@ -7,6 +7,9 @@ use datafusion::sql::sqlparser::ast;
 use datasource_object_store::url::ObjectStoreSourceUrl;
 use metastore::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
+use std::str::FromStr;
+
+use super::errors::PlanError;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -98,11 +101,6 @@ pub struct Insert {
 }
 
 #[derive(Clone, Debug)]
-pub enum CopyToOptions {
-    Dummy,
-}
-
-#[derive(Clone, Debug)]
 pub enum CopyToAuthOptions {
     S3 {
         access_key_id: String,
@@ -115,11 +113,34 @@ pub enum CopyToAuthOptions {
 }
 
 #[derive(Clone, Debug)]
+pub enum CopyFormat {
+    Parquet,
+}
+
+impl FromStr for CopyFormat {
+    type Err = PlanError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let lower = s.to_lowercase();
+        match lower.as_str() {
+            "parquet" => Ok(CopyFormat::Parquet),
+            _ => Err(PlanError::UnknownCopyFormat(lower)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CopyFormatOpts {
+    Parquet(datasource_object_store::sink::parquet::ParquetSinkOpts),
+}
+
+#[derive(Clone, Debug)]
 pub struct CopyTo {
     pub source: DfLogicalPlan,
     pub dest: ObjectStoreSourceUrl,
-    pub options: CopyToOptions,
     pub auth_options: CopyToAuthOptions,
+    pub format: CopyFormat,
+    pub format_opts: CopyFormatOpts,
+    pub partition_by: Vec<String>,
 }
 
 /// Data defintion logical plans.
