@@ -3,7 +3,7 @@ use crate::errors::{ ObjectStoreSourceError, Result };
 use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datasource_common::sink::{Sink, SinkError};
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use std::sync::Arc;
 
@@ -22,6 +22,7 @@ impl Default for ParquetSinkOpts {
     }
 }
 
+/// Writes parquet files to object storage.
 #[derive(Debug, Clone)]
 pub struct ParquetSink {
     store: Arc<dyn ObjectStore>,

@@ -1623,8 +1623,10 @@ dependencies = [
  "datasource_common",
  "futures",
  "object_store",
+ "parking_lot",
  "serde",
  "thiserror",
+ "tokio",
  "tracing",
  "url",
 ]

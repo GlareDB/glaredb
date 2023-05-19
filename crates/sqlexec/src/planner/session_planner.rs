@@ -28,6 +28,7 @@ use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
+use datasource_object_store::sink::csv::CsvSinkOpts;
 use datasource_object_store::sink::parquet::ParquetSinkOpts;
 use datasource_object_store::url::{ObjectStoreAuth, ObjectStoreProvider, ObjectStoreSourceUrl};
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
@@ -496,6 +497,7 @@ impl<'a> SessionPlanner<'a> {
                 }
                 CopyFormatOpts::Parquet(opts)
             }
+            CopyFormat::Csv => CopyFormatOpts::Csv(CsvSinkOpts::default()),
             _ => unimplemented!(),
         };
 

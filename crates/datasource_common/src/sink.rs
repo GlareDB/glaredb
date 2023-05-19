@@ -16,5 +16,5 @@ pub enum SinkError {
 #[async_trait]
 pub trait Sink: Sync + Send {
     /// Stream a record batch into a sink, returning the number of rows written.
-    async fn stream_into(&self, mut stream: SendableRecordBatchStream) -> Result<usize, SinkError>;
+    async fn stream_into(&self, stream: SendableRecordBatchStream) -> Result<usize, SinkError>;
 }

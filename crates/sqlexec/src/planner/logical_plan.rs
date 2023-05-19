@@ -123,6 +123,7 @@ impl FromStr for CopyFormat {
 #[derive(Clone, Debug)]
 pub enum CopyFormatOpts {
     Parquet(datasource_object_store::sink::parquet::ParquetSinkOpts),
+    Csv(datasource_object_store::sink::csv::CsvSinkOpts),
 }
 
 #[derive(Clone, Debug)]
