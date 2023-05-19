@@ -21,6 +21,7 @@ use datafusion::sql::TableReference;
 use datasource_common::sink::Sink;
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::sink::parquet::ParquetSink;
+use datasource_object_store::url::ObjectStoreAuth;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;

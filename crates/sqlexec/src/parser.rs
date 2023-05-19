@@ -5,6 +5,7 @@ use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
 use sqlparser::ast::{Ident, ObjectName};
+use sqlparser::tokenizer::Word;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
@@ -23,6 +24,7 @@ pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionValue {
     QuotedLiteral(String),
+    UnquotedKeyword(String),
     Boolean(bool),
     Number(String),
     Secret(String),
@@ -32,6 +34,7 @@ impl fmt::Display for OptionValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::QuotedLiteral(s) => write!(f, "'{s}'"),
+            Self::UnquotedKeyword(s) => write!(f, "{s}"),
             Self::Boolean(b) => {
                 if *b {
                     write!(f, "TRUE")
@@ -386,17 +389,7 @@ impl<'a> CustomParser<'a> {
                 let value = if is_secret {
                     OptionValue::Secret(self.parser.parse_identifier()?.value)
                 } else {
-                    match self.parser.parse_value()? {
-                        ast::Value::SingleQuotedString(s) => OptionValue::QuotedLiteral(s),
-                        ast::Value::Boolean(b) => OptionValue::Boolean(b),
-                        ast::Value::Number(n, _) => OptionValue::Number(n),
-                        val => {
-                            return Err(ParserError::ParserError(format!(
-                                "Expected string, boolean, or number, found: {}",
-                                val,
-                            )))
-                        }
-                    }
+                    self.parse_option_value()?
                 };
 
                 options.insert(key, value);
@@ -603,6 +596,27 @@ impl<'a> CustomParser<'a> {
         }
 
         Ok(options)
+    }
+
+    fn parse_option_value(&mut self) -> Result<OptionValue, ParserError> {
+        let tok = self.parser.next_token();
+        match tok.token {
+            Token::Word(Word {
+                keyword: Keyword::TRUE,
+                ..
+            }) => Ok(OptionValue::Boolean(true)),
+            Token::Word(Word {
+                keyword: Keyword::FALSE,
+                ..
+            }) => Ok(OptionValue::Boolean(false)),
+            Token::Word(Word { value, .. }) => Ok(OptionValue::UnquotedKeyword(value)),
+            Token::SingleQuotedString(s) => Ok(OptionValue::QuotedLiteral(s)),
+            Token::Number(n, _) => Ok(OptionValue::Number(n)),
+            _ => Err(ParserError::ParserError(format!(
+                "Expected string, boolean, or number, found: {}",
+                tok,
+            ))),
+        }
     }
 
     /// Consume a token return, returning whether or not it was consumed.
@@ -876,6 +890,7 @@ mod tests {
             "COPY (SELECT 1) TO 's3://bucket';",
             "COPY (SELECT 1) TO 's3://bucket' (option1 'true', option2 'hello');",
             "COPY table TO 's3://bucket' (bool_opt TRUE, num_opt 1);",
+            "COPY table TO 's3://bucket' (FORMAT JSON);",
         ];
 
         for test_case in test_cases {
