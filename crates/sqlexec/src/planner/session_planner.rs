@@ -478,6 +478,9 @@ impl<'a> SessionPlanner<'a> {
             source,
             dest,
             options: CopyToOptions::Dummy,
+            auth_options: CopyToAuthOptions::Gcs {
+                service_account_key: String::new(),
+            },
         })))
     }
 

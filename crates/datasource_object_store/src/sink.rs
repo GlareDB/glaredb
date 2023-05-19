@@ -16,6 +16,13 @@ pub struct ParquetSink {
 }
 
 impl ParquetSink {
+    pub fn new(store: Arc<dyn ObjectStore>, loc: impl Into<ObjectPath>) -> ParquetSink {
+        ParquetSink {
+            store,
+            loc: loc.into(),
+        }
+    }
+
     async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> Result<usize> {
         let schema = stream.schema();
 

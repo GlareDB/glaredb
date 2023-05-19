@@ -15,14 +15,19 @@ use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
+use datafusion::physical_plan::execute_stream;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datasource_common::sink::Sink;
+use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasource_object_store::sink::ParquetSink;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
 use metastore::types::service::{self, Mutation};
+use object_store::gcp::GoogleCloudStorageBuilder;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use std::collections::HashMap;
@@ -337,6 +342,34 @@ impl SessionContext {
             .collect();
 
         self.mutate_catalog(drops).await?;
+
+        Ok(())
+    }
+
+    pub async fn copy_to(&mut self, plan: CopyTo) -> Result<()> {
+        let service_account = match plan.auth_options {
+            CopyToAuthOptions::Gcs {
+                service_account_key,
+            } => service_account_key,
+            _ => unimplemented!(),
+        };
+
+        let store = Arc::new(
+            GoogleCloudStorageBuilder::new()
+                .with_service_account_key(service_account)
+                .with_bucket_name(plan.dest.bucket_name().to_string())
+                .build()?,
+        );
+
+        let sink = ParquetSink::new(store, plan.dest.location());
+
+        let physical = self
+            .get_df_state()
+            .create_physical_plan(&plan.source)
+            .await?;
+        let stream = execute_stream(physical, self.task_context())?;
+
+        sink.stream_into(stream).await.unwrap();
 
         Ok(())
     }

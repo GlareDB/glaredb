@@ -259,6 +259,11 @@ impl Session {
         Err(ExecError::UnsupportedFeature("INSERT"))
     }
 
+    pub(crate) async fn copy_to(&mut self, plan: CopyTo) -> Result<()> {
+        self.ctx.copy_to(plan).await?;
+        Ok(())
+    }
+
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
         self.ctx
             .get_session_vars_mut()
@@ -406,7 +411,8 @@ impl Session {
                 ExecutionResult::WriteSuccess
             }
             LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
-                unimplemented!()
+                self.copy_to(plan).await?;
+                ExecutionResult::CopySuccess
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;

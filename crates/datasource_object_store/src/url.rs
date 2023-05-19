@@ -44,4 +44,12 @@ impl ObjectStoreSourceUrl {
         let meta = store.head(&loc).await?;
         unimplemented!()
     }
+
+    pub fn bucket_name(&self) -> &str {
+        &self.url[url::Position::BeforeHost..url::Position::AfterHost]
+    }
+
+    pub fn location(&self) -> &str {
+        &self.url[url::Position::BeforePath..url::Position::AfterPath]
+    }
 }

@@ -103,10 +103,23 @@ pub enum CopyToOptions {
 }
 
 #[derive(Clone, Debug)]
+pub enum CopyToAuthOptions {
+    S3 {
+        access_key_id: String,
+        secret_access_key: String,
+    },
+    Gcs {
+        service_account_key: String,
+    },
+    None,
+}
+
+#[derive(Clone, Debug)]
 pub struct CopyTo {
     pub source: DfLogicalPlan,
     pub dest: ObjectStoreSourceUrl,
     pub options: CopyToOptions,
+    pub auth_options: CopyToAuthOptions,
 }
 
 /// Data defintion logical plans.
