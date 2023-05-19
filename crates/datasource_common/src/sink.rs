@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SinkError {
     #[error(transparent)]
-    Boxed(Box<dyn std::error::Error>),
+    Boxed(Box<dyn std::error::Error + Send + Sync>),
 
     #[error("Sink error: {0}")]
     String(String),

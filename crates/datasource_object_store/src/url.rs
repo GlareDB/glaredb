@@ -5,19 +5,29 @@ use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::path::Path;
 use std::str::FromStr;
 
-#[derive(Clone, Debug)]
-pub enum ObjectStoreAuth {
-    S3 {
-        access_key_id: String,
-        secret_access_key: String,
-    },
-    Gcs {
-        service_account_key: String,
-    },
-    None,
+#[derive(Debug, Clone)]
+pub struct S3Auth {
+    pub access_key_id: String,
+    pub secret_access_key: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
+pub struct GcsAuth {
+    pub service_account_key: String,
+}
+
+/// Object storage authentication values.
+///
+/// S3 and GCS may omit authentication options. Doing so requires that the
+/// bucket/object be publicly accessible.
+#[derive(Debug, Clone)]
+pub enum ObjectStoreAuth {
+    S3(Option<S3Auth>),
+    Gcs(Option<GcsAuth>),
+    Local,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObjectStoreProvider {
     S3,
     Gcs,
@@ -47,6 +57,7 @@ pub struct ObjectStoreSourceUrl {
 }
 
 impl ObjectStoreSourceUrl {
+    /// Parse some location into an object store source url.
     pub fn parse(loc: &str) -> Result<Self> {
         let url = match url::Url::parse(loc) {
             Ok(url) => url,
@@ -98,20 +109,24 @@ mod tests {
         assert_eq!("my_bucket", u.bucket_name());
         assert_eq!("/my_obj", u.location());
         assert_eq!(None, u.extension());
+        assert_eq!(ObjectStoreProvider::Gcs, u.get_provider());
 
         let u = ObjectStoreSourceUrl::parse("gs://my_bucket/my_obj.parquet").unwrap();
         assert_eq!("my_bucket", u.bucket_name());
         assert_eq!("/my_obj.parquet", u.location());
         assert_eq!(Some("parquet"), u.extension());
+        assert_eq!(ObjectStoreProvider::Gcs, u.get_provider());
 
         let u = ObjectStoreSourceUrl::parse("./my_bucket/my_obj.parquet").unwrap();
         assert_eq!("", u.bucket_name());
         assert_eq!("/my_bucket/my_obj.parquet", u.location());
         assert_eq!(Some("parquet"), u.extension());
+        assert_eq!(ObjectStoreProvider::File, u.get_provider());
 
         let u = ObjectStoreSourceUrl::parse("/Users/mario/my_bucket/my_obj").unwrap();
         assert_eq!("", u.bucket_name());
         assert_eq!("/Users/mario/my_bucket/my_obj", u.location());
         assert_eq!(None, u.extension());
+        assert_eq!(ObjectStoreProvider::File, u.get_provider());
     }
 }

@@ -31,7 +31,9 @@ use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_object_store::sink::csv::CsvSinkOpts;
 use datasource_object_store::sink::json::JsonSinkOpts;
 use datasource_object_store::sink::parquet::ParquetSinkOpts;
-use datasource_object_store::url::{ObjectStoreAuth, ObjectStoreProvider, ObjectStoreSourceUrl};
+use datasource_object_store::url::{
+    GcsAuth, ObjectStoreAuth, ObjectStoreProvider, ObjectStoreSourceUrl, S3Auth,
+};
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::types::options::{
@@ -530,12 +532,12 @@ impl<'a> SessionPlanner<'a> {
         let mut auth_opts = object_store_auth_from_opts(&stmt.options, dest.get_provider())?;
         // Fall back to auth values set for the session.
         match (&auth_opts, dest.get_provider()) {
-            (ObjectStoreAuth::None, ObjectStoreProvider::Gcs) => {
+            (ObjectStoreAuth::Gcs(None), ObjectStoreProvider::Gcs) => {
                 let fallback = self.ctx.get_session_vars().gcs_service_account_key.value();
                 if fallback != "" {
-                    auth_opts = ObjectStoreAuth::Gcs {
+                    auth_opts = ObjectStoreAuth::Gcs(Some(GcsAuth {
                         service_account_key: fallback.to_string(),
-                    }
+                    }))
                 }
             }
             _ => (),
@@ -1168,16 +1170,16 @@ fn object_store_auth_from_opts(
 ) -> Result<ObjectStoreAuth> {
     let auth = match prov {
         ObjectStoreProvider::Gcs => match m.get("service_account_key") {
-            Some(v) => ObjectStoreAuth::Gcs {
+            Some(v) => ObjectStoreAuth::Gcs(Some(GcsAuth {
                 service_account_key: v.to_string(),
-            },
-            None => ObjectStoreAuth::None,
+            })),
+            None => ObjectStoreAuth::Gcs(None),
         },
         ObjectStoreProvider::S3 => match (m.get("access_key_id"), m.get("secret_access_key")) {
-            (Some(id), Some(secret)) => ObjectStoreAuth::S3 {
+            (Some(id), Some(secret)) => ObjectStoreAuth::S3(Some(S3Auth {
                 access_key_id: id.to_string(),
                 secret_access_key: secret.to_string(),
-            },
+            })),
             (Some(_), None) => {
                 return Err(PlanError::MissingRequiredOption(
                     "secret_access_key".to_string(),
@@ -1188,9 +1190,9 @@ fn object_store_auth_from_opts(
                     "access_key_id".to_string(),
                 ))
             }
-            _ => ObjectStoreAuth::None,
+            _ => ObjectStoreAuth::S3(None),
         },
-        ObjectStoreProvider::File => ObjectStoreAuth::None,
+        ObjectStoreProvider::File => ObjectStoreAuth::Local,
     };
 
     Ok(auth)

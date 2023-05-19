@@ -124,6 +124,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
+
+    #[error(transparent)]
+    SinkError(#[from] datasource_common::sink::SinkError),
 }
 
 impl From<tonic::Status> for ExecError {

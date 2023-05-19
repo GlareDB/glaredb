@@ -23,14 +23,17 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::sink::csv::CsvSink;
 use datasource_object_store::sink::json::JsonSink;
 use datasource_object_store::sink::parquet::ParquetSink;
-use datasource_object_store::url::ObjectStoreAuth;
+use datasource_object_store::url::{GcsAuth, ObjectStoreAuth, S3Auth};
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
 use metastore::types::service::{self, Mutation};
+use object_store::aws::AmazonS3Builder;
 use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::local::LocalFileSystem;
+use object_store::ObjectStore;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use std::collections::HashMap;
@@ -350,19 +353,41 @@ impl SessionContext {
     }
 
     pub async fn copy_to(&mut self, plan: CopyTo) -> Result<()> {
-        let service_account = match plan.auth_opts {
-            ObjectStoreAuth::Gcs {
-                service_account_key,
-            } => service_account_key,
-            _ => unimplemented!(),
+        let store: Arc<dyn ObjectStore> = match plan.auth_opts {
+            ObjectStoreAuth::Gcs(auth) => match auth {
+                Some(GcsAuth {
+                    service_account_key,
+                }) => Arc::new(
+                    GoogleCloudStorageBuilder::new()
+                        .with_service_account_key(service_account_key)
+                        .with_bucket_name(plan.dest.bucket_name().to_string())
+                        .build()?,
+                ),
+                None => Arc::new(
+                    GoogleCloudStorageBuilder::new()
+                        .with_bucket_name(plan.dest.bucket_name().to_string())
+                        .build()?,
+                ),
+            },
+            ObjectStoreAuth::S3(auth) => match auth {
+                Some(S3Auth {
+                    access_key_id,
+                    secret_access_key,
+                }) => Arc::new(
+                    AmazonS3Builder::new()
+                        .with_bucket_name(plan.dest.bucket_name().to_string())
+                        .with_access_key_id(access_key_id)
+                        .with_secret_access_key(secret_access_key)
+                        .build()?,
+                ),
+                None => Arc::new(
+                    AmazonS3Builder::new()
+                        .with_bucket_name(plan.dest.bucket_name().to_string())
+                        .build()?,
+                ),
+            },
+            ObjectStoreAuth::Local => Arc::new(LocalFileSystem::new()),
         };
-
-        let store = Arc::new(
-            GoogleCloudStorageBuilder::new()
-                .with_service_account_key(service_account)
-                .with_bucket_name(plan.dest.bucket_name().to_string())
-                .build()?,
-        );
 
         let sink: Box<dyn Sink> = match plan.format_opts {
             CopyFormatOpts::Parquet(opts) => {
@@ -380,7 +405,7 @@ impl SessionContext {
             .await?;
         let stream = execute_stream(physical, self.task_context())?;
 
-        sink.stream_into(stream).await.unwrap();
+        sink.stream_into(stream).await?;
 
         Ok(())
     }

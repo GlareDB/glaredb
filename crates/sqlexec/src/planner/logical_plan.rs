@@ -120,6 +120,7 @@ impl FromStr for CopyFormat {
     }
 }
 
+/// Format specific options for COPY ... TO ...
 #[derive(Clone, Debug)]
 pub enum CopyFormatOpts {
     Parquet(datasource_object_store::sink::parquet::ParquetSinkOpts),
