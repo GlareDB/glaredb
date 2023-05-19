@@ -1,0 +1,35 @@
+# Copy to tests
+
+statement ok
+create schema copy_to;
+
+statement ok
+set search_path = copy_to;
+
+# Note that this will automatically overwrite the file currently.
+statement ok
+copy (select 1 as a, 2 as b) to '/tmp/hello.parquet'
+
+statement ok
+create external table hello from local
+  options(location='/tmp/hello.parquet');
+
+query II
+select * from hello;
+----
+1  2
+
+# Optionally specify format.
+
+statement ok
+copy (select 1 as a, 2 as b) to '/tmp/hello.parquet' (format parquet);
+
+statement ok
+create external table hello2 from local
+  options(location='/tmp/hello.parquet');
+
+query II
+select * from hello;
+----
+1  2
+

@@ -18,6 +18,7 @@ pub struct JsonSinkOpts {
     pub array: bool,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for JsonSinkOpts {
     fn default() -> Self {
         JsonSinkOpts { array: false }

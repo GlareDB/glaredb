@@ -116,7 +116,7 @@ impl<W: AsyncWrite + Unpin + Send> AsyncCsvWriter<W> {
             return Ok(());
         }
 
-        self.async_writer.write(&buf).await?;
+        self.async_writer.write_all(&buf).await?;
         self.async_writer.flush().await?;
 
         buf.clear();

@@ -1,4 +1,3 @@
-use futures::lock::Mutex;
 use std::io::Write;
 use std::sync::Arc;
 

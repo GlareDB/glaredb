@@ -1,5 +1,4 @@
 use crate::context::SessionContext;
-use crate::errors::ExecError;
 use crate::parser::{
     validate_ident, validate_object_name, AlterDatabaseRenameStmt, CopyToSource, CopyToStmt,
     CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt, DropDatabaseStmt,
@@ -13,10 +12,6 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::OwnedTableReference;
-use datafusion::logical_expr::{
-    LogicalPlan as DfLogicalPlan, LogicalPlanBuilder as DfLogicalPlanBuilder, TableScan,
-};
-use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, SqlToRel};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
@@ -538,16 +533,15 @@ impl<'a> SessionPlanner<'a> {
 
         let mut auth_opts = object_store_auth_from_opts(&stmt.options, dest.get_provider())?;
         // Fall back to auth values set for the session.
-        match (&auth_opts, dest.get_provider()) {
-            (ObjectStoreAuth::Gcs(None), ObjectStoreProvider::Gcs) => {
-                let fallback = self.ctx.get_session_vars().gcs_service_account_key.value();
-                if fallback != "" {
-                    auth_opts = ObjectStoreAuth::Gcs(Some(GcsAuth {
-                        service_account_key: fallback.to_string(),
-                    }))
-                }
+        if let (ObjectStoreAuth::Gcs(None), ObjectStoreProvider::Gcs) =
+            (&auth_opts, dest.get_provider())
+        {
+            let fallback = self.ctx.get_session_vars().gcs_service_account_key.value();
+            if !fallback.is_empty() {
+                auth_opts = ObjectStoreAuth::Gcs(Some(GcsAuth {
+                    service_account_key: fallback.to_string(),
+                }))
             }
-            _ => (),
         }
 
         Ok(LogicalPlan::Write(WritePlan::CopyTo(CopyTo {

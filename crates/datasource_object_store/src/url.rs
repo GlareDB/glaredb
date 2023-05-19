@@ -1,7 +1,4 @@
 use crate::{ObjectStoreSourceError, Result};
-use futures::stream::{BoxStream, Stream};
-use futures::{StreamExt, TryStreamExt};
-use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::path::Path;
 use std::str::FromStr;
 
@@ -70,15 +67,6 @@ impl ObjectStoreSourceUrl {
         let provider = url.scheme().parse()?;
 
         Ok(ObjectStoreSourceUrl { url, provider })
-    }
-
-    pub async fn list_files(
-        &self,
-        store: &dyn ObjectStore,
-    ) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
-        let loc = ObjectPath::from(self.url.path());
-        let meta = store.head(&loc).await?;
-        unimplemented!()
     }
 
     pub fn get_provider(&self) -> ObjectStoreProvider {

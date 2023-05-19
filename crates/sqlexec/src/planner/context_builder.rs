@@ -18,7 +18,6 @@ use datafusion::sql::sqlparser::ast::Visit;
 use datafusion::sql::sqlparser::ast::{self, Visitor};
 use datafusion::sql::TableReference;
 use metastore::builtins::DEFAULT_CATALOG;
-use sqlparser::ast::ObjectName;
 use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 use std::sync::Arc;
