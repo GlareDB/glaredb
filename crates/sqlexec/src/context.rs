@@ -21,6 +21,7 @@ use datafusion::sql::TableReference;
 use datasource_common::sink::Sink;
 use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::sink::csv::CsvSink;
+use datasource_object_store::sink::json::JsonSink;
 use datasource_object_store::sink::parquet::ParquetSink;
 use datasource_object_store::url::ObjectStoreAuth;
 use futures::future::BoxFuture;
@@ -368,7 +369,9 @@ impl SessionContext {
                 Box::new(ParquetSink::new(store, plan.dest.location(), opts))
             }
             CopyFormatOpts::Csv(opts) => Box::new(CsvSink::new(store, plan.dest.location(), opts)),
-            _ => unimplemented!(),
+            CopyFormatOpts::Json(opts) => {
+                Box::new(JsonSink::new(store, plan.dest.location(), opts))
+            }
         };
 
         let physical = self

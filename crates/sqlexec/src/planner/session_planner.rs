@@ -29,6 +29,7 @@ use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
 use datasource_object_store::s3::{S3Accessor, S3TableAccess};
 use datasource_object_store::sink::csv::CsvSinkOpts;
+use datasource_object_store::sink::json::JsonSinkOpts;
 use datasource_object_store::sink::parquet::ParquetSinkOpts;
 use datasource_object_store::url::{ObjectStoreAuth, ObjectStoreProvider, ObjectStoreSourceUrl};
 use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
@@ -497,8 +498,33 @@ impl<'a> SessionPlanner<'a> {
                 }
                 CopyFormatOpts::Parquet(opts)
             }
-            CopyFormat::Csv => CopyFormatOpts::Csv(CsvSinkOpts::default()),
-            _ => unimplemented!(),
+            CopyFormat::Csv => {
+                let mut opts = CsvSinkOpts::default();
+                if let Some(delim) = stmt.options.get("delim") {
+                    match delim {
+                        OptionValue::QuotedLiteral(s) => {
+                            let bs = s.as_bytes();
+                            if bs.len() != 1 {
+                                return Err(PlanError::UnsupportedOptionValue(delim.clone()));
+                            }
+                            opts.delim = bs[0];
+                        }
+                        other => return Err(PlanError::UnsupportedOptionValue(other.clone())),
+                    }
+                }
+
+                CopyFormatOpts::Csv(opts)
+            }
+            CopyFormat::Json => {
+                let mut opts = JsonSinkOpts::default();
+                if let Some(array) = stmt.options.get("array") {
+                    match array {
+                        OptionValue::Boolean(b) => opts.array = *b,
+                        other => return Err(PlanError::UnsupportedOptionValue(other.clone())),
+                    }
+                }
+                CopyFormatOpts::Json(opts)
+            }
         };
 
         let mut auth_opts = object_store_auth_from_opts(&stmt.options, dest.get_provider())?;

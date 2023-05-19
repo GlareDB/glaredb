@@ -1,7 +1,7 @@
 use crate::errors::Result;
 use crate::sink::util::SharedBuffer;
 use async_trait::async_trait;
-use datafusion::arrow::csv::{Writer as CsvWriter, WriterBuilder as CsvWriterBuilder};
+use datafusion::arrow::json::writer::{JsonArray, JsonFormat, LineDelimited, Writer as JsonWriter};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datasource_common::sink::{Sink, SinkError};
@@ -13,57 +13,60 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 const BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
-pub struct CsvSinkOpts {
-    /// Delimiter between values.
-    pub delim: u8,
-    /// Include header.
-    pub header: bool,
+pub struct JsonSinkOpts {
+    /// If the batches should be written out as a json array.
+    pub array: bool,
 }
 
-impl Default for CsvSinkOpts {
+impl Default for JsonSinkOpts {
     fn default() -> Self {
-        CsvSinkOpts {
-            delim: b',',
-            header: true,
-        }
+        JsonSinkOpts { array: false }
     }
 }
 
-pub struct CsvSink {
+pub struct JsonSink {
     store: Arc<dyn ObjectStore>,
     loc: ObjectPath,
-    opts: CsvSinkOpts,
+    opts: JsonSinkOpts,
 }
 
-impl CsvSink {
+impl JsonSink {
     pub fn new(
         store: Arc<dyn ObjectStore>,
         loc: impl Into<ObjectPath>,
-        opts: CsvSinkOpts,
-    ) -> CsvSink {
-        CsvSink {
+        opts: JsonSinkOpts,
+    ) -> JsonSink {
+        JsonSink {
             store,
             loc: loc.into(),
             opts,
         }
     }
 
-    async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> Result<usize> {
-        let (_id, obj_handle) = self.store.put_multipart(&self.loc).await?;
-        let mut writer = AsyncCsvWriter::new(obj_handle, BUFFER_SIZE, &self.opts);
+    async fn stream_into_inner(&self, stream: SendableRecordBatchStream) -> Result<usize> {
+        Ok(if self.opts.array {
+            self.formatted_stream::<JsonArray>(stream).await?
+        } else {
+            self.formatted_stream::<LineDelimited>(stream).await?
+        })
+    }
 
+    async fn formatted_stream<F: JsonFormat>(
+        &self,
+        mut stream: SendableRecordBatchStream,
+    ) -> Result<usize> {
+        let (_id, obj_handle) = self.store.put_multipart(&self.loc).await?;
+        let mut writer = AsyncJsonWriter::<_, F>::new(obj_handle, BUFFER_SIZE);
         while let Some(batch) = stream.next().await {
             let batch = batch?;
-            writer.write_batch(&batch).await?;
+            writer.write_batch(batch).await?;
         }
-        writer.finish().await?;
-
-        Ok(0)
+        writer.finish().await
     }
 }
 
 #[async_trait]
-impl Sink for CsvSink {
+impl Sink for JsonSink {
     async fn stream_into(&self, stream: SendableRecordBatchStream) -> Result<usize, SinkError> {
         match self.stream_into_inner(stream).await {
             Ok(n) => Ok(n),
@@ -72,24 +75,21 @@ impl Sink for CsvSink {
     }
 }
 
-/// Wrapper around Arrow's csv writer to provide async write support.
+/// Wrapper around Arrow's json writer to provide async write support.
 ///
 /// Modeled after the parquet crate's `AsyncArrowWriter`.
-struct AsyncCsvWriter<W> {
+struct AsyncJsonWriter<W, F: JsonFormat> {
     async_writer: W,
-    sync_writer: CsvWriter<SharedBuffer>,
+    sync_writer: JsonWriter<SharedBuffer, F>,
     buffer: SharedBuffer,
     row_count: usize,
 }
 
-impl<W: AsyncWrite + Unpin + Send> AsyncCsvWriter<W> {
-    fn new(async_writer: W, buf_size: usize, sink_opts: &CsvSinkOpts) -> Self {
+impl<W: AsyncWrite + Unpin + Send, F: JsonFormat> AsyncJsonWriter<W, F> {
+    fn new(async_writer: W, buf_size: usize) -> Self {
         let buf = SharedBuffer::with_capacity(buf_size);
-        let sync_writer = CsvWriterBuilder::new()
-            .with_delimiter(sink_opts.delim)
-            .has_headers(sink_opts.header)
-            .build(buf.clone());
-        AsyncCsvWriter {
+        let sync_writer = JsonWriter::new(buf.clone());
+        AsyncJsonWriter {
             async_writer,
             sync_writer,
             buffer: buf,
@@ -97,14 +97,16 @@ impl<W: AsyncWrite + Unpin + Send> AsyncCsvWriter<W> {
         }
     }
 
-    async fn write_batch(&mut self, batch: &RecordBatch) -> Result<()> {
+    async fn write_batch(&mut self, batch: RecordBatch) -> Result<()> {
+        let num_rows = batch.num_rows();
         self.sync_writer.write(batch)?;
         self.try_flush(false).await?;
-        self.row_count += batch.num_rows();
+        self.row_count += num_rows;
         Ok(())
     }
 
     async fn finish(mut self) -> Result<usize> {
+        self.sync_writer.finish()?;
         self.try_flush(true).await?;
         self.async_writer.shutdown().await?;
         Ok(self.row_count)
