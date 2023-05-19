@@ -220,6 +220,7 @@ fn begin_server(
             local,
             local_file_path,
             spill_path,
+            /* integration_testing = */ false,
         )
         .await?;
         server.serve(conf).await

@@ -10,4 +10,4 @@ CREATE EXTERNAL TABLE basic
 		table_id = 'bikeshare_stations'
 	);
 
-include ../sqllogictests_datasources_common/include/basic.slti
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

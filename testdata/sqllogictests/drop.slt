@@ -119,15 +119,15 @@ create schema drop_table;
 
 statement ok
 create external table drop_table.test
-    from local
+    from debug
     options (
-        location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
+        table_type = 'never_ending',
     );
 
-query TI
-select c1, c3 from drop_table.test limit 1;
+query III
+select a, b, c from drop_table.test limit 1;
 ----
-t 123
+1 2 3
 
 # We cannot drop a schema before removing the table or views (child objects on
 # schema) without CASCADE.
@@ -172,9 +172,9 @@ create schema drop_table;
 
 statement ok
 create external table drop_table.test
-    from local
+    from debug
     options (
-        location = 'testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
+        table_type = 'never_ending'
     );
 
 statement ok

@@ -10,9 +10,9 @@ statement ok
 CREATE EXTERNAL TABLE basic
     FROM local
     OPTIONS (
-        location = 'testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+        location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
     );
 
 # TODO re-enable when CSV related querying is improved, (timestamp issue)
 halt
-include ../../sqllogictests_datasources_common/include/basic.slti
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

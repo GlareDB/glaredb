@@ -55,7 +55,7 @@ fn main() -> Result<()> {
         let pg_addr = pg_listener.local_addr()?;
         let server_conf = ServerConfig { pg_listener };
 
-        let server = Server::connect(None, None, true, None, None).await?;
+        let server = Server::connect(None, None, true, None, None, false).await?;
         tokio::spawn(server.serve(server_conf));
 
         let mut runner = BenchRunner::connect(pg_addr).await?;

@@ -7,7 +7,7 @@ statement ok
 set search_path = csv;
 
 statement ok
-create external table bikeshare_stations from local options(location='${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
+create external table bikeshare_stations from local options( location='${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv' );
 
 query I
 select count(*) from bikeshare_stations;

@@ -55,7 +55,7 @@ CREATE EXTERNAL TABLE local_tunnel_table
   FROM local
   TUNNEL debug_tunnel
   OPTIONS (
-    location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'	
+    location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
   );
 
 # Just to prove that the csv file exists and the error was due to tunnel.
