@@ -14,7 +14,7 @@ use datafusion::arrow::datatypes::{
 use datafusion::common::OwnedTableReference;
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, SqlToRel};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
-use datafusion::sql::sqlparser::ast::{self, Ident, ObjectType};
+use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::{SshConnection, SshConnectionParameters, SshKey};
@@ -34,7 +34,6 @@ use metastore::types::options::{
     TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use metastore::validation::{validate_database_tunnel_support, validate_table_tunnel_support};
-use sqlparser::ast::ObjectName;
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
