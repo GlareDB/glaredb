@@ -355,9 +355,9 @@ dependencies = [
 
 [[package]]
 name = "async-compression"
-version = "0.3.15"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "942c7cd7ae39e91bde4820d74132e9862e62c2f386c3aa90ccf55949f5bad63a"
+checksum = "5b0122885821398cc923ece939e24d1056a2384ee719432397fa9db87230ff11"
 dependencies = [
  "bzip2",
  "flate2",
@@ -367,8 +367,8 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "xz2",
- "zstd 0.11.2+zstd.1.5.2",
- "zstd-safe 5.0.2+zstd.1.5.2",
+ "zstd",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -1359,7 +1359,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1402,13 +1402,13 @@ dependencies = [
  "url",
  "uuid",
  "xz2",
- "zstd 0.12.3+zstd.1.5.2",
+ "zstd",
 ]
 
 [[package]]
 name = "datafusion-common"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1422,7 +1422,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1439,7 +1439,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1450,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1467,7 +1467,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1499,7 +1499,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1510,7 +1510,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#063f99fd61aa8f2854dc138d16864ae485a7116e"
+source = "git+https://github.com/apache/arrow-datafusion.git?branch=main#98839dbceb835c9e78154a27bb96c9dad58de7c6"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -3518,7 +3518,7 @@ dependencies = [
  "thrift",
  "tokio",
  "twox-hash",
- "zstd 0.12.3+zstd.1.5.2",
+ "zstd",
 ]
 
 [[package]]
@@ -6468,30 +6468,11 @@ dependencies = [
 
 [[package]]
 name = "zstd"
-version = "0.11.2+zstd.1.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20cc960326ece64f010d2d2107537f26dc589a6573a316bd5b1dba685fa5fde4"
-dependencies = [
- "zstd-safe 5.0.2+zstd.1.5.2",
-]
-
-[[package]]
-name = "zstd"
 version = "0.12.3+zstd.1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76eea132fb024e0e13fd9c2f5d5d595d8a967aa72382ac2f9d39fcc95afd0806"
 dependencies = [
- "zstd-safe 6.0.5+zstd.1.5.4",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "5.0.2+zstd.1.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d2a5585e04f9eea4b2a3d1eca508c4dee9592a89ef6f450c11719da0726f4db"
-dependencies = [
- "libc",
- "zstd-sys",
+ "zstd-safe",
 ]
 
 [[package]]
