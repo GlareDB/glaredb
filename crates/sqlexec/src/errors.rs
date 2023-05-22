@@ -124,6 +124,12 @@ pub enum ExecError {
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
+
+    #[error(transparent)]
+    PushExecError(#[from] pushexec::errors::PushExecError),
+
+    #[error("Failed to build thread pool: {0}")]
+    RayonBuildError(#[from] rayon::ThreadPoolBuildError),
 }
 
 impl From<tonic::Status> for ExecError {

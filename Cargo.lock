@@ -4010,6 +4010,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "pushexec"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "datafusion",
+ "datasource_bigquery",
+ "datasource_common",
+ "datasource_debug",
+ "datasource_mongodb",
+ "datasource_mysql",
+ "datasource_object_store",
+ "datasource_postgres",
+ "datasource_snowflake",
+ "futures",
+ "logutil",
+ "metastore",
+ "once_cell",
+ "parking_lot",
+ "pgrepr",
+ "rand 0.8.5",
+ "rayon",
+ "telemetry",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "quanta"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4158,6 +4187,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6823ea29436221176fe662da99998ad3b4db2c7f31e7b6f5fe43adccd6320bb"
 dependencies = [
  "bitflags 1.3.2",
+]
+
+[[package]]
+name = "rayon"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d2df5196e37bcc87abebc0053e20787d73847bb33134a69841207dd0a47f03b"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b8f95bd6966f5c87776639160a66bd8ab9895d9d4ab01ddba9fc60661aebe8d"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-utils",
+ "num_cpus",
 ]
 
 [[package]]
@@ -5018,6 +5069,8 @@ dependencies = [
  "object_store",
  "once_cell",
  "pgrepr",
+ "pushexec",
+ "rayon",
  "regex",
  "serde_json",
  "sqlparser 0.34.0",
@@ -5803,7 +5856,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 

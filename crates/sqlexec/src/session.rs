@@ -11,8 +11,11 @@ use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use futures::StreamExt;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
+use pushexec::scheduler::Scheduler;
+use rayon::ThreadPoolBuilder;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -177,7 +180,11 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        let stream = execute_stream(plan, context)?;
+        let pool = Arc::new(ThreadPoolBuilder::new().build()?);
+        let scheduler = Scheduler::new(pool);
+
+        let stream = scheduler.schedule(plan, context)?.stream();
+
         Ok(stream)
     }
 
