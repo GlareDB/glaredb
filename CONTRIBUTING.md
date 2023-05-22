@@ -181,20 +181,40 @@ Make sure to add a comment with index number when adding new objects to script.
 Some SQL Logic Tests depend on setting a few environment variables:
 
 1. **`POSTGRES_CONN_STRING`**: To run postgres datasource tests. Use the string
-   returned from setting up the local database:
+   returned from setting up the local database (first line):
 
    ```sh
-   export POSTGRES_CONN_STRING=$(./scripts/create-test-postgres-db.sh)
-   ```
+   POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+   export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
 
-2. **`MYSQL_CONN_STRING`**: To run the mysql datasource tests. Use the string
-   returned from setting up the local database:
+   ```
+1. **`POSTGRES_TUNNEL_SSH_CONN_STRING`**: To run postgres datasource tests
+   with SSH tunnel. Use the string returned from setting up the local database
+   (second line):
 
    ```sh
-   export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
+   POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+   export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
    ```
 
-3. **`GCP_PROJECT_ID`**: To run the bigquery and GCS tests. For development
+1. **`MYSQL_CONN_STRING`**: To run the mysql datasource tests. Use the string
+   returned from setting up the local database (first line):
+
+   ```sh
+   MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+   export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
+   ```
+
+1. **`MYSQL_TUNNEL_SSH_CONN_STRING`**: To run the mysql datasource tests with
+   SSH tunnel. Use the string returned from setting up the local database
+   (second line):
+
+   ```sh
+   MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+   export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
+   ```
+
+1. **`GCP_PROJECT_ID`**: To run the bigquery and GCS tests. For development
    set it to `glaredb-dev-playground`. A custom dataset will be created as a
    part of this project.
 
@@ -202,7 +222,7 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export GCP_PROJECT_ID=glaredb-dev-playground
    ```
 
-4. **`GCP_SERVICE_ACCOUNT_KEY`**: To run the bigquery and GCS tests. Download
+1. **`GCP_SERVICE_ACCOUNT_KEY`**: To run the bigquery and GCS tests. Download
    the JSON service account key from cloud dashboard and set the environment
    variable to the contents of the file.
 
@@ -210,14 +230,14 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export GCP_SERVICE_ACCOUNT_KEY=$(cat /path/to/glaredb-dev-playground-key.json)
    ``` 
 
-5. **`BIGQUERY_DATASET_ID`**: To run the bigquery tests. Use the string
+1. **`BIGQUERY_DATASET_ID`**: To run the bigquery tests. Use the string
    returned from setting up a custom dataset in `glaredb-dev-playground`.
 
    ```sh
    export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
    ```
 
-6. **`SNOWFLAKE_DATABASE`**: To run the snowflake tests. Use the string returned
+1. **`SNOWFLAKE_DATABASE`**: To run the snowflake tests. Use the string returned
    from setting up a custom database in the snowflake account (`hmpfscx-
    xo23956`).
 
@@ -225,21 +245,21 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
    ```
 
-7. **`SNOWFLAKE_USERNAME`**: To run the snowflake tests. Your snowflake
+1. **`SNOWFLAKE_USERNAME`**: To run the snowflake tests. Your snowflake
    username.
 
    ```sh
    export SNOWFLAKE_USERNAME=vaibhavglaredb
    ```
 
-8. **`SNOWFLAKE_PASSWORD`**: To run the snowflake tests. Set it to the password
+1. **`SNOWFLAKE_PASSWORD`**: To run the snowflake tests. Set it to the password
    corresponding to the *SNOWFLAKE_USERNAME*.
 
    ```sh
    export SNOWFLAKE_PASSWORD=...
    ```
 
-9. **`MONGO_CONN_STRING`**: To run the mongodb tests. Use the string returned
+1. **`MONGO_CONN_STRING`**: To run the mongodb tests. Use the string returned
    from setting up the local database:
 
    ```sh
