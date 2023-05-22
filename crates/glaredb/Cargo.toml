@@ -11,7 +11,9 @@ path = "src/bin/main.rs"
 logutil = {path = "../logutil"}
 sqlexec = {path = "../sqlexec"}
 telemetry = {path = "../telemetry"}
+datafusion = {workspace = true}
 pgsrv = {path = "../pgsrv"}
+pgrepr = {path = "../pgrepr"}
 object_store = {version = "0.5", features = ["gcp"]}
 metastore = {path = "../metastore"}
 anyhow = "1.0"
@@ -20,3 +22,6 @@ clap = { version = "4.2.7", features = ["derive"] }
 tracing = "0.1"
 uuid = { version = "1.3.3", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
+rustyline = "11.0.0"
+once_cell = "1.17.1"
+futures = "0.3.28"
