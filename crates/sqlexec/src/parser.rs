@@ -1,11 +1,9 @@
 use crate::errors::Result;
-use datafusion::sql::sqlparser::ast;
+use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
-use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
-use sqlparser::ast::{Ident, ObjectName};
-use sqlparser::tokenizer::Word;
+use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
