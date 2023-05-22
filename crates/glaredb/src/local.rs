@@ -9,6 +9,7 @@ use pgrepr::format::Format;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use sqlexec::engine::Engine;
+use sqlexec::engine::TrackedSession;
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
 use sqlexec::session::Session;
@@ -44,25 +45,14 @@ impl LocalEngine {
     pub async fn run(self) -> Result<()> {
         println!("GlareDB ({})", env!("CARGO_PKG_VERSION"));
 
-        let mut session = self
-            .engine
-            .new_session(
-                Uuid::nil(),
-                "glaredb".to_string(),
-                Uuid::nil(),
-                Uuid::nil(),
-                "glaredb".to_string(),
-                0,
-                0,
-            )
-            .await?;
+        let mut sess = self.new_session().await?;
 
         let mut rl = DefaultEditor::new()?;
         loop {
             let readline = rl.readline("> ");
             match readline {
                 Ok(line) => {
-                    if let Err(e) = execute_line(&mut session, &line).await {
+                    if let Err(e) = execute(&mut sess, &line).await {
                         println!("ERROR: {e}");
                     }
                 }
@@ -77,6 +67,28 @@ impl LocalEngine {
         }
         Ok(())
     }
+
+    pub async fn execute_one(self, query: &str) -> Result<()> {
+        let mut sess = self.new_session().await?;
+        execute(&mut sess, query).await?;
+        Ok(())
+    }
+
+    async fn new_session(&self) -> Result<TrackedSession> {
+        let sess = self
+            .engine
+            .new_session(
+                Uuid::nil(),
+                "glaredb".to_string(),
+                Uuid::nil(),
+                Uuid::nil(),
+                "glaredb".to_string(),
+                0,
+                0,
+            )
+            .await?;
+        Ok(sess)
+    }
 }
 
 static FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
@@ -87,9 +99,8 @@ static FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
 
 const UNNAMED: String = String::new();
 
-/// Execute a line against the session.
-async fn execute_line(sess: &mut Session, line: &str) -> Result<()> {
-    let statements = parser::parse_sql(line)?;
+async fn execute(sess: &mut Session, text: &str) -> Result<()> {
+    let statements = parser::parse_sql(text)?;
 
     for stmt in statements {
         sess.prepare_statement(UNNAMED, Some(stmt), Vec::new())

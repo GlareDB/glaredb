@@ -50,6 +50,13 @@ enum Commands {
         /// store).
         #[clap(short = 'f', long, value_parser)]
         local_file_path: Option<PathBuf>,
+
+        /// Execute a query, exiting upon completion.
+        ///
+        /// Multiple statements may be provided, and results will be printed out
+        /// one after another.
+        #[clap(short, long, value_parser)]
+        query: Option<String>,
     },
 
     /// Starts the sql server portion of GlareDB.
@@ -150,7 +157,18 @@ fn main() -> Result<()> {
             metastore_addr,
             spill_path,
             local_file_path,
-        } => begin_local(metastore_addr, local_file_path, spill_path)?,
+            query,
+        } => {
+            let runtime = build_runtime("local")?;
+            runtime.block_on(async move {
+                let local =
+                    LocalEngine::connect(metastore_addr, local_file_path, spill_path).await?;
+                match query {
+                    Some(q) => local.execute_one(&q).await,
+                    None => local.run().await,
+                }
+            })?;
+        }
         Commands::Server {
             bind,
             metastore_addr,
@@ -228,18 +246,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn begin_local(
-    metastore_addr: Option<String>,
-    local_file_path: Option<PathBuf>,
-    spill_path: Option<PathBuf>,
-) -> Result<()> {
-    let runtime = build_runtime("local")?;
-    runtime.block_on(async move {
-        let local = LocalEngine::connect(metastore_addr, local_file_path, spill_path).await?;
-        local.run().await
-    })
 }
 
 fn begin_server(
