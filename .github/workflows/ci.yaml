@@ -47,16 +47,20 @@ jobs:
 
       - name: Build
         run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
           cargo build --bin glaredb
           cargo build --bin pgprototest
           cargo build --bin sqllogictests
-          cargo test --no-run
 
       - name: Test
-        run: cargo test
+        run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
+          cargo test
 
       - name: Clippy
-        run: cargo clippy --all-features -- --deny warnings
+        run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
+          cargo clippy --all-features -- --deny warnings
 
       - name: Format
         run: cargo fmt --check
