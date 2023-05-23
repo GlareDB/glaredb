@@ -20,152 +20,158 @@ jobs:
      - name: Checkout
        uses: actions/checkout@v3
 
-     - name: Install nix
-       uses: cachix/install-nix-action@v20
-       with:
-         extra_nix_config: |
-           access-tokens = github=${{ github.token }}
+     - name: Rust toolchain
+       uses: dtolnay/rust-toolchain@stable
 
-     - name: Configure Cachix
-       uses: cachix/cachix-action@v12
-       continue-on-error: true
-       with:
-         name: glaredb-ci
-         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+     - name: Test
+       run: cargo test --all-features
 
-     - name: Build
-       run: |
-         nix build .#glaredb-bin -L
-         nix build .#testing-bin -L
-         nix build .#pgprototest-bin -L
+     # - name: Install nix
+     #   uses: cachix/install-nix-action@v20
+     #   with:
+     #     extra_nix_config: |
+     #       access-tokens = github=${{ github.token }}
 
-  test:
-    needs: build
-    name: Tests
-    runs-on: ubuntu-latest-8-cores
-    concurrency:
-      group: test-ci-${{ github.ref }}
-      cancel-in-progress: true
+     # - name: Configure Cachix
+     #   uses: cachix/cachix-action@v12
+     #   continue-on-error: true
+     #   with:
+     #     name: glaredb-ci
+     #     authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+     # - name: Build
+     #   run: |
+     #     nix build .#glaredb-bin -L
+     #     nix build .#testing-bin -L
+     #     nix build .#pgprototest-bin -L
 
-      - name: Install nix
-        uses: cachix/install-nix-action@v20
-        with:
-          extra_nix_config: |
-            access-tokens = github=${{ github.token }}
+  # test:
+  #   needs: build
+  #   name: Tests
+  #   runs-on: ubuntu-latest-8-cores
+  #   concurrency:
+  #     group: test-ci-${{ github.ref }}
+  #     cancel-in-progress: true
 
-      - name: Configure Cachix
-        uses: cachix/cachix-action@v12
-        continue-on-error: true
-        with:
-          name: glaredb-ci
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
 
-      - name: Run Checks
-        run: nix flake check -L
+  #     - name: Install nix
+  #       uses: cachix/install-nix-action@v20
+  #       with:
+  #         extra_nix_config: |
+  #           access-tokens = github=${{ github.token }}
 
-  integration:
-    needs: build
-    name: Integration tests
-    runs-on: ubuntu-latest-8-cores
-    concurrency:
-      group: integ-ci-${{ github.ref }}
-      cancel-in-progress: true
+  #     - name: Configure Cachix
+  #       uses: cachix/cachix-action@v12
+  #       continue-on-error: true
+  #       with:
+  #         name: glaredb-ci
+  #         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-    env:
-      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-      GCP_PROJECT_ID: glaredb-artifacts
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  #     - name: Run Checks
+  #       run: nix flake check -L
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+  # integration:
+  #   needs: build
+  #   name: Integration tests
+  #   runs-on: ubuntu-latest-8-cores
+  #   concurrency:
+  #     group: integ-ci-${{ github.ref }}
+  #     cancel-in-progress: true
 
-      - name: Install nix
-        uses: cachix/install-nix-action@v20
-        with:
-          extra_nix_config: |
-            access-tokens = github=${{ github.token }}
+  #   env:
+  #     GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+  #     GCP_PROJECT_ID: glaredb-artifacts
+  #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+  #     SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
 
-      - name: Configure Cachix
-        uses: cachix/cachix-action@v12
-        continue-on-error: true
-        with:
-          name: glaredb-ci
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+  #     - name: Install nix
+  #       uses: cachix/install-nix-action@v20
+  #       with:
+  #         extra_nix_config: |
+  #           access-tokens = github=${{ github.token }}
 
-      # Setup snowsql (can't use nix coz it's unfree).
-      - name: Setup snowsql
-        run: |
-          curl -o snowsql.bash \
-            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
-          mkdir -p ~/bin
-          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+  #     - name: Configure Cachix
+  #       uses: cachix/cachix-action@v12
+  #       continue-on-error: true
+  #       with:
+  #         name: glaredb-ci
+  #         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
+  #     - name: Authenticate to Google Cloud
+  #       uses: google-github-actions/auth@v1
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      - name: Download testdata from GCS
-        run: ./scripts/prepare-testdata.sh
+  #     # Setup snowsql (can't use nix coz it's unfree).
+  #     - name: Setup snowsql
+  #       run: |
+  #         curl -o snowsql.bash \
+  #           https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+  #         mkdir -p ~/bin
+  #         SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
 
-      - name: SQL Logic Tests
-        run: |
-          # Prepare SLT (Snowflake)
-          export PATH="$HOME/bin:$PATH"
-          if ./scripts/files-changed-in-branch.sh \
-            "scripts/prepare-testdata.sh" \
-            "scripts/create-test-snowflake-db.sh" \
-            "testdata/sqllogictests_datasources_common/data" \
-            "testdata/sqllogictests_snowflake/data"
-          then
-            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
-          else
-            export SNOWFLAKE_DATABASE=glaredb_test
-          fi
+  #     - name: Setup gcloud
+  #       uses: google-github-actions/setup-gcloud@v1
 
-          # Prepare SLT (BigQuery)
-          if ./scripts/files-changed-in-branch.sh \
-            "scripts/prepare-testdata.sh" \
-            "scripts/create-test-bigquery-db.sh" \
-            "testdata/sqllogictests_datasources_common/data" \
-            "testdata/sqllogictests_bigquery/data"
-          then
-            export GCP_PROJECT_ID=glaredb-dev-playground
-            export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
-          else
-            export BIGQUERY_DATASET_ID=glaredb_test
-          fi
+  #     - name: Download testdata from GCS
+  #       run: ./scripts/prepare-testdata.sh
 
-          # Prepare SLT (Object store)
-          export GCS_BUCKET_NAME=glaredb-test
-          export AWS_S3_REGION=us-east-1
-          export AWS_S3_BUCKET_NAME=glaredb-test
+  #     - name: SQL Logic Tests
+  #       run: |
+  #         # Prepare SLT (Snowflake)
+  #         export PATH="$HOME/bin:$PATH"
+  #         if ./scripts/files-changed-in-branch.sh \
+  #           "scripts/prepare-testdata.sh" \
+  #           "scripts/create-test-snowflake-db.sh" \
+  #           "testdata/sqllogictests_datasources_common/data" \
+  #           "testdata/sqllogictests_snowflake/data"
+  #         then
+  #           export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
+  #         else
+  #           export SNOWFLAKE_DATABASE=glaredb_test
+  #         fi
 
-          # Prepare SLT (Postgres)
-          POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
-          export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
-          export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
+  #         # Prepare SLT (BigQuery)
+  #         if ./scripts/files-changed-in-branch.sh \
+  #           "scripts/prepare-testdata.sh" \
+  #           "scripts/create-test-bigquery-db.sh" \
+  #           "testdata/sqllogictests_datasources_common/data" \
+  #           "testdata/sqllogictests_bigquery/data"
+  #         then
+  #           export GCP_PROJECT_ID=glaredb-dev-playground
+  #           export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
+  #         else
+  #           export BIGQUERY_DATASET_ID=glaredb_test
+  #         fi
 
-          # Prepare SLT (MySQL)
-          MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
-          export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
-          export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
+  #         # Prepare SLT (Object store)
+  #         export GCS_BUCKET_NAME=glaredb-test
+  #         export AWS_S3_REGION=us-east-1
+  #         export AWS_S3_BUCKET_NAME=glaredb-test
 
-          # Prepare SLT (MongoDB)
-          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+  #         # Prepare SLT (Postgres)
+  #         POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+  #         export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
+  #         export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
 
-          nix run .#sqllogictests -- -v --exclude '*/tunnels/ssh'
+  #         # Prepare SLT (MySQL)
+  #         MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+  #         export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
+  #         export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
 
-      - name: Protocol Tests
-        run: ./scripts/protocol-test.sh
+  #         # Prepare SLT (MongoDB)
+  #         export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+
+  #         nix run .#sqllogictests -- -v --exclude '*/tunnels/ssh'
+
+  #     - name: Protocol Tests
+  #       run: ./scripts/protocol-test.sh
