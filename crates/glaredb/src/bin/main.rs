@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
+use glaredb::local::LocalEngine;
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
@@ -33,6 +34,31 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Starts a local version of GlareDB.
+    Local {
+        /// Address to the Metastore.
+        ///
+        /// If not provided, an in-process metastore will be started.
+        #[clap(short, long, value_parser)]
+        metastore_addr: Option<String>,
+
+        /// Path to spill temporary files to.
+        #[clap(long, value_parser)]
+        spill_path: Option<PathBuf>,
+
+        /// Local file path to store database catalog (for a local persistent
+        /// store).
+        #[clap(short = 'f', long, value_parser)]
+        local_file_path: Option<PathBuf>,
+
+        /// Execute a query, exiting upon completion.
+        ///
+        /// Multiple statements may be provided, and results will be printed out
+        /// one after another.
+        #[clap(short, long, value_parser)]
+        query: Option<String>,
+    },
+
     /// Starts the sql server portion of GlareDB.
     Server {
         /// TCP address to bind to.
@@ -59,7 +85,7 @@ enum Commands {
         /// Optional file path to store metastore data (to enable persistent
         /// data storage when in-process store is launched).
         #[clap(short = 'f', long, value_parser)]
-        local_file_path: Option<String>,
+        local_file_path: Option<PathBuf>,
 
         /// API key for segment.
         #[clap(long, value_parser)]
@@ -110,17 +136,39 @@ enum Commands {
         /// Local file path to store database catalog (for a local persistent
         /// store).
         #[clap(short = 'f', long, value_parser)]
-        local_file_path: Option<String>,
+        local_file_path: Option<PathBuf>,
     },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    logutil::init(cli.verbose, cli.json_logging);
+
+    // Disable logging when running locally since it'll clobber the repl
+    // _unless_ the user specified a logging related option.
+    match (&cli.command, cli.json_logging, cli.verbose) {
+        (Commands::Local { .. }, false, 0) => (),
+        _ => logutil::init(cli.verbose, cli.json_logging),
+    }
 
     info!(version = env!("CARGO_PKG_VERSION"), "starting...");
 
     match cli.command {
+        Commands::Local {
+            metastore_addr,
+            spill_path,
+            local_file_path,
+            query,
+        } => {
+            let runtime = build_runtime("local")?;
+            runtime.block_on(async move {
+                let local =
+                    LocalEngine::connect(metastore_addr, local_file_path, spill_path).await?;
+                match query {
+                    Some(q) => local.execute_one(&q).await,
+                    None => local.run().await,
+                }
+            })?;
+        }
         Commands::Server {
             bind,
             metastore_addr,
@@ -172,9 +220,7 @@ fn main() -> Result<()> {
                     bucket,
                     service_account_path,
                 },
-                (None, None, Some(local_file_path)) => {
-                    let p: PathBuf = local_file_path.into();
-
+                (None, None, Some(p)) => {
                     // Error if the path exists and is not a directory else
                     // create the directory.
                     if p.exists() && !p.is_dir() {
@@ -207,7 +253,7 @@ fn begin_server(
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     local: bool,
-    local_file_path: Option<String>,
+    local_file_path: Option<PathBuf>,
     spill_path: Option<PathBuf>,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;

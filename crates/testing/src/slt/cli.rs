@@ -148,7 +148,7 @@ impl Cli {
                     self.metastore_addr,
                     None,
                     true,
-                    Some(temp_dir.path().to_string_lossy().into_owned()),
+                    Some(temp_dir.path().to_path_buf()),
                     None,
                     /* integration_testing = */ true,
                 )
