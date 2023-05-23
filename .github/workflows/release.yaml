@@ -9,7 +9,7 @@ on:
       - main
       - sean/release
 
-obs:
+jobs:
   build-release:
     strategy:
       matrix:
