@@ -110,6 +110,7 @@ pub enum DdlPlan {
     CreateView(CreateView),
     AlterTableRaname(AlterTableRename),
     AlterDatabaseRename(AlterDatabaseRename),
+    AlterTunnelRotateKeys(AlterTunnelRotateKeys),
     DropTables(DropTables),
     DropViews(DropViews),
     DropSchemas(DropSchemas),
@@ -208,6 +209,13 @@ pub struct DropDatabase {
 pub struct DropTunnel {
     pub names: Vec<String>,
     pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct AlterTunnelRotateKeys {
+    pub name: String,
+    pub if_exists: bool,
+    pub new_ssh_key: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
