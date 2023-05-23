@@ -8,3 +8,5 @@ pgsrv_image
 gcs-artifacts/
 # Outputs from cargo flamegraph
 flamegraph.svg
+# Benchmark artifacts
+benchmarks/artifacts/
