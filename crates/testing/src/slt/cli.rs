@@ -67,6 +67,10 @@ pub struct Cli {
     #[clap(long, value_parser, default_value_t = 5 * 60)]
     timeout: u64,
 
+    /// Exclude these tests from the run.
+    #[clap(short, long, value_parser)]
+    exclude: Vec<String>,
+
     /// Tests to run.
     ///
     /// Provide a glob like regex for test name. If ommitted, runs all the
@@ -75,11 +79,7 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn run(
-        tests: BTreeMap<String, Test>,
-        pre_test_hooks: TestHooks,
-        post_test_hooks: TestHooks,
-    ) -> Result<()> {
+    pub fn run(tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
         let cli = Self::parse();
 
         let tests = cli.collect_tests(tests)?;
@@ -100,11 +100,11 @@ impl Cli {
         Builder::new_multi_thread()
             .enable_all()
             .build()?
-            .block_on(async move { cli.run_tests(tests, pre_test_hooks, post_test_hooks).await })
+            .block_on(async move { cli.run_tests(tests, hooks).await })
     }
 
     fn collect_tests(&self, tests: BTreeMap<String, Test>) -> Result<Vec<(String, Test)>> {
-        let tests = if let Some(pattern) = &self.tests_pattern {
+        let mut tests: Vec<_> = if let Some(pattern) = &self.tests_pattern {
             let pattern = glob::Pattern::new(pattern)
                 .map_err(|e| anyhow!("Invalid glob pattern `{pattern}`: {e}"))?;
             tests
@@ -114,15 +114,16 @@ impl Cli {
         } else {
             tests.into_iter().collect()
         };
+        // See if we want to exclude anything
+        for pattern in &self.exclude {
+            let pattern = glob::Pattern::new(pattern)
+                .map_err(|e| anyhow!("Invalid glob pattern `{pattern}`: {e}"))?;
+            tests.retain(|(k, _v)| !pattern.matches(k));
+        }
         Ok(tests)
     }
 
-    async fn run_tests(
-        self,
-        tests: Vec<(String, Test)>,
-        pre_test_hooks: TestHooks,
-        post_test_hooks: TestHooks,
-    ) -> Result<()> {
+    async fn run_tests(self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
         // Temp directory for metastore
         let temp_dir = tempfile::tempdir()?;
 
@@ -193,8 +194,7 @@ impl Cli {
             Ok(res)
         }
 
-        let pre_test_hooks = Arc::new(pre_test_hooks);
-        let post_test_hooks = Arc::new(post_test_hooks);
+        let hooks = Arc::new(hooks);
 
         for (test_name, test) in tests {
             if total_jobs == 0 {
@@ -208,10 +208,9 @@ impl Cli {
             total_jobs -= 1;
             let cfg = configs.get(&test_name).unwrap().clone();
             let tx = jobs_tx.clone();
-            let pre = pre_test_hooks.clone();
-            let post = post_test_hooks.clone();
+            let hooks = Arc::clone(&hooks);
             tokio::spawn(async move {
-                let res = Self::run_test(&test_name, test, cfg, pre, post).await;
+                let res = Self::run_test(&test_name, test, cfg, hooks).await;
                 tx.send((test_name.clone(), res)).unwrap();
             });
         }
@@ -272,49 +271,53 @@ impl Cli {
         test_name: &str,
         test: Test,
         client_config: ClientConfig,
-        pre_test_hooks: Arc<TestHooks>,
-        post_test_hooks: Arc<TestHooks>,
+        hooks: Arc<TestHooks>,
     ) -> Result<()> {
         let start = Instant::now();
 
-        // Run the pre-test hooks (if any)
-        for (pattern, hook) in pre_test_hooks
+        let mut local_vars = HashMap::new();
+
+        // Run the actual test
+        let (mut client, conn) = client_config.connect(NoTls).await?;
+        let (conn_err_tx, mut conn_err_rx) = oneshot::channel();
+        tokio::spawn(async move { conn_err_tx.send(conn.await) });
+
+        let hooks = hooks
             .iter()
-            .filter(|(pattern, _)| pattern.matches(test_name))
-        {
-            tracing::debug!(%pattern, "Running pre hook for test `{test_name}`");
-            hook(&client_config)?;
+            .filter(|(pattern, _)| pattern.matches(test_name));
+
+        tracing::info!(%test_name, "Running test");
+
+        // Run the pre-test hooks
+        for (pattern, hook) in hooks.clone() {
+            tracing::debug!(%pattern, %test_name, "Running pre hook for test");
+            hook.pre(&client_config, &mut client, &mut local_vars)
+                .await?;
         }
 
         {
-            // Run the actual test
-            let (client, conn) = client_config.connect(NoTls).await?;
-            let (conn_err_tx, mut conn_err_rx) = oneshot::channel();
-            tokio::spawn(async move { conn_err_tx.send(conn.await) });
+            let mut runner = Runner::new(TestClient {
+                client: &mut client,
+            });
+            test.execute(&mut runner, &local_vars).await?;
+        }
 
-            let mut runner = Runner::new(TestClient { client });
-            tracing::info!(%test_name, "Running test");
-            test.execute(&mut runner).await?;
+        // Run the post-test hooks
+        for (pattern, hook) in hooks {
+            tracing::debug!(%pattern, %test_name, "Running post hook for test");
+            hook.post(&client_config, &mut client, &local_vars).await?;
+        }
 
-            if let Ok(result) = conn_err_rx.try_recv() {
-                match result {
-                    Ok(()) => return Err(anyhow!("Client connection unexpectedly closed")),
-                    Err(e) => return Err(e.into()),
-                }
+        if let Ok(result) = conn_err_rx.try_recv() {
+            // Handle connection error
+            match result {
+                Ok(()) => return Err(anyhow!("Client connection unexpectedly closed")),
+                Err(e) => return Err(e.into()),
             }
         }
 
-        // Run the pre-test hooks (if any)
-        for (pattern, hook) in post_test_hooks
-            .iter()
-            .filter(|(pattern, _)| pattern.matches(test_name))
-        {
-            tracing::debug!(%pattern, "Running post hook for test `{test_name}`");
-            hook(&client_config)?;
-        }
-
         let time_taken = Instant::now().duration_since(start);
-        tracing::info!(?time_taken, "Done executing `{test_name}`");
+        tracing::info!(?time_taken, %test_name, "Done executing");
 
         Ok(())
     }

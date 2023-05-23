@@ -6,13 +6,35 @@ use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
 use std::{
+    collections::HashMap,
     fmt::Debug,
     path::{Path, PathBuf},
     time::Duration,
 };
 use tokio_postgres::{Client, Config, SimpleQueryMessage};
 
-pub type TestHook = fn(&Config) -> Result<()>;
+#[async_trait]
+pub trait Hook: Send + Sync {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: &mut Client,
+        _vars: &mut HashMap<String, String>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn post(
+        &self,
+        _config: &Config,
+        _client: &mut Client,
+        _vars: &HashMap<String, String>,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub type TestHook = Box<dyn Hook>;
 
 pub type TestHooks = Vec<(Pattern, TestHook)>;
 
@@ -25,11 +47,15 @@ pub enum Test {
 }
 
 impl Test {
-    pub async fn execute(self, runner: &mut Runner<TestClient>) -> Result<()> {
+    pub async fn execute(
+        self,
+        runner: &mut Runner<TestClient<'_>>,
+        vars: &HashMap<String, String>,
+    ) -> Result<()> {
         match self {
             Self::File(path) => {
                 let regx = Regex::new(ENV_REGEX).unwrap();
-                let records = parse_file(&regx, &path)?;
+                let records = parse_file(&regx, &path, vars)?;
                 runner
                     .run_multi_async(records)
                     .await
@@ -40,7 +66,11 @@ impl Test {
     }
 }
 
-fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>> {
+fn parse_file<T: ColumnType>(
+    regx: &Regex,
+    path: &Path,
+    vars: &HashMap<String, String>,
+) -> Result<Vec<Record<T>>> {
     let script = std::fs::read_to_string(path)
         .map_err(|e| anyhow!("Error while opening `{}`: {}", path.to_string_lossy(), e))?;
 
@@ -49,6 +79,11 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>
     let mut err = None;
     let script = regx.replace_all(&script, |caps: &Captures| {
         let env_var = &caps[1];
+        // Try if there's a local var with the key. Fallback to environment
+        // variable.
+        if let Some(var) = vars.get(env_var) {
+            return var.to_string();
+        }
         match std::env::var(env_var) {
             Ok(v) => v,
             Err(error) => {
@@ -103,7 +138,7 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>
                 records.push(Record::Injected(Injected::BeginInclude(
                     included_file.clone(),
                 )));
-                records.extend(parse_file(regx, &PathBuf::from(&included_file))?);
+                records.extend(parse_file(regx, &PathBuf::from(&included_file), vars)?);
                 records.push(Record::Injected(Injected::EndInclude(included_file)));
             }
         }
@@ -111,12 +146,12 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>
     Ok(records)
 }
 
-pub struct TestClient {
-    pub client: Client,
+pub struct TestClient<'a> {
+    pub client: &'a mut Client,
 }
 
 #[async_trait]
-impl AsyncDB for TestClient {
+impl AsyncDB for TestClient<'_> {
     type Error = tokio_postgres::Error;
     type ColumnType = DefaultColumnType;
 

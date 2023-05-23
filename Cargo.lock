@@ -5409,6 +5409,7 @@ dependencies = [
  "logutil",
  "metastore",
  "object_store",
+ "openssh",
  "regex",
  "sqllogictest",
  "tempfile",

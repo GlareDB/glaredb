@@ -19,7 +19,8 @@ if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
 fi
 
 # Create new container for mysql
-_CONTAINER_ID=$(docker run -p $DB_PORT:3306 --name "${CONTAINER_NAME}" -e MYSQL_DATABASE="${DB_NAME}" -e MYSQL_ALLOW_EMPTY_PASSWORD=YES -d $MYSQL_IMAGE)
+CONTAINER_PORT=3306
+CONTAINER_ID=$(docker run -p $DB_PORT:$CONTAINER_PORT --name "${CONTAINER_NAME}" -e MYSQL_DATABASE="${DB_NAME}" -e MYSQL_ALLOW_EMPTY_PASSWORD=YES -d $MYSQL_IMAGE)
 
 CONN_STRING="mysql --local-infile=1 -u $DB_USER -h $DB_HOST --port=$DB_PORT -D $DB_NAME"
 # Let the database server start
@@ -47,3 +48,6 @@ $CONN_STRING -e 'source testdata/sqllogictests_mysql/data/setup-test-mysql-db.sq
 
 # This URI is expected by sqllogictests_mysql.
 echo "mysql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+
+CONTAINER_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_ID)
+echo "mysql://${DB_USER}@${CONTAINER_HOST}:${CONTAINER_PORT}/${DB_NAME}"

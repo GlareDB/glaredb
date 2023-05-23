@@ -153,15 +153,19 @@ jobs:
           export AWS_S3_BUCKET_NAME=glaredb-test
 
           # Prepare SLT (Postgres)
-          export POSTGRES_CONN_STRING=$(./scripts/create-test-postgres-db.sh)
+          POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+          export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
+          export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
 
           # Prepare SLT (MySQL)
-          export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
+          MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+          export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
+          export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
 
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          nix run .#sqllogictests -- -v
+          nix run .#sqllogictests -- -v --exclude '*/tunnels/ssh'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

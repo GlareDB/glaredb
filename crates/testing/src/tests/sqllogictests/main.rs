@@ -1,24 +1,16 @@
-use std::{env, path::Path};
+mod hooks;
+
+use std::path::Path;
 
 use anyhow::Result;
-use testing::slt::SltRunner;
-use tokio_postgres::Config;
+use hooks::{AllTestsHook, SshTunnelHook};
+use testing::slt::runner::SltRunner;
 
 fn main() -> Result<()> {
     SltRunner::new()
         .test_files_dir(Path::new("testdata"))?
-        .pre_test_hook(
-            "sqllogictests/functions/postgres",
-            pre_test_functions_postgres,
-        )?
+        .hook("*", Box::new(AllTestsHook))?
+        // SSH Tunnels setup
+        .hook("*/tunnels/ssh", Box::new(SshTunnelHook))?
         .run()
-}
-
-fn pre_test_functions_postgres(config: &Config) -> Result<()> {
-    // Set the current database to test database
-    env::set_var(
-        "SLT_FUNCTIONS_POSTGRES_CURRENT_DATABASE",
-        config.get_dbname().unwrap(),
-    );
-    Ok(())
 }
