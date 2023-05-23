@@ -17,9 +17,6 @@ jobs:
       group: build-ci-${{ github.ref }}
       cancel-in-progress: true
 
-    env:
-      PROTOC: 
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -57,29 +54,6 @@ jobs:
       - name: Format
         run: cargo fmt --check
 
-  integration:
-    needs: build
-    name: Integration tests
-    runs-on: ubuntu-latest-8-cores
-    concurrency:
-      group: integ-ci-${{ github.ref }}
-      cancel-in-progress: true
-
-    env:
-      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-      GCP_PROJECT_ID: glaredb-artifacts
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
@@ -100,6 +74,13 @@ jobs:
         run: ./scripts/prepare-testdata.sh
 
       - name: SQL Logic Tests
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GCP_PROJECT_ID: glaredb-artifacts
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
           # Prepare SLT (Snowflake)
           export PATH="$HOME/bin:$PATH"
