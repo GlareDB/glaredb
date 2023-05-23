@@ -4,41 +4,14 @@ All commits to `main` should first go through a PR. All CI checks should pass
 before merging in a PR. Since we squash merge, PR titles should follow
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-Development dependencies may (optionally) be installed using nix. By using nix
-all programs needed (cargo, protoc, &c) will be installed and you will be placed
-into a shell configured with them in your PATH.
-
 ## Development environemnt
 
-A development environment can either be setup manually or with nix.
-
-### Manual setup
-
-A manual setup requires that you have Rust and Cargo installed, along with some
-additional system dependencies:
+Developing GlareDB requires that you have Rust and Cargo installed, along with
+some additional system dependencies:
 
 - OpenSSL dev bindings
 - Protobuf (protoc)
 - Possibly more
-
-Note that some test scripts that are run in CI will assume the use of nix.
-
-### Nix setup
-
-The [nix download page](https://nixos.org/download.html) has instructions on installation. To enable flakes,
-add the following to your `nix.conf` in either `~/.config/nix/nix.conf` or
-`/etc/nix/nix.conf`
-
-```
-experimental-features = nix-command flakes
-```
-
-The nixos wiki has [instructions for enabling flakes](https://nixos.wiki/wiki/Flakes#Enable_flakes) which should have the
-most up to date information.
-
-When all of these steps are complete, you should be able to obtain the projects
-development shell: `nix develop` From this shell you may work on the project and
-use any cli tools needed.
 
 ### Additional tooling
 

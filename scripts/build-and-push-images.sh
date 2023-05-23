@@ -14,12 +14,14 @@ set -ex
 : ${GITHUB_REF_NAME?"GITHUB_REF_NAME needs to be set"}
 GCP_PROJECT_ID=${GCP_PROJECT_ID:-glaredb-artifacts}
 
-GCP_AUTH_TOKEN=$(gcloud auth print-access-token)
-
-# Build image with tags pointing to this git revision.
 git_rev=$(git rev-parse HEAD)
 image_tag=$(echo "${GITHUB_REF_NAME}" | sed -r 's#/+#-#g')
 image_repo="gcr.io/${GCP_PROJECT_ID}/glaredb"
+
+# Try to pull tagged image first for getting a cache.
+docker pull "${image_repo}:${image_tag}"
+
+# Build image with tags pointing to this git revision.
 docker build \
        -t "${image_repo}:${image_tag}" \
        -t "${image_repo}:${git_rev}" \
@@ -29,4 +31,4 @@ docker build \
 docker run "${image_repo}:${image_tag}" glaredb --help
 
 # Push it.
-docker push -a "${image_repo}"
+docker push --all-tags "${image_repo}"
