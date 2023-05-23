@@ -56,10 +56,7 @@ impl LocalEngine {
                         println!("ERROR: {e}");
                     }
                 }
-                Err(ReadlineError::Interrupted) => {
-                    break;
-                }
-                Err(ReadlineError::Eof) => {
+                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                     break;
                 }
                 Err(e) => return Err(e.into()),
@@ -116,8 +113,9 @@ async fn execute(sess: &mut Session, text: &str) -> Result<()> {
         let result = sess.execute_portal(&UNNAMED, 0).await?;
 
         match result {
-            ExecutionResult::Query { stream, .. } => print_stream(stream).await?,
-            ExecutionResult::ShowVariable { stream } => print_stream(stream).await?,
+            ExecutionResult::Query { stream, .. } | ExecutionResult::ShowVariable { stream } => {
+                print_stream(stream).await?
+            }
             other => println!("{:?}", other),
         }
     }
