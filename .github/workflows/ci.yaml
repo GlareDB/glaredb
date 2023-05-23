@@ -2,103 +2,48 @@ name: GlareDB CI
 
 on: [push, workflow_dispatch]
 
-# Jobs:
-# build -> Builds binaries. This will build and cache deps as well.
-# test -> Runs tests, using cache from 'build'.
-# integration -> Runs integration tests, using cache from 'build'.
-#
-# Cachix is used for caching.
-
 jobs:
   build:
-    name: Build
+    name: Build and Test
     runs-on: ubuntu-latest-8-cores
     concurrency:
       group: build-ci-${{ github.ref }}
       cancel-in-progress: true
-    steps:
-     - name: Checkout
-       uses: actions/checkout@v3
-
-     - name: Install nix
-       uses: cachix/install-nix-action@v20
-       with:
-         extra_nix_config: |
-           access-tokens = github=${{ github.token }}
-
-     - name: Configure Cachix
-       uses: cachix/cachix-action@v12
-       continue-on-error: true
-       with:
-         name: glaredb-ci
-         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-
-     - name: Build
-       run: |
-         nix build .#glaredb-bin -L
-         nix build .#testing-bin -L
-         nix build .#pgprototest-bin -L
-
-  test:
-    needs: build
-    name: Tests
-    runs-on: ubuntu-latest-8-cores
-    concurrency:
-      group: test-ci-${{ github.ref }}
-      cancel-in-progress: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install nix
-        uses: cachix/install-nix-action@v20
-        with:
-          extra_nix_config: |
-            access-tokens = github=${{ github.token }}
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Configure Cachix
-        uses: cachix/cachix-action@v12
-        continue-on-error: true
-        with:
-          name: glaredb-ci
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
 
-      - name: Run Checks
-        run: nix flake check -L
+      - name: Download protoc
+        run: |
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip
+          unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc
 
-  integration:
-    needs: build
-    name: Integration tests
-    runs-on: ubuntu-latest-8-cores
-    concurrency:
-      group: integ-ci-${{ github.ref }}
-      cancel-in-progress: true
+      - name: Build
+        run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
+          cargo build --bin glaredb
+          cargo build --bin pgprototest
+          cargo build --bin sqllogictests
 
-    env:
-      GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-      GCP_PROJECT_ID: glaredb-artifacts
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      - name: Test
+        run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
+          cargo test
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Clippy
+        run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
+          cargo clippy --all-features -- --deny warnings
 
-      - name: Install nix
-        uses: cachix/install-nix-action@v20
-        with:
-          extra_nix_config: |
-            access-tokens = github=${{ github.token }}
-
-      - name: Configure Cachix
-        uses: cachix/cachix-action@v12
-        continue-on-error: true
-        with:
-          name: glaredb-ci
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - name: Format
+        run: cargo fmt --check
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -120,6 +65,13 @@ jobs:
         run: ./scripts/prepare-testdata.sh
 
       - name: SQL Logic Tests
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GCP_PROJECT_ID: glaredb-artifacts
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
           # Prepare SLT (Snowflake)
           export PATH="$HOME/bin:$PATH"
@@ -165,7 +117,7 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          nix run .#sqllogictests -- -v --exclude '*/tunnels/ssh'
+          cargo run --bin sqllogictests -- -v --exclude '*/tunnels/ssh'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

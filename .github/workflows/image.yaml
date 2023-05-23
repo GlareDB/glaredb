@@ -28,19 +28,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install nix
-        uses: cachix/install-nix-action@v20
-        with:
-          extra_nix_config: |
-            access-tokens = github=${{ github.token }}
-
-      - name: configure cachix
-        uses: cachix/cachix-action@v12
-        continue-on-error: true
-        with:
-          name: glaredb-ci
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
@@ -53,4 +40,4 @@ jobs:
         run: gcloud auth configure-docker -q
 
       - name: Build and push images
-        run: nix develop .#ci -c ./scripts/build-and-push-images.sh
+        run: ./scripts/build-and-push-images.sh
