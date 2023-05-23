@@ -9,33 +9,7 @@ on:
       - main
       - sean/release
 
-jobs:
-  build-release:
-    name: Build release
-    runs-on: ubuntu-latest-8-cores
-
-    concurrency:
-      group: image-${{ github.ref }}
-      cancel-in-progress: true
-
-    permissions:
-      id-token: write # required to use OIDC auth
-      contents: write # required to checkout code
-
-
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build
-        run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo build --release --bin glaredb
-jobs:
+obs:
   build-release:
     strategy:
       matrix:
