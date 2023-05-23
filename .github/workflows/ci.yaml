@@ -16,35 +16,50 @@ jobs:
     concurrency:
       group: build-ci-${{ github.ref }}
       cancel-in-progress: true
+
+    env:
+      PROTOC: 
+
     steps:
-     - name: Checkout
-       uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-     - name: Rust toolchain
-       uses: dtolnay/rust-toolchain@stable
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-     - name: Download protoc
-       run: |
-         wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip
-         unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc         
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-     - name: Build
-       run: |
-         export PROTOC="$HOME/.protoc/bin/protoc"
+      - name: Download protoc
+        run: |
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip
+          unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc         
 
-         cargo build --bin glaredb
-         cargo build --bin pgprototest
-         cargo build --bin sqllogictests
-         cargo test --no-run
+          echo "$HOME/.protoc/bin/" >> $GITHUB_PATH
 
-     - name: Test
-       run: cargo test
+      - name: Build
+        run: |
+          cargo build --bin glaredb
+          cargo build --bin pgprototest
+          cargo build --bin sqllogictests
+          cargo test --no-run
 
-     - name: Clippy
-       run: cargo clippy --all-features -- --deny warnings
+      - name: Test
+        run: cargo test
 
-     - name: Format
-       run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-features -- --deny warnings
+
+      - name: Format
+        run: cargo fmt --check
 
   # integration:
   #   needs: build
