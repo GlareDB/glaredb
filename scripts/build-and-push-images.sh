@@ -16,54 +16,17 @@ GCP_PROJECT_ID=${GCP_PROJECT_ID:-glaredb-artifacts}
 
 GCP_AUTH_TOKEN=$(gcloud auth print-access-token)
 
-push_image() {
-    local container_archive
-    local registry_name
-    container_archive=$1
-    registry_name=$2
+# Build image with tags pointing to this git revision.
+git_rev=$(git rev-parse HEAD)
+image_tag=$(echo "${GITHUB_REF_NAME}" | sed -r 's#/+#-#g')
+image_repo="gcr.io/${GCP_PROJECT_ID}/glaredb"
+docker build \
+       -t "${image_repo}:${image_tag}" \
+       -t "${image_repo}:${git_rev}" \
+       .
 
-    local git_rev
-    git_rev=$(git rev-parse HEAD)
+# Check that the image runs.
+docker run "${image_repo}:${image_tag}" glaredb --help
 
-    image_repo="gcr.io/${GCP_PROJECT_ID}/${registry_name}"
-    skopeo copy \
-        --insecure-policy \
-        --dest-registry-token "${GCP_AUTH_TOKEN}" \
-        "docker-archive:${container_archive}" \
-        "docker://${image_repo}:${git_rev}"
-
-    local image_tag
-    image_tag=$(echo "${GITHUB_REF_NAME}" | sed -r 's#/+#-#g')
-
-    # Copy the image to add other tags
-    skopeo copy \
-        --insecure-policy \
-        --dest-registry-token "${GCP_AUTH_TOKEN}" \
-        --src-registry-token "${GCP_AUTH_TOKEN}" \
-        "docker://${image_repo}:${git_rev}" \
-        "docker://${image_repo}:${image_tag}"
-}
-
-check_command() {
-    local image_archive
-    local command
-    local image_name
-    image_archive=$1
-    command=$2
-    image_name=$3
-
-    skopeo copy \
-        --insecure-policy \
-        "docker-archive:${image_archive}" \
-        "docker-daemon:${image_name}:latest"
-
-    docker run "${image_name}:latest" ${command}
-}
-
-# build the container archives
-nix build .#glaredb-image --out-link glaredb_image
-
-# ensure that the command can be executed inside the containers before pushing
-check_command "glaredb_image" "glaredb --help" "glaredb"
-
-push_image "glaredb_image" "glaredb"
+# Push it.
+docker push -a "${image_repo}"
