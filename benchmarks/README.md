@@ -43,16 +43,31 @@ timing is for, and `duration` is time in seconds it took for the query to comple
 The `--runs` flag may be provided to `bench_runner` execute benchmark queries
 some number of times.
 
+Download scripts for benchmarks should place their artifacts in
+`benchmarks/artifacts/`. This directory is git ignored.
+
 ## TPC-H
 
-Before running the TPC-H queries, the relevant files will need to be downloaded.
-The `download_data.sh` script does just that.
+Download script: `./benchmarks/tpch/download_data.sh`
+
+Requires `GCP_SERVICE_ACCOUNT_JSON` to be set. Optionally may set `SCALE_FACTOR`
+to specify which scale factor to download files for.
 
 For example, running TPC-H at scale factor 10:
 
 ```shell
 $ SCALE_FACTOR=10 ./benchmarks/tpch/download_data.sh
 $ cargo run -r --bin bench_runner bench_runner --load ./benchmarks/tpch/load_s10.sql --runs 1 ./benchmarks/tpch/queries/*
+```
+
+## Clickbench
+
+Download script: `./benchmarks/clickbench/download_data.sh`
+
+Note that the download script will download a 14GB parquet file.
+
+```shell
+$ cargo run -r --bin bench_runner bench_runner --load ./benchmarks/clickbench/load.sql ./benchmarks/clickbench/queries/01.sql
 ```
 
 ## Tips and Tricks
