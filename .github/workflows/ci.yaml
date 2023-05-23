@@ -30,9 +30,7 @@ jobs:
       - name: Download protoc
         run: |
           wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip
-          unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc         
-
-          echo "$HOME/.protoc/bin/" >> $GITHUB_PATH
+          unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc
 
       - name: Build
         run: |
