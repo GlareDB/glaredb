@@ -2,7 +2,7 @@
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.0.8"
+version = "0.0.9"
 edition = "2021"
 
 [profile.release]
