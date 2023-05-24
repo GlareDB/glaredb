@@ -12,8 +12,8 @@ on:
 jobs:
   build-release:
     strategy:
+      fail-fast: false
       matrix:
-        fail-fast: false
         include:
           # - os: windows-latest
           #   target: x86_64-pc-windows-msvc
