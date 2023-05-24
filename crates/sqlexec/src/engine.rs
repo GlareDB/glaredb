@@ -30,6 +30,8 @@ pub struct SessionInfo {
     pub max_datasource_count: usize,
     // Memory limit applied to the session.
     pub memory_limit_bytes: usize,
+    // Max tunnel count allowed.
+    pub max_tunnel_count: usize,
 }
 
 /// Wrapper around the database catalog.
@@ -75,6 +77,7 @@ impl Engine {
         database_name: String,
         max_datasource_count: usize,
         memory_limit_bytes: usize,
+        max_tunnel_count: usize,
     ) -> Result<TrackedSession> {
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
 
@@ -86,6 +89,7 @@ impl Engine {
             conn_id,
             max_datasource_count,
             memory_limit_bytes,
+            max_tunnel_count,
         });
 
         let state = metastore.get_cached_state().await?;
