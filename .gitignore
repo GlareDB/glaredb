@@ -12,3 +12,5 @@ gcs-artifacts/
 flamegraph.svg
 # Benchmark artifacts
 benchmarks/artifacts/
+# Deps downloaded from external sources
+/deps
