@@ -113,6 +113,9 @@ pub enum ExecError {
     #[error("Cannot create additional data sources. Max: {0}, Current: {1}")]
     MaxDatasourceCount(usize, usize),
 
+    #[error("Cannot create additional tunnels. Max: {0}, Current: {1}")]
+    MaxTunnelCount(usize, usize),
+
     #[error("internal error: {0}")]
     Internal(String),
 
