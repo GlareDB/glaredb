@@ -23,7 +23,6 @@ jobs:
       - name: Build
         run: |
           cargo xtask build
-          cargo xtask test-bins
 
       - name: Unit Tests
         run: cargo xtask unit-tests
