@@ -106,12 +106,14 @@ fn ensure_protoc(sh: &Shell, target: &Target) -> Result<()> {
         if sh.path_exists(project_root().join(PROTOC_PATH)) {
             println!("Downloaded protoc already exists");
             return Ok(());
+        } else {
+            println!("Missing protoc, downloading...");
+            sh.remove_path(project_root().join(PROTOC_OUT_DIR))?;
+            let res = reqwest::blocking::get(target.protoc_url()?)?;
+            ZipArchive::new(Cursor::new(res.bytes()?))?
+                .extract(project_root().join(PROTOC_OUT_DIR))?;
         }
 
-        println!("Missing protoc, downloading...");
-        sh.remove_path(project_root().join(PROTOC_OUT_DIR))?;
-        let res = reqwest::blocking::get(target.protoc_url()?)?;
-        ZipArchive::new(Cursor::new(res.bytes()?))?.extract(project_root().join(PROTOC_OUT_DIR))?;
         sh.set_var("PROTOC", project_root().join(PROTOC_PATH));
     }
     Ok(())
