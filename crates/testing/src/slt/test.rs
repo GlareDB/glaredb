@@ -38,31 +38,51 @@ pub type TestHook = Box<dyn Hook>;
 
 pub type TestHooks = Vec<(Pattern, TestHook)>;
 
+#[async_trait]
+pub trait FnTest: Send + Sync {
+    async fn run(
+        &self,
+        config: &Config,
+        client: &mut Client,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<()>;
+}
+
 const ENV_REGEX: &str = r"\$\{\s*(\w+)\s*\}";
 
-#[derive(Debug)]
 pub enum Test {
     File(PathBuf),
-    // TODO: Test function
+    FnTest(Box<dyn FnTest>),
+}
+
+impl Debug for Test {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File(path) => write!(f, "File({path:?})"),
+            Self::FnTest(_) => write!(f, "FnTest"),
+        }
+    }
 }
 
 impl Test {
     pub async fn execute(
         self,
-        runner: &mut Runner<TestClient<'_>>,
-        vars: &HashMap<String, String>,
+        config: &Config,
+        client: &mut Client,
+        vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         match self {
             Self::File(path) => {
                 let regx = Regex::new(ENV_REGEX).unwrap();
                 let records = parse_file(&regx, &path, vars)?;
+                let mut runner = Runner::new(TestClient { client });
                 runner
                     .run_multi_async(records)
                     .await
-                    .map_err(|e| anyhow!("test fail: {}", e))?;
+                    .map_err(|e| anyhow!("test fail: {}", e))
             }
-        };
-        Ok(())
+            Self::FnTest(fn_test) => fn_test.run(config, client, vars).await,
+        }
     }
 }
 

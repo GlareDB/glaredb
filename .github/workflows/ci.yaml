@@ -30,12 +30,17 @@ jobs:
           export PROTOC="$HOME/.protoc/bin/protoc"
           cargo build --bin glaredb
           cargo build --bin pgprototest
-          cargo build --bin sqllogictests
+          cargo build --test sqllogictests
 
-      - name: Test
+      - name: Unit Tests
         run: |
           export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo test
+          cargo test --lib --bins
+
+      - name: Doc Tests
+        run: |
+          export PROTOC="$HOME/.protoc/bin/protoc"
+          cargo test --doc
 
       - name: Clippy
         run: |
@@ -50,7 +55,6 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      # Setup snowsql (can't use nix coz it's unfree).
       - name: Setup snowsql
         run: |
           curl -o snowsql.bash \
@@ -117,7 +121,7 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          cargo run --bin sqllogictests -- -v --exclude '*/tunnels/ssh'
+          cargo test --test sqllogictests -- -v --exclude '*/tunnels/ssh'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

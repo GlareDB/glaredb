@@ -7,7 +7,6 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use glaredb::server::{Server, ServerConfig};
-use sqllogictest::Runner;
 use tokio::{
     net::TcpListener,
     runtime::Builder,
@@ -17,7 +16,7 @@ use tokio::{
 use tokio_postgres::{config::Config as ClientConfig, NoTls};
 use uuid::Uuid;
 
-use crate::slt::test::{Test, TestClient, TestHooks};
+use crate::slt::test::{Test, TestHooks};
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
@@ -295,12 +294,9 @@ impl Cli {
                 .await?;
         }
 
-        {
-            let mut runner = Runner::new(TestClient {
-                client: &mut client,
-            });
-            test.execute(&mut runner, &local_vars).await?;
-        }
+        // Run the actual test
+        test.execute(&client_config, &mut client, &mut local_vars)
+            .await?;
 
         // Run the post-test hooks
         for (pattern, hook) in hooks {

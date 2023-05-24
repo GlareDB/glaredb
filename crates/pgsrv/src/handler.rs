@@ -645,6 +645,9 @@ where
             ExecutionResult::AlterDatabaseRename => {
                 Self::command_complete(conn, "ALTER DATABASE").await?
             }
+            ExecutionResult::AlterTunnelRotateKeys => {
+                Self::command_complete(conn, "ALTER TUNNEL").await?
+            }
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,

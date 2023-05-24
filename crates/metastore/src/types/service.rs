@@ -17,6 +17,7 @@ pub enum Mutation {
     AlterDatabaseRename(AlterDatabaseRename),
     CreateTunnel(CreateTunnel),
     DropTunnel(DropTunnel),
+    AlterTunnelRotateKeys(AlterTunnelRotateKeys),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -49,6 +50,9 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             }
             service::mutation::Mutation::CreateTunnel(v) => Mutation::CreateTunnel(v.try_into()?),
             service::mutation::Mutation::DropTunnel(v) => Mutation::DropTunnel(v.try_into()?),
+            service::mutation::Mutation::AlterTunnelRotateKeys(v) => {
+                Mutation::AlterTunnelRotateKeys(v.try_into()?)
+            }
         })
     }
 }
@@ -76,6 +80,9 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             }
             Mutation::CreateTunnel(v) => service::mutation::Mutation::CreateTunnel(v.into()),
             Mutation::DropTunnel(v) => service::mutation::Mutation::DropTunnel(v.into()),
+            Mutation::AlterTunnelRotateKeys(v) => {
+                service::mutation::Mutation::AlterTunnelRotateKeys(v.into())
+            }
         })
     }
 }
@@ -396,6 +403,34 @@ impl From<DropTunnel> for service::DropTunnel {
         service::DropTunnel {
             name: value.name,
             if_exists: value.if_exists,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct AlterTunnelRotateKeys {
+    pub name: String,
+    pub if_exists: bool,
+    pub new_ssh_key: Vec<u8>,
+}
+
+impl TryFrom<service::AlterTunnelRotateKeys> for AlterTunnelRotateKeys {
+    type Error = ProtoConvError;
+    fn try_from(value: service::AlterTunnelRotateKeys) -> Result<Self, Self::Error> {
+        Ok(AlterTunnelRotateKeys {
+            name: value.name,
+            if_exists: value.if_exists,
+            new_ssh_key: value.new_ssh_key,
+        })
+    }
+}
+
+impl From<AlterTunnelRotateKeys> for service::AlterTunnelRotateKeys {
+    fn from(value: AlterTunnelRotateKeys) -> Self {
+        service::AlterTunnelRotateKeys {
+            name: value.name,
+            if_exists: value.if_exists,
+            new_ssh_key: value.new_ssh_key,
         }
     }
 }
