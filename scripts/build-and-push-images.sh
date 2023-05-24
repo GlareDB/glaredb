@@ -19,7 +19,7 @@ image_tag=$(echo "${GITHUB_REF_NAME}" | sed -r 's#/+#-#g')
 image_repo="gcr.io/${GCP_PROJECT_ID}/glaredb"
 
 # Try to pull tagged image first for getting a cache.
-docker pull "${image_repo}:${image_tag}"
+docker pull "${image_repo}:${image_tag}" || true
 
 # Build image with tags pointing to this git revision.
 docker build \
