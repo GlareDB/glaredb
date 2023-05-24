@@ -25,6 +25,21 @@ enum Commands {
         #[clap(short, long)]
         release: bool,
     },
+
+    /// Build test binaries.
+    TestBins,
+
+    /// Run unit tests.
+    UnitTests,
+
+    /// Run doc tests.
+    DocTests,
+
+    /// Run clippy.
+    Clippy,
+
+    /// Check formatting.
+    FmtCheck,
 }
 
 fn main() -> Result<()> {
@@ -33,21 +48,52 @@ fn main() -> Result<()> {
     sh.change_dir(project_root());
 
     let target = Target::from_cfg()?;
+    ensure_protoc(sh, &target)?;
 
     match cli.command {
-        Commands::Build { release } => build(sh, &target, release)?,
+        Commands::Build { release } => build(sh, release)?,
+        Commands::TestBins => build_test_bins(sh)?,
+        Commands::UnitTests => unit_tests(sh)?,
+        Commands::DocTests => doc_tests(sh)?,
+        Commands::Clippy => clippy(sh)?,
+        Commands::FmtCheck => fmt_check(sh)?,
     }
 
     Ok(())
 }
 
-fn build(sh: &Shell, target: &Target, release: bool) -> Result<()> {
-    ensure_protoc(sh, target)?;
+fn build(sh: &Shell, release: bool) -> Result<()> {
     if release {
         cmd!(sh, "cargo build --release --bin glaredb").run()?;
     } else {
         cmd!(sh, "cargo build --bin glaredb").run()?;
     }
+    Ok(())
+}
+
+fn build_test_bins(sh: &Shell) -> Result<()> {
+    cmd!(sh, "cargo build --bin pgprototest").run()?;
+    cmd!(sh, "cargo build --test sqllogictests").run()?;
+    Ok(())
+}
+
+fn unit_tests(sh: &Shell) -> Result<()> {
+    cmd!(sh, "cargo test --lib --bins").run()?;
+    Ok(())
+}
+
+fn doc_tests(sh: &Shell) -> Result<()> {
+    cmd!(sh, "cargo test --doc").run()?;
+    Ok(())
+}
+
+fn clippy(sh: &Shell) -> Result<()> {
+    cmd!(sh, "cargo clippy --all-features -- --deny warnings").run()?;
+    Ok(())
+}
+
+fn fmt_check(sh: &Shell) -> Result<()> {
+    cmd!(sh, "cargo fmt --check").run()?;
     Ok(())
 }
 
