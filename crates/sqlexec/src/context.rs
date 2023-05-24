@@ -251,6 +251,19 @@ impl SessionContext {
         Ok(())
     }
 
+    pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
+        self.mutate_catalog([Mutation::AlterTunnelRotateKeys(
+            service::AlterTunnelRotateKeys {
+                name: plan.name,
+                if_exists: plan.if_exists,
+                new_ssh_key: plan.new_ssh_key,
+            },
+        )])
+        .await?;
+
+        Ok(())
+    }
+
     /// Drop one or more tables.
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());

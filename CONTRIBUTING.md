@@ -60,7 +60,7 @@ You can simply run the binary to run all the tests. Test cases can be found in
 `testdata/sqllogictest*`.
 
 ```shell
-cargo run --bin sqllogictests
+cargo test --test sqllogictests
 ```
 
 You might have to set a few environment variables for running tests in
@@ -70,7 +70,7 @@ Variables](#test-environment-variables) section for details.
 To run basic sqllogictests:
 
 ```shell
-cargo run --bin sqllogictests -- 'sqllogictests/*'
+cargo test --test sqllogictests -- 'sqllogictests/*'
 ```
 
 This will run all tests in `testdata/sqllogictests` directory. Basically to run
@@ -82,7 +82,7 @@ specific tests you can provide an glob-like regex argument:
 #
 # Note the quotes (') around `sqllogictests/cast/*`. This is so the shell
 # doesn't try and expand the argument into files.
-cargo run --bin sqllogictests -- 'sqllogictests/cast/*'
+cargo test --test sqllogictests -- 'sqllogictests/cast/*'
 ```
 
 Note that, all the test names don't have `.slt` but the runner only picks up
@@ -90,7 +90,7 @@ files that have this extension. So, to run the test `testdata/sqllogictests/
 simple.slt`, you would run:
 
 ```shell
-cargo run --bin sqllogictests -- sqllogictests/simple
+cargo test --test sqllogictests -- sqllogictests/simple
 ```
 
 To list the test cases, use the `--list` flag. This flag can be used to check
@@ -98,7 +98,7 @@ dry run of all the tests that will run. You can pass the regex along with the
 flag as well.
 
 ```shell
-cargo run --bin sqllogictests -- --list '*/full_outer/*'
+cargo test --test sqllogictests -- --list '*/full_outer/*'
 ```
 
 `sqllogictests` can run either against an external database using the
@@ -107,7 +107,7 @@ cargo run --bin sqllogictests -- --list '*/full_outer/*'
 An example invocation using an embedded database:
 
 ``` shell
-cargo run --bin sqllogictests -- --keep-running
+cargo test --test sqllogictests -- --keep-running
 ```
 
 The `--keep-running` flag will keep the GlareDB server up to allow for

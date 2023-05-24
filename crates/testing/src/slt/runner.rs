@@ -8,7 +8,7 @@ use crate::slt::{
     test::{Test, TestHooks},
 };
 
-pub use crate::slt::test::{Hook, TestHook};
+pub use crate::slt::test::{FnTest, Hook, TestClient, TestHook};
 
 #[derive(Default)]
 pub struct SltRunner {
@@ -74,6 +74,14 @@ impl SltRunner {
             self.add_file_test(dir.as_path(), &file_path)?;
         }
 
+        Ok(self)
+    }
+
+    pub fn test<S>(mut self, test_name: S, test_fn: Box<dyn FnTest>) -> Result<Self>
+    where
+        S: ToString,
+    {
+        self.add_test(test_name.to_string(), Test::FnTest(test_fn))?;
         Ok(self)
     }
 

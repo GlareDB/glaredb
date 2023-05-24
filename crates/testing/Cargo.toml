@@ -22,6 +22,7 @@ logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }
 metastore = { path = "../metastore" }
 
-[[bin]]
+[[test]]
+harness = false
 name = "sqllogictests"
-path = "src/tests/sqllogictests/main.rs"
+path = "tests/sqllogictests/main.rs"
