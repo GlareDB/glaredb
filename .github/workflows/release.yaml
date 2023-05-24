@@ -26,10 +26,10 @@ jobs:
           #   target: aarch64-unknown-linux-gnu
           #   code-target: linux-arm64
           #   protoc: linux-aarch_64
-          - os: macos-11
-            target: x86_64-apple-darwin
-            code-target: darwin-x64
-            protoc: osx-x86_64
+          # - os: macos-11
+          #   target: x86_64-apple-darwin
+          #   code-target: darwin-x64
+          #   protoc: osx-x86_64
           - os: macos-11
             target: aarch64-apple-darwin
             protoc: osx-aarch_64
@@ -66,8 +66,7 @@ jobs:
 
       - name: Build
         run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo build --release --bin glaredb
+          PROTOC="$HOME/.protoc/bin/protoc" cargo build --bin glaredb
 
           mkdir -p dist
           mv ./target/release/glaredb dist/.
