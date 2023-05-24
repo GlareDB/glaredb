@@ -22,7 +22,7 @@ use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::EntryType::Tunnel;
+use metastore::types::catalog::EntryType;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -145,7 +145,7 @@ impl SessionContext {
     pub fn get_tunnel_count(&mut self) -> usize {
         self.metastore_catalog
             .iter_entries()
-            .filter(|ent| ent.entry.get_meta().entry_type == Tunnel)
+            .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Tunnel)
             .count()
     }
 
