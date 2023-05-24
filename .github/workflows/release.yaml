@@ -15,18 +15,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - os: windows-latest
-          #   target: x86_64-pc-windows-msvc
-          #   code-target: win32-x64
-          #   protoc: win64
+          - os: ubuntu-20.04
+            target: x86_64-pc-windows-gnu
+            protoc: linux-x86_64
           - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
-            code-target: linux-x64
             protoc: linux-x86_64
-          # - os: ubuntu-20.04
-          #   target: aarch64-unknown-linux-gnu
-          #   code-target: linux-arm64
-          #   protoc: linux-aarch_64
           - os: macos-11
             target: x86_64-apple-darwin
             protoc: osx-universal_binary
@@ -54,12 +48,12 @@ jobs:
           unzip protoc-23.1-${{matrix.protoc}}.zip -d $HOME/.protoc
 
       - name: Update apt repositories
-        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'arm-unknown-linux-gnueabihf'
+        if: matrix.target == 'x86_64-pc-windows-gnu'
         run: sudo apt-get update
 
-      - name: Install AArch64 target toolchain
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get install gcc-aarch64-linux-gnu
+      - name: Install Windows target toolchain
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        run: sudo apt-get install g++-mingw-w64-x86-64
 
       - name: Install ARM target toolchain
         if: matrix.target == 'arm-unknown-linux-gnueabihf'
@@ -70,7 +64,7 @@ jobs:
           PROTOC="$HOME/.protoc/bin/protoc" cargo build --bin glaredb
 
           mkdir -p dist
-          mv ./target/release/glaredb dist/.
+          mv ./target/debug/glaredb dist/.
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v1
