@@ -105,7 +105,6 @@ fn ensure_protoc(sh: &Shell, target: &Target) -> Result<()> {
     if cmd!(sh, "protoc --version").run().is_err() {
         if sh.path_exists(project_root().join(PROTOC_PATH)) {
             println!("Downloaded protoc already exists");
-            return Ok(());
         } else {
             println!("Missing protoc, downloading...");
             sh.remove_path(project_root().join(PROTOC_OUT_DIR))?;
