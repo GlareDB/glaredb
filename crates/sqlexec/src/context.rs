@@ -209,7 +209,7 @@ impl SessionContext {
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
         if self.get_tunnel_count() >= self.info.max_tunnel_count {
-            return Err(ExecError::MaxDatasourceCount(
+            return Err(ExecError::MaxTunnelCount(
                 self.info.max_tunnel_count,
                 self.get_tunnel_count(),
             ));
