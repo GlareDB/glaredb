@@ -4,7 +4,7 @@ statement ok
 CREATE EXTERNAL TABLE basic
 	FROM snowflake
 	OPTIONS (
-		account = 'hmpfscx-xo23956',
+		account = 'hmpfscx-xo2395',
 		username = '${SNOWFLAKE_USERNAME}',
 		password = '${SNOWFLAKE_PASSWORD}',
 		database = '${SNOWFLAKE_DATABASE}',
