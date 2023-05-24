@@ -20,35 +20,22 @@ jobs:
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Download protoc
-        run: |
-          wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip
-          unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc
-
       - name: Build
         run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo build --bin glaredb
-          cargo build --bin pgprototest
-          cargo build --test sqllogictests
+          cargo xtask build
+          cargo xtask test-bins
 
       - name: Unit Tests
-        run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo test --lib --bins
+        run: cargo xtask unit-tests
 
       - name: Doc Tests
-        run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo test --doc
+        run: cargo xtask doc-tests
 
       - name: Clippy
-        run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo clippy --all-features -- --deny warnings
+        run: cargo xtask clippy
 
       - name: Format
-        run: cargo fmt --check
+        run: cargo xtask fmt-check
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
