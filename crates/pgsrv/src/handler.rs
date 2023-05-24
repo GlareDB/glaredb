@@ -6,7 +6,7 @@ use crate::messages::{
 };
 use crate::proxy::{
     ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
-    GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
+    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
@@ -157,6 +157,9 @@ impl ProtocolHandler {
         let memory_limit_bytes = self
             .read_proxy_key_val(&mut framed, &GLAREDB_MEMORY_LIMIT_BYTES_KEY, &params)
             .await?;
+        let max_tunnel_count = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_MAX_TUNNEL_COUNT_KEY, &params)
+            .await?;
 
         // Standard postgres params. These values are used only for informational purposes.
         let user_name = params.get("user").cloned().unwrap_or_default();
@@ -193,6 +196,7 @@ impl ProtocolHandler {
                 database_name,
                 max_datasource_count,
                 memory_limit_bytes,
+                max_tunnel_count,
             )
             .await
         {

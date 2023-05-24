@@ -82,6 +82,7 @@ impl LocalEngine {
                 "glaredb".to_string(),
                 0,
                 0,
+                0,
             )
             .await?;
         Ok(sess)
