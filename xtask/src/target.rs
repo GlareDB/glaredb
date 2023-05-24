@@ -55,7 +55,7 @@ impl Target {
             (Arch::X86_64, Os::Mac) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-osx-universal_binary.zip",
             (Arch::Aarch64, Os::Mac) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-osx-universal_binary.zip",
             (Arch::X86_64, Os::Linux) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip",
-            (Arch::X86_64, Os::Windows) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-win_64.zip",
+            (Arch::X86_64, Os::Windows) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-win64.zip",
             _ => return Err(anyhow!("unsupported target")),
         })
     }
