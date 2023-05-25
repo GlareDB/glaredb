@@ -40,7 +40,13 @@ enum Commands {
     /// Check formatting.
     FmtCheck,
 
-    /// Build a distributable release binary, and output a zip in `dist`.
+    /// Build the dist binary for release.
+    ///
+    /// A zip archive will be placed in `target/dist` containing the release
+    /// binary.
+    ///
+    /// By default, the compilation target matches the host machine. This can be
+    /// overridden via the `DIST_TARGET_TRIPLE` environment variable.
     Dist,
 }
 
@@ -92,7 +98,8 @@ fn run_fmt_check(sh: &Shell) -> Result<()> {
 }
 
 fn run_dist(sh: &Shell, target: &Target) -> Result<()> {
-    run_build(sh, true)?;
+    let triple = target.dist_target_triple()?;
+    cmd!(sh, "cargo build --release --bin glaredb --target {triple}").run()?;
 
     // TODO: Code signing goes here.
 
@@ -101,16 +108,13 @@ fn run_dist(sh: &Shell, target: &Target) -> Result<()> {
 
     let src_path = util::project_root()
         .join("target")
+        .join(target.dist_target_triple()?)
         .join("release")
         .join("glaredb");
     let dest_path = util::project_root()
         .join("target")
         .join("dist")
-        .join(format!(
-            "glaredb-{}-{}.zip",
-            target.os.as_str(),
-            target.arch.as_str()
-        ));
+        .join(target.dist_zip_name()?);
 
     util::zip(&src_path, &dest_path)?;
 

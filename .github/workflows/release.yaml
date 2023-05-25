@@ -20,15 +20,18 @@ jobs:
           #   target: x86_64-pc-windows-msvc
           - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
-          - os: macos-11
+          - os: macos-12-xl
             target: x86_64-apple-darwin
-          - os: macos-11
+          - os: macos-12-xl
             target: aarch64-apple-darwin
 
 
     name: Build release (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
+
+    env:
+      DIST_TARGET_TRIPLE: ${{ matrix.target }}
 
     steps:
       - name: Checkout repository
