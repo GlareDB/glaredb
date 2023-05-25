@@ -57,11 +57,8 @@ pub enum PgSrvError {
     #[error("message length '{0}' exceeds the limit of i32 max")]
     MessageTooLarge(usize),
 
-    #[error(transparent)]
-    OpenSsl(#[from] openssl::ssl::Error),
-
-    #[error(transparent)]
-    OpenSslStack(#[from] openssl::error::ErrorStack),
+    #[error("Failed to read ssl certs and keys: {0}")]
+    ReadCertsAndKeys(&'static str),
 
     #[error(transparent)]
     Io(#[from] io::Error),
@@ -83,4 +80,7 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     ReqwestHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
+
+    #[error(transparent)]
+    Rustls(#[from] rustls::Error),
 }

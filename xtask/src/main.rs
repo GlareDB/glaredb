@@ -26,14 +26,14 @@ enum Commands {
         release: bool,
     },
 
-    /// Build test binaries.
-    TestBins,
-
     /// Run unit tests.
     UnitTests,
 
     /// Run doc tests.
     DocTests,
+
+    /// Run tests with arbitrary arguments.
+    Test { rest: Vec<String> },
 
     /// Run clippy.
     Clippy,
@@ -51,18 +51,18 @@ fn main() -> Result<()> {
     ensure_protoc(sh, &target)?;
 
     match cli.command {
-        Commands::Build { release } => build(sh, release)?,
-        Commands::TestBins => build_test_bins(sh)?,
-        Commands::UnitTests => unit_tests(sh)?,
-        Commands::DocTests => doc_tests(sh)?,
-        Commands::Clippy => clippy(sh)?,
-        Commands::FmtCheck => fmt_check(sh)?,
+        Commands::Build { release } => run_build(sh, release)?,
+        Commands::UnitTests => run_tests(sh, &["--lib", "--bins"])?,
+        Commands::DocTests => run_tests(sh, &["--doc"])?,
+        Commands::Test { rest } => run_tests(sh, rest.as_slice())?,
+        Commands::Clippy => run_clippy(sh)?,
+        Commands::FmtCheck => run_fmt_check(sh)?,
     }
 
     Ok(())
 }
 
-fn build(sh: &Shell, release: bool) -> Result<()> {
+fn run_build(sh: &Shell, release: bool) -> Result<()> {
     if release {
         cmd!(sh, "cargo build --release --bin glaredb").run()?;
     } else {
@@ -71,28 +71,19 @@ fn build(sh: &Shell, release: bool) -> Result<()> {
     Ok(())
 }
 
-fn build_test_bins(sh: &Shell) -> Result<()> {
-    cmd!(sh, "cargo build --bin pgprototest").run()?;
-    cmd!(sh, "cargo build --test sqllogictests").run()?;
+fn run_tests<S: ToString>(sh: &Shell, rest: &[S]) -> Result<()> {
+    let rest: Vec<String> = rest.iter().map(|s| s.to_string()).collect();
+    let cmd = sh.cmd("cargo").arg("test").args(rest);
+    cmd.run()?;
     Ok(())
 }
 
-fn unit_tests(sh: &Shell) -> Result<()> {
-    cmd!(sh, "cargo test --lib --bins").run()?;
-    Ok(())
-}
-
-fn doc_tests(sh: &Shell) -> Result<()> {
-    cmd!(sh, "cargo test --doc").run()?;
-    Ok(())
-}
-
-fn clippy(sh: &Shell) -> Result<()> {
+fn run_clippy(sh: &Shell) -> Result<()> {
     cmd!(sh, "cargo clippy --all-features -- --deny warnings").run()?;
     Ok(())
 }
 
-fn fmt_check(sh: &Shell) -> Result<()> {
+fn run_fmt_check(sh: &Shell) -> Result<()> {
     cmd!(sh, "cargo fmt --check").run()?;
     Ok(())
 }

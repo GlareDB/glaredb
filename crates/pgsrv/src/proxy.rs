@@ -195,7 +195,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
                             // SSL supported, send back that we support it and
                             // start encrypting.
                             conn.write_all(&[b'S']).await?;
-                            Connection::new_encrypted(conn, conf).await?
+                            Connection::new_encrypted(conn, conf.config.clone()).await?
                         }
                         (mut conn, _) => {
                             debug!("rejecting ssl request");
