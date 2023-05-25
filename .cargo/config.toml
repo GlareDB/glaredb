@@ -1,7 +1,4 @@
 [alias]
 dev = "run --bin glaredb --"
-unittests = "test --lib --bins"
-doctests = "test --doc"
-clippycheck = "clippy --all-features -- --deny warnings"
-fmtcheck = "fmt --check"
 sqllogictests = "test --test sqllogictests --"
+xtask = "run --quiet --package xtask --"
