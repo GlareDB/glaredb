@@ -83,4 +83,7 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     Rustls(#[from] rustls::Error),
+
+    #[error(transparent)]
+    RustlsSign(#[from] rustls::sign::SignError),
 }
