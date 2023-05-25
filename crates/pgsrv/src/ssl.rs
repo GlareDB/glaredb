@@ -1,5 +1,5 @@
 use crate::errors::{PgSrvError, Result};
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls::{server, sign, Certificate, PrivateKey, ServerConfig};
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -7,6 +7,7 @@ use std::task::{Context, Poll};
 use tokio::fs;
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
+use tracing::trace;
 
 /// Configuration for creating encrypted connections using SSL/TLS.
 #[derive(Debug)]
@@ -18,7 +19,7 @@ impl SslConfig {
     /// Create a new ssl config using the provided cert and key files.
     pub async fn new<P: AsRef<Path>>(cert: P, key: P) -> Result<SslConfig> {
         let cert_bs = fs::read(cert).await?;
-        let certs: Vec<_> = rustls_pemfile::certs(&mut cert_bs.as_slice())?
+        let chain: Vec<_> = rustls_pemfile::certs(&mut cert_bs.as_slice())?
             .into_iter()
             .map(Certificate)
             .collect();
@@ -31,16 +32,44 @@ impl SslConfig {
             _ => return Err(PgSrvError::ReadCertsAndKeys("Expected exactly one key")),
         };
 
+        let resolver = CertResolver::new(chain, &key)?;
+
         let config = ServerConfig::builder()
             .with_safe_default_cipher_suites()
             .with_safe_default_kx_groups()
             .with_safe_default_protocol_versions()?
             .with_no_client_auth()
-            .with_single_cert(certs, key)?;
+            .with_cert_resolver(Arc::new(resolver));
 
         Ok(SslConfig {
             config: Arc::new(config),
         })
+    }
+}
+
+struct CertResolver {
+    cert: Arc<sign::CertifiedKey>,
+}
+
+impl CertResolver {
+    fn new(chain: Vec<Certificate>, key: &PrivateKey) -> Result<CertResolver> {
+        let key = sign::any_supported_type(key)?;
+        Ok(CertResolver {
+            cert: Arc::new(sign::CertifiedKey::new(chain, key)),
+        })
+    }
+}
+
+impl server::ResolvesServerCert for CertResolver {
+    fn resolve(&self, client_hello: server::ClientHello) -> Option<Arc<sign::CertifiedKey>> {
+        match client_hello.server_name() {
+            Some(name) => trace!(%name, "resolving with server name"),
+            None => trace!("server name not provided"),
+        }
+
+        // TODO: Per host certs.
+
+        Some(self.cert.clone())
     }
 }
 
