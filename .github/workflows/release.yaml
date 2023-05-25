@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: dist-${{ matrix.target }}
-          path: .target/dist/
+          path: ./target/dist/
 
   publish:
     name: publish
