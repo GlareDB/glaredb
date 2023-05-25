@@ -93,6 +93,9 @@ fn run_fmt_check(sh: &Shell) -> Result<()> {
 
 fn run_dist(sh: &Shell, target: &Target) -> Result<()> {
     run_build(sh, true)?;
+
+    // TODO: Code signing goes here.
+
     sh.remove_path(util::project_root().join("target").join("dist"))?;
     sh.create_dir(util::project_root().join("target").join("dist"))?;
 
