@@ -57,6 +57,9 @@ pub enum PgSrvError {
     #[error("message length '{0}' exceeds the limit of i32 max")]
     MessageTooLarge(usize),
 
+    #[error("Failed to read ssl certs and keys: {0}")]
+    ReadCertsAndKeys(&'static str),
+
     #[error(transparent)]
     Io(#[from] io::Error),
 
