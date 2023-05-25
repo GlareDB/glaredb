@@ -35,7 +35,7 @@ impl SslConfig {
 /// A wrapper around a connection, optionally providing SSL encryption.
 pub enum Connection<C> {
     Unencrypted(C),
-    Encrypted(TlsStream<C>),
+    Encrypted(Box<TlsStream<C>>), // Boxed due to large size difference between variants (clippy)
 }
 
 impl<C> Connection<C>
@@ -44,7 +44,7 @@ where
 {
     pub async fn new_encrypted(conn: C, conf: Arc<ServerConfig>) -> Result<Self> {
         let stream = TlsAcceptor::from(conf).accept(conn).await?;
-        Ok(Connection::Encrypted(stream))
+        Ok(Connection::Encrypted(Box::new(stream)))
     }
 
     pub fn new_unencrypted(conn: C) -> Self {
