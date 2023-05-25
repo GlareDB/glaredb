@@ -6,6 +6,13 @@ pub enum Arch {
 }
 
 impl Arch {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Arch::X86_64 => "x86_64",
+            Self::Aarch64 => "aarch64",
+        }
+    }
+
     pub fn from_cfg() -> Result<Arch> {
         if cfg!(target_arch = "x86_64") {
             Ok(Arch::X86_64)
@@ -24,6 +31,14 @@ pub enum Os {
 }
 
 impl Os {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Os::Mac => "macos",
+            Os::Linux => "linux",
+            Os::Windows => "windows",
+        }
+    }
+
     pub fn from_cfg() -> Result<Os> {
         if cfg!(target_os = "macos") {
             Ok(Os::Mac)
