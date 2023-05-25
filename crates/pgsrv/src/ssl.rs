@@ -1,49 +1,49 @@
 use crate::errors::Result;
-use openssl::ssl::{NameType, Ssl, SslAcceptor, SslContext, SslFiletype, SslMethod};
+use rustls::{Certificate, PrivateKey, ServerConfig};
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use tokio::fs;
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
-use tokio_openssl::SslStream;
-use tracing::debug;
+use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 /// Configuration for creating encrypted connections using SSL/TLS.
 pub struct SslConfig {
-    pub context: SslContext,
+    pub config: Arc<ServerConfig>,
 }
 
 impl SslConfig {
     /// Create a new ssl config using the provided cert and key files.
-    pub fn new<P: AsRef<Path>>(cert: P, key: P) -> Result<SslConfig> {
-        // See <https://wiki.mozilla.org/Security/Server_Side_TLS>
-        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-        builder.set_certificate_chain_file(cert)?;
-        builder.set_private_key_file(key, SslFiletype::PEM)?;
-        builder.check_private_key()?;
-        // SNI related.
-        builder.set_servername_callback(|ssl, _alert| {
-            debug!(servername = ?ssl.servername(NameType::HOST_NAME), "client sent sni");
-            Ok(())
-        });
+    pub async fn new<P: AsRef<Path>>(cert: P, key: P) -> Result<SslConfig> {
+        let cert = Certificate(fs::read(cert).await?);
+        let key = PrivateKey(fs::read(key).await?);
 
-        let context = builder.build().into_context();
-        Ok(SslConfig { context })
+        let config = ServerConfig::builder()
+            .with_safe_default_cipher_suites()
+            .with_safe_default_kx_groups()
+            .with_safe_default_protocol_versions()?
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)?;
+
+        Ok(SslConfig {
+            config: Arc::new(config),
+        })
     }
 }
 
 /// A wrapper around a connection, optionally providing SSL encryption.
 pub enum Connection<C> {
     Unencrypted(C),
-    Encrypted(SslStream<C>),
+    Encrypted(TlsStream<C>),
 }
 
 impl<C> Connection<C>
 where
     C: AsyncRead + AsyncWrite + Unpin,
 {
-    pub async fn new_encrypted(conn: C, conf: &SslConfig) -> Result<Self> {
-        let mut stream = SslStream::new(Ssl::new(&conf.context)?, conn)?;
-        Pin::new(&mut stream).accept().await?;
+    pub async fn new_encrypted(conn: C, conf: Arc<ServerConfig>) -> Result<Self> {
+        let stream = TlsAcceptor::from(conf).accept(conn).await?;
         Ok(Connection::Encrypted(stream))
     }
 
@@ -54,10 +54,7 @@ where
     pub fn servername(&self) -> Option<String> {
         match self {
             Self::Unencrypted(_) => None,
-            Self::Encrypted(stream) => stream
-                .ssl()
-                .servername(NameType::HOST_NAME)
-                .map(|s| s.to_owned()),
+            Self::Encrypted(stream) => stream.get_ref().1.server_name().map(|s| s.to_string()),
         }
     }
 }

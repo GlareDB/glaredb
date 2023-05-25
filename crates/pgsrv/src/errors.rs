@@ -58,12 +58,6 @@ pub enum PgSrvError {
     MessageTooLarge(usize),
 
     #[error(transparent)]
-    OpenSsl(#[from] openssl::ssl::Error),
-
-    #[error(transparent)]
-    OpenSslStack(#[from] openssl::error::ErrorStack),
-
-    #[error(transparent)]
     Io(#[from] io::Error),
 
     #[error(transparent)]
@@ -83,4 +77,7 @@ pub enum PgSrvError {
 
     #[error(transparent)]
     ReqwestHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
+
+    #[error(transparent)]
+    Rustls(#[from] rustls::Error),
 }
