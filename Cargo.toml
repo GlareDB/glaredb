@@ -10,6 +10,3 @@ lto = "thin"
 
 [workspace.dependencies]
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", branch = "main" }
-
-[patch.crates-io]
-object_store = { git = "https://github.com/glaredb/arrow-rs.git", branch = "content-length" }

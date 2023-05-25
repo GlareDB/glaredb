@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.71"
 clap = { version = "4.2.7", features = ["derive"] }
-reqwest = {version = "0.11.18", features = ["blocking"]}
+reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls", "blocking"] }
 xshell = "0.2.3"
 zip = "0.6.6"
