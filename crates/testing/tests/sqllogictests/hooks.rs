@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, process::Stdio, time::Duration};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -135,7 +135,7 @@ SELECT public_key
 
     async fn wait_for_container_start(container_id: &str) -> Result<()> {
         async fn check_container(container_id: &str) -> Result<()> {
-            let cmd = Command::new("docker")
+            let child = Command::new("docker")
                 .args([
                     "exec",
                     "-i",
@@ -144,15 +144,19 @@ SELECT public_key
                     "ls",
                     "/config/.ssh/authorized_keys",
                 ])
-                .output()
-                .await?;
-            if cmd.status.success() {
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()?;
+
+            let out = child.wait_with_output().await?;
+
+            if out.status.success() {
                 Ok(())
             } else {
                 Err(anyhow!("container not started yet"))
             }
         }
-        let deadline = Instant::now() + Duration::from_secs(60);
+        let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             if check_container(container_id).await.is_ok() {
                 return Ok(());
