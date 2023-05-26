@@ -2,6 +2,12 @@
   <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
 </div>
 
+<div align="center">
+[![GlareDB Docs](https://img.shields.io/badge/Docs-GlareDB%20Reference-white&style=flat-square)](https://docs.glaredb.com)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/glaredb/glaredb?display_name=tag&style=flat-square)](https://github.com/GlareDB/glaredb/releases)
+[![Twitter Follow](https://img.shields.io/twitter/follow/glaredb?color=blue&logo=twitter&style=flat-square)](https://twitter.com/glaredb)
+</div>
+
 # GlareDB
 
 Repository for the core GlareDB database.
