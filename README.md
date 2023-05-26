@@ -1,5 +1,7 @@
 <div align="center">
-  <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
+  <a href="https://glaredb.com">
+    <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
+  </a>
 </div>
 
 <!-- Adds some spacing between logo and badges. -->
@@ -13,7 +15,8 @@
 
 ## About
 
-GlareDB is a database system built for querying and analyzing distributed data.
+GlareDB is a database system built for querying and analyzing distributed data
+using SQL.
 
 ## Install
 
@@ -29,14 +32,14 @@ a few clicks.
 Start GlareDB with the `local` subcommand to start a local SQL session:
 
 ```shell
-$ ./glaredb local
+./glaredb local
 ```
 
 Alternatively, the `server` subcommand can be used to launch a server process
 for GlareDB:
 
 ```shell
-$ ./glaredb server --local
+./glaredb server --local
 ```
 
 When launched as a server process, GlareDB can be reached on port 6543 using a
@@ -44,7 +47,7 @@ Postgres client. For example, connected to a local instance of GlareDB using
 `psql`:
 
 ```shell
-$ psql "host=localhost user=glaredb password=glaredb dbname=glaredb port=6543"
+psql "host=localhost user=glaredb password=glaredb dbname=glaredb port=6543"
 ```
 
 ## Building from source
@@ -55,7 +58,7 @@ an easy way to install Rust on your system.
 Running the following command will build a release binary:
 
 ```shell
-$ cargo xtask build --release
+cargo xtask build --release
 ```
 
 The compiled release binary can be found in `target/release/glaredb`.
@@ -66,9 +69,10 @@ Browse GlareDB documentation on our [docs.glaredb.com](https://docs.glaredb.com)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+Contributions welcome! Check out [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
 
 ## License
 
-See [LICENSE](./LICENSE).
+See [LICENSE](./LICENSE). Unless otherwise noted, this license applies to all files in
+this repository.
 
