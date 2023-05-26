@@ -120,7 +120,10 @@ SELECT public_key
             .await?;
         if !cmd.status.success() {
             let stderr = String::from_utf8_lossy(&cmd.stderr);
-            return Err(anyhow!("Cannot create open-ssh container: {stderr}"));
+            let stdout = String::from_utf8_lossy(&cmd.stdout);
+            return Err(anyhow!(
+                "Cannot create open-ssh container, stdout: {stdout}, stderr: {stderr}"
+            ));
         }
 
         let container_id = String::from_utf8(cmd.stdout)
