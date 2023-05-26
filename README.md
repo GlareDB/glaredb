@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center" style="padding-bottom: 12px">
   <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
 </div>
 
