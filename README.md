@@ -11,6 +11,8 @@
 <a href="https://twitter.com/glaredb"><img src="https://img.shields.io/twitter/follow/glaredb?color=blue&logo=twitter&style=flat-square"></img></a>
 </div>
 
+## About
+
 GlareDB is a database system built for querying external data sources using SQL.
 
 ## Install
