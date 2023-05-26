@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
+</div>
+
 # GlareDB
 
 Repository for the core GlareDB database.
