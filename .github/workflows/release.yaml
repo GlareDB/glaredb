@@ -1,13 +1,13 @@
 name: Build Release
 
 on:
+  schedule:
+    # Run every day at 12:00
+    - cron: 0 12 * * *
   workflow_dispatch:
   push:
     tags:
       - "*"
-    branches:
-      - main
-      - sean/release
 
 jobs:
   dist:
@@ -18,7 +18,7 @@ jobs:
           # See https://github.com/GlareDB/glaredb/issues/1030
           # - os: windows-latest
           #   target: x86_64-pc-windows-msvc
-          - os: ubuntu-20.04
+          - os: ubuntu-2004-8-cores
             target: x86_64-unknown-linux-gnu
           - os: macos-12-xl
             target: x86_64-apple-darwin
@@ -52,7 +52,7 @@ jobs:
           path: ./target/dist/
 
   publish:
-    name: publish
+    name: Publish
     runs-on: ubuntu-latest
     needs: ["dist"]
     steps:
