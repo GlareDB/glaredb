@@ -3,7 +3,7 @@
 </div>
 
 <div align="center">
-<a href="https://docs.glaredb.com"><img src="https://img.shields.io/badge/Docs-GlareDB Reference-white&style=flat-square"></img></a>
+<a href="https://docs.glaredb.com"><img src="https://img.shields.io/static/v1?label=Docs&message=GlareDB%20Reference&color=55A39B&style=flat-square"></img></a>
 <a href="https://github.com/GlareDB/glaredb/releases"><img src="https://img.shields.io/github/v/release/glaredb/glaredb?display_name=tag&style=flat-square"></img></a>
 <a href="https://twitter.com/glaredb"><img src="https://img.shields.io/twitter/follow/glaredb?color=blue&logo=twitter&style=flat-square"></img></a>
 </div>
