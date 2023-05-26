@@ -46,7 +46,7 @@ jobs:
         run: cargo xtask dist
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v3
         with:
           name: dist-${{ matrix.target }}
           path: ./target/dist/
@@ -72,7 +72,7 @@ jobs:
       - run: ls -al ./dist
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v3
         with:
           name: releases
           path: ./dist
