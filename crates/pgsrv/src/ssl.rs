@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use tokio::fs;
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
-use tracing::trace;
+use tracing::debug;
 
 /// Configuration for creating encrypted connections using SSL/TLS.
 #[derive(Debug)]
@@ -62,10 +62,8 @@ impl CertResolver {
 
 impl server::ResolvesServerCert for CertResolver {
     fn resolve(&self, client_hello: server::ClientHello) -> Option<Arc<sign::CertifiedKey>> {
-        match client_hello.server_name() {
-            Some(name) => trace!(%name, "resolving with server name"),
-            None => trace!("server name not provided"),
-        }
+        let server_name = client_hello.server_name();
+        debug!(?server_name, "sni server name");
 
         // TODO: Per host certs.
 

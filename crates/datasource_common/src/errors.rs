@@ -1,6 +1,10 @@
 #[derive(Debug, thiserror::Error)]
 pub enum DatasourceCommonError {
-    #[error(transparent)]
+    /// Generic openssh errors.
+    ///
+    /// Using debug to get the underlying errors (the openssh crate doesn't keep
+    /// those in the message).
+    #[error("{0:?}")]
     OpenSsh(#[from] openssh::Error),
 
     #[error(transparent)]
@@ -9,7 +13,11 @@ pub enum DatasourceCommonError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
-    #[error("Cannot establish SSH tunnel: {0}")]
+    /// Port forward error with openssh.
+    ///
+    /// Using debug to get the underlying errors (the openssh crate doesn't keep
+    /// those in the message).
+    #[error("Cannot establish SSH tunnel: {0:?}")]
     SshPortForward(openssh::Error),
 
     #[error("Failed to find an open port to open the SSH tunnel")]
