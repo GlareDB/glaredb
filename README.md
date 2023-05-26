@@ -13,7 +13,7 @@
 
 ## About
 
-GlareDB is a database system built for querying external data sources using SQL.
+GlareDB is a database system built for querying and analyzing distributed data.
 
 ## Install
 
@@ -46,6 +46,19 @@ Postgres client. For example, connected to a local instance of GlareDB using
 ```shell
 $ psql "host=localhost user=glaredb password=glaredb dbname=glaredb port=6543"
 ```
+
+## Building from source
+
+Building GlareDB requires Rust/Cargo to be installed. Check out [rustup](https://rustup.rs/) for
+an easy way to install Rust on your system.
+
+Running the following command will build a release binary:
+
+```shell
+$ cargo xtask build --release
+```
+
+The compiled release binary can be found in `target/release/glaredb`.
 
 ## Docs
 

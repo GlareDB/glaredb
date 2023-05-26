@@ -9,9 +9,7 @@ before merging in a PR. Since we squash merge, PR titles should follow
 Developing GlareDB requires that you have Rust and Cargo installed, along with
 some additional system dependencies:
 
-- OpenSSL dev bindings
 - Protobuf (protoc)
-- Possibly more
 
 ### Additional tooling
 
@@ -35,7 +33,7 @@ Unit tests attempt to test small parts of the system. These can be ran via
 cargo:
 
 ``` shell
-cargo test
+cargo xtask unit-tests
 ```
 
 When writing unit tests, aims to keep the scope small with a minimal amount of
