@@ -1,6 +1,8 @@
-<div align="center" style="padding-bottom: 12px">
+<div align="center">
   <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
 </div>
+
+<p></p>
 
 <div align="center">
 <a href="https://docs.glaredb.com"><img src="https://img.shields.io/static/v1?label=Docs&message=GlareDB%20Reference&color=55A39B&style=flat-square"></img></a>
