@@ -96,6 +96,14 @@ impl Cli {
 
         logutil::init(cli.verbose, false);
 
+        // Abort the program on panic. This will ensure that slt tests will
+        // never pass if there's a panic somewhere.
+        std::panic::set_hook(Box::new(|info| {
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            println!("Info: {}\n\nBacktrace:{}", info, backtrace);
+            std::process::abort();
+        }));
+
         Builder::new_multi_thread()
             .enable_all()
             .build()?
