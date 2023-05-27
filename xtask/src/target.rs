@@ -28,6 +28,7 @@ impl Target {
             (Arch::X86_64, Os::Mac) => "x86_64-apple-darwin",
             (Arch::Aarch64, Os::Mac) => "aarch64-apple-darwin",
             (Arch::X86_64, Os::Linux) => "x86_64-unknown-linux-gnu",
+            (Arch::Aarch64, Os::Linux) => "aarch64-unknown-linux-gnu",
             (Arch::X86_64, Os::Windows) => "x86_64-pc-windows-msvc",
             _ => return Err(anyhow!("unsupported target")),
         }
@@ -40,6 +41,7 @@ impl Target {
             (Arch::X86_64, Os::Mac) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-osx-universal_binary.zip",
             (Arch::Aarch64, Os::Mac) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-osx-universal_binary.zip",
             (Arch::X86_64, Os::Linux) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip",
+            (Arch::Aarch64, Os::Linux) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-aarch_64.zip",
             (Arch::X86_64, Os::Windows) => "https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-win64.zip",
             _ => return Err(anyhow!("unsupported target")),
         })

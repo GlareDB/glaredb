@@ -6,13 +6,8 @@ COPY . .
 
 RUN apt-get update && apt-get install -y openssl ca-certificates
 
-# Get protoc.
-RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip \
-    && unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc
-
 # Build release binary.
-RUN PROTOC="$HOME/.protoc/bin/protoc" \
-    cargo build -r --bin glaredb
+RUN cargo xtask build --release
 
 # Generate certs.
 RUN ./scripts/gen-certs.sh
