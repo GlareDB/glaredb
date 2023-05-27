@@ -1,6 +1,9 @@
 <div align="center">
-  <a href="https://glaredb.com">
+  <a href="https://glaredb.com#gh-light-mode-only">
     <img src="https://docs.glaredb.com/assets/logo.svg" height="44">
+  </a>
+  <a href="https://glaredb.com#gh-dark-mode-only">
+    <img src="https://glaredb.com/logo.svg" height="44">
   </a>
 </div>
 
