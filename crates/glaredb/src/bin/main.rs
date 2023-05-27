@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
-use glaredb::local::LocalEngine;
+use glaredb::local::{LocalClientOpts, LocalSession};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
@@ -36,27 +36,15 @@ struct Cli {
 enum Commands {
     /// Starts a local version of GlareDB.
     Local {
-        /// Address to the Metastore.
-        ///
-        /// If not provided, an in-process metastore will be started.
-        #[clap(short, long, value_parser)]
-        metastore_addr: Option<String>,
-
-        /// Path to spill temporary files to.
-        #[clap(long, value_parser)]
-        spill_path: Option<PathBuf>,
-
-        /// Local file path to store database catalog (for a local persistent
-        /// store).
-        #[clap(short = 'f', long, value_parser)]
-        local_file_path: Option<PathBuf>,
-
         /// Execute a query, exiting upon completion.
         ///
         /// Multiple statements may be provided, and results will be printed out
         /// one after another.
         #[clap(short, long, value_parser)]
         query: Option<String>,
+
+        #[clap(flatten)]
+        opts: LocalClientOpts,
     },
 
     /// Starts the sql server portion of GlareDB.
@@ -153,19 +141,13 @@ fn main() -> Result<()> {
     info!(version = env!("CARGO_PKG_VERSION"), "starting...");
 
     match cli.command {
-        Commands::Local {
-            metastore_addr,
-            spill_path,
-            local_file_path,
-            query,
-        } => {
+        Commands::Local { query, opts } => {
             let runtime = build_runtime("local")?;
             runtime.block_on(async move {
-                let local =
-                    LocalEngine::connect(metastore_addr, local_file_path, spill_path).await?;
+                let local = LocalSession::connect(opts).await?;
                 match query {
                     Some(q) => local.execute_one(&q).await,
-                    None => local.run().await,
+                    None => local.run_interactive().await,
                 }
             })?;
         }
