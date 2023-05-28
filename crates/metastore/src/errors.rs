@@ -41,6 +41,12 @@ pub enum MetastoreError {
     #[error("Tunnel '{tunnel}' not supported by datasource '{datasource}'")]
     TunnelNotSupportedByDatasource { tunnel: String, datasource: String },
 
+    #[error("Tunnel '{tunnel} not supported for {action}'")]
+    TunnelNotSupportedForAction {
+        tunnel: String,
+        action: &'static str,
+    },
+
     #[error("Catalog version mismatch; have: {have}, need: {need}")]
     VersionMismtatch { have: u64, need: u64 },
 

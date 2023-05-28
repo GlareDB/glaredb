@@ -1,0 +1,4 @@
+[alias]
+dev = "run --bin glaredb --"
+sqllogictests = "test --test sqllogictests --"
+xtask = "run --quiet --package xtask --"

@@ -120,7 +120,10 @@ SELECT public_key
             .await?;
         if !cmd.status.success() {
             let stderr = String::from_utf8_lossy(&cmd.stderr);
-            return Err(anyhow!("Cannot create open-ssh container: {stderr}"));
+            let stdout = String::from_utf8_lossy(&cmd.stdout);
+            return Err(anyhow!(
+                "Cannot create open-ssh container, stdout: {stdout}, stderr: {stderr}"
+            ));
         }
 
         let container_id = String::from_utf8(cmd.stdout)
@@ -132,24 +135,18 @@ SELECT public_key
 
     async fn wait_for_container_start(container_id: &str) -> Result<()> {
         async fn check_container(container_id: &str) -> Result<()> {
-            let cmd = Command::new("docker")
-                .args([
-                    "exec",
-                    "-i",
-                    "-t",
-                    container_id,
-                    "ls",
-                    "/config/.ssh/authorized_keys",
-                ])
+            let out = Command::new("docker")
+                .args(["exec", container_id, "ls", "/config/.ssh/authorized_keys"])
                 .output()
                 .await?;
-            if cmd.status.success() {
+
+            if out.status.success() {
                 Ok(())
             } else {
                 Err(anyhow!("container not started yet"))
             }
         }
-        let deadline = Instant::now() + Duration::from_secs(60);
+        let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             if check_container(container_id).await.is_ok() {
                 return Ok(());

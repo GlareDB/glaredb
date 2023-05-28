@@ -22,6 +22,7 @@ use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
+use metastore::types::catalog::EntryType;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -141,6 +142,13 @@ impl SessionContext {
             .count()
     }
 
+    pub fn get_tunnel_count(&mut self) -> usize {
+        self.metastore_catalog
+            .iter_entries()
+            .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Tunnel)
+            .count()
+    }
+
     /// Create a table.
     pub fn create_table(&self, _plan: CreateTable) -> Result<()> {
         Err(ExecError::UnsupportedFeature("CREATE TABLE"))
@@ -200,7 +208,12 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        // TODO: Max tunnel count?
+        if self.get_tunnel_count() >= self.info.max_tunnel_count {
+            return Err(ExecError::MaxTunnelCount(
+                self.info.max_tunnel_count,
+                self.get_tunnel_count(),
+            ));
+        }
 
         self.mutate_catalog([Mutation::CreateTunnel(service::CreateTunnel {
             name: plan.name,
@@ -244,6 +257,19 @@ impl SessionContext {
             service::AlterDatabaseRename {
                 name: plan.name,
                 new_name: plan.new_name,
+            },
+        )])
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
+        self.mutate_catalog([Mutation::AlterTunnelRotateKeys(
+            service::AlterTunnelRotateKeys {
+                name: plan.name,
+                if_exists: plan.if_exists,
+                new_ssh_key: plan.new_ssh_key,
             },
         )])
         .await?;

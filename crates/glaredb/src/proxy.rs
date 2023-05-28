@@ -23,7 +23,7 @@ impl Proxy {
         ssl_server_key: Option<String>,
     ) -> Result<Self> {
         let ssl_conf = match (ssl_server_cert, ssl_server_key) {
-            (Some(cert), Some(key)) => Some(SslConfig::new(cert, key)?),
+            (Some(cert), Some(key)) => Some(SslConfig::new(cert, key).await?),
             (None, None) => None,
             _ => {
                 return Err(anyhow!(

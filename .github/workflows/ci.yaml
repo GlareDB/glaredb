@@ -20,37 +20,27 @@ jobs:
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Download protoc
-        run: |
-          wget https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip
-          unzip protoc-23.1-linux-x86_64.zip -d $HOME/.protoc
-
       - name: Build
         run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo build --bin glaredb
-          cargo build --bin pgprototest
-          cargo build --bin sqllogictests
+          cargo xtask build
 
-      - name: Test
-        run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo test
+      - name: Unit Tests
+        run: cargo xtask unit-tests
+
+      - name: Doc Tests
+        run: cargo xtask doc-tests
 
       - name: Clippy
-        run: |
-          export PROTOC="$HOME/.protoc/bin/protoc"
-          cargo clippy --all-features -- --deny warnings
+        run: cargo xtask clippy
 
       - name: Format
-        run: cargo fmt --check
+        run: cargo xtask fmt-check
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      # Setup snowsql (can't use nix coz it's unfree).
       - name: Setup snowsql
         run: |
           curl -o snowsql.bash \
@@ -117,7 +107,7 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          cargo run --bin sqllogictests -- -v --exclude '*/tunnels/ssh'
+          cargo xtask test -- --test sqllogictests -- -v
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

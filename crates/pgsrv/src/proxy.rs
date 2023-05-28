@@ -146,6 +146,12 @@ pub const GLAREDB_MEMORY_LIMIT_BYTES_KEY: UsizeProxyKey = UsizeProxyKey {
     local_default: 0,
 };
 
+/// Param key for the memory limit in bytes. Added by pgsrv during proxying.
+pub const GLAREDB_MAX_TUNNEL_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
+    key: "max_tunnel_count",
+    local_default: 100,
+};
+
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.
 ///
@@ -189,7 +195,7 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
                             // SSL supported, send back that we support it and
                             // start encrypting.
                             conn.write_all(&[b'S']).await?;
-                            Connection::new_encrypted(conn, conf).await?
+                            Connection::new_encrypted(conn, conf.config.clone()).await?
                         }
                         (mut conn, _) => {
                             debug!("rejecting ssl request");
@@ -266,6 +272,10 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         params.insert(
             GLAREDB_MEMORY_LIMIT_BYTES_KEY.key.to_string(),
             db_details.memory_limit_bytes.to_string(),
+        );
+        params.insert(
+            GLAREDB_MAX_TUNNEL_COUNT_KEY.key.to_string(),
+            db_details.max_tunnel_count.to_string(),
         );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>
