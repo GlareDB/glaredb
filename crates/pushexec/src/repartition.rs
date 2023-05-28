@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use crate::operator::{Operator, Sink, Source};
+use crate::operator::{Pipeline, Sink, Source};
 use crate::partition::BufferedPartition;
 use datafusion::{
     arrow::record_batch::RecordBatch,
@@ -38,7 +38,7 @@ impl Repartitioner {
     }
 }
 
-impl Operator for Repartitioner {}
+impl Pipeline for Repartitioner {}
 
 impl Sink for Repartitioner {
     fn push_partition(&self, input: RecordBatch, partition: usize) -> Result<()> {

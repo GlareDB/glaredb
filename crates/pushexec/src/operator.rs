@@ -8,15 +8,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-pub struct Pipeline {
-    pub sink: BoxedSink,
-    pub operators: Vec<BoxedOperator>,
-    pub source: Vec<BoxedSource>,
-}
-
-pub type BoxedOperator = Pin<Box<dyn Operator>>;
-
-pub trait Operator: Sink + Source {}
+pub trait Pipeline: Sink + Source {}
 
 pub type BoxedSink = Pin<Box<dyn Sink>>;
 

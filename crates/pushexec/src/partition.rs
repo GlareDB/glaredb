@@ -12,7 +12,7 @@ use std::task::{Context, Poll, Waker};
 
 /// A buffer of record batches for a partition, along with wakers awaiting
 /// batches for said partition.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BufferedPartition {
     finished: bool,
     batches: Vec<RecordBatch>,
@@ -25,6 +25,10 @@ impl BufferedPartition {
         assert!(!self.finished, "finished called twice");
         self.finished = true;
         self.drain_wake_all();
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.finished
     }
 
     pub fn register_waker(&mut self, waker: Waker) {
