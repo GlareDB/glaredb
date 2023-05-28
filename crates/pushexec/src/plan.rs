@@ -1,6 +1,6 @@
 use crate::{
     errors::{PushExecError, Result},
-    operator::{Pipeline, Sink},
+    pipeline::{Pipeline, Sink},
     repartition::Repartitioner,
 };
 use datafusion::{

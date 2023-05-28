@@ -10,20 +10,22 @@ use std::{
 
 pub trait Pipeline: Sink + Source {}
 
-pub type BoxedSink = Pin<Box<dyn Sink>>;
+#[derive(Debug, Clone, Copy)]
+pub struct PushPartitionId {
+    /// Index of the partition.
+    pub idx: usize,
+    /// The child pipeline that this partition is coming from.
+    pub child: usize,
+}
 
 /// Accepts partitioned data.
 pub trait Sink: Send {
     /// Push a partition to the sink.
-    fn push_partition(&self, input: RecordBatch, partition: usize) -> Result<()>;
-
-    fn input_partitions(&self) -> usize;
+    fn push_partition(&self, input: RecordBatch, partition: PushPartitionId) -> Result<()>;
 
     /// Mark a partition as finished.
-    fn finish(&self, partition: usize) -> Result<()>;
+    fn finish(&self, partition: PushPartitionId) -> Result<()>;
 }
-
-pub type BoxedSource = Pin<Box<dyn Source>>;
 
 pub trait Source: Send {
     fn output_partitions(&self) -> usize;

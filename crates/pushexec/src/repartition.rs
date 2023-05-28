@@ -1,12 +1,11 @@
-use crate::errors::Result;
-use crate::operator::{Pipeline, Sink, Source};
+use crate::errors::{PushExecError, Result};
 use crate::partition::BufferedPartition;
+use crate::pipeline::{Pipeline, PushPartitionId, Sink, Source};
 use datafusion::{
     arrow::record_batch::RecordBatch,
     physical_plan::{metrics, repartition::BatchPartitioner, Partitioning},
 };
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll, Waker};
 
 /// A repartitioning operator meant to replace Datafusion's repartition/coalesce
@@ -15,6 +14,16 @@ pub struct Repartitioner {
     inner: Mutex<Inner>,
     outputs: usize,
     inputs: usize,
+}
+
+struct Inner {
+    partitioner: BatchPartitioner,
+
+    /// Output partition buffers.
+    partitions: Vec<BufferedPartition>,
+
+    /// Number of still open inputs.
+    open_inputs: usize,
 }
 
 impl Repartitioner {
@@ -41,7 +50,13 @@ impl Repartitioner {
 impl Pipeline for Repartitioner {}
 
 impl Sink for Repartitioner {
-    fn push_partition(&self, input: RecordBatch, partition: usize) -> Result<()> {
+    fn push_partition(&self, input: RecordBatch, partition: PushPartitionId) -> Result<()> {
+        if partition.child != 0 {
+            return Err(PushExecError::Static(
+                "Repartitioner only accepts input from a single child",
+            ));
+        }
+
         let mut inner = self.inner.lock();
         let inner = &mut *inner;
         inner.partitioner.partition(input, |idx, batch| {
@@ -52,13 +67,15 @@ impl Sink for Repartitioner {
         Ok(())
     }
 
-    fn input_partitions(&self) -> usize {
-        self.inputs
-    }
+    fn finish(&self, partition: PushPartitionId) -> Result<()> {
+        if partition.child != 0 {
+            return Err(PushExecError::Static(
+                "Repartitioner only accepts input from a single child",
+            ));
+        }
 
-    fn finish(&self, partition: usize) -> Result<()> {
         let mut inner = self.inner.lock();
-        let part = &mut inner.partitions[partition];
+        let part = &mut inner.partitions[partition.idx];
         part.finish();
 
         inner.open_inputs -= 1;
@@ -91,14 +108,4 @@ impl Source for Repartitioner {
             }
         }
     }
-}
-
-struct Inner {
-    partitioner: BatchPartitioner,
-
-    /// Output partition buffers.
-    partitions: Vec<BufferedPartition>,
-
-    /// Number of still open inputs.
-    open_inputs: usize,
 }

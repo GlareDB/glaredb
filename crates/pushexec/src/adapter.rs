@@ -1,6 +1,6 @@
 use crate::errors::{PushExecError, Result};
-use crate::operator::{Pipeline, Sink, Source};
 use crate::partition::{BufferedPartition, BufferedPartitionStream};
+use crate::pipeline::{Pipeline, PushPartitionId, Sink, Source};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -13,6 +13,7 @@ use datafusion::physical_plan::{
     DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
+use futures::StreamExt;
 use parking_lot::Mutex;
 use std::any::Any;
 use std::fmt::Formatter;
@@ -32,19 +33,23 @@ pub struct SubPlan {
     pub depth: usize,
 }
 
-/// Adapts a subpan whose child plans never have more than one child.
-///
-/// This subplan will be reprented as a single `Pipeline`.
-pub struct BranchlessAdapter {
-    /// Input partitions.
-    partitions: Vec<Arc<Mutex<BufferedPartition>>>,
+#[derive(Clone)]
+struct ChildPartitions();
+
+/// Adapts a subplan of a datafusion execution plan.
+pub struct ExecutionPlanAdapter {
+    /// Input partitions indexed by child index and partition index.
+    child_partitions: Vec<Vec<Arc<Mutex<BufferedPartition>>>>,
     /// Output streams.
-    streams: Vec<SendableRecordBatchStream>,
+    streams: Vec<Mutex<SendableRecordBatchStream>>,
 }
 
-impl BranchlessAdapter {
+impl ExecutionPlanAdapter {
     /// Create a new execution plan adapter from a subplan.
-    pub fn new(subplan: SubPlan, context: Arc<TaskContext>) -> Result<BranchlessAdapter> {
+    ///
+    /// Intermediate plans in the subplan must only have one child. The final
+    /// child in the subplan may have any number of children.
+    pub fn new(subplan: SubPlan, context: Arc<TaskContext>) -> Result<ExecutionPlanAdapter> {
         let mut plans = Vec::with_capacity(subplan.depth + 1);
 
         let mut curr = subplan.root;
@@ -62,31 +67,30 @@ impl BranchlessAdapter {
             plans.push(curr.clone());
         }
 
-        // Last child may have 0 or 1 children.
         let last = plans.pop().unwrap();
-        if last.children().len() > 1 {
-            return Err(PushExecError::Static(
-                "Last child plan does not have zero or one children",
-            ));
-        }
 
-        // Last child determines partitioning.
-        let partition_count = last.output_partitioning().partition_count();
-        let partitions: Vec<_> = (0..partition_count)
-            .map(|_| Arc::new(Mutex::new(BufferedPartition::default())))
-            .collect();
+        // Replace last plan's children with shims if it has any.
+        let children = last.children();
+        let mut child_partitions = Vec::with_capacity(children.len());
+        let last_with_shim = if children.is_empty() {
+            last // Nothing to shim
+        } else {
+            let mut shims = Vec::with_capacity(children.len());
 
-        // Replace last plan's child if it has one with a shim.
-        let last_with_shim = match last.children().len() {
-            0 => last.clone(), // Nothing to shim.
-            1 => {
-                let inner = last.clone();
-                last.with_new_children(vec![Arc::new(ExecutionPlanShim {
-                    inner,
+            for child in children {
+                let partition_count = child.output_partitioning().partition_count();
+                let partitions: Vec<_> = (0..partition_count)
+                    .map(|_| Arc::new(Mutex::new(BufferedPartition::default())))
+                    .collect();
+
+                shims.push(Arc::new(ExecutionPlanShim {
+                    inner: child,
                     partitions: partitions.clone(),
-                })])?
+                }) as Arc<dyn ExecutionPlan>);
+                child_partitions.push(partitions);
             }
-            _ => unreachable!(), // All plans were checked to ensure at most one child.
+
+            last.with_new_children(shims)?
         };
 
         // Rebuild subplan bottom up.
@@ -100,37 +104,33 @@ impl BranchlessAdapter {
         let mut streams = Vec::with_capacity(stream_count);
         for partition in 0..stream_count {
             let stream = curr.execute(partition, context.clone())?;
-            streams.push(stream);
+            streams.push(Mutex::new(stream));
         }
 
-        Ok(BranchlessAdapter {
-            partitions,
+        Ok(ExecutionPlanAdapter {
+            child_partitions,
             streams,
         })
     }
 }
 
-impl Pipeline for BranchlessAdapter {}
+impl Pipeline for ExecutionPlanAdapter {}
 
-impl Sink for BranchlessAdapter {
-    fn push_partition(&self, input: RecordBatch, partition: usize) -> Result<()> {
-        let mut partition = self.partitions[partition].lock();
+impl Sink for ExecutionPlanAdapter {
+    fn push_partition(&self, input: RecordBatch, partition: PushPartitionId) -> Result<()> {
+        let mut partition = self.child_partitions[partition.child][partition.idx].lock();
         partition.push_batch(input);
         Ok(())
     }
 
-    fn finish(&self, partition: usize) -> Result<()> {
-        let mut part = self.partitions[partition].lock();
+    fn finish(&self, partition: PushPartitionId) -> Result<()> {
+        let mut part = self.child_partitions[partition.child][partition.idx].lock();
         part.finish();
         Ok(())
     }
-
-    fn input_partitions(&self) -> usize {
-        self.partitions.len()
-    }
 }
 
-impl Source for BranchlessAdapter {
+impl Source for ExecutionPlanAdapter {
     fn output_partitions(&self) -> usize {
         self.streams.len()
     }
@@ -140,15 +140,9 @@ impl Source for BranchlessAdapter {
         cx: &mut Context,
         partition: usize,
     ) -> Poll<Option<Result<RecordBatch>>> {
-        let mut partition = self.partitions[partition].lock();
-        match partition.pop_batch() {
-            Some(batch) => Poll::Ready(Some(Ok(batch))),
-            None if partition.is_finished() => Poll::Ready(None),
-            None => {
-                partition.register_waker(cx.waker().clone());
-                Poll::Pending
-            }
-        }
+        let stream = self.streams[partition].lock().poll_next_unpin(cx);
+        // Map df error to push exec
+        stream.map(|o| o.map(|r| r.map_err(|e| PushExecError::DataFusion(e))))
     }
 }
 

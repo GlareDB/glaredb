@@ -1,6 +1,6 @@
 //! Push based exection with adapters for datafusion.
 pub mod errors;
-pub mod operator;
+pub mod pipeline;
 pub mod plan;
 pub mod scheduler;
 

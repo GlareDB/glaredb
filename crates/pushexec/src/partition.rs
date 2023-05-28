@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use crate::operator::{Sink, Source};
+use crate::pipeline::{Sink, Source};
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result as DataFusionResult;
