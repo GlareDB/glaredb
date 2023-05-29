@@ -98,8 +98,11 @@ impl SessionContext {
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
-        if info.memory_limit_bytes > 0 {
-            conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes)));
+        if let Some(mem_limit) = info.limits.memory_limit_bytes {
+            // TODO: Make this actually have optional semantics.
+            if mem_limit > 0 {
+                conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
+            }
         }
         let runtime = Arc::new(RuntimeEnv::new(conf).unwrap());
 
@@ -155,11 +158,13 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if self.get_datasource_count() >= self.info.max_datasource_count {
-            return Err(ExecError::MaxDatasourceCount(
-                self.info.max_datasource_count,
-                self.get_datasource_count(),
-            ));
+        if let Some(limit) = self.info.limits.max_datasource_count {
+            if self.get_datasource_count() >= limit {
+                return Err(ExecError::MaxDatasourceCount {
+                    max: limit,
+                    current: self.get_datasource_count(),
+                });
+            }
         }
 
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
@@ -188,11 +193,13 @@ impl SessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        if self.get_datasource_count() >= self.info.max_datasource_count {
-            return Err(ExecError::MaxDatasourceCount(
-                self.info.max_datasource_count,
-                self.get_datasource_count(),
-            ));
+        if let Some(limit) = self.info.limits.max_datasource_count {
+            if self.get_datasource_count() >= limit {
+                return Err(ExecError::MaxDatasourceCount {
+                    max: limit,
+                    current: self.get_datasource_count(),
+                });
+            }
         }
 
         self.mutate_catalog([Mutation::CreateExternalDatabase(
@@ -208,11 +215,13 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        if self.get_tunnel_count() >= self.info.max_tunnel_count {
-            return Err(ExecError::MaxTunnelCount(
-                self.info.max_tunnel_count,
-                self.get_tunnel_count(),
-            ));
+        if let Some(limit) = self.info.limits.max_tunnel_count {
+            if self.get_datasource_count() >= limit {
+                return Err(ExecError::MaxTunnelCount {
+                    max: limit,
+                    current: self.get_datasource_count(),
+                });
+            }
         }
 
         self.mutate_catalog([Mutation::CreateTunnel(service::CreateTunnel {
