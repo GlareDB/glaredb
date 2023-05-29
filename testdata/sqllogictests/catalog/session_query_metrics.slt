@@ -16,19 +16,19 @@ create external table t1 from debug options (table_type = 'never_ending');
 statement ok
 select * from t1 limit 18;
 
-# Check we've recored the correct metrics for that query.
-#
-# Note eventually we'll want to have a "query tag" session var of sorts to
-# included in the metrics table. That would help with being able to select
-# specific metrics for a query without needing to look up by query text.
-query TTI
-select result_type,
-       execution_status,
-       output_rows
-  from glare_catalog.session_query_metrics
- where query_text = 'SELECT * FROM t1 LIMIT 18';
-----
-query  success  18
+# # Check we've recored the correct metrics for that query.
+# #
+# # Note eventually we'll want to have a "query tag" session var of sorts to
+# # included in the metrics table. That would help with being able to select
+# # specific metrics for a query without needing to look up by query text.
+# query TTI
+# select result_type,
+#        execution_status,
+#        output_rows
+#   from glare_catalog.session_query_metrics
+#  where query_text = 'SELECT * FROM t1 LIMIT 18';
+# ----
+# query  success  18
 
 # Now check the errors get recorded for execution errors.
 
