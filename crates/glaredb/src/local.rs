@@ -16,6 +16,7 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use sqlexec::engine::SessionLimits;
 use sqlexec::engine::{Engine, TrackedSession};
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
@@ -111,9 +112,7 @@ impl LocalSession {
                     Uuid::nil(),
                     Uuid::nil(),
                     "glaredb".to_string(),
-                    0,
-                    0,
-                    0,
+                    SessionLimits::default(),
                 )
                 .await?,
             _engine: engine,

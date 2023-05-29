@@ -16,6 +16,7 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
+use sqlexec::engine::SessionLimits;
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -194,9 +195,11 @@ impl ProtocolHandler {
                 conn_id,
                 db_id,
                 database_name,
-                max_datasource_count,
-                memory_limit_bytes,
-                max_tunnel_count,
+                SessionLimits {
+                    max_datasource_count: Some(max_datasource_count),
+                    memory_limit_bytes: Some(memory_limit_bytes),
+                    max_tunnel_count: Some(max_tunnel_count),
+                },
             )
             .await
         {
