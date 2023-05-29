@@ -5179,6 +5179,7 @@ dependencies = [
  "futures",
  "logutil",
  "metastore",
+ "num_cpus",
  "object_store",
  "once_cell",
  "pgrepr",

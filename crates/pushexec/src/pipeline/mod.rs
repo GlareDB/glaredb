@@ -1,17 +1,14 @@
 use crate::errors::Result;
 use datafusion::arrow::record_batch::RecordBatch;
+use std::fmt::Debug;
 use std::task::{Context, Poll};
 
 pub mod execution;
 pub mod repartition;
 
-pub trait Pipeline: Send + Sync + std::fmt::Debug {
-    /// Push a [`RecordBatch`] to the given input partition
-    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()>;
+pub trait Pipeline: Source + Sink {}
 
-    /// Mark an input partition as exhausted
-    fn close(&self, child: usize, partition: usize);
-
+pub trait Source: Send + Sync + Debug {
     /// Returns the number of output partitions
     fn output_partitions(&self) -> usize;
 
@@ -43,4 +40,13 @@ pub trait Pipeline: Send + Sync + std::fmt::Debug {
         cx: &mut Context<'_>,
         partition: usize,
     ) -> Poll<Option<Result<RecordBatch>>>;
+}
+
+/// Sink target for pushing partitions.
+pub trait Sink: Send + Sync + Debug {
+    /// Push a [`RecordBatch`] to the given input partition
+    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()>;
+
+    /// Mark an input partition as exhausted
+    fn close(&self, child: usize, partition: usize);
 }

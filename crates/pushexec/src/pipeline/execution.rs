@@ -1,5 +1,5 @@
-use crate::pipeline::Pipeline;
-use crate::errors::{ PushExecError, Result };
+use crate::errors::{PushExecError, Result};
+use crate::pipeline::{Pipeline, Sink, Source};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
@@ -105,14 +105,15 @@ impl ExecutionPipeline {
     }
 }
 
-impl Pipeline for ExecutionPipeline {
-    /// Push a `RecordBatch` to the given input partition
+impl Pipeline for ExecutionPipeline {}
+
+impl Sink for ExecutionPipeline {
     fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
         let mut partition = self.inputs[child][partition].lock();
         assert!(!partition.is_closed);
 
         partition.buffer.push_back(input);
-        for waker in partition.wait_list.drain(..) {
+        if let Some(waker) = partition.waker.take() {
             waker.wake()
         }
         Ok(())
@@ -123,11 +124,13 @@ impl Pipeline for ExecutionPipeline {
         assert!(!partition.is_closed);
 
         partition.is_closed = true;
-        for waker in partition.wait_list.drain(..) {
+        if let Some(waker) = partition.waker.take() {
             waker.wake()
         }
     }
+}
 
+impl Source for ExecutionPipeline {
     fn output_partitions(&self) -> usize {
         self.outputs.len()
     }
@@ -148,7 +151,7 @@ impl Pipeline for ExecutionPipeline {
 #[derive(Debug, Default)]
 struct InputPartition {
     buffer: VecDeque<RecordBatch>,
-    wait_list: Vec<Waker>,
+    waker: Option<Waker>,
     is_closed: bool,
 }
 
@@ -166,7 +169,7 @@ impl Stream for InputPartitionStream {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
             None if partition.is_closed => Poll::Ready(None),
             _ => {
-                partition.wait_list.push(cx.waker().clone());
+                partition.waker = Some(cx.waker().clone());
                 Poll::Pending
             }
         }

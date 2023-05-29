@@ -1,4 +1,8 @@
+use crate::errors::PushExecError;
 use crate::errors::Result;
+use crate::pipeline::{Pipeline, Sink, Source};
+use crate::plan::{PipelinePlan, RoutablePipeline};
+use crate::Spawner;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -11,11 +15,8 @@ use futures::{ready, Stream, StreamExt};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
+use std::task::Wake;
 use std::task::{Context, Poll};
-
-use crate::errors::PushExecError;
-use crate::plan::{PipelinePlan, RoutablePipeline};
-use crate::scheduler::Spawner;
 
 /// Spawns a `PipelinePlan` using the provided `Spawner`
 pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) -> ExecutionResults {
@@ -36,7 +37,6 @@ pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) -> ExecutionResults {
                 context: context.clone(),
                 waker: Arc::new(TaskWaker {
                     context: Arc::downgrade(&context),
-                    wake_count: AtomicUsize::new(1),
                     pipeline: pipeline_idx,
                     partition,
                 }),
@@ -47,7 +47,7 @@ pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) -> ExecutionResults {
     let partitions = receivers
         .into_iter()
         .map(|receiver| ExecutionResultStream {
-            receiver: receiver,
+            receiver,
             context: context.clone(),
         })
         .collect();
@@ -98,15 +98,11 @@ impl Task {
             return;
         }
 
-        // Capture the wake count prior to calling [`Pipeline::poll_partition`]
-        // this allows us to detect concurrent wake ups and handle them correctly
-        let wake_count = self.waker.wake_count.load(Ordering::SeqCst);
-
         let node = self.waker.pipeline;
         let partition = self.waker.partition;
 
-        let waker = futures::task::waker_ref(&self.waker);
-        let mut cx = Context::from_waker(&*waker);
+        let waker = self.waker.clone().into();
+        let mut cx = Context::from_waker(&waker);
 
         let pipelines = &self.context.pipelines;
         let routable = &pipelines[node];
@@ -119,8 +115,6 @@ impl Task {
                             .push(batch, link.child, partition);
 
                         if let Err(e) = r {
-                            self.handle_error(partition, routable, e);
-
                             // Return without rescheduling this output again
                             return;
                         }
@@ -138,9 +132,11 @@ impl Task {
                 // newly scheduled task runs before this task finishes routing
                 // the output
                 let spawner = self.context.spawner.clone();
-                spawner.spawn_fifo(self);
+                spawner.spawn(self);
             }
-            Poll::Ready(Some(Err(e))) => self.handle_error(partition, routable, e),
+            Poll::Ready(Some(Err(e))) => {
+                //
+            }
             Poll::Ready(None) => match routable.output {
                 Some(link) => pipelines[link.pipeline]
                     .pipeline
@@ -148,22 +144,7 @@ impl Task {
                 None => self.context.finish(partition),
             },
             Poll::Pending => {
-                // Attempt to reset the wake count with the value obtained prior
-                // to calling [`Pipeline::poll_partition`].
                 //
-                // If this fails it indicates a wakeup was received whilst executing
-                // [`Pipeline::poll_partition`] and we should reschedule the task
-                let reset = self.waker.wake_count.compare_exchange(
-                    wake_count,
-                    0,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                );
-
-                if reset.is_err() {
-                    let spawner = self.context.spawner.clone();
-                    spawner.spawn(self);
-                }
             }
         }
     }
@@ -259,22 +240,6 @@ struct TaskWaker {
     /// [`Waker`] is stored within a [`Pipeline`] owned by the [`ExecutionContext`]
     context: Weak<ExecutionContext>,
 
-    /// A counter that stores the number of times this has been awoken
-    ///
-    /// A value > 0, implies the task is either in the ready queue or
-    /// currently being executed
-    ///
-    /// `TaskWaker::wake` always increments the `wake_count`, however, it only
-    /// re-enqueues the [`Task`] if the value prior to increment was 0
-    ///
-    /// This ensures that a given [`Task`] is not enqueued multiple times
-    ///
-    /// We store an integer, as opposed to a boolean, so that wake ups that
-    /// occur during [`Pipeline::poll_partition`] can be detected and handled
-    /// after it has finished executing
-    ///
-    wake_count: AtomicUsize,
-
     /// The index of the pipeline within `query` to poll
     pipeline: usize,
 
@@ -282,12 +247,8 @@ struct TaskWaker {
     partition: usize,
 }
 
-impl ArcWake for TaskWaker {
+impl Wake for TaskWaker {
     fn wake(self: Arc<Self>) {
-        if self.wake_count.fetch_add(1, Ordering::SeqCst) != 0 {
-            return;
-        }
-
         if let Some(context) = self.context.upgrade() {
             let task = Task {
                 context,
@@ -296,125 +257,5 @@ impl ArcWake for TaskWaker {
 
             task.context.spawner.clone().spawn(task);
         }
-    }
-
-    fn wake_by_ref(s: &Arc<Self>) {
-        ArcWake::wake(s.clone())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::errors::Result;
-    use crate::{pipeline::Pipeline, plan::RoutablePipeline, scheduler::Scheduler};
-    use datafusion::arrow::array::{ArrayRef, Int32Array};
-    use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::arrow::record_batch::RecordBatch;
-    use datafusion::error::DataFusionError;
-    use futures::{channel::oneshot, ready, FutureExt, StreamExt};
-    use parking_lot::Mutex;
-    use rayon::ThreadPoolBuilder;
-    use std::fmt::Debug;
-    use std::time::Duration;
-
-    /// Tests that waker can be sent to tokio pool
-    #[derive(Debug)]
-    struct TokioPipeline {
-        handle: tokio::runtime::Handle,
-        state: Mutex<State>,
-    }
-
-    #[derive(Debug)]
-    enum State {
-        Init,
-        Wait(oneshot::Receiver<Result<RecordBatch, DataFusionError>>),
-        Finished,
-    }
-
-    impl Default for State {
-        fn default() -> Self {
-            Self::Init
-        }
-    }
-
-    impl Pipeline for TokioPipeline {
-        fn push(&self, _input: RecordBatch, _child: usize, _partition: usize) -> Result<()> {
-            unreachable!()
-        }
-
-        fn close(&self, _child: usize, _partition: usize) {}
-
-        fn output_partitions(&self) -> usize {
-            1
-        }
-
-        fn poll_partition(
-            &self,
-            cx: &mut Context<'_>,
-            _partition: usize,
-        ) -> Poll<Option<Result<RecordBatch>>> {
-            let mut state = self.state.lock();
-            loop {
-                match &mut *state {
-                    State::Init => {
-                        let (sender, receiver) = oneshot::channel();
-                        self.handle.spawn(async move {
-                            tokio::time::sleep(Duration::from_millis(10)).await;
-                            let array = Int32Array::from_iter_values([1, 2, 3]);
-                            sender.send(
-                                RecordBatch::try_from_iter([("int", Arc::new(array) as ArrayRef)])
-                                    .map_err(DataFusionError::ArrowError),
-                            )
-                        });
-                        *state = State::Wait(receiver)
-                    }
-                    State::Wait(r) => {
-                        let v = ready!(r.poll_unpin(cx)).ok();
-                        *state = State::Finished;
-                        return Poll::Ready(v.map(|r| r.map_err(Into::into)));
-                    }
-                    State::Finished => return Poll::Ready(None),
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_tokio_waker() {
-        let pool = ThreadPoolBuilder::new().num_threads(2).build().unwrap();
-        let scheduler = Scheduler::new(Arc::new(pool));
-
-        // A tokio runtime
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .unwrap();
-
-        // A pipeline that dispatches to a tokio worker
-        let pipeline = TokioPipeline {
-            handle: runtime.handle().clone(),
-            state: Default::default(),
-        };
-
-        let plan = PipelinePlan {
-            schema: Arc::new(Schema::new(vec![Field::new("int", DataType::Int32, false)])),
-            output_partitions: 1,
-            pipelines: vec![RoutablePipeline {
-                pipeline: Box::new(pipeline),
-                output: None,
-            }],
-        };
-
-        let mut receiver = scheduler.schedule_plan(plan).stream();
-
-        runtime.block_on(async move {
-            // Should wait for output
-            let batch = receiver.next().await.unwrap().unwrap();
-            assert_eq!(batch.num_rows(), 3);
-
-            // Next batch should be none
-            assert!(receiver.next().await.is_none());
-        })
     }
 }

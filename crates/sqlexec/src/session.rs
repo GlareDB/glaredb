@@ -14,7 +14,7 @@ use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
-use pushexec::scheduler::Scheduler;
+use pushexec::SchedulerBuilder;
 use rayon::ThreadPoolBuilder;
 use std::fmt;
 use std::path::PathBuf;
@@ -184,9 +184,8 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        let pool = Arc::new(ThreadPoolBuilder::new().build()?);
-        let scheduler = Scheduler::new(pool);
 
+        let scheduler = SchedulerBuilder::new(num_cpus::get()).build();
         let stream = scheduler.schedule(plan, context)?.stream();
 
         Ok(stream)
