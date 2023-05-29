@@ -76,13 +76,13 @@ impl PartitionTask {
         match pipeline.pipeline.poll_partition(&mut cx, self.partition) {
             Poll::Ready(Some(Ok(batch))) => {
                 match pipeline.dest {
-                    Some(idx) => self.context.meta.pipelines[idx]
+                    Some(dest) => self.context.meta.pipelines[dest.pipeline]
                         .pipeline
                         .push_partition(
                             batch,
                             PushPartitionId {
-                                idx: self.partition,
-                                child: 0, // TODO
+                                idx: dest.pipeline,
+                                child: dest.child, // TODO
                             },
                         )
                         .unwrap(), // TODO
@@ -107,12 +107,12 @@ impl PartitionTask {
             }
             Poll::Ready(None) => {
                 match pipeline.dest {
-                    Some(idx) => {
-                        self.context.meta.pipelines[idx]
+                    Some(dest) => {
+                        self.context.meta.pipelines[dest.pipeline]
                             .pipeline
                             .finish(PushPartitionId {
-                                idx: self.partition,
-                                child: 0, // TODO
+                                idx: dest.pipeline,
+                                child: dest.child,
                             })
                             .unwrap() // TODO
                     }

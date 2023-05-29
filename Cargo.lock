@@ -5195,6 +5195,8 @@ dependencies = [
  "object_store",
  "once_cell",
  "pgrepr",
+ "pushexec",
+ "rayon",
  "regex",
  "serde_json",
  "sqlparser 0.34.0",

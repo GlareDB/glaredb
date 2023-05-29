@@ -13,6 +13,9 @@ use datafusion::physical_plan::{
 use datafusion::scalar::ScalarValue;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
+use pushexec::adapter::AdapterSink;
+use pushexec::plan::Planner;
+use pushexec::scheduler::Scheduler;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -180,9 +183,19 @@ impl Session {
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
+        let pool = rayon::ThreadPoolBuilder::new().build().unwrap();
+        let scheduler = Scheduler::new(Arc::new(pool));
+
+        let planner = Planner::default();
         let context = self.ctx.task_context();
-        let stream = execute_stream(plan, context)?;
-        Ok(stream)
+
+        let (sink, stream) = AdapterSink::new(plan.schema(), 1);
+
+        let pipeline = planner.plan_from_df_plan(plan, context, Some(Box::new(sink)))?;
+
+        scheduler.spawn_pipeline(pipeline)?;
+
+        Ok(Box::pin(stream))
     }
 
     pub(crate) async fn create_table(&self, _plan: CreateTable) -> Result<()> {

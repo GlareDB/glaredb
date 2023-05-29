@@ -10,17 +10,20 @@ use datafusion::physical_expr::{
 };
 use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
-    DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
+    DisplayFormatType, Distribution, ExecutionPlan, Partitioning, RecordBatchStream,
+    SendableRecordBatchStream, Statistics,
 };
-use futures::StreamExt;
+use futures::{ready, Stream, StreamExt};
 use parking_lot::Mutex;
 use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use tokio::sync::mpsc;
 use tonic::async_trait;
 
 /// A subplan represents part of a datafusion execution plan.
@@ -241,5 +244,75 @@ impl ExecutionPlan for ExecutionPlanShim {
 
     fn statistics(&self) -> Statistics {
         self.inner.statistics()
+    }
+}
+
+/// A `Sink` implementation that can be used as a `SendableBatchStream`.
+#[derive(Debug)]
+pub struct AdapterSink {
+    tx: mpsc::UnboundedSender<Option<RecordBatch>>,
+    finished_count: AtomicUsize,
+    num_partitions: usize,
+}
+
+impl AdapterSink {
+    pub fn new(schema: SchemaRef, num_partitions: usize) -> (AdapterSink, AdapterSinkStream) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (
+            AdapterSink {
+                tx,
+                finished_count: AtomicUsize::new(0),
+                num_partitions,
+            },
+            AdapterSinkStream { rx, schema },
+        )
+    }
+}
+
+impl Sink for AdapterSink {
+    fn push_partition(&self, input: RecordBatch, _partition: PushPartitionId) -> Result<()> {
+        match self.tx.send(Some(input)) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(PushExecError::Static(
+                "failed to push partition batch to stream",
+            )),
+        }
+    }
+
+    fn finish(&self, partition: PushPartitionId) -> Result<()> {
+        // Assume finish not called more than once per partition.
+        let v = self.finished_count.fetch_add(1, Ordering::Relaxed);
+        if v + 1 == self.num_partitions {
+            if self.tx.send(None).is_err() {
+                return Err(PushExecError::Static("failed to push stream end"));
+            }
+        }
+        Ok(())
+    }
+}
+
+pub struct AdapterSinkStream {
+    rx: mpsc::UnboundedReceiver<Option<RecordBatch>>,
+    schema: SchemaRef,
+}
+
+impl Stream for AdapterSinkStream {
+    type Item = DataFusionResult<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.rx.poll_recv(cx) {
+            Poll::Ready(Some(opt)) => match opt {
+                Some(batch) => Poll::Ready(Some(Ok(batch))),
+                None => Poll::Ready(None),
+            },
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl RecordBatchStream for AdapterSinkStream {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
     }
 }

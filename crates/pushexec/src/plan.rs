@@ -24,12 +24,19 @@ pub struct MetaPipeline {
     pub sink: Option<Box<dyn Sink>>,
 }
 
+/// Points to the destination to push a batch.
+#[derive(Debug, Clone, Copy)]
+pub struct DestinationLink {
+    pub pipeline: usize,
+    pub child: usize,
+}
+
 #[derive(Debug)]
 pub struct LinkedPipeline {
     /// The source pipeline.
     pub pipeline: Box<dyn Pipeline>,
     /// Index of the pipeline to push its output to.
-    pub dest: Option<usize>,
+    pub dest: Option<DestinationLink>,
 }
 
 /// A planner is able to produce a push based execution pipeline from a
@@ -66,7 +73,11 @@ struct PlanState {
 impl PlanState {
     /// Walk the plan depth first and transform datafusion execution plans into
     /// their equivalent pipelines.
-    fn walk_plan(&mut self, dest: Option<usize>, plan: Arc<dyn ExecutionPlan>) -> Result<()> {
+    fn walk_plan(
+        &mut self,
+        dest: Option<DestinationLink>,
+        plan: Arc<dyn ExecutionPlan>,
+    ) -> Result<()> {
         if let Some(plan) = plan.as_any().downcast_ref::<RepartitionExec>() {
             // Replace repartition execs with the pipeline impl.
             debug!("replacing repartition exec");
@@ -79,10 +90,14 @@ impl PlanState {
                 pipeline: Box::new(pipeline),
                 dest,
             });
-            let dest = Some(self.pipelines.len());
+            let pipeline_idx = self.pipelines.len();
 
-            for child in plan.children() {
-                self.walk_plan(dest, child)?;
+            for (child_idx, child) in plan.children().into_iter().enumerate() {
+                let dest = DestinationLink {
+                    pipeline: pipeline_idx,
+                    child: child_idx,
+                };
+                self.walk_plan(Some(dest), child)?;
             }
         } else if let Some(plan) = plan.as_any().downcast_ref::<CoalescePartitionsExec>() {
             // Replace coalesce partition exec with the pipeline impl.
@@ -96,10 +111,14 @@ impl PlanState {
                 pipeline: Box::new(pipeline),
                 dest,
             });
-            let dest = Some(self.pipelines.len());
+            let pipeline_idx = self.pipelines.len();
 
-            for child in plan.children() {
-                self.walk_plan(dest, child)?;
+            for (child_idx, child) in plan.children().into_iter().enumerate() {
+                let dest = DestinationLink {
+                    pipeline: pipeline_idx,
+                    child: child_idx,
+                };
+                self.walk_plan(Some(dest), child)?;
             }
         } else {
             // Adapt execution plans.
@@ -137,12 +156,17 @@ impl PlanState {
                 pipeline: Box::new(plan),
                 dest,
             });
-            let dest = Some(self.pipelines.len());
+            let pipeline_idx = self.pipelines.len();
 
             // Walk children of the plan we stopped at, pointing back up to the
             // adapter pipeline we just created.
-            for child in children {
-                self.walk_plan(dest, child)?;
+            for (child_idx, child) in children.into_iter().enumerate() {
+                let dest = DestinationLink {
+                    pipeline: pipeline_idx,
+                    child: child_idx,
+                };
+
+                self.walk_plan(Some(dest), child)?;
             }
         }
 
