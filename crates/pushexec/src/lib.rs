@@ -35,43 +35,17 @@
 //!
 //! [Morsel-Driven Parallelism]: https://db.in.tum.de/~leis/papers/morsels.pdf
 //! [rayon]: https://docs.rs/rayon/latest/rayon/
-//!
-//! # Example
-//!
-//! ```rust
-//! # use futures::TryStreamExt;
-//! # use datafusion::prelude::{CsvReadOptions, SessionConfig, SessionContext};
-//! # use datafusion_scheduler::Scheduler;
-//!
-//! # #[tokio::main]
-//! # async fn main() {
-//! let scheduler = Scheduler::new(4);
-//! let config = SessionConfig::new().with_target_partitions(4);
-//! let context = SessionContext::with_config(config);
-//!
-//! context.register_csv("example", "../core/tests/example.csv", CsvReadOptions::new()).await.unwrap();
-//! let plan = context.sql("SELECT MIN(b) FROM example")
-//!     .await
-//!    .unwrap()
-//!    .create_physical_plan()
-//!    .await
-//!    .unwrap();
-//!
-//! let task = context.task_ctx();
-//! let stream = scheduler.schedule(plan, task).unwrap();
-//! let scheduled: Vec<_> = stream.try_collect().await.unwrap();
-//! # }
-//! ```
 
 use datafusion::{execution::context::TaskContext, physical_plan::ExecutionPlan};
-use plan::{PipelinePlan, PipelinePlanner, RoutablePipeline};
+use pipeline::{ErrorSink, Sink};
+use plan::{PipelinePlan, PipelinePlanner};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::sync::Arc;
-pub use task::ExecutionResults;
 use task::{spawn_plan, Task};
 use tracing::{debug, error};
 
 pub mod errors;
+pub mod stream;
 
 mod pipeline;
 mod plan;
@@ -91,7 +65,7 @@ impl SchedulerBuilder {
         let builder = ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .panic_handler(|p| error!("{}", format_worker_panic(p)))
-            .thread_name(|idx| format!("df-worker-{}", idx));
+            .thread_name(|idx| format!("worker-{}", idx));
 
         Self { inner: builder }
     }
@@ -115,17 +89,13 @@ impl SchedulerBuilder {
     }
 }
 
-/// A [`Scheduler`] that can be used to schedule [`ExecutionPlan`] on a dedicated thread pool
+/// A `Scheduler` that can be used to schedule `ExecutionPlan` on a dedicated
+/// thread pool.
 pub struct Scheduler {
     pool: Arc<ThreadPool>,
 }
 
 impl Scheduler {
-    /// Create a new [`Scheduler`] with `num_threads` new threads in a dedicated thread pool
-    pub(crate) fn new(num_threads: usize) -> Self {
-        SchedulerBuilder::new(num_threads).build()
-    }
-
     /// Schedule the provided [`ExecutionPlan`] on this [`Scheduler`].
     ///
     /// Returns a [`ExecutionResults`] that can be used to receive results as they are produced,
@@ -134,13 +104,16 @@ impl Scheduler {
         &self,
         plan: Arc<dyn ExecutionPlan>,
         context: Arc<TaskContext>,
-    ) -> Result<ExecutionResults> {
-        let plan = PipelinePlanner::new(plan, context).build()?;
-        Ok(self.schedule_plan(plan))
+        sink: Arc<dyn Sink>,
+        error_sink: Arc<dyn ErrorSink>,
+    ) -> Result<()> {
+        let plan = PipelinePlanner::new(plan, context).build(sink, error_sink)?;
+        self.schedule_plan(plan);
+        Ok(())
     }
 
     /// Schedule the provided [`PipelinePlan`] on this [`Scheduler`].
-    pub(crate) fn schedule_plan(&self, plan: PipelinePlan) -> ExecutionResults {
+    pub(crate) fn schedule_plan(&self, plan: PipelinePlan) {
         spawn_plan(plan, self.spawner())
     }
 
@@ -170,42 +143,6 @@ fn format_worker_panic(panic: Box<dyn std::any::Any + Send>) -> String {
     format!("worker {} panicked with: {}", worker, message)
 }
 
-/// Returns `true` if the current thread is a rayon worker thread
-///
-/// Note: if there are multiple rayon pools, this will return `true` if the current thread
-/// belongs to ANY rayon pool, even if this isn't a worker thread of a [`Scheduler`] instance
-fn is_worker() -> bool {
-    rayon::current_thread_index().is_some()
-}
-
-/// Spawn a [`Task`] onto the local workers thread pool
-///
-/// There is no guaranteed order of execution, as workers may steal at any time. However,
-/// `spawn_local` will append to the front of the current worker's queue, workers pop tasks from
-/// the front of their queue, and steal tasks from the back of other workers queues
-///
-/// The effect is that tasks spawned using `spawn_local` will typically be prioritised in
-/// a LIFO order, however, this should not be relied upon
-fn spawn_local(task: Task) {
-    // Verify is a worker thread to avoid creating a global pool
-    assert!(is_worker(), "must be called from a worker");
-    rayon::spawn(|| task.do_work())
-}
-
-/// Spawn a [`Task`] onto the local workers thread pool with fifo ordering
-///
-/// There is no guaranteed order of execution, as workers may steal at any time. However,
-/// `spawn_local_fifo` will append to the back of the current worker's queue, workers pop tasks
-/// from the front of their queue, and steal tasks from the back of other workers queues
-///
-/// The effect is that tasks spawned using `spawn_local_fifo` will typically be prioritised
-/// in a FIFO order, however, this should not be relied upon
-fn spawn_local_fifo(task: Task) {
-    // Verify is a worker thread to avoid creating a global pool
-    assert!(is_worker(), "must be called from a worker");
-    rayon::spawn_fifo(|| task.do_work())
-}
-
 #[derive(Debug, Clone)]
 pub struct Spawner {
     pool: Arc<ThreadPool>,
@@ -213,20 +150,19 @@ pub struct Spawner {
 
 impl Spawner {
     pub fn spawn(&self, task: Task) {
-        debug!("Spawning {:?} to any worker", task);
+        debug!(?task, "spawning task to any worker");
         self.pool.spawn(move || task.do_work());
+    }
+
+    pub fn spawn_fifo(&self, task: Task) {
+        debug!(?task, "spawning task to any worker (fifo)");
+        self.pool.spawn_fifo(move || task.do_work());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
-    use std::panic::panic_any;
-
-    use futures::{StreamExt, TryStreamExt};
-    use rand::distributions::uniform::SampleUniform;
-    use rand::{thread_rng, Rng};
-
+    use crate::stream::create_coalescing_adapter;
     use datafusion::arrow::array::{ArrayRef, PrimitiveArray};
     use datafusion::arrow::datatypes::{ArrowPrimitiveType, Float64Type, Int32Type};
     use datafusion::arrow::record_batch::RecordBatch;
@@ -234,6 +170,11 @@ mod tests {
     use datafusion::datasource::{MemTable, TableProvider};
     use datafusion::physical_plan::displayable;
     use datafusion::prelude::{SessionConfig, SessionContext};
+    use futures::{StreamExt, TryStreamExt};
+    use rand::distributions::uniform::SampleUniform;
+    use rand::{thread_rng, Rng};
+    use std::ops::Range;
+    use std::panic::panic_any;
 
     use super::*;
 
@@ -298,7 +239,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple() {
-        let scheduler = Scheduler::new(4);
+        let scheduler = SchedulerBuilder::new(4).build();
 
         let config = SessionConfig::new().with_target_partitions(4);
         let context = SessionContext::with_config(config);
@@ -327,7 +268,11 @@ mod tests {
 
             println!("Plan: {}", displayable(plan.as_ref()).indent());
 
-            let stream = scheduler.schedule(plan, task).unwrap().stream();
+            let (sink, stream) =
+                create_coalescing_adapter(plan.output_partitioning(), plan.schema());
+            let sink = Arc::new(sink);
+
+            scheduler.schedule(plan, task, sink.clone(), sink).unwrap();
             let scheduled: Vec<_> = stream.try_collect().await.unwrap();
             let expected = query.collect().await.unwrap();
 
@@ -349,49 +294,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_partitioned() {
-        let scheduler = Scheduler::new(4);
-
-        let config = SessionConfig::new().with_target_partitions(4);
-        let context = SessionContext::with_config(config);
-        let plan = context
-            .read_table(make_provider())
-            .unwrap()
-            .create_physical_plan()
-            .await
-            .unwrap();
-
-        assert_eq!(plan.output_partitioning().partition_count(), NUM_PARTITIONS);
-
-        let results = scheduler
-            .schedule(plan.clone(), context.task_ctx())
-            .unwrap();
-
-        let batches = results.stream().try_collect::<Vec<_>>().await.unwrap();
-        assert_eq!(batches.len(), NUM_PARTITIONS * BATCHES_PER_PARTITION);
-
-        for batch in batches {
-            assert_eq!(batch.num_rows(), ROWS_PER_BATCH)
-        }
-
-        let results = scheduler.schedule(plan, context.task_ctx()).unwrap();
-        let streams = results.stream_partitioned();
-
-        let partitions: Vec<Vec<_>> =
-            futures::future::try_join_all(streams.into_iter().map(|s| s.try_collect()))
-                .await
-                .unwrap();
-
-        assert_eq!(partitions.len(), NUM_PARTITIONS);
-        for batches in partitions {
-            assert_eq!(batches.len(), BATCHES_PER_PARTITION);
-            for batch in batches {
-                assert_eq!(batch.num_rows(), ROWS_PER_BATCH);
-            }
-        }
-    }
-
-    #[tokio::test]
     async fn test_panic() {
         let do_test = |scheduler: Scheduler| {
             scheduler.pool.spawn(|| panic!("test"));
@@ -400,7 +302,7 @@ mod tests {
         };
 
         // The default panic handler should log panics and not abort the process
-        do_test(Scheduler::new(1));
+        do_test(SchedulerBuilder::new(1).build());
 
         // Override panic handler and capture panics to test formatting
         let (sender, receiver) = futures::channel::mpsc::unbounded();

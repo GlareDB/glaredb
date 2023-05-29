@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::errors::{PushExecError, Result};
 use datafusion::arrow::record_batch::RecordBatch;
 use std::fmt::Debug;
 use std::task::{Context, Poll};
@@ -48,5 +48,11 @@ pub trait Sink: Send + Sync + Debug {
     fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()>;
 
     /// Mark an input partition as exhausted
-    fn close(&self, child: usize, partition: usize);
+    fn close(&self, child: usize, partition: usize) -> Result<()>;
+}
+
+/// A sink target for pushing errors during normal pipeline execution.
+pub trait ErrorSink: Send + Sync + Debug {
+    /// Push an error for some partition.
+    fn push_error(&self, err: PushExecError, partition: usize) -> Result<()>;
 }

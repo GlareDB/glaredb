@@ -119,7 +119,7 @@ impl Sink for ExecutionPipeline {
         Ok(())
     }
 
-    fn close(&self, child: usize, partition: usize) {
+    fn close(&self, child: usize, partition: usize) -> Result<()> {
         let mut partition = self.inputs[child][partition].lock();
         assert!(!partition.is_closed);
 
@@ -127,6 +127,8 @@ impl Sink for ExecutionPipeline {
         for waker in partition.wait_list.drain(..) {
             waker.wake()
         }
+
+        Ok(())
     }
 }
 

@@ -1,37 +1,18 @@
 use crate::errors::Result;
 use crate::pipeline::{execution::ExecutionPipeline, repartition::RepartitionPipeline, Pipeline};
+use crate::pipeline::{ErrorSink, Sink};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::{ExecutionPlan, Partitioning};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-/// Identifies the [`Pipeline`] within the [`PipelinePlan`] to route output to
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct OutputLink {
-    /// The index of the [`Pipeline`] in [`PipelinePlan`] to route output to
-    pub pipeline: usize,
-
-    /// The child of the [`Pipeline`] to route output to
-    pub child: usize,
-}
-
-/// Combines a [`Pipeline`] with an [`OutputLink`] identifying where to send its output
-#[derive(Debug)]
-pub struct RoutablePipeline {
-    /// The pipeline that produces data
-    pub pipeline: Box<dyn Pipeline>,
-
-    /// Where to send output the output of `pipeline`
-    ///
-    /// If `None`, the output should be sent to the query output
-    pub output: Option<OutputLink>,
-}
-
-/// [`PipelinePlan`] is the scheduler's representation of the [`ExecutionPlan`] passed to
-/// [`super::Scheduler::schedule`]. It combines the list of [Pipeline`] with the information
-/// necessary to route output from one stage to the next
+/// [`PipelinePlan`] is the scheduler's representation of the [`ExecutionPlan`]
+/// passed to [`super::Scheduler::schedule`]. It combines the list of
+/// [Pipeline`] with the information necessary to route output from one stage to
+/// the next
 #[derive(Debug)]
 pub struct PipelinePlan {
     /// Schema of this plans output
@@ -42,6 +23,49 @@ pub struct PipelinePlan {
 
     /// Pipelines that comprise this plan
     pub pipelines: Vec<RoutablePipeline>,
+
+    /// The output sink for this pipeline plan.
+    pub sink: Arc<dyn Sink>,
+
+    /// The error sink for this pipeline plan.
+    pub error_sink: Arc<dyn ErrorSink>,
+
+    /// If this pipeline has been cancelled.
+    pub cancelled: AtomicBool,
+}
+
+impl PipelinePlan {
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed)
+    }
+}
+
+/// Identifies the [`Pipeline`] within the [`PipelinePlan`] to route output to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OutputLink {
+    /// The index of the [`Pipeline`] in [`PipelinePlan`] to route output to
+    pub pipeline: usize,
+
+    /// The child of the [`Pipeline`] to route output to
+    pub child: usize,
+}
+
+/// Combines a [`Pipeline`] with an [`OutputLink`] identifying where to send its
+/// output
+#[derive(Debug)]
+pub struct RoutablePipeline {
+    /// The pipeline that produces data
+    pub pipeline: Box<dyn Pipeline>,
+
+    /// Where to send output the output of `pipeline`
+    ///
+    /// If `None`, the output should be sent to the final output sink for the
+    /// pipeline plan.
+    pub output: Option<OutputLink>,
 }
 
 /// When converting [`ExecutionPlan`] to [`Pipeline`] we may wish to group
@@ -246,7 +270,12 @@ impl PipelinePlanner {
     /// The above logic is liable to change, is considered an implementation detail of the
     /// scheduler, and should not be relied upon by operators
     ///
-    pub fn build(mut self) -> Result<PipelinePlan> {
+    /// The resulting plan will have its final output routed to `sink`.
+    pub fn build(
+        mut self,
+        sink: Arc<dyn Sink>,
+        error_sink: Arc<dyn ErrorSink>,
+    ) -> Result<PipelinePlan> {
         // We do a depth-first scan of the operator tree, extracting a list of [`QueryNode`]
         while let Some((plan, parent)) = self.to_visit.pop() {
             self.visit_operator(plan, parent)?;
@@ -260,6 +289,9 @@ impl PipelinePlanner {
             schema: self.schema,
             output_partitions: self.output_partitions,
             pipelines: self.completed,
+            sink,
+            error_sink,
+            cancelled: AtomicBool::new(false),
         })
     }
 }

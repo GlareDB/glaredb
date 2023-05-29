@@ -1,42 +1,22 @@
 use crate::errors::PushExecError;
-use crate::errors::Result;
-use crate::pipeline::{Pipeline, Sink, Source};
 use crate::plan::{PipelinePlan, RoutablePipeline};
 use crate::Spawner;
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use futures::channel::mpsc;
-use futures::task::ArcWake;
-use futures::{ready, Stream, StreamExt};
-use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::task::Wake;
 use std::task::{Context, Poll};
+use tracing::{debug, error};
 
 /// Spawns a `PipelinePlan` using the provided `Spawner`
-pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) -> ExecutionResults {
-    let (senders, receivers) = (0..plan.output_partitions)
-        .map(|_| mpsc::unbounded())
-        .unzip::<_, _, Vec<_>, Vec<_>>();
+pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) {
+    let context = Arc::new(ExecutionContext { spawner, plan });
 
-    let context = Arc::new(ExecutionContext {
-        spawner,
-        pipelines: plan.pipelines,
-        schema: plan.schema,
-        output: senders,
-    });
-
-    for (pipeline_idx, query_pipeline) in context.pipelines.iter().enumerate() {
+    for (pipeline_idx, query_pipeline) in context.plan.pipelines.iter().enumerate() {
         for partition in 0..query_pipeline.pipeline.output_partitions() {
             context.spawner.spawn(Task {
                 context: context.clone(),
                 waker: Arc::new(TaskWaker {
-                    context: Arc::downgrade(&context),
+                    context: context.clone(),
                     wake_count: AtomicUsize::new(1),
                     pipeline: pipeline_idx,
                     partition,
@@ -44,36 +24,23 @@ pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) -> ExecutionResults {
             });
         }
     }
-
-    let partitions = receivers
-        .into_iter()
-        .map(|receiver| ExecutionResultStream {
-            receiver,
-            context: context.clone(),
-        })
-        .collect();
-
-    ExecutionResults {
-        streams: partitions,
-        context,
-    }
 }
 
-/// A [`Task`] identifies an output partition within a given pipeline that may be able to
-/// make progress. The [`Scheduler`][super::Scheduler] maintains a list of outstanding
-/// [`Task`] and distributes them amongst its worker threads.
+/// A `Task` identifies an output partition within a given pipeline that may be
+/// able to make progress. The `Scheduler` maintains a list of outstanding
+/// `Task` and distributes them amongst its worker threads.
 pub struct Task {
-    /// Maintain a link to the [`ExecutionContext`] this is necessary to be able to
-    /// route the output of the partition to its destination
+    /// Maintain a link to the `ExecutionContext` this is necessary to be able
+    /// to route the output of the partition to its destination.
     context: Arc<ExecutionContext>,
 
-    /// A [`ArcWake`] that can be used to re-schedule this [`Task`] for execution
+    /// A waker that can be used to re-schedule this `Task` for execution.
     waker: Arc<TaskWaker>,
 }
 
 impl std::fmt::Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let output = &self.context.pipelines[self.waker.pipeline].output;
+        let output = &self.context.plan.pipelines[self.waker.pipeline].output;
 
         f.debug_struct("Task")
             .field("pipeline", &self.waker.pipeline)
@@ -85,17 +52,30 @@ impl std::fmt::Debug for Task {
 
 impl Task {
     fn handle_error(&self, partition: usize, routable: &RoutablePipeline, error: PushExecError) {
-        self.context.send_query_output(partition, Err(error));
+        debug!(%error, ?routable, "handling error for pipeline");
+        if let Err(e) = self
+            .context
+            .plan
+            .error_sink
+            .push_error(error, self.waker.partition)
+        {
+            error!(%partition, %e, "failed to push error for partition")
+        }
+
         if let Some(link) = routable.output {
-            self.context.pipelines[link.pipeline]
+            if let Err(e) = self.context.plan.pipelines[link.pipeline]
                 .pipeline
-                .close(link.child, self.waker.partition);
+                .close(link.child, self.waker.partition)
+            {
+                error!(?link, %e, "failed to close pipeline");
+            }
         }
     }
 
     /// Call [`Pipeline::poll_partition`], attempting to make progress on query execution
     pub fn do_work(self) {
-        if self.context.is_cancelled() {
+        if self.context.plan.is_cancelled() {
+            debug!("pipeline cancelled");
             return;
         }
 
@@ -109,22 +89,26 @@ impl Task {
         let waker = self.waker.clone().into();
         let mut cx = Context::from_waker(&waker);
 
-        let pipelines = &self.context.pipelines;
+        let pipelines = &self.context.plan.pipelines;
         let routable = &pipelines[node];
         match routable.pipeline.poll_partition(&mut cx, partition) {
             Poll::Ready(Some(Ok(batch))) => {
                 match routable.output {
                     Some(link) => {
-                        let r = pipelines[link.pipeline]
+                        if let Err(e) = pipelines[link.pipeline]
                             .pipeline
-                            .push(batch, link.child, partition);
-
-                        if let Err(e) = r {
-                            // Return without rescheduling this output again
+                            .push(batch, link.child, partition)
+                        {
+                            self.handle_error(partition, routable, e);
+                            // Return without rescheduling this output again.
                             return;
                         }
                     }
-                    None => self.context.send_query_output(partition, Ok(batch)),
+                    None => {
+                        if let Err(e) = self.context.plan.sink.push(batch, 0, partition) {
+                            self.handle_error(partition, routable, e);
+                        }
+                    }
                 }
 
                 // Reschedule this pipeline again
@@ -137,16 +121,23 @@ impl Task {
                 // newly scheduled task runs before this task finishes routing
                 // the output
                 let spawner = self.context.spawner.clone();
-                spawner.spawn(self);
+                spawner.spawn_fifo(self);
             }
-            Poll::Ready(Some(Err(e))) => {
-                //
-            }
+            Poll::Ready(Some(Err(e))) => self.handle_error(partition, routable, e),
             Poll::Ready(None) => match routable.output {
-                Some(link) => pipelines[link.pipeline]
-                    .pipeline
-                    .close(link.child, partition),
-                None => self.context.finish(partition),
+                Some(link) => {
+                    if let Err(e) = pipelines[link.pipeline]
+                        .pipeline
+                        .close(link.child, partition)
+                    {
+                        self.handle_error(partition, routable, e)
+                    }
+                }
+                None => {
+                    if let Err(e) = self.context.plan.sink.close(0, partition) {
+                        self.handle_error(partition, routable, e)
+                    }
+                }
             },
             Poll::Pending => {
                 // Attempt to reset the wake count with the value obtained prior
@@ -170,95 +161,19 @@ impl Task {
     }
 }
 
-/// The results of the execution of a query
-pub struct ExecutionResults {
-    /// [`ExecutionResultStream`] for each partition of this query
-    streams: Vec<ExecutionResultStream>,
-
-    /// Keep a reference to the [`ExecutionContext`] so it isn't dropped early
-    context: Arc<ExecutionContext>,
-}
-
-impl ExecutionResults {
-    /// Returns a [`SendableRecordBatchStream`] of this execution
-    ///
-    /// In the event of multiple output partitions, the output will be interleaved
-    pub fn stream(self) -> SendableRecordBatchStream {
-        let schema = self.context.schema.clone();
-        Box::pin(RecordBatchStreamAdapter::new(
-            schema,
-            futures::stream::select_all(self.streams),
-        ))
-    }
-
-    /// Returns a [`SendableRecordBatchStream`] for each partition of this execution
-    pub fn stream_partitioned(self) -> Vec<SendableRecordBatchStream> {
-        self.streams.into_iter().map(|s| Box::pin(s) as _).collect()
-    }
-}
-
-/// A result stream for the execution of a query
-struct ExecutionResultStream {
-    receiver: mpsc::UnboundedReceiver<Option<Result<RecordBatch>>>,
-
-    /// Keep a reference to the [`ExecutionContext`] so it isn't dropped early
-    context: Arc<ExecutionContext>,
-}
-
-impl Stream for ExecutionResultStream {
-    type Item = DataFusionResult<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let opt = ready!(self.receiver.poll_next_unpin(cx)).flatten();
-        Poll::Ready(opt.map(|r| r.map_err(|e| DataFusionError::External(Box::new(e)))))
-    }
-}
-
-impl RecordBatchStream for ExecutionResultStream {
-    fn schema(&self) -> SchemaRef {
-        self.context.schema.clone()
-    }
-}
-
 /// The shared state of all [`Task`] created from the same [`PipelinePlan`]
 #[derive(Debug)]
 struct ExecutionContext {
     /// Spawner for this query
     spawner: Spawner,
 
-    /// List of pipelines that belong to this query, pipelines are addressed
-    /// based on their index within this list
-    pipelines: Vec<RoutablePipeline>,
-
-    /// Schema of this plans output
-    pub schema: SchemaRef,
-
-    /// The output streams, per partition, for this query's execution
-    output: Vec<mpsc::UnboundedSender<Option<Result<RecordBatch>>>>,
-}
-
-impl ExecutionContext {
-    /// Returns `true` if this query has been dropped, specifically if the
-    /// stream returned by [`super::Scheduler::schedule`] has been dropped
-    fn is_cancelled(&self) -> bool {
-        self.output.iter().all(|x| x.is_closed())
-    }
-
-    /// Sends `output` to this query's output stream
-    fn send_query_output(&self, partition: usize, output: Result<RecordBatch>) {
-        let _ = self.output[partition].unbounded_send(Some(output));
-    }
-
-    /// Mark this partition as finished
-    fn finish(&self, partition: usize) {
-        let _ = self.output[partition].unbounded_send(None);
-    }
+    /// The pipeline plan that's being executed for this query.
+    plan: PipelinePlan,
 }
 
 struct TaskWaker {
-    /// Store a weak reference to the [`ExecutionContext`] to avoid reference cycles if this
-    /// [`Waker`] is stored within a [`Pipeline`] owned by the [`ExecutionContext`]
-    context: Weak<ExecutionContext>,
+    /// Execution context for this query.
+    context: Arc<ExecutionContext>,
 
     /// A counter that stores the number of times this has been awoken
     ///
@@ -273,13 +188,12 @@ struct TaskWaker {
     /// We store an integer, as opposed to a boolean, so that wake ups that
     /// occur during [`Pipeline::poll_partition`] can be detected and handled
     /// after it has finished executing
-    ///
     wake_count: AtomicUsize,
 
-    /// The index of the pipeline within `query` to poll
+    /// The index of the pipeline to poll.
     pipeline: usize,
 
-    /// The partition of the pipeline within `query` to poll
+    /// The partition of the pipeline to poll.
     partition: usize,
 }
 
@@ -289,13 +203,11 @@ impl Wake for TaskWaker {
             return;
         }
 
-        if let Some(context) = self.context.upgrade() {
-            let task = Task {
-                context,
-                waker: self.clone(),
-            };
+        let task = Task {
+            context: self.context.clone(),
+            waker: self.clone(),
+        };
 
-            task.context.spawner.clone().spawn(task);
-        }
+        task.context.spawner.clone().spawn(task);
     }
 }

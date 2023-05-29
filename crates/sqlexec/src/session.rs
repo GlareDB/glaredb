@@ -14,7 +14,7 @@ use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
-use pushexec::SchedulerBuilder;
+use pushexec::{stream::create_coalescing_adapter, SchedulerBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fmt;
 use std::path::PathBuf;
@@ -185,10 +185,13 @@ impl Session {
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
 
-        let scheduler = SchedulerBuilder::new(num_cpus::get()).build();
-        let stream = scheduler.schedule(plan, context)?.stream();
+        let (sink, stream) = create_coalescing_adapter(plan.output_partitioning(), plan.schema());
+        let sink = Arc::new(sink);
 
-        Ok(stream)
+        let scheduler = SchedulerBuilder::new(num_cpus::get()).build();
+        scheduler.schedule(plan, context, sink.clone(), sink)?;
+
+        Ok(Box::pin(stream))
     }
 
     pub(crate) async fn create_table(&self, _plan: CreateTable) -> Result<()> {

@@ -77,7 +77,7 @@ impl Sink for RepartitionPipeline {
         Ok(())
     }
 
-    fn close(&self, child: usize, partition: usize) {
+    fn close(&self, child: usize, partition: usize) -> Result<()> {
         assert_eq!(child, 0);
 
         let mut state = self.state.lock();
@@ -98,6 +98,8 @@ impl Sink for RepartitionPipeline {
                 }
             }
         }
+
+        Ok(())
     }
 }
 
