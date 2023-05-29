@@ -8,13 +8,12 @@ use crate::slt::{
     test::{Test, TestHooks},
 };
 
-pub use crate::slt::test::TestHook;
+pub use crate::slt::test::{FnTest, Hook, TestClient, TestHook};
 
 #[derive(Default)]
 pub struct SltRunner {
     tests: BTreeMap<String, Test>,
-    pre_test_hooks: TestHooks,
-    post_test_hooks: TestHooks,
+    hooks: TestHooks,
 }
 
 impl SltRunner {
@@ -78,26 +77,25 @@ impl SltRunner {
         Ok(self)
     }
 
-    pub fn pre_test_hook<S>(mut self, regx: S, hook: TestHook) -> Result<Self>
+    pub fn test<S>(mut self, test_name: S, test_fn: Box<dyn FnTest>) -> Result<Self>
     where
-        S: AsRef<str>,
+        S: ToString,
     {
-        let pattern = Pattern::new(regx.as_ref())?;
-        self.pre_test_hooks.push((pattern, hook));
+        self.add_test(test_name.to_string(), Test::FnTest(test_fn))?;
         Ok(self)
     }
 
-    pub fn post_test_hook<S>(mut self, regx: S, hook: TestHook) -> Result<Self>
+    pub fn hook<S>(mut self, regx: S, hook: TestHook) -> Result<Self>
     where
         S: AsRef<str>,
     {
         let pattern = Pattern::new(regx.as_ref())?;
-        self.post_test_hooks.push((pattern, hook));
+        self.hooks.push((pattern, hook));
         Ok(self)
     }
 
     pub fn run(self) -> Result<()> {
-        Cli::run(self.tests, self.pre_test_hooks, self.post_test_hooks)
+        Cli::run(self.tests, self.hooks)
     }
 }
 

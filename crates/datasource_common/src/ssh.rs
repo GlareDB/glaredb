@@ -163,6 +163,11 @@ impl SshTunnelAccess {
         let tunnel = SessionBuilder::default()
             .known_hosts_check(KnownHosts::Accept)
             .keyfile(temp_keyfile.path())
+            // Set control directory explicitly. Otherwise we run the the
+            // chance of an error like the following:
+            //
+            // 'path ... too long for Unix domain socket'
+            .control_directory(std::env::temp_dir())
             // Wait 15 seconds before timing out ssh connection attempt
             .connect_timeout(Duration::from_secs(15))
             .connect(self.connection_string.as_str())

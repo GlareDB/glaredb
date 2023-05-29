@@ -65,6 +65,8 @@ pub enum ExecutionResult {
     AlterTableRename,
     /// A database was renamed.
     AlterDatabaseRename,
+    /// A tunnel was altered.
+    AlterTunnelRotateKeys,
     /// A client local variable was set.
     SetLocal,
     /// Tables dropped.
@@ -97,6 +99,7 @@ impl ExecutionResult {
             ExecutionResult::CreateConnection => "create_connection",
             ExecutionResult::AlterTableRename => "alter_table_rename",
             ExecutionResult::AlterDatabaseRename => "alter_database_rename",
+            ExecutionResult::AlterTunnelRotateKeys => "alter_tunnel_rotate_keys",
             ExecutionResult::SetLocal => "set_local",
             ExecutionResult::DropTables => "drop_tables",
             ExecutionResult::DropViews => "drop_views",
@@ -129,6 +132,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateConnection => write!(f, "create connection"),
             ExecutionResult::AlterTableRename => write!(f, "alter table rename"),
             ExecutionResult::AlterDatabaseRename => write!(f, "alter database rename"),
+            ExecutionResult::AlterTunnelRotateKeys => write!(f, "alter tunnel rotate keys"),
             ExecutionResult::SetLocal => write!(f, "set local"),
             ExecutionResult::DropTables => write!(f, "drop tables"),
             ExecutionResult::DropViews => write!(f, "drop views"),
@@ -230,6 +234,14 @@ impl Session {
 
     pub(crate) async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
         self.ctx.alter_database_rename(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn alter_tunnel_rotate_keys(
+        &mut self,
+        plan: AlterTunnelRotateKeys,
+    ) -> Result<()> {
+        self.ctx.alter_tunnel_rotate_keys(plan).await?;
         Ok(())
     }
 
@@ -383,6 +395,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::AlterDatabaseRename(plan)) => {
                 self.alter_database_rename(plan).await?;
                 ExecutionResult::AlterDatabaseRename
+            }
+            LogicalPlan::Ddl(DdlPlan::AlterTunnelRotateKeys(plan)) => {
+                self.alter_tunnel_rotate_keys(plan).await?;
+                ExecutionResult::AlterTunnelRotateKeys
             }
             LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
                 self.drop_tables(plan).await?;

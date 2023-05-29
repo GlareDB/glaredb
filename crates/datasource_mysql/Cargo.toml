@@ -16,7 +16,7 @@ tokio = { version = "1", features = ["full"] }
 async-stream = "0.3.5"
 datafusion = {workspace = true}
 serde = { version = "1.0", features = ["derive"] }
-mysql_async = "0.32.2"
+mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.30.4", features = ["chrono"] }
 chrono = "*"
 rust_decimal = "*"

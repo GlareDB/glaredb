@@ -22,6 +22,7 @@ use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
+use metastore::types::catalog::EntryType;
 use metastore::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -97,8 +98,11 @@ impl SessionContext {
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
-        if info.memory_limit_bytes > 0 {
-            conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(info.memory_limit_bytes)));
+        if let Some(mem_limit) = info.limits.memory_limit_bytes {
+            // TODO: Make this actually have optional semantics.
+            if mem_limit > 0 {
+                conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
+            }
         }
         let runtime = Arc::new(RuntimeEnv::new(conf).unwrap());
 
@@ -141,17 +145,26 @@ impl SessionContext {
             .count()
     }
 
+    pub fn get_tunnel_count(&mut self) -> usize {
+        self.metastore_catalog
+            .iter_entries()
+            .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Tunnel)
+            .count()
+    }
+
     /// Create a table.
     pub fn create_table(&self, _plan: CreateTable) -> Result<()> {
         Err(ExecError::UnsupportedFeature("CREATE TABLE"))
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if self.get_datasource_count() >= self.info.max_datasource_count {
-            return Err(ExecError::MaxDatasourceCount(
-                self.info.max_datasource_count,
-                self.get_datasource_count(),
-            ));
+        if let Some(limit) = self.info.limits.max_datasource_count {
+            if self.get_datasource_count() >= limit {
+                return Err(ExecError::MaxDatasourceCount {
+                    max: limit,
+                    current: self.get_datasource_count(),
+                });
+            }
         }
 
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
@@ -180,11 +193,13 @@ impl SessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        if self.get_datasource_count() >= self.info.max_datasource_count {
-            return Err(ExecError::MaxDatasourceCount(
-                self.info.max_datasource_count,
-                self.get_datasource_count(),
-            ));
+        if let Some(limit) = self.info.limits.max_datasource_count {
+            if self.get_datasource_count() >= limit {
+                return Err(ExecError::MaxDatasourceCount {
+                    max: limit,
+                    current: self.get_datasource_count(),
+                });
+            }
         }
 
         self.mutate_catalog([Mutation::CreateExternalDatabase(
@@ -200,7 +215,14 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        // TODO: Max tunnel count?
+        if let Some(limit) = self.info.limits.max_tunnel_count {
+            if self.get_datasource_count() >= limit {
+                return Err(ExecError::MaxTunnelCount {
+                    max: limit,
+                    current: self.get_datasource_count(),
+                });
+            }
+        }
 
         self.mutate_catalog([Mutation::CreateTunnel(service::CreateTunnel {
             name: plan.name,
@@ -244,6 +266,19 @@ impl SessionContext {
             service::AlterDatabaseRename {
                 name: plan.name,
                 new_name: plan.new_name,
+            },
+        )])
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
+        self.mutate_catalog([Mutation::AlterTunnelRotateKeys(
+            service::AlterTunnelRotateKeys {
+                name: plan.name,
+                if_exists: plan.if_exists,
+                new_ssh_key: plan.new_ssh_key,
             },
         )])
         .await?;

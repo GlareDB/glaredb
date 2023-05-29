@@ -45,8 +45,9 @@ message Mutation {
     AlterDatabaseRename alter_database_rename = 10;
     CreateTunnel create_tunnel = 11;
     DropTunnel drop_tunnel = 12;
+    AlterTunnelRotateKeys alter_tunnel_rotate_keys = 13;
   }
-  // next: 13
+  // next: 14
 }
 
 message DropDatabase {
@@ -114,6 +115,13 @@ message CreateTunnel {
 message DropTunnel {
   string name = 1;
   bool if_exists = 2;
+}
+
+message AlterTunnelRotateKeys {
+  string name = 1;
+  bool if_exists = 2;
+  bytes new_ssh_key = 3;
+  // next: 4
 }
 
 message MutateRequest {

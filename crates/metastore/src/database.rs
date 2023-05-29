@@ -9,7 +9,9 @@ use crate::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
     TunnelEntry, ViewEntry,
 };
-use crate::types::options::{DatabaseOptions, DatabaseOptionsInternal, TableOptions};
+use crate::types::options::{
+    DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
+};
 use crate::types::service::Mutation;
 use crate::types::storage::{ExtraState, PersistedCatalog};
 use crate::validation::{
@@ -455,7 +457,7 @@ impl State {
                         Some(id) => id,
                     };
 
-                    self.entries.remove(&database_id).unwrap();
+                    self.entries.remove(&database_id)?.unwrap();
                 }
                 Mutation::DropTunnel(drop_tunnel) => {
                     let if_exists = drop_tunnel.if_exists;
@@ -465,7 +467,7 @@ impl State {
                         Some(id) => id,
                     };
 
-                    self.entries.remove(&tunnel_id).unwrap();
+                    self.entries.remove(&tunnel_id)?.unwrap();
                 }
                 Mutation::DropSchema(drop_schema) => {
                     let if_exists = drop_schema.if_exists;
@@ -485,7 +487,7 @@ impl State {
                             let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
                             for child_oid in objs.objects.values() {
                                 // TODO: Dependency checking.
-                                self.entries.remove(child_oid).unwrap(); // Bug if it doesn't exist.
+                                self.entries.remove(child_oid)?.unwrap(); // Bug if it doesn't exist.
                             }
                         }
                         None => (), // Empty schema that never had any child objects
@@ -497,7 +499,7 @@ impl State {
                         }
                     }
 
-                    self.entries.remove(&schema_id).unwrap(); // Bug if doesn't exist.
+                    self.entries.remove(&schema_id)?.unwrap(); // Bug if doesn't exist.
                 }
                 // Can drop db objects like tables and views
                 Mutation::DropObject(drop_object) => {
@@ -532,7 +534,7 @@ impl State {
                         Some(id) => id,
                     };
 
-                    self.entries.remove(&ent_id).unwrap(); // Bug if doesn't exist.
+                    self.entries.remove(&ent_id)?.unwrap(); // Bug if doesn't exist.
                 }
                 Mutation::CreateExternalDatabase(create_database) => {
                     validate_object_name(&create_database.name)?;
@@ -779,6 +781,32 @@ impl State {
                     // Add to database map
                     self.database_names
                         .insert(alter_database_rename.new_name, oid);
+                }
+                Mutation::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
+                    let oid = match self.tunnel_names.get(&alter_tunnel_rotate_keys.name) {
+                        None if alter_tunnel_rotate_keys.if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingTunnel(
+                                alter_tunnel_rotate_keys.name,
+                            ))
+                        }
+                        Some(oid) => oid,
+                    };
+
+                    match self.entries.get_mut(oid)?.unwrap() {
+                        CatalogEntry::Tunnel(tunnel_entry) => match &mut tunnel_entry.options {
+                            TunnelOptions::Ssh(tunnel_options_ssh) => {
+                                tunnel_options_ssh.ssh_key = alter_tunnel_rotate_keys.new_ssh_key;
+                            }
+                            opt => {
+                                return Err(MetastoreError::TunnelNotSupportedForAction {
+                                    tunnel: opt.to_string(),
+                                    action: "rotating keys",
+                                })
+                            }
+                        },
+                        _ => unreachable!("entry should be a tunnel"),
+                    };
                 }
             }
         }

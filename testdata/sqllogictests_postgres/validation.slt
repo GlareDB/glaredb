@@ -7,14 +7,14 @@ statement error
 CREATE EXTERNAL DATABASE wrong_password
 	FROM postgres
 	OPTIONS (
-		connection_string = 'host=localhost port=5432 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=localhost port=5433 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
 	);
 
 statement error
 CREATE EXTERNAL DATABASE non_existant_user
 	FROM postgres
 	OPTIONS (
-		connection_string = 'host=localhost port=5432 user=missing password=password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=localhost port=5433 user=missing password=password dbname=glaredb_test sslmode=disable',
 	);
 
 # Validation test error with the wrong host
@@ -22,7 +22,7 @@ statement error
 CREATE EXTERNAL DATABASE wrong_host
 	FROM postgres
 	OPTIONS (
-		connection_string = 'host=non-existant port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=non-existant port=5433 user=glaredb password=password dbname=glaredb_test sslmode=disable',
 	);
 
 # External table validation
@@ -32,7 +32,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_password
 	FROM postgres
 	OPTIONS (
-		connection_string = 'host=localhost port=5432 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=localhost port=5433 user=glaredb password=wrong-password dbname=glaredb_test sslmode=disable',
 		schema = 'public',
 		table = 'datatypes'
 	);
@@ -41,7 +41,7 @@ statement error
 CREATE EXTERNAL TABLE non_existant_user
 	FROM postgres
 	OPTIONS (
-		connection_string = 'host=localhost port=5432 user=missing password=password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=localhost port=5433 user=missing password=password dbname=glaredb_test sslmode=disable',
 		schema = 'public',
 		table = 'datatypes'
 	);
@@ -51,7 +51,7 @@ statement error
 CREATE EXTERNAL TABLE wrong_host
 	FROM postgres
 	OPTIONS (
-		connection_string = 'host=non-existant port=5432 user=glaredb password=password dbname=glaredb_test sslmode=disable',
+		connection_string = 'host=non-existant port=5433 user=glaredb password=password dbname=glaredb_test sslmode=disable',
 		schema = 'public',
 		table = 'datatypes'
 	);

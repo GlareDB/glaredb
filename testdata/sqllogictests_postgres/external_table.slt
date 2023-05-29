@@ -25,7 +25,7 @@ CREATE EXTERNAL TABLE external_table
 	FROM postgres
 	OPTIONS (
 		host = 'localhost',
-		port = '5432',
+		port = '5433',
 		user = 'glaredb',
 		password = 'password',
 		database = 'glaredb_test',

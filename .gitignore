@@ -1,3 +1,5 @@
+# Adding something new? It's probably good to add to .dockerignore too.
+
 .pre-commit-config.yaml
 # nix build results
 /target
@@ -8,3 +10,7 @@ pgsrv_image
 gcs-artifacts/
 # Outputs from cargo flamegraph
 flamegraph.svg
+# Benchmark artifacts
+benchmarks/artifacts/
+# Deps downloaded from external sources
+/deps

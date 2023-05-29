@@ -1,8 +1,8 @@
 use crate::context::SessionContext;
 use crate::parser::{
-    validate_ident, validate_object_name, AlterDatabaseRenameStmt, CreateExternalDatabaseStmt,
-    CreateExternalTableStmt, CreateTunnelStmt, DropDatabaseStmt, DropTunnelStmt, OptionValue,
-    StatementWithExtensions,
+    validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
+    AlterTunnelStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt,
+    DropDatabaseStmt, DropTunnelStmt, OptionValue, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -73,6 +73,7 @@ impl<'a> SessionPlanner<'a> {
             }
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt).await,
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
+            StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
         }
     }
 
@@ -748,6 +749,25 @@ impl<'a> SessionPlanner<'a> {
             if_exists: stmt.if_exists,
         })
         .into())
+    }
+
+    fn plan_alter_tunnel(&self, stmt: AlterTunnelStmt) -> Result<LogicalPlan> {
+        validate_ident(&stmt.name)?;
+        let name = normalize_ident(stmt.name);
+
+        let plan = match stmt.action {
+            AlterTunnelAction::RotateKeys => {
+                let new_ssh_key = SshKey::generate_random()?;
+                let new_ssh_key = new_ssh_key.to_bytes()?;
+                DdlPlan::AlterTunnelRotateKeys(AlterTunnelRotateKeys {
+                    name,
+                    if_exists: stmt.if_exists,
+                    new_ssh_key,
+                })
+            }
+        };
+
+        Ok(plan.into())
     }
 
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {

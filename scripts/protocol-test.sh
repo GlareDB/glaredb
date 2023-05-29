@@ -7,14 +7,11 @@
 
 set -e
 
-# Build first so that `nix run ...` can start right away.
-nix build .#glaredb-bin
-
 run_id=${RANDOM}
 
 # Start up Metastore.
 metastore_log_file="/tmp/metastore.log-${run_id}"
-nohup nix run .#glaredb -- -v metastore > "${metastore_log_file}" 2>&1 &
+nohup cargo run --bin glaredb -- -v metastore > "${metastore_log_file}" 2>&1 &
 
 # Get pids so we can shut it down at the end of this script.
 metastore_pid=$!
@@ -24,7 +21,7 @@ sleep 5
 
 # Start up GlareDB.
 glaredb_log_file="/tmp/glaredb.log-${run_id}"
-nohup nix run .#glaredb -- -v server --local > "${glaredb_log_file}" 2>&1 &
+nohup cargo run --bin glaredb -- -v server --local > "${glaredb_log_file}" 2>&1 &
 
 glaredb_pid=$!
 
@@ -34,7 +31,7 @@ sleep 5
 
 # Run protocol tests.
 ret=0
-nix run .#pgprototest -- \
+cargo run --bin pgprototest -- \
     --dir ./testdata/pgprototest \
     --addr localhost:6543 \
     --user glaredb \

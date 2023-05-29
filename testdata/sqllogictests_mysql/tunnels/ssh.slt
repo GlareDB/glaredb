@@ -1,0 +1,39 @@
+# SSH Tunnels test with MySQL
+
+statement ok
+CREATE EXTERNAL DATABASE test_db
+	FROM mysql
+	TUNNEL ${TUNNEL_NAME}
+	OPTIONS (
+		connection_string = '${MYSQL_TUNNEL_SSH_CONN_STRING}',
+	);
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM mysql
+	TUNNEL ${TUNNEL_NAME}
+	OPTIONS (
+		connection_string = '${MYSQL_TUNNEL_SSH_CONN_STRING}',
+		schema = 'glaredb_test',
+		table = 'bikeshare_stations',
+	);
+
+# Run basic tests against the tunnel-connected table
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
+
+# Validate when tunnel is invalid.
+
+statement ok
+CREATE TUNNEL test_err_tunnel
+	FROM ssh
+	OPTIONS (
+		connection_string = 'ssh://glaredb@localhost:1234',
+	);
+
+statement error
+CREATE EXTERNAL DATABASE test_err_db
+	FROM mysql
+	TUNNEL test_err_tunnel
+	OPTIONS (
+		connection_string = '${MYSQL_TUNNEL_SSH_CONN_STRING}',
+	);

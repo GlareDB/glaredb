@@ -6,41 +6,91 @@ use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
 use std::{
+    collections::HashMap,
     fmt::Debug,
     path::{Path, PathBuf},
     time::Duration,
 };
 use tokio_postgres::{Client, Config, SimpleQueryMessage};
 
-pub type TestHook = fn(&Config) -> Result<()>;
+#[async_trait]
+pub trait Hook: Send + Sync {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: &mut Client,
+        _vars: &mut HashMap<String, String>,
+    ) -> Result<()> {
+        Ok(())
+    }
 
-pub type TestHooks = Vec<(Pattern, TestHook)>;
-
-const ENV_REGEX: &str = r"\$\{\s*(\w+)\s*\}";
-
-#[derive(Debug)]
-pub enum Test {
-    File(PathBuf),
-    // TODO: Test function
-}
-
-impl Test {
-    pub async fn execute(self, runner: &mut Runner<TestClient>) -> Result<()> {
-        match self {
-            Self::File(path) => {
-                let regx = Regex::new(ENV_REGEX).unwrap();
-                let records = parse_file(&regx, &path)?;
-                runner
-                    .run_multi_async(records)
-                    .await
-                    .map_err(|e| anyhow!("test fail: {}", e))?;
-            }
-        };
+    async fn post(
+        &self,
+        _config: &Config,
+        _client: &mut Client,
+        _vars: &HashMap<String, String>,
+    ) -> Result<()> {
         Ok(())
     }
 }
 
-fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>> {
+pub type TestHook = Box<dyn Hook>;
+
+pub type TestHooks = Vec<(Pattern, TestHook)>;
+
+#[async_trait]
+pub trait FnTest: Send + Sync {
+    async fn run(
+        &self,
+        config: &Config,
+        client: &mut Client,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<()>;
+}
+
+const ENV_REGEX: &str = r"\$\{\s*(\w+)\s*\}";
+
+pub enum Test {
+    File(PathBuf),
+    FnTest(Box<dyn FnTest>),
+}
+
+impl Debug for Test {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File(path) => write!(f, "File({path:?})"),
+            Self::FnTest(_) => write!(f, "FnTest"),
+        }
+    }
+}
+
+impl Test {
+    pub async fn execute(
+        self,
+        config: &Config,
+        client: &mut Client,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<()> {
+        match self {
+            Self::File(path) => {
+                let regx = Regex::new(ENV_REGEX).unwrap();
+                let records = parse_file(&regx, &path, vars)?;
+                let mut runner = Runner::new(TestClient { client });
+                runner
+                    .run_multi_async(records)
+                    .await
+                    .map_err(|e| anyhow!("test fail: {}", e))
+            }
+            Self::FnTest(fn_test) => fn_test.run(config, client, vars).await,
+        }
+    }
+}
+
+fn parse_file<T: ColumnType>(
+    regx: &Regex,
+    path: &Path,
+    vars: &HashMap<String, String>,
+) -> Result<Vec<Record<T>>> {
     let script = std::fs::read_to_string(path)
         .map_err(|e| anyhow!("Error while opening `{}`: {}", path.to_string_lossy(), e))?;
 
@@ -49,6 +99,11 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>
     let mut err = None;
     let script = regx.replace_all(&script, |caps: &Captures| {
         let env_var = &caps[1];
+        // Try if there's a local var with the key. Fallback to environment
+        // variable.
+        if let Some(var) = vars.get(env_var) {
+            return var.to_string();
+        }
         match std::env::var(env_var) {
             Ok(v) => v,
             Err(error) => {
@@ -103,7 +158,7 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>
                 records.push(Record::Injected(Injected::BeginInclude(
                     included_file.clone(),
                 )));
-                records.extend(parse_file(regx, &PathBuf::from(&included_file))?);
+                records.extend(parse_file(regx, &PathBuf::from(&included_file), vars)?);
                 records.push(Record::Injected(Injected::EndInclude(included_file)));
             }
         }
@@ -111,12 +166,12 @@ fn parse_file<T: ColumnType>(regx: &Regex, path: &Path) -> Result<Vec<Record<T>>
     Ok(records)
 }
 
-pub struct TestClient {
-    pub client: Client,
+pub struct TestClient<'a> {
+    pub client: &'a mut Client,
 }
 
 #[async_trait]
-impl AsyncDB for TestClient {
+impl AsyncDB for TestClient<'_> {
     type Error = tokio_postgres::Error;
     type ColumnType = DefaultColumnType;
 
