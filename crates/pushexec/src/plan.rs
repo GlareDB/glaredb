@@ -1,4 +1,5 @@
 use crate::{
+    adapter::{ExecutionPlanAdapter, SubPlan},
     errors::{PushExecError, Result},
     pipeline::{Pipeline, Sink},
     repartition::Repartitioner,
@@ -13,38 +14,53 @@ use datafusion::{
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct PipelineEdge {
-    pipeline: Box<dyn Pipeline>,
-    dest: usize,
+#[derive(Debug)]
+pub struct MetaPipeline {
+    /// All pipelines needed to execute a query.
+    pub pipelines: Vec<LinkedPipeline>,
+
+    /// An optional sink that output should go to.
+    // TODO: Make this required?
+    pub sink: Option<Box<dyn Sink>>,
 }
 
-pub struct MetaPipeline {}
+#[derive(Debug)]
+pub struct LinkedPipeline {
+    /// The source pipeline.
+    pub pipeline: Box<dyn Pipeline>,
+    /// Index of the pipeline to push its output to.
+    pub dest: Option<usize>,
+}
 
 /// A planner is able to produce a push based execution pipeline from a
 /// datafusion physical plan.
+#[derive(Debug, Default)]
 pub struct Planner {}
 
 impl Planner {
-    pub fn new() -> Planner {
-        Planner {}
-    }
-
     pub fn plan_from_df_plan(
         &self,
         plan: Arc<dyn ExecutionPlan>,
         context: Arc<TaskContext>,
+        sink: Option<Box<dyn Sink>>,
     ) -> Result<MetaPipeline> {
-        unimplemented!()
-    }
-}
+        let mut state = PlanState {
+            pipelines: Vec::new(),
+            context,
+        };
 
-struct LinkedPipeline {
-    pipeline: Box<dyn Pipeline>,
-    dest: Option<usize>,
+        state.walk_plan(None, plan)?;
+
+        Ok(MetaPipeline {
+            pipelines: state.pipelines,
+            sink,
+        })
+    }
 }
 
 struct PlanState {
     pipelines: Vec<LinkedPipeline>,
+    context: Arc<TaskContext>,
 }
 
 impl PlanState {
@@ -86,8 +102,50 @@ impl PlanState {
                 self.walk_plan(dest, child)?;
             }
         } else {
-            unimplemented!()
+            // Adapt execution plans.
+            //
+            // Splits the execution plan into one or more subplans depending on
+            // the number of children it has.
+            let mut subplan = SubPlan {
+                root: plan.clone(),
+                depth: 0,
+            };
+
+            // Keep adding plans with a single child to the subplan.
+            let mut curr = plan;
+            let mut children = curr.children();
+            loop {
+                match children.len() {
+                    1 => {
+                        // Add child to subplan, and keep going.
+                        curr = children.pop().unwrap();
+                        children = curr.children();
+                        subplan.depth += 1;
+                    }
+                    _ => {
+                        // At the end of the subplan. Need to either stop
+                        // planning alltogether, or need to put children in
+                        // their own subplans.
+                        break;
+                    }
+                }
+            }
+
+            // Create adapter with subplan.
+            let plan = ExecutionPlanAdapter::new(subplan, self.context.clone())?;
+            self.pipelines.push(LinkedPipeline {
+                pipeline: Box::new(plan),
+                dest,
+            });
+            let dest = Some(self.pipelines.len());
+
+            // Walk children of the plan we stopped at, pointing back up to the
+            // adapter pipeline we just created.
+            for child in children {
+                self.walk_plan(dest, child)?;
+            }
         }
-        unimplemented!()
+
+        Ok(())
     }
 }

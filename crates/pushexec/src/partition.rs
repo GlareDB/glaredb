@@ -16,7 +16,7 @@ use std::task::{Context, Poll, Waker};
 pub struct BufferedPartition {
     finished: bool,
     batches: Vec<RecordBatch>,
-    wakers: Vec<Waker>,
+    waker: Option<Waker>,
 }
 
 impl BufferedPartition {
@@ -24,29 +24,25 @@ impl BufferedPartition {
     pub fn finish(&mut self) {
         assert!(!self.finished, "finished called twice");
         self.finished = true;
-        self.drain_wake_all();
-    }
-
-    pub fn is_finished(&self) -> bool {
-        self.finished
+        self.wake();
     }
 
     pub fn register_waker(&mut self, waker: Waker) {
-        self.wakers.push(waker);
+        self.waker = Some(waker)
     }
 
     /// Push a batch for this partition, waking every register waker.
     pub fn push_batch(&mut self, batch: RecordBatch) {
         self.batches.push(batch);
-        self.drain_wake_all()
+        self.wake()
     }
 
     pub fn pop_batch(&mut self) -> Option<RecordBatch> {
         self.batches.pop()
     }
 
-    fn drain_wake_all(&mut self) {
-        for waker in self.wakers.drain(..) {
+    fn wake(&mut self) {
+        if let Some(waker) = self.waker.take() {
             waker.wake();
         }
     }

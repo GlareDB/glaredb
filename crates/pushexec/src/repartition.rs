@@ -6,6 +6,7 @@ use datafusion::{
     physical_plan::{metrics, repartition::BatchPartitioner, Partitioning},
 };
 use parking_lot::Mutex;
+use std::fmt;
 use std::task::{Context, Poll, Waker};
 
 /// A repartitioning operator meant to replace Datafusion's repartition/coalesce
@@ -44,6 +45,15 @@ impl Repartitioner {
             outputs,
             inputs,
         })
+    }
+}
+
+impl fmt::Debug for Repartitioner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Repartitioner")
+            .field("inputs", &self.inputs)
+            .field("outputs", &self.outputs)
+            .finish()
     }
 }
 

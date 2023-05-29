@@ -16,6 +16,7 @@ use datafusion::physical_plan::{
 use futures::StreamExt;
 use parking_lot::Mutex;
 use std::any::Any;
+use std::fmt;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use std::task::Context;
@@ -32,9 +33,6 @@ pub struct SubPlan {
     /// A depth of zero indicated the subplan is just the root.
     pub depth: usize,
 }
-
-#[derive(Clone)]
-struct ChildPartitions();
 
 /// Adapts a subplan of a datafusion execution plan.
 pub struct ExecutionPlanAdapter {
@@ -111,6 +109,16 @@ impl ExecutionPlanAdapter {
             child_partitions,
             streams,
         })
+    }
+}
+
+impl fmt::Debug for ExecutionPlanAdapter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ExecutionPlanAdapter")
+            .field("num_children", &self.child_partitions.len())
+            .field("num_partitions", &self.child_partitions[0].len())
+            .field("num_stream", &self.streams.len())
+            .finish()
     }
 }
 
