@@ -113,7 +113,7 @@ impl Sink for ExecutionPipeline {
         assert!(!partition.is_closed);
 
         partition.buffer.push_back(input);
-        if let Some(waker) = partition.waker.take() {
+        for waker in partition.wait_list.drain(..) {
             waker.wake()
         }
         Ok(())
@@ -124,7 +124,7 @@ impl Sink for ExecutionPipeline {
         assert!(!partition.is_closed);
 
         partition.is_closed = true;
-        if let Some(waker) = partition.waker.take() {
+        for waker in partition.wait_list.drain(..) {
             waker.wake()
         }
     }
@@ -151,7 +151,7 @@ impl Source for ExecutionPipeline {
 #[derive(Debug, Default)]
 struct InputPartition {
     buffer: VecDeque<RecordBatch>,
-    waker: Option<Waker>,
+    wait_list: Vec<Waker>,
     is_closed: bool,
 }
 
@@ -169,7 +169,7 @@ impl Stream for InputPartitionStream {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
             None if partition.is_closed => Poll::Ready(None),
             _ => {
-                partition.waker = Some(cx.waker().clone());
+                partition.wait_list.push(cx.waker().clone());
                 Poll::Pending
             }
         }

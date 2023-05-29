@@ -93,7 +93,7 @@ impl Sink for RepartitionPipeline {
         if state.partition_closed.iter().all(|x| *x) {
             state.input_closed = true;
             for buffer in &mut state.output_buffers {
-                if let Some(waker) = buffer.waker.take() {
+                for waker in buffer.wait_list.drain(..) {
                     waker.wake()
                 }
             }
@@ -119,7 +119,7 @@ impl Source for RepartitionPipeline {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
             None if input_closed => Poll::Ready(None),
             _ => {
-                buffer.waker = Some(cx.waker().clone());
+                buffer.wait_list.push(cx.waker().clone());
                 Poll::Pending
             }
         }
@@ -129,14 +129,14 @@ impl Source for RepartitionPipeline {
 #[derive(Debug, Default)]
 struct OutputBuffer {
     batches: VecDeque<RecordBatch>,
-    waker: Option<Waker>,
+    wait_list: Vec<Waker>,
 }
 
 impl OutputBuffer {
     fn push_batch(&mut self, batch: RecordBatch) {
         self.batches.push_back(batch);
 
-        if let Some(waker) = self.waker.take() {
+        for waker in self.wait_list.drain(..) {
             waker.wake()
         }
     }

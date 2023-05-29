@@ -140,6 +140,15 @@ impl Task {
                 spawner.spawn(self);
             }
             Poll::Ready(Some(Err(e))) => {
+                //
+            }
+            Poll::Ready(None) => match routable.output {
+                Some(link) => pipelines[link.pipeline]
+                    .pipeline
+                    .close(link.child, partition),
+                None => self.context.finish(partition),
+            },
+            Poll::Pending => {
                 // Attempt to reset the wake count with the value obtained prior
                 // to calling [`Pipeline::poll_partition`].
                 //
@@ -156,15 +165,6 @@ impl Task {
                     let spawner = self.context.spawner.clone();
                     spawner.spawn(self);
                 }
-            }
-            Poll::Ready(None) => match routable.output {
-                Some(link) => pipelines[link.pipeline]
-                    .pipeline
-                    .close(link.child, partition),
-                None => self.context.finish(partition),
-            },
-            Poll::Pending => {
-                //
             }
         }
     }
