@@ -37,6 +37,7 @@ pub fn spawn_plan(plan: PipelinePlan, spawner: Spawner) -> ExecutionResults {
                 context: context.clone(),
                 waker: Arc::new(TaskWaker {
                     context: Arc::downgrade(&context),
+                    wake_count: AtomicUsize::new(1),
                     pipeline: pipeline_idx,
                     partition,
                 }),
@@ -98,6 +99,10 @@ impl Task {
             return;
         }
 
+        // Capture the wake count prior to calling [`Pipeline::poll_partition`]
+        // this allows us to detect concurrent wake ups and handle them correctly
+        let wake_count = self.waker.wake_count.load(Ordering::SeqCst);
+
         let node = self.waker.pipeline;
         let partition = self.waker.partition;
 
@@ -135,7 +140,22 @@ impl Task {
                 spawner.spawn(self);
             }
             Poll::Ready(Some(Err(e))) => {
+                // Attempt to reset the wake count with the value obtained prior
+                // to calling [`Pipeline::poll_partition`].
                 //
+                // If this fails it indicates a wakeup was received whilst executing
+                // [`Pipeline::poll_partition`] and we should reschedule the task
+                let reset = self.waker.wake_count.compare_exchange(
+                    wake_count,
+                    0,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                );
+
+                if reset.is_err() {
+                    let spawner = self.context.spawner.clone();
+                    spawner.spawn(self);
+                }
             }
             Poll::Ready(None) => match routable.output {
                 Some(link) => pipelines[link.pipeline]
@@ -240,6 +260,22 @@ struct TaskWaker {
     /// [`Waker`] is stored within a [`Pipeline`] owned by the [`ExecutionContext`]
     context: Weak<ExecutionContext>,
 
+    /// A counter that stores the number of times this has been awoken
+    ///
+    /// A value > 0, implies the task is either in the ready queue or
+    /// currently being executed
+    ///
+    /// `TaskWaker::wake` always increments the `wake_count`, however, it only
+    /// re-enqueues the [`Task`] if the value prior to increment was 0
+    ///
+    /// This ensures that a given [`Task`] is not enqueued multiple times
+    ///
+    /// We store an integer, as opposed to a boolean, so that wake ups that
+    /// occur during [`Pipeline::poll_partition`] can be detected and handled
+    /// after it has finished executing
+    ///
+    wake_count: AtomicUsize,
+
     /// The index of the pipeline within `query` to poll
     pipeline: usize,
 
@@ -249,6 +285,10 @@ struct TaskWaker {
 
 impl Wake for TaskWaker {
     fn wake(self: Arc<Self>) {
+        if self.wake_count.fetch_add(1, Ordering::SeqCst) != 0 {
+            return;
+        }
+
         if let Some(context) = self.context.upgrade() {
             let task = Task {
                 context,
