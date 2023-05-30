@@ -104,8 +104,8 @@ jobs:
           export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
           export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
 
-          # Prepare SLT (MongoDB)
-          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+          # # Prepare SLT (MongoDB)
+          # export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
           cargo xtask test -- --test sqllogictests -- -v
 
