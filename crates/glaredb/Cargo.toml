@@ -10,6 +10,7 @@ path = "src/bin/main.rs"
 [dependencies]
 logutil = {path = "../logutil"}
 sqlexec = {path = "../sqlexec"}
+pushexec = {path = "../pushexec"}
 telemetry = {path = "../telemetry"}
 datafusion = {workspace = true}
 pgsrv = {path = "../pgsrv"}

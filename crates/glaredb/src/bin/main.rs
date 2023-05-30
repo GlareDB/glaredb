@@ -6,6 +6,7 @@ use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use object_store::local::LocalFileSystem;
 use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
+use pushexec::runtime::ExecRuntime;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -142,9 +143,9 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Local { query, opts } => {
-            let runtime = build_runtime("local")?;
-            runtime.block_on(async move {
-                let local = LocalSession::connect(opts).await?;
+            let runtime = ExecRuntime::new()?;
+            runtime.clone().tokio_rt.block_on(async move {
+                let local = LocalSession::connect(runtime, opts).await?;
                 match query {
                     Some(q) => local.execute_one(&q).await,
                     None => local.run_interactive().await,
@@ -238,11 +239,12 @@ fn begin_server(
     local_file_path: Option<PathBuf>,
     spill_path: Option<PathBuf>,
 ) -> Result<()> {
-    let runtime = build_runtime("server")?;
-    runtime.block_on(async move {
+    let runtime = ExecRuntime::new()?;
+    runtime.clone().tokio_rt.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
         let conf = ServerConfig { pg_listener };
         let server = Server::connect(
+            runtime,
             metastore_addr,
             segment_key,
             local,

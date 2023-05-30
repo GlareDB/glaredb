@@ -14,6 +14,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
+use pushexec::runtime::ExecRuntime;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use sqlexec::engine::SessionLimits;
@@ -80,12 +81,12 @@ impl LocalClientOpts {
 
 pub struct LocalSession {
     sess: TrackedSession,
-    _engine: Engine, // Avoid dropping
+    engine: Engine, // Avoid dropping
     opts: LocalClientOpts,
 }
 
 impl LocalSession {
-    pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
+    pub async fn connect(exec_runtime: ExecRuntime, opts: LocalClientOpts) -> Result<Self> {
         if opts.metastore_addr.is_some() && opts.local_file_path.is_some() {
             return Err(anyhow!(
                 "Cannot specify both a metastore address and a local file path"
@@ -102,7 +103,13 @@ impl LocalSession {
         )?;
         let metastore_client = mode.into_client().await?;
         let tracker = Arc::new(Tracker::Nop);
-        let engine = Engine::new(metastore_client, tracker, opts.spill_path.clone()).await?;
+        let engine = Engine::new(
+            exec_runtime,
+            metastore_client,
+            tracker,
+            opts.spill_path.clone(),
+        )
+        .await?;
 
         Ok(LocalSession {
             sess: engine
@@ -115,7 +122,7 @@ impl LocalSession {
                     SessionLimits::default(),
                 )
                 .await?,
-            _engine: engine,
+            engine,
             opts,
         })
     }
@@ -207,7 +214,8 @@ impl LocalSession {
                     metastore_addr: None,
                     ..self.opts.clone()
                 };
-                let new_sess = LocalSession::connect(new_opts).await?;
+                let rt = self.engine.exec_runtime().clone();
+                let new_sess = LocalSession::connect(rt, new_opts).await?;
                 println!("Created new session. New database path: {path}");
                 *self = new_sess;
             }

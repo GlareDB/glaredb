@@ -45,6 +45,7 @@ use task::{spawn_plan, Task};
 use tracing::{debug, error};
 
 pub mod errors;
+pub mod runtime;
 pub mod stream;
 
 mod pipeline;
@@ -53,42 +54,6 @@ mod task;
 
 use errors::Result;
 
-/// Builder for a [`Scheduler`]
-#[derive(Debug)]
-pub struct SchedulerBuilder {
-    inner: ThreadPoolBuilder,
-}
-
-impl SchedulerBuilder {
-    /// Create a new [`SchedulerConfig`] with the provided number of threads
-    pub fn new(num_threads: usize) -> Self {
-        let builder = ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .panic_handler(|p| error!("{}", format_worker_panic(p)))
-            .thread_name(|idx| format!("worker-{}", idx));
-
-        Self { inner: builder }
-    }
-
-    /// Registers a custom panic handler
-    #[cfg(test)]
-    fn panic_handler<H>(self, panic_handler: H) -> Self
-    where
-        H: Fn(Box<dyn std::any::Any + Send>) + Send + Sync + 'static,
-    {
-        Self {
-            inner: self.inner.panic_handler(panic_handler),
-        }
-    }
-
-    /// Build a new [`Scheduler`]
-    pub fn build(self) -> Scheduler {
-        Scheduler {
-            pool: Arc::new(self.inner.build().unwrap()),
-        }
-    }
-}
-
 /// A `Scheduler` that can be used to schedule `ExecutionPlan` on a dedicated
 /// thread pool.
 pub struct Scheduler {
@@ -96,6 +61,10 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
+    pub fn new(pool: Arc<ThreadPool>) -> Scheduler {
+        Scheduler { pool }
+    }
+
     /// Schedule the provided [`ExecutionPlan`] on this [`Scheduler`].
     ///
     /// Returns a [`ExecutionResults`] that can be used to receive results as they are produced,
@@ -174,7 +143,6 @@ mod tests {
     use rand::distributions::uniform::SampleUniform;
     use rand::{thread_rng, Rng};
     use std::ops::Range;
-    use std::panic::panic_any;
 
     use super::*;
 
@@ -239,7 +207,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple() {
-        let scheduler = SchedulerBuilder::new(4).build();
+        let scheduler = Scheduler::new(Arc::new(ThreadPoolBuilder::new().build().unwrap()));
 
         let config = SessionConfig::new().with_target_partitions(4);
         let context = SessionContext::with_config(config);
@@ -291,36 +259,5 @@ mod tests {
                 expected, scheduled
             );
         }
-    }
-
-    #[tokio::test]
-    async fn test_panic() {
-        let do_test = |scheduler: Scheduler| {
-            scheduler.pool.spawn(|| panic!("test"));
-            scheduler.pool.spawn(|| panic!("{}", 1));
-            scheduler.pool.spawn(|| panic_any(21));
-        };
-
-        // The default panic handler should log panics and not abort the process
-        do_test(SchedulerBuilder::new(1).build());
-
-        // Override panic handler and capture panics to test formatting
-        let (sender, receiver) = futures::channel::mpsc::unbounded();
-        let scheduler = SchedulerBuilder::new(1)
-            .panic_handler(move |panic| {
-                let _ = sender.unbounded_send(format_worker_panic(panic));
-            })
-            .build();
-
-        do_test(scheduler);
-
-        // Sort as order not guaranteed
-        let mut buffer: Vec<_> = receiver.collect().await;
-        buffer.sort_unstable();
-
-        assert_eq!(buffer.len(), 3);
-        assert_eq!(buffer[0], "worker 0 panicked with: 1");
-        assert_eq!(buffer[1], "worker 0 panicked with: UNKNOWN");
-        assert_eq!(buffer[2], "worker 0 panicked with: test");
     }
 }

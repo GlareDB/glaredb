@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
+use pushexec::runtime::ExecRuntime;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -48,14 +49,14 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let runtime = Builder::new_multi_thread().enable_all().build()?;
-    runtime.block_on(async move {
+    let runtime = ExecRuntime::new()?;
+    runtime.tokio_rt.clone().block_on(async move {
         let pg_listener =
             TcpListener::bind(cli.bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
         let pg_addr = pg_listener.local_addr()?;
         let server_conf = ServerConfig { pg_listener };
 
-        let server = Server::connect(None, None, true, None, None, false).await?;
+        let server = Server::connect(runtime, None, None, true, None, None, false).await?;
         tokio::spawn(server.serve(server_conf));
 
         let mut runner = BenchRunner::connect(pg_addr).await?;

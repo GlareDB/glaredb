@@ -3,6 +3,7 @@ use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
 use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore::session::SessionCatalog;
+use pushexec::runtime::ExecRuntime;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -41,6 +42,7 @@ pub struct SessionLimits {
 
 /// Wrapper around the database catalog.
 pub struct Engine {
+    exec_runtime: ExecRuntime,
     /// Metastore client supervisor.
     supervisor: Supervisor,
     /// Telemetry.
@@ -54,11 +56,13 @@ pub struct Engine {
 impl Engine {
     /// Create a new engine using the provided access runtime.
     pub async fn new(
+        exec_runtime: ExecRuntime,
         metastore: MetastoreServiceClient<Channel>,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
         Ok(Engine {
+            exec_runtime,
             supervisor: Supervisor::new(metastore, DEFAULT_WORKER_CONFIG),
             tracker,
             spill_path,
@@ -69,6 +73,10 @@ impl Engine {
     /// Get the current number of sessions.
     pub fn session_count(&self) -> u64 {
         self.session_counter.load(Ordering::Relaxed)
+    }
+
+    pub fn exec_runtime(&self) -> &ExecRuntime {
+        &self.exec_runtime
     }
 
     /// Create a new session with the given id.
@@ -96,6 +104,7 @@ impl Engine {
         let catalog = SessionCatalog::new(state);
 
         let session = Session::new(
+            self.exec_runtime.clone(),
             info,
             catalog,
             metastore,

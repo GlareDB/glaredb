@@ -7,6 +7,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use glaredb::server::{Server, ServerConfig};
+use pushexec::runtime::ExecRuntime;
 use tokio::{
     net::TcpListener,
     runtime::Builder,
@@ -104,10 +105,11 @@ impl Cli {
             std::process::abort();
         }));
 
-        Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(async move { cli.run_tests(tests, hooks).await })
+        let runtime = ExecRuntime::new()?;
+        runtime
+            .tokio_rt
+            .clone()
+            .block_on(async move { cli.run_tests(runtime, tests, hooks).await })
     }
 
     fn collect_tests(&self, tests: BTreeMap<String, Test>) -> Result<Vec<(String, Test)>> {
@@ -130,7 +132,12 @@ impl Cli {
         Ok(tests)
     }
 
-    async fn run_tests(self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
+    async fn run_tests(
+        self,
+        runtime: ExecRuntime,
+        tests: Vec<(String, Test)>,
+        hooks: TestHooks,
+    ) -> Result<()> {
         // Temp directory for metastore
         let temp_dir = tempfile::tempdir()?;
 
@@ -152,6 +159,7 @@ impl Cli {
                 let server_conf = ServerConfig { pg_listener };
 
                 let server = Server::connect(
+                    runtime,
                     self.metastore_addr,
                     None,
                     true,

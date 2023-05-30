@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
+use pushexec::runtime::ExecRuntime;
 use regex::{Captures, Regex};
 use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
@@ -89,20 +90,21 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let runtime = Builder::new_multi_thread().enable_all().build()?;
+    let runtime = ExecRuntime::new()?;
     match cli.command {
         Commands::Embedded {
             bind,
             metastore_addr,
             keep_running,
             ..
-        } => runtime.block_on(async move {
+        } => runtime.tokio_rt.clone().block_on(async move {
             let pg_listener =
                 TcpListener::bind(bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
             let pg_addr = pg_listener.local_addr()?;
             let server_conf = ServerConfig { pg_listener };
 
             let server = Server::connect(
+                runtime,
                 metastore_addr,
                 None,
                 true,
@@ -133,7 +135,7 @@ fn main() -> Result<()> {
                 }
             }
         }),
-        Commands::External { connection_str, .. } => runtime.block_on(async move {
+        Commands::External { connection_str, .. } => runtime.tokio_rt.block_on(async move {
             let runner = TestRunner::connect_external(&connection_str).await?;
             let taken = runner.exec_tests(&files).await?;
             println!("tests completed in {:?}", taken);

@@ -5,6 +5,7 @@ use std::{env, fs};
 use crate::util::{ensure_spill_path, MetastoreMode};
 use anyhow::Result;
 use pgsrv::handler::ProtocolHandler;
+use pushexec::runtime::ExecRuntime;
 use sqlexec::engine::Engine;
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
@@ -25,6 +26,7 @@ impl Server {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
     pub async fn connect(
+        exec_runtime: ExecRuntime,
         metastore_addr: Option<String>,
         segment_key: Option<String>,
         local: bool,
@@ -55,7 +57,13 @@ impl Server {
             }
         };
 
-        let engine = Engine::new(metastore_client, Arc::new(tracker), spill_path).await?;
+        let engine = Engine::new(
+            exec_runtime,
+            metastore_client,
+            Arc::new(tracker),
+            spill_path,
+        )
+        .await?;
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(engine, local, integration_testing)),
         })

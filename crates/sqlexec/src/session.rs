@@ -14,7 +14,8 @@ use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
-use pushexec::{stream::create_coalescing_adapter, SchedulerBuilder};
+use pushexec::runtime::ExecRuntime;
+use pushexec::{stream::create_coalescing_adapter, Scheduler};
 use rayon::ThreadPoolBuilder;
 use std::fmt;
 use std::path::PathBuf;
@@ -150,6 +151,7 @@ impl fmt::Debug for ExecutionResult {
 /// in the future (e.g. consensus).
 pub struct Session {
     pub(crate) ctx: SessionContext,
+    exec_runtime: ExecRuntime,
 }
 
 impl Session {
@@ -158,6 +160,7 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
+        exec_runtime: ExecRuntime,
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
@@ -166,7 +169,7 @@ impl Session {
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
         let ctx = SessionContext::new(info, catalog, metastore, metrics, spill_path);
-        Ok(Session { ctx })
+        Ok(Session { ctx, exec_runtime })
     }
 
     /// Create a physical plan for a given datafusion logical plan.
@@ -188,7 +191,7 @@ impl Session {
         let (sink, stream) = create_coalescing_adapter(plan.output_partitioning(), plan.schema());
         let sink = Arc::new(sink);
 
-        let scheduler = SchedulerBuilder::new(num_cpus::get()).build();
+        let scheduler = Scheduler::new(self.exec_runtime.rayon_rt.clone());
         scheduler.schedule(plan, context, sink.clone(), sink)?;
 
         Ok(Box::pin(stream))
