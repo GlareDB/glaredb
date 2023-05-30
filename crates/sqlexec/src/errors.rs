@@ -120,7 +120,7 @@ pub enum ExecError {
     Internal(String),
 
     #[error(transparent)]
-    DatasourceDebug(#[from] datasource_debug::errors::DebugError),
+    DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
     #[error(transparent)]
     DatasourceCommon(#[from] datasource_common::errors::DatasourceCommonError),

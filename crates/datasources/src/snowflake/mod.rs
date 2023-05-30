@@ -30,7 +30,7 @@ use snowflake_connector::{
 };
 use snowflake_connector::{QueryResult, QueryResultChunkMeta};
 
-use crate::errors::Result;
+use errors::Result;
 
 #[derive(Debug, Clone)]
 pub struct SnowflakeDbConnection {

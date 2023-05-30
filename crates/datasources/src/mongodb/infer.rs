@@ -1,4 +1,4 @@
-use crate::errors::{MongoError, Result};
+use super::errors::{MongoError, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, TimeUnit};
 use futures::TryStreamExt;
 use mongodb::bson::{doc, Bson, Document};

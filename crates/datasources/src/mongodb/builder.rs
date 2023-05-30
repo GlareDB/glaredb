@@ -1,4 +1,4 @@
-use crate::errors::{MongoError, Result};
+use super::errors::{MongoError, Result};
 use bitvec::{order::Lsb0, vec::BitVec};
 use datafusion::arrow::array::{
     Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Decimal128Builder,

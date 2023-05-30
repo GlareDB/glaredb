@@ -7,7 +7,7 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 
-use crate::errors::Result;
+use errors::Result;
 
 pub mod errors;
 pub mod gcs;

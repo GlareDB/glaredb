@@ -28,8 +28,8 @@ use datafusion::prelude::Expr;
 use futures::future::{BoxFuture, FutureExt, TryFutureExt};
 use object_store::{ObjectMeta, ObjectStore};
 
-use crate::errors::Result;
-use crate::TableAccessor;
+use super::errors::Result;
+use super::TableAccessor;
 
 /// Custom `ParquetFileReaderFactory` to provide a custom datasource in
 /// `ParquetExec` instead of datafusion Object Store registry

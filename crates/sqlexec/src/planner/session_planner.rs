@@ -16,16 +16,16 @@ use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, 
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
-use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasource_common::ssh::{SshConnection, SshConnectionParameters, SshKey};
-use datasource_debug::DebugTableType;
-use datasource_mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
-use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
-use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
-use datasource_object_store::s3::{S3Accessor, S3TableAccess};
-use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
-use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::debug::DebugTableType;
+use datasources::mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
+use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
+use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
+use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
@@ -166,7 +166,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::DEBUG => {
-                datasource_debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
@@ -398,7 +398,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::DEBUG => {
-                datasource_debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
 
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;

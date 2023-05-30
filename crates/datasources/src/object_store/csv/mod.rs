@@ -25,9 +25,9 @@ use datafusion::physical_plan::{
 use datafusion::prelude::{Expr, SessionContext};
 use object_store::ObjectStore;
 
-use crate::csv::csv_helper::{CsvConfig, CsvOpener};
-use crate::errors::Result;
-use crate::TableAccessor;
+use crate::object_store::csv::csv_helper::{CsvConfig, CsvOpener};
+use crate::object_store::errors::Result;
+use crate::object_store::TableAccessor;
 
 /// Table provider for csv table
 pub struct CsvTableProvider<T>

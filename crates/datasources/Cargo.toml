@@ -1,0 +1,40 @@
+[package]
+name = "datasources"
+version = {workspace = true}
+edition = {workspace = true}
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-channel = "1.8.0"
+async-stream = "0.3.5"
+async-trait = "0.1.68"
+bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
+bitvec = "1"
+bytes = "1.4.0"
+chrono = "0.4.24"
+datafusion = { workspace = true }
+datasource_common = { path = "../datasource_common" }
+decimal = { path = "../decimal" }
+futures = "0.3.28"
+gcp-bigquery-client = "0.16.7"
+metastore = { path = "../metastore" }
+mongodb = "2.5.0"
+mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
+mysql_common = { version = "0.30.4", features = ["chrono"] }
+object_store = { version = "0.5", features = ["gcp", "aws"] }
+openssh = "0.9.9"
+parking_lot = "0.12.1"
+rand = "0.8.5"
+repr = { path = "../repr" }
+rust_decimal = { version = "1.29.0", features = ["db-tokio-postgres"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.96"
+snowflake_connector = { path = "../snowflake_connector" }
+ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
+tempfile = "3.5.0"
+thiserror = "1.0"
+tokio = { version = "1.28.1", features = ["full"] }
+tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
+tracing = "0.1"
+uuid = "1.3.3"

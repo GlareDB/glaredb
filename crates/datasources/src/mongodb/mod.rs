@@ -5,9 +5,10 @@ mod builder;
 mod exec;
 mod infer;
 
-use crate::errors::{MongoError, Result};
-use crate::exec::MongoBsonExec;
-use crate::infer::TableSampler;
+use errors::{MongoError, Result};
+use exec::MongoBsonExec;
+use infer::TableSampler;
+
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;

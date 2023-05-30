@@ -1,5 +1,5 @@
-use crate::builder::RecordStructBuilder;
-use crate::errors::{MongoError, Result};
+use super::builder::RecordStructBuilder;
+use super::errors::{MongoError, Result};
 use async_stream::stream;
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};

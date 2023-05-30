@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, trace};
 
-use crate::errors::{MysqlError, Result};
+use errors::{MysqlError, Result};
 
 #[derive(Debug)]
 pub enum MysqlDbConnection {

@@ -7,10 +7,10 @@ use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
-use crate::csv::CsvTableProvider;
-use crate::errors::Result;
-use crate::parquet::ParquetTableProvider;
-use crate::{file_type_from_path, FileType, TableAccessor};
+use super::csv::CsvTableProvider;
+use super::errors::Result;
+use super::parquet::ParquetTableProvider;
+use super::{file_type_from_path, FileType, TableAccessor};
 
 /// Information needed for accessing an Parquet file on local file system.
 #[derive(Debug, Clone, Serialize, Deserialize)]

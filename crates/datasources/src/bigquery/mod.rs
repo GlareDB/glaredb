@@ -1,7 +1,6 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use crate::errors::{BigQueryError, Result};
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -34,6 +33,7 @@ use datasource_common::{
     listing::{VirtualLister, VirtualTable},
     util,
 };
+use errors::{BigQueryError, Result};
 use futures::{Stream, StreamExt};
 use gcp_bigquery_client::Client as BigQueryClient;
 use gcp_bigquery_client::{
