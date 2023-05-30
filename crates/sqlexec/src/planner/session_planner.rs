@@ -16,8 +16,8 @@ use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, 
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
-use datasource_common::ssh::{SshConnection, SshConnectionParameters, SshKey};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::ssh::{SshConnection, SshConnectionParameters, SshKey};
 use datasources::debug::DebugTableType;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};

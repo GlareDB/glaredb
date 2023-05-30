@@ -1,6 +1,11 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
+use crate::common::{
+    errors::DatasourceCommonError,
+    listing::{VirtualLister, VirtualTable},
+    util,
+};
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -27,11 +32,6 @@ use datafusion::{
         DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
     },
     physical_plan::memory::MemoryExec,
-};
-use datasource_common::{
-    errors::DatasourceCommonError,
-    listing::{VirtualLister, VirtualTable},
-    util,
 };
 use errors::{BigQueryError, Result};
 use futures::{Stream, StreamExt};
@@ -516,7 +516,7 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
             // codebase. It's also easier to have interop with datafusion since
             // with many things like type inference datafusion uses nanosecond.
             // This cast is done when the stream is received by using the
-            // `datasource_common::util::normalize_batch` function.
+            // `crate::common::util::normalize_batch` function.
             FieldType::Datetime => DataType::Timestamp(TimeUnit::Nanosecond, None),
             FieldType::Timestamp => DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
             FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),

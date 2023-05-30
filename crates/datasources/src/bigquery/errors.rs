@@ -28,7 +28,7 @@ pub enum BigQueryError {
     Fmt(#[from] std::fmt::Error),
 
     #[error(transparent)]
-    DatasourceCommon(#[from] datasource_common::errors::DatasourceCommonError),
+    DatasourceCommon(#[from] crate::common::errors::DatasourceCommonError),
 }
 
 pub type Result<T, E = BigQueryError> = std::result::Result<T, E>;

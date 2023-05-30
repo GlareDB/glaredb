@@ -20,7 +20,7 @@ use datafusion::{
 };
 use metastore::builtins::{VIRTUAL_CATALOG_SCHEMATA_TABLE, VIRTUAL_CATALOG_TABLES_TABLE};
 
-use crate::errors::{DatasourceCommonError, Result};
+use super::errors::{DatasourceCommonError, Result};
 
 #[derive(Debug, Clone)]
 pub struct VirtualTable {

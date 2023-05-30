@@ -6,6 +6,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::common::errors::DatasourceCommonError;
+use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::ssh::{SshKey, SshTunnelAccess};
+use crate::common::util;
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
@@ -22,10 +26,6 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
-use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualTable};
-use datasource_common::ssh::{SshKey, SshTunnelAccess};
-use datasource_common::util;
 use futures::{Stream, StreamExt, TryStreamExt};
 use metastore::types::options::TunnelOptions;
 use mysql_async::consts::{ColumnFlags, ColumnType};

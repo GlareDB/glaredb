@@ -14,7 +14,7 @@ use datafusion::{
 use decimal::Decimal128;
 use repr::str::encode::*;
 
-use crate::errors::{DatasourceCommonError, Result};
+use super::errors::{DatasourceCommonError, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Datasource {

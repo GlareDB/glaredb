@@ -1,6 +1,8 @@
 //! A collection of debug datasources.
 pub mod errors;
 
+use crate::common::errors::DatasourceCommonError;
+use crate::common::listing::{VirtualLister, VirtualTable};
 use async_trait::async_trait;
 use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
@@ -19,8 +21,6 @@ use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
-use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualTable};
 use errors::DebugError;
 use futures::Stream;
 use metastore::types::options::TunnelOptions;

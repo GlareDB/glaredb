@@ -59,7 +59,7 @@ pub enum PlanError {
     DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
     #[error(transparent)]
-    DatasourceCommon(#[from] datasource_common::errors::DatasourceCommonError),
+    DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
     #[error(transparent)]
     ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),

@@ -1581,26 +1581,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "datasource_common"
-version = "0.0.11"
-dependencies = [
- "async-trait",
- "chrono",
- "datafusion",
- "decimal",
- "futures",
- "metastore",
- "openssh",
- "rand 0.8.5",
- "repr",
- "ssh-key",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "datasources"
 version = "0.0.11"
 dependencies = [
@@ -1612,7 +1592,6 @@ dependencies = [
  "bytes",
  "chrono",
  "datafusion",
- "datasource_common",
  "decimal",
  "futures",
  "gcp-bigquery-client",
@@ -5033,7 +5012,6 @@ name = "sqlexec"
 version = "0.0.11"
 dependencies = [
  "datafusion",
- "datasource_common",
  "datasources",
  "futures",
  "logutil",

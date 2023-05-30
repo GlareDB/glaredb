@@ -6,6 +6,9 @@ use std::sync::Mutex;
 use std::task::{Context, Poll};
 use std::{any::Any, sync::Arc};
 
+use crate::common::errors::DatasourceCommonError;
+use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::util;
 use async_trait::async_trait;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
@@ -20,9 +23,6 @@ use datafusion::{
     logical_expr::{Expr, TableProviderFilterPushDown, TableType},
     physical_plan::ExecutionPlan,
 };
-use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualTable};
-use datasource_common::util;
 use futures::{Stream, StreamExt};
 use snowflake_connector::{
     datatype::SnowflakeDataType, snowflake_to_arrow_datatype, Connection as SnowflakeConnection,

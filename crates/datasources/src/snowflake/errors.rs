@@ -7,7 +7,7 @@ pub enum DatasourceSnowflakeError {
     FmtError(#[from] std::fmt::Error),
 
     #[error(transparent)]
-    DatasourceCommonError(#[from] datasource_common::errors::DatasourceCommonError),
+    DatasourceCommonError(#[from] crate::common::errors::DatasourceCommonError),
 }
 
 pub type Result<T, E = DatasourceSnowflakeError> = std::result::Result<T, E>;

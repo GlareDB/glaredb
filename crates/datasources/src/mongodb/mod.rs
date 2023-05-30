@@ -9,6 +9,8 @@ use errors::{MongoError, Result};
 use exec::MongoBsonExec;
 use infer::TableSampler;
 
+use crate::common::errors::DatasourceCommonError;
+use crate::common::listing::{VirtualLister, VirtualTable};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
@@ -16,8 +18,6 @@ use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::ExecutionPlan;
-use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualTable};
 use mongodb::bson::{Bson, Document, RawDocumentBuf};
 use mongodb::Collection;
 use mongodb::{options::ClientOptions, Client};

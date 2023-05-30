@@ -14,7 +14,7 @@ use tokio::fs::File;
 use tokio::net::TcpListener;
 use tracing::{debug, trace};
 
-use crate::errors::{DatasourceCommonError, Result};
+use super::errors::{DatasourceCommonError, Result};
 
 #[derive(Debug, Clone)]
 pub struct SshKey {
@@ -244,7 +244,7 @@ impl SshTunnelAccess {
 
 #[cfg(test)]
 mod tests {
-    use crate::ssh::{SshConnection, SshConnectionParameters, SshKey, SshTunnelAccess};
+    use crate::common::ssh::{SshConnection, SshConnectionParameters, SshKey, SshTunnelAccess};
 
     #[tokio::test]
     async fn validate_temp_keyfile() {

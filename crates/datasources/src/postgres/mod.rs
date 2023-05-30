@@ -1,5 +1,9 @@
 pub mod errors;
 
+use crate::common::errors::DatasourceCommonError;
+use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::ssh::{SshKey, SshTunnelAccess};
+use crate::common::util;
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
@@ -19,10 +23,6 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use datasource_common::errors::DatasourceCommonError;
-use datasource_common::listing::{VirtualLister, VirtualTable};
-use datasource_common::ssh::{SshKey, SshTunnelAccess};
-use datasource_common::util;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use metastore::types::options::TunnelOptions;

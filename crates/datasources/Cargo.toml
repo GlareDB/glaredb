@@ -14,7 +14,6 @@ bitvec = "1"
 bytes = "1.4.0"
 chrono = "0.4.24"
 datafusion = { workspace = true }
-datasource_common = { path = "../datasource_common" }
 decimal = { path = "../decimal" }
 futures = "0.3.28"
 gcp-bigquery-client = "0.16.7"

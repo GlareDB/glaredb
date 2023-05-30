@@ -5,9 +5,11 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
-use datasource_common::listing::{VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister};
-use datasource_common::ssh::{SshConnectionParameters, SshKey};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::listing::{
+    VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister,
+};
+use datasources::common::ssh::{SshConnectionParameters, SshKey};
 use datasources::debug::{DebugTableType, DebugVirtualLister};
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
@@ -78,7 +80,7 @@ pub enum DispatchError {
     #[error(transparent)]
     SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
     #[error(transparent)]
-    CommonDatasource(#[from] datasource_common::errors::DatasourceCommonError),
+    CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
 }
 
 impl DispatchError {

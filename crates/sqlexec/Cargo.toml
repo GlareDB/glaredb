@@ -11,7 +11,6 @@ pgrepr = {path = "../pgrepr"}
 metastore = {path = "../metastore"}
 telemetry = {path = "../telemetry"}
 datasources = {path = "../datasources"}
-datasource_common = {path = "../datasource_common"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0.96"
