@@ -5,17 +5,19 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
-use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::listing::{VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister};
-use datasource_common::ssh::{SshConnectionParameters, SshKey};
-use datasource_debug::{DebugTableType, DebugVirtualLister};
-use datasource_mongodb::{MongoAccessor, MongoTableAccessInfo};
-use datasource_mysql::{MysqlAccessor, MysqlTableAccess};
-use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
-use datasource_object_store::s3::{S3Accessor, S3TableAccess};
-use datasource_postgres::{PostgresAccessor, PostgresTableAccess};
-use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::listing::{
+    VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister,
+};
+use datasources::common::ssh::{SshConnectionParameters, SshKey};
+use datasources::debug::{DebugTableType, DebugVirtualLister};
+use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
+use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
+use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
     GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
@@ -64,21 +66,21 @@ pub enum DispatchError {
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
     #[error(transparent)]
-    DebugDatasource(#[from] datasource_debug::errors::DebugError),
+    DebugDatasource(#[from] datasources::debug::errors::DebugError),
     #[error(transparent)]
-    PostgresDatasource(#[from] datasource_postgres::errors::PostgresError),
+    PostgresDatasource(#[from] datasources::postgres::errors::PostgresError),
     #[error(transparent)]
-    BigQueryDatasource(#[from] datasource_bigquery::errors::BigQueryError),
+    BigQueryDatasource(#[from] datasources::bigquery::errors::BigQueryError),
     #[error(transparent)]
-    MysqlDatasource(#[from] datasource_mysql::errors::MysqlError),
+    MysqlDatasource(#[from] datasources::mysql::errors::MysqlError),
     #[error(transparent)]
-    ObjectStoreDatasource(#[from] datasource_object_store::errors::ObjectStoreSourceError),
+    ObjectStoreDatasource(#[from] datasources::object_store::errors::ObjectStoreSourceError),
     #[error(transparent)]
-    MongoDatasource(#[from] datasource_mongodb::errors::MongoError),
+    MongoDatasource(#[from] datasources::mongodb::errors::MongoError),
     #[error(transparent)]
-    SnowflakeDatasource(#[from] datasource_snowflake::errors::DatasourceSnowflakeError),
+    SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
     #[error(transparent)]
-    CommonDatasource(#[from] datasource_common::errors::DatasourceCommonError),
+    CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
 }
 
 impl DispatchError {

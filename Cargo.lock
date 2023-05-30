@@ -1581,145 +1581,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "datasource_bigquery"
+name = "datasources"
 version = "0.0.11"
 dependencies = [
  "async-channel",
  "async-stream",
  "async-trait",
  "bigquery-storage",
+ "bitvec",
+ "bytes",
+ "chrono",
  "datafusion",
- "datasource_common",
+ "decimal",
  "futures",
  "gcp-bigquery-client",
  "metastore",
- "parking_lot",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "datasource_common"
-version = "0.0.11"
-dependencies = [
- "async-trait",
- "chrono",
- "datafusion",
- "decimal",
- "futures",
- "metastore",
- "openssh",
- "rand 0.8.5",
- "repr",
- "ssh-key",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "datasource_debug"
-version = "0.0.11"
-dependencies = [
- "async-trait",
- "datafusion",
- "datasource_common",
- "futures",
- "metastore",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "datasource_mongodb"
-version = "0.0.11"
-dependencies = [
- "async-stream",
- "async-trait",
- "bitvec",
- "chrono",
- "datafusion",
- "datasource_common",
- "futures",
  "mongodb",
- "serde",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "datasource_mysql"
-version = "0.0.11"
-dependencies = [
- "async-stream",
- "async-trait",
- "chrono",
- "datafusion",
- "datasource_common",
- "futures",
- "metastore",
  "mysql_async",
  "mysql_common",
- "openssh",
- "rust_decimal",
- "serde",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "datasource_object_store"
-version = "0.0.11"
-dependencies = [
- "async-trait",
- "bytes",
- "datafusion",
- "futures",
  "object_store",
- "serde",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "datasource_postgres"
-version = "0.0.11"
-dependencies = [
- "async-trait",
- "chrono",
- "datafusion",
- "datasource_common",
- "decimal",
- "futures",
- "metastore",
+ "openssh",
+ "parking_lot",
+ "rand 0.8.5",
+ "repr",
  "rust_decimal",
  "serde",
  "serde_json",
+ "snowflake_connector",
+ "ssh-key",
+ "tempfile",
  "thiserror",
  "tokio",
  "tokio-postgres",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "datasource_snowflake"
-version = "0.0.11"
-dependencies = [
- "async-stream",
- "async-trait",
- "datafusion",
- "datasource_common",
- "futures",
- "snowflake_connector",
- "thiserror",
- "tokio",
 ]
 
 [[package]]
@@ -5117,14 +5012,7 @@ name = "sqlexec"
 version = "0.0.11"
 dependencies = [
  "datafusion",
- "datasource_bigquery",
- "datasource_common",
- "datasource_debug",
- "datasource_mongodb",
- "datasource_mysql",
- "datasource_object_store",
- "datasource_postgres",
- "datasource_snowflake",
+ "datasources",
  "futures",
  "logutil",
  "metastore",
