@@ -24,10 +24,10 @@ glaredb
 query T
 select current_database();
 ----
-${SLT_FUNCTIONS_POSTGRES_CURRENT_DATABASE}
+${SLT_CURRENT_DATABASE}
 
 query T
 select current_catalog;
 ----
-${SLT_FUNCTIONS_POSTGRES_CURRENT_DATABASE}
+${SLT_CURRENT_DATABASE}
 

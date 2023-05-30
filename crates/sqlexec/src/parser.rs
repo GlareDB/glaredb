@@ -256,6 +256,37 @@ impl fmt::Display for CopyToStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlterTunnelAction {
+    RotateKeys,
+}
+
+impl fmt::Display for AlterTunnelAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RotateKeys => f.write_str("ROTATE KEYS"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterTunnelStmt {
+    pub name: Ident,
+    pub if_exists: bool,
+    pub action: AlterTunnelAction,
+}
+
+impl fmt::Display for AlterTunnelStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER TUNNEL ")?;
+        if self.if_exists {
+            write!(f, "IF EXISTS ")?;
+        }
+        write!(f, "{} {}", self.name, self.action)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
@@ -273,6 +304,8 @@ pub enum StatementWithExtensions {
     DropTunnel(DropTunnelStmt),
     /// Copy to extension.
     CopyTo(CopyToStmt),
+    /// Alter tunnel extension.
+    AlterTunnel(AlterTunnelStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -286,6 +319,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -441,7 +475,11 @@ impl<'a> CustomParser<'a> {
     /// Parse a SQL ALTER statement
     fn parse_alter(&mut self) -> Result<StatementWithExtensions, ParserError> {
         if self.parser.parse_keyword(Keyword::DATABASE) {
+            // ALTER DATABASE ...
             self.parse_alter_database()
+        } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
+            // ALTER TUNNEL ...
+            self.parse_alter_tunnel()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -694,6 +732,32 @@ impl<'a> CustomParser<'a> {
             AlterDatabaseRenameStmt { name, new_name },
         ))
     }
+
+    fn parse_alter_tunnel(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+
+        let name = self.parser.parse_identifier()?;
+        validate_ident(&name)?;
+
+        let mut action = None;
+
+        if self.consume_token(&Token::make_keyword("ROTATE"))
+            && self.consume_token(&Token::make_keyword("KEYS"))
+        {
+            action = Some(AlterTunnelAction::RotateKeys);
+        }
+
+        if let Some(action) = action {
+            Ok(StatementWithExtensions::AlterTunnel(AlterTunnelStmt {
+                name,
+                if_exists,
+                action,
+            }))
+        } else {
+            let next_token = self.parser.next_token();
+            self.expected("a valid alter tunnel action", next_token.token)
+        }
+    }
 }
 
 pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
@@ -857,6 +921,22 @@ mod tests {
     #[test]
     fn drop_tunnel_roundtrips() {
         let test_cases = ["DROP TUNNEL my_tunnel", "DROP TUNNEL IF EXISTS my_tunnel"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn alter_tunnel_roundtrips() {
+        let test_cases = [
+            "ALTER TUNNEL my_tunnel ROTATE KEYS",
+            "ALTER TUNNEL IF EXISTS my_tunnel ROTATE KEYS",
+        ];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

@@ -4,41 +4,12 @@ All commits to `main` should first go through a PR. All CI checks should pass
 before merging in a PR. Since we squash merge, PR titles should follow
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-Development dependencies may (optionally) be installed using nix. By using nix
-all programs needed (cargo, protoc, &c) will be installed and you will be placed
-into a shell configured with them in your PATH.
-
 ## Development environemnt
 
-A development environment can either be setup manually or with nix.
+Developing GlareDB requires that you have Rust and Cargo installed, along with
+some additional system dependencies:
 
-### Manual setup
-
-A manual setup requires that you have Rust and Cargo installed, along with some
-additional system dependencies:
-
-- OpenSSL dev bindings
 - Protobuf (protoc)
-- Possibly more
-
-Note that some test scripts that are run in CI will assume the use of nix.
-
-### Nix setup
-
-The [nix download page](https://nixos.org/download.html) has instructions on installation. To enable flakes,
-add the following to your `nix.conf` in either `~/.config/nix/nix.conf` or
-`/etc/nix/nix.conf`
-
-```
-experimental-features = nix-command flakes
-```
-
-The nixos wiki has [instructions for enabling flakes](https://nixos.wiki/wiki/Flakes#Enable_flakes) which should have the
-most up to date information.
-
-When all of these steps are complete, you should be able to obtain the projects
-development shell: `nix develop` From this shell you may work on the project and
-use any cli tools needed.
 
 ### Additional tooling
 
@@ -62,7 +33,7 @@ Unit tests attempt to test small parts of the system. These can be ran via
 cargo:
 
 ``` shell
-cargo test
+cargo xtask unit-tests
 ```
 
 When writing unit tests, aims to keep the scope small with a minimal amount of
@@ -87,7 +58,7 @@ You can simply run the binary to run all the tests. Test cases can be found in
 `testdata/sqllogictest*`.
 
 ```shell
-cargo run --bin sqllogictests
+cargo test --test sqllogictests
 ```
 
 You might have to set a few environment variables for running tests in
@@ -97,7 +68,7 @@ Variables](#test-environment-variables) section for details.
 To run basic sqllogictests:
 
 ```shell
-cargo run --bin sqllogictests -- 'sqllogictests/*'
+cargo test --test sqllogictests -- 'sqllogictests/*'
 ```
 
 This will run all tests in `testdata/sqllogictests` directory. Basically to run
@@ -109,7 +80,7 @@ specific tests you can provide an glob-like regex argument:
 #
 # Note the quotes (') around `sqllogictests/cast/*`. This is so the shell
 # doesn't try and expand the argument into files.
-cargo run --bin sqllogictests -- 'sqllogictests/cast/*'
+cargo test --test sqllogictests -- 'sqllogictests/cast/*'
 ```
 
 Note that, all the test names don't have `.slt` but the runner only picks up
@@ -117,7 +88,7 @@ files that have this extension. So, to run the test `testdata/sqllogictests/
 simple.slt`, you would run:
 
 ```shell
-cargo run --bin sqllogictests -- sqllogictests/simple
+cargo test --test sqllogictests -- sqllogictests/simple
 ```
 
 To list the test cases, use the `--list` flag. This flag can be used to check
@@ -125,7 +96,7 @@ dry run of all the tests that will run. You can pass the regex along with the
 flag as well.
 
 ```shell
-cargo run --bin sqllogictests -- --list '*/full_outer/*'
+cargo test --test sqllogictests -- --list '*/full_outer/*'
 ```
 
 `sqllogictests` can run either against an external database using the
@@ -134,7 +105,7 @@ cargo run --bin sqllogictests -- --list '*/full_outer/*'
 An example invocation using an embedded database:
 
 ``` shell
-cargo run --bin sqllogictests -- --keep-running
+cargo test --test sqllogictests -- --keep-running
 ```
 
 The `--keep-running` flag will keep the GlareDB server up to allow for
@@ -181,20 +152,40 @@ Make sure to add a comment with index number when adding new objects to script.
 Some SQL Logic Tests depend on setting a few environment variables:
 
 1. **`POSTGRES_CONN_STRING`**: To run postgres datasource tests. Use the string
-   returned from setting up the local database:
+   returned from setting up the local database (first line):
 
    ```sh
-   export POSTGRES_CONN_STRING=$(./scripts/create-test-postgres-db.sh)
-   ```
+   POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+   export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
 
-2. **`MYSQL_CONN_STRING`**: To run the mysql datasource tests. Use the string
-   returned from setting up the local database:
+   ```
+1. **`POSTGRES_TUNNEL_SSH_CONN_STRING`**: To run postgres datasource tests
+   with SSH tunnel. Use the string returned from setting up the local database
+   (second line):
 
    ```sh
-   export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
+   POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+   export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
    ```
 
-3. **`GCP_PROJECT_ID`**: To run the bigquery and GCS tests. For development
+1. **`MYSQL_CONN_STRING`**: To run the mysql datasource tests. Use the string
+   returned from setting up the local database (first line):
+
+   ```sh
+   MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+   export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
+   ```
+
+1. **`MYSQL_TUNNEL_SSH_CONN_STRING`**: To run the mysql datasource tests with
+   SSH tunnel. Use the string returned from setting up the local database
+   (second line):
+
+   ```sh
+   MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+   export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
+   ```
+
+1. **`GCP_PROJECT_ID`**: To run the bigquery and GCS tests. For development
    set it to `glaredb-dev-playground`. A custom dataset will be created as a
    part of this project.
 
@@ -202,7 +193,7 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export GCP_PROJECT_ID=glaredb-dev-playground
    ```
 
-4. **`GCP_SERVICE_ACCOUNT_KEY`**: To run the bigquery and GCS tests. Download
+1. **`GCP_SERVICE_ACCOUNT_KEY`**: To run the bigquery and GCS tests. Download
    the JSON service account key from cloud dashboard and set the environment
    variable to the contents of the file.
 
@@ -210,14 +201,14 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export GCP_SERVICE_ACCOUNT_KEY=$(cat /path/to/glaredb-dev-playground-key.json)
    ``` 
 
-5. **`BIGQUERY_DATASET_ID`**: To run the bigquery tests. Use the string
+1. **`BIGQUERY_DATASET_ID`**: To run the bigquery tests. Use the string
    returned from setting up a custom dataset in `glaredb-dev-playground`.
 
    ```sh
    export BIGQUERY_DATASET_ID=$(./scripts/create-test-bigquery-db.sh)
    ```
 
-6. **`SNOWFLAKE_DATABASE`**: To run the snowflake tests. Use the string returned
+1. **`SNOWFLAKE_DATABASE`**: To run the snowflake tests. Use the string returned
    from setting up a custom database in the snowflake account (`hmpfscx-
    xo23956`).
 
@@ -225,21 +216,21 @@ Some SQL Logic Tests depend on setting a few environment variables:
    export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
    ```
 
-7. **`SNOWFLAKE_USERNAME`**: To run the snowflake tests. Your snowflake
+1. **`SNOWFLAKE_USERNAME`**: To run the snowflake tests. Your snowflake
    username.
 
    ```sh
    export SNOWFLAKE_USERNAME=vaibhavglaredb
    ```
 
-8. **`SNOWFLAKE_PASSWORD`**: To run the snowflake tests. Set it to the password
+1. **`SNOWFLAKE_PASSWORD`**: To run the snowflake tests. Set it to the password
    corresponding to the *SNOWFLAKE_USERNAME*.
 
    ```sh
    export SNOWFLAKE_PASSWORD=...
    ```
 
-9. **`MONGO_CONN_STRING`**: To run the mongodb tests. Use the string returned
+1. **`MONGO_CONN_STRING`**: To run the mongodb tests. Use the string returned
    from setting up the local database:
 
    ```sh

@@ -12,14 +12,17 @@ DB_USER="glaredb"
 DB_NAME="glaredb_test"
 DB_PASSWORD="password"
 DB_HOST="localhost"
-DB_PORT=5432
+# Expose external database to another port than "default".
+# We can use the default port to test inter-container networks.
+DB_PORT=5433
 
 # Remove container if it exists
 if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
     docker rm -f $CONTAINER_NAME > /dev/null
 fi
 
-_CONTAINER_ID=$(docker run -p $DB_PORT:5432 --name "${CONTAINER_NAME}" -e POSTGRES_USER="${DB_USER}" -e POSTGRES_DB="${DB_NAME}" -e POSTGRES_PASSWORD="${DB_PASSWORD}" -d $POSTGRES_IMAGE)
+CONTAINER_PORT=5432
+CONTAINER_ID=$(docker run -p $DB_PORT:$CONTAINER_PORT --name "${CONTAINER_NAME}" -e POSTGRES_USER="${DB_USER}" -e POSTGRES_DB="${DB_NAME}" -e POSTGRES_PASSWORD="${DB_PASSWORD}" -d $POSTGRES_IMAGE)
 
 CONN_STRING="host=${DB_HOST} port=${DB_PORT} user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} sslmode=disable"
 
@@ -54,4 +57,9 @@ if [[ -n "$SETUP_OUTPUT" ]]; then
 fi
 
 # This URI is expected by sqllogictests_postgres.
+echo "$CONN_STRING"
+
+# This URI is expected by sqllogictests_postgres/tunnels/ssh.
+CONTAINER_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_ID)
+CONN_STRING="host=${CONTAINER_HOST} port=${CONTAINER_PORT} user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} sslmode=disable"
 echo "$CONN_STRING"

@@ -10,14 +10,7 @@ logutil = {path = "../logutil"}
 pgrepr = {path = "../pgrepr"}
 metastore = {path = "../metastore"}
 telemetry = {path = "../telemetry"}
-datasource_bigquery = {path = "../datasource_bigquery"}
-datasource_postgres = {path = "../datasource_postgres"}
-datasource_mysql = {path = "../datasource_mysql"}
-datasource_mongodb = {path = "../datasource_mongodb"}
-datasource_snowflake = {path = "../datasource_snowflake"}
-datasource_object_store = {path = "../datasource_object_store"}
-datasource_debug = {path = "../datasource_debug"}
-datasource_common = {path = "../datasource_common"}
+datasources = {path = "../datasources"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0.96"

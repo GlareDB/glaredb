@@ -4,7 +4,7 @@ use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use datasource_object_store::url::{ObjectStoreAuth, ObjectStoreSourceUrl};
+use datasources::object_store::url::{ObjectStoreAuth, ObjectStoreSourceUrl};
 use metastore::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -123,9 +123,9 @@ impl FromStr for CopyFormat {
 /// Format specific options for COPY ... TO ...
 #[derive(Clone, Debug)]
 pub enum CopyFormatOpts {
-    Parquet(datasource_object_store::sink::parquet::ParquetSinkOpts),
-    Csv(datasource_object_store::sink::csv::CsvSinkOpts),
-    Json(datasource_object_store::sink::json::JsonSinkOpts),
+    Parquet(datasources::object_store::sink::parquet::ParquetSinkOpts),
+    Csv(datasources::object_store::sink::csv::CsvSinkOpts),
+    Json(datasources::object_store::sink::json::JsonSinkOpts),
 }
 
 #[derive(Clone, Debug)]
@@ -152,6 +152,7 @@ pub enum DdlPlan {
     CreateView(CreateView),
     AlterTableRaname(AlterTableRename),
     AlterDatabaseRename(AlterDatabaseRename),
+    AlterTunnelRotateKeys(AlterTunnelRotateKeys),
     DropTables(DropTables),
     DropViews(DropViews),
     DropSchemas(DropSchemas),
@@ -250,6 +251,13 @@ pub struct DropDatabase {
 pub struct DropTunnel {
     pub names: Vec<String>,
     pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct AlterTunnelRotateKeys {
+    pub name: String,
+    pub if_exists: bool,
+    pub new_ssh_key: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]

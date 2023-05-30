@@ -19,6 +19,8 @@ pub struct DatabaseDetails {
     pub max_datasource_count: usize,
     /// Memory limit applied to session in bytes
     pub memory_limit_bytes: usize,
+    /// Max number of tunnels allowed
+    pub max_tunnel_count: usize,
 }
 
 #[async_trait]

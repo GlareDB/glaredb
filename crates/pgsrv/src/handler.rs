@@ -6,7 +6,7 @@ use crate::messages::{
 };
 use crate::proxy::{
     ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
-    GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
+    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
@@ -16,6 +16,7 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
+use sqlexec::engine::SessionLimits;
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -80,7 +81,7 @@ impl ProtocolHandler {
                             // SSL supported, send back that we support it and
                             // start encrypting.
                             conn.write_all(&[b'S']).await?;
-                            Connection::new_encrypted(conn, conf).await?
+                            Connection::new_encrypted(conn, conf.config.clone()).await?
                         }
                         (mut conn, _) => {
                             debug!("rejecting ssl request");
@@ -157,6 +158,9 @@ impl ProtocolHandler {
         let memory_limit_bytes = self
             .read_proxy_key_val(&mut framed, &GLAREDB_MEMORY_LIMIT_BYTES_KEY, &params)
             .await?;
+        let max_tunnel_count = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_MAX_TUNNEL_COUNT_KEY, &params)
+            .await?;
 
         // Standard postgres params. These values are used only for informational purposes.
         let user_name = params.get("user").cloned().unwrap_or_default();
@@ -191,8 +195,11 @@ impl ProtocolHandler {
                 conn_id,
                 db_id,
                 database_name,
-                max_datasource_count,
-                memory_limit_bytes,
+                SessionLimits {
+                    max_datasource_count: Some(max_datasource_count),
+                    memory_limit_bytes: Some(memory_limit_bytes),
+                    max_tunnel_count: Some(max_tunnel_count),
+                },
             )
             .await
         {
@@ -645,6 +652,9 @@ where
             }
             ExecutionResult::AlterDatabaseRename => {
                 Self::command_complete(conn, "ALTER DATABASE").await?
+            }
+            ExecutionResult::AlterTunnelRotateKeys => {
+                Self::command_complete(conn, "ALTER TUNNEL").await?
             }
             ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,

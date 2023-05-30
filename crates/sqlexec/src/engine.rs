@@ -26,10 +26,17 @@ pub struct SessionInfo {
     pub user_name: String,
     /// Unique connection id.
     pub conn_id: Uuid,
+    pub limits: SessionLimits,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SessionLimits {
     // Max datasource count allowed.
-    pub max_datasource_count: usize,
+    pub max_datasource_count: Option<usize>,
     // Memory limit applied to the session.
-    pub memory_limit_bytes: usize,
+    pub memory_limit_bytes: Option<usize>,
+    // Max tunnel count allowed.
+    pub max_tunnel_count: Option<usize>,
 }
 
 /// Wrapper around the database catalog.
@@ -65,7 +72,6 @@ impl Engine {
     }
 
     /// Create a new session with the given id.
-    #[allow(clippy::too_many_arguments)]
     pub async fn new_session(
         &self,
         user_id: Uuid,
@@ -73,8 +79,7 @@ impl Engine {
         conn_id: Uuid,
         database_id: Uuid,
         database_name: String,
-        max_datasource_count: usize,
-        memory_limit_bytes: usize,
+        limits: SessionLimits,
     ) -> Result<TrackedSession> {
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
 
@@ -84,8 +89,7 @@ impl Engine {
             user_id,
             user_name,
             conn_id,
-            max_datasource_count,
-            memory_limit_bytes,
+            limits,
         });
 
         let state = metastore.get_cached_state().await?;

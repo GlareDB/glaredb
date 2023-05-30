@@ -110,23 +110,26 @@ pub enum ExecError {
     #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
     NonSshConnection,
 
-    #[error("Cannot create additional data sources. Max: {0}, Current: {1}")]
-    MaxDatasourceCount(usize, usize),
+    #[error("Cannot create additional data sources. Max: {max}, Current: {current}")]
+    MaxDatasourceCount { max: usize, current: usize },
+
+    #[error("Cannot create additional tunnels. Max: {max}, Current: {current}")]
+    MaxTunnelCount { max: usize, current: usize },
 
     #[error("internal error: {0}")]
     Internal(String),
 
     #[error(transparent)]
-    DatasourceDebug(#[from] datasource_debug::errors::DebugError),
+    DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
     #[error(transparent)]
-    DatasourceCommon(#[from] datasource_common::errors::DatasourceCommonError),
+    DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
 
     #[error(transparent)]
-    SinkError(#[from] datasource_common::sink::SinkError),
+    SinkError(#[from] datasources::common::sink::SinkError),
 }
 
 impl From<tonic::Status> for ExecError {

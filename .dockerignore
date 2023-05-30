@@ -1,0 +1,16 @@
+# Keep this up to date with .gitignore
+
+.pre-commit-config.yaml
+# nix build results
+/target
+/result
+glaredb_image
+pgsrv_image
+# Downloaded artifacts from GCS
+gcs-artifacts/
+# Outputs from cargo flamegraph
+flamegraph.svg
+# Benchmark artifacts
+benchmarks/artifacts/
+# Deps downloaded from external sources
+/deps

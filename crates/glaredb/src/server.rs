@@ -1,17 +1,16 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
 
-use anyhow::{anyhow, Result};
-use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
-use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
+use crate::util::{ensure_spill_path, MetastoreMode};
+use anyhow::Result;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
-use tracing::{debug, debug_span, error, info, warn, Instrument};
+use tracing::{debug, debug_span, error, info, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
@@ -29,7 +28,7 @@ impl Server {
         metastore_addr: Option<String>,
         segment_key: Option<String>,
         local: bool,
-        local_file_path: Option<String>,
+        local_file_path: Option<PathBuf>,
         spill_path: Option<PathBuf>,
         integration_testing: bool,
     ) -> Result<Self> {
@@ -39,42 +38,11 @@ impl Server {
         info!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
-        if let Some(spill_path) = &spill_path {
-            info!(?spill_path, "checking spill path");
-            check_spill_path(spill_path)?;
-        }
+        ensure_spill_path(spill_path.as_ref())?;
 
         // Connect to metastore.
-        let metastore_client = match (metastore_addr, local) {
-            (Some(addr), _) => {
-                info!(%addr, "connecting to remote metastore");
-                MetastoreServiceClient::connect(addr).await?
-            }
-            (None, true) => {
-                if let Some(path) = local_file_path {
-                    let path: PathBuf = path.into();
-                    if !path.exists() {
-                        fs::create_dir_all(&path)?;
-                    }
-                    if path.exists() && !path.is_dir() {
-                        warn!(
-                            ?path,
-                            "Path is not a valid directory: starting in memory store"
-                        );
-                        start_inprocess_inmemory().await?
-                    } else {
-                        start_inprocess_local(path).await?
-                    }
-                } else {
-                    start_inprocess_inmemory().await?
-                }
-            }
-            (None, false) => {
-                return Err(anyhow!(
-                    "Metastore address not provided and GlareDB not configured to run locally."
-                ))
-            }
-        };
+        let mode = MetastoreMode::new_from_options(metastore_addr, local_file_path, local)?;
+        let metastore_client = mode.into_client().await?;
 
         let tracker = match segment_key {
             Some(key) => {
@@ -153,14 +121,4 @@ impl Server {
             }
         }
     }
-}
-
-/// Check that the spill path exists and that it's writable.
-fn check_spill_path(path: &Path) -> Result<()> {
-    fs::create_dir_all(path)?;
-
-    let file = path.join("glaredb_startup_spill_check");
-    fs::write(&file, vec![0, 1, 2, 3])?;
-    fs::remove_file(&file)?;
-    Ok(())
 }

@@ -1,8 +1,8 @@
 use crate::context::SessionContext;
 use crate::parser::{
-    validate_ident, validate_object_name, AlterDatabaseRenameStmt, CopyToSource, CopyToStmt,
-    CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt, DropDatabaseStmt,
-    DropTunnelStmt, OptionValue, StatementWithExtensions,
+    validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
+    AlterTunnelStmt, CopyToSource, CopyToStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt,
+    CreateTunnelStmt, DropDatabaseStmt, DropTunnelStmt, OptionValue, StatementWithExtensions,
 };
 use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
@@ -16,22 +16,22 @@ use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, 
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
-use datasource_bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasource_common::ssh::{SshConnection, SshConnectionParameters, SshKey};
-use datasource_debug::DebugTableType;
-use datasource_mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
-use datasource_mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
-use datasource_object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasource_object_store::local::{LocalAccessor, LocalTableAccess};
-use datasource_object_store::s3::{S3Accessor, S3TableAccess};
-use datasource_object_store::sink::csv::CsvSinkOpts;
-use datasource_object_store::sink::json::JsonSinkOpts;
-use datasource_object_store::sink::parquet::ParquetSinkOpts;
-use datasource_object_store::url::{
+use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::ssh::{SshConnection, SshConnectionParameters, SshKey};
+use datasources::debug::DebugTableType;
+use datasources::mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
+use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
+use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::object_store::sink::csv::CsvSinkOpts;
+use datasources::object_store::sink::json::JsonSinkOpts;
+use datasources::object_store::sink::parquet::ParquetSinkOpts;
+use datasources::object_store::url::{
     GcsAuth, ObjectStoreAuth, ObjectStoreProvider, ObjectStoreSourceUrl, S3Auth,
 };
-use datasource_postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
-use datasource_snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
+use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
@@ -80,6 +80,7 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt).await,
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
+            StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
         }
     }
 
@@ -172,7 +173,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::DEBUG => {
-                datasource_debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
@@ -404,7 +405,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::DEBUG => {
-                datasource_debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
 
                 let typ = remove_required_opt(m, "table_type")?;
                 let typ = DebugTableType::from_str(&typ)?;
@@ -848,6 +849,25 @@ impl<'a> SessionPlanner<'a> {
             if_exists: stmt.if_exists,
         })
         .into())
+    }
+
+    fn plan_alter_tunnel(&self, stmt: AlterTunnelStmt) -> Result<LogicalPlan> {
+        validate_ident(&stmt.name)?;
+        let name = normalize_ident(stmt.name);
+
+        let plan = match stmt.action {
+            AlterTunnelAction::RotateKeys => {
+                let new_ssh_key = SshKey::generate_random()?;
+                let new_ssh_key = new_ssh_key.to_bytes()?;
+                DdlPlan::AlterTunnelRotateKeys(AlterTunnelRotateKeys {
+                    name,
+                    if_exists: stmt.if_exists,
+                    new_ssh_key,
+                })
+            }
+        };
+
+        Ok(plan.into())
     }
 
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
