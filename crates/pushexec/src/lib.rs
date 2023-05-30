@@ -39,10 +39,10 @@
 use datafusion::{execution::context::TaskContext, physical_plan::ExecutionPlan};
 use pipeline::{ErrorSink, Sink};
 use plan::{PipelinePlan, PipelinePlanner};
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::ThreadPool;
 use std::sync::Arc;
 use task::{spawn_plan, Task};
-use tracing::{debug, error};
+use tracing::debug;
 
 pub mod errors;
 pub mod runtime;
@@ -93,25 +93,6 @@ impl Scheduler {
     }
 }
 
-/// Formats a panic message for a worker
-fn format_worker_panic(panic: Box<dyn std::any::Any + Send>) -> String {
-    let maybe_idx = rayon::current_thread_index();
-    let worker: &dyn std::fmt::Display = match &maybe_idx {
-        Some(idx) => idx,
-        None => &"UNKNOWN",
-    };
-
-    let message = if let Some(msg) = panic.downcast_ref::<&str>() {
-        *msg
-    } else if let Some(msg) = panic.downcast_ref::<String>() {
-        msg.as_str()
-    } else {
-        "UNKNOWN"
-    };
-
-    format!("worker {} panicked with: {}", worker, message)
-}
-
 #[derive(Debug, Clone)]
 pub struct Spawner {
     pool: Arc<ThreadPool>,
@@ -139,9 +120,10 @@ mod tests {
     use datafusion::datasource::{MemTable, TableProvider};
     use datafusion::physical_plan::displayable;
     use datafusion::prelude::{SessionConfig, SessionContext};
-    use futures::{StreamExt, TryStreamExt};
+    use futures::TryStreamExt;
     use rand::distributions::uniform::SampleUniform;
     use rand::{thread_rng, Rng};
+    use rayon::ThreadPoolBuilder;
     use std::ops::Range;
 
     use super::*;

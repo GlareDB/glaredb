@@ -4,7 +4,7 @@ use rayon::{ThreadPool as RayonThreadPool, ThreadPoolBuilder as RayonBuilder};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::runtime::{Builder as TokioBuilder, Runtime as TokioRuntime};
-use tracing::info;
+use tracing::{error, info};
 
 /// Thread pools for sync and async tasks.
 #[derive(Clone)]
@@ -106,6 +106,10 @@ impl ExecRuntime {
                     core_affinity::set_for_current(core_id);
                 }
             })
+            .panic_handler(|p| {
+                let panic = format_worker_panic(p);
+                error!(%panic, "worker panicked");
+            })
             .thread_name(move |idx| format!("rayon-worker-thread-{}", idx))
             .build()
             .map_err(|e| PushExecError::BuildRuntime {
@@ -115,4 +119,23 @@ impl ExecRuntime {
 
         Ok(rt)
     }
+}
+
+/// Formats a panic message for a rayon worker.
+fn format_worker_panic(panic: Box<dyn std::any::Any + Send>) -> String {
+    let maybe_idx = rayon::current_thread_index();
+    let worker: &dyn std::fmt::Display = match &maybe_idx {
+        Some(idx) => idx,
+        None => &"UNKNOWN",
+    };
+
+    let message = if let Some(msg) = panic.downcast_ref::<&str>() {
+        *msg
+    } else if let Some(msg) = panic.downcast_ref::<String>() {
+        msg.as_str()
+    } else {
+        "UNKNOWN"
+    };
+
+    format!("worker {} panicked with: {}", worker, message)
 }

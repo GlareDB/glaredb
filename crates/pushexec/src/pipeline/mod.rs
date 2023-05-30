@@ -23,12 +23,13 @@ pub trait Source: Send + Sync + Debug {
     ///
     /// - `Poll::Pending` indicates that this partition's next value is not
     /// ready yet. Implementations should use the waker provided by `cx` to
-    /// notify the scheduler when progress may be able to be made
+    /// notify the scheduler when progress may be able to be made. Only the most
+    /// recent waker should be stored.
     ///
     /// - `Poll::Ready(Some(Ok(val)))` returns the next value from this output
     /// partition, the output partition should be polled again as it may have
     /// further values. The returned value will be routed to the next pipeline
-    /// in the query
+    /// in the query.
     ///
     /// - `Poll::Ready(Some(Err(e)))` returns an error that will be routed to
     /// the query's output and the query execution aborted.

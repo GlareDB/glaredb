@@ -10,7 +10,6 @@ use glaredb::server::{Server, ServerConfig};
 use pushexec::runtime::ExecRuntime;
 use tokio::{
     net::TcpListener,
-    runtime::Builder,
     sync::{mpsc, oneshot},
     time::Instant,
 };

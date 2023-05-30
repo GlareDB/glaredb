@@ -43,7 +43,7 @@ impl Sink for CoalescingAdapterSink {
             ));
         }
 
-        if let Err(_) = self.tx.unbounded_send(Some(Ok(input))) {
+        if self.tx.unbounded_send(Some(Ok(input))).is_err() {
             return Err(PushExecError::Static("Failed to send batch on channel"));
         }
 
@@ -60,10 +60,9 @@ impl Sink for CoalescingAdapterSink {
         let mut closed = self.closed.lock();
         closed[partition] = true;
 
-        if closed.iter().all(|b| *b) {
-            if let Err(_) = self.tx.unbounded_send(None) {
-                return Err(PushExecError::Static("Failed to close msg on channel"));
-            }
+        // Indicate that this stream is done if all input partitions are closed.
+        if closed.iter().all(|b| *b) && self.tx.unbounded_send(None).is_err() {
+            return Err(PushExecError::Static("Failed to close msg on channel"));
         }
 
         Ok(())
@@ -72,7 +71,7 @@ impl Sink for CoalescingAdapterSink {
 
 impl ErrorSink for CoalescingAdapterSink {
     fn push_error(&self, err: PushExecError, _partition: usize) -> Result<()> {
-        if let Err(_) = self.tx.unbounded_send(Some(Err(err))) {
+        if self.tx.unbounded_send(Some(Err(err))).is_err() {
             return Err(PushExecError::Static("Failed to send error on channel"));
         }
         Ok(())

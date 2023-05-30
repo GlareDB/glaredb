@@ -1,10 +1,8 @@
-use crate::errors::{PushExecError, Result};
+use crate::errors::Result;
 use crate::pipeline::{Pipeline, Sink, Source};
-use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::error::{ArrowError, Result as ArrowResult};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_expr::PhysicalSortRequirement;
@@ -13,7 +11,7 @@ use datafusion::physical_plan::{
     DisplayFormatType, Distribution, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
 use std::any::Any;
 use std::collections::VecDeque;
@@ -239,7 +237,7 @@ impl ExecutionPlan for ProxyExecutionPlan {
     fn execute(
         &self,
         partition: usize,
-        context: Arc<TaskContext>,
+        _context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         Ok(Box::pin(InputPartitionStream {
             schema: self.schema(),

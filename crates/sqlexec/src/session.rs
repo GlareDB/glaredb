@@ -7,16 +7,12 @@ use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
-use datafusion::physical_plan::{
-    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
-};
+use datafusion::physical_plan::{memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream};
 use datafusion::scalar::ScalarValue;
-use futures::StreamExt;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use pushexec::runtime::ExecRuntime;
 use pushexec::{stream::create_coalescing_adapter, Scheduler};
-use rayon::ThreadPoolBuilder;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;

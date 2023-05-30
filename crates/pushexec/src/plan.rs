@@ -39,6 +39,7 @@ impl PipelinePlan {
         self.cancelled.load(Ordering::Relaxed)
     }
 
+    #[allow(dead_code)] // Will be used when query cancellation is added.
     pub fn cancel(&self) {
         self.cancelled.store(true, Ordering::Relaxed)
     }

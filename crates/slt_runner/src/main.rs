@@ -12,7 +12,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
-use tokio::runtime::Builder;
 use tokio::sync::oneshot;
 use tokio_postgres::{Client, Config as ClientConfig, NoTls, SimpleQueryMessage};
 
