@@ -1,5 +1,5 @@
-use crate::common::sink::{Sink, SinkError};
 use crate::object_store::errors::Result;
+use crate::sink::{Sink, SinkError};
 use async_trait::async_trait;
 use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -71,7 +71,7 @@ impl Sink for ParquetSink {
     async fn stream_into(&self, stream: SendableRecordBatchStream) -> Result<usize, SinkError> {
         match self.stream_into_inner(stream).await {
             Ok(n) => Ok(n),
-            Err(e) => Err(crate::common::sink::SinkError::Boxed(Box::new(e))),
+            Err(e) => Err(SinkError::Boxed(Box::new(e))),
         }
     }
 }

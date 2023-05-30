@@ -18,11 +18,11 @@ use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPl
 use datafusion::physical_plan::execute_stream;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datasources::common::sink::Sink;
 use datasources::object_store::sink::csv::CsvSink;
 use datasources::object_store::sink::json::JsonSink;
 use datasources::object_store::sink::parquet::ParquetSink;
 use datasources::object_store::url::{GcsAuth, ObjectStoreAuth, S3Auth};
+use datasources::sink::Sink;
 use futures::future::BoxFuture;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;

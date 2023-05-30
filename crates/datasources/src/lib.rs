@@ -9,3 +9,4 @@ pub mod postgres;
 pub mod snowflake;
 
 pub mod common;
+pub mod sink;

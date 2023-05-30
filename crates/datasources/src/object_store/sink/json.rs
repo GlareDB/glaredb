@@ -1,6 +1,6 @@
-use crate::common::sink::{Sink, SinkError};
 use crate::object_store::errors::Result;
 use crate::object_store::sink::util::SharedBuffer;
+use crate::sink::{Sink, SinkError};
 use async_trait::async_trait;
 use datafusion::arrow::json::writer::{JsonArray, JsonFormat, LineDelimited, Writer as JsonWriter};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -71,7 +71,7 @@ impl Sink for JsonSink {
     async fn stream_into(&self, stream: SendableRecordBatchStream) -> Result<usize, SinkError> {
         match self.stream_into_inner(stream).await {
             Ok(n) => Ok(n),
-            Err(e) => Err(crate::common::sink::SinkError::Boxed(Box::new(e))),
+            Err(e) => Err(SinkError::Boxed(Box::new(e))),
         }
     }
 }

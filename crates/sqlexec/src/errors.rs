@@ -129,7 +129,7 @@ pub enum ExecError {
     PlanError(#[from] crate::planner::errors::PlanError),
 
     #[error(transparent)]
-    SinkError(#[from] datasources::common::sink::SinkError),
+    SinkError(#[from] datasources::sink::SinkError),
 }
 
 impl From<tonic::Status> for ExecError {
