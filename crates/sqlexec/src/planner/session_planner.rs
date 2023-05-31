@@ -344,7 +344,7 @@ impl<'a> SessionPlanner<'a> {
                 TableOptions::Local(TableOptionsLocal { location })
             }
             TableOptions::GCS => {
-                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let service_account_key = remove_optional_opt(m, "service_account_key")?;
                 let bucket = remove_required_opt(m, "bucket")?;
                 let location = remove_required_opt(m, "location")?;
 
@@ -368,8 +368,8 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::S3_STORAGE => {
-                let access_key_id = remove_required_opt(m, "access_key_id")?;
-                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
+                let access_key_id = remove_optional_opt(m, "access_key_id")?;
+                let secret_access_key = remove_optional_opt(m, "secret_access_key")?;
                 let region = remove_required_opt(m, "region")?;
                 let bucket = remove_required_opt(m, "bucket")?;
                 let location = remove_required_opt(m, "location")?;

@@ -19,10 +19,20 @@ pub struct GcsTableAccess {
     /// GCS object store bucket name
     pub bucket_name: String,
     /// GCS object store service account key
-    pub service_acccount_key_json: String,
+    pub service_acccount_key_json: Option<String>,
     /// GCS object store table location
     pub location: String,
     pub file_type: Option<FileType>,
+}
+
+impl GcsTableAccess {
+    fn builder(&self) -> GoogleCloudStorageBuilder {
+        let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket_name);
+        match &self.service_acccount_key_json {
+            Some(key) => builder.with_service_account_key(key),
+            None => builder,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -47,12 +57,7 @@ impl TableAccessor for GcsAccessor {
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let store = Arc::new(
-            GoogleCloudStorageBuilder::new()
-                .with_service_account_key(access.service_acccount_key_json)
-                .with_bucket_name(access.bucket_name)
-                .build()?,
-        );
+        let store = Arc::new(access.builder().build()?);
 
         let location = ObjectStorePath::from(access.location);
         // Use provided file type or infer from location
@@ -69,13 +74,7 @@ impl GcsAccessor {
     }
 
     pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
-        let store = Arc::new(
-            GoogleCloudStorageBuilder::new()
-                .with_service_account_key(access.service_acccount_key_json)
-                .with_bucket_name(access.bucket_name)
-                .build()?,
-        );
-
+        let store = Arc::new(access.builder().build()?);
         let location = ObjectStorePath::from(access.location);
         store.head(&location).await?;
         Ok(())

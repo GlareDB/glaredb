@@ -585,7 +585,7 @@ impl From<TableOptionsLocal> for options::TableOptionsLocal {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct TableOptionsGcs {
-    pub service_account_key: String,
+    pub service_account_key: Option<String>,
     pub bucket: String,
     pub location: String,
 }
@@ -613,8 +613,8 @@ impl From<TableOptionsGcs> for options::TableOptionsGcs {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct TableOptionsS3 {
-    pub access_key_id: String,
-    pub secret_access_key: String,
+    pub access_key_id: Option<String>,
+    pub secret_access_key: Option<String>,
     pub region: String,
     pub bucket: String,
     pub location: String,
