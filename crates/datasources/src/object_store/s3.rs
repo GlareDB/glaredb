@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 use super::csv::CsvTableProvider;
-use super::errors::Result;
+use super::errors::{ObjectStoreSourceError, Result};
 use super::parquet::ParquetTableProvider;
 use super::{file_type_from_path, FileType, TableAccessor};
 
@@ -20,12 +20,29 @@ pub struct S3TableAccess {
     /// S3 object store bucket name
     pub bucket_name: String,
     /// S3 object store access key id
-    pub access_key_id: String,
+    pub access_key_id: Option<String>,
     /// S3 object store secret access key
-    pub secret_access_key: String,
+    pub secret_access_key: Option<String>,
     /// S3 object store table location
     pub location: String,
     pub file_type: Option<FileType>,
+}
+
+impl S3TableAccess {
+    fn builder(&self) -> Result<AmazonS3Builder> {
+        let builder = AmazonS3Builder::new()
+            .with_region(&self.region)
+            .with_bucket_name(&self.bucket_name);
+        match (&self.access_key_id, &self.secret_access_key) {
+            (Some(id), Some(secret)) => Ok(builder
+                .with_access_key_id(id)
+                .with_secret_access_key(secret)),
+            (None, None) => Ok(builder),
+            _ => Err(ObjectStoreSourceError::Static(
+                "Access key id and secret must both be provided",
+            )),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -50,14 +67,7 @@ impl TableAccessor for S3Accessor {
 impl S3Accessor {
     /// Setup accessor for S3
     pub async fn new(access: S3TableAccess) -> Result<Self> {
-        let store = Arc::new(
-            AmazonS3Builder::new()
-                .with_region(access.region)
-                .with_bucket_name(access.bucket_name)
-                .with_access_key_id(access.access_key_id)
-                .with_secret_access_key(access.secret_access_key)
-                .build()?,
-        );
+        let store = Arc::new(access.builder()?.build()?);
 
         let location = ObjectStorePath::from(access.location);
         // Use provided file type or infer from location
@@ -74,14 +84,7 @@ impl S3Accessor {
     }
 
     pub async fn validate_table_access(access: S3TableAccess) -> Result<()> {
-        let store = Arc::new(
-            AmazonS3Builder::new()
-                .with_region(access.region)
-                .with_bucket_name(access.bucket_name)
-                .with_access_key_id(access.access_key_id)
-                .with_secret_access_key(access.secret_access_key)
-                .build()?,
-        );
+        let store = Arc::new(access.builder()?.build()?);
 
         let location = ObjectStorePath::from(access.location);
         store.head(&location).await?;

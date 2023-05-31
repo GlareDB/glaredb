@@ -117,14 +117,14 @@ message TableOptionsMysql {
 message TableOptionsLocal { string location = 1; }
 
 message TableOptionsGcs {
-  string service_account_key = 1;
+  optional string service_account_key = 1;
   string bucket = 2;
   string location = 3;
 }
 
 message TableOptionsS3 {
-  string access_key_id = 1;
-  string secret_access_key = 2;
+  optional string access_key_id = 1;
+  optional string secret_access_key = 2;
   string region = 3;
   string bucket = 4;
   string location = 5;
