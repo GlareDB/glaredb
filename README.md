@@ -19,7 +19,8 @@
 ## About
 
 GlareDB is a database system built for querying and analyzing distributed data
-using SQL.
+using SQL. Query data directly from [Snowflake], [Postgres], and more without
+having to move data around.
 
 ## Install
 
@@ -53,6 +54,26 @@ Postgres client. For example, connected to a local instance of GlareDB using
 psql "host=localhost user=glaredb password=glaredb dbname=glaredb port=6543"
 ```
 
+### Your first data source
+
+Adding data sources is done through SQL commands. For example, let's add and
+query a CSV file hosted in GCS containing some sample data.
+
+```sql
+CREATE EXTERNAL TABLE voight_kampff
+    FROM gcs
+    OPTIONS (
+        bucket='glaredb-demos',
+        location='tyrell/voight_kampff.csv'
+    );
+
+SELECT AVG(questions_asked)::int
+FROM voight_kampff
+WHERE final_assessment = 'Replicant';
+```
+
+Check out [Supported data sources] for more ways to access and query your data.
+
 ## Building from source
 
 Building GlareDB requires Rust/Cargo to be installed. Check out [rustup](https://rustup.rs/) for
@@ -79,3 +100,6 @@ Contributions welcome! Check out [CONTRIBUTING.md](CONTRIBUTING.md) for how to g
 See [LICENSE](./LICENSE). Unless otherwise noted, this license applies to all files in
 this repository.
 
+[Snowflake]: https://docs.glaredb.com/docs/data-sources/supported/snowflake.html
+[Postgres]: https://docs.glaredb.com/docs/data-sources/supported/postgres.html
+[Supported data sources]: https://docs.glaredb.com/docs/data-sources/supported/

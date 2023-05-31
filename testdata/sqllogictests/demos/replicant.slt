@@ -1,0 +1,17 @@
+# Demo in readme for querying a sample dataset of "Voight Kampff" test results
+# from Bladerunner.
+
+statement ok
+CREATE EXTERNAL TABLE voight_kampff
+    FROM gcs
+    OPTIONS (
+        bucket='glaredb-demos',
+        location='tyrell/voight_kampff.csv'
+    );
+
+query R
+SELECT AVG(questions_asked)::int
+FROM voight_kampff
+WHERE final_assessment = 'Replicant';
+----
+84
