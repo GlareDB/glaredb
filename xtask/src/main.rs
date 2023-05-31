@@ -31,6 +31,9 @@ enum Commands {
     /// Run doc tests.
     DocTests,
 
+    /// Run SQL Logic Tests.
+    SqlLogicTests { rest: Vec<String> },
+
     /// Run tests with arbitrary arguments.
     Test { rest: Vec<String> },
 
@@ -62,7 +65,15 @@ fn main() -> Result<()> {
         Commands::Build { release } => run_build(sh, release)?,
         Commands::UnitTests => run_tests(sh, &["--lib", "--bins"])?,
         Commands::DocTests => run_tests(sh, &["--doc"])?,
-        Commands::Test { rest } => run_tests(sh, rest.as_slice())?,
+        Commands::SqlLogicTests { rest } => {
+            let mut args: Vec<_> = vec!["--test", "sqllogictests", "--"]
+                .into_iter()
+                .map(|s| s.to_owned())
+                .collect();
+            args.extend_from_slice(&rest);
+            run_tests(sh, &args)?
+        }
+        Commands::Test { rest } => run_tests(sh, &rest)?,
         Commands::Clippy => run_clippy(sh)?,
         Commands::FmtCheck => run_fmt_check(sh)?,
         Commands::Dist => run_dist(sh, &target)?,
