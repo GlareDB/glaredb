@@ -21,7 +21,7 @@ metastore = { path = "../metastore" }
 mongodb = "2.5.0"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.30.4", features = ["chrono"] }
-object_store = { version = "0.5", features = ["gcp", "aws"] }
+object_store = { version = "0.6", features = ["gcp", "aws"] }
 openssh = "0.9.9"
 parking_lot = "0.12.1"
 rand = "0.8.5"
