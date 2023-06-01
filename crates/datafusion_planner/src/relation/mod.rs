@@ -38,21 +38,17 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 let table_ref = self.object_name_to_table_reference(name)?;
                 let table_name = table_ref.to_string();
                 let cte = planner_context.get_cte(&table_name);
-                (
-                    match (
-                        cte,
-                        self.schema_provider
-                            .get_table_provider(table_ref.clone())
-                            .await,
-                    ) {
-                        (Some(cte_plan), _) => Ok(cte_plan.clone()),
-                        (_, Ok(provider)) => {
-                            LogicalPlanBuilder::scan(table_ref, provider, None)?.build()
-                        }
-                        (None, Err(e)) => Err(e),
-                    }?,
-                    alias,
-                )
+                let plan = if let Some(cte_plan) = cte {
+                    cte_plan.clone()
+                } else {
+                    let provider = self
+                        .schema_provider
+                        .get_table_provider(table_ref.clone())
+                        .await?;
+                    let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
+                    plan_builder.build()?
+                };
+                (plan, alias)
             }
             TableFactor::Derived {
                 subquery, alias, ..

@@ -456,7 +456,7 @@ impl<'a> SessionPlanner<'a> {
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
-        let mut context_provider = PartialContextProvider::new(self.ctx, &statement)?;
+        let mut context_provider = PartialContextProvider::new(self.ctx)?;
         let mut planner = SqlQueryPlanner::new(&mut context_provider);
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
