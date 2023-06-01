@@ -27,6 +27,7 @@ unicode_expressions = []
 
 [dependencies]
 datafusion = { workspace = true }
+datasources = { path = "../datasources" }
 async-trait = "0.1.68"
 async-recursion = "1.0.4"
 

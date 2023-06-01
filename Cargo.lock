@@ -1609,6 +1609,7 @@ dependencies = [
  "async-trait",
  "ctor",
  "datafusion",
+ "datasources",
  "env_logger",
  "paste",
  "rstest",

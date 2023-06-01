@@ -18,9 +18,15 @@
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result};
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::datasource::DefaultTableSource;
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder, TableSource};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::TableFactor;
+use datafusion::sql::sqlparser::ast::{
+    self, FunctionArg, FunctionArgExpr, ObjectName, TableFactor, Value,
+};
+use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
+use std::sync::Arc;
 
 mod join;
 
@@ -33,26 +39,40 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         planner_context: &mut PlannerContext,
     ) -> Result<LogicalPlan> {
         let (plan, alias) = match relation {
-            TableFactor::Table { name, alias, .. } => {
-                // normalize name and alias
-                let table_ref = self.object_name_to_table_reference(name)?;
-                let table_name = table_ref.to_string();
-                let cte = planner_context.get_cte(&table_name);
-                (
-                    match (
-                        cte,
-                        self.schema_provider
-                            .get_table_provider(table_ref.clone())
-                            .await,
-                    ) {
-                        (Some(cte_plan), _) => Ok(cte_plan.clone()),
-                        (_, Ok(provider)) => {
-                            LogicalPlanBuilder::scan(table_ref, provider, None)?.build()
-                        }
-                        (None, Err(e)) => Err(e),
-                    }?,
-                    alias,
-                )
+            TableFactor::Table {
+                name, alias, args, ..
+            } => {
+                match args {
+                    Some(args) => {
+                        let table_ref = self.object_name_to_table_reference(name)?;
+                        let table_name = table_ref.to_string();
+
+                        let source = table_returning_function(&table_name, args).await?;
+                        let plan = LogicalPlanBuilder::scan(table_name, source, None)?.build()?;
+                        (plan, alias)
+                    }
+                    None => {
+                        // normalize name and alias
+                        let table_ref = self.object_name_to_table_reference(name)?;
+                        let table_name = table_ref.to_string();
+                        let cte = planner_context.get_cte(&table_name);
+                        (
+                            match (
+                                cte,
+                                self.schema_provider
+                                    .get_table_provider(table_ref.clone())
+                                    .await,
+                            ) {
+                                (Some(cte_plan), _) => Ok(cte_plan.clone()),
+                                (_, Ok(provider)) => {
+                                    LogicalPlanBuilder::scan(table_ref, provider, None)?.build()
+                                }
+                                (None, Err(e)) => Err(e),
+                            }?,
+                            alias,
+                        )
+                    }
+                }
             }
             TableFactor::Derived {
                 subquery, alias, ..
@@ -82,5 +102,56 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         } else {
             Ok(plan)
         }
+    }
+}
+
+// jank
+async fn table_returning_function(
+    mut name: &str,
+    mut args: Vec<ast::FunctionArg>,
+) -> Result<Arc<dyn TableSource>> {
+    match name {
+        "read_csv" => {
+            let file = args.pop().unwrap();
+            let file = arg_to_string(file).unwrap();
+            let access = LocalTableAccess {
+                location: file,
+                file_type: None,
+            };
+            let prov = LocalAccessor::new(access)
+                .await
+                .unwrap()
+                .into_table_provider(true)
+                .await
+                .unwrap();
+            Ok(Arc::new(DefaultTableSource::new(prov)))
+        }
+        "read_postgres" => {
+            let name = arg_to_string(args.pop().unwrap()).unwrap();
+            let schema = arg_to_string(args.pop().unwrap()).unwrap();
+            let conn_str = arg_to_string(args.pop().unwrap()).unwrap();
+            let access = PostgresTableAccess { schema, name };
+            let prov = PostgresAccessor::connect(&conn_str, None)
+                .await
+                .unwrap()
+                .into_table_provider(access, true)
+                .await
+                .unwrap();
+            Ok(Arc::new(DefaultTableSource::new(Arc::new(prov))))
+        }
+        _ => unimplemented!(),
+    }
+}
+
+fn arg_to_string(arg: FunctionArg) -> Result<String> {
+    match arg {
+        FunctionArg::Unnamed(expr) => match expr {
+            FunctionArgExpr::Expr(ast::Expr::Value(v)) => match v {
+                Value::SingleQuotedString(s) => Ok(s),
+                _ => unimplemented!(),
+            },
+            _ => unimplemented!(),
+        },
+        _ => unimplemented!(),
     }
 }
