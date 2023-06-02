@@ -18,6 +18,7 @@ decimal = { path = "../decimal" }
 futures = "0.3.28"
 gcp-bigquery-client = "0.16.7"
 metastore = { path = "../metastore" }
+metastoreproto = { path = "../metastoreproto" }
 mongodb = "2.5.0"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.30.4", features = ["chrono"] }

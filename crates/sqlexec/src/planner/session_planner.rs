@@ -26,14 +26,14 @@ use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore::types::options::{
+use metastore::validation::{validate_database_tunnel_support, validate_table_tunnel_support};
+use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
     TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
     TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
-use metastore::validation::{validate_database_tunnel_support, validate_table_tunnel_support};
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;

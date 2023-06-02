@@ -1,7 +1,7 @@
 use crate::errors::{MetastoreError, Result};
-use crate::proto::service::metastore_service_client::MetastoreServiceClient;
-use crate::proto::service::metastore_service_server::MetastoreServiceServer;
 use crate::srv::Service;
+use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
+use metastoreproto::proto::service::metastore_service_server::MetastoreServiceServer;
 use object_store::local::LocalFileSystem;
 use object_store::{memory::InMemory, ObjectStore};
 use std::path::Path;

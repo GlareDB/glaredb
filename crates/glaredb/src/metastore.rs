@@ -1,6 +1,6 @@
 use anyhow::Result;
-use metastore::proto::service::metastore_service_server::MetastoreServiceServer;
 use metastore::srv::Service;
+use metastoreproto::proto::service::metastore_service_server::MetastoreServiceServer;
 use object_store::ObjectStore;
 use std::net::SocketAddr;
 use std::sync::Arc;

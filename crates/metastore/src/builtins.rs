@@ -13,7 +13,7 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
-use crate::types::options::InternalColumnDefinition;
+use metastoreproto::types::options::InternalColumnDefinition;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;

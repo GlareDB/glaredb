@@ -5,15 +5,15 @@ use crate::builtins::{
 };
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
-use crate::types::catalog::{
+use metastoreproto::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
     TunnelEntry, ViewEntry,
 };
-use crate::types::options::{
+use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
 };
-use crate::types::service::Mutation;
-use crate::types::storage::{ExtraState, PersistedCatalog};
+use metastoreproto::types::service::Mutation;
+use metastoreproto::types::storage::{ExtraState, PersistedCatalog};
 use crate::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -1019,11 +1019,11 @@ mod tests {
     use super::*;
     use crate::builtins::DEFAULT_CATALOG;
     use crate::storage::persist::Storage;
-    use crate::types::options::DatabaseOptionsDebug;
-    use crate::types::options::TableOptionsDebug;
-    use crate::types::service::AlterDatabaseRename;
-    use crate::types::service::DropDatabase;
-    use crate::types::service::{
+    use metastoreproto::types::options::DatabaseOptionsDebug;
+    use metastoreproto::types::options::TableOptionsDebug;
+    use metastoreproto::types::service::AlterDatabaseRename;
+    use metastoreproto::types::service::DropDatabase;
+    use metastoreproto::types::service::{
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
     };
     use object_store::memory::InMemory;
