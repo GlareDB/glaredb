@@ -1603,7 +1603,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_planner"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "async-recursion",
  "async-trait",

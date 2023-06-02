@@ -468,10 +468,16 @@ impl<'a> SessionPlanner<'a> {
                 Ok(LogicalPlan::Query(plan))
             }
 
-            _stmt @ ast::Statement::Explain { .. } => {
-                // let plan = planner.sql_statement_to_plan(stmt)?;
-                // Ok(LogicalPlan::Query(plan))
-                todo!()
+            ast::Statement::Explain {
+                verbose,
+                statement,
+                analyze,
+                ..
+            } => {
+                let plan = planner
+                    .explain_statement_to_plan(verbose, analyze, *statement)
+                    .await?;
+                Ok(LogicalPlan::Query(plan))
             }
 
             ast::Statement::CreateSchema {
