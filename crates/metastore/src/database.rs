@@ -5,6 +5,9 @@ use crate::builtins::{
 };
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
+use crate::validation::{
+    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+};
 use metastoreproto::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
     TunnelEntry, ViewEntry,
@@ -14,9 +17,6 @@ use metastoreproto::types::options::{
 };
 use metastoreproto::types::service::Mutation;
 use metastoreproto::types::storage::{ExtraState, PersistedCatalog};
-use crate::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
-};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use std::collections::HashMap;
