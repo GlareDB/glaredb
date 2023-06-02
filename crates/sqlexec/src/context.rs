@@ -141,7 +141,11 @@ impl SessionContext {
     pub fn get_datasource_count(&mut self) -> usize {
         self.metastore_catalog
             .iter_entries()
-            .filter(|ent| ent.entry.get_meta().external)
+            .filter(|ent| {
+                ent.entry.get_meta().external
+                    && (ent.entry.get_meta().entry_type == EntryType::Database
+                        || ent.entry.get_meta().entry_type == EntryType::Table)
+            })
             .count()
     }
 
@@ -216,10 +220,10 @@ impl SessionContext {
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
         if let Some(limit) = self.info.limits.max_tunnel_count {
-            if self.get_datasource_count() >= limit {
+            if self.get_tunnel_count() >= limit {
                 return Err(ExecError::MaxTunnelCount {
                     max: limit,
-                    current: self.get_datasource_count(),
+                    current: self.get_tunnel_count(),
                 });
             }
         }
