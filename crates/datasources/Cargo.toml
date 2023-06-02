@@ -12,7 +12,7 @@ async-trait = "0.1.68"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
 bitvec = "1"
 bytes = "1.4.0"
-chrono = "0.4.24"
+chrono = "0.4.26"
 datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 futures = "0.3.28"
