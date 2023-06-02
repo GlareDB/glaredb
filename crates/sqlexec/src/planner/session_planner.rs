@@ -4,7 +4,6 @@ use crate::parser::{
     AlterTunnelStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt,
     DropDatabaseStmt, DropTunnelStmt, OptionValue, StatementWithExtensions,
 };
-use crate::planner::context_builder::PlanContextBuilder;
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
@@ -12,10 +11,11 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::OwnedTableReference;
-use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, SqlToRel};
+use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
+use datafusion_planner::planner::SqlQueryPlanner;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{SshConnection, SshConnectionParameters, SshKey};
 use datasources::debug::DebugTableType;
@@ -39,6 +39,8 @@ use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
+
+use super::context_builder::PartialContextProvider;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -454,23 +456,22 @@ impl<'a> SessionPlanner<'a> {
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
-        let builder = PlanContextBuilder::new(self.ctx);
-        let context_provider = builder.build_plan_context(&statement).await?;
-
-        let planner = SqlToRel::new(&context_provider);
+        let mut context_provider = PartialContextProvider::new(self.ctx)?;
+        let mut planner = SqlQueryPlanner::new(&mut context_provider);
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
-            stmt @ ast::Statement::Query(_) => {
-                let plan = planner.sql_statement_to_plan(stmt)?;
+            ast::Statement::Query(q) => {
+                let plan = planner.query_to_plan(*q).await?;
                 Ok(LogicalPlan::Query(plan))
             }
 
-            stmt @ ast::Statement::Explain { .. } => {
-                let plan = planner.sql_statement_to_plan(stmt)?;
-                Ok(LogicalPlan::Query(plan))
+            _stmt @ ast::Statement::Explain { .. } => {
+                // let plan = planner.sql_statement_to_plan(stmt)?;
+                // Ok(LogicalPlan::Query(plan))
+                todo!()
             }
 
             ast::Statement::CreateSchema {
@@ -543,7 +544,7 @@ impl<'a> SessionPlanner<'a> {
                 validate_object_name(&name)?;
                 let table_name = object_name_to_table_ref(name)?;
 
-                let source = planner.sql_statement_to_plan(ast::Statement::Query(query))?;
+                let source = planner.query_to_plan(*query).await?;
                 Ok(DdlPlan::CreateTableAs(CreateTableAs { table_name, source }).into())
             }
 
@@ -576,27 +577,29 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
+                let query_string = query.to_string();
+
                 // Check that this is a valid body.
                 // TODO: Avoid cloning.
-                let input = planner.sql_statement_to_plan(ast::Statement::Query(query.clone()))?;
+                let input = planner.query_to_plan(*query).await?;
 
                 let columns: Vec<_> = columns.into_iter().map(normalize_ident).collect();
                 // Only validate number of aliases equals number of fields in
                 // the ouput if aliases were actually provided.
                 if !columns.is_empty() && input.schema().fields().len() != columns.len() {
-                    return Err(PlanError::InvalidNumberOfAliasesForView {
-                        sql: query.to_string(),
+                    Err(PlanError::InvalidNumberOfAliasesForView {
+                        sql: query_string,
                         aliases: columns,
-                    });
+                    })
+                } else {
+                    Ok(DdlPlan::CreateView(CreateView {
+                        view_name: name,
+                        sql: query_string,
+                        columns,
+                        or_replace,
+                    })
+                    .into())
                 }
-
-                Ok(DdlPlan::CreateView(CreateView {
-                    view_name: name,
-                    sql: query.to_string(),
-                    columns,
-                    or_replace,
-                })
-                .into())
             }
 
             stmt @ ast::Statement::Insert { .. } => {
