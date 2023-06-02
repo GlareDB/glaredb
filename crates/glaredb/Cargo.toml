@@ -23,6 +23,6 @@ tracing = "0.1"
 uuid = { version = "1.3.3", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 rustyline = "11.0.0"
-once_cell = "1.17.1"
+once_cell = "1.17.2"
 futures = "0.3.28"
 colored = "2.0.0"
