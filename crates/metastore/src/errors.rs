@@ -80,6 +80,9 @@ pub enum MetastoreError {
     MaxNumberOfObjects { max: usize },
 
     #[error(transparent)]
+    FunctionError(#[from] crate::builtins::table_func::FunctionError),
+
+    #[error(transparent)]
     Storage(#[from] crate::storage::StorageError),
 
     #[error(transparent)]

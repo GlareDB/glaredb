@@ -1,7 +1,8 @@
 [package]
-name = "metastore"
+name = "builtins"
 version = {workspace = true}
 edition = {workspace = true}
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -26,6 +27,3 @@ proptest = "1.2"
 proptest-derive = "0.3"
 tower = "0.4"
 futures = "0.3.28"
-
-[build-dependencies]
-tonic-build = "0.9"
