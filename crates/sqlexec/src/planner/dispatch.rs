@@ -23,10 +23,10 @@ use metastore::builtins::{
     GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
 };
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::{
+use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
-use metastore::types::options::{
+use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
     TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,

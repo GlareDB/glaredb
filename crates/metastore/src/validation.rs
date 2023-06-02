@@ -1,7 +1,5 @@
-use crate::{
-    errors::{MetastoreError, Result},
-    types::options::{DatabaseOptions, TableOptions, TunnelOptions},
-};
+use crate::errors::{MetastoreError, Result};
+use metastoreproto::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 
 /// Validate idents as per postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
