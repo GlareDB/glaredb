@@ -107,7 +107,8 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          cargo xtask sql-logic-tests -- -v
+          cargo xtask sql-logic-tests -- -v --exclude '*/tunnels/ssh'
+          cargo xtask sql-logic-tests -- -v '*/tunnels/ssh'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

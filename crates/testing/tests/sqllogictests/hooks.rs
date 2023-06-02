@@ -146,7 +146,7 @@ SELECT public_key
                 Err(anyhow!("container not started yet"))
             }
         }
-        let deadline = Instant::now() + Duration::from_secs(120);
+        let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline {
             if check_container(container_id).await.is_ok() {
                 return Ok(());
