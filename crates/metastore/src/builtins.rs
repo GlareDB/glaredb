@@ -17,6 +17,7 @@ use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as Arro
 use metastoreproto::types::options::InternalColumnDefinition;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
+use std::sync::Arc;
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
@@ -147,6 +148,28 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "functions",
+    columns: InternalColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("schema_oid", DataType::UInt32, false),
+        ("function_name", DataType::Utf8, false),
+        ("function_type", DataType::Utf8, false), // table, scalar, aggregate
+        (
+            "parameters",
+            DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
+            false,
+        ),
+        (
+            "parameter_types",
+            DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
+            false,
+        ),
+        ("builtin", DataType::Boolean, false),
+    ]),
+});
+
 pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "session_query_metrics",
@@ -195,6 +218,7 @@ impl BuiltinTable {
             &GLARE_VIEWS,
             &GLARE_TABLES,
             &GLARE_COLUMNS,
+            &GLARE_FUNCTIONS,
             &GLARE_SESSION_QUERY_METRICS,
             &GLARE_SSH_KEYS,
         ]

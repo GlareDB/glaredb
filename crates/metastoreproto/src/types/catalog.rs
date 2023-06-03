@@ -139,7 +139,7 @@ pub enum EntryType {
 }
 
 impl EntryType {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             EntryType::Database => "database",
             EntryType::Schema => "schema",
@@ -384,23 +384,79 @@ impl From<TunnelEntry> for catalog::TunnelEntry {
     }
 }
 
+#[derive(Debug, Clone, Copy, Arbitrary)]
+pub enum FunctionType {
+    Aggregate,
+    Scalar,
+    TableReturning,
+}
+
+impl FunctionType {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            FunctionType::Aggregate => "aggregate",
+            FunctionType::Scalar => "scalar",
+            FunctionType::TableReturning => "table",
+        }
+    }
+}
+
+impl TryFrom<i32> for FunctionType {
+    type Error = ProtoConvError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        catalog::function_entry::FunctionType::from_i32(value)
+            .ok_or(ProtoConvError::UnknownEnumVariant("FunctionType", value))
+            .and_then(|t| t.try_into())
+    }
+}
+
+impl TryFrom<catalog::function_entry::FunctionType> for FunctionType {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::function_entry::FunctionType) -> Result<Self, Self::Error> {
+        Ok(match value {
+            catalog::function_entry::FunctionType::Unknown => {
+                return Err(ProtoConvError::ZeroValueEnumVariant("FunctionType"))
+            }
+            catalog::function_entry::FunctionType::Aggregate => FunctionType::Aggregate,
+            catalog::function_entry::FunctionType::Scalar => FunctionType::Scalar,
+            catalog::function_entry::FunctionType::TableReturning => FunctionType::TableReturning,
+        })
+    }
+}
+
+impl From<FunctionType> for catalog::function_entry::FunctionType {
+    fn from(value: FunctionType) -> Self {
+        match value {
+            FunctionType::Aggregate => catalog::function_entry::FunctionType::Aggregate,
+            FunctionType::Scalar => catalog::function_entry::FunctionType::Scalar,
+            FunctionType::TableReturning => catalog::function_entry::FunctionType::TableReturning,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary)]
 pub struct FunctionEntry {
     pub meta: EntryMeta,
+    pub func_type: FunctionType,
 }
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::FunctionEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
-        Ok(FunctionEntry { meta })
+        Ok(FunctionEntry {
+            meta,
+            func_type: value.func_type.try_into()?,
+        })
     }
 }
 
 impl From<FunctionEntry> for catalog::FunctionEntry {
     fn from(value: FunctionEntry) -> Self {
+        let func_type: catalog::function_entry::FunctionType = value.func_type.into();
         catalog::FunctionEntry {
             meta: Some(value.meta.into()),
+            func_type: func_type as i32,
         }
     }
 }

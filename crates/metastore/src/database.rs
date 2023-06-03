@@ -9,8 +9,8 @@ use crate::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
 use metastoreproto::types::catalog::{
-    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, SchemaEntry,
-    TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, FunctionType,
+    SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -1056,6 +1056,7 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                     },
+                    func_type: FunctionType::TableReturning,
                 }),
             );
             schema_objects

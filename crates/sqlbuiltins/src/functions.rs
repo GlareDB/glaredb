@@ -1,11 +1,7 @@
 //! Builtin table returning functions.
 use crate::errors::{BuiltinError, Result};
 use async_trait::async_trait;
-use datafusion::{
-    arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema},
-    datasource::TableProvider,
-    scalar::ScalarValue,
-};
+use datafusion::{arrow::datatypes::DataType, datasource::TableProvider, scalar::ScalarValue};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -14,17 +10,20 @@ use std::sync::Arc;
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(|| BuiltinTableFuncs::new());
 
+/// A single parameter for a table function.
 #[derive(Debug, Clone)]
 pub struct TableFuncParameter {
     pub name: &'static str,
     pub typ: DataType,
 }
 
+/// A set of parameters for a table function.
 #[derive(Debug, Clone)]
 pub struct TableFuncParamaters {
     pub params: &'static [TableFuncParameter],
 }
 
+/// All builtin table functions.
 pub struct BuiltinTableFuncs {
     funcs: HashMap<String, Arc<dyn TableFunc>>,
 }
@@ -51,10 +50,22 @@ impl BuiltinTableFuncs {
 
 #[async_trait]
 pub trait TableFunc: Sync + Send {
+    /// The name for this table function. This name will be used when looking up
+    /// function implementations.
     fn name(&self) -> &str;
 
+    /// A list of function parameters.
+    ///
+    /// Note that returns a slice to allow for functions that take a variable
+    /// number of arguments. For example, a function implementation might allow
+    /// 2 or 3 parameters. The same implementation would be able to handle both
+    /// of these calls:
+    ///
+    /// my_func(arg1, arg2)
+    /// my_func(arg1, arg2, arg3)
     fn parameters(&self) -> &[TableFuncParamaters];
 
+    /// Return a table provider using the provided args.
     async fn create_table_provider(&self, args: &[ScalarValue]) -> Result<Arc<dyn TableProvider>>;
 }
 
