@@ -1,6 +1,6 @@
 //! Module for handling the catalog for a single database.
 use crate::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
     FIRST_NON_SCHEMA_ID,
 };
 use crate::errors::{MetastoreError, Result};
@@ -9,8 +9,8 @@ use crate::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
 use metastoreproto::types::catalog::{
-    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
-    TunnelEntry, ViewEntry,
+    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, SchemaEntry,
+    TableEntry, TunnelEntry, ViewEntry,
 };
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -19,6 +19,7 @@ use metastoreproto::types::service::Mutation;
 use metastoreproto::types::storage::{ExtraState, PersistedCatalog};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
+use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -901,19 +902,22 @@ struct SchemaObjects {
     ///
     /// Maps names to object ids.
     tables: HashMap<String, u32>,
+
+    /// The "function" namespace.
+    functions: HashMap<String, u32>,
 }
 
 impl SchemaObjects {
     fn is_empty(&self) -> bool {
-        self.tables.is_empty()
+        self.tables.is_empty() && self.functions.is_empty()
     }
 
     fn iter_oids(&self) -> impl Iterator<Item = &u32> {
-        self.tables.values()
+        self.tables.values().chain(self.functions.values())
     }
 
     fn num_objects(&self) -> usize {
-        self.tables.len()
+        self.tables.len() + self.functions.len()
     }
 }
 
@@ -1032,6 +1036,33 @@ impl BuiltinCatalog {
                 .unwrap()
                 .tables
                 .insert(view.name.to_string(), oid);
+
+            oid += 1;
+        }
+
+        for func in BUILTIN_TABLE_FUNCS.iter_funcs() {
+            // Put them all in the default schema.
+            let schema_id = schema_names
+                .get(DEFAULT_SCHEMA)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+            entries.insert(
+                oid,
+                CatalogEntry::Function(FunctionEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Function,
+                        id: oid,
+                        parent: *schema_id,
+                        name: func.name().to_string(),
+                        builtin: true,
+                        external: false,
+                    },
+                }),
+            );
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .functions
+                .insert(func.name().to_string(), oid);
 
             oid += 1;
         }
