@@ -3,7 +3,7 @@ use crate::errors::{ExecError, Result};
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use metastore::builtins::DEFAULT_SCHEMA;
+use metastorebuiltin::DEFAULT_SCHEMA;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::borrow::{Borrow, ToOwned};

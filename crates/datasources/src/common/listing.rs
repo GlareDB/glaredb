@@ -4,6 +4,7 @@
 //! data source. These essentially provide a trimmed down information schema.
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
+use super::errors::{DatasourceCommonError, Result};
 use async_trait::async_trait;
 use datafusion::{
     arrow::{
@@ -18,9 +19,6 @@ use datafusion::{
     physical_plan::{memory::MemoryExec, ExecutionPlan},
     scalar::ScalarValue,
 };
-use metastore::builtins::{VIRTUAL_CATALOG_SCHEMATA_TABLE, VIRTUAL_CATALOG_TABLES_TABLE};
-
-use super::errors::{DatasourceCommonError, Result};
 
 #[derive(Debug, Clone)]
 pub struct VirtualTable {
@@ -60,8 +58,8 @@ pub enum VirtualCatalogTable {
 impl Display for VirtualCatalogTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Self::Schemata => VIRTUAL_CATALOG_SCHEMATA_TABLE,
-            Self::Tables => VIRTUAL_CATALOG_TABLES_TABLE,
+            Self::Schemata => "schemata",
+            Self::Tables => "tables",
         };
         f.write_str(s)
     }
@@ -72,8 +70,8 @@ impl FromStr for VirtualCatalogTable {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let catalog = match s {
-            VIRTUAL_CATALOG_SCHEMATA_TABLE => Self::Schemata,
-            VIRTUAL_CATALOG_TABLES_TABLE => Self::Tables,
+            "schemata" => Self::Schemata,
+            "tables" => Self::Tables,
             other => {
                 return Err(DatasourceCommonError::UnknownVirtualCatalogTable(
                     other.to_owned(),

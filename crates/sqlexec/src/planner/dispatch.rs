@@ -20,13 +20,13 @@ use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore::builtins::{
+use metastore::session::SessionCatalog;
+use metastorebuiltin::table_func::BUILTIN_TABLE_FUNCS;
+use metastorebuiltin::{
     DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS,
     GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
     VIRTUAL_CATALOG_SCHEMA,
 };
-use metastore::session::SessionCatalog;
-use metastorebuiltin::table_func::BUILTIN_TABLE_FUNCS;
 use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };

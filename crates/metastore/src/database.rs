@@ -1,12 +1,12 @@
 //! Module for handling the catalog for a single database.
-use crate::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
-    FIRST_NON_SCHEMA_ID,
-};
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+};
+use metastorebuiltin::{
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
+    FIRST_NON_SCHEMA_ID,
 };
 use metastoreproto::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
@@ -1017,8 +1017,8 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtins::DEFAULT_CATALOG;
     use crate::storage::persist::Storage;
+    use metastorebuiltin::DEFAULT_CATALOG;
     use metastoreproto::types::options::DatabaseOptionsDebug;
     use metastoreproto::types::options::TableOptionsDebug;
     use metastoreproto::types::service::AlterDatabaseRename;

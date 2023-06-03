@@ -1,5 +1,4 @@
 //! The metastore crate defines the service for managing database catalogs.
-pub mod builtins;
 pub mod errors;
 pub mod local;
 pub mod session;

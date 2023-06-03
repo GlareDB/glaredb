@@ -18,10 +18,10 @@ use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPl
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use futures::future::BoxFuture;
-use metastore::builtins::DEFAULT_CATALOG;
-use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
+use metastorebuiltin::DEFAULT_CATALOG;
+use metastorebuiltin::POSTGRES_SCHEMA;
 use metastoreproto::types::catalog::EntryType;
 use metastoreproto::types::service::{self, Mutation};
 use pgrepr::format::Format;

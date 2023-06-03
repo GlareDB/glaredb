@@ -15,9 +15,9 @@ use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_planner::planner::AsyncContextProvider;
-use metastore::builtins::DEFAULT_CATALOG;
 use metastorebuiltin::table_func::TableFunc;
 use metastorebuiltin::table_func::BUILTIN_TABLE_FUNCS;
+use metastorebuiltin::DEFAULT_CATALOG;
 use std::collections::HashMap;
 use std::sync::Arc;
 

@@ -1,7 +1,7 @@
 //! AST visitors for preprocessing queries before planning.
 use crate::context::SessionContext;
 use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
-use metastore::builtins::DEFAULT_CATALOG;
+use metastorebuiltin::DEFAULT_CATALOG;
 use std::ops::ControlFlow;
 
 #[derive(Debug, thiserror::Error)]

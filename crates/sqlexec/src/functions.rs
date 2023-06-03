@@ -7,7 +7,7 @@ use datafusion::logical_expr::{
     ColumnarValue, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature,
     TypeSignature, Volatility,
 };
-use metastore::builtins::POSTGRES_SCHEMA;
+use metastorebuiltin::POSTGRES_SCHEMA;
 use std::sync::Arc;
 use tracing::warn;
 

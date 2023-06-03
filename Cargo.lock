@@ -777,32 +777,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "builtins"
-version = "0.0.12"
-dependencies = [
- "async-trait",
- "bytes",
- "datafusion",
- "datasources",
- "futures",
- "logutil",
- "object_store",
- "object_store_util",
- "once_cell",
- "pgrepr",
- "proptest",
- "proptest-derive",
- "prost",
- "prost-types",
- "thiserror",
- "tokio",
- "tonic",
- "tower",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1662,7 +1636,6 @@ dependencies = [
  "decimal",
  "futures",
  "gcp-bigquery-client",
- "metastore",
  "metastoreproto",
  "mongodb",
  "mysql_async",
@@ -3016,6 +2989,7 @@ dependencies = [
  "datafusion",
  "futures",
  "logutil",
+ "metastorebuiltin",
  "metastoreproto",
  "object_store",
  "object_store_util",
