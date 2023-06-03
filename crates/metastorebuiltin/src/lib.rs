@@ -19,7 +19,8 @@ use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
 use std::sync::Arc;
 
-// pub mod table_func;
+pub mod errors;
+pub mod table_func;
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";

@@ -1642,6 +1642,7 @@ dependencies = [
  "ctor",
  "datafusion",
  "env_logger",
+ "metastorebuiltin",
  "paste",
  "rstest",
 ]
@@ -3013,7 +3014,6 @@ dependencies = [
  "async-trait",
  "bytes",
  "datafusion",
- "datasources",
  "futures",
  "logutil",
  "metastoreproto",
@@ -3029,6 +3029,31 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "tower",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "metastorebuiltin"
+version = "0.0.12"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "datafusion",
+ "datasources",
+ "futures",
+ "logutil",
+ "metastoreproto",
+ "object_store",
+ "once_cell",
+ "pgrepr",
+ "proptest",
+ "proptest-derive",
+ "prost",
+ "prost-types",
+ "thiserror",
+ "tokio",
  "tower",
  "tracing",
  "uuid",
@@ -5156,6 +5181,7 @@ dependencies = [
  "futures",
  "logutil",
  "metastore",
+ "metastorebuiltin",
  "metastoreproto",
  "object_store",
  "once_cell",

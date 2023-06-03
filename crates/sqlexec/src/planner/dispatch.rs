@@ -26,6 +26,7 @@ use metastore::builtins::{
     VIRTUAL_CATALOG_SCHEMA,
 };
 use metastore::session::SessionCatalog;
+use metastorebuiltin::table_func::BUILTIN_TABLE_FUNCS;
 use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };

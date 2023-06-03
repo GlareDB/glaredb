@@ -6,8 +6,13 @@ use datafusion::{
     datasource::TableProvider,
     scalar::ScalarValue,
 };
+use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+/// Builtin table returning functions available for all sessions.
+pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(|| BuiltinTableFuncs::new());
 
 #[derive(Debug, thiserror::Error)]
 pub enum FunctionError {
@@ -19,6 +24,9 @@ pub enum FunctionError {
         scalar: ScalarValue,
         expected: DataType,
     },
+
+    #[error(transparent)]
+    Access(Box<dyn std::error::Error + Send + Sync>),
 }
 
 #[derive(Debug, Clone)]
@@ -33,33 +41,50 @@ pub struct TableFuncParamaters {
 }
 
 pub struct BuiltinTableFuncs {
-    funcs: HashMap<String, Box<dyn TableFunc>>,
+    funcs: HashMap<String, Arc<dyn TableFunc>>,
 }
 
 impl BuiltinTableFuncs {
-    pub fn find_function(
-        &self,
-        name: &str,
-        args: &[ScalarValue],
-    ) -> Result<&dyn TableFunc, FunctionError> {
-        let func = self.funcs.get(name).unwrap();
-        Ok(func.as_ref())
+    pub fn new() -> BuiltinTableFuncs {
+        let funcs: Vec<Arc<dyn TableFunc>> = vec![Arc::new(ReadPostgres)];
+        let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
+            .into_iter()
+            .map(|f| (f.name().to_string(), f))
+            .collect();
+
+        BuiltinTableFuncs { funcs }
+    }
+
+    pub fn find_function(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
+        self.funcs.get(name).cloned()
+    }
+
+    pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
+        self.funcs.iter().map(|(_, f)| f)
     }
 }
 
 #[async_trait]
-pub trait TableFunc {
+pub trait TableFunc: Sync + Send {
+    fn name(&self) -> &str;
+
     fn parameters(&self) -> &[TableFuncParamaters];
+
     async fn create_table_provider(
         &self,
         args: &[ScalarValue],
     ) -> Result<Arc<dyn TableProvider>, FunctionError>;
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ReadPostgres;
 
 #[async_trait]
 impl TableFunc for ReadPostgres {
+    fn name(&self) -> &str {
+        "read_postgres"
+    }
+
     fn parameters(&self) -> &[TableFuncParamaters] {
         const PARAMS: &'static [TableFuncParamaters] = &[TableFuncParamaters {
             params: &[
@@ -90,7 +115,22 @@ impl TableFunc for ReadPostgres {
                 let conn_str = string_from_scalar(&args[0])?;
                 let schema = string_from_scalar(&args[1])?;
                 let table = string_from_scalar(&args[2])?;
-                unimplemented!()
+
+                let access = PostgresAccessor::connect(conn_str, None)
+                    .await
+                    .map_err(|e| FunctionError::Access(Box::new(e)))?;
+                let prov = access
+                    .into_table_provider(
+                        PostgresTableAccess {
+                            schema: schema.clone(),
+                            name: table.clone(),
+                        },
+                        true,
+                    )
+                    .await
+                    .map_err(|e| FunctionError::Access(Box::new(e)))?;
+
+                Ok(Arc::new(prov))
             }
             _ => Err(FunctionError::InvalidNumArgs),
         }

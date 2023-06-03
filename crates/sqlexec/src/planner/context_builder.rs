@@ -16,6 +16,8 @@ use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_planner::planner::AsyncContextProvider;
 use metastore::builtins::DEFAULT_CATALOG;
+use metastorebuiltin::table_func::TableFunc;
+use metastorebuiltin::table_func::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -130,6 +132,13 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
 
     async fn get_aggregate_meta(&mut self, _name: &str) -> Option<Arc<AggregateUDF>> {
         None
+    }
+
+    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>> {
+        match name {
+            TableReference::Bare { table } => BUILTIN_TABLE_FUNCS.find_function(&table),
+            _ => None, // TODO: Support specifying schema.
+        }
     }
 
     fn options(&self) -> &ConfigOptions {

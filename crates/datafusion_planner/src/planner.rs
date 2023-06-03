@@ -24,7 +24,14 @@ use datafusion::arrow::datatypes::Field;
 use datafusion::arrow::datatypes::IntervalUnit;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::datatypes::TimeUnit;
+use datafusion::common::config::ConfigOptions;
 use datafusion::common::field_not_found;
+use datafusion::common::{unqualified_field_not_found, DFSchema, DataFusionError, Result};
+use datafusion::common::{OwnedTableReference, TableReference};
+use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::utils::find_column_exprs;
+use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
 use datafusion::sql::planner::object_name_to_table_reference;
 use datafusion::sql::planner::IdentNormalizer;
 use datafusion::sql::planner::ParserOptions;
@@ -33,13 +40,7 @@ use datafusion::sql::sqlparser::ast::TimezoneInfo;
 use datafusion::sql::sqlparser::ast::{ColumnDef as SQLColumnDef, ColumnOption};
 use datafusion::sql::sqlparser::ast::{DataType as SQLDataType, Ident, ObjectName, TableAlias};
 
-use datafusion::common::config::ConfigOptions;
-use datafusion::common::{unqualified_field_not_found, DFSchema, DataFusionError, Result};
-use datafusion::common::{OwnedTableReference, TableReference};
-use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
-use datafusion::logical_expr::utils::find_column_exprs;
-use datafusion::logical_expr::TableSource;
-use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
+use metastorebuiltin::table_func::TableFunc;
 
 use crate::utils::make_decimal_type;
 
@@ -58,6 +59,12 @@ pub trait AsyncContextProvider: Send + Sync {
     async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
     /// Getter for system/user-defined variable type
     async fn get_variable_type(&mut self, variable_names: &[String]) -> Option<DataType>;
+
+    /// Get a table returning function.
+    ///
+    /// Note that this accepts a table reference since these functions are
+    /// namespaced similiarly to tables.
+    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>>;
 
     /// Get configuration options
     fn options(&self) -> &ConfigOptions;
