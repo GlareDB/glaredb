@@ -1,11 +1,11 @@
-use crate::proto::storage;
 use crate::storage::lease::{RemoteLease, RemoteLeaser};
 use crate::storage::{
     Result, SingletonStorageObject, StorageError, StorageObject, VersionedStorageObject,
 };
-use crate::types::catalog::CatalogState;
-use crate::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use bytes::BytesMut;
+use metastoreproto::proto::storage;
+use metastoreproto::types::catalog::CatalogState;
+use metastoreproto::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use prost::Message;

@@ -1,4 +1,4 @@
-use crate::types::catalog::{
+use metastoreproto::types::catalog::{
     CatalogEntry, CatalogState, DatabaseEntry, EntryType, SchemaEntry, TunnelEntry,
 };
 use std::collections::HashMap;

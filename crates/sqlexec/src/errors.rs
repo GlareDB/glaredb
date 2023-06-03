@@ -26,8 +26,8 @@ pub enum ExecError {
 
     #[error("Unexpected entry type; got: {got}, want: {want}")]
     UnexpectedEntryType {
-        got: metastore::types::catalog::EntryType,
-        want: metastore::types::catalog::EntryType,
+        got: metastoreproto::types::catalog::EntryType,
+        want: metastoreproto::types::catalog::EntryType,
     },
 
     #[error("Missing connection by name; schema: {schema}, name: {name}")]
@@ -78,7 +78,7 @@ pub enum ExecError {
     Metastore(#[from] metastore::errors::MetastoreError),
 
     #[error(transparent)]
-    ProtoConvError(#[from] metastore::types::ProtoConvError),
+    ProtoConvError(#[from] metastoreproto::types::ProtoConvError),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),

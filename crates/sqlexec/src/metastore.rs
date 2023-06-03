@@ -1,10 +1,12 @@
 //! Module for facilitating interaction with the Metastore.
 use crate::errors::{ExecError, Result};
 use metastore::errors::MetastoreError;
-use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
-use metastore::proto::service::{FetchCatalogRequest, InitializeCatalogRequest, MutateRequest};
-use metastore::types::catalog::CatalogState;
-use metastore::types::service::Mutation;
+use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
+use metastoreproto::proto::service::{
+    FetchCatalogRequest, InitializeCatalogRequest, MutateRequest,
+};
+use metastoreproto::types::catalog::CatalogState;
+use metastoreproto::types::service::Mutation;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -562,8 +564,8 @@ impl DatabaseWorker {
 mod tests {
     use super::*;
     use metastore::local::start_inprocess;
-    use metastore::proto::service::metastore_service_client::MetastoreServiceClient;
-    use metastore::types::service::{CreateSchema, CreateView, Mutation};
+    use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
+    use metastoreproto::types::service::{CreateSchema, CreateView, Mutation};
     use object_store::memory::InMemory;
     use tonic::transport::Channel;
 
