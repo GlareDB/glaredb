@@ -4,7 +4,7 @@ use datafusion::common::OwnedTableReference;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use metastore::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
+use metastoreproto::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]

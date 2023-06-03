@@ -22,8 +22,8 @@ use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
-use metastore::types::catalog::EntryType;
-use metastore::types::service::{self, Mutation};
+use metastoreproto::types::catalog::EntryType;
+use metastoreproto::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use std::collections::HashMap;
@@ -141,7 +141,11 @@ impl SessionContext {
     pub fn get_datasource_count(&mut self) -> usize {
         self.metastore_catalog
             .iter_entries()
-            .filter(|ent| ent.entry.get_meta().external)
+            .filter(|ent| {
+                ent.entry.get_meta().external
+                    && (ent.entry.get_meta().entry_type == EntryType::Database
+                        || ent.entry.get_meta().entry_type == EntryType::Table)
+            })
             .count()
     }
 
@@ -216,10 +220,10 @@ impl SessionContext {
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
         if let Some(limit) = self.info.limits.max_tunnel_count {
-            if self.get_datasource_count() >= limit {
+            if self.get_tunnel_count() >= limit {
                 return Err(ExecError::MaxTunnelCount {
                     max: limit,
-                    current: self.get_datasource_count(),
+                    current: self.get_tunnel_count(),
                 });
             }
         }

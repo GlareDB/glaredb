@@ -18,7 +18,7 @@ pub enum MetastoreError {
     },
 
     #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
-    BuiltinObjectPersisted(crate::types::catalog::EntryMeta),
+    BuiltinObjectPersisted(metastoreproto::types::catalog::EntryMeta),
 
     #[error("Missing database catalog: {0}")]
     MissingCatalog(uuid::Uuid),
@@ -74,7 +74,7 @@ pub enum MetastoreError {
     FailedInProcessStartup(String),
 
     #[error("Cannot modify builtin object: {0:?}")]
-    CannotModifyBuiltin(crate::types::catalog::CatalogEntry),
+    CannotModifyBuiltin(metastoreproto::types::catalog::CatalogEntry),
 
     #[error("Cannot exceed {max} objects in a database")]
     MaxNumberOfObjects { max: usize },
@@ -86,7 +86,7 @@ pub enum MetastoreError {
     Storage(#[from] crate::storage::StorageError),
 
     #[error(transparent)]
-    ProtoConv(#[from] crate::types::ProtoConvError),
+    ProtoConv(#[from] metastoreproto::types::ProtoConvError),
 
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),

@@ -15,10 +15,10 @@
 //! exprires, a little bit of clock drift doesn't matter. We should only be
 //! concerned if it's on the order of tens of seconds.
 
-use crate::proto::storage;
 use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
-use crate::types::storage::{LeaseInformation, LeaseState};
 use bytes::BytesMut;
+use metastoreproto::proto::storage;
+use metastoreproto::types::storage::{LeaseInformation, LeaseState};
 use object_store::{path::Path as ObjectPath, Error as ObjectStoreError, ObjectStore};
 use prost::Message;
 use std::sync::atomic::{AtomicBool, Ordering};
