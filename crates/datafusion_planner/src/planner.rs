@@ -40,6 +40,7 @@ use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::TableSource;
 use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
+use sqlbuiltins::functions::TableFunc;
 
 use crate::utils::make_decimal_type;
 
@@ -58,6 +59,12 @@ pub trait AsyncContextProvider: Send + Sync {
     async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
     /// Getter for system/user-defined variable type
     async fn get_variable_type(&mut self, variable_names: &[String]) -> Option<DataType>;
+
+    /// Get a table returning function.
+    ///
+    /// Note that this accepts a table reference since these functions are
+    /// namespaced similiarly to tables.
+    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>>;
 
     /// Get configuration options
     fn options(&self) -> &ConfigOptions;

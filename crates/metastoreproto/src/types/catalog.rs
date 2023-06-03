@@ -52,6 +52,7 @@ pub enum CatalogEntry {
     Table(TableEntry),
     View(ViewEntry),
     Tunnel(TunnelEntry),
+    Function(FunctionEntry),
 }
 
 impl CatalogEntry {
@@ -62,6 +63,7 @@ impl CatalogEntry {
             CatalogEntry::View(_) => EntryType::View,
             CatalogEntry::Table(_) => EntryType::Table,
             CatalogEntry::Tunnel(_) => EntryType::Tunnel,
+            CatalogEntry::Function(_) => EntryType::Function,
         }
     }
 
@@ -73,6 +75,7 @@ impl CatalogEntry {
             CatalogEntry::View(view) => &view.meta,
             CatalogEntry::Table(table) => &table.meta,
             CatalogEntry::Tunnel(tunnel) => &tunnel.meta,
+            CatalogEntry::Function(func) => &func.meta,
         }
     }
 
@@ -84,6 +87,7 @@ impl CatalogEntry {
             CatalogEntry::View(view) => &mut view.meta,
             CatalogEntry::Table(table) => &mut table.meta,
             CatalogEntry::Tunnel(tunnel) => &mut tunnel.meta,
+            CatalogEntry::Function(func) => &mut func.meta,
         }
     }
 }
@@ -97,6 +101,7 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
             catalog::catalog_entry::Entry::Table(v) => CatalogEntry::Table(v.try_into()?),
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
             catalog::catalog_entry::Entry::Tunnel(v) => CatalogEntry::Tunnel(v.try_into()?),
+            catalog::catalog_entry::Entry::Function(v) => CatalogEntry::Function(v.try_into()?),
         })
     }
 }
@@ -117,6 +122,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
             CatalogEntry::Tunnel(v) => catalog::catalog_entry::Entry::Tunnel(v.into()),
+            CatalogEntry::Function(v) => catalog::catalog_entry::Entry::Function(v.into()),
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
@@ -129,6 +135,7 @@ pub enum EntryType {
     Table,
     View,
     Tunnel,
+    Function,
 }
 
 impl EntryType {
@@ -139,6 +146,7 @@ impl EntryType {
             EntryType::Table => "table",
             EntryType::View => "view",
             EntryType::Tunnel => "tunnel",
+            EntryType::Function => "function",
         }
     }
 }
@@ -164,6 +172,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             catalog::entry_meta::EntryType::Table => EntryType::Table,
             catalog::entry_meta::EntryType::View => EntryType::View,
             catalog::entry_meta::EntryType::Tunnel => EntryType::Tunnel,
+            catalog::entry_meta::EntryType::Function => EntryType::Function,
         })
     }
 }
@@ -176,6 +185,7 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
             EntryType::Table => catalog::entry_meta::EntryType::Table,
             EntryType::View => catalog::entry_meta::EntryType::View,
             EntryType::Tunnel => catalog::entry_meta::EntryType::Tunnel,
+            EntryType::Function => catalog::entry_meta::EntryType::Function,
         }
     }
 }
@@ -370,6 +380,27 @@ impl From<TunnelEntry> for catalog::TunnelEntry {
         catalog::TunnelEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct FunctionEntry {
+    pub meta: EntryMeta,
+}
+
+impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::FunctionEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(FunctionEntry { meta })
+    }
+}
+
+impl From<FunctionEntry> for catalog::FunctionEntry {
+    fn from(value: FunctionEntry) -> Self {
+        catalog::FunctionEntry {
+            meta: Some(value.meta.into()),
         }
     }
 }

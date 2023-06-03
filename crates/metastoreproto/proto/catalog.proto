@@ -54,6 +54,7 @@ message CatalogEntry {
     TableEntry table = 3;
     ViewEntry view = 4;
     TunnelEntry tunnel = 5;
+    FunctionEntry function = 6;
   }
 }
 
@@ -75,6 +76,8 @@ message EntryMeta {
     VIEW = 4;
     // Tunnel to connect with datasources.
     TUNNEL = 5;
+    // Function entry.
+    FUNCTION = 6;
   }
 
   // Type of the entry.
@@ -147,3 +150,8 @@ message TunnelEntry {
   options.TunnelOptions options = 2;
   // next: 3
 }
+
+// Function entries are not currently persisted since the only functions
+// available are builtins. We can change this however we need and not have to
+// worry about backwards compatability.
+message FunctionEntry { EntryMeta meta = 1; }

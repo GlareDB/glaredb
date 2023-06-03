@@ -8,6 +8,7 @@ edition = {workspace = true}
 [dependencies]
 logutil = {path = "../logutil"}
 metastoreproto = { path = "../metastoreproto" }
+sqlbuiltins = { path = "../sqlbuiltins" }
 object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
