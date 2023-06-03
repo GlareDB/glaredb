@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Builtin table returning functions available for all sessions.
-pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(|| BuiltinTableFuncs::new());
+pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
 
 /// A single parameter for a table function.
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ pub struct TableFuncParameter {
 
 /// A set of parameters for a table function.
 #[derive(Debug, Clone)]
-pub struct TableFuncParamaters {
+pub struct TableFuncParameters {
     pub params: &'static [TableFuncParameter],
 }
 
@@ -44,7 +44,13 @@ impl BuiltinTableFuncs {
     }
 
     pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        self.funcs.iter().map(|(_, f)| f)
+        self.funcs.values()
+    }
+}
+
+impl Default for BuiltinTableFuncs {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -63,7 +69,7 @@ pub trait TableFunc: Sync + Send {
     ///
     /// my_func(arg1, arg2)
     /// my_func(arg1, arg2, arg3)
-    fn parameters(&self) -> &[TableFuncParamaters];
+    fn parameters(&self) -> &[TableFuncParameters];
 
     /// Return a table provider using the provided args.
     async fn create_table_provider(&self, args: &[ScalarValue]) -> Result<Arc<dyn TableProvider>>;
@@ -78,8 +84,8 @@ impl TableFunc for ReadPostgres {
         "read_postgres"
     }
 
-    fn parameters(&self) -> &[TableFuncParamaters] {
-        const PARAMS: &'static [TableFuncParamaters] = &[TableFuncParamaters {
+    fn parameters(&self) -> &[TableFuncParameters] {
+        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
             params: &[
                 TableFuncParameter {
                     name: "connection_str",

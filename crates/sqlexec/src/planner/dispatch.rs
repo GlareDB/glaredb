@@ -27,7 +27,7 @@ use metastore::builtins::{
 };
 use metastore::session::SessionCatalog;
 use metastoreproto::types::catalog::{
-    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, FunctionType, TableEntry, ViewEntry,
+    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
@@ -36,7 +36,6 @@ use metastoreproto::types::options::{
     TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
     TableOptionsSnowflake, TunnelOptions,
 };
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::error;
