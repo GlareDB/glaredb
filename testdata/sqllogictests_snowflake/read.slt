@@ -1,6 +1,6 @@
 # Tests for the `read_*` function.
 
 query I
-SELECT count(*) FROM read_snowflake('hmpfscx-xo23956', '${SNOWFLAKE_USERNAME}', '${SNOWFLAKE_PASSWORD}', '${SNOWFLAKE_DATABASE}', 'compute_wh', 'account_admin', 'public', 'bikeshare_stations');
+SELECT count(*) FROM read_snowflake('hmpfscx-xo23956', '${SNOWFLAKE_USERNAME}', '${SNOWFLAKE_PASSWORD}', '${SNOWFLAKE_DATABASE}', 'compute_wh', 'accountadmin', 'public', 'bikeshare_stations');
 ----
 102
