@@ -1,0 +1,6 @@
+# Tests for the `read_*` function.
+
+query I
+SELECT count(*) FROM read_mongodb('${MYSQL_CONN_STRING}', 'glaredb_test', 'bikeshare_stations');
+----
+102

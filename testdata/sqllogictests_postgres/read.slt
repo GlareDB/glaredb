@@ -1,4 +1,4 @@
-# Tests for the `read_postgres` function.
+# Tests for the `read_*` function.
 
 query I
 SELECT count(*) FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations');
