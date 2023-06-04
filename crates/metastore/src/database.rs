@@ -391,6 +391,7 @@ impl State {
                             schema: schema_id,
                             first: *oid,
                             second: existing,
+                            object_namespace: "table",
                         });
                     }
                 }
@@ -403,8 +404,17 @@ impl State {
                         });
                     }
 
-                    // If/once we add a function namespace in schemas, add
-                    // inserting the functions here.
+                    let objects = schema_objects.entry(func.meta.parent).or_default();
+                    let existing = objects.functions.insert(func.meta.name.clone(), *oid);
+                    if let Some(existing) = existing {
+                        return Err(MetastoreError::DuplicateNameFoundDuringLoad {
+                            name: func.meta.name.clone(),
+                            schema: func.meta.parent,
+                            first: *oid,
+                            second: existing,
+                            object_namespace: "function",
+                        });
+                    }
                 }
             }
         }
@@ -1596,5 +1606,29 @@ mod tests {
             }
             e => panic!("unexpected error: {:?}", e),
         }
+    }
+
+    #[tokio::test]
+    async fn separate_function_namespace() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        // Try to create a table with the same name as an existing builtin
+        // function (read_postgres).
+        let _state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::CreateExternalTable(CreateExternalTable {
+                    schema: "public".to_string(),
+                    name: "read_postgres".to_string(),
+                    options: TableOptions::Debug(TableOptionsDebug {
+                        table_type: String::new(),
+                    }),
+                    if_not_exists: true,
+                    tunnel: None,
+                })],
+            )
+            .await
+            .unwrap();
     }
 }

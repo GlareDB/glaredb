@@ -9,12 +9,13 @@ pub enum MetastoreError {
     #[error("Invalid object name length: {length}, max: {max}")]
     InvalidNameLength { length: usize, max: usize },
 
-    #[error("Duplicate object names found during load; name {name}, schema: {schema}, first: {first}, second: {second}")]
+    #[error("Duplicate object names in the '{object_namespace}' namespace found during load; name {name}, schema: {schema}, first: {first}, second: {second}")]
     DuplicateNameFoundDuringLoad {
         name: String,
         schema: u32,
         first: u32,
         second: u32,
+        object_namespace: &'static str,
     },
 
     #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
