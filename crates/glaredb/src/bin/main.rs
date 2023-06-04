@@ -17,7 +17,7 @@ use tracing::info;
 
 #[derive(Parser)]
 #[clap(name = "GlareDB")]
-#[clap(version = "pre-release")]
+#[clap(version)]
 #[clap(about = "CLI for GlareDB", long_about = None)]
 struct Cli {
     /// Log verbosity.
