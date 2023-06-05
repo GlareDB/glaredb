@@ -1,3 +1,5 @@
+use crate::highlighter::SQLHighlighter;
+use crate::prompt::SQLPrompt;
 use crate::util::{ensure_spill_path, MetastoreMode};
 use anyhow::{anyhow, Result};
 use clap::{Parser, ValueEnum};
@@ -14,12 +16,13 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
-use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
+use reedline::{FileBackedHistory, Reedline, Signal};
+
 use sqlexec::engine::SessionLimits;
 use sqlexec::engine::{Engine, TrackedSession};
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
+use std::env;
 use std::fmt::Write as _;
 use std::io::Write;
 use std::path::PathBuf;
@@ -121,7 +124,19 @@ impl LocalSession {
     }
 
     pub async fn run_interactive(mut self) -> Result<()> {
+        let history = Box::new(
+            FileBackedHistory::with_file(100, get_history_path())
+                .expect("Error configuring history with file"),
+        );
+
+        let mut line_editor = Reedline::create().with_history(history);
+
+        let sql_highlighter = SQLHighlighter {};
+        line_editor = line_editor.with_highlighter(Box::new(sql_highlighter));
+
         println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+        println!("Type \\help for help.");
+
         let info = match (&self.opts.metastore_addr, &self.opts.local_file_path) {
             (Some(addr), None) => format!("Persisting catalog on remote metastore: {addr}"),
             (None, Some(path)) => format!("Persisting catalog at path: {}", path.display()),
@@ -129,20 +144,45 @@ impl LocalSession {
             _ => unreachable!(),
         };
         println!("{}", info.bold());
+        let prompt = SQLPrompt {};
+        let mut is_exit_cmd = false;
+        let mut scratch = String::with_capacity(1024);
 
-        let mut rl = DefaultEditor::new()?;
         loop {
-            let readline = rl.readline("> ");
-            match readline {
-                Ok(line) => {
-                    if let Err(e) = self.execute(&line).await {
-                        println!("ERROR: {e}");
+            let sig = line_editor.read_line(&prompt);
+            match sig {
+                Ok(Signal::Success(buffer)) => {
+                    is_exit_cmd = false;
+                    match buffer.as_str() {
+                        cmd if is_client_cmd(cmd) => {
+                            self.handle_client_cmd(cmd).await?;
+                            return Ok(());
+                        }
+                        _ => {
+                            let mut parts = buffer.splitn(2, ';');
+                            let first = parts.next().unwrap();
+                            scratch.push_str(first);
+
+                            let second = parts.next();
+                            if second.is_some() {
+                                self.execute(&scratch).await?;
+                                scratch.clear();
+                            } else {
+                                scratch.push(' ');
+                            }
+                        }
                     }
                 }
-                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-                    break;
+                Ok(Signal::CtrlD) | Ok(Signal::CtrlC) => {
+                    if is_exit_cmd {
+                        break;
+                    } else {
+                        is_exit_cmd = true;
+                    }
                 }
-                Err(e) => return Err(e.into()),
+                _ => {
+                    is_exit_cmd = false;
+                }
             }
         }
         Ok(())
@@ -293,4 +333,21 @@ impl JsonFormat for JsonArrayNewLines {
         writer.write_all(b"]\n")?;
         Ok(())
     }
+}
+
+fn get_home_dir() -> PathBuf {
+    match env::var("HOME") {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => match env::var("USERPROFILE") {
+            Ok(path) => PathBuf::from(path),
+            Err(_) => panic!("Failed to get home directory"),
+        },
+    }
+}
+
+fn get_history_path() -> PathBuf {
+    let mut home_dir = get_home_dir();
+    home_dir.push(".glaredb");
+    home_dir.push("history.txt");
+    home_dir
 }
