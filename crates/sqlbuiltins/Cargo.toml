@@ -1,5 +1,5 @@
 [package]
-name = "sqlexec"
+name = "sqlbuiltins"
 version = {workspace = true}
 edition = {workspace = true}
 
@@ -8,11 +8,8 @@ edition = {workspace = true}
 [dependencies]
 logutil = {path = "../logutil"}
 pgrepr = {path = "../pgrepr"}
-metastore = {path = "../metastore"}
 metastoreproto = { path = "../metastoreproto" }
-datafusion_planner = { path = "../datafusion_planner" }
 telemetry = {path = "../telemetry"}
-sqlbuiltins = {path = "../sqlbuiltins"}
 datasources = {path = "../datasources"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -29,6 +26,3 @@ tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 tokio-postgres = "0.7.8"
 once_cell = "1.17.2"
 
-[dev-dependencies]
-tempfile = "3"
-tower = "0.4"

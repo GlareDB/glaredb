@@ -1,6 +1,6 @@
 //! Module for handling the catalog for a single database.
 use crate::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
     FIRST_NON_SCHEMA_ID,
 };
 use crate::errors::{MetastoreError, Result};
@@ -9,8 +9,8 @@ use crate::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
 use metastoreproto::types::catalog::{
-    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, SchemaEntry, TableEntry,
-    TunnelEntry, ViewEntry,
+    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, FunctionType,
+    SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -19,6 +19,7 @@ use metastoreproto::types::service::Mutation;
 use metastoreproto::types::storage::{ExtraState, PersistedCatalog};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
+use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -371,7 +372,7 @@ impl State {
 
                     schema_names.insert(schema.meta.name.clone(), *oid);
                 }
-                entry => {
+                entry @ CatalogEntry::View(_) | entry @ CatalogEntry::Table(_) => {
                     if entry.get_meta().parent == DATABASE_PARENT_ID {
                         return Err(MetastoreError::ObjectHasInvalidParentId {
                             object: *oid,
@@ -383,13 +384,35 @@ impl State {
                     let schema_id = entry.get_meta().parent;
 
                     let objects = schema_objects.entry(schema_id).or_default();
-                    let existing = objects.objects.insert(entry.get_meta().name.clone(), *oid);
+                    let existing = objects.tables.insert(entry.get_meta().name.clone(), *oid);
                     if let Some(existing) = existing {
                         return Err(MetastoreError::DuplicateNameFoundDuringLoad {
                             name: entry.get_meta().name.clone(),
                             schema: schema_id,
                             first: *oid,
                             second: existing,
+                            object_namespace: "table",
+                        });
+                    }
+                }
+                CatalogEntry::Function(func) => {
+                    if func.meta.parent == DATABASE_PARENT_ID {
+                        return Err(MetastoreError::ObjectHasInvalidParentId {
+                            object: *oid,
+                            parent: func.meta.parent,
+                            object_type: func.meta.entry_type.as_str(),
+                        });
+                    }
+
+                    let objects = schema_objects.entry(func.meta.parent).or_default();
+                    let existing = objects.functions.insert(func.meta.name.clone(), *oid);
+                    if let Some(existing) = existing {
+                        return Err(MetastoreError::DuplicateNameFoundDuringLoad {
+                            name: func.meta.name.clone(),
+                            schema: func.meta.parent,
+                            first: *oid,
+                            second: existing,
+                            object_namespace: "function",
                         });
                     }
                 }
@@ -479,13 +502,13 @@ impl State {
 
                     // Check if any child objects exist for this schema
                     match self.schema_objects.get(&schema_id) {
-                        Some(so) if so.objects.is_empty() => {
+                        Some(so) if so.is_empty() => {
                             self.schema_objects.remove(&schema_id);
                         }
                         Some(_) if drop_schema.cascade => {
                             // Remove all child objects.
                             let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
-                            for child_oid in objs.objects.values() {
+                            for child_oid in objs.iter_oids() {
                                 // TODO: Dependency checking.
                                 self.entries.remove(child_oid)?.unwrap(); // Bug if it doesn't exist.
                             }
@@ -494,7 +517,7 @@ impl State {
                         Some(so) => {
                             return Err(MetastoreError::SchemaHasChildren {
                                 schema: schema_id,
-                                num_objects: so.objects.len(),
+                                num_objects: so.num_objects(),
                             });
                         }
                     }
@@ -523,7 +546,9 @@ impl State {
                         Some(objs) => objs,
                     };
 
-                    let ent_id = match objs.objects.remove(&drop_object.name) {
+                    // TODO: This will need to be tweaked if/when we support
+                    // dropping functions.
+                    let ent_id = match objs.tables.remove(&drop_object.name) {
                         None if if_exists => return Ok(()),
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
@@ -654,7 +679,7 @@ impl State {
                         CreatePolicy::Create
                     };
 
-                    self.try_insert_entry_for_schema(
+                    self.try_insert_table_namespace(
                         CatalogEntry::View(ent),
                         schema_id,
                         oid,
@@ -699,7 +724,7 @@ impl State {
                         CreatePolicy::Create
                     };
 
-                    self.try_insert_entry_for_schema(
+                    self.try_insert_table_namespace(
                         CatalogEntry::Table(ent),
                         schema_id,
                         oid,
@@ -731,7 +756,7 @@ impl State {
                         Some(objs) => objs,
                     };
 
-                    let oid = match objs.objects.remove(&alter_table_rename.name) {
+                    let oid = match objs.tables.remove(&alter_table_rename.name) {
                         None => {
                             return Err(MetastoreError::MissingNamedObject {
                                 schema: alter_table_rename.schema,
@@ -748,7 +773,7 @@ impl State {
 
                     table.meta.name = alter_table_rename.new_name;
 
-                    self.try_insert_entry_for_schema(
+                    self.try_insert_table_namespace(
                         CatalogEntry::Table(table.clone()),
                         schema_id,
                         table.meta.id,
@@ -814,10 +839,10 @@ impl State {
         Ok(())
     }
 
-    /// Try to insert an entry for a schema.
+    /// Try to insert an entry for a schema within the "table" namespace.
     ///
     /// Errors depending on the create policy.
-    fn try_insert_entry_for_schema(
+    fn try_insert_table_namespace(
         &mut self,
         ent: CatalogEntry,
         schema_id: u32,
@@ -830,23 +855,23 @@ impl State {
 
         match create_policy {
             CreatePolicy::CreateIfNotExists => {
-                if objs.objects.contains_key(&ent.get_meta().name) {
+                if objs.tables.contains_key(&ent.get_meta().name) {
                     return Ok(());
                 }
-                objs.objects.insert(ent.get_meta().name.clone(), oid);
+                objs.tables.insert(ent.get_meta().name.clone(), oid);
                 self.entries.insert(oid, ent)?;
             }
             CreatePolicy::CreateOrReplace => {
-                if let Some(existing_oid) = objs.objects.insert(ent.get_meta().name.clone(), oid) {
+                if let Some(existing_oid) = objs.tables.insert(ent.get_meta().name.clone(), oid) {
                     self.entries.remove(&existing_oid)?;
                 }
                 self.entries.insert(oid, ent)?;
             }
             CreatePolicy::Create => {
-                if objs.objects.contains_key(&ent.get_meta().name) {
+                if objs.tables.contains_key(&ent.get_meta().name) {
                     return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
                 }
-                objs.objects.insert(ent.get_meta().name.clone(), oid);
+                objs.tables.insert(ent.get_meta().name.clone(), oid);
                 self.entries.insert(oid, ent)?;
             }
         }
@@ -882,8 +907,28 @@ impl State {
 /// Holds names to object ids for a single schema.
 #[derive(Debug, Default, Clone)]
 struct SchemaObjects {
-    /// Maps names to ids in this schema.
-    objects: HashMap<String, u32>,
+    /// The "table" namespace in this schema. Views and external tables should
+    /// be included in this namespace.
+    ///
+    /// Maps names to object ids.
+    tables: HashMap<String, u32>,
+
+    /// The "function" namespace.
+    functions: HashMap<String, u32>,
+}
+
+impl SchemaObjects {
+    fn is_empty(&self) -> bool {
+        self.tables.is_empty() && self.functions.is_empty()
+    }
+
+    fn iter_oids(&self) -> impl Iterator<Item = &u32> {
+        self.tables.values().chain(self.functions.values())
+    }
+
+    fn num_objects(&self) -> usize {
+        self.tables.len() + self.functions.len()
+    }
 }
 
 /// Catalog with builtin objects. Used during database catalog initialization.
@@ -971,7 +1016,7 @@ impl BuiltinCatalog {
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
-                .objects
+                .tables
                 .insert(table.name.to_string(), oid);
 
             oid += 1;
@@ -999,8 +1044,36 @@ impl BuiltinCatalog {
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
-                .objects
+                .tables
                 .insert(view.name.to_string(), oid);
+
+            oid += 1;
+        }
+
+        for func in BUILTIN_TABLE_FUNCS.iter_funcs() {
+            // Put them all in the default schema.
+            let schema_id = schema_names
+                .get(DEFAULT_SCHEMA)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+            entries.insert(
+                oid,
+                CatalogEntry::Function(FunctionEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Function,
+                        id: oid,
+                        parent: *schema_id,
+                        name: func.name().to_string(),
+                        builtin: true,
+                        external: false,
+                    },
+                    func_type: FunctionType::TableReturning,
+                }),
+            );
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .functions
+                .insert(func.name().to_string(), oid);
 
             oid += 1;
         }
@@ -1533,5 +1606,29 @@ mod tests {
             }
             e => panic!("unexpected error: {:?}", e),
         }
+    }
+
+    #[tokio::test]
+    async fn separate_function_namespace() {
+        let db = new_catalog().await;
+        let initial = version(&db).await;
+
+        // Try to create a table with the same name as an existing builtin
+        // function (read_postgres).
+        let _state = db
+            .try_mutate(
+                initial,
+                vec![Mutation::CreateExternalTable(CreateExternalTable {
+                    schema: "public".to_string(),
+                    name: "read_postgres".to_string(),
+                    options: TableOptions::Debug(TableOptionsDebug {
+                        table_type: String::new(),
+                    }),
+                    if_not_exists: true,
+                    tunnel: None,
+                })],
+            )
+            .await
+            .unwrap();
     }
 }

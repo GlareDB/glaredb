@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result};
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::datasource::DefaultTableSource;
+use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::TableFactor;
+use datafusion::sql::sqlparser::ast;
 
 mod join;
 
@@ -29,28 +33,68 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     #[async_recursion]
     async fn create_relation(
         &mut self,
-        relation: TableFactor,
+        relation: ast::TableFactor,
         planner_context: &mut PlannerContext,
     ) -> Result<LogicalPlan> {
         let (plan, alias) = match relation {
-            TableFactor::Table { name, alias, .. } => {
+            ast::TableFactor::Table {
+                name, alias, args, ..
+            } => {
                 // normalize name and alias
                 let table_ref = self.object_name_to_table_reference(name)?;
-                let table_name = table_ref.to_string();
-                let cte = planner_context.get_cte(&table_name);
-                let plan = if let Some(cte_plan) = cte {
-                    cte_plan.clone()
-                } else {
-                    let provider = self
-                        .schema_provider
-                        .get_table_provider(table_ref.clone())
-                        .await?;
-                    let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
-                    plan_builder.build()?
-                };
-                (plan, alias)
+
+                match args {
+                    Some(args) => {
+                        // Table factor has arguments, look up table returning
+                        // function.
+
+                        let scalars = args
+                            .into_iter()
+                            .map(|arg| self.get_constant_function_arg(arg))
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        let func = self
+                            .schema_provider
+                            .get_table_func(table_ref.clone())
+                            .ok_or_else(|| {
+                                DataFusionError::Plan(format!(
+                                    "Missing table function: '{table_ref}'"
+                                ))
+                            })?;
+
+                        let provider = func
+                            .create_provider(scalars)
+                            .await
+                            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
+
+                        let source = Arc::new(DefaultTableSource::new(provider));
+
+                        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
+                        let plan = plan_builder.build()?;
+
+                        (plan, alias)
+                    }
+                    None => {
+                        // No arguments provided. Just a basic table.
+
+                        let table_name = table_ref.to_string();
+
+                        let cte = planner_context.get_cte(&table_name);
+                        let plan = if let Some(cte_plan) = cte {
+                            cte_plan.clone()
+                        } else {
+                            let provider = self
+                                .schema_provider
+                                .get_table_provider(table_ref.clone())
+                                .await?;
+                            let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
+                            plan_builder.build()?
+                        };
+                        (plan, alias)
+                    }
+                }
             }
-            TableFactor::Derived {
+            ast::TableFactor::Derived {
                 subquery, alias, ..
             } => {
                 let logical_plan = self
@@ -58,7 +102,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     .await?;
                 (logical_plan, alias)
             }
-            TableFactor::NestedJoin {
+            ast::TableFactor::NestedJoin {
                 table_with_joins,
                 alias,
             } => (
@@ -77,6 +121,27 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             self.apply_table_alias(plan, alias)
         } else {
             Ok(plan)
+        }
+    }
+
+    /// Get a constant expression literal from a function argument.
+    fn get_constant_function_arg(&mut self, arg: ast::FunctionArg) -> Result<ScalarValue> {
+        match arg {
+            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => match expr {
+                ast::Expr::Value(v) => match self.parse_value(v, &[]) {
+                    Ok(Expr::Literal(lit)) => Ok(lit),
+                    Ok(_) => Err(DataFusionError::NotImplemented(
+                        "Non-constant function argument".to_string(),
+                    )),
+                    Err(e) => Err(e),
+                },
+                _ => Err(DataFusionError::NotImplemented(
+                    "Non-constant function argument".to_string(),
+                )),
+            },
+            _ => Err(DataFusionError::NotImplemented(
+                "Named arguments for functions".to_string(),
+            )),
         }
     }
 }

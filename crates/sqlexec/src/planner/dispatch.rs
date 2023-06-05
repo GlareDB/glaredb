@@ -1,6 +1,8 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use datafusion::arrow::array::{BooleanBuilder, StringBuilder, UInt32Builder, UInt64Builder};
+use datafusion::arrow::array::{
+    BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
+};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
@@ -19,8 +21,9 @@ use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{
-    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS,
-    GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, VIRTUAL_CATALOG_SCHEMA,
+    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS,
+    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
+    VIRTUAL_CATALOG_SCHEMA,
 };
 use metastore::session::SessionCatalog;
 use metastoreproto::types::catalog::{
@@ -471,6 +474,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_views())
         } else if GLARE_SCHEMAS.matches(schema, name) {
             Arc::new(self.build_glare_schemas())
+        } else if GLARE_FUNCTIONS.matches(schema, name) {
+            Arc::new(self.build_glare_functions())
         } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
             Arc::new(self.build_session_query_metrics())
         } else if GLARE_SSH_KEYS.matches(schema, name) {
@@ -769,6 +774,57 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(view_name.finish()),
                 Arc::new(builtin.finish()),
                 Arc::new(sql.finish()),
+            ],
+        )
+        .unwrap();
+
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_functions(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_FUNCTIONS.arrow_schema());
+
+        let mut oid = UInt32Builder::new();
+        let mut schema_oid = UInt32Builder::new();
+        let mut function_name = StringBuilder::new();
+        let mut function_type = StringBuilder::new();
+        let mut parameters = ListBuilder::new(StringBuilder::new());
+        let mut parameter_types = ListBuilder::new(StringBuilder::new());
+        let mut builtin = BooleanBuilder::new();
+
+        for func in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Function)
+        {
+            let ent = match func.entry {
+                CatalogEntry::Function(ent) => ent,
+                other => panic!("unexpected catalog entry: {:?}", other), // Bug
+            };
+
+            oid.append_value(func.oid);
+            schema_oid.append_value(ent.meta.parent);
+            function_name.append_value(&ent.meta.name);
+            function_type.append_value(ent.func_type.as_str());
+
+            // TODO: Actually get parameter info.
+            const EMPTY: [Option<&'static str>; 0] = [];
+            parameters.append_value(EMPTY);
+            parameter_types.append_value(EMPTY);
+
+            builtin.append_value(func.builtin);
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oid.finish()),
+                Arc::new(schema_oid.finish()),
+                Arc::new(function_name.finish()),
+                Arc::new(function_type.finish()),
+                Arc::new(parameters.finish()),
+                Arc::new(parameter_types.finish()),
+                Arc::new(builtin.finish()),
             ],
         )
         .unwrap();

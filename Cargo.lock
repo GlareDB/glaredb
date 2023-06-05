@@ -1618,6 +1618,7 @@ dependencies = [
  "env_logger",
  "paste",
  "rstest",
+ "sqlbuiltins",
 ]
 
 [[package]]
@@ -1635,7 +1636,6 @@ dependencies = [
  "decimal",
  "futures",
  "gcp-bigquery-client",
- "metastore",
  "metastoreproto",
  "mongodb",
  "mysql_async",
@@ -2998,6 +2998,7 @@ dependencies = [
  "proptest-derive",
  "prost",
  "prost-types",
+ "sqlbuiltins",
  "thiserror",
  "tokio",
  "tonic",
@@ -5119,6 +5120,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlbuiltins"
+version = "0.0.12"
+dependencies = [
+ "async-trait",
+ "datafusion",
+ "datasources",
+ "futures",
+ "logutil",
+ "metastoreproto",
+ "object_store",
+ "once_cell",
+ "pgrepr",
+ "regex",
+ "serde_json",
+ "sqlparser 0.34.0",
+ "telemetry",
+ "thiserror",
+ "tokio",
+ "tokio-postgres",
+ "tonic",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "sqlexec"
 version = "0.0.12"
 dependencies = [
@@ -5135,6 +5161,7 @@ dependencies = [
  "pgrepr",
  "regex",
  "serde_json",
+ "sqlbuiltins",
  "sqlparser 0.34.0",
  "telemetry",
  "tempfile",

@@ -16,8 +16,12 @@ use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_planner::planner::AsyncContextProvider;
 use metastore::builtins::DEFAULT_CATALOG;
+use metastoreproto::types::catalog::CatalogEntry;
+use sqlbuiltins::functions::TableFunc;
+use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::error;
 
 /// Partial context provider with table providers required to fulfill a single
 /// query.
@@ -39,8 +43,8 @@ impl<'a> PartialContextProvider<'a> {
         })
     }
 
-    // Find a table provider the given reference, taking into account the
-    // session's search path.
+    /// Find a table provider the given reference, taking into account the
+    /// session's search path.
     async fn table_for_reference(
         &self,
         reference: TableReference<'_>,
@@ -82,6 +86,61 @@ impl<'a> PartialContextProvider<'a> {
             } => {
                 let table = dispatcher.dispatch_access(catalog, schema, table).await?;
                 Ok(table)
+            }
+        }
+    }
+
+    /// Find a table function with the given reference, taking into account the
+    /// session's search path.
+    fn table_function_for_reference(
+        &self,
+        reference: TableReference<'_>,
+    ) -> Option<Arc<dyn TableFunc>> {
+        let catalog = self.ctx.get_session_catalog();
+
+        let resolve_func = |schema, name| {
+            match catalog.resolve_entry(DEFAULT_CATALOG, schema, name) {
+                Some(CatalogEntry::Function(func)) => {
+                    if func.meta.builtin {
+                        if let Some(func_impl) = BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
+                        {
+                            Some(func_impl)
+                        } else {
+                            // This can happen if we're in the middle of
+                            // a deploy and builtin functions were
+                            // added/removed.
+                            error!(name = %func.meta.name, "missing builtin function impl");
+                            None
+                        }
+                    } else {
+                        // We only have builtin functions right now.
+                        None
+                    }
+                }
+                _ => None,
+            }
+        };
+
+        match &reference {
+            TableReference::Bare { table } => {
+                for schema in self.ctx.implicit_search_path_iter() {
+                    if let Some(func_impl) = resolve_func(schema, table) {
+                        return Some(func_impl);
+                    }
+                }
+                None
+            }
+            TableReference::Partial { schema, table } => resolve_func(schema, table),
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => {
+                if catalog == DEFAULT_CATALOG {
+                    resolve_func(schema, table)
+                } else {
+                    None
+                }
             }
         }
     }
@@ -130,6 +189,10 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
 
     async fn get_aggregate_meta(&mut self, _name: &str) -> Option<Arc<AggregateUDF>> {
         None
+    }
+
+    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>> {
+        self.table_function_for_reference(name)
     }
 
     fn options(&self) -> &ConfigOptions {
