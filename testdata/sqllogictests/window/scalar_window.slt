@@ -6,7 +6,7 @@ create schema scalar_window;
 statement ok
 set search_path = scalar_window;
 
-# TODO: Missing function (row_number)
+# TODO: "OVER ()" has null schema (empty fields).
 halt
 
 query I

@@ -6,16 +6,14 @@ create schema full_outer_join_complex;
 statement ok
 set search_path = full_outer_join_complex;
 
-halt
-
 statement ok
-CREATE TABLE integers(i INTEGER, j INTEGER)
+CREATE TEMP TABLE integers(i INTEGER, j INTEGER)
 
 statement ok
 INSERT INTO integers VALUES (1, 1)
 
 statement ok
-CREATE TABLE integers2(k INTEGER, l INTEGER)
+CREATE TEMP TABLE integers2(k INTEGER, l INTEGER)
 
 statement ok
 INSERT INTO integers2 VALUES (1, 10)

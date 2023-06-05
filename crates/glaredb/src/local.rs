@@ -265,12 +265,17 @@ static TABLE_FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
         .with_null("NULL")
 });
 
-async fn print_stream(stream: SendableRecordBatchStream, mode: OutputMode) -> Result<()> {
+async fn process_stream(stream: SendableRecordBatchStream) -> Result<Vec<RecordBatch>> {
     let batches = stream
         .collect::<Vec<_>>()
         .await
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
+    Ok(batches)
+}
+
+async fn print_stream(stream: SendableRecordBatchStream, mode: OutputMode) -> Result<()> {
+    let batches = process_stream(stream).await?;
 
     fn write_json<F: JsonFormat>(batches: &[RecordBatch]) -> Result<()> {
         let stdout = std::io::stdout();

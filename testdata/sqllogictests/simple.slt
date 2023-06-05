@@ -16,14 +16,12 @@ select * from (values (1, 2, 3), (3, 4, 5))
 1 2 3
 3 4 5
 
-halt
-
 statement ok
-create table t1 (a smallint, b smallint)
+create temp table t1 (a smallint, b smallint)
 
 # Table already exists.
 statement error
-create table t1 (a smallint, b smallint)
+create temp table t1 (a smallint, b smallint)
 
 statement ok
 insert into t1 values (1, 2), (3, 4), (5, 6)
@@ -92,7 +90,7 @@ select * from t1 where a >= 3;
 5 6
 
 statement ok
-create table t2 (b smallint, c smallint);
+create temp table t2 (b smallint, c smallint);
 
 statement ok
 insert into t2 values (7, 8), (9, 10), (11, 12);

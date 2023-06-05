@@ -21,9 +21,9 @@ use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{
-    DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS,
-    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
-    VIRTUAL_CATALOG_SCHEMA,
+    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES,
+    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
+    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION, VIRTUAL_CATALOG_SCHEMA,
 };
 use metastore::session::SessionCatalog;
 use metastoreproto::types::catalog::{
@@ -136,6 +136,16 @@ impl<'a> SessionDispatcher<'a> {
                 }
             };
             return self.dispatch_external_database(db, schema, name).await;
+        }
+
+        if schema == CURRENT_SESSION_SCHEMA {
+            return match self.ctx.resolve_temp_table(name) {
+                Some(table) => Ok(table),
+                None => Err(DispatchError::MissingEntry {
+                    schema: schema.to_owned(),
+                    name: name.to_owned(),
+                }),
+            };
         }
 
         let ent = catalog
@@ -647,6 +657,19 @@ impl<'a> SystemTableDispatcher<'a> {
             };
 
             datasource.append_value(table.options.as_str());
+        }
+
+        // Append temporary tables.
+        for table in self.ctx.list_temp_tables() {
+            // TODO: Assign OID to temporary tables
+            oid.append_value(0);
+            schema_oid.append_value(SCHEMA_CURRENT_SESSION.oid);
+            database_oid.append_value(DATABASE_DEFAULT.oid);
+            schema_name.append_value(SCHEMA_CURRENT_SESSION.name);
+            table_name.append_value(table);
+            builtin.append_value(false);
+            external.append_value(false);
+            datasource.append_value("internal");
         }
 
         let batch = RecordBatch::try_new(

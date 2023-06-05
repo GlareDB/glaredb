@@ -66,7 +66,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     }
                 }
             }
-            SetExpr::Query(q) => self.query_to_plan_with_schema(*q, planner_context).await,
+            SetExpr::Query(q) => self.query_to_plan_with_context(*q, planner_context).await,
             _ => Err(DataFusionError::NotImplemented(format!(
                 "Query {set_expr} not implemented yet"
             ))),

@@ -1,11 +1,13 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::common::OwnedTableReference;
+use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use metastoreproto::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -76,7 +78,6 @@ impl From<DfLogicalPlan> for LogicalPlan {
     }
 }
 
-#[allow(dead_code)] // Inserts not constructed anywhere (yet)
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
@@ -88,11 +89,19 @@ impl From<WritePlan> for LogicalPlan {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Insert {
-    pub table_name: String,
-    pub columns: Vec<String>,
+    pub table_provider: Arc<dyn TableProvider>,
     pub source: DfLogicalPlan,
+}
+
+impl std::fmt::Debug for Insert {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Insert")
+            .field("source", &self.source)
+            .field("table_provider", &self.table_provider.schema())
+            .finish()
+    }
 }
 
 /// Data defintion logical plans.
@@ -104,7 +113,7 @@ pub enum DdlPlan {
     CreateExternalDatabase(CreateExternalDatabase),
     CreateTunnel(CreateTunnel),
     CreateSchema(CreateSchema),
-    CreateTable(CreateTable),
+    CreateTempTable(CreateTempTable),
     CreateExternalTable(CreateExternalTable),
     CreateTableAs(CreateTableAs),
     CreateView(CreateView),
@@ -146,8 +155,8 @@ pub struct CreateSchema {
 }
 
 #[derive(Clone, Debug)]
-pub struct CreateTable {
-    pub table_name: OwnedTableReference,
+pub struct CreateTempTable {
+    pub table_name: String,
     pub if_not_exists: bool,
     pub columns: Vec<Field>,
 }

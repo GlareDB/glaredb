@@ -6,16 +6,14 @@ create schema inner_join;
 statement ok
 set search_path = inner_join;
 
-halt
-
 statement ok
-CREATE TABLE test (a INTEGER, b INTEGER);
+CREATE TEMP TABLE test (a INTEGER, b INTEGER);
 
 statement ok
 INSERT INTO test VALUES (11, 1), (12, 2), (13, 3)
 
 statement ok
-CREATE TABLE test2 (b INTEGER, c INTEGER);
+CREATE TEMP TABLE test2 (b INTEGER, c INTEGER);
 
 statement ok
 INSERT INTO test2 VALUES (1, 10), (1, 20), (2, 30)
@@ -28,10 +26,8 @@ SELECT a, test.b, c FROM test, test2 WHERE test.b = test2.b ORDER BY c;
 11	1	20
 12	2	30
 
-# TODO: This succeeds.
-# # ambiguous reference to column
-# statement error
-# SELECT b FROM test, test2 WHERE test.b > test2.b;
+statement error
+SELECT b FROM test, test2 WHERE test.b > test2.b;
 
 # simple cross product + multiple join conditions
 query III

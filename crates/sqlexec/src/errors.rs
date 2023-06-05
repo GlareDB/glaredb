@@ -74,6 +74,12 @@ pub enum ExecError {
         conn_id: uuid::Uuid,
     },
 
+    #[error("Duplicate object name: '{0}' already exists")]
+    DuplicateObjectName(String),
+
+    #[error("Missing {typ}: '{name}' not found")]
+    MissingObject { typ: &'static str, name: String },
+
     #[error(transparent)]
     Metastore(#[from] metastore::errors::MetastoreError),
 

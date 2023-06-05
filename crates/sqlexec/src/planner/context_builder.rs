@@ -144,6 +144,10 @@ impl<'a> PartialContextProvider<'a> {
             }
         }
     }
+    /// Get the table provider if available in the cache.
+    pub fn table_provider(&self, name: TableReference<'_>) -> Option<Arc<dyn TableProvider>> {
+        self.providers.get(&name).cloned()
+    }
 }
 
 #[async_trait]

@@ -1,3 +1,4 @@
 [alias]
 dev = "run --bin glaredb --"
-xtask = "run --quiet --package xtask --"
+xtask = "run --package xtask --"
+x = "run --quiet --package xtask --"
