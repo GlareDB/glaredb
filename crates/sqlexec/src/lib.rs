@@ -10,3 +10,7 @@ mod functions;
 mod metrics;
 mod planner;
 mod vars;
+
+pub mod export {
+    pub use sqlparser;
+}
