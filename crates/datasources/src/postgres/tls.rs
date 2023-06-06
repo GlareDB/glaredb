@@ -1,5 +1,4 @@
 use futures::future::{FutureExt, TryFutureExt};
-use once_cell::sync::Lazy;
 use ring::digest;
 use rustls::{ClientConfig, ServerName};
 use std::convert::TryFrom;

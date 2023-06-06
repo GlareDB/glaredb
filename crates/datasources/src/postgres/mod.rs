@@ -39,9 +39,9 @@ use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
 use tokio_postgres::config::Host;
-use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
+use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
-use tokio_postgres::{Client, Config, CopyOutStream, NoTls};
+use tokio_postgres::{Client, Config, CopyOutStream};
 use tracing::warn;
 
 #[derive(Debug)]
