@@ -28,7 +28,9 @@ more without moving data around.
 curl https://glaredb.com/install.sh | sh
 ```
 
-Or check out [console.glaredb.com](https://console.glaredb.com) for full managed deployments of GlareDB.
+Or check out [console.glaredb.com](https://console.glaredb.com) for fully managed deployments of GlareDB.
+If you prefer manual installation, download, extract and run the GlareDB binary from a release in our
+[releases page](https://github.com/GlareDB/glaredb/releases).
 
 ## Getting started
 
