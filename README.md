@@ -24,12 +24,11 @@ more without moving data around.
 
 ## Install
 
-Get the latest version of GlareDB from our [releases page](https://github.com/GlareDB/glaredb/releases). Download the zip
-for your OS and architecture, extract, and run the GlareDB binary.
+```shell
+curl https://glaredb.com/install.sh | sh
+```
 
-Don't want to run GlareDB locally? Our managed offering at
-[console.glaredb.com](https://console.glaredb.com) provides hosted deployments of GlareDB. Deploy in just
-a few clicks.
+Or check out [console.glaredb.com](https://console.glaredb.com) for full managed deployments of GlareDB.
 
 ## Getting started
 
