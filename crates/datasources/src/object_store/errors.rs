@@ -23,6 +23,12 @@ pub enum ObjectStoreSourceError {
     #[error("This file type is not supported: {0}")]
     NotSupportFileType(String),
 
+    #[error("Failed to read object over http: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    ParseUrl(#[from] url::ParseError),
+
     #[error("{0}")]
     Static(&'static str),
 }

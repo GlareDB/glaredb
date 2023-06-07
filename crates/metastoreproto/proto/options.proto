@@ -84,8 +84,9 @@ message TableOptions {
     TableOptionsMysql mysql = 8;
     TableOptionsMongo mongo = 9;
     TableOptionsSnowflake snowflake = 10;
+    TableOptionsHttp http = 11;
   }
-  // next: 11
+  // next: 12
 }
 
 message TableOptionsInternal {
@@ -129,6 +130,8 @@ message TableOptionsS3 {
   string bucket = 4;
   string location = 5;
 }
+
+message TableOptionsHttp { string url = 5; }
 
 message TableOptionsMongo {
   string connection_string = 1;

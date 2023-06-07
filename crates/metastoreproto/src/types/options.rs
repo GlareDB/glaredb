@@ -327,6 +327,7 @@ pub enum TableOptions {
     Local(TableOptionsLocal),
     Gcs(TableOptionsGcs),
     S3(TableOptionsS3),
+    Http(TableOptionsHttp),
     Mongo(TableOptionsMongo),
     Snowflake(TableOptionsSnowflake),
 }
@@ -340,6 +341,7 @@ impl TableOptions {
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
+    pub const HTTP: &str = "http";
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
 
@@ -357,6 +359,7 @@ impl TableOptions {
             TableOptions::Local(_) => Self::LOCAL,
             TableOptions::Gcs(_) => Self::GCS,
             TableOptions::S3(_) => Self::S3_STORAGE,
+            TableOptions::Http(_) => Self::HTTP,
             TableOptions::Mongo(_) => Self::MONGO,
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
         }
@@ -381,6 +384,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
             options::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
             options::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
+            options::table_options::Options::Http(v) => TableOptions::Http(v.try_into()?),
             options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
         })
@@ -406,6 +410,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Local(v) => options::table_options::Options::Local(v.into()),
             TableOptions::Gcs(v) => options::table_options::Options::Gcs(v.into()),
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
+            TableOptions::Http(v) => options::table_options::Options::Http(v.into()),
             TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
         })
@@ -642,6 +647,24 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
             bucket: value.bucket,
             location: value.location,
         }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct TableOptionsHttp {
+    pub url: String,
+}
+
+impl TryFrom<options::TableOptionsHttp> for TableOptionsHttp {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsHttp) -> Result<Self, Self::Error> {
+        Ok(TableOptionsHttp { url: value.url })
+    }
+}
+
+impl From<TableOptionsHttp> for options::TableOptionsHttp {
+    fn from(value: TableOptionsHttp) -> Self {
+        options::TableOptionsHttp { url: value.url }
     }
 }
 

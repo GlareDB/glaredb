@@ -16,6 +16,7 @@ use datasources::debug::{DebugTableType, DebugVirtualLister};
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasources::object_store::http::{HttpAccessor, HttpTableAccess};
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
@@ -32,9 +33,9 @@ use metastoreproto::types::catalog::{
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsHttp,
+    TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -412,6 +413,12 @@ impl<'a> SessionDispatcher<'a> {
                     file_type: None,
                 };
                 let accessor = S3Accessor::new(table_access).await?;
+                let provider = accessor.into_table_provider(true).await?;
+                Ok(provider)
+            }
+            TableOptions::Http(TableOptionsHttp { url }) => {
+                let table_access = HttpTableAccess { url: url.clone() };
+                let accessor = HttpAccessor::new(table_access).await?;
                 let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }

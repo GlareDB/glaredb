@@ -22,6 +22,7 @@ use datasources::debug::DebugTableType;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasources::object_store::http::{HttpAccessor, HttpTableAccess};
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
@@ -30,9 +31,10 @@ use metastore::validation::{validate_database_tunnel_support, validate_table_tun
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
-    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsHttp, TableOptionsLocal,
+    TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -398,6 +400,19 @@ impl<'a> SessionPlanner<'a> {
                     bucket: access.bucket_name,
                     location: access.location,
                 })
+            }
+            TableOptions::HTTP => {
+                let url = remove_required_opt(m, "url")?;
+
+                let access = HttpTableAccess { url: url.clone() };
+
+                HttpAccessor::validate_table_access(access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
+
+                TableOptions::Http(TableOptionsHttp { url })
             }
             TableOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
