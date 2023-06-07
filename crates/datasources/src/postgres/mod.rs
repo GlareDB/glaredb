@@ -1,5 +1,7 @@
 pub mod errors;
 
+mod tls;
+
 use crate::common::errors::DatasourceCommonError;
 use crate::common::listing::{VirtualLister, VirtualTable};
 use crate::common::ssh::{SshKey, SshTunnelAccess};
@@ -37,8 +39,9 @@ use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
 use tokio_postgres::config::Host;
+use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
-use tokio_postgres::{Client, Config, CopyOutStream, NoTls};
+use tokio_postgres::{Client, Config, CopyOutStream};
 use tracing::warn;
 
 #[derive(Debug)]
@@ -134,7 +137,8 @@ impl PostgresAccessor {
     }
 
     async fn connect_direct(connection_string: &str) -> Result<(Client, JoinHandle<()>)> {
-        let (client, conn) = tokio_postgres::connect(connection_string, NoTls).await?;
+        let (client, conn) =
+            tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default()).await?;
         let handle = tokio::spawn(async move {
             if let Err(e) = conn.await {
                 warn!(%e, "postgres connection errored");
@@ -166,7 +170,16 @@ impl PostgresAccessor {
             .await?;
 
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
-        let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
+
+        // Rust doesn't feel like type inferring this for us.
+        let tls_connect = <tls::MakeRustlsConnect as MakeTlsConnect<TcpStream>>::make_tls_connect(
+            &mut tls::MakeRustlsConnect::default(),
+            // TODO: Which host do we want to specify? Since this is being tunneled
+            // over ssh, I don't know if SNI actually matters.
+            "",
+        )?;
+
+        let (client, conn) = config.connect_raw(tcp_stream, tls_connect).await?;
         let handle = tokio::spawn(async move {
             if let Err(e) = conn.await {
                 warn!(%e, "postgres connection errored");
