@@ -6,11 +6,8 @@ create schema topn_nulls_first;
 statement ok
 set search_path = topn_nulls_first;
 
-# TODO: Table created with non-nullable field.
-halt
-
 statement ok
-CREATE TABLE integers(i INTEGER)
+CREATE TEMP TABLE integers(i INTEGER)
 
 statement ok
 INSERT INTO integers VALUES (1), (NULL)

@@ -31,6 +31,9 @@ pub const INTERNAL_SCHEMA: &str = "glare_catalog";
 pub const INFORMATION_SCHEMA: &str = "information_schema";
 pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 
+/// Schema to store temporary objects (only valid for current session).
+pub const CURRENT_SESSION_SCHEMA: &str = "current_session";
+
 /// A schema that only exists in external databases.
 ///
 /// This is used to dispatch to a "view" that internally fetches schema and
@@ -252,6 +255,11 @@ pub static SCHEMA_POSTGRES: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
     oid: 16388,
 });
 
+pub static SCHEMA_CURRENT_SESSION: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
+    name: CURRENT_SESSION_SCHEMA,
+    oid: 16389,
+});
+
 impl BuiltinSchema {
     pub fn builtins() -> Vec<&'static BuiltinSchema> {
         vec![
@@ -259,6 +267,7 @@ impl BuiltinSchema {
             &SCHEMA_DEFAULT,
             &SCHEMA_INFORMATION,
             &SCHEMA_POSTGRES,
+            &SCHEMA_CURRENT_SESSION,
         ]
     }
 }

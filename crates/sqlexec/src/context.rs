@@ -8,8 +8,10 @@ use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Column as DfColumn;
 use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
+use datafusion::datasource::MemTable;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
@@ -18,8 +20,8 @@ use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPl
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use futures::future::BoxFuture;
-use metastore::builtins::DEFAULT_CATALOG;
 use metastore::builtins::POSTGRES_SCHEMA;
+use metastore::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use metastore::errors::ResolveErrorStrategy;
 use metastore::session::SessionCatalog;
 use metastoreproto::types::catalog::EntryType;
@@ -36,7 +38,12 @@ use tracing::debug;
 /// Implicity schemas that are consulted during object resolution.
 ///
 /// Note that these are not normally shown in the search path.
-const IMPLICIT_SCHEMAS: [&str; 1] = [POSTGRES_SCHEMA];
+const IMPLICIT_SCHEMAS: [&str; 2] = [
+    POSTGRES_SCHEMA,
+    // Objects stored in current session will always have a priority over the
+    // schemas in search path.
+    CURRENT_SESSION_SCHEMA,
+];
 
 /// Context for a session used during execution.
 ///
@@ -49,6 +56,8 @@ pub struct SessionContext {
     /// Database catalog.
     metastore_catalog: SessionCatalog,
     metastore: SupervisorClient,
+    /// In-memory (temporary) tables.
+    current_session_tables: HashMap<String, Arc<MemTable>>,
     /// Session variables.
     vars: SessionVars,
     /// Prepared statements.
@@ -118,6 +127,7 @@ impl SessionContext {
             info,
             metastore_catalog: catalog,
             metastore,
+            current_session_tables: HashMap::new(),
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -156,9 +166,31 @@ impl SessionContext {
             .count()
     }
 
+    /// Resolve temp table.
+    pub fn resolve_temp_table(&self, table_name: &str) -> Option<Arc<MemTable>> {
+        self.current_session_tables.get(table_name).cloned()
+    }
+
     /// Create a table.
-    pub fn create_table(&self, _plan: CreateTable) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("CREATE TABLE"))
+    pub fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
+        if self.current_session_tables.contains_key(&plan.table_name) {
+            if plan.if_not_exists {
+                return Ok(());
+            }
+            return Err(ExecError::DuplicateObjectName(plan.table_name));
+        }
+
+        let schema = Arc::new(ArrowSchema::new(plan.columns));
+        let data = RecordBatch::new_empty(Arc::clone(&schema));
+        let table = MemTable::try_new(schema, vec![vec![data]])?;
+        self.current_session_tables
+            .insert(plan.table_name, Arc::new(table));
+        Ok(())
+    }
+
+    /// List temporary tables.
+    pub fn list_temp_tables(&self) -> impl Iterator<Item = &str> {
+        self.current_session_tables.keys().map(|k| k.as_str())
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {

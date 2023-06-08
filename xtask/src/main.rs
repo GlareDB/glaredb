@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::io::Cursor;
+use std::{ffi::OsStr, io::Cursor};
 use target::Target;
 use xshell::{cmd, Shell};
 use zip::ZipArchive;
@@ -32,6 +32,7 @@ enum Commands {
     DocTests,
 
     /// Run SQL Logic Tests.
+    #[clap(alias = "slt")]
     SqlLogicTests { rest: Vec<String> },
 
     /// Run tests with arbitrary arguments.
@@ -63,17 +64,15 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Build { release } => run_build(sh, release)?,
-        Commands::UnitTests => run_tests(sh, &["--lib", "--bins"])?,
-        Commands::DocTests => run_tests(sh, &["--doc"])?,
+        Commands::UnitTests => run_tests(sh, ["--lib", "--bins"])?,
+        Commands::DocTests => run_tests(sh, ["--doc"])?,
         Commands::SqlLogicTests { rest } => {
-            let mut args: Vec<_> = vec!["--test", "sqllogictests", "--"]
+            let args = ["--test", "sqllogictests", "--"]
                 .into_iter()
-                .map(|s| s.to_owned())
-                .collect();
-            args.extend_from_slice(&rest);
-            run_tests(sh, &args)?
+                .chain(rest.iter().map(|s| s.as_str()));
+            run_tests(sh, args)?
         }
-        Commands::Test { rest } => run_tests(sh, &rest)?,
+        Commands::Test { rest } => run_tests(sh, rest)?,
         Commands::Clippy => run_clippy(sh)?,
         Commands::FmtCheck => run_fmt_check(sh)?,
         Commands::Dist => run_dist(sh, &target)?,
@@ -83,16 +82,19 @@ fn main() -> Result<()> {
 }
 
 fn run_build(sh: &Shell, release: bool) -> Result<()> {
+    let mut cmd = cmd!(sh, "cargo build --bin glaredb");
     if release {
-        cmd!(sh, "cargo build --release --bin glaredb").run()?;
-    } else {
-        cmd!(sh, "cargo build --bin glaredb").run()?;
+        cmd = cmd.arg("--release");
     }
+    cmd.run()?;
     Ok(())
 }
 
-fn run_tests<S: ToString>(sh: &Shell, rest: &[S]) -> Result<()> {
-    let rest: Vec<String> = rest.iter().map(|s| s.to_string()).collect();
+fn run_tests<I>(sh: &Shell, rest: I) -> Result<()>
+where
+    I: IntoIterator,
+    I::Item: AsRef<OsStr>,
+{
     let cmd = sh.cmd("cargo").arg("test").args(rest);
     cmd.run()?;
     Ok(())

@@ -36,7 +36,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let old_outer_query_schema =
             planner_context.set_outer_query_schema(Some(input_schema.clone()));
         let sub_plan = self
-            .query_to_plan_with_schema(subquery, planner_context)
+            .query_to_plan_with_context(subquery, planner_context)
             .await?;
         let outer_ref_columns = sub_plan.all_out_ref_exprs();
         planner_context.set_outer_query_schema(old_outer_query_schema);
@@ -60,7 +60,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let old_outer_query_schema =
             planner_context.set_outer_query_schema(Some(input_schema.clone()));
         let sub_plan = self
-            .query_to_plan_with_schema(subquery, planner_context)
+            .query_to_plan_with_context(subquery, planner_context)
             .await?;
         let outer_ref_columns = sub_plan.all_out_ref_exprs();
         planner_context.set_outer_query_schema(old_outer_query_schema);
@@ -87,7 +87,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let old_outer_query_schema =
             planner_context.set_outer_query_schema(Some(input_schema.clone()));
         let sub_plan = self
-            .query_to_plan_with_schema(subquery, planner_context)
+            .query_to_plan_with_context(subquery, planner_context)
             .await?;
         let outer_ref_columns = sub_plan.all_out_ref_exprs();
         planner_context.set_outer_query_schema(old_outer_query_schema);

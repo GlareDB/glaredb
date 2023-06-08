@@ -98,7 +98,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 subquery, alias, ..
             } => {
                 let logical_plan = self
-                    .query_to_plan_with_schema(*subquery, planner_context)
+                    .query_to_plan_with_context(*subquery, planner_context)
                     .await?;
                 (logical_plan, alias)
             }

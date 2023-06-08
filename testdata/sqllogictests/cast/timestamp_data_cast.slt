@@ -1,8 +1,5 @@
 # Timestamp date cast.
 
-# Unsupported in new catalog (for now).
-halt
-
 statement ok
 create schema timestamp_date_cast;
 
@@ -10,22 +7,17 @@ statement ok
 set search_path = timestamp_date_cast;
 
 statement ok
-create table test as
-select '2021-02-04 19:30:00'::timestamp t;
-
-# TODO: Missing these casts.
-halt
+create view test as
+	select '2021-02-04 19:30:00'::timestamp t;
 
 query I
-select *
-from test
-where (t::date) = '2021-02-04'::date;
+select * from test
+	where (t::date) = '2021-02-04'::date;
 ----
 2021-02-04 19:30:00
 
 query I
-select *
-from test
-where (t::date) = '2021-02-04';
+select * from test
+	where (t::date) = '2021-02-04';
 ----
 2021-02-04 19:30:00

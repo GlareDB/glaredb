@@ -1,0 +1,65 @@
+# Temporary tables
+
+statement ok
+create temp table abc (a int, b int, c int);
+
+query III
+select * from abc;
+----
+
+query T
+select schema_name from glare_catalog.tables
+	where table_name = 'abc';
+----
+current_session
+
+# Another table with the same name as temp table but in another schema should
+# be ok.
+statement ok
+create external table abc from debug options ( table_type = 'never_ending' );
+
+query T rowsort
+select schema_name from glare_catalog.tables
+	where table_name = 'abc';
+----
+current_session
+public
+
+# Another temp table with same name not allowed.
+statement error
+create temp table abc (x int);
+
+# Insert into table
+statement ok
+insert into abc values (9, 8, 7);
+
+query III rowsort
+select a, b, c from current_session.abc limit 1;
+----
+9	8	7
+
+query III rowsort
+select a, b, c from abc limit 1;
+----
+9	8	7
+
+# Query external table by specifying schema.
+query III
+select a, b, c from public.abc limit 1;
+----
+1	2	3
+
+# TODO: Inserting from external table also causes the same error as non-matching
+# schemas when doing `INSERT INTO abc(a, b) ...`.
+halt
+
+# Insert from another table
+statement ok
+insert into abc select a, b, c from public.abc limit 2;
+
+query III
+select a, b, c from abc;
+----
+9	8	7
+1	2	3
+1	2	3

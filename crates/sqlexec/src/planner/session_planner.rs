@@ -518,6 +518,7 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 columns,
                 query: None,
+                temporary,
                 ..
             } => {
                 validate_object_name(&name)?;
@@ -526,16 +527,24 @@ impl<'a> SessionPlanner<'a> {
                 let mut arrow_cols = Vec::with_capacity(columns.len());
                 for column in columns.into_iter() {
                     let dt = convert_data_type(&column.data_type)?;
-                    let field = Field::new(&column.name.value, dt, false);
+                    let field = Field::new(&column.name.value, dt, /* nullable = */ true);
                     arrow_cols.push(field);
                 }
 
-                Ok(DdlPlan::CreateTable(CreateTable {
-                    table_name,
-                    columns: arrow_cols,
-                    if_not_exists,
-                })
-                .into())
+                if temporary {
+                    let table_name = match table_name {
+                        TableReference::Bare { table } => table.into_owned(),
+                        _ => return Err(internal!("cannot specify schema with temporary tables")),
+                    };
+                    return Ok(DdlPlan::CreateTempTable(CreateTempTable {
+                        table_name,
+                        columns: arrow_cols,
+                        if_not_exists,
+                    })
+                    .into());
+                }
+
+                Err(internal!("Only temporary tables currently supported"))
             }
 
             // Tables generated from a source query.
@@ -608,8 +617,48 @@ impl<'a> SessionPlanner<'a> {
                 }
             }
 
-            stmt @ ast::Statement::Insert { .. } => {
-                Err(PlanError::UnsupportedSQLStatement(stmt.to_string()))
+            ast::Statement::Insert {
+                or: None,
+                into: _,
+                table_name,
+                columns,
+                overwrite: false,
+                source,
+                partitioned: None,
+                after_columns,
+                table: false,
+                on: None,
+                returning: None,
+            } if after_columns.is_empty() => {
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+
+                let columns = columns
+                    .into_iter()
+                    .map(|col| {
+                        validate_ident(&col)?;
+                        Ok(normalize_ident(col))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let source = planner
+                    .insert_to_source_plan(&table_name, &columns, source)
+                    .await?;
+
+                // This provider should be available in the context provider
+                // cache since we have successfully generated the insert plan.
+                //
+                // TODO: Get rid of context_provider when moving DF code into
+                // sqlexec. Will get rid of a lot of weirdness.
+                let table_provider = context_provider
+                    .table_provider(table_name)
+                    .ok_or(internal!("unable to get table provider to insert into"))?;
+
+                Ok(WritePlan::Insert(Insert {
+                    table_provider,
+                    source,
+                })
+                .into())
             }
 
             ast::Statement::AlterTable {

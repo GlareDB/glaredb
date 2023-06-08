@@ -30,8 +30,16 @@ use datafusion::sql::sqlparser::parser::ParserError::ParserError;
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a logical plan from an SQL query
     pub async fn query_to_plan(&mut self, query: Query) -> Result<LogicalPlan> {
-        self.query_to_plan_with_schema(query, &mut PlannerContext::new())
+        self.query_to_plan_with_context(query, &mut PlannerContext::new())
             .await
+    }
+
+    pub async fn query_to_plan_with_context(
+        &mut self,
+        query: Query,
+        planner_context: &mut PlannerContext,
+    ) -> Result<LogicalPlan> {
+        self.query_to_plan_with_schema(query, planner_context).await
     }
 
     /// Generate a logic plan from an SQL query.
@@ -64,7 +72,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 // create logical plan & pass backreferencing CTEs
                 // CTE expr don't need extend outer_query_schema
                 let logical_plan = self
-                    .query_to_plan_with_schema(*cte.query, &mut planner_context.clone())
+                    .query_to_plan_with_context(*cte.query, &mut planner_context.clone())
                     .await?;
 
                 // Each `WITH` block can change the column names in the last

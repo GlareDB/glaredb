@@ -6,10 +6,8 @@ create schema over_grouping;
 statement ok
 set search_path = over_grouping;
 
-halt
-
 statement ok
-create table image  (
+create temp table image  (
     id          smallint primary key,
     width       int not null,
     height      integer not null

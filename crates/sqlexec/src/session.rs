@@ -11,6 +11,7 @@ use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use futures::StreamExt;
 use metastore::session::SessionCatalog;
 use pgrepr::format::Format;
 use std::fmt;
@@ -87,7 +88,7 @@ impl ExecutionResult {
             ExecutionResult::Begin => "begin",
             ExecutionResult::Commit => "commit",
             ExecutionResult::Rollback => "rollback",
-            ExecutionResult::WriteSuccess => "write_success",
+            ExecutionResult::WriteSuccess { .. } => "write_success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -120,7 +121,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Begin => write!(f, "begin"),
             ExecutionResult::Commit => write!(f, "commit"),
             ExecutionResult::Rollback => write!(f, "rollback"),
-            ExecutionResult::WriteSuccess => write!(f, "write success"),
+            ExecutionResult::WriteSuccess { .. } => write!(f, "write success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
@@ -185,10 +186,9 @@ impl Session {
         Ok(stream)
     }
 
-    pub(crate) async fn create_table(&self, _plan: CreateTable) -> Result<()> {
-        // Disable creating table temporarily since we actually can't insert
-        // anything into tables yet.
-        Err(ExecError::UnsupportedFeature("CREATE TABLE ..."))
+    pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
+        self.ctx.create_temp_table(plan)?;
+        Ok(())
     }
 
     pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
@@ -263,14 +263,24 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn insert(&self, _plan: Insert) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("INSERT"))
-    }
-
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
         self.ctx
             .get_session_vars_mut()
             .set(&plan.variable, plan.try_value_into_string()?.as_str())?;
+        Ok(())
+    }
+
+    pub(crate) async fn insert_into(&self, plan: Insert) -> Result<()> {
+        let physical = self.create_physical_plan(plan.source).await?;
+        let physical = plan
+            .table_provider
+            .insert_into(self.ctx.get_df_state(), physical)
+            .await?;
+        let mut stream = self.execute_physical(physical)?;
+        // Drain the stream to actually "write" successfully.
+        while let Some(res) = stream.next().await {
+            let _ = res?;
+        }
         Ok(())
     }
 
@@ -353,8 +363,8 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-            LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
-                self.create_table(plan).await?;
+            LogicalPlan::Ddl(DdlPlan::CreateTempTable(plan)) => {
+                self.create_temp_table(plan).await?;
                 ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
@@ -414,7 +424,7 @@ impl Session {
                 ExecutionResult::DropTunnel
             }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
-                self.insert(plan).await?;
+                self.insert_into(plan).await?;
                 ExecutionResult::WriteSuccess
             }
             LogicalPlan::Query(plan) => {
