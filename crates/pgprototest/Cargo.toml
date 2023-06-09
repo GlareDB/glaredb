@@ -12,5 +12,5 @@ postgres-protocol = "0.6.5"
 serde = { version = "1.0", features = ["derive"] }
 bytes = "1.4.0"
 serde_json = "1.0.96"
-clap = { version = "4.3.2", features = ["derive"] }
+clap = { version = "4.3.3", features = ["derive"] }
 fallible-iterator = "0.2.0"
