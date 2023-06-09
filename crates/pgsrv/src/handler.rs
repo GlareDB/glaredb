@@ -1,3 +1,4 @@
+use crate::auth::{LocalAuthenticator, PasswordMode};
 use crate::codec::server::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
@@ -34,13 +35,7 @@ use uuid::Uuid;
 /// protocol.
 pub struct ProtocolHandler {
     pub engine: Engine,
-    /// If we should consider this database running locally.
-    ///
-    /// During proxying by pgsrv, additional parameters are added to the startup
-    /// message containing things like database id and user id. However, if
-    /// we're running locally, these params will be missing. This flag indicates
-    /// that that's ok and to use a set of predefined values instead.
-    local: bool,
+    authenticator: Box<dyn LocalAuthenticator>,
     ssl_conf: Option<SslConfig>,
     /// If the server should be configured for integration tests. This is only
     /// applicable for local databases.
@@ -48,10 +43,14 @@ pub struct ProtocolHandler {
 }
 
 impl ProtocolHandler {
-    pub fn new(engine: Engine, local: bool, integration_testing: bool) -> ProtocolHandler {
+    pub fn new(
+        engine: Engine,
+        authenticator: Box<dyn LocalAuthenticator>,
+        integration_testing: bool,
+    ) -> Self {
         ProtocolHandler {
             engine,
-            local,
+            authenticator,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
             // want to hold off on doing that until we have a shared config
             // between the proxy and GlareDB.
@@ -113,7 +112,7 @@ impl ProtocolHandler {
         C: AsyncRead + AsyncWrite + Unpin,
         K: ProxyKey<V>,
     {
-        match key.value_from_params(params, self.local) {
+        match key.value_from_params(params) {
             Ok(v) => Ok(v),
             Err(e) => {
                 let resp = ErrorResponse::from(&e);
@@ -128,7 +127,7 @@ impl ProtocolHandler {
 
     /// Whether the server should be configured for integration testing.
     fn is_integration_testing_enabled(&self) -> bool {
-        self.local && self.integration_testing
+        self.integration_testing
     }
 
     /// Runs the postgres protocol for a connection to completion.
@@ -173,18 +172,46 @@ impl ProtocolHandler {
             db_id
         };
 
-        // Handle password
-        framed
-            .send(BackendMessage::AuthenticationCleartextPassword)
-            .await?;
-        let msg = framed.read().await?;
-        match msg {
-            Some(FrontendMessage::PasswordMessage { password: _ }) => {
-                // TODO: Do something with password.
+        // Handle password.
+        match self.authenticator.password_mode() {
+            PasswordMode::Cleartext => {
+                framed
+                    .send(BackendMessage::AuthenticationCleartextPassword)
+                    .await?;
+                let msg = framed.read().await?;
+                match msg {
+                    Some(FrontendMessage::PasswordMessage { password }) => {
+                        match self
+                            .authenticator
+                            .authenticate(&user_name, &password, &database_name)
+                        {
+                            Ok(sess) => sess,
+                            Err(e) => {
+                                framed
+                                    .send(
+                                        ErrorResponse::fatal_internal(format!(
+                                            "Failed to authenticate: {}",
+                                            e
+                                        ))
+                                        .into(),
+                                    )
+                                    .await?;
+                                return Err(e);
+                            }
+                        }
+                        framed.send(BackendMessage::AuthenticationOk).await?;
+                    }
+                    Some(other) => {
+                        // TODO: Send error.
+                        return Err(PgSrvError::UnexpectedFrontendMessage(Box::new(other)));
+                    }
+                    None => return Ok(()),
+                }
+            }
+            PasswordMode::NoPassword => {
+                // Nothin to do.
                 framed.send(BackendMessage::AuthenticationOk).await?;
             }
-            Some(other) => return Err(PgSrvError::UnexpectedFrontendMessage(Box::new(other))), // TODO: Send error.
-            None => return Ok(()),
         }
 
         let mut sess = match self

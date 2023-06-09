@@ -1,4 +1,4 @@
-use crate::auth::{ConnectionAuthenticator, DatabaseDetails};
+use crate::auth::{DatabaseDetails, ProxyAuthenticator};
 use crate::codec::{
     client::FramedClientConn,
     server::{FramedConn, PgCodec},
@@ -22,12 +22,7 @@ pub const LOCAL_USER_ID: Uuid = Uuid::nil();
 /// Defines a key that's set on the connection by pgsrv.
 pub trait ProxyKey<R> {
     /// Get a value from params.
-    ///
-    /// `local` indicates that the database is not running behind a pgsrv, and
-    /// failing to find a key in `params` shouldn't result in an error. Instead
-    /// a well-defined value should be returned. This is useful for local
-    /// development.
-    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<R>;
+    fn value_from_params(&self, params: &HashMap<String, String>) -> Result<R>;
 }
 
 /// A proxy key who's value should be parsed as a uuid.
@@ -35,12 +30,12 @@ pub trait ProxyKey<R> {
 pub struct UuidProxyKey {
     /// Key to look for in params.
     key: &'static str,
-    /// Default to use if key not found _and_ db is running locally.
-    local_default: Uuid,
+    /// Default to use if key not found.
+    default: Uuid,
 }
 
 impl ProxyKey<Uuid> for UuidProxyKey {
-    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<Uuid> {
+    fn value_from_params(&self, params: &HashMap<String, String>) -> Result<Uuid> {
         let id = match params.get(self.key) {
             Some(val) => match Uuid::parse_str(val.as_str()) {
                 Ok(uuid) => uuid,
@@ -51,12 +46,7 @@ impl ProxyKey<Uuid> for UuidProxyKey {
                     })
                 }
             },
-            None => {
-                if !local {
-                    return Err(PgSrvError::MissingProxyKey(self.key));
-                }
-                self.local_default
-            }
+            None => self.default,
         };
         Ok(id)
     }
@@ -67,12 +57,12 @@ impl ProxyKey<Uuid> for UuidProxyKey {
 pub struct BoolProxyKey {
     /// Key to look for in params.
     key: &'static str,
-    /// Default to use if key not found _and_ db is running locally.
-    local_default: bool,
+    /// Default to use if key not found.
+    default: bool,
 }
 
 impl ProxyKey<bool> for BoolProxyKey {
-    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<bool> {
+    fn value_from_params(&self, params: &HashMap<String, String>) -> Result<bool> {
         match params.get(self.key) {
             Some(val) => match val.as_str() {
                 "true" | "t" => Ok(true),
@@ -82,8 +72,7 @@ impl ProxyKey<bool> for BoolProxyKey {
                     value: val.clone(),
                 }),
             },
-            None if local => Ok(self.local_default),
-            None => Err(PgSrvError::MissingProxyKey(self.key)),
+            None => Ok(self.default),
         }
     }
 }
@@ -93,12 +82,12 @@ impl ProxyKey<bool> for BoolProxyKey {
 pub struct UsizeProxyKey {
     /// Key to look for in params.
     key: &'static str,
-    /// Default to use if key not found _and_ db is running locally.
-    local_default: usize,
+    /// Default to use if key not found.
+    default: usize,
 }
 
 impl ProxyKey<usize> for UsizeProxyKey {
-    fn value_from_params(&self, params: &HashMap<String, String>, local: bool) -> Result<usize> {
+    fn value_from_params(&self, params: &HashMap<String, String>) -> Result<usize> {
         match params.get(self.key) {
             Some(val) => match val.parse::<usize>() {
                 Ok(n) => Ok(n),
@@ -107,8 +96,7 @@ impl ProxyKey<usize> for UsizeProxyKey {
                     value: val.clone(),
                 }),
             },
-            None if local => Ok(self.local_default),
-            None => Err(PgSrvError::MissingProxyKey(self.key)),
+            None => Ok(self.default),
         }
     }
 }
@@ -117,39 +105,32 @@ impl ProxyKey<usize> for UsizeProxyKey {
 /// during proxying.
 pub const GLAREDB_DATABASE_ID_KEY: UuidProxyKey = UuidProxyKey {
     key: "glaredb_database_id",
-    local_default: Uuid::nil(),
+    default: Uuid::nil(),
 };
 
 /// Param key for setting the user id in startup params. Added by pgsrv
 /// during proxying.
 pub const GLAREDB_USER_ID_KEY: UuidProxyKey = UuidProxyKey {
     key: "glaredb_user_id",
-    local_default: Uuid::nil(),
-};
-
-/// Param key for setting if the connection was initiated by the system and not
-/// the user. Added by pgsrv during proxying.
-pub const GLAREDB_IS_SYSTEM_KEY: BoolProxyKey = BoolProxyKey {
-    key: "glaredb_is_system",
-    local_default: false,
+    default: Uuid::nil(),
 };
 
 /// Param key for the max number ofdatasources allowed. Added by pgsrv during proxying.
 pub const GLAREDB_MAX_DATASOURCE_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "max_datasource_count",
-    local_default: 100,
+    default: 100,
 };
 
 /// Param key for the memory limit in bytes. Added by pgsrv during proxying.
 pub const GLAREDB_MEMORY_LIMIT_BYTES_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "memory_limit_bytes",
-    local_default: 0,
+    default: 0,
 };
 
 /// Param key for the memory limit in bytes. Added by pgsrv during proxying.
 pub const GLAREDB_MAX_TUNNEL_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "max_tunnel_count",
-    local_default: 100,
+    default: 100,
 };
 
 /// ProxyHandler proxies connections to some database instance. Connections are
@@ -162,7 +143,7 @@ pub struct ProxyHandler<A> {
     ssl_conf: Option<SslConfig>,
 }
 
-impl<A: ConnectionAuthenticator> ProxyHandler<A> {
+impl<A: ProxyAuthenticator> ProxyHandler<A> {
     pub fn new(authenticator: A, ssl_conf: Option<SslConfig>) -> Self {
         Self {
             authenticator,
@@ -286,37 +267,23 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         };
         db_framed.send_startup(startup).await?;
 
-        // This implementation only supports AuthenticationCleartextPassword
+        // The glaredb node should be configured to accept any user and
+        // password. Authentication already happened with Cloud, and we're just
+        // proxying now.
         let auth_msg = db_framed.read().await?;
         match auth_msg {
-            Some(BackendMessage::AuthenticationCleartextPassword) => {
-                // TODO: rewrite password according to the response from the cloud api
-                db_framed
-                    .send(FrontendMessage::PasswordMessage {
-                        password: "TODO: USE CLOUD PASSWORD".to_string(), // GlareDB doesn't currently check password.
-                    })
-                    .await?;
+            Some(BackendMessage::AuthenticationOk) => {
+                framed.send(BackendMessage::AuthenticationOk).await?;
+                // from here, we can just forward messages between the client to the database
+                let server_conn = db_framed.into_inner();
+                let client_conn = framed.into_inner();
+                tokio::io::copy_bidirectional(
+                    &mut client_conn.into_inner(),
+                    &mut server_conn.into_inner(),
+                )
+                .await?;
 
-                // Check for AuthenticationOk and respond to the client with the same message
-                let auth_ok = db_framed.read().await?;
-                match auth_ok {
-                    Some(BackendMessage::AuthenticationOk) => {
-                        framed.send(BackendMessage::AuthenticationOk).await?;
-
-                        // from here, we can just forward messages between the client to the database
-                        let server_conn = db_framed.into_inner();
-                        let client_conn = framed.into_inner();
-                        tokio::io::copy_bidirectional(
-                            &mut client_conn.into_inner(),
-                            &mut server_conn.into_inner(),
-                        )
-                        .await?;
-
-                        Ok(())
-                    }
-                    Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
-                    None => Ok(()),
-                }
+                Ok(())
             }
             Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
             None => Ok(()),
@@ -470,75 +437,16 @@ mod tests {
             expected.to_string(),
         );
 
-        let got = GLAREDB_DATABASE_ID_KEY
-            .value_from_params(&params, false)
-            .unwrap();
+        let got = GLAREDB_DATABASE_ID_KEY.value_from_params(&params).unwrap();
         assert_eq!(expected, got)
     }
 
     #[test]
-    fn proxy_key_db_id_missing_not_local() {
-        let _ = GLAREDB_DATABASE_ID_KEY
-            .value_from_params(&HashMap::new(), false)
-            .unwrap_err();
-    }
-
-    #[test]
-    fn proxy_key_db_id_missing_and_local() {
+    fn proxy_key_db_id_missing() {
         let id = GLAREDB_DATABASE_ID_KEY
-            .value_from_params(&HashMap::new(), true)
+            .value_from_params(&HashMap::new())
             .unwrap();
         assert_eq!(LOCAL_DATABASE_ID, id);
-    }
-
-    #[test]
-    fn proxy_key_is_system() {
-        struct TestCase {
-            to_insert: Option<&'static str>,
-            is_local: bool,
-            expected_val: Option<bool>, // None indicates we expect an error to be returned.
-        }
-
-        let test_cases = vec![
-            TestCase {
-                to_insert: None,
-                is_local: true,
-                expected_val: Some(false),
-            },
-            TestCase {
-                to_insert: None,
-                is_local: false,
-                expected_val: None,
-            },
-            TestCase {
-                to_insert: Some("true"),
-                is_local: false,
-                expected_val: Some(true),
-            },
-            TestCase {
-                to_insert: Some("not_bool"),
-                is_local: false,
-                expected_val: None,
-            },
-        ];
-
-        for tc in test_cases {
-            let mut params = HashMap::new();
-            if let Some(val) = tc.to_insert {
-                params.insert(GLAREDB_IS_SYSTEM_KEY.key.to_string(), val.to_string());
-            }
-
-            let result = GLAREDB_IS_SYSTEM_KEY.value_from_params(&params, tc.is_local);
-            match (tc.expected_val, result) {
-                (Some(expected), Ok(got)) => assert_eq!(expected, got),
-                (None, Err(_)) => (), // We expected an error.
-                (None, Ok(got)) => panic!("unexpectedly got value: {}", got),
-                (Some(expected), Err(e)) => panic!(
-                    "unexpectedly got error: {}, expected value: {}",
-                    e, expected
-                ),
-            }
-        }
     }
 
     #[test]

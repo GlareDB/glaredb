@@ -21,7 +21,7 @@ sleep 5
 
 # Start up GlareDB.
 glaredb_log_file="/tmp/glaredb.log-${run_id}"
-nohup cargo run --bin glaredb -- -v server --local > "${glaredb_log_file}" 2>&1 &
+nohup cargo run --bin glaredb -- -v server --user glaredb --password dummy > "${glaredb_log_file}" 2>&1 &
 
 glaredb_pid=$!
 

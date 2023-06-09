@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
+use pgsrv::auth::SingleUserAuthenticator;
 use regex::{Captures, Regex};
 use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
@@ -105,7 +106,10 @@ fn main() -> Result<()> {
             let server = Server::connect(
                 metastore_addr,
                 None,
-                true,
+                Box::new(SingleUserAuthenticator {
+                    user: "glaredb".to_string(),
+                    password: "glaredb".to_string(),
+                }),
                 // Run the SLT runner with in-memory metastore.
                 None,
                 // Spill-path:

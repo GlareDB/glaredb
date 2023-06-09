@@ -38,6 +38,9 @@ pub enum PgSrvError {
     #[error("Invalid value for key '{key}': {value}")]
     InvalidValueForProxyKey { key: &'static str, value: String },
 
+    #[error("Invalid user or password")]
+    InvalidUserOrPassword,
+
     /// A stringified error from cloud.
     #[error("cloud: {0}")]
     CloudResponse(String),

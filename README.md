@@ -44,7 +44,7 @@ Alternatively, the `server` subcommand can be used to launch a server process
 for GlareDB:
 
 ```shell
-./glaredb server --local
+./glaredb server
 ```
 
 When launched as a server process, GlareDB can be reached on port 6543 using a
@@ -52,7 +52,7 @@ Postgres client. For example, connected to a local instance of GlareDB using
 `psql`:
 
 ```shell
-psql "host=localhost user=glaredb password=glaredb dbname=glaredb port=6543"
+psql "host=localhost user=glaredb dbname=glaredb port=6543"
 ```
 
 ## Building from source
