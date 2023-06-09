@@ -971,9 +971,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.3.1"
+version = "4.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ed2379f8603fa2b7509891660e802b88c70a79a6427a70abb5968054de2c28"
+checksum = "401a4694d2bf92537b6867d94de48c4842089645fdcdf6c71865b175d836e9c2"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -995,9 +995,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.3.1"
+version = "4.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59e9ef9a08ee1c0e1f2e162121665ac45ac3783b0f897db7244ae75ad9a8f65b"
+checksum = "b8cd2b2a819ad6eec39e8f1d6b53001af1e5469f8c177579cdaeb313115b825f"
 dependencies = [
  "heck",
  "proc-macro2 1.0.56",
@@ -1679,7 +1679,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
- "tokio-rustls 0.24.0",
+ "tokio-rustls 0.24.1",
  "tracing",
  "uuid",
  "webpki-roots 0.23.1",
@@ -2502,7 +2502,7 @@ dependencies = [
  "rustls 0.21.1",
  "rustls-native-certs 0.6.2",
  "tokio",
- "tokio-rustls 0.24.0",
+ "tokio-rustls 0.24.1",
 ]
 
 [[package]]
@@ -2604,12 +2604,13 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
 name = "io-lifetimes"
-version = "1.0.3"
+version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46112a93252b123d31a119a8d1a1ac19deac4fac6e0e8b0df58f0d4e5870e63c"
+checksum = "eae7b9aee968036d54dce06cebaefd919e4472e753296daccd6d344e3e2df0c2"
 dependencies = [
+ "hermit-abi 0.3.1",
  "libc",
- "windows-sys 0.42.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2831,9 +2832,9 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.3.1"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59d8c75012853d2e872fb56bc8a2e53718e2cafe1a4c823143141c6d90c322f"
+checksum = "ef53942eb7bf7ff43a617b3e2c1c4a5ecf5944a7c1bc12d7ee39bbb15e5c1519"
 
 [[package]]
 name = "lock_api"
@@ -3057,9 +3058,9 @@ dependencies = [
 
 [[package]]
 name = "moka"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36506f2f935238463605f3bb13b362f1949daafc3b347d05d60ae08836db2bd2"
+checksum = "206bf83f415b0579fd885fe0804eb828e727636657dc1bf73d80d2f1218e14a1"
 dependencies = [
  "async-io",
  "async-lock",
@@ -3067,7 +3068,6 @@ dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
  "futures-util",
- "num_cpus",
  "once_cell",
  "parking_lot",
  "quanta",
@@ -3180,7 +3180,7 @@ dependencies = [
  "socket2 0.5.2",
  "thiserror",
  "tokio",
- "tokio-rustls 0.24.0",
+ "tokio-rustls 0.24.1",
  "tokio-util",
  "twox-hash",
  "url",
@@ -3416,9 +3416,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.17.2"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9670a07f94779e00908f3e686eab508878ebb390ba6e604d3a284c00e8d0487b"
+checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "opaque-debug"
@@ -3683,7 +3683,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
- "tokio-rustls 0.24.0",
+ "tokio-rustls 0.24.1",
  "tokio-util",
  "tracing",
  "uuid",
@@ -4234,9 +4234,9 @@ dependencies = [
 
 [[package]]
 name = "reedline"
-version = "0.19.1"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31d763be5efcabcd27d6e804d126661215aa0a2d898c13c0aa1c953c6652fcec"
+checksum = "d18dd49ff50c5be37fc21e1cd0ab42f5533e339906ce0527748b396b5a5a55dc"
 dependencies = [
  "chrono",
  "crossterm",
@@ -4333,7 +4333,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "tokio",
- "tokio-rustls 0.24.0",
+ "tokio-rustls 0.24.1",
  "tokio-util",
  "tower-service",
  "url",
@@ -4509,16 +4509,16 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.3"
+version = "0.37.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62b24138615de35e32031d041a09032ef3487a616d901ca4db224e7d557efae2"
+checksum = "f79bef90eb6d984c72722595b5b1348ab39275a5e5123faca6863bf07d75a4e0"
 dependencies = [
  "bitflags 1.3.2",
  "errno",
  "io-lifetimes",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.45.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -4780,9 +4780,9 @@ checksum = "e6b44e8fc93a14e66336d230954dda83d18b4605ccace8fe09bc7514a71ad0bc"
 
 [[package]]
 name = "serde"
-version = "1.0.163"
+version = "1.0.164"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2113ab51b87a539ae008b5c6c02dc020ffa39afd2d83cffcb3f4eb2722cebec2"
+checksum = "9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d"
 dependencies = [
  "serde_derive",
 ]
@@ -4798,9 +4798,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.163"
+version = "1.0.164"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c805777e3930c8883389c602315a24224bcc738b63905ef87cd1420353ea93e"
+checksum = "d9735b638ccc51c28bf6914d90a2e9725b377144fc612c49a611fddd1b631d68"
 dependencies = [
  "proc-macro2 1.0.56",
  "quote 1.0.26",
@@ -5163,9 +5163,9 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.13.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b7d83bd42830e2c891865c0da6e8ad741ed3a108188061ea4eaf99cf13cd375"
+checksum = "556b08485afb80bb29ed93a0a364641dbfdb65d832c0d08f5b16cb3b750696e5"
 dependencies = [
  "async-trait",
  "educe",
@@ -5391,15 +5391,16 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.5.0"
+version = "3.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9fbec84f381d5795b08656e4912bec604d162bff9291d6189a78f4c8ab87998"
+checksum = "31c0432476357e58790aaa47a8efb0c5138f137343f3b5f23bd36a27e3b0a6d6"
 dependencies = [
+ "autocfg",
  "cfg-if",
  "fastrand",
  "redox_syscall 0.3.5",
  "rustix",
- "windows-sys 0.45.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -5644,9 +5645,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0d409377ff5b1e3ca6437aa86c1eb7d40c134bfec254e44c830defa92669db5"
+checksum = "c28327cf380ac148141087fbfb9de9d7bd4e84ab5d2c28fbc911d753de8a7081"
 dependencies = [
  "rustls 0.21.1",
  "tokio",
@@ -5728,7 +5729,7 @@ dependencies = [
  "rustls-native-certs 0.6.2",
  "rustls-pemfile",
  "tokio",
- "tokio-rustls 0.24.0",
+ "tokio-rustls 0.24.1",
  "tokio-stream",
  "tower",
  "tower-layer",
