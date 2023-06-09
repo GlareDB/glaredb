@@ -101,7 +101,6 @@ impl LocalSession {
         let mode = MetastoreMode::new_from_options(
             opts.metastore_addr.clone(),
             opts.local_file_path.clone(),
-            true,
         )?;
         let metastore_client = mode.into_client().await?;
         let tracker = Arc::new(Tracker::Nop);

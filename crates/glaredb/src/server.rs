@@ -29,7 +29,6 @@ impl Server {
         metastore_addr: Option<String>,
         segment_key: Option<String>,
         authenticator: Box<dyn LocalAuthenticator>,
-        local: bool,
         local_file_path: Option<PathBuf>,
         spill_path: Option<PathBuf>,
         integration_testing: bool,
@@ -43,7 +42,7 @@ impl Server {
         ensure_spill_path(spill_path.as_ref())?;
 
         // Connect to metastore.
-        let mode = MetastoreMode::new_from_options(metastore_addr, local_file_path, local)?;
+        let mode = MetastoreMode::new_from_options(metastore_addr, local_file_path)?;
         let metastore_client = mode.into_client().await?;
 
         let tracker = match segment_key {
@@ -61,7 +60,6 @@ impl Server {
         Ok(Server {
             pg_handler: Arc::new(ProtocolHandler::new(
                 engine,
-                local,
                 authenticator,
                 integration_testing,
             )),

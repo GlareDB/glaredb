@@ -18,19 +18,14 @@ pub enum MetastoreMode {
 }
 
 impl MetastoreMode {
-    pub fn new_from_options(
-        addr: Option<String>,
-        local_path: Option<PathBuf>,
-        allow_local: bool,
-    ) -> Result<Self> {
-        match (addr, local_path, allow_local) {
-            (Some(_), Some(_), _) => Err(anyhow!(
+    pub fn new_from_options(addr: Option<String>, local_path: Option<PathBuf>) -> Result<Self> {
+        match (addr, local_path) {
+            (Some(_), Some(_)) => Err(anyhow!(
                 "Only one of metastore address or metastore path may be provided."
             )),
-            (Some(addr), None, _) => Ok(MetastoreMode::Remote { addr }),
-            (_, _, false) => Err(anyhow!("GlareDB not configured for local operation")),
-            (_, Some(path), true) => Ok(MetastoreMode::LocalDisk { path }),
-            (_, _, true) => Ok(MetastoreMode::LocalInMemory),
+            (Some(addr), None) => Ok(MetastoreMode::Remote { addr }),
+            (_, Some(path)) => Ok(MetastoreMode::LocalDisk { path }),
+            (_, _) => Ok(MetastoreMode::LocalInMemory),
         }
     }
 

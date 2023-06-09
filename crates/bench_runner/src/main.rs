@@ -63,7 +63,6 @@ fn main() -> Result<()> {
                 user: "glaredb".to_string(),
                 password: "glaredb".to_string(),
             }),
-            true,
             None,
             None,
             false,

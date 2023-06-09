@@ -159,7 +159,6 @@ impl Cli {
                         user: "glaredb".to_string(),
                         password: "glaredb".to_string(),
                     }),
-                    true,
                     Some(temp_dir.path().to_path_buf()),
                     None,
                     /* integration_testing = */ true,

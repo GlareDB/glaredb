@@ -110,7 +110,6 @@ fn main() -> Result<()> {
                     user: "glaredb".to_string(),
                     password: "glaredb".to_string(),
                 }),
-                true,
                 // Run the SLT runner with in-memory metastore.
                 None,
                 // Spill-path:

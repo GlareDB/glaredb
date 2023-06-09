@@ -36,13 +36,6 @@ use uuid::Uuid;
 pub struct ProtocolHandler {
     pub engine: Engine,
     authenticator: Box<dyn LocalAuthenticator>,
-    /// If we should consider this database running locally.
-    ///
-    /// During proxying by pgsrv, additional parameters are added to the startup
-    /// message containing things like database id and user id. However, if
-    /// we're running locally, these params will be missing. This flag indicates
-    /// that that's ok and to use a set of predefined values instead.
-    local: bool,
     ssl_conf: Option<SslConfig>,
     /// If the server should be configured for integration tests. This is only
     /// applicable for local databases.
@@ -52,14 +45,12 @@ pub struct ProtocolHandler {
 impl ProtocolHandler {
     pub fn new(
         engine: Engine,
-        local: bool,
         authenticator: Box<dyn LocalAuthenticator>,
         integration_testing: bool,
     ) -> Self {
         ProtocolHandler {
             engine,
             authenticator,
-            local,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
             // want to hold off on doing that until we have a shared config
             // between the proxy and GlareDB.
@@ -121,7 +112,7 @@ impl ProtocolHandler {
         C: AsyncRead + AsyncWrite + Unpin,
         K: ProxyKey<V>,
     {
-        match key.value_from_params(params, self.local) {
+        match key.value_from_params(params) {
             Ok(v) => Ok(v),
             Err(e) => {
                 let resp = ErrorResponse::from(&e);
@@ -136,7 +127,7 @@ impl ProtocolHandler {
 
     /// Whether the server should be configured for integration testing.
     fn is_integration_testing_enabled(&self) -> bool {
-        self.local && self.integration_testing
+        self.integration_testing
     }
 
     /// Runs the postgres protocol for a connection to completion.

@@ -74,16 +74,6 @@ enum Commands {
         #[clap(short, long, value_parser)]
         password: Option<String>,
 
-        /// Whether or not this instance is running locally.
-        ///
-        /// When not set, the postgres protocol handler will expect additional
-        /// parameters to found on the startup message for each connection.
-        /// These additional params are set by the pgsrv proxy.
-        ///
-        /// When set to true, these additional params are not expected.
-        #[clap(short, long, value_parser)]
-        local: bool,
-
         /// Optional file path to store metastore data (to enable persistent
         /// data storage when in-process store is launched).
         #[clap(short = 'f', long, value_parser)]
@@ -170,7 +160,6 @@ fn main() -> Result<()> {
             metastore_addr,
             user,
             password,
-            local,
             local_file_path,
             mut segment_key,
             spill_path,
@@ -188,7 +177,6 @@ fn main() -> Result<()> {
                 metastore_addr,
                 segment_key,
                 auth,
-                local,
                 local_file_path,
                 spill_path,
             )?;
@@ -257,7 +245,6 @@ fn begin_server(
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     authenticator: Box<dyn LocalAuthenticator>,
-    local: bool,
     local_file_path: Option<PathBuf>,
     spill_path: Option<PathBuf>,
 ) -> Result<()> {
@@ -269,7 +256,6 @@ fn begin_server(
             metastore_addr,
             segment_key,
             authenticator,
-            local,
             local_file_path,
             spill_path,
             /* integration_testing = */ false,
