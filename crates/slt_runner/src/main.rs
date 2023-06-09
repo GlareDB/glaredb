@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
-use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use pgsrv::auth::SingleUserAuthenticator;
 use regex::{Captures, Regex};
 use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,

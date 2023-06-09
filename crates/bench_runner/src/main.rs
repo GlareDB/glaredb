@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
-use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use pgsrv::auth::SingleUserAuthenticator;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};

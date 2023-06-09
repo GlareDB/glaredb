@@ -41,6 +41,7 @@ where
     }
 
     /// Sends a single frontend message to the underlying connection.
+    #[allow(dead_code)]
     pub async fn send(&mut self, msg: FrontendMessage) -> Result<()> {
         trace!(?msg, "sending message");
         self.conn.send(msg).await

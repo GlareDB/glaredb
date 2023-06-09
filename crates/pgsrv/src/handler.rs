@@ -196,7 +196,7 @@ impl ProtocolHandler {
                                         .into(),
                                     )
                                     .await?;
-                                return Err(e.into());
+                                return Err(e);
                             }
                         }
                         framed.send(BackendMessage::AuthenticationOk).await?;

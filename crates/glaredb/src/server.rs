@@ -4,7 +4,7 @@ use std::{env, fs};
 
 use crate::util::{ensure_spill_path, MetastoreMode};
 use anyhow::Result;
-use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator};
+use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use telemetry::{SegmentTracker, Tracker};
