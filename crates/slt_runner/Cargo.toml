@@ -9,6 +9,7 @@ edition = {workspace = true}
 logutil = {path = "../logutil"}
 glaredb = {path = "../glaredb"}
 metastore = {path = "../metastore"}
+pgsrv = {path = "../pgsrv"}
 tokio = { version = "1", features = ["full"] }
 sqllogictest = "0.14.0"
 tokio-postgres = "0.7.8"

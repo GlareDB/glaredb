@@ -6,6 +6,7 @@ use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use object_store::local::LocalFileSystem;
 use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -59,6 +60,19 @@ enum Commands {
         /// metastore will be started.
         #[clap(short, long, value_parser)]
         metastore_addr: Option<String>,
+
+        /// Set the user used for authentication.
+        ///
+        /// Only has an affect if a password is also provided. If a password is
+        /// not provided, the GlareDB server will not prompt for a password.
+        #[clap(short, long, value_parser, default_value_t = String::from("glaredb"))]
+        user: String,
+
+        /// Set the password used for authentication.
+        ///
+        /// If unset, the GlareDB server will not prompt for a password.
+        #[clap(short, long, value_parser)]
+        password: Option<String>,
 
         /// Whether or not this instance is running locally.
         ///
@@ -154,6 +168,8 @@ fn main() -> Result<()> {
         Commands::Server {
             bind,
             metastore_addr,
+            user,
+            password,
             local,
             local_file_path,
             mut segment_key,
@@ -162,10 +178,16 @@ fn main() -> Result<()> {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
+            let auth: Box<dyn LocalAuthenticator> = match password {
+                Some(password) => Box::new(SingleUserAuthenticator { user, password }),
+                None => Box::new(PasswordlessAuthenticator),
+            };
+
             begin_server(
                 &bind,
                 metastore_addr,
                 segment_key,
+                auth,
                 local,
                 local_file_path,
                 spill_path,
@@ -234,6 +256,7 @@ fn begin_server(
     pg_bind: &str,
     metastore_addr: Option<String>,
     segment_key: Option<String>,
+    authenticator: Box<dyn LocalAuthenticator>,
     local: bool,
     local_file_path: Option<PathBuf>,
     spill_path: Option<PathBuf>,
@@ -245,6 +268,7 @@ fn begin_server(
         let server = Server::connect(
             metastore_addr,
             segment_key,
+            authenticator,
             local,
             local_file_path,
             spill_path,

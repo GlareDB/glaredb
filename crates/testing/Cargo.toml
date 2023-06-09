@@ -20,6 +20,7 @@ uuid = { version = "1.3.3", features = ["v4", "fast-rng", "macro-diagnostics"] }
 openssh = "0.9.9"
 logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }
+pgsrv = { path = "../pgsrv" }
 metastore = { path = "../metastore" }
 
 [[test]]

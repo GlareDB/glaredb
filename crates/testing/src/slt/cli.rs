@@ -1,3 +1,4 @@
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -154,6 +155,10 @@ impl Cli {
                 let server = Server::connect(
                     self.metastore_addr,
                     None,
+                    Box::new(SingleUserAuthenticator {
+                        user: "glaredb".to_string(),
+                        password: "glaredb".to_string(),
+                    }),
                     true,
                     Some(temp_dir.path().to_path_buf()),
                     None,

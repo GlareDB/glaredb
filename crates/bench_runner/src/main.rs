@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use glaredb::server::{Server, ServerConfig};
 use glob::glob;
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -55,7 +56,19 @@ fn main() -> Result<()> {
         let pg_addr = pg_listener.local_addr()?;
         let server_conf = ServerConfig { pg_listener };
 
-        let server = Server::connect(None, None, true, None, None, false).await?;
+        let server = Server::connect(
+            None,
+            None,
+            Box::new(SingleUserAuthenticator {
+                user: "glaredb".to_string(),
+                password: "glaredb".to_string(),
+            }),
+            true,
+            None,
+            None,
+            false,
+        )
+        .await?;
         tokio::spawn(server.serve(server_conf));
 
         let mut runner = BenchRunner::connect(pg_addr).await?;

@@ -8,6 +8,7 @@ edition = { workspace = true }
 [dependencies]
 logutil = {path = "../logutil"}
 glaredb = {path = "../glaredb"}
+pgsrv = {path = "../pgsrv"}
 metastore = {path = "../metastore"}
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7.8"

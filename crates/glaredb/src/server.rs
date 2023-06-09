@@ -4,6 +4,7 @@ use std::{env, fs};
 
 use crate::util::{ensure_spill_path, MetastoreMode};
 use anyhow::Result;
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator};
 use pgsrv::handler::ProtocolHandler;
 use sqlexec::engine::Engine;
 use telemetry::{SegmentTracker, Tracker};
@@ -27,6 +28,7 @@ impl Server {
     pub async fn connect(
         metastore_addr: Option<String>,
         segment_key: Option<String>,
+        authenticator: Box<dyn LocalAuthenticator>,
         local: bool,
         local_file_path: Option<PathBuf>,
         spill_path: Option<PathBuf>,
@@ -46,7 +48,7 @@ impl Server {
 
         let tracker = match segment_key {
             Some(key) => {
-                info!("initializing segment telemeetry tracker");
+                info!("initializing segment telemetry tracker");
                 SegmentTracker::new(key).into()
             }
             None => {
@@ -57,7 +59,12 @@ impl Server {
 
         let engine = Engine::new(metastore_client, Arc::new(tracker), spill_path).await?;
         Ok(Server {
-            pg_handler: Arc::new(ProtocolHandler::new(engine, local, integration_testing)),
+            pg_handler: Arc::new(ProtocolHandler::new(
+                engine,
+                local,
+                authenticator,
+                integration_testing,
+            )),
         })
     }
 

@@ -3,6 +3,58 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy)]
+pub enum PasswordMode {
+    /// Frontend should send over password in clear text.
+    Cleartext,
+    /// No password required.
+    NoPassword,
+}
+
+/// Authenticate connection on the glaredb node itself.
+pub trait LocalAuthenticator: Sync + Send {
+    fn password_mode(&self) -> PasswordMode;
+    fn authenticate(&self, user: &str, password: &str, db_name: &str) -> Result<()>;
+}
+
+/// A simple single user authenticator.
+#[derive(Clone)]
+pub struct SingleUserAuthenticator {
+    pub user: String,
+    pub password: String,
+}
+
+impl LocalAuthenticator for SingleUserAuthenticator {
+    fn password_mode(&self) -> PasswordMode {
+        PasswordMode::Cleartext
+    }
+
+    fn authenticate(&self, user: &str, password: &str, _db_name: &str) -> Result<()> {
+        if user != self.user {
+            return Err(PgSrvError::InvalidUserOrPassword);
+        }
+        // TODO: Constant time compare.
+        if password != self.password {
+            return Err(PgSrvError::InvalidUserOrPassword);
+        }
+        Ok(())
+    }
+}
+
+/// Allows any user and password.
+#[derive(Debug, Clone, Copy)]
+pub struct PasswordlessAuthenticator;
+
+impl LocalAuthenticator for PasswordlessAuthenticator {
+    fn password_mode(&self) -> PasswordMode {
+        PasswordMode::NoPassword
+    }
+
+    fn authenticate(&self, _user: &str, _password: &str, _db_name: &str) -> Result<()> {
+        Ok(())
+    }
+}
+
 /// Connection details for a database. Returned by the connection authenticator.
 #[derive(Deserialize, Debug, Clone)]
 pub struct DatabaseDetails {
@@ -23,8 +75,13 @@ pub struct DatabaseDetails {
     pub max_tunnel_count: usize,
 }
 
+/// Authenticate connections that go through the proxy.
+///
+/// It's expected that authentication happens remotely, and a set of database
+/// details get returned. These details are consulted when proxying the
+/// connection.
 #[async_trait]
-pub trait ConnectionAuthenticator: Sync + Send {
+pub trait ProxyAuthenticator: Sync + Send {
     /// Authenticate a database connection.
     async fn authenticate(
         &self,
@@ -58,7 +115,7 @@ impl CloudAuthenticator {
 }
 
 #[async_trait]
-impl ConnectionAuthenticator for CloudAuthenticator {
+impl ProxyAuthenticator for CloudAuthenticator {
     async fn authenticate(
         &self,
         user: &str,
@@ -105,31 +162,5 @@ impl ConnectionAuthenticator for CloudAuthenticator {
 
         let db_details: DatabaseDetails = res.json().await?;
         Ok(db_details)
-    }
-}
-
-/// Always return a single set of database details. No intermediate
-/// authentications steps are performed.
-#[derive(Debug)]
-pub struct StaticAuthenticator {
-    details: DatabaseDetails,
-}
-
-impl StaticAuthenticator {
-    pub fn new(details: DatabaseDetails) -> Self {
-        StaticAuthenticator { details }
-    }
-}
-
-#[async_trait]
-impl ConnectionAuthenticator for StaticAuthenticator {
-    async fn authenticate(
-        &self,
-        _user: &str,
-        _password: &str,
-        _db_name: &str,
-        _org: &str,
-    ) -> Result<DatabaseDetails> {
-        Ok(self.details.clone())
     }
 }

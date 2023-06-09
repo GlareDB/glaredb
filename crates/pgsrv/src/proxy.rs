@@ -1,4 +1,4 @@
-use crate::auth::{ConnectionAuthenticator, DatabaseDetails};
+use crate::auth::{DatabaseDetails, ProxyAuthenticator};
 use crate::codec::{
     client::FramedClientConn,
     server::{FramedConn, PgCodec},
@@ -162,7 +162,7 @@ pub struct ProxyHandler<A> {
     ssl_conf: Option<SslConfig>,
 }
 
-impl<A: ConnectionAuthenticator> ProxyHandler<A> {
+impl<A: ProxyAuthenticator> ProxyHandler<A> {
     pub fn new(authenticator: A, ssl_conf: Option<SslConfig>) -> Self {
         Self {
             authenticator,
@@ -286,37 +286,23 @@ impl<A: ConnectionAuthenticator> ProxyHandler<A> {
         };
         db_framed.send_startup(startup).await?;
 
-        // This implementation only supports AuthenticationCleartextPassword
+        // The glaredb node should be configured to accept any user and
+        // password. Authentication already happened with Cloud, and we're just
+        // proxying now.
         let auth_msg = db_framed.read().await?;
         match auth_msg {
-            Some(BackendMessage::AuthenticationCleartextPassword) => {
-                // TODO: rewrite password according to the response from the cloud api
-                db_framed
-                    .send(FrontendMessage::PasswordMessage {
-                        password: "TODO: USE CLOUD PASSWORD".to_string(), // GlareDB doesn't currently check password.
-                    })
-                    .await?;
+            Some(BackendMessage::AuthenticationOk) => {
+                framed.send(BackendMessage::AuthenticationOk).await?;
+                // from here, we can just forward messages between the client to the database
+                let server_conn = db_framed.into_inner();
+                let client_conn = framed.into_inner();
+                tokio::io::copy_bidirectional(
+                    &mut client_conn.into_inner(),
+                    &mut server_conn.into_inner(),
+                )
+                .await?;
 
-                // Check for AuthenticationOk and respond to the client with the same message
-                let auth_ok = db_framed.read().await?;
-                match auth_ok {
-                    Some(BackendMessage::AuthenticationOk) => {
-                        framed.send(BackendMessage::AuthenticationOk).await?;
-
-                        // from here, we can just forward messages between the client to the database
-                        let server_conn = db_framed.into_inner();
-                        let client_conn = framed.into_inner();
-                        tokio::io::copy_bidirectional(
-                            &mut client_conn.into_inner(),
-                            &mut server_conn.into_inner(),
-                        )
-                        .await?;
-
-                        Ok(())
-                    }
-                    Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
-                    None => Ok(()),
-                }
+                Ok(())
             }
             Some(other) => Err(PgSrvError::UnexpectedBackendMessage(other)),
             None => Ok(()),
