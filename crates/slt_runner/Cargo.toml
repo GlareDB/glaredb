@@ -10,7 +10,7 @@ logutil = {path = "../logutil"}
 glaredb = {path = "../glaredb"}
 metastore = {path = "../metastore"}
 tokio = { version = "1", features = ["full"] }
-sqllogictest = "0.13.2"
+sqllogictest = "0.14.0"
 tokio-postgres = "0.7.8"
 object_store = {version = "0.5", features = ["gcp"]}
 anyhow = "1.0"
