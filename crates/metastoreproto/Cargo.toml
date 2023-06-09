@@ -16,7 +16,7 @@ async-trait = "0.1.68"
 datafusion = {workspace = true}
 uuid = { version = "1.3.3", features = ["v4", "fast-rng", "macro-diagnostics"] }
 bytes = "1.4"
-object_store = "0.5"
+object_store = "0.6"
 once_cell = "1.17.2"
 proptest = "1.2"
 proptest-derive = "0.3"
