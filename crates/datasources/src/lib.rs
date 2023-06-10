@@ -2,6 +2,7 @@
 
 pub mod bigquery;
 pub mod debug;
+pub mod delta;
 pub mod mongodb;
 pub mod mysql;
 pub mod object_store;

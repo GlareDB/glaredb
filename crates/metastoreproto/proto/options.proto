@@ -42,8 +42,9 @@ message DatabaseOptions {
     DatabaseOptionsMysql mysql = 5;
     DatabaseOptionsMongo mongo = 6;
     DatabaseOptionsSnowflake snowflake = 7;
+    DatabaseOptionsDeltaLake delta = 8;
   }
-  // next: 8
+  // next: 9
 }
 
 message DatabaseOptionsInternal {}
@@ -68,6 +69,17 @@ message DatabaseOptionsSnowflake {
   string database_name = 4;
   string warehouse = 5;
   string role_name = 6;
+}
+
+message DatabaseOptionsDeltaLake {
+  oneof catalog { DeltaLakeUnityCatalog unity = 1; }
+}
+
+// Parameters specific to the unity catalog.
+message DeltaLakeUnityCatalog {
+  string catalog_id = 1;
+  string databricks_access_token = 2;
+  string workspace_url = 3;
 }
 
 // Table options

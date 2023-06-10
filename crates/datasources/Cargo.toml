@@ -15,6 +15,7 @@ bytes = "1.4.0"
 chrono = "0.4.26"
 datafusion = { workspace = true }
 decimal = { path = "../decimal" }
+deltalake = {version = "0.12.0", features = ["s3", "gcs", "azure", "datafusion","arrow","parquet"] }
 futures = "0.3.28"
 gcp-bigquery-client = "0.16.7"
 logutil = {path = "../logutil"}
@@ -28,6 +29,7 @@ openssh = "0.9.9"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 repr = { path = "../repr" }
+reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls"] }
 ring = "0.16.20"
 rustls = "0.21.1"
 rust_decimal = { version = "1.29.0", features = ["db-tokio-postgres"] }

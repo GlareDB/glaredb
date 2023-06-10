@@ -277,6 +277,7 @@ impl<'a> SessionDispatcher<'a> {
                     .await?;
                 Ok(Arc::new(provider))
             }
+            DatabaseOptions::Delta(_) => unimplemented!(),
         }
     }
 
@@ -1005,6 +1006,7 @@ impl<'a> VirtualCatalogDispatcher<'a> {
                 let accessor = SnowflakeAccessor::connect(conn_params).await?;
                 Box::new(accessor)
             }
+            DatabaseOptions::Delta(_) => unimplemented!(),
         };
         Ok(lister)
     }
