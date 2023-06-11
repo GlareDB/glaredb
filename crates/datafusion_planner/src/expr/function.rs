@@ -18,6 +18,7 @@
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DFSchema, DataFusionError, Result};
 use datafusion::logical_expr::expr::{ScalarFunction, ScalarUDF};
+use datafusion::logical_expr::function::suggest_valid_function;
 use datafusion::logical_expr::utils::COUNT_STAR_EXPANSION;
 use datafusion::logical_expr::window_frame::regularize;
 use datafusion::logical_expr::{
@@ -26,7 +27,7 @@ use datafusion::logical_expr::{
 };
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Expr as SQLExpr, Function as SQLFunction, FunctionArg, FunctionArgExpr,
+    Expr as SQLExpr, Function as SQLFunction, FunctionArg, FunctionArgExpr, WindowType,
 };
 use std::str::FromStr;
 
@@ -55,8 +56,18 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             return Ok(Expr::ScalarFunction(ScalarFunction::new(fun, args)));
         };
 
+        // If function is a window function (it has an OVER clause),
+        // it shouldn't have ordering requirement as function argument
+        // required ordering should be defined in OVER clause.
+        let is_function_window = function.over.is_some();
+        if !function.order_by.is_empty() && is_function_window {
+            return Err(DataFusionError::Plan(
+                "Aggregate ORDER BY is not implemented for window functions".to_string(),
+            ));
+        }
+
         // then, window function
-        if let Some(window) = function.over.take() {
+        if let Some(WindowType::WindowSpec(window)) = function.over.take() {
             let partition_by = {
                 let mut partition_by = Vec::with_capacity(window.partition_by.len());
                 for e in window.partition_by {
@@ -67,16 +78,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 }
                 partition_by
             };
-            let order_by = {
-                let mut order_by = Vec::with_capacity(window.order_by.len());
-                for e in window.order_by {
-                    let e = self
-                        .order_by_to_sort_expr(e, schema, planner_context)
-                        .await?;
-                    order_by.push(e);
-                }
-                order_by
-            };
+            let order_by = self
+                .order_by_to_sort_expr(&window.order_by, schema, planner_context)
+                .await?;
             let window_frame = window
                 .window_frame
                 .as_ref()
@@ -90,72 +94,85 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             } else {
                 WindowFrame::new(!order_by.is_empty())
             };
-            let fun = self.find_window_func(&name).await?;
-            let expr = match fun {
-                WindowFunction::AggregateFunction(aggregate_fun) => {
-                    let (aggregate_fun, args) = self
-                        .aggregate_fn_to_expr(aggregate_fun, function.args, schema, planner_context)
-                        .await?;
+            if let Ok(fun) = self.find_window_func(&name).await {
+                let expr = match fun {
+                    WindowFunction::AggregateFunction(aggregate_fun) => {
+                        let (aggregate_fun, args) = self
+                            .aggregate_fn_to_expr(
+                                aggregate_fun,
+                                function.args,
+                                schema,
+                                planner_context,
+                            )
+                            .await?;
 
-                    Expr::WindowFunction(expr::WindowFunction::new(
-                        WindowFunction::AggregateFunction(aggregate_fun),
-                        args,
+                        Expr::WindowFunction(expr::WindowFunction::new(
+                            WindowFunction::AggregateFunction(aggregate_fun),
+                            args,
+                            partition_by,
+                            order_by,
+                            window_frame,
+                        ))
+                    }
+                    _ => Expr::WindowFunction(expr::WindowFunction::new(
+                        fun,
+                        self.function_args_to_expr(function.args, schema, planner_context)
+                            .await?,
                         partition_by,
                         order_by,
                         window_frame,
-                    ))
-                }
-                _ => Expr::WindowFunction(expr::WindowFunction::new(
-                    fun,
-                    self.function_args_to_expr(function.args, schema, planner_context)
-                        .await?,
-                    partition_by,
-                    order_by,
-                    window_frame,
-                )),
+                    )),
+                };
+                return Ok(expr);
+            }
+        } else {
+            // next, aggregate built-ins
+            if let Ok(fun) = AggregateFunction::from_str(&name) {
+                let distinct = function.distinct;
+                let order_by = self
+                    .order_by_to_sort_expr(&function.order_by, schema, planner_context)
+                    .await?;
+                let order_by = (!order_by.is_empty()).then_some(order_by);
+                let (fun, args) = self
+                    .aggregate_fn_to_expr(fun, function.args, schema, planner_context)
+                    .await?;
+                return Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
+                    fun, args, distinct, None, order_by,
+                )));
             };
-            return Ok(expr);
-        }
 
-        // next, aggregate built-ins
-        if let Ok(fun) = AggregateFunction::from_str(&name) {
-            let distinct = function.distinct;
-            let (fun, args) = self
-                .aggregate_fn_to_expr(fun, function.args, schema, planner_context)
-                .await?;
-            return Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
-                fun, args, distinct, None, None,
-            )));
-        };
+            // finally, user-defined functions (UDF) and UDAF
+            if let Some(fm) = self.schema_provider.get_function_meta(&name).await {
+                let args = self
+                    .function_args_to_expr(function.args, schema, planner_context)
+                    .await?;
+                return Ok(Expr::ScalarUDF(ScalarUDF::new(fm, args)));
+            }
 
-        // finally, user-defined functions (UDF) and UDAF
-        if let Some(fm) = self.schema_provider.get_function_meta(&name).await {
-            let args = self
-                .function_args_to_expr(function.args, schema, planner_context)
-                .await?;
-            return Ok(Expr::ScalarUDF(ScalarUDF::new(fm, args)));
-        }
+            // User defined aggregate functions
+            if let Some(fm) = self.schema_provider.get_aggregate_meta(&name).await {
+                let args = self
+                    .function_args_to_expr(function.args, schema, planner_context)
+                    .await?;
+                return Ok(Expr::AggregateUDF(expr::AggregateUDF::new(
+                    fm, args, None, None,
+                )));
+            }
 
-        // User defined aggregate functions
-        if let Some(fm) = self.schema_provider.get_aggregate_meta(&name).await {
-            let args = self
-                .function_args_to_expr(function.args, schema, planner_context)
-                .await?;
-            return Ok(Expr::AggregateUDF(expr::AggregateUDF::new(
-                fm, args, None, None,
-            )));
-        }
-
-        // Special case arrow_cast (as its type is dependent on its argument value)
-        if name == ARROW_CAST_NAME {
-            let args = self
-                .function_args_to_expr(function.args, schema, planner_context)
-                .await?;
-            return super::arrow_cast::create_arrow_cast(args, schema);
+            // Special case arrow_cast (as its type is dependent on its argument value)
+            if name == ARROW_CAST_NAME {
+                let args = self
+                    .function_args_to_expr(function.args, schema, planner_context)
+                    .await?;
+                return super::arrow_cast::create_arrow_cast(args, schema);
+            }
         }
 
         // Could not find the relevant function, so return an error
-        Err(DataFusionError::Plan(format!("Invalid function '{name}'")))
+        let suggested_func_name = suggest_valid_function(&name, is_function_window);
+        Err(DataFusionError::Plan(format!(
+            "Invalid function '{name}'.\nDid you mean '{suggested_func_name}'?"
+        )))
     }
 
     pub(super) async fn sql_named_function_to_expr(

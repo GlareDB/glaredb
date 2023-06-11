@@ -148,14 +148,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             return Ok(plan);
         }
 
-        let mut order_by_rex = Vec::with_capacity(order_by.len());
-        for e in order_by {
-            let e = self
-                .order_by_to_sort_expr(e, plan.schema(), planner_context)
-                .await?;
-            order_by_rex.push(e);
-        }
-
+        let order_by_rex = self
+            .order_by_to_sort_expr(&order_by, plan.schema(), planner_context)
+            .await?;
         LogicalPlanBuilder::from(plan).sort(order_by_rex)?.build()
     }
 }
