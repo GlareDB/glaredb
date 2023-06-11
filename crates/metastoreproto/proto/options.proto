@@ -73,6 +73,11 @@ message DatabaseOptionsSnowflake {
 
 message DatabaseOptionsDeltaLake {
   oneof catalog { DeltaLakeUnityCatalog unity = 1; }
+
+  // TODO: Move these out into a separate "bucket auth" type. That could be
+  // shared with the other object storage stuff.
+  string access_key_id = 2;
+  string secret_access_key = 3;
 }
 
 // Parameters specific to the unity catalog.

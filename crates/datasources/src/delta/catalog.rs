@@ -8,12 +8,11 @@ use reqwest::header;
 use serde::Deserialize;
 
 #[async_trait]
-pub trait DataCatalog {
+pub trait DataCatalog: Sync + Send {
     /// Get the storage location for a given table.
     async fn get_table_storage_location(
         &self,
-        catalog_id: &str,
-        database_name: &str,
+        database_name: &str, // "schema"
         table_name: &str,
     ) -> Result<String>;
 }
@@ -23,10 +22,15 @@ pub trait DataCatalog {
 pub struct UnityCatalog {
     client: reqwest::Client,
     workspace_url: String,
+    catalog_id: String,
 }
 
 impl UnityCatalog {
-    pub async fn connect(access_token: &str, workspace_url: &str) -> Result<Self> {
+    pub async fn connect(
+        access_token: &str,
+        workspace_url: &str,
+        catalog_id: &str,
+    ) -> Result<Self> {
         let auth_header_val = header::HeaderValue::from_str(&format!("Bearer {}", &access_token))
             .map_err(|_| DeltaError::Static("Invalid Databricks access token"))?;
 
@@ -44,6 +48,7 @@ impl UnityCatalog {
         Ok(Self {
             client,
             workspace_url: workspace_url.to_string(),
+            catalog_id: catalog_id.to_string(),
         })
     }
 }
@@ -60,7 +65,6 @@ impl DataCatalog for UnityCatalog {
     /// Get the table storage location from the UnityCatalog
     async fn get_table_storage_location(
         &self,
-        catalog_id: &str,
         database_name: &str,
         table_name: &str,
     ) -> Result<String> {
@@ -68,7 +72,7 @@ impl DataCatalog for UnityCatalog {
             .client
             .get(format!(
                 "{}/api/2.1/unity-catalog/tables/{}.{}.{}",
-                &self.workspace_url, catalog_id, database_name, table_name
+                &self.workspace_url, self.catalog_id, database_name, table_name
             ))
             .send()
             .await?;

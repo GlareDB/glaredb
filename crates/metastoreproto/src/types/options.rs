@@ -322,14 +322,20 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct DatabaseOptionsDeltaLake {
-    catalog: DeltaLakeCatalog,
+    pub catalog: DeltaLakeCatalog,
+    pub access_key_id: String,
+    pub secret_access_key: String,
 }
 
 impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsDeltaLake) -> Result<Self, Self::Error> {
         let catalog: DeltaLakeCatalog = value.catalog.required("catalog")?;
-        Ok(DatabaseOptionsDeltaLake { catalog })
+        Ok(DatabaseOptionsDeltaLake {
+            catalog,
+            access_key_id: value.access_key_id,
+            secret_access_key: value.secret_access_key,
+        })
     }
 }
 
@@ -337,6 +343,8 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
     fn from(value: DatabaseOptionsDeltaLake) -> Self {
         options::DatabaseOptionsDeltaLake {
             catalog: Some(value.catalog.into()),
+            access_key_id: value.access_key_id,
+            secret_access_key: value.secret_access_key,
         }
     }
 }
