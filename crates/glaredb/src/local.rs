@@ -280,7 +280,9 @@ async fn print_stream(stream: SendableRecordBatchStream, mode: OutputMode) -> Re
         let stdout = std::io::stdout();
         let buf = std::io::BufWriter::new(stdout);
         let mut writer = JsonWriter::<_, F>::new(buf);
-        writer.write_batches(batches)?;
+        for batch in batches {
+            writer.write(batch)?;
+        }
         writer.finish()?;
         let mut buf = writer.into_inner();
         buf.flush()?;

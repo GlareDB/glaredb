@@ -38,7 +38,7 @@ use datafusion::logical_expr::{
     ExprSchemable, GetIndexedField, Like, Operator, TryCast,
 };
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{ArrayAgg, Expr as SQLExpr, TrimWhereField, Value};
+use datafusion::sql::sqlparser::ast::{ArrayAgg, Expr as SQLExpr, Interval, TrimWhereField, Value};
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
@@ -166,13 +166,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             ))),
 
             SQLExpr::Array(arr) => self.sql_array_literal(arr.elem, schema).await,
-            SQLExpr::Interval {
+            SQLExpr::Interval(Interval {
                 value,
                 leading_field,
                 leading_precision,
                 last_field,
                 fractional_seconds_precision,
-            } => {
+            }) => {
                 self.sql_interval_to_expr(
                     *value,
                     schema,
@@ -528,12 +528,10 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         } = array_agg;
 
         let order_by = if let Some(order_by) = order_by {
-            // TODO: Once sqlparser supports multiple order by clause, handle it
-            //       see issue: https://github.com/sqlparser-rs/sqlparser-rs/issues/875
-            Some(vec![
-                self.order_by_to_sort_expr(*order_by, input_schema, planner_context)
+            Some(
+                self.order_by_to_sort_expr(&order_by, input_schema, planner_context)
                     .await?,
-            ])
+            )
         } else {
             None
         };

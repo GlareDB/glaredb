@@ -1,12 +1,23 @@
 //! Builtin table returning functions.
 use crate::errors::{BuiltinError, Result};
 use async_trait::async_trait;
+use datafusion::arrow::array::StringArray;
+use datafusion::arrow::datatypes::{Field, Schema};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::MemTable;
 use datafusion::{arrow::datatypes::DataType, datasource::TableProvider, scalar::ScalarValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::listing::VirtualLister;
+use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use metastoreproto::types::catalog::DatabaseEntry;
+use metastoreproto::types::options::{
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
+};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -35,11 +46,15 @@ pub struct BuiltinTableFuncs {
 impl BuiltinTableFuncs {
     pub fn new() -> BuiltinTableFuncs {
         let funcs: Vec<Arc<dyn TableFunc>> = vec![
+            // Read from table sources
             Arc::new(ReadPostgres),
             Arc::new(ReadBigQuery),
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            // Listing
+            Arc::new(ListSchemas),
+            Arc::new(ListTables),
         ];
         let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
             .into_iter()
@@ -64,6 +79,10 @@ impl Default for BuiltinTableFuncs {
     }
 }
 
+pub trait TableFuncContextProvider: Sync + Send {
+    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
+}
+
 #[async_trait]
 pub trait TableFunc: Sync + Send {
     /// The name for this table function. This name will be used when looking up
@@ -82,7 +101,11 @@ pub trait TableFunc: Sync + Send {
     fn parameters(&self) -> &[TableFuncParameters];
 
     /// Return a table provider using the provided args.
-    async fn create_provider(&self, args: Vec<ScalarValue>) -> Result<Arc<dyn TableProvider>>;
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -115,7 +138,11 @@ impl TableFunc for ReadPostgres {
         PARAMS
     }
 
-    async fn create_provider(&self, args: Vec<ScalarValue>) -> Result<Arc<dyn TableProvider>> {
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
@@ -178,7 +205,11 @@ impl TableFunc for ReadBigQuery {
         PARAMS
     }
 
-    async fn create_provider(&self, args: Vec<ScalarValue>) -> Result<Arc<dyn TableProvider>> {
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             4 => {
                 let mut args = args.into_iter();
@@ -238,7 +269,11 @@ impl TableFunc for ReadMongoDb {
         PARAMS
     }
 
-    async fn create_provider(&self, args: Vec<ScalarValue>) -> Result<Arc<dyn TableProvider>> {
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
@@ -295,7 +330,11 @@ impl TableFunc for ReadMysql {
         PARAMS
     }
 
-    async fn create_provider(&self, args: Vec<ScalarValue>) -> Result<Arc<dyn TableProvider>> {
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
@@ -374,7 +413,11 @@ impl TableFunc for ReadSnowflake {
         PARAMS
     }
 
-    async fn create_provider(&self, args: Vec<ScalarValue>) -> Result<Arc<dyn TableProvider>> {
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             8 => {
                 let mut args = args.into_iter();
@@ -412,6 +455,189 @@ impl TableFunc for ReadSnowflake {
             _ => Err(BuiltinError::InvalidNumArgs),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ListSchemas;
+
+#[async_trait]
+impl TableFunc for ListSchemas {
+    fn name(&self) -> &str {
+        "list_schemas"
+    }
+
+    fn parameters(&self) -> &[TableFuncParameters] {
+        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
+            params: &[TableFuncParameter {
+                name: "database",
+                typ: DataType::Utf8,
+            }],
+        }];
+
+        PARAMS
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        match args.len() {
+            1 => {
+                let mut args = args.into_iter();
+                let database = string_from_scalar(args.next().unwrap())?;
+
+                let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
+                let schema = Arc::new(Schema::new(fields));
+
+                let lister = get_db_lister(ctx, database).await?;
+                let schema_list = lister
+                    .list_schemas()
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                let schema_list: StringArray = schema_list.into_iter().map(Some).collect();
+                let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(schema_list)])
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
+                let provider = MemTable::try_new(schema, vec![vec![batch]])
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
+                Ok(Arc::new(provider))
+            }
+            _ => Err(BuiltinError::InvalidNumArgs),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ListTables;
+
+#[async_trait]
+impl TableFunc for ListTables {
+    fn name(&self) -> &str {
+        "list_tables"
+    }
+
+    fn parameters(&self) -> &[TableFuncParameters] {
+        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
+            params: &[
+                TableFuncParameter {
+                    name: "database",
+                    typ: DataType::Utf8,
+                },
+                TableFuncParameter {
+                    name: "schema",
+                    typ: DataType::Utf8,
+                },
+            ],
+        }];
+
+        PARAMS
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        match args.len() {
+            2 => {
+                let mut args = args.into_iter();
+                let database = string_from_scalar(args.next().unwrap())?;
+                let schema_name = string_from_scalar(args.next().unwrap())?;
+
+                let fields = vec![Field::new("table_name", DataType::Utf8, false)];
+                let schema = Arc::new(Schema::new(fields));
+
+                let lister = get_db_lister(ctx, database).await?;
+                let tables_list = lister
+                    .list_tables(&schema_name)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                let tables_list: StringArray = tables_list.into_iter().map(Some).collect();
+                let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(tables_list)])
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
+                let provider = MemTable::try_new(schema, vec![vec![batch]])
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
+                Ok(Arc::new(provider))
+            }
+            _ => Err(BuiltinError::InvalidNumArgs),
+        }
+    }
+}
+
+async fn get_db_lister(
+    ctx: &dyn TableFuncContextProvider,
+    dbname: String,
+) -> Result<Box<dyn VirtualLister>> {
+    let db = ctx
+        .get_database_entry(&dbname)
+        .ok_or(BuiltinError::MissingObject {
+            obj_typ: "database",
+            name: dbname,
+        })?;
+
+    let lister: Box<dyn VirtualLister> = match &db.options {
+        DatabaseOptions::Internal(_) => unimplemented!(),
+        DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
+        DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
+            let accessor = PostgresAccessor::connect(connection_string, None)
+                .await
+                .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            Box::new(accessor)
+        }
+        DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+            service_account_key,
+            project_id,
+        }) => {
+            let accessor =
+                BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            Box::new(accessor)
+        }
+        DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
+            let accessor = MysqlAccessor::connect(connection_string, None)
+                .await
+                .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            Box::new(accessor)
+        }
+        DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
+            let accessor = MongoAccessor::connect(connection_string)
+                .await
+                .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            Box::new(accessor)
+        }
+        DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+            account_name,
+            login_name,
+            password,
+            database_name,
+            warehouse,
+            role_name,
+        }) => {
+            let role_name = if role_name.is_empty() {
+                None
+            } else {
+                Some(role_name.clone())
+            };
+            let conn_params = SnowflakeDbConnection {
+                account_name: account_name.clone(),
+                login_name: login_name.clone(),
+                password: password.clone(),
+                database_name: database_name.clone(),
+                warehouse: warehouse.clone(),
+                role_name,
+            };
+            let accessor = SnowflakeAccessor::connect(conn_params)
+                .await
+                .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            Box::new(accessor)
+        }
+    };
+    Ok(lister)
 }
 
 fn string_from_scalar(val: ScalarValue) -> Result<String> {

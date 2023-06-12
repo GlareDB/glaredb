@@ -18,9 +18,6 @@ pub enum BigQueryError {
     #[error("Unknown or no read permissions for project_id {0}")]
     ProjectReadPerm(String),
 
-    #[error("Missing schema: Cannot list tables for multiple schemas")]
-    MissingSchemaForVirtualLister,
-
     #[error("Failed to decode json: {0}")]
     SerdeJson(#[from] serde_json::Error),
 

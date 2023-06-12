@@ -8,10 +8,12 @@ use datafusion::{
         datatypes::{DataType, Field, Schema, TimeUnit},
         error::ArrowError,
         record_batch::RecordBatch,
+        util::display::FormatOptions,
     },
     scalar::ScalarValue,
 };
 use decimal::Decimal128;
+use once_cell::sync::Lazy;
 use repr::str::encode::*;
 
 use super::errors::{DatasourceCommonError, Result};
@@ -109,11 +111,12 @@ pub fn encode_literal_to_text(
     Ok(())
 }
 
-const DEFAULT_CAST_OPTIONS: CastOptions = CastOptions {
+static DEFAULT_CAST_OPTIONS: Lazy<CastOptions> = Lazy::new(|| CastOptions {
     // If a cast fails we should rather report the error and fix it instead
     // of returning NULLs. This is a programming error.
     safe: false,
-};
+    format_options: FormatOptions::default(),
+});
 
 fn normalize_column(column: &ArrayRef) -> Result<ArrayRef, ArrowError> {
     let dt = match column.data_type() {

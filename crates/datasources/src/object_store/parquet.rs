@@ -9,6 +9,9 @@ use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use datafusion::common::ToDFSchema;
 use datafusion::datasource::file_format::parquet::fetch_parquet_metadata;
 use datafusion::datasource::object_store::ObjectStoreUrl;
+use datafusion::datasource::physical_plan::{
+    FileMeta, FileScanConfig, ParquetExec, ParquetFileReaderFactory,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -19,9 +22,6 @@ use datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder;
 use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_expr::create_physical_expr;
-use datafusion::physical_plan::file_format::{
-    FileMeta, FileScanConfig, ParquetExec, ParquetFileReaderFactory,
-};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
@@ -195,7 +195,7 @@ where
             projection: projection.cloned(),
             limit,
             table_partition_cols: Vec::new(),
-            output_ordering: None,
+            output_ordering: Vec::new(),
             infinite_source: false,
         };
 
