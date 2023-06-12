@@ -3,7 +3,7 @@ pub mod errors;
 mod tls;
 
 use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::listing::VirtualLister;
 use crate::common::ssh::{SshKey, SshTunnelAccess};
 use crate::common::util;
 use async_trait::async_trait;
@@ -330,48 +330,30 @@ impl VirtualLister for PostgresAccessor {
         Ok(schema_names)
     }
 
-    async fn list_tables(
-        &self,
-        schema: Option<&str>,
-    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
-        let rows_res = if let Some(schema) = schema {
-            self.client
-                .query(
-                    "
-SELECT table_schema, table_name
+        let rows = self
+            .client
+            .query(
+                "
+SELECT table_name
 FROM information_schema.tables
 WHERE
     table_schema = $1
                 ",
-                    &[&schema],
-                )
-                .await
-        } else {
-            self.client
-                .query(
-                    "SELECT table_schema, table_name FROM information_schema.tables",
-                    &[],
-                )
-                .await
-        };
-        let rows = rows_res.map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
+                &[&schema],
+            )
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
 
         let mut virtual_tables = Vec::with_capacity(rows.len());
         for row in rows {
-            let row_schema: String = row
+            let table = row
                 .try_get(0)
                 .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
 
-            let table = row
-                .try_get(1)
-                .map_err(|e| ListingErrBoxed(Box::new(PostgresError::from(e))))?;
-
-            virtual_tables.push(VirtualTable {
-                schema: row_schema,
-                table,
-            });
+            virtual_tables.push(table);
         }
         Ok(virtual_tables)
     }

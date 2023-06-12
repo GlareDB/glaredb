@@ -24,7 +24,14 @@ use datafusion::arrow::datatypes::Field;
 use datafusion::arrow::datatypes::IntervalUnit;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::datatypes::TimeUnit;
+use datafusion::common::config::ConfigOptions;
 use datafusion::common::field_not_found;
+use datafusion::common::{unqualified_field_not_found, DFSchema, DataFusionError, Result};
+use datafusion::common::{OwnedTableReference, TableReference};
+use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::utils::find_column_exprs;
+use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
 use datafusion::sql::planner::object_name_to_table_reference;
 use datafusion::sql::planner::IdentNormalizer;
 use datafusion::sql::planner::ParserOptions;
@@ -32,15 +39,8 @@ use datafusion::sql::sqlparser::ast::ExactNumberInfo;
 use datafusion::sql::sqlparser::ast::TimezoneInfo;
 use datafusion::sql::sqlparser::ast::{ColumnDef as SQLColumnDef, ColumnOption};
 use datafusion::sql::sqlparser::ast::{DataType as SQLDataType, Ident, ObjectName, TableAlias};
-
-use datafusion::common::config::ConfigOptions;
-use datafusion::common::{unqualified_field_not_found, DFSchema, DataFusionError, Result};
-use datafusion::common::{OwnedTableReference, TableReference};
-use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
-use datafusion::logical_expr::utils::find_column_exprs;
-use datafusion::logical_expr::TableSource;
-use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
 use sqlbuiltins::functions::TableFunc;
+use sqlbuiltins::functions::TableFuncContextProvider;
 
 use crate::utils::make_decimal_type;
 
@@ -48,6 +48,8 @@ use crate::utils::make_decimal_type;
 /// functions referenced in SQL statements
 #[async_trait]
 pub trait AsyncContextProvider: Send + Sync {
+    type TableFuncContextProvider: TableFuncContextProvider;
+
     /// Getter for a datasource
     async fn get_table_provider(
         &mut self,
@@ -66,7 +68,10 @@ pub trait AsyncContextProvider: Send + Sync {
     /// namespaced similiarly to tables.
     fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>>;
 
-    /// Get configuration options
+    /// Get the table func context provider.
+    fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider;
+
+    /// Get configuration options.
     fn options(&self) -> &ConfigOptions;
 }
 

@@ -35,23 +35,16 @@ SELECT count(*) FROM external_database.glaredb_test.bikeshare_stations;
 # Ensure we can query into the virtual schema.
 
 query T
-SELECT * FROM external_database.virtual_catalog.schemata WHERE schema_name = 'glaredb_test';
+SELECT * FROM list_schemas('external_database') WHERE schema_name = 'glaredb_test';
 ----
 glaredb_test
 
-query TT
-SELECT table_schema, table_name
-	FROM external_database.virtual_catalog.tables
+query T
+SELECT table_name
+	FROM list_tables('external_database', 'glaredb_test')
 	WHERE table_name = 'bikeshare_stations';
 ----
-glaredb_test  bikeshare_stations
-
-query TT
-SELECT table_schema, table_name
-	FROM external_database.virtual_catalog.tables
-	WHERE table_schema = 'glaredb_test' AND table_name = 'bikeshare_stations';
-----
-glaredb_test  bikeshare_stations
+bikeshare_stations
 
 statement ok
 DROP DATABASE external_database;

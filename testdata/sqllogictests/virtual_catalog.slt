@@ -4,32 +4,18 @@ statement ok
 CREATE EXTERNAL DATABASE virt_cat FROM debug;
 
 query T rowsort
-SELECT * FROM virt_cat.virtual_catalog.schemata;
+SELECT * FROM list_schemas('virt_cat');
 ----
 schema_0
 schema_1
 
-query TT rowsort
-SELECT * FROM virt_cat.virtual_catalog.tables;
-----
-schema_0  table_0
-schema_0  table_1
-schema_1  table_0
-schema_1  table_1
-
-# Check if the special filter "where table_schema = '...'"
+# Check if it only fetches for the given schema name.
 
 query TT rowsort
-SELECT * FROM virt_cat.virtual_catalog.tables WHERE table_schema = 'debug_schema';
+SELECT * FROM list_tables('virt_cat', 'debug_schema');
 ----
-debug_schema  table_0
-debug_schema  table_1
-
-query TT rowsort
-SELECT * FROM virt_cat.virtual_catalog.tables WHERE 'debug_schema' = table_schema;
-----
-debug_schema  table_0
-debug_schema  table_1
+debug_schema_table_0
+debug_schema_table_1
 
 statement ok
 DROP DATABASE virt_cat;

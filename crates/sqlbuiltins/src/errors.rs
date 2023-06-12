@@ -11,6 +11,9 @@ pub enum BuiltinError {
         expected: DataType,
     },
 
+    #[error("Unable to find {obj_typ}: '{name}'")]
+    MissingObject { obj_typ: &'static str, name: String },
+
     #[error(transparent)]
     Access(Box<dyn std::error::Error + Send + Sync>),
 }
