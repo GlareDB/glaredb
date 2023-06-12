@@ -16,22 +16,17 @@ SELECT count(*) FROM external_db.${BIGQUERY_DATASET_ID}.bikeshare_stations;
 # Ensure we can query into the virtual schema.
 
 query T
-SELECT * FROM external_db.virtual_catalog.schemata
+SELECT * FROM list_schemas('external_db')
 	WHERE schema_name = '${BIGQUERY_DATASET_ID}';
 ----
 ${BIGQUERY_DATASET_ID}
 
-query TT
-SELECT table_schema, table_name
-	FROM external_db.virtual_catalog.tables
-	WHERE table_schema = '${BIGQUERY_DATASET_ID}' AND table_name = 'bikeshare_stations';
+query T
+SELECT table_name
+	FROM list_tables('external_db', '${BIGQUERY_DATASET_ID}')
+	WHERE table_name = 'bikeshare_stations';
 ----
-${BIGQUERY_DATASET_ID}  bikeshare_stations
-
-# Error when schema not provided for bigquery.
-statement error
-SELECT table_schema, table_name
-	FROM external_db.virtual_catalog.tables;
+bikeshare_stations
 
 statement ok
 DROP DATABASE external_db;

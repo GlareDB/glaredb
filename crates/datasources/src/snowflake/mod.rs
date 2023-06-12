@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use std::{any::Any, sync::Arc};
 
 use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::listing::VirtualLister;
 use crate::common::util;
 use async_trait::async_trait;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -223,22 +223,13 @@ impl VirtualLister for SnowflakeAccessor {
         Ok(schema_list)
     }
 
-    async fn list_tables(
-        &self,
-        schema: Option<&str>,
-    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
-        const LIST_TABLES_QUERY: &str =
-            "SELECT table_schema, table_name FROM information_schema.tables";
-        let (query, bindings) = if let Some(schema) = schema {
-            (
-                format!("{LIST_TABLES_QUERY} WHERE table_schema = ?"),
-                vec![QueryBindParameter::new_text(schema)],
-            )
-        } else {
-            (LIST_TABLES_QUERY.to_owned(), Vec::new())
-        };
+        let (query, bindings) = (
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = ?".to_owned(),
+            vec![QueryBindParameter::new_text(schema)],
+        );
 
         let res = self
             .conn
@@ -257,17 +248,8 @@ impl VirtualLister for SnowflakeAccessor {
             for row in chunk.into_row_iter() {
                 let row = row.map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
-                let schema = match row
-                    .get_column_by_name("TABLE_SCHEMA")
-                    .unwrap()
-                    .map_err(|e| ListingErrBoxed(Box::new(e)))?
-                {
-                    ScalarValue::Utf8(Some(v)) => v,
-                    _ => unreachable!(),
-                };
-
                 let table = match row
-                    .get_column_by_name("TABLE_NAME")
+                    .get_column(0)
                     .unwrap()
                     .map_err(|e| ListingErrBoxed(Box::new(e)))?
                 {
@@ -275,7 +257,7 @@ impl VirtualLister for SnowflakeAccessor {
                     _ => unreachable!(),
                 };
 
-                tables_list.push(VirtualTable { schema, table });
+                tables_list.push(table);
             }
         }
 

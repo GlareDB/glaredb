@@ -10,7 +10,7 @@ use exec::MongoBsonExec;
 use infer::TableSampler;
 
 use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::listing::VirtualLister;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
@@ -158,34 +158,14 @@ impl VirtualLister for MongoAccessor {
         Ok(databases)
     }
 
-    async fn list_tables(
-        &self,
-        schema: Option<&str>,
-    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
-        let database = if let Some(schema) = schema {
-            self.client.database(schema)
-        } else {
-            self.client
-                .default_database()
-                .ok_or(ListingErrBoxed(Box::new(
-                    MongoError::MissingSchemaForVirtualLister,
-                )))?
-        };
-
-        let schema = database.name();
-
+        let database = self.client.database(schema);
         let collections = database
             .list_collection_names(/* filter: */ None)
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?
-            .into_iter()
-            .map(|name| VirtualTable {
-                schema: schema.to_owned(),
-                table: name,
-            })
-            .collect();
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         Ok(collections)
     }

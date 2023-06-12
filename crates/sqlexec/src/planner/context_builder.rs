@@ -17,7 +17,9 @@ use datafusion::sql::TableReference;
 use datafusion_planner::planner::AsyncContextProvider;
 use metastore::builtins::DEFAULT_CATALOG;
 use metastoreproto::types::catalog::CatalogEntry;
+use metastoreproto::types::catalog::DatabaseEntry;
 use sqlbuiltins::functions::TableFunc;
+use sqlbuiltins::functions::TableFuncContextProvider;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -152,6 +154,8 @@ impl<'a> PartialContextProvider<'a> {
 
 #[async_trait]
 impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
+    type TableFuncContextProvider = TableFnCtxProvider<'a>;
+
     async fn get_table_provider(
         &mut self,
         name: TableReference<'_>,
@@ -199,7 +203,21 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         self.table_function_for_reference(name)
     }
 
+    fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider {
+        Self::TableFuncContextProvider { ctx: self.ctx }
+    }
+
     fn options(&self) -> &ConfigOptions {
         self.ctx.get_df_state().config_options()
+    }
+}
+
+pub struct TableFnCtxProvider<'a> {
+    ctx: &'a SessionContext,
+}
+
+impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
+    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
+        self.ctx.get_session_catalog().resolve_database(name)
     }
 }

@@ -1,11 +1,7 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use crate::common::{
-    errors::DatasourceCommonError,
-    listing::{VirtualLister, VirtualTable},
-    util,
-};
+use crate::common::{errors::DatasourceCommonError, listing::VirtualLister, util};
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -194,24 +190,13 @@ impl VirtualLister for BigQueryAccessor {
         Ok(schemas)
     }
 
-    async fn list_tables(
-        &self,
-        schema: Option<&str>,
-    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
-
-        let dataset_id = schema.ok_or(ListingErrBoxed(Box::new(
-            BigQueryError::MissingSchemaForVirtualLister,
-        )))?;
 
         let tables = self
             .metadata
             .table()
-            .list(
-                &self.gcp_project_id,
-                dataset_id,
-                table::ListOptions::default(),
-            )
+            .list(&self.gcp_project_id, schema, table::ListOptions::default())
             .await
             .map_err(|e| ListingErrBoxed(Box::new(BigQueryError::from(e))))?;
 
@@ -219,10 +204,7 @@ impl VirtualLister for BigQueryAccessor {
             .tables
             .into_iter()
             .flatten()
-            .map(|t| VirtualTable {
-                schema: dataset_id.to_string(),
-                table: t.table_reference.table_id,
-            })
+            .map(|t| t.table_reference.table_id)
             .collect();
 
         Ok(tables)

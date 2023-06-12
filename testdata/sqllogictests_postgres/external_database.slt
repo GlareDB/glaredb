@@ -37,23 +37,16 @@ SELECT count(*) FROM external_db.public.bikeshare_stations;
 # Ensure we can query into the virtual schema.
 
 query T
-SELECT * FROM external_db.virtual_catalog.schemata WHERE schema_name = 'public';
+SELECT * FROM list_schemas('external_db') WHERE schema_name = 'public';
 ----
 public
 
-query TT
-SELECT table_schema, table_name
-	FROM external_db.virtual_catalog.tables
+query T
+SELECT table_name
+	FROM list_tables('external_db', 'public')
 	WHERE table_name = 'bikeshare_stations';
 ----
-public  bikeshare_stations
-
-query TT
-SELECT table_schema, table_name
-	FROM external_db.virtual_catalog.tables
-	WHERE table_schema = 'public' AND table_name = 'bikeshare_stations';
-----
-public  bikeshare_stations
+bikeshare_stations
 
 statement ok
 DROP DATABASE external_db;

@@ -62,8 +62,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 ))
                             })?;
 
+                        let table_fn_provider = self.schema_provider.table_fn_ctx_provider();
                         let provider = func
-                            .create_provider(scalars)
+                            .create_provider(&table_fn_provider, scalars)
                             .await
                             .map_err(|e| DataFusionError::Plan(e.to_string()))?;
 

@@ -2,7 +2,7 @@
 pub mod errors;
 
 use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::listing::VirtualLister;
 use async_trait::async_trait;
 use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
@@ -154,34 +154,8 @@ impl VirtualLister for DebugVirtualLister {
         Ok((0..2).map(|i| format!("schema_{i}")).collect())
     }
 
-    async fn list_tables(
-        &self,
-        schema: Option<&str>,
-    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
-        if let Some(schema) = schema {
-            if schema == "debug_schema" {
-                // This schema doesn't actually exist but we want to check if
-                // we get the schema from the filters correctly.
-                let tables: Vec<_> = (0..2)
-                    .map(|i| VirtualTable {
-                        schema: schema.to_owned(),
-                        table: format!("table_{i}"),
-                    })
-                    .collect();
-                return Ok(tables);
-            }
-        }
-
-        let schema_list = self.list_schemas().await.unwrap();
-        let mut tables = Vec::new();
-        for schema in schema_list.iter() {
-            for i in 0..2 {
-                tables.push(VirtualTable {
-                    schema: schema.clone(),
-                    table: format!("table_{i}"),
-                });
-            }
-        }
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
+        let tables = (0..2).map(|i| format!("{schema}_table_{i}")).collect();
         Ok(tables)
     }
 }

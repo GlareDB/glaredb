@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::{VirtualLister, VirtualTable};
+use crate::common::listing::VirtualLister;
 use crate::common::ssh::{SshKey, SshTunnelAccess};
 use crate::common::util;
 use async_stream::stream;
@@ -239,32 +239,23 @@ impl VirtualLister for MysqlAccessor {
         Ok(cols)
     }
 
-    async fn list_tables(
-        &self,
-        schema: Option<&str>,
-    ) -> Result<Vec<VirtualTable>, DatasourceCommonError> {
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
-        const INFO_SCHEMA_TABLES_QUERY: &str =
-            "SELECT table_schema, table_name FROM information_schema.tables";
 
         let mut conn = self.conn.write().await;
 
-        let cols = if let Some(schema) = schema {
-            conn.exec_iter(
-                format!("{} WHERE table_schema = ?", INFO_SCHEMA_TABLES_QUERY),
+        let cols = conn
+            .exec_iter(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
                 (schema,),
             )
-        } else {
-            conn.exec_iter(INFO_SCHEMA_TABLES_QUERY, ())
-        }
-        .await
-        .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         let cols = cols
             .map_and_drop(|mut row| {
-                let schema: String = row.take(0).expect("value of row must exist");
-                let table: String = row.take(1).expect("value of row must exist");
-                VirtualTable { schema, table }
+                let table: String = row.take(0).expect("value of row must exist");
+                table
             })
             .await
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;

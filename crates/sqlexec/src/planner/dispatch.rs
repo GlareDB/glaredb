@@ -8,11 +8,8 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::common::listing::{
-    VirtualCatalogTable, VirtualCatalogTableProvider, VirtualLister,
-};
 use datasources::common::ssh::{SshConnectionParameters, SshKey};
-use datasources::debug::{DebugTableType, DebugVirtualLister};
+use datasources::debug::DebugTableType;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -23,7 +20,7 @@ use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, Snowflake
 use metastore::builtins::{
     CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES,
     GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
-    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION, VIRTUAL_CATALOG_SCHEMA,
+    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 use metastore::session::SessionCatalog;
 use metastoreproto::types::catalog::{
@@ -182,13 +179,6 @@ impl<'a> SessionDispatcher<'a> {
         schema: &str,
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
-        // Short circuit if query is referencing a schema that doesn't actually
-        // exist on the data source.
-        if schema == VIRTUAL_CATALOG_SCHEMA {
-            let dispatcher = VirtualCatalogDispatcher::new(db, name);
-            return dispatcher.dispatch().await;
-        }
-
         let tunnel = self.get_tunnel_opts(db.tunnel_id)?;
 
         match &db.options {
@@ -933,79 +923,5 @@ impl<'a> SystemTableDispatcher<'a> {
         .unwrap();
 
         Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
-    }
-}
-
-/// A dispatcher for dispatching to virtual tables for external databases.
-///
-/// This is unlikely to be documented for public use. The use case for it to be
-/// able to lazily load schemas/tables in the dashboard.
-struct VirtualCatalogDispatcher<'a> {
-    db: &'a DatabaseEntry,
-    table_name: &'a str,
-}
-
-impl<'a> VirtualCatalogDispatcher<'a> {
-    fn new(db: &'a DatabaseEntry, table_name: &'a str) -> Self {
-        VirtualCatalogDispatcher { db, table_name }
-    }
-
-    async fn dispatch(&self) -> Result<Arc<dyn TableProvider>> {
-        let catalog: VirtualCatalogTable = self.table_name.parse()?;
-        let lister = self.get_lister().await?;
-        Ok(Arc::new(VirtualCatalogTableProvider::new(lister, catalog)))
-    }
-
-    async fn get_lister(&self) -> Result<Box<dyn VirtualLister>> {
-        let lister: Box<dyn VirtualLister> = match &self.db.options {
-            DatabaseOptions::Internal(_) => unimplemented!(),
-            DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
-            DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
-                let accessor = PostgresAccessor::connect(connection_string, None).await?;
-                Box::new(accessor)
-            }
-            DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
-                service_account_key,
-                project_id,
-            }) => {
-                let accessor =
-                    BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
-                        .await?;
-                Box::new(accessor)
-            }
-            DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
-                let accessor = MysqlAccessor::connect(connection_string, None).await?;
-                Box::new(accessor)
-            }
-            DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
-                let accessor = MongoAccessor::connect(connection_string).await?;
-                Box::new(accessor)
-            }
-            DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
-                account_name,
-                login_name,
-                password,
-                database_name,
-                warehouse,
-                role_name,
-            }) => {
-                let role_name = if role_name.is_empty() {
-                    None
-                } else {
-                    Some(role_name.clone())
-                };
-                let conn_params = SnowflakeDbConnection {
-                    account_name: account_name.clone(),
-                    login_name: login_name.clone(),
-                    password: password.clone(),
-                    database_name: database_name.clone(),
-                    warehouse: warehouse.clone(),
-                    role_name,
-                };
-                let accessor = SnowflakeAccessor::connect(conn_params).await?;
-                Box::new(accessor)
-            }
-        };
-        Ok(lister)
     }
 }
