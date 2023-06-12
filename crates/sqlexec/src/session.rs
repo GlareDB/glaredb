@@ -8,7 +8,8 @@ use crate::planner::logical_plan::*;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
+    coalesce_partitions::CoalescePartitionsExec, execute_stream, memory::MemoryStream,
+    ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
 use futures::StreamExt;
@@ -272,6 +273,16 @@ impl Session {
 
     pub(crate) async fn insert_into(&self, plan: Insert) -> Result<()> {
         let physical = self.create_physical_plan(plan.source).await?;
+        // Ensure physical plan has one output partition.
+        let physical: Arc<dyn ExecutionPlan> =
+            match physical.output_partitioning().partition_count() {
+                1 => physical,
+                _ => {
+                    // merge into a single partition
+                    Arc::new(CoalescePartitionsExec::new(physical))
+                }
+            };
+
         let physical = plan
             .table_provider
             .insert_into(self.ctx.get_df_state(), physical)

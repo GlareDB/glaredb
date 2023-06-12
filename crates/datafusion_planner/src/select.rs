@@ -31,11 +31,12 @@ use datafusion::logical_expr::utils::{
 };
 use datafusion::logical_expr::Expr::Alias;
 use datafusion::logical_expr::{
-    CreateMemoryTable, DdlStatement, Expr, Filter, GroupingSet, LogicalPlan, LogicalPlanBuilder,
-    Partitioning,
+    Expr, Filter, GroupingSet, LogicalPlan, LogicalPlanBuilder, Partitioning,
 };
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, WildcardAdditionalOptions};
+use datafusion::sql::sqlparser::ast::{
+    Distinct, Expr as SQLExpr, NamedWindowDefinition, WildcardAdditionalOptions, WindowType,
+};
 use datafusion::sql::sqlparser::ast::{Select, SelectItem, TableWithJoins};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -44,7 +45,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a logic plan from an SQL select
     pub(super) async fn select_to_plan(
         &mut self,
-        select: Select,
+        mut select: Select,
         planner_context: &mut PlannerContext,
     ) -> Result<LogicalPlan> {
         // check for unsupported syntax first
@@ -72,6 +73,10 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let plan = self
             .plan_selection(select.selection, plan, planner_context)
             .await?;
+
+        // handle named windows before processing the projection expression
+        check_conflicting_windows(&select.named_window)?;
+        match_window_definitions(&mut select.projection, &select.named_window)?;
 
         // process the SELECT expressions, with wildcards expanded.
         let select_exprs = self
@@ -140,6 +145,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     .unwrap_or(group_by_expr);
                 let group_by_expr = normalize_col(group_by_expr, &projected_plan)?;
                 self.validate_schema_satisfies_exprs(plan.schema(), &[group_by_expr.clone()])?;
+
                 group_by_exprs.push(group_by_expr);
             }
             group_by_exprs
@@ -194,7 +200,18 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let plan = project(plan, select_exprs_post_aggr)?;
 
         // process distinct clause
-        let plan = if select.distinct {
+        let distinct = select
+            .distinct
+            .map(|distinct| match distinct {
+                Distinct::Distinct => Ok(true),
+                Distinct::On(_) => Err(DataFusionError::NotImplemented(
+                    "DISTINCT ON Exprs not supported".to_string(),
+                )),
+            })
+            .transpose()?
+            .unwrap_or(false);
+
+        let plan = if distinct {
             LogicalPlanBuilder::from(plan).distinct()?.build()
         } else {
             Ok(plan)
@@ -216,21 +233,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             plan
         };
 
-        if let Some(select_into) = select.into {
-            Ok(LogicalPlan::Ddl(DdlStatement::CreateMemoryTable(
-                CreateMemoryTable {
-                    name: self.object_name_to_table_reference(select_into.name)?,
-                    // SELECT INTO statement does not copy constraints such as primary key
-                    primary_key: Vec::new(),
-                    input: Arc::new(plan),
-                    // These are not applicable with SELECT INTO
-                    if_not_exists: false,
-                    or_replace: false,
-                },
-            )))
-        } else {
-            Ok(plan)
-        }
+        Ok(plan)
     }
 
     async fn plan_selection(
@@ -350,7 +353,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 Ok(vec![expr])
             }
             SelectItem::Wildcard(options) => {
-                Self::check_wildcard_options(options)?;
+                Self::check_wildcard_options(&options)?;
 
                 if empty_from {
                     return Err(DataFusionError::Plan(
@@ -358,33 +361,30 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     ));
                 }
                 // do not expand from outer schema
-                expand_wildcard(plan.schema().as_ref(), plan)
+                expand_wildcard(plan.schema().as_ref(), plan, Some(options))
             }
             SelectItem::QualifiedWildcard(ref object_name, options) => {
-                Self::check_wildcard_options(options)?;
+                Self::check_wildcard_options(&options)?;
 
                 let qualifier = format!("{object_name}");
                 // do not expand from outer schema
-                expand_qualified_wildcard(&qualifier, plan.schema().as_ref())
+                expand_qualified_wildcard(&qualifier, plan.schema().as_ref(), Some(options))
             }
         }
     }
 
-    fn check_wildcard_options(options: WildcardAdditionalOptions) -> Result<()> {
+    fn check_wildcard_options(options: &WildcardAdditionalOptions) -> Result<()> {
         let WildcardAdditionalOptions {
-            opt_exclude,
-            opt_except,
+            // opt_exclude is handled
+            opt_exclude: _opt_exclude,
+            opt_except: _opt_except,
             opt_rename,
             opt_replace,
         } = options;
 
-        if opt_exclude.is_some()
-            || opt_except.is_some()
-            || opt_rename.is_some()
-            || opt_replace.is_some()
-        {
+        if opt_rename.is_some() || opt_replace.is_some() {
             Err(DataFusionError::NotImplemented(
-                "wildcard * with EXCLUDE, EXCEPT, RENAME or REPLACE not supported ".to_string(),
+                "wildcard * with RENAME or REPLACE not supported ".to_string(),
             ))
         } else {
             Ok(())
@@ -505,4 +505,50 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
         Ok((plan, select_exprs_post_aggr, having_expr_post_aggr))
     }
+}
+
+// If there are any multiple-defined windows, we raise an error.
+fn check_conflicting_windows(window_defs: &[NamedWindowDefinition]) -> Result<()> {
+    for (i, window_def_i) in window_defs.iter().enumerate() {
+        for window_def_j in window_defs.iter().skip(i + 1) {
+            if window_def_i.0 == window_def_j.0 {
+                return Err(DataFusionError::Plan(format!(
+                    "The window {} is defined multiple times!",
+                    window_def_i.0
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+// If the projection is done over a named window, that window
+// name must be defined. Otherwise, it gives an error.
+fn match_window_definitions(
+    projection: &mut [SelectItem],
+    named_windows: &[NamedWindowDefinition],
+) -> Result<()> {
+    for proj in projection.iter_mut() {
+        if let SelectItem::ExprWithAlias {
+            expr: SQLExpr::Function(f),
+            alias: _,
+        }
+        | SelectItem::UnnamedExpr(SQLExpr::Function(f)) = proj
+        {
+            for NamedWindowDefinition(window_ident, window_spec) in named_windows.iter() {
+                if let Some(WindowType::NamedWindow(ident)) = &f.over {
+                    if ident.eq(window_ident) {
+                        f.over = Some(WindowType::WindowSpec(window_spec.clone()))
+                    }
+                }
+            }
+            // All named windows must be defined with a WindowSpec.
+            if let Some(WindowType::NamedWindow(ident)) = &f.over {
+                return Err(DataFusionError::Plan(format!(
+                    "The window {ident} is not defined!"
+                )));
+            }
+        }
+    }
+    Ok(())
 }

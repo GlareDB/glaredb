@@ -12,12 +12,12 @@ use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_type::FileCompressionType;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::object_store::ObjectStoreUrl;
+use datafusion::datasource::physical_plan::{FileScanConfig, FileStream};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::TableType;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::file_format::{FileScanConfig, FileStream};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::{
     DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
@@ -97,7 +97,7 @@ where
             projection: projection.cloned(),
             limit,
             table_partition_cols: Vec::new(),
-            output_ordering: None,
+            output_ordering: Vec::new(),
             infinite_source: false,
         };
 
