@@ -19,3 +19,6 @@ SELECT *
 FROM my_pg.public.lineitem
 WHERE l_shipdate <= date '1998-12-01' - INTERVAL '90'
 LIMIT 5
+
+statement ok
+DROP DATABASE my_pg;
