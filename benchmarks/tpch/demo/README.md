@@ -157,3 +157,14 @@ COPY 800000
 COPY 5
 COPY 10000
 ```
+
+### Postgres Demo User
+
+Here are the steps used to setup the demo user in Postgres: Ran as the `postgres` user and assumes the database only needs the `postgres` and `demo` user on the instance.
+
+```
+REVOKE CREATE ON SCHEMA public FROM public;
+GRANT CREATE ON SCHEMA public to postgres;
+CREATE ROLE demo WITH LOGIN ENCRYPTED PASSWORD 'demo';
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO demo;
+```
