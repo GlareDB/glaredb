@@ -325,6 +325,7 @@ pub struct DatabaseOptionsDeltaLake {
     pub catalog: DeltaLakeCatalog,
     pub access_key_id: String,
     pub secret_access_key: String,
+    pub region: String,
 }
 
 impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
@@ -335,6 +336,7 @@ impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
             catalog,
             access_key_id: value.access_key_id,
             secret_access_key: value.secret_access_key,
+            region: value.region,
         })
     }
 }
@@ -345,6 +347,7 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
             catalog: Some(value.catalog.into()),
             access_key_id: value.access_key_id,
             secret_access_key: value.secret_access_key,
+            region: value.region,
         }
     }
 }

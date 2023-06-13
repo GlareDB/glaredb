@@ -9,4 +9,5 @@ edition = "2021"
 lto = "thin"
 
 [workspace.dependencies]
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", branch = "main" }
+datafusion = { version = "26.0" }
+deltalake = { git = "https://github.com/delta-io/delta-rs.git", branch = "main",features = ["s3", "gcs", "azure", "datafusion","arrow","parquet"] }

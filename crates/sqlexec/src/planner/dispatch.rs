@@ -10,6 +10,7 @@ use datafusion::datasource::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{SshConnectionParameters, SshKey};
 use datasources::debug::DebugTableType;
+use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -273,9 +274,11 @@ impl<'a> SessionDispatcher<'a> {
                 catalog,
                 access_key_id,
                 secret_access_key,
+                region,
             }) => {
                 let accessor =
-                    DeltaLakeAccessor::connect(catalog, access_key_id, secret_access_key).await?;
+                    DeltaLakeAccessor::connect(catalog, access_key_id, secret_access_key, region)
+                        .await?;
                 let table = accessor.load_table(schema, name).await?;
                 Ok(Arc::new(table))
             }

@@ -13,6 +13,9 @@ pub enum DeltaError {
     ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]
+    DataFusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
     UrlParse(#[from] url::ParseError),
 
     #[error("{0}")]

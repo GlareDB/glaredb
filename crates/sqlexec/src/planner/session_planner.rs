@@ -19,6 +19,7 @@ use datafusion_planner::planner::SqlQueryPlanner;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{SshConnection, SshConnectionParameters, SshKey};
 use datasources::debug::DebugTableType;
+use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -28,11 +29,12 @@ use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTabl
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::validation::{validate_database_tunnel_support, validate_table_tunnel_support};
 use metastoreproto::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
-    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
+    DeltaLakeCatalog, DeltaLakeUnityCatalog, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
+    TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -165,6 +167,34 @@ impl<'a> SessionPlanner<'a> {
                     database_name,
                     warehouse,
                     role_name: role_name.unwrap_or_default(),
+                })
+            }
+            DatabaseOptions::DELTA => {
+                let access_key_id = remove_required_opt(m, "access_key_id")?;
+                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
+                let region = remove_required_opt(m, "region")?;
+
+                let catalog = match remove_required_opt(m, "catalog_type")?.as_str() {
+                    "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
+                        catalog_id: remove_required_opt(m, "catalog_id")?,
+                        databricks_access_token: remove_required_opt(m, "access_token")?,
+                        workspace_url: remove_required_opt(m, "workspace_url")?,
+                    }),
+                    other => return Err(internal!("Unknown catalog type: {}", other)),
+                };
+
+                // Try connecting to validate.
+                DeltaLakeAccessor::connect(&catalog, &access_key_id, &secret_access_key, &region)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
+
+                DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
+                    catalog,
+                    access_key_id,
+                    secret_access_key,
+                    region,
                 })
             }
             DatabaseOptions::DEBUG => {

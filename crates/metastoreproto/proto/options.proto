@@ -78,6 +78,7 @@ message DatabaseOptionsDeltaLake {
   // shared with the other object storage stuff.
   string access_key_id = 2;
   string secret_access_key = 3;
+  string region = 4;
 }
 
 // Parameters specific to the unity catalog.

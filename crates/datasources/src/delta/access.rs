@@ -1,15 +1,17 @@
 use crate::delta::catalog::{DataCatalog, UnityCatalog};
-use crate::delta::errors::{DeltaError, Result};
-use deltalake::storage::DeltaObjectStore;
+use crate::delta::errors::Result;
 use deltalake::DeltaTable;
 use metastoreproto::types::options::{DeltaLakeCatalog, DeltaLakeUnityCatalog};
-use object_store::{aws::AmazonS3Builder, ObjectStore};
+use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::debug;
 
 /// Access a delta lake.
 pub struct DeltaLakeAccessor {
     catalog: Arc<dyn DataCatalog>,
-    store: Arc<dyn ObjectStore>,
+    region: String,
+    access_key_id: String,
+    secret_access_key: String,
 }
 
 impl DeltaLakeAccessor {
@@ -20,14 +22,8 @@ impl DeltaLakeAccessor {
         catalog: &DeltaLakeCatalog,
         access_key_id: &str,
         secret_access_key: &str,
+        region: &str,
     ) -> Result<DeltaLakeAccessor> {
-        let store = Arc::new(
-            AmazonS3Builder::new()
-                .with_access_key_id(access_key_id)
-                .with_secret_access_key(secret_access_key)
-                .build()?,
-        );
-
         let catalog: Arc<dyn DataCatalog> = match catalog {
             DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
                 catalog_id,
@@ -41,7 +37,12 @@ impl DeltaLakeAccessor {
             }
         };
 
-        Ok(DeltaLakeAccessor { catalog, store })
+        Ok(DeltaLakeAccessor {
+            catalog,
+            region: region.to_string(),
+            access_key_id: access_key_id.to_string(),
+            secret_access_key: secret_access_key.to_string(),
+        })
     }
 
     pub async fn load_table(self, database: &str, table: &str) -> Result<DeltaTable> {
@@ -50,18 +51,14 @@ impl DeltaLakeAccessor {
             .get_table_storage_location(database, table)
             .await?;
 
-        let loc = url::Url::parse(&loc)?;
-        let store = Arc::new(DeltaObjectStore::new(self.store, loc));
+        debug!(%loc, %database, %table, "deltalake location");
 
-        let mut table = DeltaTable::new(
-            store,
-            deltalake::DeltaTableConfig {
-                require_tombstones: false,
-                require_files: false,
-            },
-        );
+        let mut opts = HashMap::new();
+        opts.insert("aws_access_key_id".to_string(), self.access_key_id);
+        opts.insert("aws_secret_access_key".to_string(), self.secret_access_key);
+        opts.insert("aws_region".to_string(), self.region);
 
-        table.load().await?;
+        let table = deltalake::open_table_with_storage_options(loc, opts).await?;
 
         // Note that the deltalake crate does the appropriate jank for
         // registering the object store in the datafusion session's runtime env

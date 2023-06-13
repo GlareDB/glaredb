@@ -1,5 +1,6 @@
 //! Utilities for logging and tracing.
 use tracing::{info, subscriber, Level, Subscriber};
+use tracing_log::LogTracer;
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
     fmt::SubscriberBuilder,
@@ -36,6 +37,10 @@ impl From<Verbosity> for Level {
 
 /// Initialize a trace subsriber for a test.
 pub fn init_test() {
+    // Failing to set the the global log adapter is fine, another test may have
+    // already set it.
+    let _ = LogTracer::init();
+
     let subscriber = FmtSubscriber::builder()
         .with_test_writer()
         .with_max_level(Level::TRACE)
@@ -59,6 +64,8 @@ pub fn init_test() {
 pub fn init(verbosity: impl Into<Verbosity>, json: bool) {
     let verbosity = verbosity.into();
     let level: Level = verbosity.into();
+
+    LogTracer::init().unwrap();
 
     if json {
         let mut builder = default_fmt_builder(level).json();

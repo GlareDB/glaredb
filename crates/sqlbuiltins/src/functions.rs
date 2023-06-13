@@ -636,6 +636,9 @@ async fn get_db_lister(
                 .map_err(|e| BuiltinError::Access(Box::new(e)))?;
             Box::new(accessor)
         }
+        DatabaseOptions::Delta(_) => {
+            return Err(BuiltinError::Unimplemented("deltalake information listing"))
+        }
     };
     Ok(lister)
 }
