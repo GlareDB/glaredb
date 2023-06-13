@@ -164,7 +164,7 @@ Here are the steps used to setup the demo user in Postgres: Ran as the `postgres
 
 ```
 REVOKE CREATE ON SCHEMA public FROM public;
-GRANT CREATE ON SCHEMA public to postgres;
+GRANT ALL ON SCHEMA public to postgres;
 CREATE ROLE demo WITH LOGIN ENCRYPTED PASSWORD 'demo';
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO demo;
 ```
