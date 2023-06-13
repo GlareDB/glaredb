@@ -35,14 +35,15 @@ use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
-use tokio_postgres::config::Host;
+use tokio_postgres::config::{Host, SslMode};
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
-use tokio_postgres::{Client, Config, CopyOutStream};
-use tracing::warn;
+use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
+use tracing::{debug, warn};
 
 #[derive(Debug)]
 pub enum PostgresDbConnection {
@@ -137,13 +138,59 @@ impl PostgresAccessor {
     }
 
     async fn connect_direct(connection_string: &str) -> Result<(Client, JoinHandle<()>)> {
-        let (client, conn) =
-            tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default()).await?;
-        let handle = tokio::spawn(async move {
-            if let Err(e) = conn.await {
-                warn!(%e, "postgres connection errored");
+        let config: Config = connection_string.parse()?;
+
+        fn spawn_conn<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
+            conn: Connection<Socket, T>,
+        ) -> JoinHandle<()> {
+            tokio::spawn(async move {
+                if let Err(e) = conn.await {
+                    warn!(%e, "postgres connection errored");
+                }
+            })
+        }
+
+        // Configure tls depending on ssl mode.
+        //
+        // - Disable => no tls
+        // - Prefer => try tls, fallback to no tls on connection error
+        // - Require => try tls, no fallback
+        // - Any other => return unsupported
+        let (client, handle) = match config.get_ssl_mode() {
+            SslMode::Disable => {
+                let (client, conn) = tokio_postgres::connect(connection_string, NoTls).await?;
+                let handle = spawn_conn(conn);
+                (client, handle)
             }
-        });
+            SslMode::Prefer => {
+                match tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default())
+                    .await
+                {
+                    Ok((client, conn)) => {
+                        let handle = spawn_conn(conn);
+                        (client, handle)
+                    }
+                    Err(e) => {
+                        // The tokio postgres lib does discriminate between tls
+                        // and other errors, but that's not made public.
+                        debug!(%e, "pg conn falling back to no tls");
+                        let (client, conn) =
+                            tokio_postgres::connect(connection_string, NoTls).await?;
+                        let handle = spawn_conn(conn);
+                        (client, handle)
+                    }
+                }
+            }
+            SslMode::Require => {
+                let (client, conn) =
+                    tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default())
+                        .await?;
+                let handle = spawn_conn(conn);
+                (client, handle)
+            }
+            other => return Err(PostgresError::UnsupportSslMode(other)),
+        };
+
         Ok((client, handle))
     }
 
@@ -169,6 +216,21 @@ impl PostgresAccessor {
             .create_tunnel(&(postgres_host, postgres_port))
             .await?;
 
+        fn spawn_conn<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
+            conn: Connection<TcpStream, T>,
+            session: openssh::Session,
+        ) -> JoinHandle<()> {
+            tokio::spawn(async move {
+                if let Err(e) = conn.await {
+                    warn!(%e, "postgres connection errored");
+                }
+                // If postgres connection is complete, close ssh tunnel
+                if let Err(e) = session.close().await {
+                    warn!(%e, "closing ssh tunnel errored");
+                }
+            })
+        }
+
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
 
         // Rust doesn't feel like type inferring this for us.
@@ -179,16 +241,43 @@ impl PostgresAccessor {
             "",
         )?;
 
-        let (client, conn) = config.connect_raw(tcp_stream, tls_connect).await?;
-        let handle = tokio::spawn(async move {
-            if let Err(e) = conn.await {
-                warn!(%e, "postgres connection errored");
+        // Configure tls depending on ssl mode.
+        //
+        // - Disable => no tls
+        // - Prefer => try tls, fallback to no tls on connection error
+        // - Require => try tls, no fallback
+        // - Any other => return unsupported
+        let (client, handle) = match config.get_ssl_mode() {
+            SslMode::Disable => {
+                let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
+                let handle = spawn_conn(conn, session);
+                (client, handle)
             }
-            // If postgres connection is complete, close ssh tunnel
-            if let Err(e) = session.close().await {
-                warn!(%e, "closing ssh tunnel errored");
+            SslMode::Prefer => {
+                match config.connect_raw(tcp_stream, tls_connect).await {
+                    Ok((client, conn)) => {
+                        let handle = spawn_conn(conn, session);
+                        (client, handle)
+                    }
+                    Err(e) => {
+                        // The tokio postgres lib does discriminate between tls
+                        // and other errors, but that's not made public.
+                        debug!(%e, "pg conn falling back to no tls");
+                        // Reconnect to get a fresh stream.
+                        let tcp_stream = TcpStream::connect(tunnel_addr).await?;
+                        let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
+                        let handle = spawn_conn(conn, session);
+                        (client, handle)
+                    }
+                }
             }
-        });
+            SslMode::Require => {
+                let (client, conn) = config.connect_raw(tcp_stream, tls_connect).await?;
+                let handle = spawn_conn(conn, session);
+                (client, handle)
+            }
+            other => return Err(PostgresError::UnsupportSslMode(other)),
+        };
 
         Ok((client, handle))
     }
