@@ -18,6 +18,9 @@ pub enum PostgresError {
     #[error("Failed to connect to Postgres instance: {0}")]
     TokioPostgres(#[from] tokio_postgres::Error),
 
+    #[error("Unuspported ssl mode: {0:?}")]
+    UnsupportSslMode(tokio_postgres::config::SslMode),
+
     #[error("Unsupported tunnel '{0}' for Postgres")]
     UnsupportedTunnel(String),
 
