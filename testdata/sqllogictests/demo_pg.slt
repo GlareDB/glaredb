@@ -1,0 +1,24 @@
+# Queries that are included in the readme.
+#
+# Since this is also hitting a Cloud SQL instance, this also serves as a test
+# for #1120.
+
+statement ok
+CREATE EXTERNAL DATABASE my_pg
+    FROM postgres
+    OPTIONS (
+        host = 'pg.demo.glaredb.com',
+        port = '5432',
+        user = 'demo',
+        password = 'demo',
+        database = 'postgres',
+    );
+
+statement ok
+SELECT *
+FROM my_pg.public.lineitem
+WHERE l_shipdate <= date '1998-12-01' - INTERVAL '90'
+LIMIT 5
+
+statement ok
+DROP DATABASE my_pg;

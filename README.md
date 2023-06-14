@@ -55,6 +55,42 @@ Postgres client. For example, connected to a local instance of GlareDB using
 psql "host=localhost user=glaredb dbname=glaredb port=6543"
 ```
 
+## Your first data source
+
+A demo Postgres instance is deployed at `pg.demo.glaredb.com`. Adding this
+Postgres instance as data source is as easy as running the following command:
+
+```sql
+CREATE EXTERNAL DATABASE my_pg
+    FROM postgres
+    OPTIONS (
+        host = 'pg.demo.glaredb.com',
+        port = '5432',
+        user = 'demo',
+        password = 'demo',
+        database = 'postgres',
+    );
+```
+
+Once the data source has been added, it can be queried using fully qualified
+table names:
+
+```sql
+SELECT *
+FROM my_pg.public.lineitem
+WHERE l_shipdate <= date '1998-12-01' - INTERVAL '90'
+LIMIT 5
+```
+
+Check out the docs to learn about all [supported data sources](https://docs.glaredb.com/docs/data-sources/supported/). Many
+data sources can be connected to the same GlareDB instance.
+
+Done with this data source? Remove it with the following command:
+
+```sql
+DROP DATABASE my_pg;
+```
+
 ## Building from source
 
 Building GlareDB requires Rust/Cargo to be installed. Check out [rustup](https://rustup.rs/) for
