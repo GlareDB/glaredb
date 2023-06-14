@@ -71,6 +71,7 @@ pub enum DatabaseOptions {
     Mysql(DatabaseOptionsMysql),
     Mongo(DatabaseOptionsMongo),
     Snowflake(DatabaseOptionsSnowflake),
+    Delta(DatabaseOptionsDeltaLake),
 }
 
 impl DatabaseOptions {
@@ -81,6 +82,7 @@ impl DatabaseOptions {
     pub const MYSQL: &str = "mysql";
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
+    pub const DELTA: &str = "delta";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -91,6 +93,7 @@ impl DatabaseOptions {
             DatabaseOptions::Mysql(_) => Self::MYSQL,
             DatabaseOptions::Mongo(_) => Self::MONGO,
             DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
+            DatabaseOptions::Delta(_) => Self::DELTA,
         }
     }
 }
@@ -120,6 +123,7 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             options::database_options::Options::Snowflake(v) => {
                 DatabaseOptions::Snowflake(v.try_into()?)
             }
+            options::database_options::Options::Delta(v) => DatabaseOptions::Delta(v.try_into()?),
         })
     }
 }
@@ -143,6 +147,7 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Snowflake(v) => {
                 options::database_options::Options::Snowflake(v.into())
             }
+            DatabaseOptions::Delta(v) => options::database_options::Options::Delta(v.into()),
         }
     }
 }
@@ -311,6 +316,92 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
             database_name: value.database_name,
             warehouse: value.warehouse,
             role_name: value.role_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DatabaseOptionsDeltaLake {
+    pub catalog: DeltaLakeCatalog,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub region: String,
+}
+
+impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsDeltaLake) -> Result<Self, Self::Error> {
+        let catalog: DeltaLakeCatalog = value.catalog.required("catalog")?;
+        Ok(DatabaseOptionsDeltaLake {
+            catalog,
+            access_key_id: value.access_key_id,
+            secret_access_key: value.secret_access_key,
+            region: value.region,
+        })
+    }
+}
+
+impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
+    fn from(value: DatabaseOptionsDeltaLake) -> Self {
+        options::DatabaseOptionsDeltaLake {
+            catalog: Some(value.catalog.into()),
+            access_key_id: value.access_key_id,
+            secret_access_key: value.secret_access_key,
+            region: value.region,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub enum DeltaLakeCatalog {
+    Unity(DeltaLakeUnityCatalog),
+}
+
+impl TryFrom<options::database_options_delta_lake::Catalog> for DeltaLakeCatalog {
+    type Error = ProtoConvError;
+    fn try_from(value: options::database_options_delta_lake::Catalog) -> Result<Self, Self::Error> {
+        Ok(match value {
+            options::database_options_delta_lake::Catalog::Unity(v) => {
+                DeltaLakeCatalog::Unity(v.try_into()?)
+            }
+        })
+    }
+}
+
+impl From<DeltaLakeCatalog> for options::database_options_delta_lake::Catalog {
+    fn from(value: DeltaLakeCatalog) -> Self {
+        match value {
+            DeltaLakeCatalog::Unity(v) => {
+                options::database_options_delta_lake::Catalog::Unity(v.into())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct DeltaLakeUnityCatalog {
+    pub catalog_id: String,
+    pub databricks_access_token: String,
+    pub workspace_url: String,
+}
+
+impl TryFrom<options::DeltaLakeUnityCatalog> for DeltaLakeUnityCatalog {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DeltaLakeUnityCatalog) -> Result<Self, Self::Error> {
+        Ok(DeltaLakeUnityCatalog {
+            catalog_id: value.catalog_id,
+            databricks_access_token: value.databricks_access_token,
+            workspace_url: value.workspace_url,
+        })
+    }
+}
+
+impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
+    fn from(value: DeltaLakeUnityCatalog) -> Self {
+        options::DeltaLakeUnityCatalog {
+            catalog_id: value.catalog_id,
+            databricks_access_token: value.databricks_access_token,
+            workspace_url: value.workspace_url,
         }
     }
 }

@@ -7,8 +7,8 @@ use bytes::{Buf, Bytes};
 use datafusion::arrow::csv;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use datafusion::datasource::file_format::file_type::FileCompressionType;
-use datafusion::datasource::physical_plan::{FileMeta, FileOpenFuture, FileOpener};
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::physical_plan::file_format::{FileMeta, FileOpenFuture, FileOpener};
 use futures::{Stream, StreamExt, TryStreamExt};
 use object_store::{GetResult, ObjectStore};
 

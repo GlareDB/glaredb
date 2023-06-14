@@ -10,6 +10,7 @@ use datafusion::datasource::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{SshConnectionParameters, SshKey};
 use datasources::debug::DebugTableType;
+use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -27,9 +28,9 @@ use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
 use metastoreproto::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsMongo,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
+    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
     TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
     TableOptionsSnowflake, TunnelOptions,
 };
@@ -79,6 +80,8 @@ pub enum DispatchError {
     MongoDatasource(#[from] datasources::mongodb::errors::MongoError),
     #[error(transparent)]
     SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
+    #[error(transparent)]
+    DeltaDatasource(#[from] datasources::delta::errors::DeltaError),
     #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
 }
@@ -266,6 +269,18 @@ impl<'a> SessionDispatcher<'a> {
                     .into_table_provider(access_info, /* predicate_pushdown = */ true)
                     .await?;
                 Ok(Arc::new(provider))
+            }
+            DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
+                catalog,
+                access_key_id,
+                secret_access_key,
+                region,
+            }) => {
+                let accessor =
+                    DeltaLakeAccessor::connect(catalog, access_key_id, secret_access_key, region)
+                        .await?;
+                let table = accessor.load_table(schema, name).await?;
+                Ok(Arc::new(table))
             }
         }
     }

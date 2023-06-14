@@ -18,7 +18,6 @@
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DFSchema, DataFusionError, Result};
 use datafusion::logical_expr::expr::{ScalarFunction, ScalarUDF};
-use datafusion::logical_expr::function::suggest_valid_function;
 use datafusion::logical_expr::utils::COUNT_STAR_EXPANSION;
 use datafusion::logical_expr::window_frame::regularize;
 use datafusion::logical_expr::{
@@ -169,10 +168,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
 
         // Could not find the relevant function, so return an error
-        let suggested_func_name = suggest_valid_function(&name, is_function_window);
-        Err(DataFusionError::Plan(format!(
-            "Invalid function '{name}'.\nDid you mean '{suggested_func_name}'?"
-        )))
+        Err(DataFusionError::Plan(format!("Invalid function '{name}'.")))
     }
 
     pub(super) async fn sql_named_function_to_expr(

@@ -16,6 +16,9 @@ pub enum BuiltinError {
 
     #[error(transparent)]
     Access(Box<dyn std::error::Error + Send + Sync>),
+
+    #[error("Unimplemented: {0}")]
+    Unimplemented(&'static str),
 }
 
 pub type Result<T, E = BuiltinError> = std::result::Result<T, E>;
