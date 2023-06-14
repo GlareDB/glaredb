@@ -155,6 +155,10 @@ impl SessionContext {
         &mut self.metrics
     }
 
+    pub fn get_native_tables(&self) -> &NativeTableStorage {
+        &self.tables
+    }
+
     pub fn get_datasource_count(&mut self) -> usize {
         self.metastore_catalog
             .iter_entries()

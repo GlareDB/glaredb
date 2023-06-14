@@ -1,7 +1,7 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::arrow;
 use crate::proto::options;
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Field};
 use proptest_derive::Arbitrary;
 use std::fmt;
 
@@ -29,6 +29,20 @@ impl InternalColumnDefinition {
                 name: name.into(),
                 nullable,
                 arrow_type,
+            })
+            .collect()
+    }
+
+    /// Create a vec of column definitions from arrow fields.
+    pub fn from_arrow_fields<C>(cols: C) -> Vec<InternalColumnDefinition>
+    where
+        C: IntoIterator<Item = Field>,
+    {
+        cols.into_iter()
+            .map(|field| InternalColumnDefinition {
+                name: field.name().clone(),
+                nullable: field.is_nullable(),
+                arrow_type: field.data_type().clone(),
             })
             .collect()
     }

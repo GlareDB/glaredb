@@ -1,4 +1,5 @@
 use crate::native::errors::{NativeError, Result};
+use datafusion::datasource::TableProvider;
 use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::storage::DeltaObjectStore;
@@ -94,9 +95,14 @@ impl NativeTableStorage {
     }
 
     pub async fn create_table(&self, table: &TableEntry) -> Result<NativeTable> {
+        let loc = self.conf.storage_url_for_table(table)?;
+        let store = self.create_delta_store(loc.clone())?;
+
         let opts = Self::opts_from_ent(table)?;
         let mut builder = CreateBuilder::new()
             .with_table_name(&table.meta.name)
+            .with_location(loc)
+            .with_object_store(store)
             .with_save_mode(SaveMode::ErrorIfExists);
         for col in &opts.columns {
             builder =
@@ -154,5 +160,9 @@ pub struct NativeTable {
 impl NativeTable {
     pub fn storage_location(&self) -> String {
         self.delta.table_uri()
+    }
+
+    pub fn into_table_provider(self) -> Arc<dyn TableProvider> {
+        Arc::new(self.delta)
     }
 }

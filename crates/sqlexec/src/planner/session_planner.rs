@@ -31,10 +31,11 @@ use metastore::validation::{validate_database_tunnel_support, validate_table_tun
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    DeltaLakeCatalog, DeltaLakeUnityCatalog, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres,
-    TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
-    TunnelOptionsInternal, TunnelOptionsSsh,
+    DeltaLakeCatalog, DeltaLakeUnityCatalog, InternalColumnDefinition, TableOptions,
+    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -566,15 +567,23 @@ impl<'a> SessionPlanner<'a> {
                         TableReference::Bare { table } => table.into_owned(),
                         _ => return Err(internal!("cannot specify schema with temporary tables")),
                     };
-                    return Ok(DdlPlan::CreateTempTable(CreateTempTable {
+                    Ok(DdlPlan::CreateTempTable(CreateTempTable {
                         table_name,
                         columns: arrow_cols,
                         if_not_exists,
                     })
-                    .into());
+                    .into())
+                } else {
+                    let opts = TableOptionsInternal {
+                        columns: InternalColumnDefinition::from_arrow_fields(arrow_cols),
+                    };
+                    Ok(DdlPlan::CreateTable(CreateTable {
+                        table_name: table_name.to_owned_reference(),
+                        table_options: opts,
+                        if_not_exists,
+                    })
+                    .into())
                 }
-
-                Err(internal!("Only temporary tables currently supported"))
             }
 
             // Tables generated from a source query.

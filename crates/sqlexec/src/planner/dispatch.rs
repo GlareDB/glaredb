@@ -83,6 +83,8 @@ pub enum DispatchError {
     #[error(transparent)]
     DeltaDatasource(#[from] datasources::delta::errors::DeltaError),
     #[error(transparent)]
+    NativeDatasource(#[from] datasources::native::errors::NativeError),
+    #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
 }
 
@@ -171,7 +173,12 @@ impl<'a> SessionDispatcher<'a> {
             CatalogEntry::Table(tbl) if tbl.meta.external => {
                 self.dispatch_external_table(tbl).await
             }
-            // We don't currently support non-external, non-builtin tables.
+            // Dispatch to native tables.
+            CatalogEntry::Table(tbl) => {
+                let native = self.ctx.get_native_tables();
+                let table = native.load_table(tbl).await?;
+                Ok(table.into_table_provider())
+            }
             other => Err(DispatchError::UnhandledEntry(other.get_meta().clone())),
         }
     }
