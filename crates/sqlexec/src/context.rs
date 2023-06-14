@@ -19,12 +19,14 @@ use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datasources::native::access::{NativeTableStorage, NativeTableStorageConfig};
 use futures::future::BoxFuture;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use metastore::errors::ResolveErrorStrategy;
 use metastoreproto::session::SessionCatalog;
-use metastoreproto::types::catalog::EntryType;
+use metastoreproto::types::catalog::{CatalogEntry, EntryType, TableEntry};
+use metastoreproto::types::options::{TableOptions, TableOptionsGcs, TableOptionsInternal};
 use metastoreproto::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -33,7 +35,7 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tracing::debug;
+use tracing::{debug, info};
 
 /// Implicity schemas that are consulted during object resolution.
 ///
@@ -58,6 +60,8 @@ pub struct SessionContext {
     metastore: SupervisorClient,
     /// In-memory (temporary) tables.
     current_session_tables: HashMap<String, Arc<MemTable>>,
+    /// Native tables.
+    tables: NativeTableStorage,
     /// Session variables.
     vars: SessionVars,
     /// Prepared statements.
@@ -117,6 +121,8 @@ impl SessionContext {
 
         let state = SessionState::with_config_rt(config, runtime);
 
+        let tables = NativeTableStorage::from_config(NativeTableStorageConfig::Memory).unwrap();
+
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
         //
@@ -128,6 +134,7 @@ impl SessionContext {
             metastore_catalog: catalog,
             metastore,
             current_session_tables: HashMap::new(),
+            tables,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -171,7 +178,7 @@ impl SessionContext {
         self.current_session_tables.get(table_name).cloned()
     }
 
-    /// Create a table.
+    /// Create a temp table.
     pub fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self.current_session_tables.contains_key(&plan.table_name) {
             if plan.if_not_exists {
@@ -185,6 +192,53 @@ impl SessionContext {
         let table = MemTable::try_new(schema, vec![vec![data]])?;
         self.current_session_tables
             .insert(plan.table_name, Arc::new(table));
+        Ok(())
+    }
+
+    pub async fn create_table(&mut self, plan: CreateTable) -> Result<()> {
+        let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
+
+        // Insert into catalog.
+        self.mutate_catalog([Mutation::CreateTable(service::CreateTable {
+            schema: schema.clone(),
+            name: name.clone(),
+            options: plan.table_options,
+            if_not_exists: plan.if_not_exists,
+        })])
+        .await?;
+
+        // Mutations should update the local catalog state, so resolve the
+        // entry.
+        let ent = match self
+            .metastore_catalog
+            .resolve_entry(DEFAULT_CATALOG, &schema, &name)
+        {
+            Some(CatalogEntry::Table(table)) => match &table.options {
+                TableOptions::Internal(_) => table,
+                other => {
+                    return Err(ExecError::Internal(format!(
+                        "Unexpected set of table options: {:?}",
+                        other
+                    )))
+                }
+            },
+            Some(other) => {
+                return Err(ExecError::Internal(format!(
+                    "Unexpected catalog entry type: {:?}",
+                    other
+                )))
+            }
+            None => {
+                return Err(ExecError::Internal(
+                    "Missing table after catalog insert".to_string(),
+                ));
+            }
+        };
+
+        // Create native table.
+        let table = self.tables.create_table(&ent).await?;
+        info!(loc = %table.storage_location(), "native table created");
+
         Ok(())
     }
 

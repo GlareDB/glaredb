@@ -1,8 +1,8 @@
 use crate::errors::Result;
 use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
-use metastore::session::SessionCatalog;
 use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
+use metastoreproto::session::SessionCatalog;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

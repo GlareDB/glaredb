@@ -129,6 +129,9 @@ pub enum ExecError {
     DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
     #[error(transparent)]
+    DatasourceNative(#[from] datasources::native::errors::NativeError),
+
+    #[error(transparent)]
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
     #[error(transparent)]

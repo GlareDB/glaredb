@@ -23,7 +23,7 @@ use metastore::builtins::{
     GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
     GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
-use metastore::session::SessionCatalog;
+use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };

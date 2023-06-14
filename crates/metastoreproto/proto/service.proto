@@ -39,6 +39,7 @@ message Mutation {
     DropObject drop_object = 2;
     CreateSchema create_schema = 3;
     CreateView create_view = 4;
+    CreateTable create_table = 14;
     CreateExternalTable create_external_table = 6;
     CreateExternalDatabase create_external_database = 7;
     AlterTableRename alter_table_rename = 9;
@@ -47,7 +48,7 @@ message Mutation {
     DropTunnel drop_tunnel = 12;
     AlterTunnelRotateKeys alter_tunnel_rotate_keys = 13;
   }
-  // next: 14
+  // next: 15
 }
 
 message DropDatabase {
@@ -75,6 +76,13 @@ message CreateView {
   string sql = 3;
   bool or_replace = 4;
   repeated string columns = 5;
+}
+
+message CreateTable {
+  string schema = 1;
+  string name = 2;
+  options.TableOptionsInternal options = 3;
+  bool if_not_exists = 4;
 }
 
 message CreateExternalTable {

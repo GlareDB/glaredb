@@ -5,7 +5,9 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use metastoreproto::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
+use metastoreproto::types::options::{
+    DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -115,6 +117,7 @@ pub enum DdlPlan {
     CreateSchema(CreateSchema),
     CreateTempTable(CreateTempTable),
     CreateExternalTable(CreateExternalTable),
+    CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
     CreateView(CreateView),
     AlterTableRaname(AlterTableRename),
@@ -152,6 +155,13 @@ pub struct CreateTunnel {
 pub struct CreateSchema {
     pub schema_name: SchemaReference,
     pub if_not_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateTable {
+    pub table_name: OwnedTableReference,
+    pub if_not_exists: bool,
+    pub table_options: TableOptionsInternal,
 }
 
 #[derive(Clone, Debug)]

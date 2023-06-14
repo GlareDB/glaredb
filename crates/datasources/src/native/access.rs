@@ -103,6 +103,8 @@ impl NativeTableStorage {
                 builder.with_column(&col.name, (&col.arrow_type).try_into()?, col.nullable, None);
         }
 
+        // TODO: Partitioning
+
         let table = builder.await?;
 
         Ok(NativeTable { delta: table })
@@ -112,7 +114,7 @@ impl NativeTableStorage {
     ///
     /// Errors if the table is not the correct type.
     pub async fn load_table(&self, table: &TableEntry) -> Result<NativeTable> {
-        let _ = Self::opts_from_ent(table)?;
+        let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
         let loc = self.conf.storage_url_for_table(table)?;
         let delta_store = self.create_delta_store(loc)?;
@@ -149,4 +151,8 @@ pub struct NativeTable {
     delta: DeltaTable,
 }
 
-impl NativeTable {}
+impl NativeTable {
+    pub fn storage_location(&self) -> String {
+        self.delta.table_uri()
+    }
+}

@@ -686,6 +686,40 @@ impl State {
                         policy,
                     )?;
                 }
+                Mutation::CreateTable(create_table) => {
+                    validate_object_name(&create_table.name)?;
+
+                    let schema_id = self.get_schema_id(&create_table.schema)?;
+
+                    // Create new entry
+                    let oid = self.next_oid();
+                    let ent = TableEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::Table,
+                            id: oid,
+                            parent: schema_id,
+                            name: create_table.name.clone(),
+                            builtin: false,
+                            external: false,
+                        },
+                        options: TableOptions::Internal(create_table.options),
+                        tunnel_id: None,
+                    };
+
+                    let policy = if create_table.if_not_exists {
+                        CreatePolicy::CreateIfNotExists
+                    } else {
+                        CreatePolicy::Create
+                    };
+
+                    self.try_insert_table_namespace(
+                        CatalogEntry::Table(ent),
+                        schema_id,
+                        oid,
+                        policy,
+                    )?;
+                }
+
                 Mutation::CreateExternalTable(create_ext) => {
                     validate_object_name(&create_ext.name)?;
                     let schema_id = self.get_schema_id(&create_ext.schema)?;
