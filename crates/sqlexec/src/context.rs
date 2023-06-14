@@ -23,7 +23,7 @@ use futures::future::BoxFuture;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use metastore::errors::ResolveErrorStrategy;
-use metastore::session::SessionCatalog;
+use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::EntryType;
 use metastoreproto::types::service::{self, Mutation};
 use pgrepr::format::Format;

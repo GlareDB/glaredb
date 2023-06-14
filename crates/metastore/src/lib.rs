@@ -2,7 +2,6 @@
 pub mod builtins;
 pub mod errors;
 pub mod local;
-pub mod session;
 pub mod srv;
 pub mod validation;
 
