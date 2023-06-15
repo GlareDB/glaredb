@@ -852,7 +852,7 @@ checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
 name = "bench_runner"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1136,7 +1136,7 @@ dependencies = [
 
 [[package]]
 name = "bytesutil"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "bytes",
 ]
@@ -1973,7 +1973,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_planner"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -1987,7 +1987,7 @@ dependencies = [
 
 [[package]]
 name = "datasources"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-channel",
  "async-stream",
@@ -2033,7 +2033,7 @@ dependencies = [
 
 [[package]]
 name = "decimal"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "num-traits",
  "regex",
@@ -2701,7 +2701,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "anyhow",
  "clap",
@@ -3076,7 +3076,7 @@ dependencies = [
 
 [[package]]
 name = "ioutil"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "bytes",
 ]
@@ -3318,7 +3318,7 @@ dependencies = [
 
 [[package]]
 name = "logutil"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "tracing",
  "tracing-log",
@@ -3453,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "metastore"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3481,7 +3481,7 @@ dependencies = [
 
 [[package]]
 name = "metastoreproto"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3911,7 +3911,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_util"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4153,7 +4153,7 @@ dependencies = [
 
 [[package]]
 name = "pgprototest"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "anyhow",
  "bytes",
@@ -4167,7 +4167,7 @@ dependencies = [
 
 [[package]]
 name = "pgrepr"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "bytes",
  "chrono",
@@ -4184,7 +4184,7 @@ dependencies = [
 
 [[package]]
 name = "pgsrv"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4813,7 +4813,7 @@ dependencies = [
 
 [[package]]
 name = "repr"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "chrono",
  "decimal",
@@ -5614,7 +5614,7 @@ dependencies = [
 
 [[package]]
 name = "slt_runner"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5668,7 +5668,7 @@ checksum = "5e9f0ab6ef7eb7353d9119c170a436d1bf248eea575ac42d19d12f4e34130831"
 
 [[package]]
 name = "snowflake_connector"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "base64 0.21.2",
  "bytes",
@@ -5725,7 +5725,7 @@ dependencies = [
 
 [[package]]
 name = "sqlbuiltins"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -5750,7 +5750,7 @@ dependencies = [
 
 [[package]]
 name = "sqlexec"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -5991,7 +5991,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "telemetry"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "segment",
  "serde_json",
@@ -6025,7 +6025,7 @@ dependencies = [
 
 [[package]]
 name = "testing"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "anyhow",
  "async-trait",
