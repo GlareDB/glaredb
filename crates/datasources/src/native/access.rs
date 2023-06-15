@@ -10,53 +10,16 @@ use object_store::{
     gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
     path::Path as ObjectPath, prefix::PrefixStore, Error as ObjectStoreError, ObjectStore,
 };
-use object_store_util::shared::SharedObjectStore;
+use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
 use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
-
-#[derive(Debug, Clone)]
-pub enum NativeTableStorageConfig {
-    Gcs {
-        service_account_key: String,
-        bucket: String,
-    },
-    Local {
-        path: PathBuf,
-    },
-    Memory,
-}
-
-impl NativeTableStorageConfig {
-    /// Get a url pointing to the physical location of the table.
-    fn storage_url_for_table(&self, table: &TableEntry) -> Result<Url> {
-        let url = match self {
-            NativeTableStorageConfig::Gcs { bucket, .. } => {
-                let s = format!("gs://{bucket}/tables/{}", table.meta.id);
-                Url::parse(&s)?
-            }
-            NativeTableStorageConfig::Local { path } => {
-                let path =
-                    std::fs::canonicalize(path).map_err(|e| NativeError::CanonicalizePath {
-                        path: path.clone(),
-                        e,
-                    })?;
-                let path = path.join(format!("tables/{}", table.meta.id));
-                Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
-            }
-            NativeTableStorageConfig::Memory => {
-                let s = format!("memory://tables/{}", table.meta.id);
-                Url::parse(&s)?
-            }
-        };
-
-        Ok(url)
-    }
-}
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
-    conf: NativeTableStorageConfig,
+    db_id: Uuid,
+    conf: StorageConfig,
 
     /// Tables are only located in one bucket which the provided service account
     /// should have access to.
@@ -71,31 +34,17 @@ pub struct NativeTableStorage {
 
 impl NativeTableStorage {
     /// Create a native table storage provider from the given config.
-    pub fn from_config(conf: NativeTableStorageConfig) -> Result<NativeTableStorage> {
-        let store: Arc<dyn ObjectStore> = match &conf {
-            NativeTableStorageConfig::Gcs {
-                service_account_key,
-                bucket,
-            } => Arc::new(
-                GoogleCloudStorageBuilder::new()
-                    .with_bucket_name(bucket)
-                    .with_service_account_key(service_account_key)
-                    .build()?,
-            ),
-            NativeTableStorageConfig::Local { path } => {
-                Arc::new(LocalFileSystem::new_with_prefix(path)?)
-            }
-            NativeTableStorageConfig::Memory => Arc::new(InMemory::new()),
-        };
-
+    pub fn from_config(db_id: Uuid, conf: StorageConfig) -> Result<NativeTableStorage> {
+        let store = conf.new_object_store()?;
         Ok(NativeTableStorage {
+            db_id,
             conf,
             store: SharedObjectStore::new(store),
         })
     }
 
     pub async fn create_table(&self, table: &TableEntry) -> Result<NativeTable> {
-        let loc = self.conf.storage_url_for_table(table)?;
+        let loc = self.storage_url_for_table(table)?;
         let store = self.create_delta_store(loc.clone())?;
 
         let opts = Self::opts_from_ent(table)?;
@@ -122,7 +71,7 @@ impl NativeTableStorage {
     pub async fn load_table(&self, table: &TableEntry) -> Result<NativeTable> {
         let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
-        let loc = self.conf.storage_url_for_table(table)?;
+        let loc = self.storage_url_for_table(table)?;
         let delta_store = self.create_delta_store(loc)?;
         let mut table = DeltaTable::new(
             delta_store,
@@ -150,6 +99,34 @@ impl NativeTableStorage {
             _ => return Err(NativeError::NotNative(table.clone())),
         };
         Ok(opts)
+    }
+
+    /// Get a url pointing to the physical location of the table.
+    fn storage_url_for_table(&self, table: &TableEntry) -> Result<Url> {
+        let url = match &self.conf {
+            StorageConfig::Gcs { bucket, .. } => {
+                let s = format!(
+                    "gs://{bucket}/databases/{}/tables/{}",
+                    self.db_id, table.meta.id
+                );
+                Url::parse(&s)?
+            }
+            StorageConfig::Local { path } => {
+                let path =
+                    std::fs::canonicalize(path).map_err(|e| NativeError::CanonicalizePath {
+                        path: path.clone(),
+                        e,
+                    })?;
+                let path = path.join(format!("tables/{}", table.meta.id));
+                Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
+            }
+            StorageConfig::Memory => {
+                let s = format!("memory://tables/{}", table.meta.id);
+                Url::parse(&s)?
+            }
+        };
+
+        Ok(url)
     }
 }
 

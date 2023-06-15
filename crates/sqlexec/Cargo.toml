@@ -14,6 +14,7 @@ datafusion_planner = { path = "../datafusion_planner" }
 telemetry = {path = "../telemetry"}
 sqlbuiltins = {path = "../sqlbuiltins"}
 datasources = {path = "../datasources"}
+object_store_util = {path = "../object_store_util"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.68"

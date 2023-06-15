@@ -122,6 +122,9 @@ pub enum ExecError {
     #[error("Cannot create additional tunnels. Max: {max}, Current: {current}")]
     MaxTunnelCount { max: usize, current: usize },
 
+    #[error("Invalid storage configuration: {0}")]
+    InvalidStorageConfig(&'static str),
+
     #[error("internal error: {0}")]
     Internal(String),
 

@@ -1,6 +1,6 @@
 use crate::highlighter::SQLHighlighter;
 use crate::prompt::SQLPrompt;
-use crate::util::{ensure_spill_path, MetastoreMode};
+use crate::util::{ensure_spill_path, MetastoreClientMode};
 use anyhow::{anyhow, Result};
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
@@ -98,7 +98,7 @@ impl LocalSession {
         ensure_spill_path(opts.spill_path.as_ref())?;
 
         // Connect to metastore.
-        let mode = MetastoreMode::new_from_options(
+        let mode = MetastoreClientMode::new_from_options(
             opts.metastore_addr.clone(),
             opts.local_file_path.clone(),
         )?;

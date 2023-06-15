@@ -90,6 +90,7 @@ impl SessionContext {
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
     ) -> SessionContext {
@@ -121,8 +122,6 @@ impl SessionContext {
 
         let state = SessionState::with_config_rt(config, runtime);
 
-        let tables = NativeTableStorage::from_config(NativeTableStorageConfig::Memory).unwrap();
-
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
         //
@@ -134,7 +133,7 @@ impl SessionContext {
             metastore_catalog: catalog,
             metastore,
             current_session_tables: HashMap::new(),
-            tables,
+            tables: native_tables,
             vars: SessionVars::default(),
             prepared: HashMap::new(),
             portals: HashMap::new(),

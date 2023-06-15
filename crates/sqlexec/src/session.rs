@@ -12,6 +12,7 @@ use datafusion::physical_plan::{
     ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use datasources::native::access::NativeTableStorage;
 use futures::StreamExt;
 use metastoreproto::session::SessionCatalog;
 use pgrepr::format::Format;
@@ -160,11 +161,12 @@ impl Session {
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, metrics, spill_path);
+        let ctx = SessionContext::new(info, catalog, metastore, native_tables, metrics, spill_path);
         Ok(Session { ctx })
     }
 

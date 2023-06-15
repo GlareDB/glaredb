@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
 
-use crate::util::{ensure_spill_path, MetastoreMode};
+use crate::util::{ensure_spill_path, MetastoreClientMode};
 use anyhow::Result;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::ProtocolHandler;
@@ -42,7 +42,7 @@ impl Server {
         ensure_spill_path(spill_path.as_ref())?;
 
         // Connect to metastore.
-        let mode = MetastoreMode::new_from_options(metastore_addr, local_file_path)?;
+        let mode = MetastoreClientMode::new_from_options(metastore_addr, local_file_path)?;
         let metastore_client = mode.into_client().await?;
 
         let tracker = match segment_key {
