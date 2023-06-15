@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
-use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::gcp::{GcpCredential, GcpCredentialProvider, GoogleCloudStorageBuilder};
 use object_store::path::Path as ObjectStorePath;
-use object_store::{ObjectMeta, ObjectStore};
+use object_store::{CredentialProvider, ObjectMeta, ObjectStore};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
@@ -11,6 +13,27 @@ use super::csv::CsvTableProvider;
 use super::errors::Result;
 use super::parquet::ParquetTableProvider;
 use super::{file_type_from_path, FileType, TableAccessor};
+
+#[derive(Debug)]
+struct NullCredentialProvider;
+
+static NULL_CREDENTIAL: Lazy<Arc<GcpCredential>> = Lazy::new(|| {
+    Arc::new(GcpCredential {
+        bearer: "".to_owned(),
+    })
+});
+
+#[async_trait]
+impl CredentialProvider for NullCredentialProvider {
+    type Credential = GcpCredential;
+
+    async fn get_credential(&self) -> object_store::Result<Arc<Self::Credential>> {
+        Ok(Arc::clone(&NULL_CREDENTIAL))
+    }
+}
+
+static NULL_CREDENTIAL_PROVIDER: Lazy<GcpCredentialProvider> =
+    Lazy::new(|| Arc::new(NullCredentialProvider));
 
 /// Information needed for accessing an external Parquet file on Google Cloud
 /// Storage.
@@ -30,7 +53,7 @@ impl GcsTableAccess {
         let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket_name);
         match &self.service_acccount_key_json {
             Some(key) => builder.with_service_account_key(key),
-            None => builder,
+            None => builder.with_credentials(Arc::clone(&NULL_CREDENTIAL_PROVIDER)),
         }
     }
 }
