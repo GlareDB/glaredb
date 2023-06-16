@@ -6,9 +6,10 @@ use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use metastoreproto::types::catalog::TableEntry;
 use metastoreproto::types::options::{TableOptions, TableOptionsInternal};
-use object_store::{path::Path as ObjectPath, prefix::PrefixStore};
+use object_store::prefix::PrefixStore;
 use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
 use std::sync::Arc;
+use tokio::fs;
 use url::Url;
 use uuid::Uuid;
 
@@ -40,7 +41,7 @@ impl NativeTableStorage {
     }
 
     pub async fn create_table(&self, table: &TableEntry) -> Result<NativeTable> {
-        let delta_store = self.create_delta_store_for_table(table)?;
+        let delta_store = self.create_delta_store_for_table(table).await?;
 
         let opts = Self::opts_from_ent(table)?;
         let mut builder = CreateBuilder::new()
@@ -56,8 +57,6 @@ impl NativeTableStorage {
 
         let table = builder.await?;
 
-        println!("table: {}", table.table_uri());
-
         Ok(NativeTable { delta: table })
     }
 
@@ -67,7 +66,7 @@ impl NativeTableStorage {
     pub async fn load_table(&self, table: &TableEntry) -> Result<NativeTable> {
         let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
-        let delta_store = self.create_delta_store_for_table(table)?;
+        let delta_store = self.create_delta_store_for_table(table).await?;
         let mut table = DeltaTable::new(
             delta_store,
             DeltaTableConfig {
@@ -89,7 +88,10 @@ impl NativeTableStorage {
         Ok(opts)
     }
 
-    fn create_delta_store_for_table(&self, table: &TableEntry) -> Result<Arc<DeltaObjectStore>> {
+    async fn create_delta_store_for_table(
+        &self,
+        table: &TableEntry,
+    ) -> Result<Arc<DeltaObjectStore>> {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
         let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
 
@@ -99,10 +101,12 @@ impl NativeTableStorage {
             }
             StorageConfig::Local { path } => {
                 let path =
-                    std::fs::canonicalize(path).map_err(|e| NativeError::CanonicalizePath {
-                        path: path.clone(),
-                        e,
-                    })?;
+                    fs::canonicalize(path)
+                        .await
+                        .map_err(|e| NativeError::CanonicalizePath {
+                            path: path.clone(),
+                            e,
+                        })?;
                 let path = path.join(prefix);
                 Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
             }
