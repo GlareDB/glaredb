@@ -84,4 +84,12 @@ impl ObjectStore for SharedObjectStore {
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
         self.inner.copy_if_not_exists(from, to).await
     }
+
+    async fn rename(&self, from: &Path, to: &Path) -> Result<()> {
+        self.rename(from, to).await
+    }
+
+    async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
+        self.inner.rename_if_not_exists(from, to).await
+    }
 }

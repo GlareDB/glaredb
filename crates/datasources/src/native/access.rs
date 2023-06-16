@@ -40,14 +40,12 @@ impl NativeTableStorage {
     }
 
     pub async fn create_table(&self, table: &TableEntry) -> Result<NativeTable> {
-        let loc = self.storage_url_for_table(table)?;
-        let store = self.create_delta_store(loc.clone())?;
+        let delta_store = self.create_delta_store_for_table(table)?;
 
         let opts = Self::opts_from_ent(table)?;
         let mut builder = CreateBuilder::new()
             .with_table_name(&table.meta.name)
-            .with_location(loc)
-            .with_object_store(store)
+            .with_object_store(delta_store)
             .with_save_mode(SaveMode::ErrorIfExists);
         for col in &opts.columns {
             builder =
@@ -58,6 +56,8 @@ impl NativeTableStorage {
 
         let table = builder.await?;
 
+        println!("table: {}", table.table_uri());
+
         Ok(NativeTable { delta: table })
     }
 
@@ -67,8 +67,7 @@ impl NativeTableStorage {
     pub async fn load_table(&self, table: &TableEntry) -> Result<NativeTable> {
         let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
-        let loc = self.storage_url_for_table(table)?;
-        let delta_store = self.create_delta_store(loc)?;
+        let delta_store = self.create_delta_store_for_table(table)?;
         let mut table = DeltaTable::new(
             delta_store,
             DeltaTableConfig {
@@ -82,13 +81,6 @@ impl NativeTableStorage {
         Ok(NativeTable { delta: table })
     }
 
-    fn create_delta_store(&self, loc: Url) -> Result<Arc<DeltaObjectStore>> {
-        let prefix = ObjectPath::parse(loc.path())?;
-        let prefixed = PrefixStore::new(self.store.clone(), prefix);
-        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), loc);
-        Ok(Arc::new(delta_store))
-    }
-
     fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
         let opts = match &table.options {
             TableOptions::Internal(opts) => opts,
@@ -97,15 +89,13 @@ impl NativeTableStorage {
         Ok(opts)
     }
 
-    /// Get a url pointing to the physical location of the table.
-    fn storage_url_for_table(&self, table: &TableEntry) -> Result<Url> {
+    fn create_delta_store_for_table(&self, table: &TableEntry) -> Result<Arc<DeltaObjectStore>> {
+        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
+        let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
+
         let url = match &self.conf {
             StorageConfig::Gcs { bucket, .. } => {
-                let s = format!(
-                    "gs://{bucket}/databases/{}/tables/{}",
-                    self.db_id, table.meta.id
-                );
-                Url::parse(&s)?
+                Url::parse(&format!("gs://{}/{}", bucket, prefix))?
             }
             StorageConfig::Local { path } => {
                 let path =
@@ -113,16 +103,17 @@ impl NativeTableStorage {
                         path: path.clone(),
                         e,
                     })?;
-                let path = path.join(format!("tables/{}", table.meta.id));
+                let path = path.join(prefix);
                 Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
             }
             StorageConfig::Memory => {
-                let s = format!("memory://tables/{}", table.meta.id);
+                let s = format!("memory://{}", prefix);
                 Url::parse(&s)?
             }
         };
 
-        Ok(url)
+        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
+        Ok(Arc::new(delta_store))
     }
 }
 

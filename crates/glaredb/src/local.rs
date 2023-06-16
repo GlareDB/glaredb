@@ -149,8 +149,8 @@ impl LocalSession {
         println!("Type \\help for help.");
 
         let info = match (&self.opts.metastore_addr, &self.opts.data_dir) {
-            (Some(addr), None) => format!("Persisting catalog on remote metastore: {addr}"),
-            (None, Some(path)) => format!("Persisting catalog at path: {}", path.display()),
+            (Some(addr), None) => format!("Persisting catalog on remote metastore: {addr}"), // TODO: Should we continue to allow this?
+            (None, Some(path)) => format!("Persisting database at path: {}", path.display()),
             (None, None) => "Using in-memory catalog".to_string(),
             _ => unreachable!(),
         };
