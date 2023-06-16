@@ -2043,7 +2043,7 @@ dependencies = [
 [[package]]
 name = "deltalake"
 version = "0.13.0"
-source = "git+https://github.com/delta-io/delta-rs.git?branch=main#8294c5f0e6fe441fa735a10726a81fc74e506c97"
+source = "git+https://github.com/delta-io/delta-rs.git?branch=main#0dda99bbb080d5cf8a6ecc350d0a789e7fa56549"
 dependencies = [
  "arrow",
  "arrow-array",
