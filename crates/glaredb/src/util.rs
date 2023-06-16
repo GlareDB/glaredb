@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tonic::transport::Channel;
 use tracing::info;
 
@@ -48,19 +48,4 @@ impl MetastoreClientMode {
             Self::LocalInMemory => Ok(start_inprocess_inmemory().await?),
         }
     }
-}
-
-/// Ensure that the spill path exists and that it's writable if provided.
-pub fn ensure_spill_path<P: AsRef<Path>>(path: Option<P>) -> Result<()> {
-    if let Some(p) = path {
-        let path = p.as_ref();
-        info!(?path, "checking spill path");
-
-        fs::create_dir_all(path)?;
-
-        let file = path.join("glaredb_startup_spill_check");
-        fs::write(&file, vec![0, 1, 2, 3])?;
-        fs::remove_file(&file)?;
-    }
-    Ok(())
 }

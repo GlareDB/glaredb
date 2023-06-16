@@ -6,12 +6,8 @@ use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use metastoreproto::types::catalog::TableEntry;
 use metastoreproto::types::options::{TableOptions, TableOptionsInternal};
-use object_store::{
-    gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
-    path::Path as ObjectPath, prefix::PrefixStore, Error as ObjectStoreError, ObjectStore,
-};
+use object_store::{path::Path as ObjectPath, prefix::PrefixStore};
 use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
-use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;

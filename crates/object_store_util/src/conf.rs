@@ -1,6 +1,6 @@
 use object_store::{
     gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
-    path::Path as ObjectPath, prefix::PrefixStore, Error as ObjectStoreError, ObjectStore,
+    Error as ObjectStoreError, ObjectStore,
 };
 use std::path::PathBuf;
 use std::sync::Arc;

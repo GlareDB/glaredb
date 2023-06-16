@@ -161,6 +161,7 @@ impl Cli {
                     }),
                     Some(temp_dir.path().to_path_buf()),
                     None,
+                    None,
                     /* integration_testing = */ true,
                 )
                 .await?;

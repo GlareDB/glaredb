@@ -112,6 +112,8 @@ fn main() -> Result<()> {
                 }),
                 // Run the SLT runner with in-memory metastore.
                 None,
+                // In-memory table storage.
+                None,
                 // Spill-path:
                 None,
                 // Integration testing:

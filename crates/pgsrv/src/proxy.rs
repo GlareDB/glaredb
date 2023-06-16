@@ -134,7 +134,7 @@ pub const GLAREDB_MAX_TUNNEL_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
 };
 
 /// Param key for bucket to use for data storage.
-pub const GLAREDB_STORAGE_BUCKET_KEY: &str = "storage_bucket";
+pub const GLAREDB_GCS_STORAGE_BUCKET_KEY: &str = "gcs_storage_bucket";
 
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.

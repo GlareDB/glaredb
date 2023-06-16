@@ -19,14 +19,14 @@ use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datasources::native::access::{NativeTableStorage, NativeTableStorageConfig};
+use datasources::native::access::NativeTableStorage;
 use futures::future::BoxFuture;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use metastore::errors::ResolveErrorStrategy;
 use metastoreproto::session::SessionCatalog;
-use metastoreproto::types::catalog::{CatalogEntry, EntryType, TableEntry};
-use metastoreproto::types::options::{TableOptions, TableOptionsGcs, TableOptionsInternal};
+use metastoreproto::types::catalog::{CatalogEntry, EntryType};
+use metastoreproto::types::options::TableOptions;
 use metastoreproto::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -239,7 +239,7 @@ impl SessionContext {
         };
 
         // Create native table.
-        let table = self.tables.create_table(&ent).await?;
+        let table = self.tables.create_table(ent).await?;
         info!(loc = %table.storage_location(), "native table created");
 
         Ok(())

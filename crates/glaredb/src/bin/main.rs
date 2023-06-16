@@ -4,15 +4,12 @@ use glaredb::local::{LocalClientOpts, LocalSession};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
-use object_store::local::LocalFileSystem;
-use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
 use tracing::info;
@@ -75,10 +72,18 @@ enum Commands {
         #[clap(short, long, value_parser)]
         password: Option<String>,
 
-        /// Optional file path to store metastore data (to enable persistent
-        /// data storage when in-process store is launched).
+        /// Optional file path for persisting data.
+        ///
+        /// Catalog data and user data will be stored in this directory.
         #[clap(short = 'f', long, value_parser)]
-        local_file_path: Option<PathBuf>,
+        data_dir: Option<PathBuf>,
+
+        /// Path to GCP service account to use when connecting to GCS.
+        ///
+        /// Sessions must be proxied through pgsrv, otherwise attempting to
+        /// create a session will fail.
+        #[clap(short, long, value_parser)]
+        service_account_path: Option<String>,
 
         /// API key for segment.
         #[clap(long, value_parser)]
@@ -161,7 +166,8 @@ fn main() -> Result<()> {
             metastore_addr,
             user,
             password,
-            local_file_path,
+            data_dir,
+            service_account_path,
             mut segment_key,
             spill_path,
         } => {
@@ -173,12 +179,18 @@ fn main() -> Result<()> {
                 None => Box::new(PasswordlessAuthenticator),
             };
 
+            let service_account_key = match service_account_path {
+                Some(path) => Some(std::fs::read_to_string(path)?),
+                None => None,
+            };
+
             begin_server(
                 &bind,
                 metastore_addr,
                 segment_key,
                 auth,
-                local_file_path,
+                data_dir,
+                service_account_key,
                 spill_path,
             )?;
         }
@@ -249,7 +261,8 @@ fn begin_server(
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     authenticator: Box<dyn LocalAuthenticator>,
-    local_file_path: Option<PathBuf>,
+    data_dir: Option<PathBuf>,
+    service_account_key: Option<String>,
     spill_path: Option<PathBuf>,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;
@@ -260,7 +273,8 @@ fn begin_server(
             metastore_addr,
             segment_key,
             authenticator,
-            local_file_path,
+            data_dir,
+            service_account_key,
             spill_path,
             /* integration_testing = */ false,
         )

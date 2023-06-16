@@ -1,6 +1,6 @@
 use crate::highlighter::SQLHighlighter;
 use crate::prompt::SQLPrompt;
-use crate::util::{ensure_spill_path, MetastoreClientMode};
+use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
@@ -18,8 +18,8 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
-use sqlexec::engine::SessionLimits;
-use sqlexec::engine::{Engine, TrackedSession};
+use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
+use sqlexec::engine::{EngineStorageConfig, SessionLimits};
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
 use std::env;
@@ -50,10 +50,11 @@ pub struct LocalClientOpts {
     #[clap(long, value_parser)]
     pub spill_path: Option<PathBuf>,
 
-    /// Local file path to store database catalog (for a local persistent
-    /// store).
+    /// Optional file path for persisting data.
+    ///
+    /// Catalog data and user data will be stored in this directory.
     #[clap(short = 'f', long, value_parser)]
-    pub local_file_path: Option<PathBuf>,
+    pub data_dir: Option<PathBuf>,
 
     /// Display output mode.
     #[arg(long, value_enum, default_value_t=OutputMode::Table)]
@@ -89,22 +90,32 @@ pub struct LocalSession {
 
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
-        if opts.metastore_addr.is_some() && opts.local_file_path.is_some() {
+        if opts.metastore_addr.is_some() && opts.data_dir.is_some() {
             return Err(anyhow!(
                 "Cannot specify both a metastore address and a local file path"
             ));
         }
 
-        ensure_spill_path(opts.spill_path.as_ref())?;
-
         // Connect to metastore.
         let mode = MetastoreClientMode::new_from_options(
             opts.metastore_addr.clone(),
-            opts.local_file_path.clone(),
+            opts.data_dir.clone(),
         )?;
         let metastore_client = mode.into_client().await?;
         let tracker = Arc::new(Tracker::Nop);
-        let engine = Engine::new(metastore_client, tracker, opts.spill_path.clone()).await?;
+
+        let storage_conf = match &opts.data_dir {
+            Some(path) => EngineStorageConfig::Local { path: path.clone() },
+            None => EngineStorageConfig::Memory,
+        };
+
+        let engine = Engine::new(
+            metastore_client,
+            storage_conf,
+            tracker,
+            opts.spill_path.clone(),
+        )
+        .await?;
 
         Ok(LocalSession {
             sess: engine
@@ -115,6 +126,7 @@ impl LocalSession {
                     Uuid::nil(),
                     "glaredb".to_string(),
                     SessionLimits::default(),
+                    SessionStorageConfig::default(),
                 )
                 .await?,
             _engine: engine,
@@ -136,7 +148,7 @@ impl LocalSession {
         println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
         println!("Type \\help for help.");
 
-        let info = match (&self.opts.metastore_addr, &self.opts.local_file_path) {
+        let info = match (&self.opts.metastore_addr, &self.opts.data_dir) {
             (Some(addr), None) => format!("Persisting catalog on remote metastore: {addr}"),
             (None, Some(path)) => format!("Persisting catalog at path: {}", path.display()),
             (None, None) => "Using in-memory catalog".to_string(),
@@ -242,7 +254,7 @@ impl LocalSession {
             }
             ("\\open", Some(path)) => {
                 let new_opts = LocalClientOpts {
-                    local_file_path: Some(PathBuf::from(path)),
+                    data_dir: Some(PathBuf::from(path)),
                     metastore_addr: None,
                     ..self.opts.clone()
                 };

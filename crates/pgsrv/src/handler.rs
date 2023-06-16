@@ -6,8 +6,8 @@ use crate::messages::{
     SqlState, StartupMessage, TransactionStatus,
 };
 use crate::proxy::{
-    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
-    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_STORAGE_BUCKET_KEY,
+    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_GCS_STORAGE_BUCKET_KEY,
+    GLAREDB_MAX_DATASOURCE_COUNT_KEY, GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY,
     GLAREDB_USER_ID_KEY,
 };
 use crate::ssl::{Connection, SslConfig};
@@ -164,7 +164,7 @@ impl ProtocolHandler {
             .read_proxy_key_val(&mut framed, &GLAREDB_MAX_TUNNEL_COUNT_KEY, &params)
             .await?;
 
-        let storage_bucket = params.get(GLAREDB_STORAGE_BUCKET_KEY).cloned();
+        let storage_bucket = params.get(GLAREDB_GCS_STORAGE_BUCKET_KEY).cloned();
 
         // Standard postgres params. These values are used only for informational purposes.
         let user_name = params.get("user").cloned().unwrap_or_default();

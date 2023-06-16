@@ -5,13 +5,15 @@ use datasources::native::access::NativeTableStorage;
 use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastoreproto::session::SessionCatalog;
 use object_store_util::conf::StorageConfig;
+use std::fs;
 use std::ops::{Deref, DerefMut};
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use telemetry::Tracker;
 use tonic::transport::Channel;
-use tracing::debug;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Static information for database sessions.
@@ -34,13 +36,13 @@ pub struct SessionInfo {
     pub storage: SessionStorageConfig,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SessionStorageConfig {
     /// The bucket that should be used for database storage for a session.
     ///
     /// If this is omitted, the engine storage config should either be set to
     /// local or in-memory.
-    gcs_bucket: Option<String>,
+    pub gcs_bucket: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -149,6 +151,7 @@ impl Engine {
     }
 
     /// Create a new session with the given id.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new_session(
         &self,
         user_id: Uuid,
@@ -220,4 +223,19 @@ impl Drop for TrackedSession {
         let prev = self.session_counter.fetch_sub(1, Ordering::Relaxed);
         debug!(session_counter = prev - 1, "session closed");
     }
+}
+
+/// Ensure that the spill path exists and that it's writable if provided.
+pub fn ensure_spill_path<P: AsRef<Path>>(path: Option<P>) -> Result<()> {
+    if let Some(p) = path {
+        let path = p.as_ref();
+        info!(?path, "checking spill path");
+
+        fs::create_dir_all(path)?;
+
+        let file = path.join("glaredb_startup_spill_check");
+        fs::write(&file, vec![0, 1, 2, 3])?;
+        fs::remove_file(&file)?;
+    }
+    Ok(())
 }
