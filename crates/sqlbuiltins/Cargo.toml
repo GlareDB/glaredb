@@ -14,7 +14,7 @@ datasources = {path = "../datasources"}
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.68"
-serde_json = "1.0.96"
+serde_json = "1.0.97"
 sqlparser = "0.34.0"
 datafusion = {workspace = true}
 futures = "0.3.28"
