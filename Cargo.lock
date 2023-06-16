@@ -3615,9 +3615,9 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "mysql-common-derive"
-version = "0.30.1"
+version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6947d6c3519c04827848fbe59982272db0ebc56033a488e5e3a1993af374755b"
+checksum = "56b0d8a0db9bf6d2213e11f2c701cb91387b0614361625ab7b9743b41aa4938f"
 dependencies = [
  "darling 0.20.1",
  "heck",
@@ -3669,9 +3669,9 @@ dependencies = [
 
 [[package]]
 name = "mysql_common"
-version = "0.30.4"
+version = "0.30.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73b8fb568c9537cf4f1ad39e2542aa74a66bf89883e550df2cb30a8f0c0f0355"
+checksum = "66ab0ba05e763898c67e63bd734102ff331e699989b1a8a89135f516e57e5ffd"
 dependencies = [
  "base64 0.21.2",
  "bigdecimal",
@@ -6533,7 +6533,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
