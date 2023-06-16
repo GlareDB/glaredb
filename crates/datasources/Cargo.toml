@@ -34,7 +34,7 @@ ring = "0.16.20"
 rustls = "0.21.1"
 rust_decimal = { version = "1.29.0", features = ["db-tokio-postgres"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.96"
+serde_json = "1.0.97"
 snowflake_connector = { path = "../snowflake_connector" }
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
 tempfile = "3.6.0"
