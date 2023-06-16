@@ -6,7 +6,7 @@ use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use metastoreproto::types::options::{
-    DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
+    CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -114,6 +114,7 @@ impl std::fmt::Debug for Insert {
 pub enum DdlPlan {
     CreateExternalDatabase(CreateExternalDatabase),
     CreateTunnel(CreateTunnel),
+    CreateCredentials(CreateCredentials),
     CreateSchema(CreateSchema),
     CreateTempTable(CreateTempTable),
     CreateExternalTable(CreateExternalTable),
@@ -128,6 +129,7 @@ pub enum DdlPlan {
     DropSchemas(DropSchemas),
     DropDatabase(DropDatabase),
     DropTunnel(DropTunnel),
+    DropCredentials(DropCredentials),
 }
 
 impl From<DdlPlan> for LogicalPlan {
@@ -149,6 +151,13 @@ pub struct CreateTunnel {
     pub name: String,
     pub if_not_exists: bool,
     pub options: TunnelOptions,
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateCredentials {
+    pub name: String,
+    pub options: CredentialsOptions,
+    pub comment: String,
 }
 
 #[derive(Clone, Debug)]
@@ -226,6 +235,12 @@ pub struct DropDatabase {
 
 #[derive(Clone, Debug)]
 pub struct DropTunnel {
+    pub names: Vec<String>,
+    pub if_exists: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DropCredentials {
     pub names: Vec<String>,
     pub if_exists: bool,
 }

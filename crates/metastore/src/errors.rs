@@ -30,6 +30,9 @@ pub enum MetastoreError {
     #[error("Missing tunnel: {0}")]
     MissingTunnel(String),
 
+    #[error("Missing credentials: {0}")]
+    MissingCredentials(String),
+
     #[error("Missing schema: {0}")]
     MissingNamedSchema(String),
 
@@ -41,6 +44,12 @@ pub enum MetastoreError {
 
     #[error("Tunnel '{tunnel}' not supported by datasource '{datasource}'")]
     TunnelNotSupportedByDatasource { tunnel: String, datasource: String },
+
+    #[error("Credentials '{credentials}' not supported by datasource '{datasource}'")]
+    CredentialsNotSupportedByDatasource {
+        credentials: String,
+        datasource: String,
+    },
 
     #[error("Tunnel '{tunnel} not supported for {action}'")]
     TunnelNotSupportedForAction {

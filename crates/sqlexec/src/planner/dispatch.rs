@@ -19,9 +19,9 @@ use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{
-    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_DATABASES,
-    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
-    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
+    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
+    GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS,
+    GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::{
@@ -488,6 +488,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_databases())
         } else if GLARE_TUNNELS.matches(schema, name) {
             Arc::new(self.build_glare_tunnels())
+        } else if GLARE_CREDENTIALS.matches(schema, name) {
+            Arc::new(self.build_glare_credentials())
         } else if GLARE_TABLES.matches(schema, name) {
             Arc::new(self.build_glare_tables())
         } else if GLARE_COLUMNS.matches(schema, name) {
@@ -583,6 +585,47 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(tunnel_name.finish()),
                 Arc::new(builtin.finish()),
                 Arc::new(tunnel_type.finish()),
+            ],
+        )
+        .unwrap();
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+    }
+
+    fn build_glare_credentials(&self) -> MemTable {
+        let arrow_schema = Arc::new(GLARE_CREDENTIALS.arrow_schema());
+
+        let mut oid = UInt32Builder::new();
+        let mut credentials_name = StringBuilder::new();
+        let mut builtin = BooleanBuilder::new();
+        let mut provider = StringBuilder::new();
+        let mut comment = StringBuilder::new();
+
+        for creds in self
+            .catalog()
+            .iter_entries()
+            .filter(|ent| ent.entry_type() == EntryType::Credentials)
+        {
+            oid.append_value(creds.oid);
+            credentials_name.append_value(&creds.entry.get_meta().name);
+            builtin.append_value(creds.builtin);
+
+            let creds = match creds.entry {
+                CatalogEntry::Credentials(creds) => creds,
+                other => unreachable!("unexpected entry type: {other:?}"),
+            };
+
+            provider.append_value(creds.options.as_str());
+            comment.append_value(&creds.comment);
+        }
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oid.finish()),
+                Arc::new(credentials_name.finish()),
+                Arc::new(builtin.finish()),
+                Arc::new(provider.finish()),
+                Arc::new(comment.finish()),
             ],
         )
         .unwrap();

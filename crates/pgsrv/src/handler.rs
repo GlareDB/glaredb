@@ -7,8 +7,8 @@ use crate::messages::{
 };
 use crate::proxy::{
     ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_GCS_STORAGE_BUCKET_KEY,
-    GLAREDB_MAX_DATASOURCE_COUNT_KEY, GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY,
-    GLAREDB_USER_ID_KEY,
+    GLAREDB_MAX_CREDENTIALS_COUNT_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
+    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
@@ -157,6 +157,9 @@ impl ProtocolHandler {
         let max_tunnel_count = self
             .read_proxy_key_val(&mut framed, &GLAREDB_MAX_TUNNEL_COUNT_KEY, &params)
             .await?;
+        let max_credentials_count = self
+            .read_proxy_key_val(&mut framed, &GLAREDB_MAX_CREDENTIALS_COUNT_KEY, &params)
+            .await?;
 
         let storage_bucket = params.get(GLAREDB_GCS_STORAGE_BUCKET_KEY).cloned();
 
@@ -242,6 +245,7 @@ impl ProtocolHandler {
                     max_datasource_count: Some(max_datasource_count),
                     memory_limit_bytes: Some(memory_limit_bytes),
                     max_tunnel_count: Some(max_tunnel_count),
+                    max_credentials_count: Some(max_credentials_count),
                 },
                 SessionStorageConfig {
                     gcs_bucket: storage_bucket,
@@ -687,6 +691,9 @@ where
                 Self::command_complete(conn, "CREATE DATABASE").await?
             }
             ExecutionResult::CreateTunnel => Self::command_complete(conn, "CREATE TUNNEL").await?,
+            ExecutionResult::CreateCredentials => {
+                Self::command_complete(conn, "CREATE CREDENTIALS").await?
+            }
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
             ExecutionResult::CreateConnection => {
@@ -707,6 +714,9 @@ where
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
             ExecutionResult::DropDatabase => Self::command_complete(conn, "DROP DATABASE").await?,
             ExecutionResult::DropTunnel => Self::command_complete(conn, "DROP TUNNEL").await?,
+            ExecutionResult::DropCredentials => {
+                Self::command_complete(conn, "DROP CREDENTIALS").await?
+            }
         };
         Ok(())
     }

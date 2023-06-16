@@ -1,4 +1,6 @@
-use super::options::{InternalColumnDefinition, TableOptionsInternal, TunnelOptions};
+use super::options::{
+    CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
+};
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::catalog;
 use crate::types::options::{DatabaseOptions, TableOptions};
@@ -53,6 +55,7 @@ pub enum CatalogEntry {
     View(ViewEntry),
     Tunnel(TunnelEntry),
     Function(FunctionEntry),
+    Credentials(CredentialsEntry),
 }
 
 impl CatalogEntry {
@@ -64,6 +67,7 @@ impl CatalogEntry {
             CatalogEntry::Table(_) => EntryType::Table,
             CatalogEntry::Tunnel(_) => EntryType::Tunnel,
             CatalogEntry::Function(_) => EntryType::Function,
+            CatalogEntry::Credentials(_) => EntryType::Credentials,
         }
     }
 
@@ -76,6 +80,7 @@ impl CatalogEntry {
             CatalogEntry::Table(table) => &table.meta,
             CatalogEntry::Tunnel(tunnel) => &tunnel.meta,
             CatalogEntry::Function(func) => &func.meta,
+            CatalogEntry::Credentials(creds) => &creds.meta,
         }
     }
 
@@ -88,6 +93,7 @@ impl CatalogEntry {
             CatalogEntry::Table(table) => &mut table.meta,
             CatalogEntry::Tunnel(tunnel) => &mut tunnel.meta,
             CatalogEntry::Function(func) => &mut func.meta,
+            CatalogEntry::Credentials(creds) => &mut creds.meta,
         }
     }
 }
@@ -102,6 +108,9 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
             catalog::catalog_entry::Entry::View(v) => CatalogEntry::View(v.try_into()?),
             catalog::catalog_entry::Entry::Tunnel(v) => CatalogEntry::Tunnel(v.try_into()?),
             catalog::catalog_entry::Entry::Function(v) => CatalogEntry::Function(v.try_into()?),
+            catalog::catalog_entry::Entry::Credentials(v) => {
+                CatalogEntry::Credentials(v.try_into()?)
+            }
         })
     }
 }
@@ -123,6 +132,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
             CatalogEntry::Tunnel(v) => catalog::catalog_entry::Entry::Tunnel(v.into()),
             CatalogEntry::Function(v) => catalog::catalog_entry::Entry::Function(v.into()),
+            CatalogEntry::Credentials(v) => catalog::catalog_entry::Entry::Credentials(v.into()),
         };
         Ok(catalog::CatalogEntry { entry: Some(ent) })
     }
@@ -136,6 +146,7 @@ pub enum EntryType {
     View,
     Tunnel,
     Function,
+    Credentials,
 }
 
 impl EntryType {
@@ -147,6 +158,7 @@ impl EntryType {
             EntryType::View => "view",
             EntryType::Tunnel => "tunnel",
             EntryType::Function => "function",
+            EntryType::Credentials => "credentials",
         }
     }
 }
@@ -173,6 +185,7 @@ impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
             catalog::entry_meta::EntryType::View => EntryType::View,
             catalog::entry_meta::EntryType::Tunnel => EntryType::Tunnel,
             catalog::entry_meta::EntryType::Function => EntryType::Function,
+            catalog::entry_meta::EntryType::Credentials => EntryType::Credentials,
         })
     }
 }
@@ -186,6 +199,7 @@ impl From<EntryType> for catalog::entry_meta::EntryType {
             EntryType::View => catalog::entry_meta::EntryType::View,
             EntryType::Tunnel => catalog::entry_meta::EntryType::Tunnel,
             EntryType::Function => catalog::entry_meta::EntryType::Function,
+            EntryType::Credentials => catalog::entry_meta::EntryType::Credentials,
         }
     }
 }
@@ -463,6 +477,35 @@ impl From<FunctionEntry> for catalog::FunctionEntry {
         catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary)]
+pub struct CredentialsEntry {
+    pub meta: EntryMeta,
+    pub options: CredentialsOptions,
+    pub comment: String,
+}
+
+impl TryFrom<catalog::CredentialsEntry> for CredentialsEntry {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::CredentialsEntry) -> Result<Self, Self::Error> {
+        let meta: EntryMeta = value.meta.required("meta")?;
+        Ok(CredentialsEntry {
+            meta,
+            options: value.options.required("options")?,
+            comment: value.comment,
+        })
+    }
+}
+
+impl From<CredentialsEntry> for catalog::CredentialsEntry {
+    fn from(value: CredentialsEntry) -> Self {
+        catalog::CredentialsEntry {
+            meta: Some(value.meta.into()),
+            options: Some(value.options.into()),
+            comment: value.comment,
         }
     }
 }

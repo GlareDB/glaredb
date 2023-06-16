@@ -115,7 +115,7 @@ pub const GLAREDB_USER_ID_KEY: UuidProxyKey = UuidProxyKey {
     default: Uuid::nil(),
 };
 
-/// Param key for the max number ofdatasources allowed. Added by pgsrv during proxying.
+/// Param key for the max number of datasources allowed. Added by pgsrv during proxying.
 pub const GLAREDB_MAX_DATASOURCE_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "max_datasource_count",
     default: 100,
@@ -127,9 +127,15 @@ pub const GLAREDB_MEMORY_LIMIT_BYTES_KEY: UsizeProxyKey = UsizeProxyKey {
     default: 0,
 };
 
-/// Param key for the memory limit in bytes. Added by pgsrv during proxying.
+/// Param key for the max number of tunnels allowed. Added by pgsrv during proxying.
 pub const GLAREDB_MAX_TUNNEL_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     key: "max_tunnel_count",
+    default: 100,
+};
+
+/// Param key for the max number of credentials allowed. Added by pgsrv during proxying.
+pub const GLAREDB_MAX_CREDENTIALS_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
+    key: "max_credentials_count",
     default: 100,
 };
 
