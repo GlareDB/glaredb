@@ -221,7 +221,7 @@ impl fmt::Display for NativeTableInner {
             .delta
             .state
             .current_metadata()
-            .and_then(|m| m.name.as_ref().map(|s| s.as_str()))
+            .and_then(|m| m.name.as_deref())
             .unwrap_or("unknown");
         write!(f, "NativeTable: {}", name)
     }

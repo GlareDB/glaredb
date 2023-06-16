@@ -67,6 +67,8 @@ pub struct DatabaseDetails {
     pub database_id: String,
     /// ID of the user initiating the connection (UUID).
     pub user_id: String,
+    /// Bucket for session storage.
+    pub gcs_storage_bucket: String,
     /// Max number of data sources allowed
     pub max_datasource_count: usize,
     /// Memory limit applied to session in bytes
