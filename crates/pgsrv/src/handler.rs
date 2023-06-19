@@ -168,7 +168,7 @@ impl ProtocolHandler {
 
         // Handle password.
         match self.conf.authenticator.password_mode() {
-            PasswordMode::RequiredCleartext => {
+            PasswordMode::RequireCleartext => {
                 framed
                     .send(BackendMessage::AuthenticationCleartextPassword)
                     .await?;
@@ -203,28 +203,25 @@ impl ProtocolHandler {
                     None => return Ok(()),
                 }
             }
-            PasswordMode::RequireNoPassword => {
+            PasswordMode::NoPassword { drop_auth_messages } => {
                 // Nothin to do.
                 framed.send(BackendMessage::AuthenticationOk).await?;
-            }
-            PasswordMode::IgnoreAuth => {
+
                 // Continually read all auth messages from the frontend. These
                 // are ignored.
-                loop {
-                    let msg = framed.peek().await?;
-                    match msg {
-                        Some(msg) if msg.is_auth_message() => {
-                            let dropped = framed.read().await?; // Drop auth message.
-                            warn!(?dropped, "dropping authentication message");
+                if drop_auth_messages {
+                    loop {
+                        let msg = framed.peek().await?;
+                        match msg {
+                            Some(msg) if msg.is_auth_message() => {
+                                let dropped = framed.read().await?; // Drop auth message.
+                                warn!(?dropped, "dropping authentication message");
+                            }
+                            Some(_msg) => break, // We peeked a message not related to auth.
+                            None => return Ok(()), // Connection closed.
                         }
-                        Some(_msg) => break, // We peeked a message not related to auth.
-                        None => return Ok(()), // Connection closed.
                     }
                 }
-
-                // And finally send back auth ok after dropping all auth
-                // messages.
-                framed.send(BackendMessage::AuthenticationOk).await?;
             }
         }
 

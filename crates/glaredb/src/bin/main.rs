@@ -6,9 +6,7 @@ use glaredb::proxy::Proxy;
 use glaredb::server::{Server, ServerConfig};
 use object_store::local::LocalFileSystem;
 use object_store::{gcp::GoogleCloudStorageBuilder, memory::InMemory, ObjectStore};
-use pgsrv::auth::{
-    IgnoreAuthAuthenticator, LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator,
-};
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -181,10 +179,11 @@ fn main() -> Result<()> {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
-            let auth: Box<dyn LocalAuthenticator> = match (password, ignore_auth) {
-                (Some(password), _) => Box::new(SingleUserAuthenticator { user, password }),
-                (None, false) => Box::new(PasswordlessAuthenticator),
-                (None, true) => Box::new(IgnoreAuthAuthenticator),
+            let auth: Box<dyn LocalAuthenticator> = match password {
+                Some(password) => Box::new(SingleUserAuthenticator { user, password }),
+                None => Box::new(PasswordlessAuthenticator {
+                    drop_auth_messages: ignore_auth,
+                }),
             };
 
             begin_server(

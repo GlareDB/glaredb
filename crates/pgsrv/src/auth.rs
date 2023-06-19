@@ -8,13 +8,18 @@ pub enum PasswordMode {
     /// A cleartext password is required.
     ///
     /// Should error if no password is provided.
-    RequiredCleartext,
+    RequireCleartext,
 
-    /// Requires that no password is provided.
-    RequireNoPassword,
-
-    /// Ignore all authentication messages.
-    IgnoreAuth,
+    /// No password is required.
+    NoPassword {
+        /// Drop any authentication messages as well.
+        ///
+        /// A compliant frontend should not send any additional authentication
+        /// messages after receiving AuthenticationOk. However, node-postgres
+        /// will attempt to send a password message regardless. Setting this to
+        /// true will drop that message.
+        drop_auth_messages: bool,
+    },
 }
 
 /// Authenticate connection on the glaredb node itself.
@@ -32,7 +37,7 @@ pub struct SingleUserAuthenticator {
 
 impl LocalAuthenticator for SingleUserAuthenticator {
     fn password_mode(&self) -> PasswordMode {
-        PasswordMode::RequiredCleartext
+        PasswordMode::RequireCleartext
     }
 
     fn authenticate(&self, user: &str, password: &str, _db_name: &str) -> Result<()> {
@@ -48,26 +53,16 @@ impl LocalAuthenticator for SingleUserAuthenticator {
 }
 
 /// Require no password provided.
-#[derive(Debug, Clone, Copy)]
-pub struct PasswordlessAuthenticator;
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PasswordlessAuthenticator {
+    pub drop_auth_messages: bool,
+}
 
 impl LocalAuthenticator for PasswordlessAuthenticator {
     fn password_mode(&self) -> PasswordMode {
-        PasswordMode::RequireNoPassword
-    }
-
-    fn authenticate(&self, _user: &str, _password: &str, _db_name: &str) -> Result<()> {
-        Ok(())
-    }
-}
-
-/// Allow any password.
-#[derive(Debug, Clone, Copy)]
-pub struct IgnoreAuthAuthenticator;
-
-impl LocalAuthenticator for IgnoreAuthAuthenticator {
-    fn password_mode(&self) -> PasswordMode {
-        PasswordMode::IgnoreAuth
+        PasswordMode::NoPassword {
+            drop_auth_messages: self.drop_auth_messages,
+        }
     }
 
     fn authenticate(&self, _user: &str, _password: &str, _db_name: &str) -> Result<()> {

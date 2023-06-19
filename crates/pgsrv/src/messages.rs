@@ -122,10 +122,7 @@ impl FrontendMessage {
     }
 
     pub(crate) fn is_auth_message(&self) -> bool {
-        match self {
-            FrontendMessage::PasswordMessage { .. } => true,
-            _ => false,
-        }
+        matches!(self, FrontendMessage::PasswordMessage { .. })
     }
 }
 
