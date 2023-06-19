@@ -18,6 +18,13 @@ use tracing::{debug, trace};
 
 /// A connection that can encode and decode postgres protocol messages.
 pub struct FramedConn<C> {
+    /// A peeked frontend message.
+    ///
+    /// `None` => No message has been peaked.
+    /// `Some(None)` => Connection has been terminated.
+    /// `Some(Some(msg))` => A frontend message has been peeked.
+    peeked: Option<Option<FrontendMessage>>,
+
     conn: Buffer<Framed<Connection<C>, PgCodec>, BackendMessage>,
 }
 
@@ -28,6 +35,7 @@ where
     /// Create a new framed connection.
     pub fn new(conn: Connection<C>) -> Self {
         FramedConn {
+            peeked: None,
             conn: Framed::new(conn, PgCodec::new()).buffer(16),
         }
     }
@@ -36,12 +44,30 @@ where
     ///
     /// Returns `None` once the underlying connection terminates.
     pub async fn read(&mut self) -> Result<Option<FrontendMessage>> {
+        if let Some(peeked) = self.peeked.take() {
+            return Ok(peeked);
+        }
         let msg = self.conn.try_next().await?;
         match &msg {
             Some(msg) => trace!(?msg, "read message"),
             None => trace!("read message (None)"),
         };
         Ok(msg)
+    }
+
+    /// Peek a single complete frontend message.
+    ///
+    /// Multiple peeks will return the same message until the next call to
+    /// `read`.
+    ///
+    /// Returns `None` if the underlying connection terminates.
+    pub async fn peek(&mut self) -> Result<Option<FrontendMessage>> {
+        if let Some(peeked) = &self.peeked {
+            return Ok(peeked.clone());
+        }
+        let peeked = self.read().await?;
+        self.peeked = Some(peeked.clone());
+        Ok(peeked)
     }
 
     /// Sends a single backend message to the underlying connection.

@@ -31,7 +31,7 @@ pub enum StartupMessage {
 }
 
 /// Messages sent by the frontend.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FrontendMessage {
     /// A query (or queries) to execute.
     Query { sql: String },
@@ -118,6 +118,13 @@ impl FrontendMessage {
             FrontendMessage::Flush => "flush",
             FrontendMessage::Sync => "sync",
             FrontendMessage::Terminate => "terminate",
+        }
+    }
+
+    pub(crate) fn is_auth_message(&self) -> bool {
+        match self {
+            FrontendMessage::PasswordMessage { .. } => true,
+            _ => false,
         }
     }
 }
@@ -362,7 +369,7 @@ pub struct FieldDescription {
     pub format: i16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum DescribeObjectType {
     Statement = b'S',
