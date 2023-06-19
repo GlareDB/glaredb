@@ -79,13 +79,24 @@ enum Commands {
         #[clap(short = 'f', long, value_parser)]
         local_file_path: Option<PathBuf>,
 
-        /// API key for segment.
-        #[clap(long, value_parser)]
-        segment_key: Option<String>,
-
         /// Path to spill temporary files to.
         #[clap(long, value_parser)]
         spill_path: Option<PathBuf>,
+
+        /// Ignore authentication messages.
+        ///
+        /// (Internal)
+        ///
+        /// This is only relevant for internal development. The postgres
+        /// protocol proxy will drop all authentication related messages.
+        #[clap(long, value_parser)]
+        ignore_auth: bool,
+
+        /// API key for segment.
+        ///
+        /// (Internal)
+        #[clap(long, value_parser)]
+        segment_key: Option<String>,
     },
 
     /// Starts an instance of the pgsrv proxy.
@@ -163,13 +174,16 @@ fn main() -> Result<()> {
             local_file_path,
             mut segment_key,
             spill_path,
+            ignore_auth,
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
             let auth: Box<dyn LocalAuthenticator> = match password {
                 Some(password) => Box::new(SingleUserAuthenticator { user, password }),
-                None => Box::new(PasswordlessAuthenticator),
+                None => Box::new(PasswordlessAuthenticator {
+                    drop_auth_messages: ignore_auth,
+                }),
             };
 
             begin_server(
