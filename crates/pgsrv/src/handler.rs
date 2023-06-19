@@ -32,32 +32,26 @@ use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
 use uuid::Uuid;
 
+pub struct ProtocolHandlerConfig {
+    /// Authenticor to use on the server side.
+    pub authenticator: Box<dyn LocalAuthenticator>,
+    /// SSL configuration to use on the server side.
+    pub ssl_conf: Option<SslConfig>,
+    /// If the server should be configured for integration tests. This is only
+    /// applicable for local databases.
+    pub integration_testing: bool,
+}
+
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
 /// protocol.
 pub struct ProtocolHandler {
     pub engine: Engine,
-    authenticator: Box<dyn LocalAuthenticator>,
-    ssl_conf: Option<SslConfig>,
-    /// If the server should be configured for integration tests. This is only
-    /// applicable for local databases.
-    integration_testing: bool,
+    conf: ProtocolHandlerConfig,
 }
 
 impl ProtocolHandler {
-    pub fn new(
-        engine: Engine,
-        authenticator: Box<dyn LocalAuthenticator>,
-        integration_testing: bool,
-    ) -> Self {
-        ProtocolHandler {
-            engine,
-            authenticator,
-            // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
-            // want to hold off on doing that until we have a shared config
-            // between the proxy and GlareDB.
-            ssl_conf: None,
-            integration_testing,
-        }
+    pub fn new(engine: Engine, conf: ProtocolHandlerConfig) -> Self {
+        ProtocolHandler { engine, conf }
     }
 
     pub async fn handle_connection<C>(&self, id: Uuid, conn: C) -> Result<()>
@@ -75,7 +69,7 @@ impl ProtocolHandler {
                     return Ok(());
                 }
                 StartupMessage::SSLRequest { .. } => {
-                    conn = match (conn, &self.ssl_conf) {
+                    conn = match (conn, &self.conf.ssl_conf) {
                         (Connection::Unencrypted(mut conn), Some(conf)) => {
                             debug!("accepting ssl request");
                             // SSL supported, send back that we support it and
@@ -128,7 +122,7 @@ impl ProtocolHandler {
 
     /// Whether the server should be configured for integration testing.
     fn is_integration_testing_enabled(&self) -> bool {
-        self.integration_testing
+        self.conf.integration_testing
     }
 
     /// Runs the postgres protocol for a connection to completion.
@@ -178,18 +172,19 @@ impl ProtocolHandler {
         };
 
         // Handle password.
-        match self.authenticator.password_mode() {
-            PasswordMode::Cleartext => {
+        match self.conf.authenticator.password_mode() {
+            PasswordMode::RequireCleartext => {
                 framed
                     .send(BackendMessage::AuthenticationCleartextPassword)
                     .await?;
                 let msg = framed.read().await?;
                 match msg {
                     Some(FrontendMessage::PasswordMessage { password }) => {
-                        match self
-                            .authenticator
-                            .authenticate(&user_name, &password, &database_name)
-                        {
+                        match self.conf.authenticator.authenticate(
+                            &user_name,
+                            &password,
+                            &database_name,
+                        ) {
                             Ok(sess) => sess,
                             Err(e) => {
                                 framed
@@ -213,9 +208,25 @@ impl ProtocolHandler {
                     None => return Ok(()),
                 }
             }
-            PasswordMode::NoPassword => {
+            PasswordMode::NoPassword { drop_auth_messages } => {
                 // Nothin to do.
                 framed.send(BackendMessage::AuthenticationOk).await?;
+
+                // Continually read all auth messages from the frontend. These
+                // are ignored.
+                if drop_auth_messages {
+                    loop {
+                        let msg = framed.peek().await?;
+                        match msg {
+                            Some(msg) if msg.is_auth_message() => {
+                                let dropped = framed.read().await?; // Drop auth message.
+                                warn!(?dropped, "dropping authentication message");
+                            }
+                            Some(_msg) => break, // We peeked a message not related to auth.
+                            None => return Ok(()), // Connection closed.
+                        }
+                    }
+                }
             }
         }
 

@@ -5,7 +5,7 @@ use std::{env, fs};
 use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use pgsrv::auth::LocalAuthenticator;
-use pgsrv::handler::ProtocolHandler;
+use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
@@ -81,12 +81,16 @@ impl Server {
             spill_path,
         )
         .await?;
+        let handler_conf = ProtocolHandlerConfig {
+            authenticator,
+            // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
+            // want to hold off on doing that until we have a shared config
+            // between the proxy and GlareDB.
+            ssl_conf: None,
+            integration_testing,
+        };
         Ok(Server {
-            pg_handler: Arc::new(ProtocolHandler::new(
-                engine,
-                authenticator,
-                integration_testing,
-            )),
+            pg_handler: Arc::new(ProtocolHandler::new(engine, handler_conf)),
         })
     }
 

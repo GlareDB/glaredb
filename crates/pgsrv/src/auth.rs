@@ -5,10 +5,21 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PasswordMode {
-    /// Frontend should send over password in clear text.
-    Cleartext,
-    /// No password required.
-    NoPassword,
+    /// A cleartext password is required.
+    ///
+    /// Should error if no password is provided.
+    RequireCleartext,
+
+    /// No password is required.
+    NoPassword {
+        /// Drop any authentication messages as well.
+        ///
+        /// A compliant frontend should not send any additional authentication
+        /// messages after receiving AuthenticationOk. However, node-postgres
+        /// will attempt to send a password message regardless. Setting this to
+        /// true will drop that message.
+        drop_auth_messages: bool,
+    },
 }
 
 /// Authenticate connection on the glaredb node itself.
@@ -26,7 +37,7 @@ pub struct SingleUserAuthenticator {
 
 impl LocalAuthenticator for SingleUserAuthenticator {
     fn password_mode(&self) -> PasswordMode {
-        PasswordMode::Cleartext
+        PasswordMode::RequireCleartext
     }
 
     fn authenticate(&self, user: &str, password: &str, _db_name: &str) -> Result<()> {
@@ -41,13 +52,17 @@ impl LocalAuthenticator for SingleUserAuthenticator {
     }
 }
 
-/// Allows any user and password.
-#[derive(Debug, Clone, Copy)]
-pub struct PasswordlessAuthenticator;
+/// Require no password provided.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PasswordlessAuthenticator {
+    pub drop_auth_messages: bool,
+}
 
 impl LocalAuthenticator for PasswordlessAuthenticator {
     fn password_mode(&self) -> PasswordMode {
-        PasswordMode::NoPassword
+        PasswordMode::NoPassword {
+            drop_auth_messages: self.drop_auth_messages,
+        }
     }
 
     fn authenticate(&self, _user: &str, _password: &str, _db_name: &str) -> Result<()> {
