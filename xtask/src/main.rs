@@ -58,6 +58,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let sh = &Shell::new()?;
     sh.change_dir(util::project_root());
+    sh.set_var("CARGO_TERM_COLOR", "always"); // Always print output with color.
 
     let target = Target::from_cfg()?;
     ensure_protoc(sh, &target)?;

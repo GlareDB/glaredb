@@ -14,7 +14,8 @@ telemetry = {path = "../telemetry"}
 datafusion = {workspace = true}
 pgsrv = {path = "../pgsrv"}
 pgrepr = {path = "../pgrepr"}
-object_store = {version = "0.6", features = ["gcp"]}
+object_store = {version = "0.5", features = ["gcp"]}
+object_store_util = { path = "../object_store_util" }
 metastore = {path = "../metastore"}
 metastoreproto = { path = "../metastoreproto" }
 anyhow = "1.0"

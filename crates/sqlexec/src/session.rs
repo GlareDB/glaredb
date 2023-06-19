@@ -12,8 +12,9 @@ use datafusion::physical_plan::{
     ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use datasources::native::access::NativeTableStorage;
 use futures::StreamExt;
-use metastore::session::SessionCatalog;
+use metastoreproto::session::SessionCatalog;
 use pgrepr::format::Format;
 use std::fmt;
 use std::path::PathBuf;
@@ -160,11 +161,12 @@ impl Session {
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, metrics, spill_path);
+        let ctx = SessionContext::new(info, catalog, metastore, native_tables, metrics, spill_path);
         Ok(Session { ctx })
     }
 
@@ -185,6 +187,11 @@ impl Session {
         let context = self.ctx.task_context();
         let stream = execute_stream(plan, context)?;
         Ok(stream)
+    }
+
+    pub(crate) async fn create_table(&mut self, plan: CreateTable) -> Result<()> {
+        self.ctx.create_table(plan).await?;
+        Ok(())
     }
 
     pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
@@ -374,6 +381,10 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
+            LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
+                self.create_table(plan).await?;
+                ExecutionResult::CreateTable
+            }
             LogicalPlan::Ddl(DdlPlan::CreateTempTable(plan)) => {
                 self.create_temp_table(plan).await?;
                 ExecutionResult::CreateTable

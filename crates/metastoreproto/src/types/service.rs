@@ -1,4 +1,4 @@
-use super::options::TunnelOptions;
+use super::options::{TableOptionsInternal, TunnelOptions};
 use super::{FromOptionalField, ProtoConvError};
 use crate::proto::service;
 use crate::types::options::{DatabaseOptions, TableOptions};
@@ -11,6 +11,7 @@ pub enum Mutation {
     DropObject(DropObject),
     CreateSchema(CreateSchema),
     CreateView(CreateView),
+    CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateExternalDatabase(CreateExternalDatabase),
     AlterTableRename(AlterTableRename),
@@ -36,6 +37,7 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::DropObject(v) => Mutation::DropObject(v.try_into()?),
             service::mutation::Mutation::CreateSchema(v) => Mutation::CreateSchema(v.try_into()?),
             service::mutation::Mutation::CreateView(v) => Mutation::CreateView(v.try_into()?),
+            service::mutation::Mutation::CreateTable(v) => Mutation::CreateTable(v.try_into()?),
             service::mutation::Mutation::CreateExternalTable(v) => {
                 Mutation::CreateExternalTable(v.try_into()?)
             }
@@ -66,6 +68,7 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             Mutation::DropObject(v) => service::mutation::Mutation::DropObject(v.into()),
             Mutation::CreateSchema(v) => service::mutation::Mutation::CreateSchema(v.into()),
             Mutation::CreateView(v) => service::mutation::Mutation::CreateView(v.into()),
+            Mutation::CreateTable(v) => service::mutation::Mutation::CreateTable(v.try_into()?),
             Mutation::CreateExternalTable(v) => {
                 service::mutation::Mutation::CreateExternalTable(v.try_into()?)
             }
@@ -231,6 +234,39 @@ impl From<CreateView> for service::CreateView {
             or_replace: value.or_replace,
             columns: value.columns,
         }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateTable {
+    pub schema: String,
+    pub name: String,
+    pub options: TableOptionsInternal,
+    pub if_not_exists: bool,
+}
+
+impl TryFrom<service::CreateTable> for CreateTable {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateTable) -> Result<Self, Self::Error> {
+        let options: TableOptionsInternal = value.options.required("options")?;
+        Ok(CreateTable {
+            schema: value.schema,
+            name: value.name,
+            options,
+            if_not_exists: value.if_not_exists,
+        })
+    }
+}
+
+impl TryFrom<CreateTable> for service::CreateTable {
+    type Error = ProtoConvError;
+    fn try_from(value: CreateTable) -> Result<service::CreateTable, Self::Error> {
+        Ok(service::CreateTable {
+            schema: value.schema,
+            name: value.name,
+            options: Some(value.options.try_into()?),
+            if_not_exists: value.if_not_exists,
+        })
     }
 }
 

@@ -329,6 +329,12 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
     }
 }
 
+impl fmt::Display for TableEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.meta.name, self.options.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary)]
 pub struct ViewEntry {
     pub meta: EntryMeta,

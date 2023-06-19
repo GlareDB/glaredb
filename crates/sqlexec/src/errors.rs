@@ -122,11 +122,17 @@ pub enum ExecError {
     #[error("Cannot create additional tunnels. Max: {max}, Current: {current}")]
     MaxTunnelCount { max: usize, current: usize },
 
+    #[error("Invalid storage configuration: {0}")]
+    InvalidStorageConfig(&'static str),
+
     #[error("internal error: {0}")]
     Internal(String),
 
     #[error(transparent)]
     DatasourceDebug(#[from] datasources::debug::errors::DebugError),
+
+    #[error(transparent)]
+    DatasourceNative(#[from] datasources::native::errors::NativeError),
 
     #[error(transparent)]
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),

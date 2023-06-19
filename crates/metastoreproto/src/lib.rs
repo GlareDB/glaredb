@@ -1,5 +1,7 @@
-//! Protobuf types used in various crates.
+//! Client and type abstractions over metastore.
 //!
-//! This exists outside the `metastore` to avoid dependency cycles.
+//! Crates should try to import this crate instead of `metastore` directly to
+//! avoid dependency cycles.
 pub mod proto;
+pub mod session;
 pub mod types;

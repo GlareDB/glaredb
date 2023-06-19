@@ -133,6 +133,9 @@ pub const GLAREDB_MAX_TUNNEL_COUNT_KEY: UsizeProxyKey = UsizeProxyKey {
     default: 100,
 };
 
+/// Param key for bucket to use for data storage.
+pub const GLAREDB_GCS_STORAGE_BUCKET_KEY: &str = "gcs_storage_bucket";
+
 /// ProxyHandler proxies connections to some database instance. Connections are
 /// authenticated via some authenticator.
 ///
@@ -257,6 +260,10 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
         params.insert(
             GLAREDB_MAX_TUNNEL_COUNT_KEY.key.to_string(),
             db_details.max_tunnel_count.to_string(),
+        );
+        params.insert(
+            GLAREDB_GCS_STORAGE_BUCKET_KEY.to_string(),
+            db_details.gcs_storage_bucket,
         );
 
         // More params should be inserted here. See <https://github.com/GlareDB/glaredb/issues/600>

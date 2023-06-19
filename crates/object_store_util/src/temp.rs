@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::GetOptions;
 use object_store::{
     local::LocalFileSystem, path::Path, GetResult, ListResult, MultipartId, ObjectMeta,
     ObjectStore, Result,
@@ -64,11 +63,6 @@ impl ObjectStore for TempObjectStore {
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
         let result = self.inner.get(location).await?;
-        Ok(result)
-    }
-
-    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
-        let result = self.inner.get_opts(location, options).await?;
         Ok(result)
     }
 

@@ -2,11 +2,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
 
-use crate::util::{ensure_spill_path, MetastoreMode};
-use anyhow::Result;
+use crate::util::MetastoreClientMode;
+use anyhow::{anyhow, Result};
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
-use sqlexec::engine::Engine;
+use sqlexec::engine::{Engine, EngineStorageConfig};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -29,7 +29,8 @@ impl Server {
         metastore_addr: Option<String>,
         segment_key: Option<String>,
         authenticator: Box<dyn LocalAuthenticator>,
-        local_file_path: Option<PathBuf>,
+        data_dir: Option<PathBuf>,
+        service_account_key: Option<String>,
         spill_path: Option<PathBuf>,
         integration_testing: bool,
     ) -> Result<Self> {
@@ -39,10 +40,8 @@ impl Server {
         info!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
-        ensure_spill_path(spill_path.as_ref())?;
-
         // Connect to metastore.
-        let mode = MetastoreMode::new_from_options(metastore_addr, local_file_path)?;
+        let mode = MetastoreClientMode::new_from_options(metastore_addr, data_dir.clone())?;
         let metastore_client = mode.into_client().await?;
 
         let tracker = match segment_key {
@@ -56,7 +55,32 @@ impl Server {
             }
         };
 
-        let engine = Engine::new(metastore_client, Arc::new(tracker), spill_path).await?;
+        // TODO: There's going to need to more validation needed to ensure we're
+        // using a metastore that makes sense. E.g. using a remote metastore and
+        // in-memory table storage would cause inconsistency.
+        //
+        // We don't want to end up in a situation where a metastore thinks a
+        // table exists but it really doesn't (or the other way around).
+        let storage_conf = match (data_dir, service_account_key) {
+            (None, Some(key)) => EngineStorageConfig::Gcs {
+                service_account_key: key,
+            },
+            (Some(dir), None) => EngineStorageConfig::Local { path: dir },
+            (None, None) => EngineStorageConfig::Memory,
+            (Some(_), Some(_)) => {
+                return Err(anyhow!(
+                    "Data directory and service account both provided. Expected at most one."
+                ))
+            }
+        };
+
+        let engine = Engine::new(
+            metastore_client,
+            storage_conf,
+            Arc::new(tracker),
+            spill_path,
+        )
+        .await?;
         let handler_conf = ProtocolHandlerConfig {
             authenticator,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I

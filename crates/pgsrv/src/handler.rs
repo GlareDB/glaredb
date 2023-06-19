@@ -6,8 +6,9 @@ use crate::messages::{
     SqlState, StartupMessage, TransactionStatus,
 };
 use crate::proxy::{
-    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
-    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
+    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_GCS_STORAGE_BUCKET_KEY,
+    GLAREDB_MAX_DATASOURCE_COUNT_KEY, GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY,
+    GLAREDB_USER_ID_KEY,
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
@@ -17,7 +18,7 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
-use sqlexec::engine::SessionLimits;
+use sqlexec::engine::{SessionLimits, SessionStorageConfig};
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -139,6 +140,8 @@ impl ProtocolHandler {
         let mut framed = FramedConn::new(conn);
 
         // Get params.
+        // TODO: Possibly just serialize these into a single key on the proxy
+        // side and deserialize here?
         let db_id = self
             .read_proxy_key_val(&mut framed, &GLAREDB_DATABASE_ID_KEY, &params)
             .await?;
@@ -154,6 +157,8 @@ impl ProtocolHandler {
         let max_tunnel_count = self
             .read_proxy_key_val(&mut framed, &GLAREDB_MAX_TUNNEL_COUNT_KEY, &params)
             .await?;
+
+        let storage_bucket = params.get(GLAREDB_GCS_STORAGE_BUCKET_KEY).cloned();
 
         // Standard postgres params. These values are used only for informational purposes.
         let user_name = params.get("user").cloned().unwrap_or_default();
@@ -237,6 +242,9 @@ impl ProtocolHandler {
                     max_datasource_count: Some(max_datasource_count),
                     memory_limit_bytes: Some(memory_limit_bytes),
                     max_tunnel_count: Some(max_tunnel_count),
+                },
+                SessionStorageConfig {
+                    gcs_bucket: storage_bucket,
                 },
             )
             .await
