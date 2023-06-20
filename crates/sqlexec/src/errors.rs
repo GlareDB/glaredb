@@ -116,11 +116,12 @@ pub enum ExecError {
     #[error("All connection methods as part of ssh_tunnel should be ssh connections")]
     NonSshConnection,
 
-    #[error("Cannot create additional data sources. Max: {max}, Current: {current}")]
-    MaxDatasourceCount { max: usize, current: usize },
-
-    #[error("Cannot create additional tunnels. Max: {max}, Current: {current}")]
-    MaxTunnelCount { max: usize, current: usize },
+    #[error("Cannot create additional {typ}. Max: {max}, Current: {current}")]
+    MaxObjectCount {
+        typ: &'static str,
+        max: usize,
+        current: usize,
+    },
 
     #[error("Invalid storage configuration: {0}")]
     InvalidStorageConfig(&'static str),

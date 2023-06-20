@@ -156,43 +156,36 @@ impl LocalSession {
         };
         println!("{}", info.bold());
         let prompt = SQLPrompt {};
-        let mut is_exit_cmd = false;
         let mut scratch = String::with_capacity(1024);
 
         loop {
             let sig = line_editor.read_line(&prompt);
             match sig {
-                Ok(Signal::Success(buffer)) => {
-                    is_exit_cmd = false;
-                    match buffer.as_str() {
-                        cmd if is_client_cmd(cmd) => {
-                            self.handle_client_cmd(cmd).await?;
-                            return Ok(());
-                        }
-                        _ => {
-                            let mut parts = buffer.splitn(2, ';');
-                            let first = parts.next().unwrap();
-                            scratch.push_str(first);
+                Ok(Signal::Success(buffer)) => match buffer.as_str() {
+                    cmd if is_client_cmd(cmd) => {
+                        self.handle_client_cmd(cmd).await?;
+                    }
+                    _ => {
+                        let mut parts = buffer.splitn(2, ';');
+                        let first = parts.next().unwrap();
+                        scratch.push_str(first);
 
-                            let second = parts.next();
-                            if second.is_some() {
-                                self.execute(&scratch).await?;
-                                scratch.clear();
-                            } else {
-                                scratch.push(' ');
-                            }
+                        let second = parts.next();
+                        if second.is_some() {
+                            match self.execute(&scratch).await {
+                                Ok(_) => {}
+                                Err(e) => println!("Error: {e}"),
+                            };
+                            scratch.clear();
+                        } else {
+                            scratch.push(' ');
                         }
                     }
-                }
-                Ok(Signal::CtrlD) | Ok(Signal::CtrlC) => {
-                    if is_exit_cmd {
-                        break;
-                    } else {
-                        is_exit_cmd = true;
-                    }
-                }
-                _ => {
-                    is_exit_cmd = false;
+                },
+                Ok(Signal::CtrlD) => break,
+                Ok(Signal::CtrlC) => continue,
+                Err(e) => {
+                    return Err(anyhow!("Unable to read from prompt: {e}"));
                 }
             }
         }

@@ -94,6 +94,54 @@ query TT
 select tunnel_name, tunnel_type from glare_catalog.tunnels where tunnel_name like 'drop_tunnel%';
 ----
 
+# Test dropping credentials
+
+statement ok
+create credentials drop_credentials provider debug options (table_type = 'never_ending');
+
+query TT
+select credentials_name, provider
+    from glare_catalog.credentials where credentials_name='drop_credentials';
+----
+drop_credentials debug
+
+statement ok
+drop credentials drop_credentials;
+
+statement error
+drop credentials drop_credentials;
+
+statement ok
+drop credentials if exists drop_credentials;
+
+query TT
+select credentials_name, provider
+    from glare_catalog.credentials where credentials_name='drop_credentials';
+----
+
+# Test dropping multiple credentialss
+
+statement ok
+create credentials drop_credentials1 provider debug options (table_type = 'never_ending');
+
+statement ok
+create credentials drop_credentials2 provider debug options (table_type = 'never_ending');
+
+query TT rowsort
+select credentials_name, provider
+    from glare_catalog.credentials where credentials_name like 'drop_credentials%';
+----
+drop_credentials1  debug
+drop_credentials2  debug
+
+statement ok
+drop credentials drop_credentials1, drop_credentials2;
+
+query TT
+select credentials_name, provider
+    from glare_catalog.credentials where credentials_name like 'drop_credentials%';
+----
+
 # Test dropping empty schema
 
 statement ok

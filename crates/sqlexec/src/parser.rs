@@ -45,6 +45,8 @@ pub struct CreateExternalTableStmt {
     pub datasource: Ident,
     /// Optional tunnel to use for connection.
     pub tunnel: Option<Ident>,
+    /// Credentials to use for configuration.
+    pub credentials: Option<Ident>,
     /// Datasource specific options.
     pub options: BTreeMap<String, OptionValue>,
 }
@@ -59,6 +61,10 @@ impl fmt::Display for CreateExternalTableStmt {
 
         if let Some(tunnel) = &self.tunnel {
             write!(f, "TUNNEL {tunnel} ")?;
+        }
+
+        if let Some(creds) = &self.credentials {
+            write!(f, "CREDENTIALS {creds} ")?;
         }
 
         let opts = self
@@ -84,6 +90,8 @@ pub struct CreateExternalDatabaseStmt {
     pub datasource: Ident,
     /// Optional tunnel to use for connection.
     pub tunnel: Option<Ident>,
+    /// Credentials to use for configuration.
+    pub credentials: Option<Ident>,
     /// Datasource specific options.
     pub options: BTreeMap<String, OptionValue>,
 }
@@ -98,6 +106,10 @@ impl fmt::Display for CreateExternalDatabaseStmt {
 
         if let Some(tunnel) = &self.tunnel {
             write!(f, "TUNNEL {tunnel} ")?;
+        }
+
+        if let Some(creds) = &self.credentials {
+            write!(f, "CREDENTIALS {creds} ")?;
         }
 
         let opts = self
@@ -233,6 +245,63 @@ impl fmt::Display for AlterTunnelStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateCredentialsStmt {
+    /// Name of the credentials as it exists in GlareDB.
+    pub name: Ident,
+    /// The credentials provider.
+    pub provider: Ident,
+    /// Credentials specific options.
+    pub options: BTreeMap<String, OptionValue>,
+    /// Optional comment (what the credentials are for).
+    pub comment: String,
+}
+
+impl fmt::Display for CreateCredentialsStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "CREATE CREDENTIALS {} PROVIDER {} ",
+            self.name, self.provider
+        )?;
+
+        let opts = self
+            .options
+            .iter()
+            .map(|(k, v)| format!("{} = {}", k, v))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        write!(f, "OPTIONS ({})", opts)?;
+
+        if !self.comment.is_empty() {
+            write!(f, " COMMENT '{}'", self.comment)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropCredentialsStmt {
+    pub names: Vec<Ident>,
+    pub if_exists: bool,
+}
+
+impl fmt::Display for DropCredentialsStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DROP CREDENTIALS ")?;
+        if self.if_exists {
+            write!(f, "IF EXISTS ")?;
+        }
+        let mut sep = "";
+        for name in self.names.iter() {
+            write!(f, "{sep}{name}")?;
+            sep = ", ";
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
     Statement(ast::Statement),
@@ -250,6 +319,10 @@ pub enum StatementWithExtensions {
     DropTunnel(DropTunnelStmt),
     /// Alter tunnel extension.
     AlterTunnel(AlterTunnelStmt),
+    /// Create credentials extension.
+    CreateCredentials(CreateCredentialsStmt),
+    /// Drop credentials extension.
+    DropCredentials(DropCredentialsStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -263,6 +336,8 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -346,6 +421,9 @@ impl<'a> CustomParser<'a> {
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // CREATE TUNNEL ...
             self.parse_create_tunnel()
+        } else if self.consume_token(&Token::make_keyword("CREDENTIALS")) {
+            // CREATE CREDENTIALS ...
+            self.parse_create_credentials()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -392,6 +470,9 @@ impl<'a> CustomParser<'a> {
         // [TUNNEL ...]
         let tunnel = self.parse_connection_tunnel()?;
 
+        // [CREDENTIALS ...]
+        let credentials = self.parse_connection_credentials()?;
+
         // OPTIONS (..)
         let options = self.parse_options()?;
 
@@ -401,6 +482,7 @@ impl<'a> CustomParser<'a> {
                 if_not_exists,
                 datasource,
                 tunnel,
+                credentials,
                 options,
             },
         ))
@@ -421,6 +503,9 @@ impl<'a> CustomParser<'a> {
         // [TUNNEL ...]
         let tunnel = self.parse_connection_tunnel()?;
 
+        // [CREDENTIALS ...]
+        let credentials = self.parse_connection_credentials()?;
+
         // OPTIONS (..)
         let options = self.parse_options()?;
 
@@ -430,6 +515,7 @@ impl<'a> CustomParser<'a> {
                 if_not_exists,
                 datasource,
                 tunnel,
+                credentials,
                 options,
             },
         ))
@@ -458,6 +544,33 @@ impl<'a> CustomParser<'a> {
         }))
     }
 
+    fn parse_create_credentials(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let name = self.parser.parse_identifier()?;
+        validate_ident(&name)?;
+
+        // PROVIDER credentials
+        self.expect_token(&Token::make_keyword("PROVIDER"))?;
+        let provider = self.parse_object_type("credentials")?;
+
+        // OPTIONS (..)
+        let options = self.parse_options()?;
+
+        let comment = if self.parser.parse_keyword(Keyword::COMMENT) {
+            self.parser.parse_literal_string()?
+        } else {
+            "".to_owned()
+        };
+
+        Ok(StatementWithExtensions::CreateCredentials(
+            CreateCredentialsStmt {
+                name,
+                provider,
+                options,
+                comment,
+            },
+        ))
+    }
+
     fn parse_object_type(&mut self, object_type: &str) -> Result<Ident, ParserError> {
         match self.parser.next_token().token {
             Token::Word(w) => Ok(w.to_ident()),
@@ -465,15 +578,26 @@ impl<'a> CustomParser<'a> {
         }
     }
 
-    fn parse_connection_tunnel(&mut self) -> Result<Option<Ident>, ParserError> {
-        let tunnel = if self.consume_token(&Token::make_keyword("TUNNEL")) {
-            let tunnel = self.parser.parse_identifier()?;
-            validate_ident(&tunnel)?;
-            Some(tunnel)
+    /// Parse reference to another object (optionally).
+    ///
+    /// Example: `TUNNEL xyz`...
+    fn parse_optional_ref(&mut self, k: &str) -> Result<Option<Ident>, ParserError> {
+        let opt = if self.consume_token(&Token::make_keyword(k)) {
+            let opt = self.parser.parse_identifier()?;
+            validate_ident(&opt)?;
+            Some(opt)
         } else {
             None
         };
-        Ok(tunnel)
+        Ok(opt)
+    }
+
+    fn parse_connection_tunnel(&mut self) -> Result<Option<Ident>, ParserError> {
+        self.parse_optional_ref("TUNNEL")
+    }
+
+    fn parse_connection_credentials(&mut self) -> Result<Option<Ident>, ParserError> {
+        self.parse_optional_ref("CREDENTIALS")
     }
 
     /// Parse options for a datasource.
@@ -528,6 +652,14 @@ impl<'a> CustomParser<'a> {
         }
     }
 
+    fn expect_token(&mut self, expected: &Token) -> Result<(), ParserError> {
+        if self.consume_token(expected) {
+            Ok(())
+        } else {
+            self.expected(&expected.to_string(), self.parser.peek_token().token)
+        }
+    }
+
     /// Parse a SQL DROP statement
     fn parse_drop(&mut self) -> Result<StatementWithExtensions, ParserError> {
         if self.parser.parse_keyword(Keyword::DATABASE) {
@@ -536,6 +668,9 @@ impl<'a> CustomParser<'a> {
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // DROP TUNNEL ...
             self.parse_drop_tunnel()
+        } else if self.consume_token(&Token::make_keyword("CREDENTIALS")) {
+            // DROP CREDENTIALS ...
+            self.parse_drop_credentials()
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -576,6 +711,22 @@ impl<'a> CustomParser<'a> {
             names,
             if_exists,
         }))
+    }
+
+    fn parse_drop_credentials(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+
+        let names = self
+            .parser
+            .parse_comma_separated(Parser::parse_identifier)?;
+
+        for name in names.iter() {
+            validate_ident(name)?;
+        }
+
+        Ok(StatementWithExtensions::DropCredentials(
+            DropCredentialsStmt { names, if_exists },
+        ))
     }
 
     fn parse_alter_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
@@ -658,6 +809,7 @@ mod tests {
             if_not_exists: false,
             datasource: Ident::new("postgres"),
             tunnel: None,
+            credentials: None,
             options,
         };
 
@@ -694,6 +846,7 @@ mod tests {
             if_not_exists: false,
             datasource: Ident::new("postgres"),
             tunnel: None,
+            credentials: None,
             options,
         };
 
@@ -720,6 +873,8 @@ mod tests {
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
         ];
 
         for test_case in test_cases {
@@ -766,6 +921,22 @@ mod tests {
     }
 
     #[test]
+    fn create_credentials_roundtrips() {
+        let test_cases = [
+            "CREATE CREDENTIALS qa PROVIDER debug OPTIONS (table_type = 'never_ending')",
+            "CREATE CREDENTIALS qa PROVIDER debug OPTIONS (table_type = 'never_ending') COMMENT 'for debug'",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
     fn drop_database_roundtrips() {
         let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
 
@@ -781,6 +952,22 @@ mod tests {
     #[test]
     fn drop_tunnel_roundtrips() {
         let test_cases = ["DROP TUNNEL my_tunnel", "DROP TUNNEL IF EXISTS my_tunnel"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn drop_credentials_roundtrips() {
+        let test_cases = [
+            "DROP CREDENTIALS my_credentials",
+            "DROP CREDENTIALS IF EXISTS my_credentials",
+        ];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

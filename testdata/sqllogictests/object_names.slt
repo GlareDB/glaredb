@@ -122,6 +122,39 @@ Obj_Name_Tunnel
 statement ok
 DROP tunnel "Obj_Name_Tunnel";
 
+# Credentials names
+
+statement ok
+CREATE CREDENTIALS obj_name_credentials PROVIDER debug OPTIONS (table_type = 'never_ending');
+
+statement error
+CREATE CREDENTIALS Obj_Name_Credentials PROVIDER debug OPTIONS (table_type = 'never_ending');
+
+statement ok
+CREATE CREDENTIALS "Obj_Name_Credentials" PROVIDER debug OPTIONS (table_type = 'never_ending');
+
+query TT rowsort
+SELECT credentials_name FROM glare_catalog.credentials
+	WHERE credentials_name LIKE '%bj_%ame_%redentials' AND provider = 'debug';
+----
+Obj_Name_Credentials
+obj_name_credentials
+
+statement ok
+DROP credentials "obj_name_credentials";
+
+statement error
+DROP credentials Obj_Name_credentials;
+
+query TT rowsort
+SELECT credentials_name FROM glare_catalog.credentials
+	WHERE credentials_name LIKE '%bj_%ame_%redentials' AND provider = 'debug';
+----
+Obj_Name_Credentials
+
+statement ok
+DROP credentials "Obj_Name_Credentials";
+
 # View names
 
 statement ok

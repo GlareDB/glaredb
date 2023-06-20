@@ -88,6 +88,18 @@ pub static GLARE_TUNNELS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_CREDENTIALS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "credentials",
+    columns: InternalColumnDefinition::from_tuples([
+        ("oid", DataType::UInt32, false),
+        ("credentials_name", DataType::Utf8, false),
+        ("builtin", DataType::Boolean, false),
+        ("provider", DataType::Utf8, false),
+        ("comment", DataType::Utf8, false),
+    ]),
+});
+
 pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "schemas",
@@ -209,6 +221,7 @@ impl BuiltinTable {
         vec![
             &GLARE_DATABASES,
             &GLARE_TUNNELS,
+            &GLARE_CREDENTIALS,
             &GLARE_SCHEMAS,
             &GLARE_VIEWS,
             &GLARE_TABLES,
