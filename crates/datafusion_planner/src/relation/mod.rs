@@ -129,20 +129,45 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     fn get_constant_function_arg(&mut self, arg: ast::FunctionArg) -> Result<ScalarValue> {
         match arg {
             ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => match expr {
+                ast::Expr::UnaryOp { op, expr } => match op {
+                    ast::UnaryOperator::Minus => {
+                        match *expr {
+                            // optimization: if it's a number literal, we apply the negative operator
+                            // here directly to calculate the new literal.
+                            ast::Expr::Value(ast::Value::Number(n, _)) => match n.parse::<i64>() {
+                                Ok(n) => Ok(ScalarValue::Int64(Some(-n))),
+                                Err(_) => {
+                                    let n = n.parse::<f64>().map_err(|_e| {
+                                        DataFusionError::Internal(format!(
+                                            "negative operator can be only applied to integer and float operands, got: {n}"))
+                                    })?;
+                                    Ok(ScalarValue::Float64(Some(-n)))
+                                }
+                            },
+                            other => Err(DataFusionError::NotImplemented(format!(
+                                "Non-constant function argument: {other:?}",
+                            ))),
+                        }
+                    }
+                    other => Err(DataFusionError::NotImplemented(format!(
+                        "Non-constant function argument: {other:?}",
+                    ))),
+                },
+
                 ast::Expr::Value(v) => match self.parse_value(v, &[]) {
                     Ok(Expr::Literal(lit)) => Ok(lit),
-                    Ok(_) => Err(DataFusionError::NotImplemented(
-                        "Non-constant function argument".to_string(),
-                    )),
+                    Ok(v) => Err(DataFusionError::NotImplemented(format!(
+                        "Non-constant function argument: {v:?}"
+                    ))),
                     Err(e) => Err(e),
                 },
-                _ => Err(DataFusionError::NotImplemented(
-                    "Non-constant function argument".to_string(),
-                )),
+                other => Err(DataFusionError::NotImplemented(format!(
+                    "Non-constant function argument: {other:?}",
+                ))),
             },
-            _ => Err(DataFusionError::NotImplemented(
-                "Named arguments for functions".to_string(),
-            )),
+            other => Err(DataFusionError::NotImplemented(format!(
+                "Non-constant function argument: {other:?}",
+            ))),
         }
     }
 }
