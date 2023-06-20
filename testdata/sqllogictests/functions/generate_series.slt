@@ -50,3 +50,14 @@ query I
 select * from generate_series(3, 4, -1);
 ----
 
+# Should lazily allocate
+query I
+select count(*) from generate_series(1, 20000000);
+----
+20000000
+
+# Ensure the stream generates the correct numbers all the way through.
+query I
+select sum(a) from generate_series(1, 200000) as t(a);
+----
+20000100000
