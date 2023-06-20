@@ -17,6 +17,15 @@ pub enum BuiltinError {
     #[error(transparent)]
     Access(Box<dyn std::error::Error + Send + Sync>),
 
+    #[error(transparent)]
+    DataFusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error("{0}")]
+    Static(&'static str),
+
     #[error("Unimplemented: {0}")]
     Unimplemented(&'static str),
 }

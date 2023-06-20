@@ -1,10 +1,14 @@
 //! Builtin table returning functions.
 use crate::errors::{BuiltinError, Result};
 use async_trait::async_trait;
-use datafusion::arrow::array::StringArray;
+use datafusion::arrow::array::{Int64Array, StringArray};
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::streaming::{PartitionStream, StreamingTable};
 use datafusion::datasource::MemTable;
+use datafusion::error::Result as DataFusionResult;
+use datafusion::execution::TaskContext;
+use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datafusion::{arrow::datatypes::DataType, datasource::TableProvider, scalar::ScalarValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::listing::VirtualLister;
@@ -13,6 +17,7 @@ use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use futures::Stream;
 use metastoreproto::types::catalog::DatabaseEntry;
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
@@ -20,7 +25,9 @@ use metastoreproto::types::options::{
 };
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -55,6 +62,8 @@ impl BuiltinTableFuncs {
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
+            // Series generating
+            Arc::new(GenerateSeries),
         ];
         let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
             .into_iter()
@@ -641,6 +650,208 @@ async fn get_db_lister(
         }
     };
     Ok(lister)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GenerateSeries;
+
+#[async_trait]
+impl TableFunc for GenerateSeries {
+    fn name(&self) -> &str {
+        "generate_series"
+    }
+
+    fn parameters(&self) -> &[TableFuncParameters] {
+        // TODO: handle other supported types.
+        // - Floats
+        // - Timestamps
+        const PARAMS: &[TableFuncParameters] = &[
+            TableFuncParameters {
+                params: &[
+                    TableFuncParameter {
+                        name: "start",
+                        typ: DataType::Int64,
+                    },
+                    TableFuncParameter {
+                        name: "stop",
+                        typ: DataType::Int64,
+                    },
+                ],
+            },
+            TableFuncParameters {
+                params: &[
+                    TableFuncParameter {
+                        name: "start",
+                        typ: DataType::Int64,
+                    },
+                    TableFuncParameter {
+                        name: "stop",
+                        typ: DataType::Int64,
+                    },
+                    TableFuncParameter {
+                        name: "step",
+                        typ: DataType::Int64,
+                    },
+                ],
+            },
+        ];
+
+        PARAMS
+    }
+
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let (start, stop, step) = match args.len() {
+            2 => {
+                let mut args = args.into_iter();
+                let start = args.next().unwrap();
+                let stop = args.next().unwrap();
+                (i64_from_scalar(start)?, i64_from_scalar(stop)?, 1)
+            }
+            3 => {
+                let mut args = args.into_iter();
+                let start = args.next().unwrap();
+                let stop = args.next().unwrap();
+                let step = args.next().unwrap();
+                (
+                    i64_from_scalar(start)?,
+                    i64_from_scalar(stop)?,
+                    i64_from_scalar(step)?,
+                )
+            }
+            _ => return Err(BuiltinError::InvalidNumArgs),
+        };
+
+        if step == 0 {
+            return Err(BuiltinError::Static("'step' may not be zero"));
+        }
+
+        let partition = GenerateSeriesIntPartition::new(start, stop, step);
+        let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
+
+        Ok(Arc::new(table))
+    }
+}
+
+struct GenerateSeriesIntPartition {
+    schema: Arc<Schema>,
+    start: i64,
+    stop: i64,
+    step: i64,
+}
+
+impl GenerateSeriesIntPartition {
+    fn new(start: i64, stop: i64, step: i64) -> Self {
+        GenerateSeriesIntPartition {
+            schema: Arc::new(Schema::new([Arc::new(Field::new(
+                "generate_series",
+                DataType::Int64,
+                false,
+            ))])),
+            start,
+            stop,
+            step,
+        }
+    }
+}
+
+impl PartitionStream for GenerateSeriesIntPartition {
+    fn schema(&self) -> &Arc<Schema> {
+        &self.schema
+    }
+
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        Box::pin(GenerateSeriesIntStream {
+            schema: self.schema.clone(),
+            exhausted: false,
+            curr: self.start,
+            stop: self.stop,
+            step: self.step,
+        })
+    }
+}
+
+struct GenerateSeriesIntStream {
+    schema: Arc<Schema>,
+    exhausted: bool,
+    curr: i64,
+    stop: i64,
+    step: i64,
+}
+
+impl GenerateSeriesIntStream {
+    fn generate_next(&mut self) -> Option<RecordBatch> {
+        if self.exhausted {
+            return None;
+        }
+
+        const BATCH_SIZE: usize = 1000;
+
+        let series: Vec<_> = if self.curr < self.stop && self.step > 0 {
+            // Going up.
+            (self.curr..=self.stop)
+                .step_by(self.step as usize)
+                .take(BATCH_SIZE)
+                .collect()
+        } else if self.curr > self.stop && self.step < 0 {
+            // Going down.
+            (self.stop..=self.curr)
+                .rev()
+                .step_by(self.step.unsigned_abs() as usize)
+                .take(BATCH_SIZE)
+                .collect()
+        } else {
+            // Zero rows.
+            std::iter::empty().collect()
+        };
+
+        if series.len() < BATCH_SIZE {
+            self.exhausted = true
+        }
+
+        // Calculate the start value for the next iteration.
+        if let Some(last) = series.last() {
+            self.curr = *last + self.step;
+        }
+
+        let arr = Int64Array::from_iter_values(series);
+        let batch = RecordBatch::try_new(self.schema.clone(), vec![Arc::new(arr)]).unwrap();
+
+        Some(batch)
+    }
+}
+
+impl Stream for GenerateSeriesIntStream {
+    type Item = DataFusionResult<RecordBatch>;
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.generate_next().map(Ok))
+    }
+}
+
+impl RecordBatchStream for GenerateSeriesIntStream {
+    fn schema(&self) -> Arc<Schema> {
+        self.schema.clone()
+    }
+}
+
+fn i64_from_scalar(val: ScalarValue) -> Result<i64> {
+    match val {
+        ScalarValue::Int8(Some(v)) => Ok(v as i64),
+        ScalarValue::Int16(Some(v)) => Ok(v as i64),
+        ScalarValue::Int32(Some(v)) => Ok(v as i64),
+        ScalarValue::Int64(Some(v)) => Ok(v),
+        ScalarValue::UInt8(Some(v)) => Ok(v as i64),
+        ScalarValue::UInt16(Some(v)) => Ok(v as i64),
+        ScalarValue::UInt32(Some(v)) => Ok(v as i64),
+        ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
+        other => Err(BuiltinError::UnexpectedArg {
+            scalar: other,
+            expected: DataType::Int64,
+        }),
+    }
 }
 
 fn string_from_scalar(val: ScalarValue) -> Result<String> {

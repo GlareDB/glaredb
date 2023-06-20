@@ -1,0 +1,63 @@
+# Generate series tests
+
+statement error Invalid number of arguments
+select * from generate_series(1);
+
+statement error Invalid number of arguments
+select * from generate_series(1, 2, 3, 4);
+
+statement error may not be zero
+select * from generate_series(1, 2, 0);
+----
+
+query I
+select * from generate_series(1, 4);
+----
+1
+2
+3
+4
+
+# Match postgres behavior where 'step' always defaults to positive 1, and so no
+# rows are returned in this case.
+query I
+select * from generate_series(4, 1);
+----
+
+query I
+select * from generate_series(1, 5, 2);
+----
+1
+3
+5
+
+query I
+select * from generate_series(5, 1, -2);
+----
+5
+3
+1
+
+query I
+select * from generate_series(4, 3);
+----
+
+query I
+select * from generate_series(4, 3, 1);
+----
+
+query I
+select * from generate_series(3, 4, -1);
+----
+
+# Should lazily allocate
+query I
+select count(*) from generate_series(1, 20000000);
+----
+20000000
+
+# Ensure the stream generates the correct numbers all the way through.
+query I
+select sum(a) from generate_series(1, 200000) as t(a);
+----
+20000100000
