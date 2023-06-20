@@ -34,21 +34,24 @@ message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
 // Possible mutations to make.
 message Mutation {
   oneof mutation {
-    DropDatabase drop_database = 8;
     DropSchema drop_schema = 1;
     DropObject drop_object = 2;
     CreateSchema create_schema = 3;
     CreateView create_view = 4;
-    CreateTable create_table = 14;
+    // 5
     CreateExternalTable create_external_table = 6;
     CreateExternalDatabase create_external_database = 7;
+    DropDatabase drop_database = 8;
     AlterTableRename alter_table_rename = 9;
     AlterDatabaseRename alter_database_rename = 10;
     CreateTunnel create_tunnel = 11;
     DropTunnel drop_tunnel = 12;
     AlterTunnelRotateKeys alter_tunnel_rotate_keys = 13;
+    CreateTable create_table = 14;
+    CreateCredentials create_credentials = 15;
+    DropCredentials drop_credentials = 16;
   }
-  // next: 15
+  // next: 17
 }
 
 message DropDatabase {
@@ -130,6 +133,17 @@ message AlterTunnelRotateKeys {
   bool if_exists = 2;
   bytes new_ssh_key = 3;
   // next: 4
+}
+
+message CreateCredentials {
+  string name = 1;
+  options.CredentialsOptions options = 2;
+  string comment = 3;
+}
+
+message DropCredentials {
+  string name = 1;
+  bool if_exists = 2;
 }
 
 message MutateRequest {

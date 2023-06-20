@@ -55,6 +55,8 @@ pub enum ExecutionResult {
     CreateDatabase,
     /// Tunnel created.
     CreateTunnel,
+    /// Credentials created.
+    CreateCredentials,
     /// Schema created.
     CreateSchema,
     /// A view was created.
@@ -79,6 +81,8 @@ pub enum ExecutionResult {
     DropDatabase,
     /// Tunnel is dropped.
     DropTunnel,
+    /// Credentials are dropped.
+    DropCredentials,
 }
 
 impl ExecutionResult {
@@ -94,6 +98,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
+            ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
             ExecutionResult::CreateConnection => "create_connection",
@@ -106,6 +111,7 @@ impl ExecutionResult {
             ExecutionResult::DropSchemas => "drop_schemas",
             ExecutionResult::DropDatabase => "drop_database",
             ExecutionResult::DropTunnel => "drop_tunnel",
+            ExecutionResult::DropCredentials => "drop_credentials",
         }
     }
 }
@@ -127,6 +133,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
+            ExecutionResult::CreateCredentials => write!(f, "create credentials"),
             ExecutionResult::CreateSchema => write!(f, "create schema"),
             ExecutionResult::CreateView => write!(f, "create view"),
             ExecutionResult::CreateConnection => write!(f, "create connection"),
@@ -139,6 +146,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::DropSchemas => write!(f, "drop schemas"),
             ExecutionResult::DropDatabase => write!(f, "drop database"),
             ExecutionResult::DropTunnel => write!(f, "drop tunnel"),
+            ExecutionResult::DropCredentials => write!(f, "drop credentials"),
         }
     }
 }
@@ -223,6 +231,11 @@ impl Session {
         Ok(())
     }
 
+    pub(crate) async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
+        self.ctx.create_credentials(plan).await?;
+        Ok(())
+    }
+
     pub(crate) async fn create_view(&mut self, plan: CreateView) -> Result<()> {
         self.ctx.create_view(plan).await?;
         Ok(())
@@ -268,6 +281,11 @@ impl Session {
 
     pub(crate) async fn drop_tunnel(&mut self, plan: DropTunnel) -> Result<()> {
         self.ctx.drop_tunnel(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn drop_credentials(&mut self, plan: DropCredentials) -> Result<()> {
+        self.ctx.drop_credentials(plan).await?;
         Ok(())
     }
 
@@ -401,6 +419,10 @@ impl Session {
                 self.create_tunnel(plan).await?;
                 ExecutionResult::CreateTunnel
             }
+            LogicalPlan::Ddl(DdlPlan::CreateCredentials(plan)) => {
+                self.create_credentials(plan).await?;
+                ExecutionResult::CreateCredentials
+            }
             LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
                 self.create_table_as(plan).await?;
                 ExecutionResult::CreateTable
@@ -444,6 +466,10 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::DropTunnel(plan)) => {
                 self.drop_tunnel(plan).await?;
                 ExecutionResult::DropTunnel
+            }
+            LogicalPlan::Ddl(DdlPlan::DropCredentials(plan)) => {
+                self.drop_credentials(plan).await?;
+                ExecutionResult::DropCredentials
             }
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;

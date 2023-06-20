@@ -9,8 +9,8 @@ use crate::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
 use metastoreproto::types::catalog::{
-    CatalogEntry, CatalogState, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, FunctionType,
-    SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, EntryMeta, EntryType,
+    FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
 use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -292,6 +292,8 @@ struct State {
     database_names: HashMap<String, u32>,
     /// Map tunnel names to their ids.
     tunnel_names: HashMap<String, u32>,
+    /// Map credentials names to their ids.
+    credentials_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -309,6 +311,7 @@ impl State {
 
         let mut database_names = HashMap::new();
         let mut tunnel_names = HashMap::new();
+        let mut credentials_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
 
@@ -360,6 +363,17 @@ impl State {
                     }
 
                     tunnel_names.insert(tunnel.meta.name.clone(), *oid);
+                }
+                CatalogEntry::Credentials(creds) => {
+                    if creds.meta.parent != DATABASE_PARENT_ID {
+                        return Err(MetastoreError::ObjectHasNonZeroParent {
+                            object: *oid,
+                            parent: creds.meta.parent,
+                            object_type: "credentials",
+                        });
+                    }
+
+                    credentials_names.insert(creds.meta.name.clone(), *oid);
                 }
                 CatalogEntry::Schema(schema) => {
                     if schema.meta.parent == DATABASE_PARENT_ID {
@@ -425,6 +439,7 @@ impl State {
             entries: state.entries.into(),
             database_names,
             tunnel_names,
+            credentials_names,
             schema_names,
             schema_objects,
         };
@@ -491,6 +506,19 @@ impl State {
                     };
 
                     self.entries.remove(&tunnel_id)?.unwrap();
+                }
+                Mutation::DropCredentials(drop_credentials) => {
+                    let if_exists = drop_credentials.if_exists;
+                    let credentials_id = match self.credentials_names.remove(&drop_credentials.name)
+                    {
+                        None if if_exists => return Ok(()),
+                        None => {
+                            return Err(MetastoreError::MissingCredentials(drop_credentials.name))
+                        }
+                        Some(id) => id,
+                    };
+
+                    self.entries.remove(&credentials_id)?.unwrap();
                 }
                 Mutation::DropSchema(drop_schema) => {
                     let if_exists = drop_schema.if_exists;
@@ -619,7 +647,7 @@ impl State {
                             parent: DATABASE_PARENT_ID,
                             name: create_tunnel.name.clone(),
                             builtin: false,
-                            external: true,
+                            external: false,
                         },
                         options: create_tunnel.options,
                     };
@@ -627,6 +655,36 @@ impl State {
 
                     // Add to tunnel map
                     self.tunnel_names.insert(create_tunnel.name, oid);
+                }
+                Mutation::CreateCredentials(create_credentials) => {
+                    validate_object_name(&create_credentials.name)?;
+                    if self
+                        .credentials_names
+                        .get(&create_credentials.name)
+                        .is_some()
+                    {
+                        return Err(MetastoreError::DuplicateName(create_credentials.name));
+                    }
+
+                    // Create new entry
+                    let oid = self.next_oid();
+                    let ent = CredentialsEntry {
+                        meta: EntryMeta {
+                            entry_type: EntryType::Credentials,
+                            id: oid,
+                            // The credentials, just like databases doesn't have any parent.
+                            parent: DATABASE_PARENT_ID,
+                            name: create_credentials.name.clone(),
+                            builtin: false,
+                            external: false,
+                        },
+                        options: create_credentials.options,
+                        comment: create_credentials.comment,
+                    };
+                    self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
+
+                    // Add to creadentials map
+                    self.credentials_names.insert(create_credentials.name, oid);
                 }
                 Mutation::CreateSchema(create_schema) => {
                     validate_object_name(&create_schema.name)?;

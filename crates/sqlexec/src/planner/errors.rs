@@ -27,6 +27,9 @@ pub enum PlanError {
     #[error("Invalid tunnel '{tunnel}': {reason}")]
     InvalidTunnel { tunnel: String, reason: String },
 
+    #[error("Invalid credentials '{credentials}': {reason}")]
+    InvalidCredentials { credentials: String, reason: String },
+
     #[error("External database validation failed: {source}")]
     InvalidExternalDatabase {
         source: Box<dyn std::error::Error + Send + Sync>,

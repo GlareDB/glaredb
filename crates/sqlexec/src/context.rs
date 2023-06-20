@@ -176,6 +176,13 @@ impl SessionContext {
             .count()
     }
 
+    pub fn get_credentials_count(&mut self) -> usize {
+        self.metastore_catalog
+            .iter_entries()
+            .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Credentials)
+            .count()
+    }
+
     /// Resolve temp table.
     pub fn resolve_temp_table(&self, table_name: &str) -> Option<Arc<MemTable>> {
         self.current_session_tables.get(table_name).cloned()
@@ -253,7 +260,8 @@ impl SessionContext {
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
         if let Some(limit) = self.info.limits.max_datasource_count {
             if self.get_datasource_count() >= limit {
-                return Err(ExecError::MaxDatasourceCount {
+                return Err(ExecError::MaxObjectCount {
+                    typ: "datasources",
                     max: limit,
                     current: self.get_datasource_count(),
                 });
@@ -288,7 +296,8 @@ impl SessionContext {
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
         if let Some(limit) = self.info.limits.max_datasource_count {
             if self.get_datasource_count() >= limit {
-                return Err(ExecError::MaxDatasourceCount {
+                return Err(ExecError::MaxObjectCount {
+                    typ: "datasources",
                     max: limit,
                     current: self.get_datasource_count(),
                 });
@@ -310,7 +319,8 @@ impl SessionContext {
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
         if let Some(limit) = self.info.limits.max_tunnel_count {
             if self.get_tunnel_count() >= limit {
-                return Err(ExecError::MaxTunnelCount {
+                return Err(ExecError::MaxObjectCount {
+                    typ: "tunnels",
                     max: limit,
                     current: self.get_tunnel_count(),
                 });
@@ -321,6 +331,26 @@ impl SessionContext {
             name: plan.name,
             if_not_exists: plan.if_not_exists,
             options: plan.options,
+        })])
+        .await?;
+        Ok(())
+    }
+
+    pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
+        if let Some(limit) = self.info.limits.max_credentials_count {
+            if self.get_credentials_count() >= limit {
+                return Err(ExecError::MaxObjectCount {
+                    typ: "credentials",
+                    max: limit,
+                    current: self.get_tunnel_count(),
+                });
+            }
+        }
+
+        self.mutate_catalog([Mutation::CreateCredentials(service::CreateCredentials {
+            name: plan.name,
+            options: plan.options,
+            comment: plan.comment,
         })])
         .await?;
         Ok(())
@@ -458,6 +488,24 @@ impl SessionContext {
             .into_iter()
             .map(|name| {
                 Mutation::DropTunnel(service::DropTunnel {
+                    name,
+                    if_exists: plan.if_exists,
+                })
+            })
+            .collect();
+
+        self.mutate_catalog(drops).await?;
+
+        Ok(())
+    }
+
+    /// Drop one or more credentials.
+    pub async fn drop_credentials(&mut self, plan: DropCredentials) -> Result<()> {
+        let drops: Vec<_> = plan
+            .names
+            .into_iter()
+            .map(|name| {
+                Mutation::DropCredentials(service::DropCredentials {
                     name,
                     if_exists: plan.if_exists,
                 })

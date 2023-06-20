@@ -183,3 +183,26 @@ message TunnelOptionsSsh {
   string connection_string = 1;
   bytes ssh_key = 2;
 }
+
+// Credentials options
+
+message CredentialsOptions {
+  oneof options {
+    CredentialsOptionsDebug debug = 1;
+    CredentialsOptionsGcp gcp = 2;
+    CredentialsOptionsAws aws = 3;
+  }
+}
+
+message CredentialsOptionsDebug {
+  string table_type = 1;
+}
+
+message CredentialsOptionsGcp {
+  string service_account_key = 1;
+}
+
+message CredentialsOptionsAws {
+  string access_key_id = 1;
+  string secret_access_key = 2;
+}

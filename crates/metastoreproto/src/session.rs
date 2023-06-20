@@ -1,5 +1,6 @@
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, DatabaseEntry, EntryType, SchemaEntry, TunnelEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, EntryType, SchemaEntry,
+    TunnelEntry,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,6 +16,8 @@ pub struct SessionCatalog {
     database_names: HashMap<String, u32>,
     /// Map tunnel names to their ids.
     tunnel_names: HashMap<String, u32>,
+    /// Map credentials names to their ids.
+    credentials_names: HashMap<String, u32>,
     /// Map schema names to their ids.
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
@@ -28,6 +31,7 @@ impl SessionCatalog {
             state,
             database_names: HashMap::new(),
             tunnel_names: HashMap::new(),
+            credentials_names: HashMap::new(),
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
         };
@@ -88,6 +92,30 @@ impl SessionCatalog {
             CatalogEntry::Tunnel(ent) => Some(ent),
             _ => panic!(
                 "entry type not tunnel; name: {}, id: {}, type: {:?}",
+                name,
+                id,
+                ent.entry_type(),
+            ),
+        }
+    }
+
+    /// Resolve a credentials by name.
+    pub fn resolve_credentials(&self, name: &str) -> Option<&CredentialsEntry> {
+        // Similar invariants as `resolve_database`. If we find an entry
+        // in the credentials map, it must exist in the state and must be
+        // a credentials.
+
+        let id = self.credentials_names.get(name)?;
+        let ent = self
+            .state
+            .entries
+            .get(id)
+            .expect("credentials name points to invalid id");
+
+        match ent {
+            CatalogEntry::Credentials(ent) => Some(ent),
+            _ => panic!(
+                "entry type not credentials; name: {}, id: {}, type: {:?}",
                 name,
                 id,
                 ent.entry_type(),
@@ -172,8 +200,16 @@ impl SessionCatalog {
 
     fn as_namespaced_entry<'a>(&'a self, ent: &'a CatalogEntry) -> NamespacedCatalogEntry<'a> {
         let parent_entry = match ent {
-            CatalogEntry::Database(_) | CatalogEntry::Tunnel(_) => None,
-            _ => Some(self.state.entries.get(&ent.get_meta().parent).unwrap()), // Bug if it doesn't exist.
+            // Explicitly mention all the options to accidentally not leave anything here.
+            CatalogEntry::Database(_) | CatalogEntry::Tunnel(_) | CatalogEntry::Credentials(_) => {
+                None
+            }
+            CatalogEntry::Schema(_)
+            | CatalogEntry::Table(_)
+            | CatalogEntry::View(_)
+            | CatalogEntry::Function(_) => {
+                Some(self.state.entries.get(&ent.get_meta().parent).unwrap()) // Bug if it doesn't exist.
+            }
         };
         NamespacedCatalogEntry {
             oid: ent.get_meta().id,
@@ -186,6 +222,7 @@ impl SessionCatalog {
     fn rebuild_name_maps(&mut self) {
         self.database_names.clear();
         self.tunnel_names.clear();
+        self.credentials_names.clear();
         self.schema_names.clear();
         self.schema_objects.clear();
 
@@ -199,10 +236,13 @@ impl SessionCatalog {
                 CatalogEntry::Tunnel(_) => {
                     self.tunnel_names.insert(name, *id);
                 }
+                CatalogEntry::Credentials(_) => {
+                    self.credentials_names.insert(name, *id);
+                }
                 CatalogEntry::Schema(_) => {
                     self.schema_names.insert(name, *id);
                 }
-                _ => {
+                CatalogEntry::Table(_) | CatalogEntry::View(_) | CatalogEntry::Function(_) => {
                     let schema_id = ent.get_meta().parent;
                     let ent = self.schema_objects.entry(schema_id).or_default();
                     ent.objects.insert(name, *id);

@@ -1,5 +1,7 @@
 use crate::errors::{MetastoreError, Result};
-use metastoreproto::types::options::{DatabaseOptions, TableOptions, TunnelOptions};
+use metastoreproto::types::options::{
+    CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
+};
 
 /// Validate idents as per postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
@@ -50,6 +52,43 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
     } else {
         Err(MetastoreError::TunnelNotSupportedByDatasource {
             tunnel: tunnel.to_owned(),
+            datasource: table.to_owned(),
+        })
+    }
+}
+
+/// Validate if the credentials provider is supported by the external database.
+pub fn validate_database_creds_support(database: &str, creds: &str) -> Result<()> {
+    if matches!(
+        (database, creds),
+        // Google cloud
+        (DatabaseOptions::BIGQUERY, CredentialsOptions::GCP)
+    ) {
+        Ok(())
+    } else {
+        Err(MetastoreError::CredentialsNotSupportedByDatasource {
+            credentials: creds.to_owned(),
+            datasource: database.to_owned(),
+        })
+    }
+}
+
+/// Validate if the credentials provider is supported by the external table.
+pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
+    if matches!(
+        (table, creds),
+        // Debug
+        (TableOptions::DEBUG, CredentialsOptions::DEBUG) |
+        // Google cloud
+        (TableOptions::GCS, CredentialsOptions::GCP) |
+        (TableOptions::BIGQUERY, CredentialsOptions::GCP) |
+        // AWS
+        (TableOptions::S3_STORAGE, CredentialsOptions::AWS)
+    ) {
+        Ok(())
+    } else {
+        Err(MetastoreError::CredentialsNotSupportedByDatasource {
+            credentials: creds.to_owned(),
             datasource: table.to_owned(),
         })
     }

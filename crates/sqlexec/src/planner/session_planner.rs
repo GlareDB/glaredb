@@ -1,8 +1,9 @@
 use crate::context::SessionContext;
 use crate::parser::{
     validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
-    AlterTunnelStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt,
-    DropDatabaseStmt, DropTunnelStmt, OptionValue, StatementWithExtensions,
+    AlterTunnelStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt,
+    CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, OptionValue,
+    StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
@@ -27,8 +28,12 @@ use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore::validation::{validate_database_tunnel_support, validate_table_tunnel_support};
+use metastore::validation::{
+    validate_database_creds_support, validate_database_tunnel_support,
+    validate_table_creds_support, validate_table_tunnel_support,
+};
 use metastoreproto::types::options::{
+    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsDebug, CredentialsOptionsGcp,
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
     DeltaLakeCatalog, DeltaLakeUnityCatalog, InternalColumnDefinition, TableOptions,
@@ -76,9 +81,11 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::AlterDatabaseRename(stmt) => {
                 self.plan_alter_database_rename(stmt)
             }
-            StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt).await,
+            StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt),
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
             StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
+            StatementWithExtensions::CreateCredentials(stmt) => self.plan_create_credentials(stmt),
+            StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
         }
     }
 
@@ -86,9 +93,10 @@ impl<'a> SessionPlanner<'a> {
         &self,
         mut stmt: CreateExternalDatabaseStmt,
     ) -> Result<LogicalPlan> {
+        let datasource = normalize_ident(stmt.datasource);
+
         let tunnel = stmt.tunnel.map(normalize_ident);
         let tunnel_options = self.get_tunnel_opts(&tunnel)?;
-        let datasource = normalize_ident(stmt.datasource);
         if let Some(tunnel_options) = &tunnel_options {
             // Validate if the tunnel type is supported by the datasource
             validate_database_tunnel_support(&datasource, tunnel_options.as_str()).map_err(
@@ -96,6 +104,16 @@ impl<'a> SessionPlanner<'a> {
                     source: Box::new(e),
                 },
             )?;
+        }
+
+        let creds = stmt.credentials.map(normalize_ident);
+        let creds_options = self.get_credentials_opts(&creds)?;
+        if let Some(creds_options) = &creds_options {
+            validate_database_creds_support(&datasource, creds_options.as_str()).map_err(|e| {
+                PlanError::InvalidExternalDatabase {
+                    source: Box::new(e),
+                }
+            })?;
         }
 
         let m = &mut stmt.options;
@@ -111,7 +129,16 @@ impl<'a> SessionPlanner<'a> {
                 DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
             }
             DatabaseOptions::BIGQUERY => {
-                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c,
+                    other => unreachable!("invalid credentials {other} for bigquery"),
+                });
+
+                let service_account_key =
+                    remove_required_opt_or_creds(m, "service_account_key", creds, |c| {
+                        c.service_account_key.clone()
+                    })?;
+
                 let project_id = remove_required_opt(m, "project_id")?;
                 BigQueryAccessor::validate_external_database(&service_account_key, &project_id)
                     .await
@@ -221,12 +248,23 @@ impl<'a> SessionPlanner<'a> {
         &self,
         mut stmt: CreateExternalTableStmt,
     ) -> Result<LogicalPlan> {
+        let datasource = normalize_ident(stmt.datasource);
+
         let tunnel = stmt.tunnel.map(normalize_ident);
         let tunnel_options = self.get_tunnel_opts(&tunnel)?;
-        let datasource = normalize_ident(stmt.datasource);
         if let Some(tunnel_options) = &tunnel_options {
             // Validate if the tunnel type is supported by the datasource
             validate_table_tunnel_support(&datasource, tunnel_options.as_str()).map_err(|e| {
+                PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                }
+            })?;
+        }
+
+        let creds = stmt.credentials.map(normalize_ident);
+        let creds_options = self.get_credentials_opts(&creds)?;
+        if let Some(creds_options) = &creds_options {
+            validate_table_creds_support(&datasource, creds_options.as_str()).map_err(|e| {
                 PlanError::InvalidExternalTable {
                     source: Box::new(e),
                 }
@@ -263,7 +301,16 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::BIGQUERY => {
-                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c,
+                    other => unreachable!("invalid credentials {other} for bigquery"),
+                });
+
+                let service_account_key =
+                    remove_required_opt_or_creds(m, "service_account_key", creds, |c| {
+                        c.service_account_key.clone()
+                    })?;
+
                 let project_id = remove_required_opt(m, "project_id")?;
                 let dataset_id = remove_required_opt(m, "dataset_id")?;
                 let table_id = remove_required_opt(m, "table_id")?;
@@ -377,7 +424,16 @@ impl<'a> SessionPlanner<'a> {
                 TableOptions::Local(TableOptionsLocal { location })
             }
             TableOptions::GCS => {
-                let service_account_key = remove_optional_opt(m, "service_account_key")?;
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c,
+                    other => unreachable!("invalid credentials {other} for google cloud storage"),
+                });
+
+                let service_account_key =
+                    remove_optional_opt_or_creds(m, "service_account_key", creds, |c| {
+                        c.service_account_key.clone()
+                    })?;
+
                 let bucket = remove_required_opt(m, "bucket")?;
                 let location = remove_required_opt(m, "location")?;
 
@@ -401,8 +457,20 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::S3_STORAGE => {
-                let access_key_id = remove_optional_opt(m, "access_key_id")?;
-                let secret_access_key = remove_optional_opt(m, "secret_access_key")?;
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Aws(c) => c,
+                    other => unreachable!("invalid credentials {other} for aws s3"),
+                });
+
+                let access_key_id = remove_optional_opt_or_creds(m, "access_key_id", creds, |c| {
+                    c.access_key_id.clone()
+                })?;
+
+                let secret_access_key =
+                    remove_optional_opt_or_creds(m, "secret_access_key", creds, |c| {
+                        c.secret_access_key.clone()
+                    })?;
+
                 let region = remove_required_opt(m, "region")?;
                 let bucket = remove_required_opt(m, "bucket")?;
                 let location = remove_required_opt(m, "location")?;
@@ -433,7 +501,13 @@ impl<'a> SessionPlanner<'a> {
             TableOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
 
-                let typ = remove_required_opt(m, "table_type")?;
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Debug(c) => c,
+                    other => unreachable!("invalid credentials {other} for debug datasource"),
+                });
+
+                let typ =
+                    remove_required_opt_or_creds(m, "table_type", creds, |c| c.table_type.clone())?;
                 let typ = DebugTableType::from_str(&typ)?;
 
                 TableOptions::Debug(TableOptionsDebug {
@@ -455,7 +529,7 @@ impl<'a> SessionPlanner<'a> {
         Ok(DdlPlan::CreateExternalTable(plan).into())
     }
 
-    async fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
+    fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let tunnel_type = normalize_ident(stmt.tunnel);
@@ -484,6 +558,46 @@ impl<'a> SessionPlanner<'a> {
         };
 
         Ok(DdlPlan::CreateTunnel(plan).into())
+    }
+
+    fn plan_create_credentials(&self, mut stmt: CreateCredentialsStmt) -> Result<LogicalPlan> {
+        let m = &mut stmt.options;
+
+        let provider = normalize_ident(stmt.provider);
+
+        let options = match provider.as_str() {
+            CredentialsOptions::DEBUG => {
+                let table_type = remove_required_opt(m, "table_type")?;
+                // Verify it's a correct table type.
+                let _ = table_type.parse::<DebugTableType>()?;
+                CredentialsOptions::Debug(CredentialsOptionsDebug { table_type })
+            }
+            CredentialsOptions::GCP => {
+                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                CredentialsOptions::Gcp(CredentialsOptionsGcp {
+                    service_account_key,
+                })
+            }
+            CredentialsOptions::AWS => {
+                let access_key_id = remove_required_opt(m, "access_key_id")?;
+                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
+                CredentialsOptions::Aws(CredentialsOptionsAws {
+                    access_key_id,
+                    secret_access_key,
+                })
+            }
+            other => return Err(internal!("unsupported credentials provider: {other}")),
+        };
+
+        let name = normalize_ident(stmt.name);
+
+        let plan = CreateCredentials {
+            name,
+            options,
+            comment: stmt.comment,
+        };
+
+        Ok(DdlPlan::CreateCredentials(plan).into())
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -848,6 +962,21 @@ impl<'a> SessionPlanner<'a> {
         .into())
     }
 
+    fn plan_drop_credentials(&self, stmt: DropCredentialsStmt) -> Result<LogicalPlan> {
+        let mut names = Vec::with_capacity(stmt.names.len());
+        for name in stmt.names.into_iter() {
+            validate_ident(&name)?;
+            let name = normalize_ident(name);
+            names.push(name);
+        }
+
+        Ok(DdlPlan::DropCredentials(DropCredentials {
+            names,
+            if_exists: stmt.if_exists,
+        })
+        .into())
+    }
+
     fn plan_alter_tunnel(&self, stmt: AlterTunnelStmt) -> Result<LogicalPlan> {
         validate_ident(&stmt.name)?;
         let name = normalize_ident(stmt.name);
@@ -894,6 +1023,28 @@ impl<'a> SessionPlanner<'a> {
             None
         };
         Ok(tunnel_options)
+    }
+
+    fn get_credentials_opts(
+        &self,
+        credentials: &Option<String>,
+    ) -> Result<Option<CredentialsOptions>> {
+        // Check if the credentials exists, get credentials options and pass
+        // them on for connection validation.
+        let credentials_options = if let Some(credentials) = &credentials {
+            let ent = self
+                .ctx
+                .get_session_catalog()
+                .resolve_credentials(credentials)
+                .ok_or(PlanError::InvalidCredentials {
+                    credentials: credentials.to_owned(),
+                    reason: "does not exist".to_string(),
+                })?;
+            Some(ent.options.clone())
+        } else {
+            None
+        };
+        Ok(credentials_options)
     }
 }
 
@@ -1178,6 +1329,25 @@ fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> Result<DataT
 fn is_show_transaction_isolation_level(variable: &[String]) -> bool {
     const TRANSACTION_ISOLATION_LEVEL_STMT: [&str; 3] = ["transaction", "isolation", "level"];
     variable.iter().eq(TRANSACTION_ISOLATION_LEVEL_STMT.iter())
+}
+
+fn remove_required_opt_or_creds<T>(
+    m: &mut BTreeMap<String, OptionValue>,
+    k: &str,
+    creds: Option<&T>,
+    f: impl FnOnce(&T) -> String,
+) -> Result<String> {
+    let opt = remove_optional_opt_or_creds(m, k, creds, f)?;
+    opt.ok_or_else(|| internal!("missing required_option: {}", k))
+}
+
+fn remove_optional_opt_or_creds<T>(
+    m: &mut BTreeMap<String, OptionValue>,
+    k: &str,
+    creds: Option<&T>,
+    f: impl FnOnce(&T) -> String,
+) -> Result<Option<String>> {
+    Ok(remove_optional_opt(m, k)?.or(creds.map(f)))
 }
 
 fn remove_required_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<String> {

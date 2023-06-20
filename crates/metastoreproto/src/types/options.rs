@@ -965,3 +965,135 @@ mod tests {
         }
     }
 }
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub enum CredentialsOptions {
+    Debug(CredentialsOptionsDebug),
+    Gcp(CredentialsOptionsGcp),
+    Aws(CredentialsOptionsAws),
+}
+
+impl CredentialsOptions {
+    pub const DEBUG: &str = "debug";
+    pub const GCP: &str = "gcp";
+    pub const AWS: &str = "aws";
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Debug(_) => Self::DEBUG,
+            Self::Gcp(_) => Self::GCP,
+            Self::Aws(_) => Self::AWS,
+        }
+    }
+}
+
+impl fmt::Display for CredentialsOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: options::credentials_options::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            options::credentials_options::Options::Debug(v) => Self::Debug(v.try_into()?),
+            options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
+            options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<options::CredentialsOptions> for CredentialsOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptions) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl From<CredentialsOptions> for options::credentials_options::Options {
+    fn from(value: CredentialsOptions) -> Self {
+        match value {
+            CredentialsOptions::Debug(v) => options::credentials_options::Options::Debug(v.into()),
+            CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
+            CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
+        }
+    }
+}
+
+impl From<CredentialsOptions> for options::CredentialsOptions {
+    fn from(value: CredentialsOptions) -> Self {
+        options::CredentialsOptions {
+            options: Some(value.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CredentialsOptionsDebug {
+    pub table_type: String,
+}
+
+impl TryFrom<options::CredentialsOptionsDebug> for CredentialsOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsDebug {
+            table_type: value.table_type,
+        })
+    }
+}
+
+impl From<CredentialsOptionsDebug> for options::CredentialsOptionsDebug {
+    fn from(value: CredentialsOptionsDebug) -> Self {
+        options::CredentialsOptionsDebug {
+            table_type: value.table_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CredentialsOptionsGcp {
+    pub service_account_key: String,
+}
+
+impl TryFrom<options::CredentialsOptionsGcp> for CredentialsOptionsGcp {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsGcp) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsGcp {
+            service_account_key: value.service_account_key,
+        })
+    }
+}
+
+impl From<CredentialsOptionsGcp> for options::CredentialsOptionsGcp {
+    fn from(value: CredentialsOptionsGcp) -> Self {
+        options::CredentialsOptionsGcp {
+            service_account_key: value.service_account_key,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CredentialsOptionsAws {
+    pub access_key_id: String,
+    pub secret_access_key: String,
+}
+
+impl TryFrom<options::CredentialsOptionsAws> for CredentialsOptionsAws {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsAws) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsAws {
+            access_key_id: value.access_key_id,
+            secret_access_key: value.secret_access_key,
+        })
+    }
+}
+
+impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
+    fn from(value: CredentialsOptionsAws) -> Self {
+        options::CredentialsOptionsAws {
+            access_key_id: value.access_key_id,
+            secret_access_key: value.secret_access_key,
+        }
+    }
+}

@@ -55,6 +55,7 @@ message CatalogEntry {
     ViewEntry view = 4;
     TunnelEntry tunnel = 5;
     FunctionEntry function = 6;
+    CredentialsEntry credentials = 7;
   }
 }
 
@@ -78,6 +79,8 @@ message EntryMeta {
     TUNNEL = 5;
     // Function entry.
     FUNCTION = 6;
+    // Credentials entry.
+    CREDENTIALS = 7;
   }
 
   // Type of the entry.
@@ -165,4 +168,11 @@ message FunctionEntry {
 
   EntryMeta meta = 1;
   FunctionType func_type = 2;
+}
+
+message CredentialsEntry {
+  EntryMeta meta = 1;
+  options.CredentialsOptions options = 2;
+  string comment = 3;
+  // next: 4
 }
