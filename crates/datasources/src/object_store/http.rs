@@ -3,7 +3,10 @@ use std::sync::Arc;
 use crate::object_store::{errors::ObjectStoreSourceError, Result, TableAccessor};
 
 use chrono::{DateTime, Utc};
+use datafusion::datasource::TableProvider;
 use object_store::{ObjectMeta, ObjectStore};
+
+use super::{csv::CsvTableProvider, parquet::ParquetTableProvider, FileType};
 
 #[derive(Debug, Clone)]
 pub struct HttpTableAccess {
@@ -15,6 +18,7 @@ pub struct HttpTableAccess {
 pub struct HttpAccessor {
     pub store: Arc<dyn ObjectStore>,
     pub meta: Arc<ObjectMeta>,
+    pub file_type: FileType,
 }
 
 impl HttpAccessor {
@@ -25,10 +29,12 @@ impl HttpAccessor {
         Ok(Self {
             store: Arc::new(store),
             meta: Arc::new(meta),
+            file_type: FileType::Parquet,
         })
     }
 }
 
+#[async_trait::async_trait]
 impl TableAccessor for HttpAccessor {
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
@@ -36,6 +42,16 @@ impl TableAccessor for HttpAccessor {
 
     fn object_meta(&self) -> &Arc<ObjectMeta> {
         &self.meta
+    }
+
+    async fn into_table_provider(self, _: bool) -> Result<Arc<dyn TableProvider>> {
+        let table_provider: Arc<dyn TableProvider> = match self.file_type {
+            FileType::Parquet => {
+                Arc::new(ParquetTableProvider::from_table_accessor(self, false).await?)
+            }
+            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
+        };
+        Ok(table_provider)
     }
 }
 

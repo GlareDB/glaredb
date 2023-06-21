@@ -16,6 +16,7 @@ use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::object_store::TableAccessor;
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore::builtins::{

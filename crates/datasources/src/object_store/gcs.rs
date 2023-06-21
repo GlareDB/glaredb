@@ -44,6 +44,7 @@ pub struct GcsAccessor {
     pub file_type: FileType,
 }
 
+#[async_trait::async_trait]
 impl TableAccessor for GcsAccessor {
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
@@ -51,6 +52,16 @@ impl TableAccessor for GcsAccessor {
 
     fn object_meta(&self) -> &Arc<ObjectMeta> {
         &self.meta
+    }
+
+    async fn into_table_provider(self, predicate_pushdown: bool) -> Result<Arc<dyn TableProvider>> {
+        let table_provider: Arc<dyn TableProvider> = match self.file_type {
+            FileType::Parquet => {
+                Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
+            }
+            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
+        };
+        Ok(table_provider)
     }
 }
 
@@ -78,18 +89,5 @@ impl GcsAccessor {
         let location = ObjectStorePath::from(access.location);
         store.head(&location).await?;
         Ok(())
-    }
-
-    pub async fn into_table_provider(
-        self,
-        predicate_pushdown: bool,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let table_provider: Arc<dyn TableProvider> = match self.file_type {
-            FileType::Parquet => {
-                Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
-            }
-            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
-        };
-        Ok(table_provider)
     }
 }
