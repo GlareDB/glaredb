@@ -8,14 +8,24 @@ use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::vars::SessionVars;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, execute_stream, memory::MemoryStream,
     ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
+use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
+use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::native::access::NativeTableStorage;
+use datasources::object_store::gcs::GcsTableAccess;
+use datasources::object_store::local::LocalTableAccess;
+use datasources::object_store::s3::S3TableAccess;
 use futures::StreamExt;
+use metastore::types::{CopyToDestinationOptions, CopyToFormatOptions};
 use metastoreproto::session::SessionCatalog;
+use object_store::path::Path as ObjectStorePath;
+use object_store::ObjectStore;
 use pgrepr::format::Format;
 use std::fmt;
 use std::path::PathBuf;
@@ -50,6 +60,8 @@ pub enum ExecutionResult {
     Rollback,
     /// Data successfully written.
     WriteSuccess,
+    /// Data successfully copied.
+    CopySuccess,
     /// Table created.
     CreateTable,
     /// Database created.
@@ -95,7 +107,8 @@ impl ExecutionResult {
             ExecutionResult::Begin => "begin",
             ExecutionResult::Commit => "commit",
             ExecutionResult::Rollback => "rollback",
-            ExecutionResult::WriteSuccess { .. } => "write_success",
+            ExecutionResult::WriteSuccess => "write_success",
+            ExecutionResult::CopySuccess => "copy_success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -130,7 +143,8 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Begin => write!(f, "begin"),
             ExecutionResult::Commit => write!(f, "commit"),
             ExecutionResult::Rollback => write!(f, "rollback"),
-            ExecutionResult::WriteSuccess { .. } => write!(f, "write success"),
+            ExecutionResult::WriteSuccess => write!(f, "write success"),
+            ExecutionResult::CopySuccess => write!(f, "copy success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
@@ -325,6 +339,85 @@ impl Session {
         Ok(())
     }
 
+    pub(crate) async fn plan_copy_to(&self, plan: CopyTo) -> Result<()> {
+        fn get_sink_for_obj(
+            format: CopyToFormatOptions,
+            store: Arc<dyn ObjectStore>,
+            path: ObjectStorePath,
+        ) -> Result<Box<dyn DataSink>> {
+            let sink: Box<dyn DataSink> = match format {
+                CopyToFormatOptions::Csv(csv_opts) => Box::new(CsvSink::from_obj_store(
+                    store,
+                    path,
+                    CsvSinkOpts {
+                        delim: csv_opts.delim,
+                        header: csv_opts.header,
+                    },
+                )),
+                CopyToFormatOptions::Parquet(parquet_opts) => {
+                    Box::new(ParquetSink::from_obj_store(
+                        store,
+                        path,
+                        ParquetSinkOpts {
+                            row_group_size: parquet_opts.row_group_size,
+                        },
+                    ))
+                }
+                CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
+                    store,
+                    path,
+                    JsonSinkOpts {
+                        array: json_opts.array,
+                    },
+                )),
+            };
+            Ok(sink)
+        }
+
+        let sink = match (plan.dest, plan.format) {
+            (CopyToDestinationOptions::Local(local_options), format) => {
+                {
+                    // Create the path if it doesn't exist (for local).
+                    let _ = tokio::fs::File::create(&local_options.location).await?;
+                }
+                let access = LocalTableAccess {
+                    location: local_options.location,
+                    file_type: None,
+                };
+                let (store, path) = access.store_and_path()?;
+                get_sink_for_obj(format, store, path)?
+            }
+            (CopyToDestinationOptions::Gcs(gcs_options), format) => {
+                let access = GcsTableAccess {
+                    bucket_name: gcs_options.bucket,
+                    service_acccount_key_json: gcs_options.service_account_key,
+                    location: gcs_options.location,
+                    file_type: None,
+                };
+                let (store, path) = access.store_and_path()?;
+                get_sink_for_obj(format, store, path)?
+            }
+            (CopyToDestinationOptions::S3(s3_options), format) => {
+                let access = S3TableAccess {
+                    region: s3_options.region,
+                    bucket_name: s3_options.bucket,
+                    access_key_id: s3_options.access_key_id,
+                    secret_access_key: s3_options.secret_access_key,
+                    location: s3_options.location,
+                    file_type: None,
+                };
+                let (store, path) = access.store_and_path()?;
+                get_sink_for_obj(format, store, path)?
+            }
+        };
+
+        let physical = self.create_physical_plan(plan.source).await?;
+        let stream = self.execute_physical(physical)?;
+
+        sink.write_all(stream).await?;
+        Ok(())
+    }
+
     pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
         let var = self.ctx.get_session_vars().get(&plan.variable)?;
         let batch = var.record_batch();
@@ -479,6 +572,10 @@ impl Session {
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;
                 ExecutionResult::WriteSuccess
+            }
+            LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
+                self.plan_copy_to(plan).await?;
+                ExecutionResult::CopySuccess
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;

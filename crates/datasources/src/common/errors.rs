@@ -17,6 +17,18 @@ pub enum DatasourceCommonError {
 
     #[error(transparent)]
     FmtError(#[from] core::fmt::Error),
+
+    #[error(transparent)]
+    ObjectStoreError(#[from] object_store::Error),
+
+    #[error(transparent)]
+    ArrowError(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    DatafusionError(#[from] datafusion::common::DataFusionError),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 }
 
 pub type Result<T, E = DatasourceCommonError> = std::result::Result<T, E>;

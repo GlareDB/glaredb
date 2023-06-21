@@ -51,6 +51,9 @@ pub enum MetastoreError {
         datasource: String,
     },
 
+    #[error("Format '{format}' not supported by datasource '{datasource}'")]
+    FormatNotSupportedByDatasource { format: String, datasource: String },
+
     #[error("Tunnel '{tunnel} not supported for {action}'")]
     TunnelNotSupportedForAction {
         tunnel: String,
