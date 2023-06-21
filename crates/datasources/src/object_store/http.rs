@@ -1,0 +1,61 @@
+use std::sync::Arc;
+
+use crate::object_store::{errors::ObjectStoreSourceError, Result, TableAccessor};
+
+use chrono::{DateTime, Utc};
+use object_store::{ObjectMeta, ObjectStore};
+
+#[derive(Debug, Clone)]
+pub struct HttpTableAccess {
+    /// Public url where the file is hosted.
+    pub url: String,
+}
+
+#[derive(Debug)]
+pub struct HttpAccessor {
+    pub store: Arc<dyn ObjectStore>,
+    pub meta: Arc<ObjectMeta>,
+}
+
+impl HttpAccessor {
+    pub async fn try_new(url: String) -> Result<Self> {
+        let meta = object_meta_from_head(&url).await?;
+        let builder = object_store::http::HttpBuilder::new();
+        let store = builder.with_url(url).build()?;
+        Ok(Self {
+            store: Arc::new(store),
+            meta: Arc::new(meta),
+        })
+    }
+}
+
+impl TableAccessor for HttpAccessor {
+    fn store(&self) -> &Arc<dyn ObjectStore> {
+        &self.store
+    }
+
+    fn object_meta(&self) -> &Arc<ObjectMeta> {
+        &self.meta
+    }
+}
+
+/// Get the object meta from a HEAD request to the url.
+///
+/// We avoid using object store's `head` method since it does a PROPFIND
+/// request.
+async fn object_meta_from_head(url: &str) -> Result<ObjectMeta> {
+    use object_store::path::Path as ObjectStorePath;
+    let url = url::Url::parse(url).unwrap();
+
+    let res = reqwest::Client::new().head(url).send().await?;
+
+    let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
+        "Missing content-length header",
+    ))?;
+
+    Ok(ObjectMeta {
+        location: ObjectStorePath::default(),
+        last_modified: DateTime::<Utc>::MIN_UTC,
+        size: len as usize,
+    })
+}

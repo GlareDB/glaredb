@@ -15,6 +15,8 @@ use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::object_store::http::HttpAccessor;
+use datasources::object_store::parquet::ParquetTableProvider;
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use futures::Stream;
@@ -59,6 +61,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(ParquetScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
@@ -456,6 +459,51 @@ impl TableFunc for ReadSnowflake {
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?;
                 let prov = accessor
                     .into_table_provider(access_info, true)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
+                Ok(Arc::new(prov))
+            }
+            _ => Err(BuiltinError::InvalidNumArgs),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParquetScan;
+
+#[async_trait]
+impl TableFunc for ParquetScan {
+    fn name(&self) -> &str {
+        "parquet_scan"
+    }
+
+    fn parameters(&self) -> &[TableFuncParameters] {
+        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
+            params: &[TableFuncParameter {
+                name: "url",
+                typ: DataType::Utf8,
+            }],
+        }];
+
+        PARAMS
+    }
+
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        match args.len() {
+            // parquet_scan(url)
+            1 => {
+                let mut args = args.into_iter();
+                let url = string_from_scalar(args.next().unwrap())?;
+                let accessor = HttpAccessor::try_new(url)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
+                let prov = ParquetTableProvider::from_table_accessor(accessor, false)
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?;
 

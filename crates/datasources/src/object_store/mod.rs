@@ -11,11 +11,12 @@ use errors::Result;
 
 pub mod errors;
 pub mod gcs;
+pub mod http;
 pub mod local;
+pub mod parquet;
 pub mod s3;
 
 mod csv;
-mod parquet;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FileType {
