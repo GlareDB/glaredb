@@ -502,13 +502,14 @@ impl TableFunc for ParquetScan {
                 let accessor = HttpAccessor::try_new(url)
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+
                 let prov = ParquetTableProvider::from_table_accessor(accessor, false)
                     .await
-                    .unwrap();
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
 
                 Ok(Arc::new(prov))
             }
-            _ => Err(BuiltinError::Unimplemented("invalid number of arguments")),
+            _ => Err(BuiltinError::InvalidNumArgs),
         }
     }
 }
