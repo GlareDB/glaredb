@@ -16,7 +16,8 @@ use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::http::HttpAccessor;
-use datasources::object_store::parquet::ParquetTableProvider;
+use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::object_store::{FileType, TableAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use futures::Stream;
@@ -30,6 +31,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use url::Url;
 
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -498,16 +500,29 @@ impl TableFunc for ParquetScan {
             // parquet_scan(url)
             1 => {
                 let mut args = args.into_iter();
-                let url = string_from_scalar(args.next().unwrap())?;
-                let accessor = HttpAccessor::try_new(url)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
-
-                let prov = ParquetTableProvider::from_table_accessor(accessor, false)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
-
-                Ok(Arc::new(prov))
+                let url_string = string_from_scalar(args.next().unwrap())?;
+                let url = Url::parse(&url_string).map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                Ok(match url.scheme() {
+                    "file" => {
+                        let table_access = LocalTableAccess {
+                            location: url.to_file_path().unwrap().to_str().unwrap().to_string(),
+                            file_type: Some(FileType::Parquet),
+                        };
+                        LocalAccessor::new(table_access)
+                            .await
+                            .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                            .into_table_provider(false)
+                            .await
+                            .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    }
+                    "http" | "https" => HttpAccessor::try_new(url_string)
+                        .await
+                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                        .into_table_provider(false)
+                        .await
+                        .map_err(|e| BuiltinError::Access(Box::new(e)))?,
+                    _ => return Err(BuiltinError::Static("Unsupported scheme")),
+                })
             }
             _ => Err(BuiltinError::InvalidNumArgs),
         }

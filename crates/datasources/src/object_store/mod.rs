@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use datafusion::datasource::TableProvider;
 use errors::ObjectStoreSourceError;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -37,10 +38,12 @@ impl FromStr for FileType {
     }
 }
 
+#[async_trait::async_trait]
 pub trait TableAccessor: Send + Sync {
     fn store(&self) -> &Arc<dyn ObjectStore>;
 
     fn object_meta(&self) -> &Arc<ObjectMeta>;
+    async fn into_table_provider(self, predicate_pushdown: bool) -> Result<Arc<dyn TableProvider>>;
 }
 
 pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
