@@ -135,9 +135,6 @@ pub struct NativeTable {
     delta: DeltaTable,
 }
 
-#[derive(Debug)]
-struct NativeTableInner {}
-
 impl NativeTable {
     fn new(delta: DeltaTable) -> Self {
         NativeTable { delta }
