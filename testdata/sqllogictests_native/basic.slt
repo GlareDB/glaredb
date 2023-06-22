@@ -1,0 +1,27 @@
+# TODO: Enable when creating tables with timestamps works correctly.
+
+halt
+
+statement ok
+CREATE TABLE basic (
+  station_id        INT,
+  name              TEXT,
+  status            TEXT,
+  address           TEXT,
+  alternate_name    TEXT,
+  city_asset_number TEXT,
+  property_type     TEXT,
+  number_of_docks   INT,
+  power_type        TEXT,
+  footprint_length  INT,
+  footprint_width   REAL,
+  notes             TEXT,
+  council_district  INT,
+  modified_date     TIMESTAMP,
+)
+
+# TODO: Needs `read_csv` (or whatever we're calling it)
+statement ok
+INSERT INTO basic SELECT * FROM read_csv('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
