@@ -15,7 +15,6 @@ use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasources::object_store::http::HttpAccessor;
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::{FileType, TableAccessor};
