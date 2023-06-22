@@ -3,3 +3,4 @@
 //! "Just" another data source that we happen to manage.
 pub mod access;
 pub mod errors;
+pub mod insert;

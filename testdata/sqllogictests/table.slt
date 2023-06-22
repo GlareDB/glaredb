@@ -1,0 +1,13 @@
+# Tests for creating and inserting into table.
+
+statement ok
+create table basic (a int, b text);
+
+statement ok
+insert into basic values (1, 'a'), (2, 'b');
+
+query IT rowsort
+select * from basic;
+----
+1  a
+2  b
