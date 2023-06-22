@@ -64,6 +64,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
             Arc::new(ParquetScan),
+            Arc::new(CsvScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
@@ -496,42 +497,76 @@ impl TableFunc for ParquetScan {
         _: &dyn TableFuncContextProvider,
         args: Vec<ScalarValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        match args.len() {
-            // parquet_scan(url)
-            1 => {
-                let mut args = args.into_iter();
-                let url_string = string_from_scalar(args.next().unwrap())?;
-                let url = Url::parse(&url_string).map_err(|e| BuiltinError::Access(Box::new(e)))?;
-                Ok(match url.scheme() {
-                    "file" => {
-                        let table_access = LocalTableAccess {
-                            location: url.to_file_path().unwrap().to_str().unwrap().to_string(),
-                            file_type: Some(FileType::Parquet),
-                        };
-                        LocalAccessor::new(table_access)
-                            .await
-                            .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                            .into_table_provider(false)
-                            .await
-                            .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    }
-                    "http" | "https" => HttpAccessor::try_new(url_string)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(false)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?,
-                    _ => return Err(BuiltinError::Static("Unsupported scheme")),
-                })
-            }
-            _ => Err(BuiltinError::InvalidNumArgs),
-        }
+        create_provider_for_filetype(FileType::Parquet, args).await
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CsvScan;
+
+#[async_trait]
+impl TableFunc for CsvScan {
+    fn name(&self) -> &str {
+        "csv_scan"
+    }
+
+    fn parameters(&self) -> &[TableFuncParameters] {
+        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
+            params: &[TableFuncParameter {
+                name: "url",
+                typ: DataType::Utf8,
+            }],
+        }];
+
+        PARAMS
+    }
+
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        create_provider_for_filetype(FileType::Csv, args).await
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ListSchemas;
 
+async fn create_provider_for_filetype(
+    file_type: FileType,
+    args: Vec<ScalarValue>,
+) -> Result<Arc<dyn TableProvider>> {
+    match args.len() {
+        1 => {
+            let mut args = args.into_iter();
+            let url_string = string_from_scalar(args.next().unwrap())?;
+            let url = Url::parse(&url_string).map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            Ok(match url.scheme() {
+                "file" => {
+                    let table_access = LocalTableAccess {
+                        location: url.to_file_path().unwrap().to_str().unwrap().to_string(),
+                        file_type: Some(file_type),
+                    };
+                    LocalAccessor::new(table_access)
+                        .await
+                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                        .into_table_provider(true)
+                        .await
+                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                }
+                "http" | "https" => HttpAccessor::try_new(url_string, file_type)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(false)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?,
+                _ => return Err(BuiltinError::Static("Unsupported scheme")),
+            })
+        }
+        _ => Err(BuiltinError::InvalidNumArgs),
+    }
+}
 #[async_trait]
 impl TableFunc for ListSchemas {
     fn name(&self) -> &str {
