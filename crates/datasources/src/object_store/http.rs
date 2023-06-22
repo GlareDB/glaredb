@@ -22,14 +22,14 @@ pub struct HttpAccessor {
 }
 
 impl HttpAccessor {
-    pub async fn try_new(url: String) -> Result<Self> {
+    pub async fn try_new(url: String, file_type: FileType) -> Result<Self> {
         let meta = object_meta_from_head(&url).await?;
         let builder = object_store::http::HttpBuilder::new();
         let store = builder.with_url(url).build()?;
         Ok(Self {
             store: Arc::new(store),
             meta: Arc::new(meta),
-            file_type: FileType::Parquet,
+            file_type,
         })
     }
 }
@@ -47,7 +47,7 @@ impl TableAccessor for HttpAccessor {
     async fn into_table_provider(self, _: bool) -> Result<Arc<dyn TableProvider>> {
         let table_provider: Arc<dyn TableProvider> = match self.file_type {
             FileType::Parquet => {
-                Arc::new(ParquetTableProvider::from_table_accessor(self, false).await?)
+                Arc::new(ParquetTableProvider::from_table_accessor(self, true).await?)
             }
             FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
         };
