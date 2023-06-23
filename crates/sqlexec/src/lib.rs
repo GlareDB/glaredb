@@ -6,6 +6,7 @@ pub mod metastore;
 pub mod parser;
 pub mod session;
 
+mod clustercom;
 mod functions;
 mod metrics;
 mod planner;

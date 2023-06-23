@@ -1,0 +1,30 @@
+// Cross compute-node cluster communication service definition.
+//
+// Changes to these definitions do not need to be backwards compatible.
+
+syntax = "proto3";
+
+package sqlexec.clustercom;
+
+// Message for notifying other nodes in the cluster about a change to particular
+// database.
+message EmitDatabaseEventRequest {
+  // ID of the database that this change corresponds to.
+  bytes db_id = 1;
+
+  // The event to emit to all other nodes.
+  oneof event { CatalogMutated catalog_mutated = 2; }
+}
+
+message CatalogMutated {}
+
+message EmitDatabaseEventResponse {}
+
+service ClusterComService {
+  // Emit an event for a database.
+  //
+  // This can be safely ignored if the recipient doesn't have any state related
+  // to the database.
+  rpc EmitDatabaseEvent(EmitDatabaseEventRequest)
+      returns (EmitDatabaseEventResponse);
+}

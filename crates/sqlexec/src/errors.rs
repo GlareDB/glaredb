@@ -55,7 +55,7 @@ pub enum ExecError {
     #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
     MetastoreDatabaseWorkerOverload {
         request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
+        conn_id: crate::metastore::ClientId,
     },
 
     #[error(
@@ -63,7 +63,7 @@ pub enum ExecError {
     )]
     MetastoreRequestChannelClosed {
         request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
+        conn_id: crate::metastore::ClientId,
     },
 
     #[error(
@@ -71,7 +71,7 @@ pub enum ExecError {
     )]
     MetastoreResponseChannelClosed {
         request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
+        conn_id: crate::metastore::ClientId,
     },
 
     #[error("Duplicate object name: '{0}' already exists")]

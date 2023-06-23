@@ -8,6 +8,7 @@ use metastoreproto::proto::service::{
 use metastoreproto::types::catalog::CatalogState;
 use metastoreproto::types::service::Mutation;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,6 +21,22 @@ use uuid::Uuid;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
+
+/// Some identifier for the client making requests to metastore.
+#[derive(Debug, Clone, Copy)]
+pub enum ClientId {
+    System(Uuid),
+    User(Uuid),
+}
+
+impl fmt::Display for ClientId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::System(id) => write!(f, "{id} (system)"),
+            ClientId::User(id) => write!(f, "{id} (user)"),
+        }
+    }
+}
 
 /// Configuration values used when starting up a worker.
 #[derive(Debug, Clone, Copy)]
@@ -42,7 +59,7 @@ pub struct SupervisorClient {
     ///
     /// Used to prevent unecessary requests and locking.
     version_hint: Arc<AtomicU64>,
-    conn_id: Uuid,
+    conn_id: ClientId,
     send: mpsc::Sender<WorkerRequest>,
 }
 
@@ -160,19 +177,19 @@ impl SupervisorClient {
 enum WorkerRequest {
     /// Ping the worker, ensuring it's still running.
     Ping {
-        conn_id: Uuid,
+        conn_id: ClientId,
         response: oneshot::Sender<()>,
     },
 
     /// Get the cached catalog state for some database.
     GetCachedState {
-        conn_id: Uuid,
+        conn_id: ClientId,
         response: oneshot::Sender<Result<Arc<CatalogState>>>,
     },
 
     /// Execute mutations against a catalog.
     ExecMutations {
-        conn_id: Uuid,
+        conn_id: ClientId,
         version: u64,
         /// Mutations to send to Metastore.
         mutations: Vec<Mutation>,
@@ -182,7 +199,7 @@ enum WorkerRequest {
 
     /// Refresh the cached catalog state from persistence for some database
     RefreshCachedState {
-        conn_id: Uuid,
+        conn_id: ClientId,
         response: oneshot::Sender<()>,
     },
 }
@@ -197,7 +214,7 @@ impl WorkerRequest {
         }
     }
 
-    fn conn_id(&self) -> &Uuid {
+    fn conn_id(&self) -> &ClientId {
         match self {
             WorkerRequest::Ping { conn_id, .. } => conn_id,
             WorkerRequest::GetCachedState { conn_id, .. } => conn_id,
@@ -240,7 +257,7 @@ impl Supervisor {
     /// Initialize a client for a single database.
     ///
     /// This will initialize a database worker as appropriate.
-    pub async fn init_client(&self, conn_id: Uuid, db_id: Uuid) -> Result<SupervisorClient> {
+    pub async fn init_client(&self, conn_id: ClientId, db_id: Uuid) -> Result<SupervisorClient> {
         let client = self.init_client_inner(conn_id, db_id).await?;
         match client.ping().await {
             Ok(_) => Ok(client),
@@ -256,7 +273,7 @@ impl Supervisor {
         }
     }
 
-    async fn init_client_inner(&self, conn_id: Uuid, db_id: Uuid) -> Result<SupervisorClient> {
+    async fn init_client_inner(&self, conn_id: ClientId, db_id: Uuid) -> Result<SupervisorClient> {
         // Fast path, already have a worker.
         {
             let workers = self.workers.read().await;
@@ -583,7 +600,7 @@ mod tests {
 
         let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
 
-        let conn_id = Uuid::nil();
+        let conn_id = ClientId::User(Uuid::nil());
         let db_id = Uuid::nil();
         let client = supervisor.init_client(conn_id, db_id).await.unwrap();
 
@@ -613,8 +630,14 @@ mod tests {
 
         let db_id = Uuid::nil();
 
-        let c1 = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
-        let c2 = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let c1 = supervisor
+            .init_client(ClientId::User(Uuid::new_v4()), db_id)
+            .await
+            .unwrap();
+        let c2 = supervisor
+            .init_client(ClientId::User(Uuid::new_v4()), db_id)
+            .await
+            .unwrap();
 
         // Both clients have the same state.
         let s1 = c1.get_cached_state().await.unwrap();
@@ -668,7 +691,10 @@ mod tests {
         let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
 
         let db_id = Uuid::nil();
-        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let client = supervisor
+            .init_client(ClientId::User(Uuid::new_v4()), db_id)
+            .await
+            .unwrap();
 
         let state = client.get_cached_state().await.unwrap();
         supervisor.terminate_worker(&db_id).await;
@@ -680,7 +706,10 @@ mod tests {
         let _ = client.get_cached_state().await.unwrap_err();
 
         // Initiate a new client, which should spin up a new worker.
-        let _ = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let _ = supervisor
+            .init_client(ClientId::User(Uuid::new_v4()), db_id)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -698,7 +727,10 @@ mod tests {
         );
 
         let db_id = Uuid::nil();
-        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let client = supervisor
+            .init_client(ClientId::User(Uuid::new_v4()), db_id)
+            .await
+            .unwrap();
 
         client.ping().await.unwrap();
         client.refresh_cached_state().await.unwrap();
@@ -715,7 +747,10 @@ mod tests {
         assert!(supervisor.worker_is_dead(&db_id).await);
 
         // We should be able to init a new client without issue.
-        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let client = supervisor
+            .init_client(ClientId::User(Uuid::new_v4()), db_id)
+            .await
+            .unwrap();
         client.ping().await.unwrap();
     }
 }

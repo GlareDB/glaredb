@@ -1,10 +1,12 @@
 use crate::errors::{ExecError, Result};
-use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
+use crate::metastore::{ClientId, Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
 use datasources::native::access::NativeTableStorage;
 use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastoreproto::session::SessionCatalog;
 use object_store_util::conf::StorageConfig;
+use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -118,6 +120,8 @@ impl EngineStorageConfig {
 
 /// Hold configuration and clients needed to create database sessions.
 pub struct Engine {
+    /// Some unique id identifying this process.
+    process_id: Uuid,
     /// Metastore client supervisor.
     supervisor: Supervisor,
     /// Telemetry.
@@ -126,8 +130,8 @@ pub struct Engine {
     storage: EngineStorageConfig,
     /// Path to spill temp files.
     spill_path: Option<PathBuf>,
-    /// Number of active sessions.
-    session_counter: Arc<AtomicU64>,
+    /// Active databases along with number of sessions for that database.
+    active_databases: Arc<RwLock<HashMap<Uuid, usize>>>,
 }
 
 impl Engine {
@@ -138,18 +142,40 @@ impl Engine {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
+        let process_id = Uuid::new_v4();
+        info!(%process_id, "starting engine with id");
+
         Ok(Engine {
+            process_id,
             supervisor: Supervisor::new(metastore, DEFAULT_WORKER_CONFIG),
             tracker,
             storage,
             spill_path,
-            session_counter: Arc::new(AtomicU64::new(0)),
+            active_databases: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
     /// Get the current number of sessions.
-    pub fn session_count(&self) -> u64 {
-        self.session_counter.load(Ordering::Relaxed)
+    pub fn session_count(&self) -> usize {
+        let m = self.active_databases.read();
+        m.iter().fold(0, |acc, (_, count)| acc + count)
+    }
+
+    /// Try to refresh this node's reference to a database catalog.
+    ///
+    /// Does nothing if there's no session for the database.
+    pub async fn maybe_refresh_catalog(&self, db_id: Uuid) -> Result<()> {
+        if !self.active_databases.read().contains_key(&db_id) {
+            debug!(%db_id, "no active session for database, skipping catalog refresh");
+            return Ok(());
+        }
+
+        let client = self
+            .supervisor
+            .init_client(ClientId::System(self.process_id), db_id)
+            .await?;
+        client.refresh_cached_state().await?;
+        Ok(())
     }
 
     /// Create a new session with the given id.
@@ -164,7 +190,10 @@ impl Engine {
         limits: SessionLimits,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
-        let metastore = self.supervisor.init_client(conn_id, database_id).await?;
+        let metastore = self
+            .supervisor
+            .init_client(ClientId::User(conn_id), database_id)
+            .await?;
         let native = self
             .storage
             .new_native_tables_storage(database_id, &storage)?;
@@ -191,20 +220,28 @@ impl Engine {
             self.spill_path.clone(),
         )?;
 
-        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
-        debug!(session_count = prev + 1, "new session opened");
+        {
+            let mut m = self.active_databases.write();
+            m.entry(database_id)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+        }
 
         Ok(TrackedSession {
+            database_id,
             inner: session,
-            session_counter: self.session_counter.clone(),
+            active_databases: self.active_databases.clone(),
         })
     }
 }
 
 /// A thin wrapper around a session.
 pub struct TrackedSession {
+    database_id: Uuid,
     inner: Session,
-    session_counter: Arc<AtomicU64>,
+    /// Reference to active databases. Once this session is dropped, the count
+    /// for its database will be decremented.
+    active_databases: Arc<RwLock<HashMap<Uuid, usize>>>,
 }
 
 impl Deref for TrackedSession {
@@ -222,8 +259,8 @@ impl DerefMut for TrackedSession {
 
 impl Drop for TrackedSession {
     fn drop(&mut self) {
-        let prev = self.session_counter.fetch_sub(1, Ordering::Relaxed);
-        debug!(session_counter = prev - 1, "session closed");
+        let mut m = self.active_databases.write();
+        m.entry(self.database_id).and_modify(|count| *count -= 1);
     }
 }
 
