@@ -18,6 +18,7 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
+use sqlexec::clustercom::client::ClusterClient;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::engine::{EngineStorageConfig, SessionLimits};
 use sqlexec::parser;
@@ -111,7 +112,7 @@ impl LocalSession {
 
         let engine = Engine::new(
             metastore_client,
-            None,
+            ClusterClient::default(),
             storage_conf,
             tracker,
             opts.spill_path.clone(),

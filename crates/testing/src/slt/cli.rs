@@ -153,6 +153,7 @@ impl Cli {
                 let server_conf = ServerConfig {
                     pg_listener,
                     cluster_listener: None,
+                    cluster_addrs: Vec::new(),
                 };
 
                 let server = ComputeServer::connect(

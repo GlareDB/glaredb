@@ -134,14 +134,14 @@ pub struct Engine {
     /// Active databases along with number of sessions for that database.
     active_databases: Arc<RwLock<HashMap<Uuid, usize>>>,
     /// Handle to the cluster client if configured to run in a cluster.
-    cluster_client: Option<ClusterClient>,
+    cluster_client: ClusterClient,
 }
 
 impl Engine {
     /// Create a new engine using the provided access runtime.
     pub async fn new(
         metastore: MetastoreServiceClient<Channel>,
-        cluster_client: Option<ClusterClient>,
+        cluster_client: ClusterClient,
         storage: EngineStorageConfig,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
@@ -220,6 +220,7 @@ impl Engine {
             info,
             catalog,
             metastore,
+            self.cluster_client.clone(),
             native,
             self.tracker.clone(),
             self.spill_path.clone(),

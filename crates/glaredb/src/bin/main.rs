@@ -48,9 +48,17 @@ enum Commands {
 
     /// Starts the sql server portion of GlareDB.
     Server {
-        /// TCP address to bind to.
+        /// TCP address to bind to for the postgres compatible server.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
         bind: String,
+
+        /// TCP address to bind to for the cluster listener.
+        #[clap(long, value_parser)]
+        cluster_bind: Option<String>,
+
+        /// A list of addresses to try to connect to for cluster communication.
+        #[clap(long, value_parser)]
+        cluster_addrs: Vec<String>,
 
         /// Address to the Metastore.
         ///
@@ -174,6 +182,8 @@ fn main() -> Result<()> {
         }
         Commands::Server {
             bind,
+            cluster_bind,
+            cluster_addrs,
             metastore_addr,
             user,
             password,
@@ -200,6 +210,8 @@ fn main() -> Result<()> {
 
             begin_server(
                 &bind,
+                cluster_bind,
+                cluster_addrs,
                 metastore_addr,
                 segment_key,
                 auth,
@@ -272,6 +284,8 @@ fn main() -> Result<()> {
 
 fn begin_server(
     pg_bind: &str,
+    cluster_bind: Option<String>,
+    cluster_addrs: Vec<String>,
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     authenticator: Box<dyn LocalAuthenticator>,
@@ -282,9 +296,15 @@ fn begin_server(
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
+        let cluster_listener = match cluster_bind {
+            Some(bind) => Some(TcpListener::bind(bind).await?),
+            None => None,
+        };
+
         let conf = ServerConfig {
             pg_listener,
-            cluster_listener: None,
+            cluster_listener,
+            cluster_addrs,
         };
         let server = ComputeServer::connect(
             metastore_addr,

@@ -23,22 +23,16 @@ pub enum ClusterClientError {
     TonicTransport(#[from] tonic::transport::Error),
 }
 
-#[derive(Debug, Clone)]
+/// Stores clients to other members in the cluster.
+///
+/// By default, there will be no clients until `membership_change` is called.
+#[derive(Debug, Clone, Default)]
 pub struct ClusterClient {
     /// Map of all clients in the cluster, keyed by address.
     clients: Arc<RwLock<BTreeMap<String, ClusterComServiceClient<Channel>>>>,
 }
 
 impl ClusterClient {
-    /// Create a new cluster client.
-    ///
-    /// No members are initially configured.
-    pub fn new() -> Self {
-        ClusterClient {
-            clients: Arc::new(RwLock::new(BTreeMap::new())),
-        }
-    }
-
     /// Broadcast that catalog has been mutated to all nodes.
     pub async fn broadcast_catalog_mutated(&self, db_id: Uuid) -> Result<(), ClusterClientError> {
         let mut clients: Vec<_> = {

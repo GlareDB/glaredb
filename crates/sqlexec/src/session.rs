@@ -1,3 +1,4 @@
+use crate::clustercom::client::ClusterClient;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::engine::SessionInfo;
 use crate::errors::{ExecError, Result};
@@ -169,12 +170,21 @@ impl Session {
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        cluster_client: ClusterClient,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, native_tables, metrics, spill_path);
+        let ctx = SessionContext::new(
+            info,
+            catalog,
+            metastore,
+            cluster_client,
+            native_tables,
+            metrics,
+            spill_path,
+        );
         Ok(Session { ctx })
     }
 

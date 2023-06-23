@@ -20,8 +20,12 @@ use tracing::{debug, debug_span, error, info, warn, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
+    /// Listener for pg interface.
     pub pg_listener: TcpListener,
+    /// Listener for cluster communication.
     pub cluster_listener: Option<TcpListener>,
+    /// Initial set of cluster nodes to try to connect to.
+    pub cluster_addrs: Vec<String>,
 }
 
 pub struct ComputeServer {
@@ -81,11 +85,11 @@ impl ComputeServer {
             }
         };
 
-        let cluster_client = ClusterClient::new();
+        let cluster_client = ClusterClient::default();
         let engine = Arc::new(
             Engine::new(
                 metastore_client,
-                Some(cluster_client.clone()),
+                cluster_client.clone(),
                 storage_conf,
                 Arc::new(tracker),
                 spill_path,
@@ -114,8 +118,10 @@ impl ComputeServer {
         // Start up cluster listener if it's configured.
         if let Some(cluster_listener) = conf.cluster_listener {
             info!("Starting cluster listener");
-            let incoming = TcpIncoming::from_listener(cluster_listener, true, None)
+            let incoming = TcpIncoming::from_listener(cluster_listener, false, None)
                 .map_err(|e| anyhow!("failed to convert tcp listener: {e}"))?;
+
+            let client = self.cluster_service.client().clone();
             tokio::spawn(async move {
                 let _ = Server::builder()
                     .trace_fn(|_| debug_span!("cluster_listener_request"))
@@ -123,6 +129,18 @@ impl ComputeServer {
                     .serve_with_incoming(incoming)
                     .await;
             });
+
+            // Backfill cluster client.
+            info!("Connecting to cluster nodes");
+            if let Err(e) = client
+                .membership_change(conf.cluster_addrs, Vec::new())
+                .await
+            {
+                warn!(?e, "error connecting to cluster nodes");
+                // Don't block startup if we fail to connect.
+                //
+                // TODO: Retry?
+            }
         }
 
         // Shutdown handler.

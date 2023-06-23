@@ -1,3 +1,4 @@
+use crate::clustercom::client::ClusterClient;
 use crate::engine::SessionInfo;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -35,7 +36,7 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Implicity schemas that are consulted during object resolution.
 ///
@@ -58,6 +59,8 @@ pub struct SessionContext {
     /// Database catalog.
     metastore_catalog: SessionCatalog,
     metastore: SupervisorClient,
+    /// Client to other nodes in the cluster.
+    cluster_client: ClusterClient,
     /// In-memory (temporary) tables.
     current_session_tables: HashMap<String, Arc<MemTable>>,
     /// Native tables.
@@ -90,6 +93,7 @@ impl SessionContext {
         info: Arc<SessionInfo>,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
+        cluster_client: ClusterClient,
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
@@ -132,6 +136,7 @@ impl SessionContext {
             info,
             metastore_catalog: catalog,
             metastore,
+            cluster_client,
             current_session_tables: HashMap::new(),
             tables: native_tables,
             vars: SessionVars::default(),
@@ -730,6 +735,17 @@ impl SessionContext {
             Err(e) => return Err(e),
         };
         self.metastore_catalog.swap_state(state);
+
+        // Let other nodes in the cluster know about it.
+        if let Err(e) = self
+            .cluster_client
+            .broadcast_catalog_mutated(self.info.database_id)
+            .await
+        {
+            warn!(%e, "failed to broadcast catalog mutation");
+            // Continue on, failing to broadcast shouldn't bubble up to the user.
+        }
+
         Ok(())
     }
 

@@ -50,6 +50,11 @@ impl ClusterService {
     pub fn new(engine: Arc<Engine>, client: ClusterClient) -> Self {
         ClusterService { engine, client }
     }
+
+    /// Get a reference to the cluster client.
+    pub fn client(&self) -> &ClusterClient {
+        &self.client
+    }
 }
 
 #[async_trait]
