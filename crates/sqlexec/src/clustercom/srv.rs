@@ -1,3 +1,6 @@
+use crate::clustercom::client::{ClusterClient, ClusterClientError};
+use crate::clustercom::proto::clustercom::MembershipChangeRequest;
+use crate::clustercom::proto::clustercom::MembershipChangeResponse;
 use crate::{
     clustercom::proto::clustercom::cluster_com_service_server::ClusterComService,
     clustercom::proto::clustercom::{
@@ -20,6 +23,9 @@ pub enum ServiceError {
 
     #[error(transparent)]
     ExecError(#[from] crate::errors::ExecError),
+
+    #[error(transparent)]
+    ClusterClient(#[from] ClusterClientError),
 }
 
 impl From<ServiceError> for tonic::Status {
@@ -30,18 +36,24 @@ impl From<ServiceError> for tonic::Status {
 }
 
 /// Handle cross-node messages.
-pub struct Service {
+pub struct ClusterService {
     engine: Arc<Engine>,
+    client: ClusterClient,
 }
 
-impl Service {
-    pub fn new(engine: Arc<Engine>) -> Self {
-        Service { engine }
+impl ClusterService {
+    /// Create a new cluster service to handle incoming requests from other
+    /// nodes.
+    ///
+    /// Accepts a cluster client to allow for reconfuration of membership based
+    /// on requests from other nodes.
+    pub fn new(engine: Arc<Engine>, client: ClusterClient) -> Self {
+        ClusterService { engine, client }
     }
 }
 
 #[async_trait]
-impl ClusterComService for Service {
+impl ClusterComService for ClusterService {
     async fn emit_database_event(
         &self,
         request: Request<EmitDatabaseEventRequest>,
@@ -60,5 +72,19 @@ impl ClusterComService for Service {
         }
 
         Ok(Response::new(EmitDatabaseEventResponse {}))
+    }
+
+    async fn membership_change(
+        &self,
+        request: Request<MembershipChangeRequest>,
+    ) -> Result<Response<MembershipChangeResponse>, Status> {
+        let req = request.into_inner();
+
+        self.client
+            .membership_change(req.to_add, req.to_remove)
+            .await
+            .map_err(|e| ServiceError::ClusterClient(e))?;
+
+        Ok(Response::new(MembershipChangeResponse {}))
     }
 }

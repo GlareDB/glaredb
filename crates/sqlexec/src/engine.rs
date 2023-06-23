@@ -1,3 +1,4 @@
+use crate::clustercom::client::ClusterClient;
 use crate::errors::{ExecError, Result};
 use crate::metastore::{ClientId, Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
@@ -132,12 +133,15 @@ pub struct Engine {
     spill_path: Option<PathBuf>,
     /// Active databases along with number of sessions for that database.
     active_databases: Arc<RwLock<HashMap<Uuid, usize>>>,
+    /// Handle to the cluster client if configured to run in a cluster.
+    cluster_client: Option<ClusterClient>,
 }
 
 impl Engine {
     /// Create a new engine using the provided access runtime.
     pub async fn new(
         metastore: MetastoreServiceClient<Channel>,
+        cluster_client: Option<ClusterClient>,
         storage: EngineStorageConfig,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
@@ -152,6 +156,7 @@ impl Engine {
             storage,
             spill_path,
             active_databases: Arc::new(RwLock::new(HashMap::new())),
+            cluster_client,
         })
     }
 

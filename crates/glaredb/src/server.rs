@@ -6,23 +6,30 @@ use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
+use sqlexec::clustercom::client::ClusterClient;
+use sqlexec::clustercom::proto::clustercom::cluster_com_service_server::ClusterComServiceServer;
+use sqlexec::clustercom::srv::ClusterService;
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
-use tracing::{debug, debug_span, error, info, Instrument};
+use tonic::transport::server::TcpIncoming;
+use tonic::transport::Server;
+use tracing::{debug, debug_span, error, info, warn, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
     pub pg_listener: TcpListener,
+    pub cluster_listener: Option<TcpListener>,
 }
 
-pub struct Server {
+pub struct ComputeServer {
     pg_handler: Arc<ProtocolHandler>,
+    cluster_service: ClusterService,
 }
 
-impl Server {
+impl ComputeServer {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
     pub async fn connect(
@@ -74,13 +81,20 @@ impl Server {
             }
         };
 
-        let engine = Engine::new(
-            metastore_client,
-            storage_conf,
-            Arc::new(tracker),
-            spill_path,
-        )
-        .await?;
+        let cluster_client = ClusterClient::new();
+        let engine = Arc::new(
+            Engine::new(
+                metastore_client,
+                Some(cluster_client.clone()),
+                storage_conf,
+                Arc::new(tracker),
+                spill_path,
+            )
+            .await?,
+        );
+
+        let cluster_service = ClusterService::new(engine.clone(), cluster_client);
+
         let handler_conf = ProtocolHandlerConfig {
             authenticator,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
@@ -89,14 +103,27 @@ impl Server {
             ssl_conf: None,
             integration_testing,
         };
-        Ok(Server {
+        Ok(ComputeServer {
             pg_handler: Arc::new(ProtocolHandler::new(engine, handler_conf)),
+            cluster_service,
         })
     }
 
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
-        info!("GlareDB listening...");
+        // Start up cluster listener if it's configured.
+        if let Some(cluster_listener) = conf.cluster_listener {
+            info!("Starting cluster listener");
+            let incoming = TcpIncoming::from_listener(cluster_listener, true, None)
+                .map_err(|e| anyhow!("failed to convert tcp listener: {e}"))?;
+            tokio::spawn(async move {
+                let _ = Server::builder()
+                    .trace_fn(|_| debug_span!("cluster_listener_request"))
+                    .add_service(ClusterComServiceServer::new(self.cluster_service))
+                    .serve_with_incoming(incoming)
+                    .await;
+            });
+        }
 
         // Shutdown handler.
         let (tx, mut rx) = oneshot::channel();
@@ -125,6 +152,8 @@ impl Server {
                 }
             }
         });
+
+        info!("GlareDB listening...");
 
         loop {
             tokio::select! {

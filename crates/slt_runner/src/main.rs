@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use glaredb::server::{Server, ServerConfig};
+use glaredb::server::{ComputeServer, ServerConfig};
 use glob::glob;
 use pgsrv::auth::SingleUserAuthenticator;
 use regex::{Captures, Regex};
@@ -101,9 +101,12 @@ fn main() -> Result<()> {
             let pg_listener =
                 TcpListener::bind(bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
             let pg_addr = pg_listener.local_addr()?;
-            let server_conf = ServerConfig { pg_listener };
+            let server_conf = ServerConfig {
+                pg_listener,
+                cluster_listener: None,
+            };
 
-            let server = Server::connect(
+            let server = ComputeServer::connect(
                 metastore_addr,
                 None,
                 Box::new(SingleUserAuthenticator {

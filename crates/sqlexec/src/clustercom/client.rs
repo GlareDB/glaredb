@@ -2,13 +2,10 @@ use crate::clustercom::proto::clustercom::cluster_com_service_client::ClusterCom
 use crate::clustercom::proto::clustercom::emit_database_event_request::Event;
 use crate::clustercom::proto::clustercom::CatalogMutated;
 use crate::clustercom::proto::clustercom::EmitDatabaseEventRequest;
-use futures::{FutureExt, TryFutureExt};
+use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::thread::JoinHandle;
-use tokio::sync::{mpsc, oneshot};
 use tonic::transport::Channel;
-use tracing::warn;
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
@@ -21,76 +18,35 @@ pub enum ClusterClientError {
 
     #[error("Failed to receive on channel")]
     FailedToRecv,
+
+    #[error(transparent)]
+    TonicTransport(#[from] tonic::transport::Error),
 }
 
 #[derive(Debug, Clone)]
 pub struct ClusterClient {
-    _handle: Arc<JoinHandle<()>>,
-    send: mpsc::Sender<ClientRequest>,
+    /// Map of all clients in the cluster, keyed by address.
+    clients: Arc<RwLock<BTreeMap<String, ClusterComServiceClient<Channel>>>>,
 }
 
 impl ClusterClient {
-    pub async fn broadcast_catalog_mutated(&self, db_id: Uuid) -> Result<(), ClusterClientError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(ClientRequest::EmitDatabaseMutated {
-                db_id,
-                response: tx,
-            })
-            .await
-            .map_err(|_| ClusterClientError::FailedToSend)?;
-
-        let _ = rx.await.map_err(|_| ClusterClientError::FailedToRecv)?;
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-enum ClientRequest {
-    /// Add or remove members to the cluster.
-    MembershipChange {
-        to_add: Vec<String>,
-        to_remove: Vec<String>,
-        response: oneshot::Sender<Result<(), ClusterClientError>>,
-    },
-
-    /// Emit a message to all members indicating that a database has been mutated.
-    EmitDatabaseMutated {
-        db_id: Uuid,
-        response: oneshot::Sender<Result<(), ClusterClientError>>,
-    },
-}
-
-struct ClientWorker {
-    /// Bufferred messages to send to other nodes.
-    recv: mpsc::Receiver<ClientRequest>,
-
-    /// Map of all clients in the cluster, keyed by address.
-    clients: BTreeMap<String, ClusterComServiceClient<Channel>>,
-}
-
-impl ClientWorker {
-    async fn run(mut self) {
-        while let Some(req) = self.recv.recv().await {
-            match req {
-                ClientRequest::MembershipChange {
-                    to_add,
-                    to_remove,
-                    response,
-                } => {
-                    unimplemented!()
-                }
-                ClientRequest::EmitDatabaseMutated { db_id, response } => {
-                    let res = self.handle_emit_database_mutate(db_id).await;
-                    let _ = response.send(res);
-                }
-            }
+    /// Create a new cluster client.
+    ///
+    /// No members are initially configured.
+    pub fn new() -> Self {
+        ClusterClient {
+            clients: Arc::new(RwLock::new(BTreeMap::new())),
         }
     }
 
-    async fn handle_emit_database_mutate(&mut self, db_id: Uuid) -> Result<(), ClusterClientError> {
-        let futs = self.clients.iter_mut().map(|(_, client)| {
+    /// Broadcast that catalog has been mutated to all nodes.
+    pub async fn broadcast_catalog_mutated(&self, db_id: Uuid) -> Result<(), ClusterClientError> {
+        let mut clients: Vec<_> = {
+            let clients = self.clients.read();
+            clients.values().cloned().collect()
+        };
+
+        let futs = clients.iter_mut().map(|client| {
             client.emit_database_event(tonic::Request::new(EmitDatabaseEventRequest {
                 db_id: db_id.into_bytes().to_vec(),
                 event: Some(Event::CatalogMutated(CatalogMutated {})),
@@ -101,6 +57,44 @@ impl ClientWorker {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(())
+    }
+
+    /// Change the members that this client knows abouts.
+    ///
+    /// On new members, a client is will be opened. Members that are removed
+    /// will be dropped.
+    pub async fn membership_change(
+        &self,
+        to_add: Vec<String>,
+        to_remove: Vec<String>,
+    ) -> Result<(), ClusterClientError> {
+        let to_add: Vec<_> = {
+            let clients = self.clients.read();
+            to_add
+                .into_iter()
+                .filter(|addr| !clients.contains_key(addr))
+                .collect()
+        };
+
+        let mut to_add_clients = Vec::with_capacity(to_add.len());
+        for addr in to_add {
+            // TODO: Probably do these in parallel.
+            // TODO: Also don't bail after the first error.
+            let client = ClusterComServiceClient::connect(addr.clone()).await?;
+            to_add_clients.push((addr, client));
+        }
+
+        let mut clients = self.clients.write();
+
+        for addr in to_remove {
+            clients.remove(&addr);
+        }
+
+        for (addr, client) in to_add_clients {
+            clients.insert(addr, client);
+        }
 
         Ok(())
     }

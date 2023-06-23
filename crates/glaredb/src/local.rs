@@ -111,6 +111,7 @@ impl LocalSession {
 
         let engine = Engine::new(
             metastore_client,
+            None,
             storage_conf,
             tracker,
             opts.spill_path.clone(),

@@ -140,6 +140,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
+
+    #[error(transparent)]
+    ClusertClient(#[from] crate::clustercom::client::ClusterClientError),
 }
 
 impl From<tonic::Status> for ExecError {

@@ -27,6 +27,7 @@ use sqlexec::{
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::ops::DerefMut;
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
@@ -45,12 +46,12 @@ pub struct ProtocolHandlerConfig {
 /// A wrapper around a SQL engine that implements the Postgres frontend/backend
 /// protocol.
 pub struct ProtocolHandler {
-    pub engine: Engine,
+    pub engine: Arc<Engine>,
     conf: ProtocolHandlerConfig,
 }
 
 impl ProtocolHandler {
-    pub fn new(engine: Engine, conf: ProtocolHandlerConfig) -> Self {
+    pub fn new(engine: Arc<Engine>, conf: ProtocolHandlerConfig) -> Self {
         ProtocolHandler { engine, conf }
     }
 

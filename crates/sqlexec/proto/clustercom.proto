@@ -20,11 +20,24 @@ message CatalogMutated {}
 
 message EmitDatabaseEventResponse {}
 
+// Emit a message to other nodes to add or remove members from the cluster.
+message MembershipChangeRequest {
+  // Addresses for nodes to add to membership.
+  repeated string to_add = 1;
+  // Addresses for nodes to remove.
+  repeated string to_remove = 2;
+}
+
+message MembershipChangeResponse {}
+
 service ClusterComService {
+  rpc MembershipChange(MembershipChangeRequest)
+      returns (MembershipChangeResponse);
+
   // Emit an event for a database.
   //
-  // This can be safely ignored if the recipient doesn't have any state related
-  // to the database.
+  // This can be safely ignored if the recipient doesn't have any state
+  // related to the database.
   rpc EmitDatabaseEvent(EmitDatabaseEventRequest)
       returns (EmitDatabaseEventResponse);
 }
