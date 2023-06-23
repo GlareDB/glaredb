@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
-use tracing::{error, info};
+use tracing::info;
 use uuid::Uuid;
 
 /// Metastore GRPC service.
@@ -89,13 +89,9 @@ impl MetastoreService for Service {
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
         let catalogs = self.catalogs.read().await;
 
-        let catalog = match catalogs.get(&id) {
-            Some(catalog) => catalog,
-            None => {
-                error!(%id, "missing catalog during fetch");
-                return Err(MetastoreError::MissingCatalog(id).into());
-            }
-        };
+        let catalog = catalogs
+            .get(&id)
+            .ok_or(MetastoreError::MissingCatalog(id))?;
 
         let state = catalog.get_state().await?;
 
@@ -113,13 +109,9 @@ impl MetastoreService for Service {
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
 
         let catalogs = self.catalogs.read().await;
-        let catalog = match catalogs.get(&id) {
-            Some(catalog) => catalog,
-            None => {
-                error!(%id, "missing catalog during mutate");
-                return Err(MetastoreError::MissingCatalog(id).into());
-            }
-        };
+        let catalog = catalogs
+            .get(&id)
+            .ok_or(MetastoreError::MissingCatalog(id))?;
 
         let mutations = req
             .mutations
