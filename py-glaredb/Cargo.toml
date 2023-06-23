@@ -1,0 +1,15 @@
+[package]
+name = "glaredb"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "glaredb"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.18.3"
+sqlexec = {path = "../crates/sqlexec"}
+url = "2.4.0"
