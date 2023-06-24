@@ -136,7 +136,6 @@ impl MysqlAccessor {
         Ok((conn, None))
     }
 
-    // TODO: Add ssh tunnel support for MySQL
     async fn connect_with_ssh_tunnel(
         connection_string: &str,
         ssh_tunnel: SshTunnelAccess,

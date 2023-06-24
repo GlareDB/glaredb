@@ -26,6 +26,9 @@ pub enum DatasourceCommonError {
     #[error("Invalid SSH connection string: {0}")]
     SshConnectionParseError(String),
 
+    #[error("Feature currently unsupported: {0}")]
+    Unsupported(&'static str),
+
     #[error(transparent)]
     ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
 

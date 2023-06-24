@@ -16,6 +16,8 @@ use tracing::{debug, trace};
 
 use super::errors::{DatasourceCommonError, Result};
 
+pub mod session;
+
 #[derive(Debug, Clone)]
 pub struct SshKey {
     keypair: PrivateKey,
@@ -145,106 +147,10 @@ impl SshConnection {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SshTunnelAccess {
-    pub connection_string: String,
-    pub keypair: SshKey,
-}
-
-impl SshTunnelAccess {
-    /// Create an ssh tunnel using port fowarding from a random local port to
-    /// the host specified in `connection_string`.
-    pub async fn create_tunnel<T>(&self, remote_addr: &T) -> Result<(Session, SocketAddr)>
-    where
-        T: ToSocketAddrs,
-    {
-        let temp_keyfile = Self::generate_temp_keyfile(self.keypair.to_openssh()?.as_ref()).await?;
-
-        let tunnel = SessionBuilder::default()
-            .known_hosts_check(KnownHosts::Accept)
-            .keyfile(temp_keyfile.path())
-            // Set control directory explicitly. Otherwise we run the the
-            // chance of an error like the following:
-            //
-            // 'path ... too long for Unix domain socket'
-            .control_directory(std::env::temp_dir())
-            // Wait 15 seconds before timing out ssh connection attempt
-            .connect_timeout(Duration::from_secs(15))
-            .connect(self.connection_string.as_str())
-            .await?;
-
-        // Check the status of the connection before proceeding.
-        tunnel.check().await?;
-
-        // Find open local port and attempt to create tunnel
-        // Retry generating a port up to 10 times
-        for _ in 0..10 {
-            let local_addr = Self::generate_random_port().await?;
-
-            let local = openssh::Socket::new(&local_addr)?;
-            let remote = openssh::Socket::new(remote_addr)?;
-
-            match tunnel
-                .request_port_forward(ForwardType::Local, local, remote)
-                .await
-            {
-                // Tunnel successfully created
-                Ok(()) => return Ok((tunnel, local_addr)),
-                Err(err) => match err {
-                    openssh::Error::Ssh(err)
-                        if err.to_string().contains("forwarding request failed") =>
-                    {
-                        debug!("port already in use, testing another port");
-                    }
-                    e => {
-                        return Err(DatasourceCommonError::SshPortForward(e));
-                    }
-                },
-            };
-        }
-        // If unable to find a port after 10 attempts
-        Err(DatasourceCommonError::NoOpenPorts)
-    }
-
-    /// Generate temproary keyfile using the given private_key
-    async fn generate_temp_keyfile(private_key: &str) -> Result<NamedTempFile> {
-        let temp_keyfile = tempfile::Builder::new()
-            .prefix("ssh_tunnel_key-")
-            .tempfile()?;
-        trace!(temp_keyfile = ?temp_keyfile.path(), "Temporary keyfile location");
-
-        let keyfile = File::open(&temp_keyfile.path()).await?;
-        // Set keyfile to only owner read and write permissions
-        keyfile
-            .set_permissions(Permissions::from_mode(0o600))
-            .await?;
-
-        fs::write(temp_keyfile.path(), private_key.as_bytes()).await?;
-
-        // Remove write permission from file to prevent clobbering
-        keyfile
-            .set_permissions(Permissions::from_mode(0o400))
-            .await?;
-
-        Ok(temp_keyfile)
-    }
-
-    /// Generate random port using operating system by using port 0.
-    async fn generate_random_port() -> Result<SocketAddr, io::Error> {
-        // The 0 port indicates to the OS to assign a random port
-        let listener = TcpListener::bind("localhost:0").await.map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to bind to a random port due to {e}"),
-            )
-        })?;
-        listener.local_addr()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::common::ssh::{SshConnection, SshConnectionParameters, SshKey, SshTunnelAccess};
+    use super::session::SshTunnelAccess;
+    use super::*;
 
     #[tokio::test]
     async fn validate_temp_keyfile() {
