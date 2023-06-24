@@ -1,7 +1,6 @@
 use std::fs::Permissions;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::os::unix::prelude::PermissionsExt;
 use std::time::Duration;
 
 use tempfile::NamedTempFile;
@@ -35,6 +34,9 @@ pub enum SshTunnelError {
 
     #[error("Failed to find an open port to open the SSH tunnel")]
     NoOpenPorts,
+
+    #[error("SSH tunnels unsupported on this platform")]
+    Unsupported,
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
@@ -99,6 +101,7 @@ impl SshTunnelAccess {
 mod unix_impl {
     use super::*;
     use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
+    use std::os::unix::prelude::PermissionsExt;
 
     #[derive(Debug)]
     pub struct SshTunnelSessionImpl(pub(super) Session);
@@ -239,6 +242,6 @@ mod not_unix_impl {
     where
         T: ToSocketAddrs,
     {
-        Err(DatasourceCommonError::Unsupported("SSH tunnels on windows"))
+        Err(SshTunnelError::Unsupported)
     }
 }
