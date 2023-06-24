@@ -18,6 +18,7 @@ pub enum SshTunnelError {
     ///
     /// Using debug to get the underlying errors (the openssh crate doesn't keep
     /// those in the message).
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[error("{0:?}")]
     OpenSsh(#[from] openssh::Error),
 
@@ -25,6 +26,7 @@ pub enum SshTunnelError {
     ///
     /// Using debug to get the underlying errors (the openssh crate doesn't keep
     /// those in the message).
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[error("Cannot establish SSH tunnel: {0:?}")]
     SshPortForward(openssh::Error),
 
