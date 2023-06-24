@@ -8,7 +8,8 @@ use std::task::{Context, Poll};
 
 use crate::common::errors::DatasourceCommonError;
 use crate::common::listing::VirtualLister;
-use crate::common::ssh::{SshKey, SshTunnelAccess};
+use crate::common::ssh::session::SshTunnelSession;
+use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
 use crate::common::util;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -33,7 +34,6 @@ use mysql_async::prelude::Queryable;
 use mysql_async::{
     Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
 };
-use openssh::Session;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, trace};
@@ -97,7 +97,7 @@ pub struct MysqlAccessor {
     /// `Session` for the underlying ssh tunnel
     ///
     /// Kept on struct to avoid dropping ssh tunnel
-    _ssh_tunnel: Option<Session>,
+    _ssh_tunnel: Option<SshTunnelSession>,
 }
 
 impl MysqlAccessor {
@@ -112,7 +112,7 @@ impl MysqlAccessor {
     async fn connect_internal(
         connection_string: &str,
         tunnel: Option<TunnelOptions>,
-    ) -> Result<(Conn, Option<Session>)> {
+    ) -> Result<(Conn, Option<SshTunnelSession>)> {
         match tunnel {
             None => Self::connect_direct(connection_string).await,
             Some(TunnelOptions::Ssh(ssh_options)) => {
@@ -127,7 +127,7 @@ impl MysqlAccessor {
         }
     }
 
-    async fn connect_direct(connection_string: &str) -> Result<(Conn, Option<Session>)> {
+    async fn connect_direct(connection_string: &str) -> Result<(Conn, Option<SshTunnelSession>)> {
         let database_url = connection_string;
 
         let opts = Opts::from_url(database_url)?;
@@ -139,7 +139,7 @@ impl MysqlAccessor {
     async fn connect_with_ssh_tunnel(
         connection_string: &str,
         ssh_tunnel: SshTunnelAccess,
-    ) -> Result<(Conn, Option<Session>)> {
+    ) -> Result<(Conn, Option<SshTunnelSession>)> {
         let database_url = connection_string;
         let opts = Opts::from_url(database_url)?;
 

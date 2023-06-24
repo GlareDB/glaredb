@@ -1,21 +1,47 @@
-use std::fmt::Display;
 use std::fs::Permissions;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::os::unix::prelude::PermissionsExt;
-use std::str::FromStr;
 use std::time::Duration;
 
-use ssh_key::{LineEnding, PrivateKey};
 use tempfile::NamedTempFile;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::net::TcpListener;
 use tracing::{debug, trace};
 
-use crate::common::errors::{DatasourceCommonError, Result};
-use crate::common::ssh::SshKey;
+use crate::common::ssh::key::{SshKey, SshKeyError};
 
+#[derive(Debug, thiserror::Error)]
+pub enum SshTunnelError {
+    /// Generic openssh errors.
+    ///
+    /// Using debug to get the underlying errors (the openssh crate doesn't keep
+    /// those in the message).
+    #[error("{0:?}")]
+    OpenSsh(#[from] openssh::Error),
+
+    /// Port forward error with openssh.
+    ///
+    /// Using debug to get the underlying errors (the openssh crate doesn't keep
+    /// those in the message).
+    #[error("Cannot establish SSH tunnel: {0:?}")]
+    SshPortForward(openssh::Error),
+
+    #[error(transparent)]
+    SshKey(#[from] SshKeyError),
+
+    #[error("Failed to find an open port to open the SSH tunnel")]
+    NoOpenPorts,
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+/// Handle to the underlying session for the tunnel.
+///
+/// Dropping this will close the underlying connection if `close` has not
+/// already been called.
 #[derive(Debug)]
 pub struct SshTunnelSession {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -24,6 +50,13 @@ pub struct SshTunnelSession {
     inner: not_unix_impl::SshTunnelSessionImpl,
 }
 
+impl SshTunnelSession {
+    pub async fn close(self) -> Result<(), SshTunnelError> {
+        self.inner.close().await
+    }
+}
+
+/// Access configuration for opening the tunnel.
 #[derive(Debug, Clone)]
 pub struct SshTunnelAccess {
     pub connection_string: String,
@@ -33,7 +66,17 @@ pub struct SshTunnelAccess {
 impl SshTunnelAccess {
     /// Create an ssh tunnel using port fowarding from a random local port to
     /// the host specified in `connection_string`.
-    pub async fn create_tunnel<T>(&self, remote_addr: &T) -> Result<(SshTunnelSession, SocketAddr)>
+    ///
+    /// The returned session should be kept around for the desired lifetime of
+    /// the tunnel. Once the session is dropped, the tunnel will be closed.
+    ///
+    /// Note that this will only work for macos and linux as it relies on
+    /// openssh. Attempting to create a tunnel on windows will always return an
+    /// error.
+    pub async fn create_tunnel<T>(
+        &self,
+        remote_addr: &T,
+    ) -> Result<(SshTunnelSession, SocketAddr), SshTunnelError>
     where
         T: ToSocketAddrs,
     {
@@ -58,11 +101,18 @@ mod unix_impl {
     #[derive(Debug)]
     pub struct SshTunnelSessionImpl(pub(super) Session);
 
+    impl SshTunnelSessionImpl {
+        pub(super) async fn close(self) -> Result<(), SshTunnelError> {
+            self.0.close().await?;
+            Ok(())
+        }
+    }
+
     pub(super) async fn create_tunnel<T>(
         remote_addr: &T,
         connection_str: &str,
         keypair: &SshKey,
-    ) -> Result<(SshTunnelSessionImpl, SocketAddr)>
+    ) -> Result<(SshTunnelSessionImpl, SocketAddr), SshTunnelError>
     where
         T: ToSocketAddrs,
     {
@@ -105,17 +155,17 @@ mod unix_impl {
                         debug!("port already in use, testing another port");
                     }
                     e => {
-                        return Err(DatasourceCommonError::SshPortForward(e));
+                        return Err(SshTunnelError::SshPortForward(e));
                     }
                 },
             };
         }
         // If unable to find a port after 10 attempts
-        Err(DatasourceCommonError::NoOpenPorts)
+        Err(SshTunnelError::NoOpenPorts)
     }
 
     /// Generate temproary keyfile using the given private_key
-    async fn generate_temp_keyfile(private_key: &str) -> Result<NamedTempFile> {
+    async fn generate_temp_keyfile(private_key: &str) -> Result<NamedTempFile, SshTunnelError> {
         let temp_keyfile = tempfile::Builder::new()
             .prefix("ssh_tunnel_key-")
             .tempfile()?;
@@ -148,6 +198,20 @@ mod unix_impl {
         })?;
         listener.local_addr()
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn validate_temp_keyfile() {
+            let key = SshKey::generate_random().unwrap();
+            let private_key = key.to_openssh().unwrap();
+            let temp_keyfile = generate_temp_keyfile(private_key.as_ref()).await.unwrap();
+            let keyfile_data = std::fs::read(temp_keyfile.path()).unwrap();
+            assert_eq!(keyfile_data, private_key.as_bytes());
+        }
+    }
 }
 
 /// A stub implementation that returns always returns unsupported errors when
@@ -159,11 +223,17 @@ mod not_unix_impl {
     #[derive(Debug)]
     pub struct SshTunnelSessionImpl;
 
+    impl SshTunnelSessionImpl {
+        pub(super) async fn close(self) -> Result<(), SshTunnelError> {
+            Ok(())
+        }
+    }
+
     pub(super) async fn create_tunnel<T>(
         remote_addr: &T,
         connection_str: &str,
         keypair: &SshKey,
-    ) -> Result<(SshTunnelSessionImpl, SocketAddr)>
+    ) -> Result<(SshTunnelSessionImpl, SocketAddr), SshTunnelError>
     where
         T: ToSocketAddrs,
     {

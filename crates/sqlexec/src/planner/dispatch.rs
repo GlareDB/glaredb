@@ -8,7 +8,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::common::ssh::{SshConnectionParameters, SshKey};
+use datasources::common::ssh::{key::SshKey, SshConnectionParameters};
 use datasources::debug::DebugTableType;
 use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
@@ -87,6 +87,8 @@ pub enum DispatchError {
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
+    #[error(transparent)]
+    SshKey(#[from] datasources::common::ssh::key::SshKeyError),
 }
 
 impl DispatchError {

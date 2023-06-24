@@ -1,56 +1,10 @@
 use std::fmt::Display;
-use std::fs::Permissions;
-use std::io;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::os::unix::prelude::PermissionsExt;
 use std::str::FromStr;
-use std::time::Duration;
 
-use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
-use ssh_key::{LineEnding, PrivateKey};
-use tempfile::NamedTempFile;
-use tokio::fs;
-use tokio::fs::File;
-use tokio::net::TcpListener;
-use tracing::{debug, trace};
+use super::errors::DatasourceCommonError;
 
-use super::errors::{DatasourceCommonError, Result};
-
+pub mod key;
 pub mod session;
-
-#[derive(Debug, Clone)]
-pub struct SshKey {
-    keypair: PrivateKey,
-}
-
-impl SshKey {
-    /// Generate a random Ed25519 ssh key pair.
-    pub fn generate_random() -> Result<Self> {
-        let keypair = PrivateKey::random(rand::thread_rng(), ssh_key::Algorithm::Ed25519)?;
-        Ok(Self { keypair })
-    }
-
-    /// Recreate ssh key from bytes store in catalog.
-    pub fn from_bytes(keypair: &[u8]) -> Result<Self> {
-        let keypair = PrivateKey::from_bytes(keypair)?;
-        Ok(Self { keypair })
-    }
-
-    /// Serialize sshk key as raw bytes.
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        Ok(self.keypair.to_bytes()?.to_vec())
-    }
-
-    /// Create an OpenSSH-formatted public key as a String.
-    pub fn public_key(&self) -> Result<String> {
-        Ok(self.keypair.public_key().to_openssh()?)
-    }
-
-    /// Create an OpenSSH-formatted private key as a String.
-    pub(crate) fn to_openssh(&self) -> Result<String> {
-        Ok(self.keypair.to_openssh(LineEnding::default())?.to_string())
-    }
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SshConnectionParameters {
@@ -149,23 +103,7 @@ impl SshConnection {
 
 #[cfg(test)]
 mod tests {
-    use super::session::SshTunnelAccess;
     use super::*;
-
-    #[tokio::test]
-    async fn validate_temp_keyfile() {
-        let key = SshKey::generate_random().unwrap();
-
-        let private_key = key.to_openssh().unwrap();
-
-        let temp_keyfile = SshTunnelAccess::generate_temp_keyfile(private_key.as_ref())
-            .await
-            .unwrap();
-
-        let keyfile_data = std::fs::read(temp_keyfile.path()).unwrap();
-
-        assert_eq!(keyfile_data, private_key.as_bytes());
-    }
 
     #[test]
     fn display_connection_string() {
