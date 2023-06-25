@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: windows-latest-8-cores
             target: x86_64-pc-windows-msvc
           - os: ubuntu-2004-8-cores
             target: x86_64-unknown-linux-gnu
