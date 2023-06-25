@@ -113,7 +113,7 @@ fn run_fmt_check(sh: &Shell) -> Result<()> {
 
 fn run_dist(sh: &Shell, target: &Target) -> Result<()> {
     let triple = target.dist_target_triple()?;
-    cmd!(sh, "cargo build --bin glaredb --target {triple}").run()?;
+    cmd!(sh, "cargo build --release --bin glaredb --target {triple}").run()?;
 
     // TODO: Code signing goes here.
 
@@ -123,7 +123,7 @@ fn run_dist(sh: &Shell, target: &Target) -> Result<()> {
     let src_path = util::project_root()
         .join("target")
         .join(target.dist_target_triple()?)
-        .join("debug")
+        .join("release")
         .join(target.executable_name());
     let dest_path = util::project_root()
         .join("target")

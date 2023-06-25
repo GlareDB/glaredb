@@ -4,7 +4,7 @@ All commits to `main` should first go through a PR. All CI checks should pass
 before merging in a PR. Since we squash merge, PR titles should follow
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## Development environemnt
+## Development environment
 
 Developing GlareDB requires that you have Rust and Cargo installed, along with
 some additional system dependencies:
@@ -24,6 +24,19 @@ docker run --rm --name my_scratch_postgres -p 5432:5432 -e POSTGRES_HOST_AUTH_ME
 ```
 
 See [Get Docker](https://docs.docker.com/get-docker/) for info on installing Docker (Desktop).
+
+## Platform support
+
+GlareDB aims to support the following platforms:
+
+- Windows (x86_64)
+- MacOS (x86_64 and Arm)
+- Linux (x86_64)
+
+Platform specific code should be kept to minimum. At the time of this writing,
+the only divergence is with SSH tunnels. The Linux and Mac code paths both use
+openssl, while the Windows code path is a stub that returns an "unsupported"
+error.
 
 ## Testing
 
