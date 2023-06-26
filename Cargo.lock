@@ -175,6 +175,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "arrow-string",
+ "pyo3 0.18.3",
 ]
 
 [[package]]
@@ -336,6 +337,9 @@ name = "arrow-schema"
 version = "40.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25187bbef474151a2e4ddec67b9e34bda5cbfba292dc571392fa3a1f71ff5a82"
+dependencies = [
+ "bitflags 2.3.2",
+]
 
 [[package]]
 name = "arrow-select"
@@ -1853,6 +1857,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
+ "pyo3 0.18.3",
  "sqlparser",
 ]
 
@@ -4688,6 +4693,7 @@ dependencies = [
  "pyo3-asyncio",
  "sqlexec",
  "telemetry",
+ "thiserror",
  "tokio",
  "url",
  "uuid",

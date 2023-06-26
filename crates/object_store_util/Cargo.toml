@@ -11,7 +11,7 @@ object_store = "0.5"
 tempfile = "3"
 futures = "0.3.28"
 async-trait = "0.1.68"
-thiserror = "1.0"
+thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 bytes = "1.4.0"
 tracing = "0.1"
