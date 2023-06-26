@@ -1,50 +1,24 @@
-pub mod runtime;
-mod utils;
+mod error;
+mod runtime;
 mod session;
-use runtime::TokioRuntime;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use error::PyGlareDbError;
+use runtime::{wait_for_future, TokioRuntime};
+use session::LocalSession;
+use std::{fs, path::Path, sync::Arc};
 use uuid::Uuid;
 
 use metastore::local::start_inprocess_local;
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
-use sqlexec::engine::{
-    Engine, EngineStorageConfig, SessionLimits, SessionStorageConfig, TrackedSession,
-};
+use sqlexec::engine::{Engine, EngineStorageConfig, SessionLimits, SessionStorageConfig};
 use telemetry::Tracker;
-
-use crate::utils::wait_for_future;
-
-#[pyclass]
-pub struct LocalSession {
-    sess: TrackedSession,
-    _engine: Engine, // Avoid dropping
-                     // opts: LocalClientOpts,
-}
-
-pub struct LocalClientOpts {
-    /// Address to the Metastore.
-    ///
-    /// If not provided, an in-process metastore will be started.
-    pub metastore_addr: Option<String>,
-
-    /// Path to spill temporary files to.
-    pub spill_path: Option<PathBuf>,
-
-    /// Optional file path for persisting data.
-    ///
-    /// Catalog data and user data will be stored in this directory.
-    pub data_dir: Option<PathBuf>,
-}
 
 fn get_or_create_path(path: &str) -> PyResult<&Path> {
     let path = Path::new(path);
+
     if !path.exists() {
         fs::create_dir_all(&path)?;
     }
+
     if path.exists() && !path.is_dir() {
         return Err(PyRuntimeError::new_err(format!(
             "Path is not a valid directory {:?}",
@@ -62,10 +36,14 @@ fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResul
         let path = get_or_create_path(&data_dir).unwrap();
 
         let storage_conf = EngineStorageConfig::Memory;
-        let metastore_client = start_inprocess_local(path).await.unwrap();
+        let metastore_client = start_inprocess_local(path)
+            .await
+            .map_err(PyGlareDbError::from)?;
+
         let engine = Engine::new(metastore_client, storage_conf, tracker, None)
             .await
-            .unwrap();
+            .map_err(PyGlareDbError::from)?;
+
         let session = engine
             .new_session(
                 Uuid::nil(),
@@ -77,18 +55,20 @@ fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResul
                 SessionStorageConfig::default(),
             )
             .await
-            .unwrap();
-        LocalSession {
+            .map_err(PyGlareDbError::from)?;
+
+        Ok(LocalSession {
             sess: session,
             _engine: engine,
-        }
+        })
     });
-    Ok(session)
+    session
 }
 
 /// A Python module implemented in Rust.
 #[pymodule]
 fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
+    // add the Tokio runtime to the module so we can access it later
     m.add(
         "__runtime",
         TokioRuntime(tokio::runtime::Runtime::new().unwrap()),

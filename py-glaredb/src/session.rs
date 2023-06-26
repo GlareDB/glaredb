@@ -1,58 +1,121 @@
 use anyhow::Result;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use pyo3::prelude::*;
-use sqlexec::{parser, session::ExecutionResult};
+use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
+use sqlexec::{
+    engine::{Engine, TrackedSession},
+    parser,
+    session::ExecutionResult,
+};
 
-use crate::{utils::wait_for_future, LocalSession};
+use crate::{error::PyGlareDbError, runtime::wait_for_future};
 
-#[pymethods]
-impl LocalSession {
-    fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<()> {
-        const UNNAMED: String = String::new();
+#[pyclass]
+pub struct LocalSession {
+    pub(super) sess: TrackedSession,
+    pub(super) _engine: Engine, // Avoid dropping
+}
 
-        let statements = parser::parse_sql(query).unwrap();
-        wait_for_future(py, async move {
-            for stmt in statements {
-                self.sess
-                    .prepare_statement(UNNAMED, Some(stmt), Vec::new())
-                    .await
-                    .unwrap();
-                let prepared = self.sess.get_prepared_statement(&UNNAMED).unwrap();
-                let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
-                self.sess
-                    .bind_statement(
-                        UNNAMED,
-                        &UNNAMED,
-                        Vec::new(),
-                        vec![Format::Text; num_fields],
-                    )
-                    .unwrap();
-                let result = self.sess.execute_portal(&UNNAMED, 0).await.unwrap();
-                match result {
-                    ExecutionResult::Query { stream, .. }
-                    | ExecutionResult::ShowVariable { stream } => {
-                        let batches = process_stream(stream).await.unwrap();
-                        for batch in batches {
-                            println!("columns = {:?}", batch.columns());
-                        }
-                    }
-                    other => println!("{:?}", other),
-                }
-            }
-        });
+#[pyclass]
+pub struct PyExecutionResult(ExecutionResult);
 
-        todo!()
+impl From<ExecutionResult> for PyExecutionResult {
+    fn from(result: ExecutionResult) -> Self {
+        Self(result)
     }
 }
 
-async fn process_stream(stream: SendableRecordBatchStream) -> Result<Vec<RecordBatch>> {
-    let batches = stream
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(batches)
+#[pymethods]
+impl LocalSession {
+    fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
+        const UNNAMED: String = String::new();
+
+        let mut statements = parser::parse_sql(query).map_err(PyGlareDbError::from)?;
+
+        wait_for_future(py, async move {
+            match statements.len() {
+                0 => todo!(),
+                1 => {
+                    let stmt = statements.pop_front().unwrap();
+
+                    self.sess
+                        .prepare_statement(UNNAMED, Some(stmt), Vec::new())
+                        .await
+                        .map_err(PyGlareDbError::from)?;
+                    let prepared = self
+                        .sess
+                        .get_prepared_statement(&UNNAMED)
+                        .map_err(PyGlareDbError::from)?;
+                    let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
+                    self.sess
+                        .bind_statement(
+                            UNNAMED,
+                            &UNNAMED,
+                            Vec::new(),
+                            vec![Format::Text; num_fields],
+                        )
+                        .map_err(PyGlareDbError::from)?;
+                    Ok(self
+                        .sess
+                        .execute_portal(&UNNAMED, 0)
+                        .await
+                        .map_err(PyGlareDbError::from)?
+                        .into())
+                }
+                _ => {
+                    todo!()
+                }
+            }
+        })
+    }
+}
+fn to_arrow_batches_and_schema(
+    result: &mut ExecutionResult,
+    py: Python<'_>,
+) -> PyResult<(PyObject, PyObject)> {
+    use datafusion::arrow::pyarrow::PyArrowConvert;
+    match result {
+        ExecutionResult::Query { stream, .. } => {
+            let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
+                Ok(stream
+                    .collect::<Vec<_>>()
+                    .await
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()?)
+            });
+
+            let batches = batches
+                .map_err(|e| PyRuntimeError::new_err(format!("unhandled exception: {:?}", &e)))?;
+            let schema = batches[0].schema().to_pyarrow(py)?;
+
+            // TODO: currently we are iterating twice due to the GIL lock
+            // we can't use `to_pyarrow` within an async block.
+            let batches = batches
+                .into_iter()
+                .map(|batch| batch.to_pyarrow(py))
+                .collect::<Result<Vec<_>, _>>()?
+                .to_object(py);
+
+            Ok((batches, schema))
+        }
+        _ => todo!(),
+    }
+}
+
+#[pymethods]
+impl PyExecutionResult {
+    /// Convert to Arrow Table
+    /// Collect the batches and pass to Arrow Table
+    fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
+        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
+
+        Python::with_gil(|py| {
+            // Instantiate pyarrow Table object and use its from_batches method
+            let table_class = py.import("pyarrow")?.getattr("Table")?;
+            let args = PyTuple::new(py, &[batches, schema]);
+            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
+            Ok(table)
+        })
+    }
 }
