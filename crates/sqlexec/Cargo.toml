@@ -15,7 +15,7 @@ telemetry = {path = "../telemetry"}
 sqlbuiltins = {path = "../sqlbuiltins"}
 datasources = {path = "../datasources"}
 object_store_util = {path = "../object_store_util"}
-thiserror = "1.0"
+thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.68"
 serde_json = "1.0.97"

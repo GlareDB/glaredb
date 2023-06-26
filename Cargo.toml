@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "xtask"]
+members = ["crates/*", "xtask", "py-glaredb"]
 
 [workspace.package]
 version = "0.0.15"
@@ -11,4 +11,6 @@ lto = "thin"
 [workspace.dependencies]
 datafusion = { version = "26.0" }
 deltalake = { git = "https://github.com/delta-io/delta-rs.git", branch = "main",features = ["s3", "gcs", "azure", "datafusion","arrow","parquet"] }
+tokio = { version = "1", features = ["full"] }
 url = "2.4.0"
+thiserror = "1.0"
