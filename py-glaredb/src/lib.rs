@@ -31,7 +31,6 @@ fn get_or_create_path(path: &str) -> PyResult<&Path> {
 
 #[pyfunction]
 fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResult<LocalSession> {
-    
     wait_for_future(py, async move {
         let tracker = Arc::new(Tracker::Nop);
         let path = get_or_create_path(&data_dir).unwrap();

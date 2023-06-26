@@ -38,7 +38,6 @@ impl From<PyGlareDbError> for PyErr {
     }
 }
 
-
 create_exception!(exceptions, ArrowErrorException, PyException);
 create_exception!(exceptions, MetastoreException, PyException);
 create_exception!(exceptions, ExecutionException, PyException);
