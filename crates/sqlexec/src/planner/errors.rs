@@ -65,6 +65,9 @@ pub enum PlanError {
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
     #[error(transparent)]
+    SshKey(#[from] datasources::common::ssh::key::SshKeyError),
+
+    #[error(transparent)]
     ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),
 
     #[error(transparent)]

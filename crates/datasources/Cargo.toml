@@ -27,7 +27,6 @@ mysql_common = { version = "0.30.6", features = ["chrono"] }
 object_store = { version = "0.5", features = ["gcp", "aws", "http"] }
 object_store_util = { path = "../object_store_util" }
 once_cell = "1.18.0"
-openssh = "0.9.9"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 repr = { path = "../repr" }
@@ -48,3 +47,7 @@ tracing = "0.1"
 uuid = "1.3.4"
 url.workspace = true
 webpki-roots = "0.23.1"
+
+# SSH tunnels
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+openssh = "0.9.9"

@@ -124,7 +124,7 @@ fn run_dist(sh: &Shell, target: &Target) -> Result<()> {
         .join("target")
         .join(target.dist_target_triple()?)
         .join("release")
-        .join("glaredb");
+        .join(target.executable_name());
     let dest_path = util::project_root()
         .join("target")
         .join("dist")

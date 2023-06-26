@@ -51,6 +51,13 @@ impl Target {
         let target = self.dist_target_triple()?;
         Ok(format!("glaredb-{target}.zip"))
     }
+
+    pub fn executable_name(&self) -> &'static str {
+        match self.os {
+            Os::Windows => "glaredb.exe",
+            Os::Mac | Os::Linux => "glaredb",
+        }
+    }
 }
 
 enum Arch {

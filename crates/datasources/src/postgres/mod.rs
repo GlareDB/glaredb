@@ -4,7 +4,8 @@ mod tls;
 
 use crate::common::errors::DatasourceCommonError;
 use crate::common::listing::VirtualLister;
-use crate::common::ssh::{SshKey, SshTunnelAccess};
+use crate::common::ssh::session::SshTunnelSession;
+use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
 use crate::common::util;
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
@@ -218,7 +219,7 @@ impl PostgresAccessor {
 
         fn spawn_conn<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
             conn: Connection<TcpStream, T>,
-            session: openssh::Session,
+            session: SshTunnelSession,
         ) -> JoinHandle<()> {
             tokio::spawn(async move {
                 if let Err(e) = conn.await {
