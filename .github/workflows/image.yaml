@@ -6,6 +6,7 @@ on:
     tags:
       - "*"
     branches:
+      - sean/fix-image
       - main
 
 jobs:
