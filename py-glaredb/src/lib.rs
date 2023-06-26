@@ -16,14 +16,14 @@ fn get_or_create_path(path: &str) -> PyResult<&Path> {
     let path = Path::new(path);
 
     if !path.exists() {
-        fs::create_dir_all(&path)?;
+        fs::create_dir_all(path)?;
     }
 
     if path.exists() && !path.is_dir() {
-        return Err(PyRuntimeError::new_err(format!(
+        Err(PyRuntimeError::new_err(format!(
             "Path is not a valid directory {:?}",
             &path
-        )));
+        )))
     } else {
         Ok(path)
     }
@@ -31,7 +31,8 @@ fn get_or_create_path(path: &str) -> PyResult<&Path> {
 
 #[pyfunction]
 fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResult<LocalSession> {
-    let session = wait_for_future(py, async move {
+    
+    wait_for_future(py, async move {
         let tracker = Arc::new(Tracker::Nop);
         let path = get_or_create_path(&data_dir).unwrap();
 
@@ -61,8 +62,7 @@ fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResul
             sess: session,
             _engine: engine,
         })
-    });
-    session
+    })
 }
 
 /// A Python module implemented in Rust.
