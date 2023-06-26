@@ -541,11 +541,24 @@ async fn create_provider_for_filetype(
         1 => {
             let mut args = args.into_iter();
             let url_string = string_from_scalar(args.next().unwrap())?;
-            let url = Url::parse(&url_string).map_err(|e| BuiltinError::Access(Box::new(e)))?;
-            Ok(match url.scheme() {
-                "file" => {
+
+            Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
+                Ok("http" | "https") => HttpAccessor::try_new(url_string, file_type)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(false)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?,
+                // no scheme so we assume it's a local file
+                _ => {
+                    let location = url_string
+                        .strip_prefix("file://")
+                        // if it's not a file url, we assume it's a local file
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| url_string);
+
                     let table_access = LocalTableAccess {
-                        location: url.to_file_path().unwrap().to_str().unwrap().to_string(),
+                        location,
                         file_type: Some(file_type),
                     };
                     LocalAccessor::new(table_access)
@@ -555,13 +568,6 @@ async fn create_provider_for_filetype(
                         .await
                         .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
-                "http" | "https" => HttpAccessor::try_new(url_string, file_type)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    .into_table_provider(false)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?,
-                _ => return Err(BuiltinError::Static("Unsupported scheme")),
             })
         }
         _ => Err(BuiltinError::InvalidNumArgs),
