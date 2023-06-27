@@ -126,6 +126,9 @@ pub enum ExecError {
     #[error("Invalid storage configuration: {0}")]
     InvalidStorageConfig(&'static str),
 
+    #[error("Failed to read table from environment: {0}")]
+    EnvironmentTableRead(Box<dyn std::error::Error + Send + Sync>),
+
     #[error("internal error: {0}")]
     Internal(String),
 

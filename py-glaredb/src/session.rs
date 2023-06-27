@@ -1,12 +1,8 @@
 use anyhow::Result;
-use datafusion::arrow::{pyarrow::PyArrowType, record_batch::RecordBatch};
+use datafusion::arrow::record_batch::RecordBatch;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use pyo3::{
-    exceptions::PyRuntimeError,
-    prelude::*,
-    types::{PyTuple, PyType},
-};
+use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::{
     engine::{Engine, TrackedSession},
     parser,

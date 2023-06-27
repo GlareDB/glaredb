@@ -1,4 +1,5 @@
 use crate::context::SessionContext;
+use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
 use crate::planner::dispatch::SessionDispatcher;
@@ -71,8 +72,16 @@ impl<'a> PartialContextProvider<'a> {
                     }
                 }
 
+                // Try to read from the environment if we fail to find the table
+                // in the search path.
+                //
+                // TODO: We'll want to figure out how we want to handle
+                // shadowing/precedence.
                 if let Some(reader) = self.ctx.get_env_reader() {
-                    if let Some(table) = reader.resolve_table(table).unwrap() {
+                    if let Some(table) = reader
+                        .resolve_table(table)
+                        .map_err(|e| ExecError::EnvironmentTableRead(e))?
+                    {
                         return Ok(table);
                     }
                 }
