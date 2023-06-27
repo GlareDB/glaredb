@@ -4,6 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
+num_cpus = "1.15.0"
 anyhow = "1.0"
 walkdir = "2.3.3"
 clap = { version = "4.3.5", features = ["derive"] }
