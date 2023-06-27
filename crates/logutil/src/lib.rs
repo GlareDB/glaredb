@@ -39,7 +39,8 @@ impl From<Verbosity> for Level {
 pub fn init_test() {
     // Failing to set the the global log adapter is fine, another test may have
     // already set it.
-    let _ = LogTracer::init();
+    // TODO: Currently with this enabled, we get a _ton_ of logs.
+    // let _ = LogTracer::init();
 
     let subscriber = FmtSubscriber::builder()
         .with_test_writer()
