@@ -65,7 +65,8 @@ pub fn init(verbosity: impl Into<Verbosity>, json: bool) {
     let verbosity = verbosity.into();
     let level: Level = verbosity.into();
 
-    LogTracer::init().unwrap();
+    // TODO: Currently with this enabled, we get a _ton_ of logs.
+    // LogTracer::init().unwrap();
 
     if json {
         let mut builder = default_fmt_builder(level).json();
