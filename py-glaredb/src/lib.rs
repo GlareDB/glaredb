@@ -1,6 +1,9 @@
+mod environment;
 mod error;
 mod runtime;
 mod session;
+
+use environment::PyEnvironmentReader;
 use error::PyGlareDbError;
 use runtime::{wait_for_future, TokioRuntime};
 use session::LocalSession;
@@ -44,7 +47,7 @@ fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResul
             .await
             .map_err(PyGlareDbError::from)?;
 
-        let session = engine
+        let mut session = engine
             .new_session(
                 Uuid::nil(),
                 "glaredb".to_string(),
@@ -56,6 +59,8 @@ fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResul
             )
             .await
             .map_err(PyGlareDbError::from)?;
+
+        session.register_env_reader(Box::new(PyEnvironmentReader));
 
         Ok(LocalSession {
             sess: session,

@@ -119,4 +119,20 @@ impl PyExecutionResult {
             Ok(table)
         })
     }
+
+    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
+    fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
+        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
+
+        Python::with_gil(|py| {
+            let table_class = py.import("pyarrow")?.getattr("Table")?;
+            let args = PyTuple::new(py, &[batches, schema]);
+            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
+
+            let table_class = py.import("polars")?.getattr("DataFrame")?;
+            let args = PyTuple::new(py, &[table]);
+            let result = table_class.call1(args)?.into();
+            Ok(result)
+        })
+    }
 }

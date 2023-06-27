@@ -1,4 +1,5 @@
 use crate::engine::SessionInfo;
+use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
 use crate::metrics::SessionMetrics;
@@ -75,6 +76,8 @@ pub struct SessionContext {
     /// This session state makes a ton of assumptions, try to keep usage of it
     /// to a minimum and ensure interactions with this are well-defined.
     df_state: SessionState,
+    /// Read tables from the environment.
+    env_reader: Option<Box<dyn EnvironmentReader>>,
 }
 
 impl SessionContext {
@@ -139,7 +142,16 @@ impl SessionContext {
             portals: HashMap::new(),
             metrics,
             df_state: state,
+            env_reader: None,
         }
+    }
+
+    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
+        self.env_reader = Some(env_reader);
+    }
+
+    pub fn get_env_reader(&self) -> Option<&dyn EnvironmentReader> {
+        self.env_reader.as_deref()
     }
 
     pub fn get_info(&self) -> &SessionInfo {
