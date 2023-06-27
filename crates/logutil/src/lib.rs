@@ -1,6 +1,5 @@
 //! Utilities for logging and tracing.
 use tracing::{info, subscriber, Level, Subscriber};
-use tracing_log::LogTracer;
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
     fmt::SubscriberBuilder,
