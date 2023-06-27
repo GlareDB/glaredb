@@ -1,6 +1,7 @@
 //! SQL execution.
 pub mod context;
 pub mod engine;
+pub mod environment;
 pub mod errors;
 pub mod metastore;
 pub mod parser;

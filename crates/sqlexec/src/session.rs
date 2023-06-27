@@ -1,5 +1,6 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::engine::SessionInfo;
+use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
@@ -176,6 +177,10 @@ impl Session {
         let metrics = SessionMetrics::new(info.clone(), tracker);
         let ctx = SessionContext::new(info, catalog, metastore, native_tables, metrics, spill_path);
         Ok(Session { ctx })
+    }
+
+    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
+        self.ctx.register_env_reader(env_reader);
     }
 
     /// Create a physical plan for a given datafusion logical plan.

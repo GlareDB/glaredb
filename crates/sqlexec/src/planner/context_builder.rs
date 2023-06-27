@@ -70,6 +70,13 @@ impl<'a> PartialContextProvider<'a> {
                         }
                     }
                 }
+
+                if let Some(reader) = self.ctx.get_env_reader() {
+                    if let Some(table) = reader.resolve_table(table).unwrap() {
+                        return Ok(table);
+                    }
+                }
+
                 Err(PlanError::FailedToFindTableForReference {
                     reference: reference.to_string(),
                 })
