@@ -7,7 +7,15 @@ use environment::PyEnvironmentReader;
 use error::PyGlareDbError;
 use runtime::{wait_for_future, TokioRuntime};
 use session::LocalSession;
-use std::{fs, path::Path, sync::Arc};
+use std::{
+    fs,
+    path::Path,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
+use tokio::runtime::Builder;
 use uuid::Uuid;
 
 use metastore::local::start_inprocess_local;
@@ -73,10 +81,17 @@ fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResul
 #[pymodule]
 fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
     // add the Tokio runtime to the module so we can access it later
-    m.add(
-        "__runtime",
-        TokioRuntime(tokio::runtime::Runtime::new().unwrap()),
-    )?;
+    let runtime = Builder::new_multi_thread()
+        .thread_name_fn(move || {
+            static THREAD_ID: AtomicU64 = AtomicU64::new(0);
+            let id = THREAD_ID.fetch_add(1, Ordering::Relaxed);
+            format!("glaredb-python-thread-{}", id)
+        })
+        .enable_all()
+        .build()
+        .unwrap();
+
+    m.add("__runtime", TokioRuntime(runtime))?;
 
     m.add_function(wrap_pyfunction!(connect, m)?)?;
     Ok(())
