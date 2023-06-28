@@ -6,7 +6,7 @@ edition = "2021"
 # [workspace]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "universalmind303glaredbtest1"
+name = "universalmind303glaredbtest2"
 crate-type = ["cdylib"]
 
 [dependencies]
