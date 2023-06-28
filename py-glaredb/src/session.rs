@@ -1,4 +1,5 @@
 use anyhow::Result;
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::StreamExt;
 use pgrepr::format::Format;
@@ -8,6 +9,7 @@ use sqlexec::{
     parser,
     session::ExecutionResult,
 };
+use std::sync::Arc;
 
 use crate::{error::PyGlareDbError, runtime::wait_for_future};
 
@@ -99,7 +101,15 @@ fn to_arrow_batches_and_schema(
 
             Ok((batches, schema))
         }
-        _ => todo!(),
+        _ => {
+            // TODO: Figure out the schema we actually want to use.
+            let schema = Arc::new(Schema::empty());
+            let batches = vec![RecordBatch::new_empty(schema.clone()).to_pyarrow(py)]
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?
+                .to_object(py);
+            Ok((batches, schema.to_pyarrow(py)?))
+        }
     }
 }
 
