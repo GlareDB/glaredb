@@ -12,8 +12,8 @@ select count(*) from csv_scan('file://${PWD}/testdata/sqllogictests_datasources_
 # ----
 # 102
 
-# # Remote path
-# query I
-# select count(*) from csv_scan('https://github.com/GlareDB/glaredb/blob/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
-# ----
-# 102
+# Remote path
+query I
+select count(*) from csv_scan('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
+----
+102
