@@ -9,7 +9,7 @@ before merging in a PR. Since we squash merge, PR titles should follow
 Developing GlareDB requires that you have Rust and Cargo installed, along with
 some additional system dependencies:
 
-- Protobuf (protoc)
+- Protobuf (protoc) <https://grpc.io/docs/protoc-installation/>
 
 ### Additional tooling
 
