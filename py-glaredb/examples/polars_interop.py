@@ -10,7 +10,7 @@ df = pl.DataFrame(
     }
 )
 
-con = glaredb.connect("/tmp/testing")
+con = glaredb.connect()
 
 df = con.sql("select * from df where fruits = 'banana'").to_polars();
 

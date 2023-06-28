@@ -9,7 +9,7 @@ use runtime::{wait_for_future, TokioRuntime};
 use session::LocalSession;
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -18,14 +18,15 @@ use std::{
 use tokio::runtime::Builder;
 use uuid::Uuid;
 
-use metastore::local::start_inprocess_local;
+use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use sqlexec::engine::{Engine, EngineStorageConfig, SessionLimits, SessionStorageConfig};
 use telemetry::Tracker;
 
-fn get_or_create_path(path: &str) -> PyResult<&Path> {
-    let path = Path::new(path);
-
+/// Ensure that a directory at the given path exists. Errors if the path exists
+/// and isn't a directory.
+fn ensure_dir(path: impl AsRef<Path>) -> PyResult<()> {
+    let path = path.as_ref();
     if !path.exists() {
         fs::create_dir_all(path)?;
     }
@@ -36,22 +37,53 @@ fn get_or_create_path(path: &str) -> PyResult<&Path> {
             &path
         )))
     } else {
-        Ok(path)
+        Ok(())
     }
 }
 
+/// Create and connect to a GlareDB engine.
+// TODO: kwargs
 #[pyfunction]
-fn connect(py: Python, data_dir: String, _spill_path: Option<String>) -> PyResult<LocalSession> {
+fn connect(
+    py: Python,
+    data_dir: Option<String>,
+    spill_path: Option<String>,
+) -> PyResult<LocalSession> {
     wait_for_future(py, async move {
         let tracker = Arc::new(Tracker::Nop);
-        let path = get_or_create_path(&data_dir).unwrap();
 
-        let storage_conf = EngineStorageConfig::Memory;
-        let metastore_client = start_inprocess_local(path)
-            .await
-            .map_err(PyGlareDbError::from)?;
+        // If data dir is provided, then both table storage and metastore storage
+        // will reside at that path. Otherwise everything is in memory.
+        //
+        // TODO: Possibly support connecting to remote metastore and storage?
+        let (storage_conf, metastore_client) = match data_dir {
+            Some(path) => {
+                let path = PathBuf::from(path);
+                ensure_dir(&path)?;
+                let metastore_client = start_inprocess_local(&path)
+                    .await
+                    .map_err(PyGlareDbError::from)?;
+                let conf = EngineStorageConfig::Local { path };
 
-        let engine = Engine::new(metastore_client, storage_conf, tracker, None)
+                (conf, metastore_client)
+            }
+            None => {
+                let metastore_client = start_inprocess_inmemory()
+                    .await
+                    .map_err(PyGlareDbError::from)?;
+                let conf = EngineStorageConfig::Memory;
+                (conf, metastore_client)
+            }
+        };
+
+        // If spill path not provided, default to some tmp dir.
+        let spill_path = match spill_path {
+            Some(p) => PathBuf::from(p),
+            None => std::env::temp_dir().join("glaredb-python"),
+        };
+        ensure_dir(&spill_path)?;
+
+        let engine = Engine::new(metastore_client, storage_conf, tracker, Some(spill_path))
             .await
             .map_err(PyGlareDbError::from)?;
 
