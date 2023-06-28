@@ -28,7 +28,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: install protoc
-        run: cargo xtask clippy
+        run: cargo xtask protoc
 
       - uses: actions/setup-python@v4
         with:
