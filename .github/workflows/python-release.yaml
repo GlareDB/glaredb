@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - cory/py-ci
+    tags:
+      - "py-*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -41,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: dist
+          path: py-glaredb/dist
 
   windows:
     runs-on: windows-latest
@@ -71,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: dist
+          path: py-glaredb/dist
 
   macos:
     runs-on: macos-latest
@@ -98,7 +101,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: dist
+          path: py-glaredb/dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -114,12 +117,11 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: dist
+          path: py-glaredb/dist
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
     needs: [linux, windows, macos, sdist]
     steps:
       - uses: actions/download-artifact@v3
