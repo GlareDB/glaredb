@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read
 env:
-  RUST_TOOLCHAIN: nightly-2023-06-23
   PYTHON_VERSION: '3.7'
   MATURIN_VERSION: '1.0.1'
   MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
@@ -17,7 +16,7 @@ env:
   PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-2004-8-cores
     strategy:
       fail-fast: true
       matrix:
@@ -33,12 +32,10 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          docker-options: "--env PROTOC=${{ env.PROTOC }}"
           target: ${{ matrix.target }}
-          args:  --release --out dist
-          working-directory: py-glaredb
+          args:  --release --out dist -m py-glaredb/Cargo.toml
           sccache: 'true'
-          manylinux: auto
-          container: 'off'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -77,7 +74,7 @@ jobs:
           path: py-glaredb/dist
 
   macos:
-    runs-on: macos-latest
+    runs-on: macos-12-xl
     strategy:
       fail-fast: true
       matrix:
