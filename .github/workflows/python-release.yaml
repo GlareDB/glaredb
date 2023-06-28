@@ -101,27 +101,10 @@ jobs:
           name: wheels
           path: py-glaredb/dist
 
-  sdist:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args:  --out dist
-          working-directory: py-glaredb
-          container: 'off'
-      - name: Upload sdist
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: py-glaredb/dist
-
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [linux, sdist, macos, windows]
+    needs: [linux, macos, windows]
     steps:
       - uses: actions/download-artifact@v3
         with:
@@ -132,4 +115,4 @@ jobs:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
           command: upload
-          args: --skip-existing *
+          args: --skip-existing --no-sdist *
