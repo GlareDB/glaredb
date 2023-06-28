@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - "*"
+      - "!py-*"
     branches:
       - sean/fix-image
       - main
