@@ -114,7 +114,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args:  --release --out dist
+          args:  --out dist
           working-directory: py-glaredb
           container: 'off'
       - name: Upload sdist
