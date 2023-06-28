@@ -2,8 +2,6 @@ name: CI
 
 on:
   push:
-    branches:
-      - cory/py-ci
     tags:
       - "py-*"
   workflow_dispatch:
@@ -52,7 +50,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        target: [x64, x86]
+        target: [x64]
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
