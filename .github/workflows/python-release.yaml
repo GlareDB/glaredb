@@ -43,7 +43,7 @@ jobs:
           path: py-glaredb/dist
 
   windows:
-    runs-on: windows-latest
+    runs-on: windows-latest-8-cores
     strategy:
       fail-fast: true
       matrix:
