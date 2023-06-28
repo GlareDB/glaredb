@@ -36,7 +36,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args:  --out dist
+          args:  --release --out dist
           working-directory: py-glaredb
           sccache: 'true'
           manylinux: auto
@@ -114,7 +114,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args:  --release --out dist
           working-directory: py-glaredb
           container: 'off'
       - name: Upload sdist
