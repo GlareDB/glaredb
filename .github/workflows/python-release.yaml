@@ -15,7 +15,7 @@ env:
   PYTHON_VERSION: '3.7'
   MATURIN_VERSION: '1.0.1'
   MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-  MATURIN_USERNAME: 'universalmind303' 
+  MATURIN_USERNAME: 'seanglaredb' 
   PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
 jobs:
   linux:
@@ -126,7 +126,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [linux, sdist]
+    needs: [linux, sdist, macos, windows]
     steps:
       - uses: actions/download-artifact@v3
         with:
