@@ -3,6 +3,7 @@ mod tests;
 
 use anyhow::Result;
 use hooks::{AllTestsHook, SshTunnelHook};
+use std::sync::Arc;
 use testing::slt::runner::SltRunner;
 use tests::SshKeysTest;
 
@@ -12,8 +13,8 @@ fn main() -> Result<()> {
         // Rust tests
         .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?
         // Add hooks
-        .hook("*", Box::new(AllTestsHook))?
+        .hook("*", Arc::new(AllTestsHook))?
         // SSH Tunnels hook
-        .hook("*/tunnels/ssh", Box::new(SshTunnelHook))?
+        .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?
         .run()
 }

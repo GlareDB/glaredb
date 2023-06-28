@@ -108,7 +108,11 @@ impl Cli {
         Builder::new_multi_thread()
             .enable_all()
             .build()?
-            .block_on(async move { cli.run_tests(tests, hooks).await })
+            .block_on(async move {
+                let batch_size = num_cpus::get();
+                tracing::info!(%batch_size, "test batch size");
+                cli.run_tests_batched(batch_size, tests, hooks).await
+            })
     }
 
     fn collect_tests(&self, tests: BTreeMap<String, Test>) -> Result<Vec<(String, Test)>> {
@@ -131,7 +135,44 @@ impl Cli {
         Ok(tests)
     }
 
-    async fn run_tests(self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
+    /// Run all provided tests, in batches of size `batch_size`.
+    ///
+    /// Batches will be ran sequentially, and an error resulting from a batch
+    /// will halt further execution.
+    async fn run_tests_batched(
+        self,
+        batch_size: usize,
+        mut tests: Vec<(String, Test)>,
+        hooks: TestHooks,
+    ) -> Result<()> {
+        // Break up into batches.
+        //
+        // Rust doesn't have a good way of breaking a Vec into a Vec of Vecs
+        // with owned references, so do it manually.
+        let mut batches = Vec::new();
+        loop {
+            let batch: Vec<_> = tests
+                .drain(0..usize::min(batch_size, tests.len()))
+                .collect();
+            if batch.is_empty() {
+                break;
+            }
+            batches.push(batch)
+        }
+
+        let start = Instant::now();
+
+        for batch in batches {
+            self.run_tests(batch, hooks.clone()).await?;
+        }
+
+        let time_taken = Instant::now().duration_since(start);
+        eprintln!("Tests took {time_taken:?} to run");
+
+        Ok(())
+    }
+
+    async fn run_tests(&self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
         // Temp directory for metastore
         let temp_dir = tempfile::tempdir()?;
 
@@ -146,6 +187,7 @@ impl Cli {
             } else {
                 let pg_listener = TcpListener::bind(
                     self.bind_embedded
+                        .clone()
                         .unwrap_or_else(|| "localhost:0".to_string()),
                 )
                 .await?;
@@ -153,7 +195,7 @@ impl Cli {
                 let server_conf = ServerConfig { pg_listener };
 
                 let server = Server::connect(
-                    self.metastore_addr,
+                    self.metastore_addr.clone(),
                     None,
                     Box::new(SingleUserAuthenticator {
                         user: "glaredb".to_string(),
@@ -194,8 +236,7 @@ impl Cli {
         let num_tests = tests.len();
         let mut results = Vec::with_capacity(num_tests);
 
-        let start = Instant::now();
-        let timeout_at = start + Duration::from_secs(self.timeout);
+        let timeout_at = Instant::now() + Duration::from_secs(self.timeout);
 
         type Res = (String, Result<()>);
         async fn recv(
@@ -273,8 +314,6 @@ impl Cli {
             }
             Err(anyhow!("Test failures"))
         } else {
-            let time_taken = Instant::now().duration_since(start);
-            eprintln!("Tests took {time_taken:?} to run");
             Ok(())
         }
     }
