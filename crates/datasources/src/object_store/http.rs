@@ -6,7 +6,9 @@ use chrono::{DateTime, Utc};
 use datafusion::datasource::TableProvider;
 use object_store::{ObjectMeta, ObjectStore};
 
-use super::{csv::CsvTableProvider, parquet::ParquetTableProvider, FileType};
+use super::{
+    csv::CsvTableProvider, json::JsonTableProvider, parquet::ParquetTableProvider, FileType,
+};
 
 #[derive(Debug, Clone)]
 pub struct HttpTableAccess {
@@ -50,7 +52,9 @@ impl TableAccessor for HttpAccessor {
                 Arc::new(ParquetTableProvider::from_table_accessor(self, true).await?)
             }
             FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
+            FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
         };
+
         Ok(table_provider)
     }
 }
