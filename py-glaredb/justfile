@@ -5,15 +5,15 @@ VENV_BIN := ".venv/bin"
 
 ## Set up virtual environment and install requirements
 venv:  
+	python3 -m pip install virtualenv 
 	python3 -m virtualenv {{VENV}}
-
 
 requirements: venv
 	{{VENV_BIN}}/python -m pip install --upgrade pip
 	{{VENV_BIN}}/pip install -r requirements.txt
 
 ## Compile and install py-glaredb for development
-build: requirements  
+build: requirements
 	unset CONDA_PREFIX
 	{{VENV_BIN}}/maturin develop
 

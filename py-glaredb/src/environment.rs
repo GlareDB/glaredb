@@ -25,20 +25,11 @@ impl EnvironmentReader for PyEnvironmentReader {
                 Err(_) => return Ok(None),
             };
 
-            // Polars
-            if let Some(table) = resolve_polars(py, var).map_err(Box::new)? {
-                return Ok(Some(table));
-            }
-
-            // Pandas
-            if let Some(table) = resolve_pandas(py, var).map_err(Box::new)? {
-                return Ok(Some(table));
-            }
-
-            // Add other data frame types here.
-
-            // Variable isn't one of the data frames that we support.
-            Ok(None)
+            // since the resolve functions will err if the library is uninstalled,
+            // dont `try` the results, we want to move on next resolver if this one errs.
+            resolve_polars(py, var)
+                .or_else(|_| resolve_pandas(py, var))
+                .or_else(|_| Ok(None))
         })
     }
 }
