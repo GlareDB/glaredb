@@ -26,8 +26,6 @@ jobs:
       - uses: extractions/setup-just@v1
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}-unknown-linux-gnu
 
       - name: install protoc
         run: cargo xtask clippy

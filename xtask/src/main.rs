@@ -33,10 +33,14 @@ enum Commands {
 
     /// Run SQL Logic Tests.
     #[clap(alias = "slt")]
-    SqlLogicTests { rest: Vec<String> },
+    SqlLogicTests {
+        rest: Vec<String>,
+    },
 
     /// Run tests with arbitrary arguments.
-    Test { rest: Vec<String> },
+    Test {
+        rest: Vec<String>,
+    },
 
     /// Run clippy.
     Clippy,
@@ -52,6 +56,7 @@ enum Commands {
     /// By default, the compilation target matches the host machine. This can be
     /// overridden via the `DIST_TARGET_TRIPLE` environment variable.
     Dist,
+    Protoc,
 }
 
 fn main() -> Result<()> {
@@ -77,6 +82,7 @@ fn main() -> Result<()> {
         Commands::Clippy => run_clippy(sh)?,
         Commands::FmtCheck => run_fmt_check(sh)?,
         Commands::Dist => run_dist(sh, &target)?,
+        Commands::Protoc => {}
     }
 
     Ok(())
