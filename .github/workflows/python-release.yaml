@@ -38,7 +38,6 @@ jobs:
           working-directory: py-glaredb
           sccache: 'true'
           manylinux: auto
-          container: 'off'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -69,7 +68,6 @@ jobs:
           args: --release --out dist
           working-directory: py-glaredb
           sccache: 'true'
-          container: 'off'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -97,7 +95,6 @@ jobs:
           args: --release --out dist
           working-directory: py-glaredb
           sccache: 'true'
-          container: 'off'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
