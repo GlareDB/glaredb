@@ -42,69 +42,69 @@ jobs:
           name: wheels
           path: py-glaredb/dist
 
-  windows:
-    runs-on: windows-latest-8-cores
-    strategy:
-      fail-fast: true
-      matrix:
-        target: [x64]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-      - name: install protoc
-        run: cargo xtask protoc
+  # windows:
+  #   runs-on: windows-latest-8-cores
+  #   strategy:
+  #     fail-fast: true
+  #     matrix:
+  #       target: [x64]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - name: install protoc
+  #       run: cargo xtask protoc
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          architecture: ${{ matrix.target }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.10'
+  #         architecture: ${{ matrix.target }}
+  #     - name: Build wheels
+  #       uses: PyO3/maturin-action@v1
 
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist
-          working-directory: py-glaredb
-          sccache: 'true'
-          container: 'off'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: py-glaredb/dist
+  #       with:
+  #         target: ${{ matrix.target }}
+  #         args: --release --out dist
+  #         working-directory: py-glaredb
+  #         sccache: 'true'
+  #         container: 'off'
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: dist
 
-  macos:
-    runs-on: macos-12-xl
-    strategy:
-      fail-fast: true
-      matrix:
-        target: [x86_64, aarch64]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-      - name: install protoc
-        run: cargo xtask protoc
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist
-          working-directory: py-glaredb
-          sccache: 'true'
-          container: 'off'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: py-glaredb/dist
+  # macos:
+  #   runs-on: macos-12-xl
+  #   strategy:
+  #     fail-fast: true
+  #     matrix:
+  #       target: [x86_64, aarch64]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - name: install protoc
+  #       run: cargo xtask protoc
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.10'
+  #     - name: Build wheels
+  #       uses: PyO3/maturin-action@v1
+  #       with:
+  #         target: ${{ matrix.target }}
+  #         args: --release --out dist
+  #         working-directory: py-glaredb
+  #         sccache: 'true'
+  #         container: 'off'
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: py-glaredb/dist
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [linux, macos, windows]
+    needs: [linux]
     steps:
       - uses: actions/download-artifact@v3
         with:
