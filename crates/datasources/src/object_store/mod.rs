@@ -18,11 +18,13 @@ pub mod parquet;
 pub mod s3;
 
 mod csv;
+mod json;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FileType {
     Csv,
     Parquet,
+    Json,
 }
 
 impl FromStr for FileType {
@@ -33,6 +35,7 @@ impl FromStr for FileType {
         match s.as_str() {
             "parquet" => Ok(Self::Parquet),
             "csv" => Ok(Self::Csv),
+            "json" => Ok(Self::Json),
             _ => Err(Self::Err::NotSupportFileType(s)),
         }
     }

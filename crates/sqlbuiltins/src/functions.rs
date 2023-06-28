@@ -65,6 +65,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadSnowflake),
             Arc::new(ParquetScan),
             Arc::new(CsvScan),
+            Arc::new(JsonScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
@@ -527,6 +528,35 @@ impl TableFunc for CsvScan {
         args: Vec<ScalarValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         create_provider_for_filetype(FileType::Csv, args).await
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct JsonScan;
+
+#[async_trait]
+impl TableFunc for JsonScan {
+    fn name(&self) -> &str {
+        "ndjson_scan"
+    }
+
+    fn parameters(&self) -> &[TableFuncParameters] {
+        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
+            params: &[TableFuncParameter {
+                name: "url",
+                typ: DataType::Utf8,
+            }],
+        }];
+
+        PARAMS
+    }
+
+    async fn create_provider(
+        &self,
+        _: &dyn TableFuncContextProvider,
+        args: Vec<ScalarValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        create_provider_for_filetype(FileType::Json, args).await
     }
 }
 

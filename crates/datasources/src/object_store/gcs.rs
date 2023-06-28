@@ -9,6 +9,7 @@ use tracing::trace;
 
 use super::csv::CsvTableProvider;
 use super::errors::Result;
+use super::json::JsonTableProvider;
 use super::parquet::ParquetTableProvider;
 use super::{file_type_from_path, FileType, TableAccessor};
 
@@ -60,6 +61,7 @@ impl TableAccessor for GcsAccessor {
                 Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
             }
             FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
+            FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
         };
         Ok(table_provider)
     }
