@@ -22,7 +22,6 @@ jobs:
       matrix:
         target: [x86_64]
     steps:
-
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       - name: install protoc
