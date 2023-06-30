@@ -1,5 +1,5 @@
-# Build glaredb.
-default: build
+# Shows help command
+default: help
 export CARGO_TERM_COLOR := "always"
 
 alias py := python
