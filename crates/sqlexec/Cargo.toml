@@ -18,7 +18,7 @@ object_store_util = {path = "../object_store_util"}
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.68"
-serde_json = "1.0.97"
+serde_json = "1.0.99"
 sqlparser = "0.34.0"
 datafusion = {workspace = true}
 futures = "0.3.28"
