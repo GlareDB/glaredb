@@ -1,8 +1,8 @@
 # Build glaredb.
 default: build
+export CARGO_TERM_COLOR := "always"
 
 alias py := python
-
 os_arch := os() + '-' + arch()
 
   
@@ -67,7 +67,7 @@ help:
 # ---------------------
 
 [private]
-protoc: setenv
+protoc:
   #!/bin/bash
   if ! protoc --version > /dev/null; then 
     echo "Installing protoc..." && \
@@ -78,9 +78,6 @@ protoc: setenv
     rm protoc.zip
   fi
 
-[private]
-setenv:
-  @export CARGO_TERM_COLOR=always
 
 default_target_triple := if os_arch == "macos-x86_64" {
   "x86_64-apple-darwin"
