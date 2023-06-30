@@ -78,12 +78,21 @@ fn connect(
 
         // If spill path not provided, default to some tmp dir.
         let spill_path = match spill_path {
-            Some(p) => PathBuf::from(p),
-            None => std::env::temp_dir().join("glaredb-python"),
-        };
-        ensure_dir(&spill_path)?;
+            Some(p) => {
+                let path = PathBuf::from(p);
+                ensure_dir(&path)?;
+                Some(path)
+            }
 
-        let engine = Engine::new(metastore_client, storage_conf, tracker, Some(spill_path))
+            None => {
+                let path = std::env::temp_dir().join("glaredb-python");
+                // if user doesn't have permission to write to temp dir, then
+                // just don't use a spill path.
+                ensure_dir(&path).ok().map(|_| path)
+            }
+        };
+
+        let engine = Engine::new(metastore_client, storage_conf, tracker, spill_path)
             .await
             .map_err(PyGlareDbError::from)?;
 
