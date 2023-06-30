@@ -338,7 +338,7 @@ version = "40.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25187bbef474151a2e4ddec67b9e34bda5cbfba292dc571392fa3a1f71ff5a82"
 dependencies = [
- "bitflags 2.3.2",
+ "bitflags 2.3.3",
 ]
 
 [[package]]
@@ -939,9 +939,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.3.2"
+version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dbe3c979c178231552ecba20214a8272df4e09f232a87aef4320cf06539aded"
+checksum = "630be753d4e58660abd17930c71b647fe46c27ea6b63cc59e1e3851406972e42"
 
 [[package]]
 name = "bitvec"
@@ -2008,7 +2008,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bigquery-storage",
- "bitflags 2.3.2",
+ "bitflags 2.3.3",
  "bitvec",
  "bytes",
  "chrono",
@@ -3765,7 +3765,7 @@ dependencies = [
  "base64 0.21.2",
  "bigdecimal",
  "bindgen",
- "bitflags 2.3.2",
+ "bitflags 2.3.3",
  "bitvec",
  "byteorder",
  "bytes",
@@ -6788,7 +6788,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
