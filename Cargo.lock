@@ -2060,7 +2060,7 @@ dependencies = [
 [[package]]
 name = "deltalake"
 version = "0.13.0"
-source = "git+https://github.com/delta-io/delta-rs.git?branch=main#e5dd8e2167b94e6856aa531d878584397d5bea69"
+source = "git+https://github.com/delta-io/delta-rs.git?branch=main#d00b620b9dbc565ec16598b7e32e2fe5cdeaf4ba"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4726,7 +4726,7 @@ dependencies = [
  "indoc 1.0.9",
  "libc",
  "memoffset 0.8.0",
- "parking_lot 0.12.1",
+ "parking_lot 0.11.2",
  "pyo3-build-config 0.18.3",
  "pyo3-ffi",
  "pyo3-macros 0.18.3",
@@ -6788,7 +6788,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
