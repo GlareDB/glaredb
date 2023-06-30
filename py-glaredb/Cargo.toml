@@ -15,7 +15,7 @@ datafusion = { workspace = true, features = ["pyarrow"] }
 thiserror.workspace = true
 
 pyo3 = { version = "0.18.3", features = ["abi3-py37", "extension-module"] }
-pyo3-asyncio = { version = "0.14", features = ["tokio-runtime"] }
+pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
 sqlexec = { path = "../crates/sqlexec" }
 metastore = { path = "../crates/metastore" }
 telemetry = { path = "../crates/telemetry" }
