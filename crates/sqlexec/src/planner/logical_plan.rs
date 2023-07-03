@@ -2,7 +2,7 @@ use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::logical_expr::{Explain, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use metastoreproto::types::options::{
@@ -67,6 +67,25 @@ impl LogicalPlan {
     /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
         if let LogicalPlan::Query(plan) = self {
+            // Replace placeholders in the inner plan if the wrapped in an
+            // EXPLAIN.
+            //
+            // TODO: Make sure this is the correct behavior.
+            if let DfLogicalPlan::Explain(explain) = plan {
+                let mut inner = explain.plan.clone();
+                let inner = Arc::make_mut(&mut inner);
+
+                *plan = DfLogicalPlan::Explain(Explain {
+                    verbose: explain.verbose,
+                    plan: Arc::new(inner.replace_params_with_values(&scalars)?),
+                    stringified_plans: explain.stringified_plans.clone(),
+                    schema: explain.schema.clone(),
+                    logical_optimization_succeeded: explain.logical_optimization_succeeded,
+                });
+
+                return Ok(());
+            }
+
             *plan = plan.replace_params_with_values(&scalars)?;
         }
 
