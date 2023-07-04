@@ -1,0 +1,7 @@
+# Test `EXPLAIN ...` queries
+
+statement ok
+explain select 1;
+
+statement ok
+explain analyze select 1;
