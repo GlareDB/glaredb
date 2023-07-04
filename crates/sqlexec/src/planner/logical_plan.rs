@@ -5,6 +5,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
+use metastore::types::{CopyToDestinationOptions, CopyToFormatOptions};
 use metastoreproto::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
@@ -102,6 +103,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
+    CopyTo(CopyTo),
 }
 
 impl From<WritePlan> for LogicalPlan {
@@ -121,6 +123,23 @@ impl std::fmt::Debug for Insert {
         f.debug_struct("Insert")
             .field("source", &self.source)
             .field("table_provider", &self.table_provider.schema())
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct CopyTo {
+    pub source: DfLogicalPlan,
+    pub dest: CopyToDestinationOptions,
+    pub format: CopyToFormatOptions,
+}
+
+impl std::fmt::Debug for CopyTo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CopyTo")
+            .field("source", &self.source.schema())
+            .field("dest", &self.dest)
+            .field("format", &self.format)
             .finish()
     }
 }

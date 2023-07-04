@@ -142,6 +142,9 @@ pub enum ExecError {
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
     #[error(transparent)]
+    DatasourceObjectStore(#[from] datasources::object_store::errors::ObjectStoreSourceError),
+
+    #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
 }
 

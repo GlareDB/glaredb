@@ -1,4 +1,7 @@
-use crate::errors::{MetastoreError, Result};
+use crate::{
+    errors::{MetastoreError, Result},
+    types::CopyToDestinationOptions,
+};
 use metastoreproto::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
@@ -90,6 +93,45 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
         Err(MetastoreError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: table.to_owned(),
+        })
+    }
+}
+
+/// Validate if the credentials provider is supported by the "copy to"
+/// destination.
+pub fn validate_copyto_dest_creds_support(dest: &str, creds: &str) -> Result<()> {
+    if matches!(
+        (dest, creds),
+        // Google cloud
+        (CopyToDestinationOptions::GCS, CredentialsOptions::GCP) |
+        // Aws
+        (CopyToDestinationOptions::S3_STORAGE, CredentialsOptions::AWS)
+    ) {
+        Ok(())
+    } else {
+        Err(MetastoreError::CredentialsNotSupportedByDatasource {
+            credentials: creds.to_owned(),
+            datasource: dest.to_owned(),
+        })
+    }
+}
+
+/// Validate if the sink format is supported by the "copy to" destination.
+pub fn validate_copyto_dest_format_support(dest: &str, format: &str) -> Result<()> {
+    if matches!(
+        (dest, format),
+        // Local
+        (CopyToDestinationOptions::LOCAL, _all) |
+        // Google cloud
+        (CopyToDestinationOptions::GCS, _all) |
+        // AWS
+        (CopyToDestinationOptions::S3_STORAGE, _all)
+    ) {
+        Ok(())
+    } else {
+        Err(MetastoreError::FormatNotSupportedByDatasource {
+            format: format.to_owned(),
+            datasource: dest.to_owned(),
         })
     }
 }

@@ -20,6 +20,14 @@ pub struct LocalTableAccess {
     pub file_type: Option<FileType>,
 }
 
+impl LocalTableAccess {
+    pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
+        let store = Arc::new(LocalFileSystem::new());
+        let location = ObjectStorePath::from_filesystem_path(self.location.as_str())?;
+        Ok((store, location))
+    }
+}
+
 #[derive(Debug)]
 pub struct LocalAccessor {
     /// Local filesystem  object store access info
@@ -54,9 +62,7 @@ impl TableAccessor for LocalAccessor {
 impl LocalAccessor {
     /// Setup accessor for Local file system
     pub async fn new(access: LocalTableAccess) -> Result<Self> {
-        let store = Arc::new(LocalFileSystem::new());
-
-        let location = ObjectStorePath::from_filesystem_path(access.location)?;
+        let (store, location) = access.store_and_path()?;
         // Use provided file type or infer from location
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");

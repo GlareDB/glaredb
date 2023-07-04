@@ -44,6 +44,12 @@ impl S3TableAccess {
             )),
         }
     }
+
+    pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
+        let store = self.builder()?.build()?;
+        let location = ObjectStorePath::from(self.location.as_str());
+        Ok((Arc::new(store), location))
+    }
 }
 
 #[derive(Debug)]
