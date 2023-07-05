@@ -1,7 +1,7 @@
 # Shows help command
 default: help
 export CARGO_TERM_COLOR := "always"
-
+export PROTOC := justfile_directory() + "/deps/protoc/bin/protoc"
 alias py := python
 alias slt := sql-logic-tests
 
@@ -66,21 +66,18 @@ help:
 
 protoc:
   #!/bin/bash
-  if ! protoc --version > /dev/null; then 
+  if ! $PROTOC --version > /dev/null; then 
     echo "Installing protoc..." && \
     curl -L {{protoc_url}} -o protoc.zip && \
     rm -rf deps/protoc && \
     mkdir -p deps/ && \
     unzip -o protoc.zip -d deps/protoc && \
     rm protoc.zip
-    
   fi
 
 
 # private helpers below
 # ---------------------
-
-
 
 default_target_triple := if os_arch == "macos-x86_64" {
   "x86_64-apple-darwin"
