@@ -339,6 +339,13 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
                     None => user,
                 };
 
+                // Extract the compute engine name (optional) from startup params
+                // Defaults to empty string which will target the shared pool
+                let compute_engine = match params.get("compute_engine") {
+                    Some(compute_engine) => compute_engine,
+                    None => "",
+                };
+
                 let options = parse_options(params);
 
                 let (org_id, db_name) =
@@ -346,7 +353,7 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
 
                 let details = self
                     .authenticator
-                    .authenticate(user, &password, db_name, org_id)
+                    .authenticate(user, &password, db_name, org_id, compute_engine)
                     .await?;
                 Ok(details)
             }

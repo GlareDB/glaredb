@@ -106,6 +106,7 @@ pub trait ProxyAuthenticator: Sync + Send {
         password: &str,
         db_name: &str,
         org: &str,
+        compute_engine: &str,
     ) -> Result<DatabaseDetails>;
 }
 
@@ -139,6 +140,7 @@ impl ProxyAuthenticator for CloudAuthenticator {
         password: &str,
         db_name: &str,
         org: &str,
+        compute_engine: &str,
     ) -> Result<DatabaseDetails> {
         let query = if Uuid::try_parse(org).is_ok() {
             [
@@ -146,6 +148,7 @@ impl ProxyAuthenticator for CloudAuthenticator {
                 ("password", password),
                 ("name", db_name),
                 ("org", org),
+                ("compute_engine", compute_engine),
             ]
         } else {
             [
@@ -153,6 +156,7 @@ impl ProxyAuthenticator for CloudAuthenticator {
                 ("password", password),
                 ("name", db_name),
                 ("orgname", org),
+                ("compute_engine", compute_engine),
             ]
         };
 
