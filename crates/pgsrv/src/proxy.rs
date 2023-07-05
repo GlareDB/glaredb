@@ -416,10 +416,7 @@ fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, Str
 }
 
 /// Get the compute engine from the database name.
-/// The compute engine is the first part of the database name
-/// separated by a '.'
-/// always returns 2 strings, the compute engine and the db_name and compute engine may be empty string
-/// if the database name does not contain a '.'
+/// Compute engine is optional and may be empty string.
 fn get_compute_engine(db_name: &str) -> Result<(&str, &str)> {
     let (compute_engine, db_name) = db_name.split_once('.').unwrap_or(("", db_name));
     Ok((compute_engine, db_name))
