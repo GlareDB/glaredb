@@ -4622,7 +4622,7 @@ dependencies = [
 
 [[package]]
 name = "py-glaredb"
-version = "0.1.2"
+version = "0.0.16"
 dependencies = [
  "anyhow",
  "async-trait",
