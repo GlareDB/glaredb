@@ -16,4 +16,3 @@ VENV_BIN := ".venv/bin"
 build *args: requirements
 	@unset CONDA_PREFIX
 	{{VENV_BIN}}/maturin develop {{args}}
-

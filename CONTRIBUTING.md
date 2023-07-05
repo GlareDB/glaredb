@@ -46,7 +46,7 @@ Unit tests attempt to test small parts of the system. These can be ran via
 cargo:
 
 ``` shell
-cargo xtask unit-tests
+just unit-tests
 ```
 
 When writing unit tests, aims to keep the scope small with a minimal amount of

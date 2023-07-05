@@ -100,7 +100,7 @@ an easy way to install Rust on your system.
 Running the following command will build a release binary:
 
 ```shell
-cargo xtask build --release
+just build --release
 ```
 
 The compiled release binary can be found in `target/release/glaredb`.

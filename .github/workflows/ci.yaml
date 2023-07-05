@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - cory/justfile
   pull_request:
   workflow_dispatch:
 
@@ -24,22 +25,21 @@ jobs:
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
-
+      - uses: extractions/setup-just@v1
       - name: Build
-        run: |
-          cargo xtask build
+        run: just build
 
       - name: Unit Tests
-        run: cargo xtask unit-tests
+        run: just unit-tests
 
       - name: Doc Tests
-        run: cargo xtask doc-tests
+        run: just doc-tests
 
       - name: Clippy
-        run: cargo xtask clippy
+        run: just clippy
 
       - name: Format
-        run: cargo xtask fmt-check
+        run: just fmt-check
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -112,8 +112,8 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          cargo xtask sql-logic-tests -- -v --exclude '*/tunnels/ssh'
-          cargo xtask sql-logic-tests -- -v '*/tunnels/ssh'
+          just sql-logic-tests -- -v --exclude '*/tunnels/ssh'
+          just sql-logic-tests -- -v '*/tunnels/ssh'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

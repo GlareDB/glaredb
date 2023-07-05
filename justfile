@@ -3,6 +3,8 @@ default: help
 export CARGO_TERM_COLOR := "always"
 
 alias py := python
+alias slt := sql-logic-tests
+
 os_arch := os() + '-' + arch()
 
   
@@ -35,15 +37,15 @@ test *args: protoc
   cargo test {{args}}
 
 # Run unit tests.
-unittests: protoc
+unit-tests: protoc
   just test --lib --bins
 
 # Run doc tests.
-doctests: protoc
+doc-tests: protoc
   just test --doc
 
 # Run SQL Logic Tests.
-slt *args: protoc
+sql-logic-tests *args: protoc
   just test --test sqllogictests {{args}}
 
 #  Check formatting.
@@ -62,11 +64,6 @@ clippy: protoc
 help: 
   @just --list
 
-
-# private helpers below
-# ---------------------
-
-[private]
 protoc:
   #!/bin/bash
   if ! protoc --version > /dev/null; then 
@@ -76,7 +73,13 @@ protoc:
     mkdir -p deps/ && \
     unzip -o protoc.zip -d deps/protoc && \
     rm protoc.zip
+    
   fi
+
+
+# private helpers below
+# ---------------------
+
 
 
 default_target_triple := if os_arch == "macos-x86_64" {
