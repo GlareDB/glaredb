@@ -5,9 +5,9 @@ WORKDIR /usr/src/glaredb
 COPY . .
 
 RUN apt-get update && apt-get install -y openssl ca-certificates
-
+RUN cargo install just
 # Build release binary.
-RUN cargo xtask build --release
+RUN just build --release
 
 # Generate certs.
 RUN ./scripts/gen-certs.sh

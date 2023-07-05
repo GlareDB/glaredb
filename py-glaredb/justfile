@@ -1,19 +1,18 @@
-SHELL := '/bin/bash'
+set fallback
 VENV := ".venv"
 VENV_BIN := ".venv/bin"
 
 
-## Set up virtual environment and install requirements
-venv:  
-	python3 -m pip install virtualenv 
-	python3 -m virtualenv {{VENV}}
+@venv:  
+	@python3 -m pip install virtualenv > /dev/null
+	@python3 -m virtualenv {{VENV}} > /dev/null
 
-requirements: venv
-	{{VENV_BIN}}/python -m pip install --upgrade pip
-	{{VENV_BIN}}/pip install -r requirements.txt
+## Set up virtual environment and install requirements
+@requirements: venv
+	{{VENV_BIN}}/python -m pip install --upgrade pip > /dev/null
+	{{VENV_BIN}}/pip install -r requirements.txt > /dev/null
 
 ## Compile and install py-glaredb for development
-build: requirements
-	unset CONDA_PREFIX
-	{{VENV_BIN}}/maturin develop
-
+build *args: requirements
+	@unset CONDA_PREFIX
+	{{VENV_BIN}}/maturin develop {{args}}

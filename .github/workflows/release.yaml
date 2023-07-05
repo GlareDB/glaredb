@@ -40,7 +40,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
-        run: cargo xtask dist
+        run: just dist
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
