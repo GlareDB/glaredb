@@ -1262,14 +1262,14 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
                     // Timestamp Without Time zone
                     None
                 };
-                Ok(DataType::Timestamp(TimeUnit::Nanosecond, tz))
+                Ok(DataType::Timestamp(TimeUnit::Microsecond, tz))
             }
             ast::DataType::Date => Ok(DataType::Date32),
             ast::DataType::Time(None, tz_info) => {
                 if matches!(tz_info, ast::TimezoneInfo::None)
                     || matches!(tz_info, ast::TimezoneInfo::WithoutTimeZone)
                 {
-                    Ok(DataType::Time64(TimeUnit::Nanosecond))
+                    Ok(DataType::Time64(TimeUnit::Microsecond))
                 } else {
                     // We dont support TIMETZ and TIME WITH TIME ZONE for now
                     Err(internal!(
