@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use datafusion::{error::DataFusionError, execution::object_store::ObjectStoreRegistry};
-use object_store::{local::LocalFileSystem, ObjectStore};
+use object_store::ObjectStore;
 use url::Url;
 
 #[derive(Debug)]

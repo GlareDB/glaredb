@@ -15,7 +15,6 @@ use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::gcs::GcsTableAccess;
 use datasources::object_store::http::HttpAccessor;
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::{FileType, TableAccessor};
@@ -27,7 +26,6 @@ use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
-use object_store::gcp::GoogleCloudStorageBuilder;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -573,6 +571,16 @@ async fn create_provider_for_filetype(
         1 => {
             let mut args = args.into_iter();
             let url_string = string_from_scalar(args.next().unwrap())?;
+            // todo: fetch this from the registry instead.
+            // let url = Url::parse(&url_string)?;
+            // let store = registry.get_store(url)?;
+            // match file_type {
+            //     FileType::Parquet => {
+            //         Arc::new(ParquetTableProvider::from_table_accessor(store, true).await?)
+            //     }
+            //     FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(store).await?),
+            //     FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(store).await?),
+            // };
 
             Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
                 Ok("http" | "https") => HttpAccessor::try_new(url_string, file_type)
@@ -582,10 +590,8 @@ async fn create_provider_for_filetype(
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?,
                 Ok("gs") => {
-                    
-
                     todo!()
-                },
+                }
                 // no scheme so we assume it's a local file
                 _ => {
                     let location = url_string

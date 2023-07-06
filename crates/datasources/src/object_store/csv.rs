@@ -104,6 +104,6 @@ where
         Ok(Arc::new(exec))
     }
 }
+
 const DEFAULT_DELIMITER: u8 = b',';
-const DEFAULT_BATCH_SIZE: usize = 8192;
 const DEFAULT_FILE_COMPRESSION_TYPE: FileCompressionType = FileCompressionType::UNCOMPRESSED;

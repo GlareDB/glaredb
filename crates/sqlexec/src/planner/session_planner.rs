@@ -462,9 +462,7 @@ impl<'a> SessionPlanner<'a> {
                 let url = url::Url::parse(&url).unwrap();
 
                 let store = access.store().unwrap();
-                let base_location = access.base_location();
 
-                println!("registering object store for {}", url);
                 self.ctx
                     .get_df_state()
                     .runtime_env()

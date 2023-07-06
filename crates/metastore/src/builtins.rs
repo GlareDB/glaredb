@@ -623,11 +623,7 @@ mod tests {
     fn builtin_unique_view_names() {
         let mut names = HashSet::new();
         for builtin in BuiltinView::builtins() {
-            let name = format!(
-                "{}.{}",
-                builtin.schema.to_string(),
-                builtin.name.to_string()
-            );
+            let name = format!("{}.{}", builtin.schema, builtin.name);
             assert!(names.insert(name.clone()), "duplicate name: {}", name);
         }
     }
@@ -636,11 +632,7 @@ mod tests {
     fn builtin_unique_table_names() {
         let mut names = HashSet::new();
         for builtin in BuiltinTable::builtins() {
-            let name = format!(
-                "{}.{}",
-                builtin.schema.to_string(),
-                builtin.name.to_string()
-            );
+            let name = format!("{}.{}", builtin.schema, builtin.name);
             assert!(names.insert(name.clone()), "duplicate name: {}", name);
         }
     }

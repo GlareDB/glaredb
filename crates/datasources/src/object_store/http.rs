@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::object_store::{errors::ObjectStoreSourceError, Result, TableAccessor};
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use datafusion::datasource::TableProvider;
 use object_store::{ObjectMeta, ObjectStore};
 

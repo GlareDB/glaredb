@@ -10,15 +10,15 @@ use serde::{Deserialize, Serialize};
 
 use errors::Result;
 
+mod csv;
 pub mod errors;
 pub mod gcs;
 pub mod http;
+mod json;
 pub mod local;
 pub mod parquet;
-pub mod s3;
 pub mod registry;
-mod csv;
-mod json;
+pub mod s3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FileType {

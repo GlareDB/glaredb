@@ -54,11 +54,17 @@ fmt-check: protoc
 
 # Apply formatting.
 fmt *args: protoc
-  cargo fmt *args
+  cargo fmt {{args}}
 
 # Run clippy.
 clippy: protoc
-  cargo clippy --all-features -- --deny warnings
+  cargo clippy --all --all-features -- --deny warnings
+
+# apply linting & clippy fixes.
+fix: protoc
+  just fmt --all
+  cargo fix --all --allow-dirty 
+  cargo clippy --fix --all --all-features --allow-dirty
 
 # Displays help message.
 help: 
