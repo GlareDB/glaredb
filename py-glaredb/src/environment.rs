@@ -18,7 +18,7 @@ impl EnvironmentReader for PyEnvironmentReader {
         name: &str,
     ) -> Result<Option<Arc<dyn TableProvider>>, Box<dyn std::error::Error + Send + Sync>> {
         Python::with_gil(|py| {
-            let var = match search_var(py, name) {
+            let var = match get_stack_locals(py, name) {
                 Ok(Some(var)) => var,
                 _ => return Ok(None),
             };
@@ -38,7 +38,7 @@ impl EnvironmentReader for PyEnvironmentReader {
 }
 
 /// Search for a python variable in the current frame, or any parent frame.
-fn search_var<'py>(py: Python<'py>, name: &str) -> PyResult<Option<&'py PyAny>> {
+fn get_stack_locals<'py>(py: Python<'py>, name: &str) -> PyResult<Option<&'py PyAny>> {
     let mut current_frame = py.import("inspect")?.getattr("currentframe")?.call0()?;
 
     loop {
