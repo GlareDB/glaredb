@@ -444,7 +444,7 @@ impl<'a> SessionPlanner<'a> {
 
                 let bucket = m.remove_required("bucket")?;
                 let location = m.remove_required("location")?;
-                let url = format!("gs://{bucket}");
+                let url = format!("gs://{bucket}/");
 
                 let access = GcsTableAccess {
                     bucket_name: bucket,
