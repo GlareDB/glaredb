@@ -8,7 +8,6 @@ on:
   push:
     tags:
       - "*"
-      - "!py-*"
 jobs:
   dist:
     strategy:
