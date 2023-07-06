@@ -3,7 +3,7 @@ VENV := ".venv"
 VENV_BIN := ".venv/bin"
 
 
-@venv:  
+@venv:
 	@python3 -m pip install virtualenv > /dev/null
 	@python3 -m virtualenv {{VENV}} > /dev/null
 
@@ -16,3 +16,6 @@ VENV_BIN := ".venv/bin"
 build *args: requirements
 	@unset CONDA_PREFIX
 	{{VENV_BIN}}/maturin develop {{args}}
+
+test: requirements
+	{{VENV_BIN}}/pytest
