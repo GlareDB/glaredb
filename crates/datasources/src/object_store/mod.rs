@@ -16,7 +16,7 @@ pub mod http;
 pub mod local;
 pub mod parquet;
 pub mod s3;
-
+pub mod registry;
 mod csv;
 mod json;
 
@@ -46,6 +46,7 @@ pub trait TableAccessor: Send + Sync {
     fn store(&self) -> &Arc<dyn ObjectStore>;
 
     fn object_meta(&self) -> &Arc<ObjectMeta>;
+    fn location(&self) -> String;
     async fn into_table_provider(self, predicate_pushdown: bool) -> Result<Arc<dyn TableProvider>>;
 }
 

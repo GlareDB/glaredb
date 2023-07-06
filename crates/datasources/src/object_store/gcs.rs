@@ -57,6 +57,9 @@ pub struct GcsAccessor {
 
 #[async_trait::async_trait]
 impl TableAccessor for GcsAccessor {
+    fn location(&self) -> String {
+        self.meta.location.to_string()
+    }
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }

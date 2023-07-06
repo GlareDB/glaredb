@@ -63,6 +63,9 @@ pub struct S3Accessor {
 
 #[async_trait::async_trait]
 impl TableAccessor for S3Accessor {
+    fn location(&self) -> String {
+        self.meta.location.to_string()
+    }
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }

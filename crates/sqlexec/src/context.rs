@@ -21,6 +21,7 @@ use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPl
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasources::native::access::NativeTableStorage;
+use datasources::object_store::registry::GlareDBRegistry;
 use futures::future::BoxFuture;
 use metastore::builtins::POSTGRES_SCHEMA;
 use metastore::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -112,6 +113,8 @@ impl SessionContext {
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
         let mut conf = RuntimeConfig::default();
+        conf = conf.with_object_store_registry(Arc::new(GlareDBRegistry));
+
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }

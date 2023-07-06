@@ -183,7 +183,13 @@ impl LocalSession {
                     }
                 },
                 Ok(Signal::CtrlD) => break,
-                Ok(Signal::CtrlC) => continue,
+                Ok(Signal::CtrlC) => {
+                    if scratch.is_empty() {
+                        break;
+                    } else {
+                        scratch.clear();
+                    }
+                }
                 Err(e) => {
                     return Err(anyhow!("Unable to read from prompt: {e}"));
                 }
@@ -204,8 +210,19 @@ impl LocalSession {
         }
 
         const UNNAMED: String = String::new();
+        // let lp = self.sess.sql_to_lp(text).await?;
+        // println!("converted to lp");
+        // if let sqlexec::LogicalPlan::Query(query) = lp {
+        //     let physical_plan = self.sess.create_physical_plan(query).await?;
 
+        //     println!("created physical plan: {:#?}", physical_plan);
+        //     let bytes = physical_plan_to_bytes(physical_plan);
+        //     println!("bytes: {:?}", bytes);
+        // } else {
+        //     todo!()
+        // }
         let statements = parser::parse_sql(text)?;
+        // self.sess.inner.ctx.
         for stmt in statements {
             self.sess
                 .prepare_statement(UNNAMED, Some(stmt), Vec::new())
@@ -228,7 +245,6 @@ impl LocalSession {
                 other => println!("{:?}", other),
             }
         }
-
         Ok(())
     }
 

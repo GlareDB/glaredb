@@ -10,34 +10,36 @@ use super::{
     csv::CsvTableProvider, json::JsonTableProvider, parquet::ParquetTableProvider, FileType,
 };
 
-#[derive(Debug, Clone)]
-pub struct HttpTableAccess {
-    /// Public url where the file is hosted.
-    pub url: String,
-}
-
 #[derive(Debug)]
 pub struct HttpAccessor {
     pub store: Arc<dyn ObjectStore>,
     pub meta: Arc<ObjectMeta>,
     pub file_type: FileType,
+    base_url: String,
 }
 
 impl HttpAccessor {
     pub async fn try_new(url: String, file_type: FileType) -> Result<Self> {
+        let url = url::Url::parse(&url).unwrap();
         let meta = object_meta_from_head(&url).await?;
         let builder = object_store::http::HttpBuilder::new();
-        let store = builder.with_url(url).build()?;
+        let url = format!("{}://{}", url.scheme(), url.authority());
+        let store = builder.with_url(url.clone()).build()?;
+
         Ok(Self {
             store: Arc::new(store),
             meta: Arc::new(meta),
             file_type,
+            base_url: url,
         })
     }
 }
 
 #[async_trait::async_trait]
 impl TableAccessor for HttpAccessor {
+    fn location(&self) -> String {
+        self.base_url.clone()
+    }
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }
@@ -63,19 +65,18 @@ impl TableAccessor for HttpAccessor {
 ///
 /// We avoid using object store's `head` method since it does a PROPFIND
 /// request.
-async fn object_meta_from_head(url: &str) -> Result<ObjectMeta> {
+async fn object_meta_from_head(url: &url::Url) -> Result<ObjectMeta> {
     use object_store::path::Path as ObjectStorePath;
-    let url = url::Url::parse(url).unwrap();
 
-    let res = reqwest::Client::new().head(url).send().await?;
+    let res = reqwest::Client::new().head(url.clone()).send().await?;
 
     let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
         "Missing content-length header",
     ))?;
 
     Ok(ObjectMeta {
-        location: ObjectStorePath::default(),
-        last_modified: DateTime::<Utc>::MIN_UTC,
+        location: ObjectStorePath::from_url_path(url.path()).unwrap(),
+        last_modified: Utc::now(),
         size: len as usize,
     })
 }

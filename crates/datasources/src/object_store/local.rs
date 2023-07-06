@@ -39,6 +39,9 @@ pub struct LocalAccessor {
 
 #[async_trait::async_trait]
 impl TableAccessor for LocalAccessor {
+    fn location(&self) -> String {
+        self.meta.location.to_string()
+    }
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }
