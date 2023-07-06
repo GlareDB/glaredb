@@ -42,7 +42,6 @@ fn search_var<'py>(py: Python<'py>, name: &str) -> PyResult<Option<&'py PyAny>> 
     let mut current_frame = py.import("inspect")?.getattr("currentframe")?.call0()?;
 
     loop {
-        println!("loop: {current_frame:?}");
         if !current_frame.hasattr("f_locals")? {
             // No more local scope to search. Do a final check in the global
             // scope since we may have been called at the top-level.
