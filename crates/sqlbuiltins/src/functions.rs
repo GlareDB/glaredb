@@ -15,6 +15,7 @@ use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::object_store::gcs::GcsTableAccess;
 use datasources::object_store::http::HttpAccessor;
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::{FileType, TableAccessor};
@@ -26,6 +27,7 @@ use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
+use object_store::gcp::GoogleCloudStorageBuilder;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -579,6 +581,11 @@ async fn create_provider_for_filetype(
                     .into_table_provider(false)
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?,
+                Ok("gs") => {
+                    
+
+                    todo!()
+                },
                 // no scheme so we assume it's a local file
                 _ => {
                     let location = url_string

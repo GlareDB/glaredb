@@ -41,8 +41,22 @@ impl GcsTableAccess {
 
     pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
         let store = self.builder().build()?;
-        let location = ObjectStorePath::from(self.location.as_str());
+
+        let location = ObjectStorePath::from_url_path(&self.bucket_name).unwrap();
         Ok((Arc::new(store), location))
+    }
+
+    pub fn store(&self) -> Result<Arc<dyn ObjectStore>> {
+        let store = self.builder().build()?;
+        Ok(Arc::new(store))
+    }
+
+    pub fn location(&self) -> ObjectStorePath {
+        ObjectStorePath::from_url_path(&self.location).unwrap()
+    }
+
+    pub fn base_location(&self) -> ObjectStorePath {
+        ObjectStorePath::from_url_path(&self.bucket_name).unwrap()
     }
 }
 
@@ -53,12 +67,13 @@ pub struct GcsAccessor {
     /// Meta information for location/object
     pub meta: Arc<ObjectMeta>,
     pub file_type: FileType,
+    base_url: String,
 }
 
 #[async_trait::async_trait]
 impl TableAccessor for GcsAccessor {
     fn location(&self) -> String {
-        self.meta.location.to_string()
+        format!("gs://{}", self.base_url)
     }
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
@@ -76,6 +91,7 @@ impl TableAccessor for GcsAccessor {
             FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
             FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
         };
+
         Ok(table_provider)
     }
 }
@@ -83,23 +99,28 @@ impl TableAccessor for GcsAccessor {
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let (store, location) = access.store_and_path()?;
+        let store = access.store()?;
         // Use provided file type or infer from location
+        let location = access.location();
+
+        println!("location: {}", location);
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");
 
         let meta = Arc::new(store.head(&location).await?);
-
+        println!("meta: {:?}", meta);
         Ok(Self {
             store,
             meta,
             file_type,
+            base_url: access.bucket_name,
         })
     }
 
     pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
         let store = Arc::new(access.builder().build()?);
-        let location = ObjectStorePath::from(access.location);
+        let location = access.location();
+
         store.head(&location).await?;
         Ok(())
     }

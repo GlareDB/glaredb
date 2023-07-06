@@ -211,16 +211,13 @@ impl LocalSession {
 
         const UNNAMED: String = String::new();
         // let lp = self.sess.sql_to_lp(text).await?;
-        // println!("converted to lp");
+        // // println!("converted to lp: {:#?}", lp);
         // if let sqlexec::LogicalPlan::Query(query) = lp {
         //     let physical_plan = self.sess.create_physical_plan(query).await?;
 
-        //     println!("created physical plan: {:#?}", physical_plan);
-        //     let bytes = physical_plan_to_bytes(physical_plan);
-        //     println!("bytes: {:?}", bytes);
-        // } else {
-        //     todo!()
-        // }
+        //     // println!("created physical plan: {:#?}", physical_plan);
+        // };
+
         let statements = parser::parse_sql(text)?;
         // self.sess.inner.ctx.
         for stmt in statements {
