@@ -18,19 +18,53 @@ impl EnvironmentReader for PyEnvironmentReader {
         name: &str,
     ) -> Result<Option<Arc<dyn TableProvider>>, Box<dyn std::error::Error + Send + Sync>> {
         Python::with_gil(|py| {
-            // Currently assuming any error getting the variable just means
-            // there's no variable with that name.
-            let var = match py.eval(name, None, None) {
-                Ok(var) => var,
-                Err(_) => return Ok(None),
+            let var = match get_stack_locals(py, name) {
+                Ok(Some(var)) => var,
+                _ => return Ok(None),
             };
 
             // since the resolve functions will err if the library is uninstalled,
             // dont `try` the results, we want to move on next resolver if this one errs.
-            resolve_polars(py, var)
-                .or_else(|_| resolve_pandas(py, var))
-                .or_else(|_| Ok(None))
+            if let Ok(Some(table)) = resolve_polars(py, var) {
+                return Ok(Some(table));
+            }
+            if let Ok(Some(table)) = resolve_pandas(py, var) {
+                return Ok(Some(table));
+            }
+
+            Ok(None)
         })
+    }
+}
+
+/// Search for a python variable in the current frame, or any parent frame.
+fn get_stack_locals<'py>(py: Python<'py>, name: &str) -> PyResult<Option<&'py PyAny>> {
+    let mut current_frame = py.import("inspect")?.getattr("currentframe")?.call0()?;
+
+    loop {
+        if !current_frame.hasattr("f_locals")? {
+            // No more local scope to search. Do a final check in the global
+            // scope since we may have been called at the top-level.
+            if let Ok(var) = current_frame.getattr("f_globals")?.get_item(name) {
+                return Ok(Some(var));
+            }
+
+            // Nothing found.
+            return Ok(None);
+        }
+
+        // Search locals.
+        if let Ok(var) = current_frame.getattr("f_locals")?.get_item(name) {
+            return Ok(Some(var));
+        }
+
+        // Search globals.
+        if let Ok(var) = current_frame.getattr("f_globals")?.get_item(name) {
+            return Ok(Some(var));
+        }
+
+        // Go back a frame.
+        current_frame = current_frame.getattr("f_back")?;
     }
 }
 

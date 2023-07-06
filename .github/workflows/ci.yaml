@@ -116,3 +116,8 @@ jobs:
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh
+
+      - name: Python bindings tests
+        run: |
+          just python build
+          just python test
