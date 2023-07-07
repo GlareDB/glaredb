@@ -20,7 +20,7 @@ metastore = {path = "../metastore"}
 metastoreproto = { path = "../metastoreproto" }
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
-clap = { version = "4.3.10", features = ["derive"] }
+clap = { version = "4.3.11", features = ["derive"] }
 tracing = "0.1"
 uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }

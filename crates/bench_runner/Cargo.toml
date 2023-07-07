@@ -13,8 +13,8 @@ metastore = {path = "../metastore"}
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7.8"
 anyhow = "1.0"
-clap = { version = "4.3.10", features = ["derive"] }
 async-trait = "0.1.71"
+clap = { version = "4.3.11", features = ["derive"] }
 glob = "0.3.1"
 regex = "1.8.1"
 tracing = "0.1"
