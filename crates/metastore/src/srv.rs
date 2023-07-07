@@ -217,7 +217,6 @@ mod tests {
         let ent = state
             .entries
             .into_values()
-            .into_iter()
             .find(|ent| ent.get_meta().name == "test_schema")
             .unwrap();
         assert!(matches!(ent, CatalogEntry::Schema(_)));

@@ -198,7 +198,7 @@ impl Session {
     }
 
     /// Create a physical plan for a given datafusion logical plan.
-    pub(crate) async fn create_physical_plan(
+    pub async fn create_physical_plan(
         &self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
@@ -659,6 +659,31 @@ impl Session {
                 self.ctx.get_metrics_mut().push_metric(metrics);
                 Ok(result)
             }
+        }
+    }
+
+    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        const UNNAMED: String = String::new();
+
+        let mut statements = crate::parser::parse_sql(query)?;
+        match statements.len() {
+            0 => todo!(),
+            1 => {
+                let stmt = statements.pop_front().unwrap();
+                self.prepare_statement(UNNAMED, Some(stmt), Vec::new())
+                    .await?;
+                let prepared = self.get_prepared_statement(&UNNAMED)?;
+                let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
+                self.bind_statement(
+                    UNNAMED,
+                    &UNNAMED,
+                    Vec::new(),
+                    vec![Format::Text; num_fields],
+                )?;
+                let portal = self.ctx.get_portal(&UNNAMED)?.clone();
+                Ok(portal.stmt.plan.unwrap())
+            }
+            _ => todo!(),
         }
     }
 }
