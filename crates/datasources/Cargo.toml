@@ -46,7 +46,7 @@ tokio-rustls = "0.24.1"
 tracing = "0.1"
 uuid = "1.4.0"
 url.workspace = true
-webpki-roots = "0.23.1"
+webpki-roots = "0.24.0"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
