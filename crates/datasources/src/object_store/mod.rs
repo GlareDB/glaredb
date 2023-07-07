@@ -46,8 +46,8 @@ pub trait TableAccessor: Send + Sync {
     fn store(&self) -> &Arc<dyn ObjectStore>;
 
     fn object_meta(&self) -> &Arc<ObjectMeta>;
-    /// returns the base path. 
-    /// Example: 
+    /// returns the base path.
+    /// Example:
     /// - s3://bucket_name/path/to/file.parquet -> s3://bucket_name
     /// - http://domain.com/path/to/file.parquet -> http://domain.com
     fn base_path(&self) -> String;

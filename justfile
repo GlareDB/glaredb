@@ -62,9 +62,9 @@ clippy: protoc
 
 # apply linting & clippy fixes.
 fix: protoc
-  just fmt --all
-  cargo fix --all --allow-dirty 
   cargo clippy --fix --all --all-features --allow-dirty
+  cargo fix --all --allow-dirty 
+  just fmt --all
 
 # Displays help message.
 help: 
