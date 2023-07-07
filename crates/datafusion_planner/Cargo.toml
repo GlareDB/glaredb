@@ -27,7 +27,7 @@ unicode_expressions = []
 
 [dependencies]
 datafusion = { workspace = true }
-async-trait = "0.1.68"
+async-trait = "0.1.71"
 async-recursion = "1.0.4"
 sqlbuiltins = {path = "../sqlbuiltins"}
 

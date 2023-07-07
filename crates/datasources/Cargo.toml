@@ -8,7 +8,7 @@ edition = {workspace = true}
 [dependencies]
 async-channel = "1.8.0"
 async-stream = "0.3.5"
-async-trait = "0.1.68"
+async-trait = "0.1.71"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
 bitflags = "2.3"
 bitvec = "1"
