@@ -572,16 +572,6 @@ async fn create_provider_for_filetype(
         1 => {
             let mut args = args.into_iter();
             let url_string = string_from_scalar(args.next().unwrap())?;
-            // todo: fetch this from the registry instead.
-            // let url = Url::parse(&url_string)?;
-            // let store = registry.get_store(url)?;
-            // match file_type {
-            //     FileType::Parquet => {
-            //         Arc::new(ParquetTableProvider::from_table_accessor(store, true).await?)
-            //     }
-            //     FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(store).await?),
-            //     FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(store).await?),
-            // };
 
             Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
                 Ok("http" | "https") => HttpAccessor::try_new(url_string, file_type)
