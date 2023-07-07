@@ -59,10 +59,14 @@ pub struct S3Accessor {
     /// Meta information for location/object
     pub meta: Arc<ObjectMeta>,
     pub file_type: FileType,
+    bucket: String,
 }
 
 #[async_trait::async_trait]
 impl TableAccessor for S3Accessor {
+    fn base_path(&self) -> String {
+        format!("s3://{}/", self.bucket)
+    }
     fn location(&self) -> String {
         self.meta.location.to_string()
     }
@@ -102,6 +106,7 @@ impl S3Accessor {
             store,
             meta,
             file_type,
+            bucket: access.bucket_name,
         })
     }
 

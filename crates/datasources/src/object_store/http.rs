@@ -37,9 +37,14 @@ impl HttpAccessor {
 
 #[async_trait::async_trait]
 impl TableAccessor for HttpAccessor {
-    fn location(&self) -> String {
+    fn base_path(&self) -> String {
         self.base_url.clone()
     }
+
+    fn location(&self) -> String {
+        self.meta.location.to_string()
+    }
+
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }

@@ -6,7 +6,6 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
-use url::Url;
 
 use super::csv::CsvTableProvider;
 use super::errors::Result;
@@ -52,12 +51,8 @@ impl GcsTableAccess {
         Ok(Arc::new(store))
     }
 
-    pub fn location(&self) -> ObjectStorePath {
+    fn location(&self) -> ObjectStorePath {
         ObjectStorePath::from_url_path(&self.location).unwrap()
-    }
-
-    pub fn base_location(&self) -> ObjectStorePath {
-        ObjectStorePath::from_url_path(&self.bucket_name).unwrap()
     }
 }
 
@@ -73,8 +68,12 @@ pub struct GcsAccessor {
 
 #[async_trait::async_trait]
 impl TableAccessor for GcsAccessor {
-    fn location(&self) -> String {
+    fn base_path(&self) -> String {
         format!("gs://{}", self.base_url)
+    }
+
+    fn location(&self) -> String {
+        self.meta.location.to_string()
     }
 
     fn store(&self) -> &Arc<dyn ObjectStore> {
@@ -123,9 +122,5 @@ impl GcsAccessor {
 
         store.head(&location).await?;
         Ok(())
-    }
-
-    pub fn base_url(&self) -> Url {
-        Url::parse(&format!("gs://{}", self.base_url)).unwrap()
     }
 }

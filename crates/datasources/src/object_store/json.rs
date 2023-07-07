@@ -74,7 +74,7 @@ where
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let file = self.accessor.object_meta().as_ref().clone().into();
-        let base_url = self.accessor.location();
+        let base_url = self.accessor.base_path();
 
         let base_config = FileScanConfig {
             object_store_url: ObjectStoreUrl::parse(base_url)
