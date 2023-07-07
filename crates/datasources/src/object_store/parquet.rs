@@ -183,12 +183,14 @@ where
         };
 
         let file = self.accessor.object_meta().as_ref().clone().into();
+        let base_url = self.accessor.location();
 
         let base_config = FileScanConfig {
             // `object_store_url` will be ignored as we are providing a
             // `SimpleParquetFileReaderFactory` to `ParquetExec` to use instead of the
             // datafusion object store registry.
-            object_store_url: ObjectStoreUrl::local_filesystem(),
+            object_store_url: ObjectStoreUrl::parse(base_url)
+                .unwrap_or_else(|_| ObjectStoreUrl::local_filesystem()),
             file_schema: self.arrow_schema.clone(),
             file_groups: vec![vec![file]],
             statistics: Statistics::default(),

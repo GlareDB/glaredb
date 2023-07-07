@@ -15,6 +15,7 @@ use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasources::object_store::http::HttpAccessor;
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::{FileType, TableAccessor};
@@ -589,9 +590,7 @@ async fn create_provider_for_filetype(
                     .into_table_provider(false)
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?,
-                Ok("gs") => {
-                    todo!()
-                }
+                Ok("gs") => return Err(BuiltinError::InvalidNumArgs),
                 // no scheme so we assume it's a local file
                 _ => {
                     let location = url_string
@@ -611,6 +610,33 @@ async fn create_provider_for_filetype(
                         .await
                         .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
+            })
+        }
+        2 => {
+            let mut args = args.into_iter();
+            let url_string = string_from_scalar(args.next().unwrap())?;
+            Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
+                Ok("gs") => {
+                    let creds = string_from_scalar(args.next().unwrap())?;
+                    let url = Url::parse(&url_string).unwrap();
+
+                    let bucket = url.host_str().unwrap().to_string();
+                    let location = url.path().to_string();
+
+                    let access = GcsTableAccess {
+                        bucket_name: bucket,
+                        location,
+                        service_acccount_key_json: Some(creds),
+                        file_type: Some(file_type),
+                    };
+                    GcsAccessor::new(access)
+                        .await
+                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                        .into_table_provider(true)
+                        .await
+                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                }
+                _ => return Err(BuiltinError::InvalidNumArgs),
             })
         }
         _ => Err(BuiltinError::InvalidNumArgs),

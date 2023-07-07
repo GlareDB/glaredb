@@ -6,6 +6,7 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
+use url::Url;
 
 use super::csv::CsvTableProvider;
 use super::errors::Result;
@@ -46,7 +47,7 @@ impl GcsTableAccess {
         Ok((Arc::new(store), location))
     }
 
-    pub fn store(&self) -> Result<Arc<dyn ObjectStore>> {
+    pub fn into_object_store(&self) -> Result<Arc<dyn ObjectStore>> {
         let store = self.builder().build()?;
         Ok(Arc::new(store))
     }
@@ -75,6 +76,7 @@ impl TableAccessor for GcsAccessor {
     fn location(&self) -> String {
         format!("gs://{}", self.base_url)
     }
+
     fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }
@@ -99,16 +101,14 @@ impl TableAccessor for GcsAccessor {
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let store = access.store()?;
+        let store = access.into_object_store()?;
         // Use provided file type or infer from location
         let location = access.location();
 
-        println!("location: {}", location);
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");
 
         let meta = Arc::new(store.head(&location).await?);
-        println!("meta: {:?}", meta);
         Ok(Self {
             store,
             meta,
@@ -123,5 +123,9 @@ impl GcsAccessor {
 
         store.head(&location).await?;
         Ok(())
+    }
+
+    pub fn base_url(&self) -> Url {
+        Url::parse(&format!("gs://{}", self.base_url)).unwrap()
     }
 }

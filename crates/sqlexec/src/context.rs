@@ -112,8 +112,12 @@ impl SessionContext {
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
+        let entries = catalog
+            .iter_entries()
+            .filter(|e| e.entry_type() == EntryType::Table && !e.builtin);
+
         let mut conf = RuntimeConfig::default();
-        conf = conf.with_object_store_registry(Arc::new(GlareDBRegistry::new()));
+        conf = conf.with_object_store_registry(Arc::new(GlareDBRegistry::new(entries)));
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }

@@ -210,8 +210,10 @@ impl LocalSession {
         }
 
         const UNNAMED: String = String::new();
+        
+        // using this to debug. 
         // let lp = self.sess.sql_to_lp(text).await?;
-        // // // println!("converted to lp: {:#?}", lp);
+        // println!("converted to lp: {:#?}", lp);
         // if let sqlexec::LogicalPlan::Query(query) = lp {
         //     let physical_plan = self.sess.create_physical_plan(query).await?;
 

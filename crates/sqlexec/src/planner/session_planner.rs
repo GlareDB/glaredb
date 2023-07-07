@@ -444,7 +444,6 @@ impl<'a> SessionPlanner<'a> {
 
                 let bucket = m.remove_required("bucket")?;
                 let location = m.remove_required("location")?;
-                let url = format!("gs://{bucket}/");
 
                 let access = GcsTableAccess {
                     bucket_name: bucket,
@@ -458,15 +457,6 @@ impl<'a> SessionPlanner<'a> {
                     .map_err(|e| PlanError::InvalidExternalTable {
                         source: Box::new(e),
                     })?;
-
-                let url = url::Url::parse(&url).unwrap();
-
-                let store = access.store().unwrap();
-
-                self.ctx
-                    .get_df_state()
-                    .runtime_env()
-                    .register_object_store(&url, store);
 
                 TableOptions::Gcs(TableOptionsGcs {
                     service_account_key: access.service_acccount_key_json,

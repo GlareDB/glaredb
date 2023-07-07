@@ -418,6 +418,14 @@ impl<'a> SessionDispatcher<'a> {
                     file_type: None,
                 };
                 let accessor = GcsAccessor::new(table_access).await?;
+                let store = accessor.store();
+                let url = accessor.base_url();
+
+                self.ctx
+                    .get_df_state()
+                    .runtime_env()
+                    .register_object_store(&url, store.clone());
+
                 let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }
