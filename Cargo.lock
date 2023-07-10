@@ -5908,10 +5908,13 @@ dependencies = [
  "object_store",
  "object_store_util",
  "once_cell",
+ "parking_lot",
  "pgrepr",
  "prost",
  "prost-types",
  "regex",
+ "reqwest",
+ "serde",
  "serde_json",
  "sqlbuiltins",
  "sqlparser 0.35.0",
@@ -5920,6 +5923,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "tower",
@@ -6434,9 +6438,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.11"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d660770404473ccd7bc9f8b28494a811bc18542b915c0855c51e8f419d5223ce"
+checksum = "397c988d37662c7dda6d2208364a706264bf3d6138b11d436cbac0ad38832842"
 dependencies = [
  "futures-core",
  "pin-project-lite",

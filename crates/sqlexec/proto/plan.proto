@@ -4,16 +4,16 @@ syntax = "proto3";
 
 package sqlexec.plan;
 
-message ExecuteRequest {
+message ExecutePlanRequest {
   oneof plan {
     bytes physical = 1;
     // TODO: Possibly allow for logical plans too?
   }
 }
 
-message ExecuteResponse { bytes arrow_ipc = 1; }
+message ExecutePlanResponse { bytes arrow_ipc = 1; }
 
 service PlanService {
   // Execute a plan, returning a stream of responses.
-  rpc ExecutePlan(ExecuteRequest) returns (stream ExecuteResponse);
+  rpc ExecutePlan(ExecutePlanRequest) returns (stream ExecutePlanResponse);
 }
