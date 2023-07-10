@@ -1,0 +1,19 @@
+// Definitions for proxying query plans.
+
+syntax = "proto3";
+
+package sqlexec.plan;
+
+message ExecuteRequest {
+  oneof plan {
+    bytes physical = 1;
+    // TODO: Possibly allow for logical plans too?
+  }
+}
+
+message ExecuteResponse { bytes arrow_ipc = 1; }
+
+service PlanService {
+  // Execute a plan, returning a stream of responses.
+  rpc ExecutePlan(ExecuteRequest) returns (stream ExecuteResponse);
+}

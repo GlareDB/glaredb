@@ -5,6 +5,7 @@ pub mod environment;
 pub mod errors;
 pub mod metastore;
 pub mod parser;
+pub mod remoteexec;
 pub mod session;
 
 mod functions;
