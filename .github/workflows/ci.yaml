@@ -113,8 +113,8 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          just sql-logic-tests -- -v --exclude '*/tunnels/ssh'
-          just sql-logic-tests -- -v '*/tunnels/ssh'
+          just sql-logic-tests -v --exclude '*/tunnels/ssh'
+          just sql-logic-tests -v '*/tunnels/ssh'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh

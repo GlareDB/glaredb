@@ -47,7 +47,7 @@ impl S3TableAccess {
 
     pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
         let store = self.builder()?.build()?;
-        let location = ObjectStorePath::from(self.location.as_str());
+        let location = ObjectStorePath::from_url_path(&self.location)?;
         Ok((Arc::new(store), location))
     }
 }
@@ -93,9 +93,7 @@ impl TableAccessor for S3Accessor {
 impl S3Accessor {
     /// Setup accessor for S3
     pub async fn new(access: S3TableAccess) -> Result<Self> {
-        let store = Arc::new(access.builder()?.build()?);
-
-        let location = ObjectStorePath::from(access.location);
+        let (store, location) = access.store_and_path()?;
         // Use provided file type or infer from location
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");
@@ -111,9 +109,7 @@ impl S3Accessor {
     }
 
     pub async fn validate_table_access(access: S3TableAccess) -> Result<()> {
-        let store = Arc::new(access.builder()?.build()?);
-
-        let location = ObjectStorePath::from(access.location);
+        let (store, location) = access.store_and_path()?;
         store.head(&location).await?;
         Ok(())
     }

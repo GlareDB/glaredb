@@ -17,6 +17,14 @@ impl CopyToDestinationOptions {
             Self::S3(_) => Self::S3_STORAGE,
         }
     }
+
+    pub fn location(&self) -> &str {
+        match self {
+            Self::Local(CopyToDestinationOptionsLocal { location }) => location,
+            Self::Gcs(CopyToDestinationOptionsGcs { location, .. }) => location,
+            Self::S3(CopyToDestinationOptionsS3 { location, .. }) => location,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

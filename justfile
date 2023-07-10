@@ -47,7 +47,7 @@ doc-tests: protoc
 
 # Run SQL Logic Tests.
 sql-logic-tests *args: protoc
-  just test --test sqllogictests {{args}}
+  just test --test sqllogictests -- {{args}}
 
 #  Check formatting.
 fmt-check: protoc

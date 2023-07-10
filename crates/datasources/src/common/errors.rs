@@ -12,6 +12,9 @@ pub enum DatasourceCommonError {
     #[error("Scalar of type '{0}' not supported")]
     UnsupportedDatafusionScalar(datafusion::arrow::datatypes::DataType),
 
+    #[error("Invalid url: {0}")]
+    InvalidUrl(String),
+
     #[error(transparent)]
     ReprError(#[from] repr::error::ReprError),
 
@@ -29,6 +32,9 @@ pub enum DatasourceCommonError {
 
     #[error(transparent)]
     IoError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    UrlParseError(#[from] url::ParseError),
 }
 
 pub type Result<T, E = DatasourceCommonError> = std::result::Result<T, E>;
