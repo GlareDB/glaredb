@@ -14,8 +14,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status, Streaming};
 
-type ResponseStream = Pin<Box<dyn Stream<Item = Result<ExecutePlanResponse, Status>> + Send>>;
-
+/// Proxy plans to some remote server, authentication connections with Cloud.
 pub struct ExecProxy {
     api_url: String,
     cloud_client: reqwest::Client,
@@ -72,12 +71,13 @@ impl ExecProxy {
 
 #[async_trait]
 impl PlanService for ExecProxy {
-    type ExecutePlanStream = ResponseStream;
+    type ExecutePlanStream =
+        Pin<Box<dyn Stream<Item = Result<ExecutePlanResponse, Status>> + Send>>;
 
     async fn execute_plan(
         &self,
         request: Request<ExecutePlanRequest>,
-    ) -> Result<Response<ResponseStream>, Status> {
+    ) -> Result<Response<Self::ExecutePlanStream>, Status> {
         let details = self.authenticate().await?;
 
         let maybe_client = {
@@ -88,7 +88,6 @@ impl PlanService for ExecProxy {
         let mut client = match maybe_client {
             Some(client) => client,
             None => {
-                // Create new client, and insert into map.
                 let client = PlanServiceClient::connect(format!("{}:{}", details.ip, details.port))
                     .await
                     .map_err(|e| tonic::Status::from_error(Box::new(e)))?;

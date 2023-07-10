@@ -11,7 +11,16 @@ message ExecutePlanRequest {
   }
 }
 
-message ExecutePlanResponse { bytes arrow_ipc = 1; }
+message ExecutePlanSuccess { bytes arrow_ipc = 1; }
+
+message ExecutePlanFail { string msg = 1; }
+
+message ExecutePlanResponse {
+  oneof response {
+    ExecutePlanSuccess success = 1;
+    ExecutePlanFail fail = 2;
+  }
+}
 
 service PlanService {
   // Execute a plan, returning a stream of responses.
