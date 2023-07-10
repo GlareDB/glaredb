@@ -1,6 +1,5 @@
 use crate::engine::Engine;
-use crate::remoteexec::errors::{RemoteExecError, Result};
-use crate::remoteexec::proto::plan::plan_service_client::PlanServiceClient;
+use crate::remoteexec::errors::Result;
 use crate::remoteexec::proto::plan::plan_service_server::PlanService;
 use crate::remoteexec::proto::plan::{
     ExecutePlanFail, ExecutePlanRequest, ExecutePlanResponse, ExecutePlanSuccess,
@@ -10,15 +9,11 @@ use async_trait::async_trait;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{Stream, StreamExt};
-use parking_lot::RwLock;
-use serde::Deserialize;
-use std::collections::BTreeMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::transport::Channel;
-use tonic::{Request, Response, Status, Streaming};
+use tonic::{Request, Response, Status};
 
 /// Wrapper around an engine for executing query plans.
 pub struct ExecEngine {
@@ -34,10 +29,7 @@ impl PlanService for ExecEngine {
         &self,
         request: Request<ExecutePlanRequest>,
     ) -> Result<Response<Self::ExecutePlanStream>, Status> {
-        let session: Session = {
-            // TODO: Create session.
-            unimplemented!()
-        };
+        let session: Session = { unimplemented!() };
 
         let mut stream: SendableRecordBatchStream = {
             // TODO: Deserialize plan and execute.

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use glaredb::local::{LocalClientOpts, LocalSession};
 use glaredb::metastore::Metastore;
-use glaredb::proxy::Proxy;
+use glaredb::proxy::PgsrvProxy;
 use glaredb::server::{Server, ServerConfig};
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
@@ -128,6 +128,21 @@ enum Commands {
         cloud_auth_code: String,
     },
 
+    /// Starts an instance of the remote execution proxy.
+    ExecProxy {
+        /// TCP address to bind to.
+        #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6542"))]
+        bind: String,
+
+        /// Address of the GlareDB cloud server.
+        #[clap(long)]
+        cloud_api_addr: String,
+
+        /// Authorization code for communicating with Cloud.
+        #[clap(long)]
+        cloud_auth_code: String,
+    },
+
     /// Starts an instance of the Metastore.
     Metastore {
         /// TCP address to bind do.
@@ -218,7 +233,7 @@ fn main() -> Result<()> {
             let runtime = build_runtime("pgsrv")?;
             runtime.block_on(async move {
                 let pg_listener = TcpListener::bind(bind).await?;
-                let proxy = Proxy::new(
+                let proxy = PgsrvProxy::new(
                     cloud_api_addr,
                     cloud_auth_code,
                     ssl_server_cert,
@@ -228,6 +243,11 @@ fn main() -> Result<()> {
                 proxy.serve(pg_listener).await
             })?;
         }
+        Commands::ExecProxy {
+            bind,
+            cloud_api_addr,
+            cloud_auth_code,
+        } => unimplemented!(),
         Commands::Metastore {
             bind,
             bucket,

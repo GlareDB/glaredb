@@ -9,13 +9,11 @@ use tokio::signal;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info};
 
-pub struct ProxyConfig {}
-
-pub struct Proxy {
+pub struct PgsrvProxy {
     handler: Arc<ProxyHandler<CloudAuthenticator>>,
 }
 
-impl Proxy {
+impl PgsrvProxy {
     pub async fn new(
         api_addr: String,
         auth_code: String,
@@ -33,7 +31,7 @@ impl Proxy {
         };
 
         let auth = CloudAuthenticator::new(api_addr, auth_code)?;
-        Ok(Proxy {
+        Ok(PgsrvProxy {
             handler: Arc::new(ProxyHandler::new(auth, ssl_conf)),
         })
     }

@@ -26,11 +26,23 @@ pub struct ExecProxy {
 }
 
 impl ExecProxy {
-    pub fn new() -> ExecProxy {
-        unimplemented!()
-        // ExecProxy {
-        //     clients: Arc::new(RwLock::new(BTreeMap::new())),
-        // }
+    pub fn new(api_addr: String, auth_code: String) -> ExecProxy {
+        use reqwest::header;
+
+        let mut default_headers = header::HeaderMap::new();
+        let basic_auth = format!("Basic {auth_code}");
+        default_headers.insert(header::AUTHORIZATION, basic_auth.parse().unwrap());
+
+        let client = reqwest::Client::builder()
+            .default_headers(default_headers)
+            .build()
+            .unwrap();
+
+        ExecProxy {
+            api_url: api_addr,
+            cloud_client: client,
+            clients: Arc::new(RwLock::new(BTreeMap::new())),
+        }
     }
 
     async fn authenticate(&self) -> Result<DatabaseDetails> {
@@ -117,22 +129,22 @@ impl PlanService for ExecProxy {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct DatabaseDetails {
+pub(crate) struct DatabaseDetails {
     /// IP to connect to.
     // TODO: Rename to host.
-    ip: String,
+    pub ip: String,
     /// Port to connect to.
-    port: String,
+    pub port: String,
     /// ID of the database we're connecting to (UUID).
-    database_id: String,
+    pub database_id: String,
     /// ID of the user initiating the connection (UUID).
-    user_id: String,
+    pub user_id: String,
     /// Bucket for session storage.
-    gcs_storage_bucket: String,
+    pub gcs_storage_bucket: String,
     /// Max number of data sources allowed
-    max_datasource_count: usize,
+    pub max_datasource_count: usize,
     /// Memory limit applied to session in bytes
-    memory_limit_bytes: usize,
+    pub memory_limit_bytes: usize,
     /// Max number of tunnels allowed
-    max_tunnel_count: usize,
+    pub max_tunnel_count: usize,
 }
