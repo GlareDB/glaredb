@@ -72,7 +72,7 @@ impl LocalAccessor {
     pub async fn new(access: LocalTableAccess) -> Result<Self> {
         let (store, location) = access.store_and_path()?;
         // Use provided file type or infer from location
-        let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
+        let file_type = if let Some(ft) = access.file_type { ft } else { file_type_from_path(&location)? };
         trace!(?location, ?file_type, "location and file type");
 
         let meta = Arc::new(store.head(&location).await?);
