@@ -107,16 +107,22 @@ pub struct PostgresAccessor {
     /// Kept on struct to avoid dropping the postgres connection future and ssh tunnel.
     #[allow(dead_code)]
     conn_handle: JoinHandle<()>,
+
+    connection_string: String,
+    tunnel: Option<TunnelOptions>,
 }
 
 impl PostgresAccessor {
     /// Connect to a postgres instance.
     pub async fn connect(connection_string: &str, tunnel: Option<TunnelOptions>) -> Result<Self> {
-        let (client, conn_handle) = Self::connect_internal(connection_string, tunnel).await?;
+        let (client, conn_handle) =
+            Self::connect_internal(connection_string, tunnel.clone()).await?;
 
         Ok(PostgresAccessor {
             client,
             conn_handle,
+            connection_string: connection_string.to_string(),
+            tunnel,
         })
     }
 
@@ -388,12 +394,17 @@ ORDER BY attnum;
         let (arrow_schema, pg_types) =
             Self::get_table_schema(&self.client, &access.schema, &access.name).await?;
 
+        let tunnel = self.tunnel;
+        let connection_string = self.connection_string;
+
         Ok(PostgresTableProvider {
             predicate_pushdown,
             table_access: access,
-            accessor: Arc::new(self),
+            // accessor: Arc::new(self),
             arrow_schema: Arc::new(arrow_schema),
             pg_types: Arc::new(pg_types),
+            connection_string,
+            tunnel,
         })
     }
 }
@@ -452,9 +463,11 @@ WHERE
 pub struct PostgresTableProvider {
     predicate_pushdown: bool,
     table_access: PostgresTableAccess,
-    accessor: Arc<PostgresAccessor>,
+    // accessor: Arc<PostgresAccessor>,
     arrow_schema: ArrowSchemaRef,
     pg_types: Arc<Vec<PostgresType>>,
+    connection_string: String,
+    tunnel: Option<TunnelOptions>,
 }
 
 #[async_trait]
@@ -545,17 +558,19 @@ impl TableProvider for PostgresTableProvider {
             limit_string,              // [LIMIT ..]
         );
 
-        let opener = StreamOpener {
-            copy_query: query,
-            accessor: self.accessor.clone(),
-        };
+        // let opener = StreamOpener {
+        //     copy_query: query,
+        //     accessor: self.accessor.clone(),
+        // };
 
         Ok(Arc::new(BinaryCopyExec {
             predicate: predicate_string,
             table_access: self.table_access.clone(),
             pg_types: projected_types,
             arrow_schema: projected_schema,
-            opener,
+            connection_string: self.connection_string.clone(),
+            tunnel: self.tunnel.clone(),
+            query, // opener,
         }))
     }
 }
@@ -566,7 +581,21 @@ struct BinaryCopyExec {
     table_access: PostgresTableAccess,
     pg_types: Arc<Vec<PostgresType>>,
     arrow_schema: ArrowSchemaRef,
-    opener: StreamOpener,
+    connection_string: String,
+    tunnel: Option<TunnelOptions>,
+    query: String,
+}
+
+impl BinaryCopyExec {
+    async fn opener(&self) -> Result<StreamOpener> {
+        Ok(StreamOpener::new(
+            self.query.clone(),
+            self.connection_string.clone(),
+            self.tunnel.clone(),
+        )
+        .await
+        .unwrap())
+    }
 }
 
 impl ExecutionPlan for BinaryCopyExec {
@@ -604,13 +633,22 @@ impl ExecutionPlan for BinaryCopyExec {
         _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let stream = ChunkStream {
-            state: StreamState::Idle,
-            types: self.pg_types.clone(),
-            opener: self.opener.clone(),
-            arrow_schema: self.arrow_schema.clone(),
-        };
-        Ok(Box::pin(stream))
+        todo!()
+        // Box::pin(async move {
+        //     let opener = StreamOpener::new(
+        //         self.query.clone(),
+        //         self.connection_string.clone(),
+        //         self.tunnel.clone(),
+        //     )
+        //     .await;
+        //     let stream = ChunkStream {
+        //         state: StreamState::Idle,
+        //         types: self.pg_types.clone(),
+        //         opener: opener?,
+        //         arrow_schema: self.arrow_schema.clone(),
+        //     };
+        //     stream
+        // })
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
@@ -646,17 +684,30 @@ impl fmt::Debug for BinaryCopyExec {
 struct StreamOpener {
     /// Query used to initiate the binary copy.
     copy_query: String,
-    accessor: Arc<PostgresAccessor>,
+    client: Arc<tokio_postgres::Client>,
 }
 
 impl StreamOpener {
     /// Build a future that returns the copy stream.
     fn open(&self) -> BoxFuture<'static, Result<CopyOutStream, tokio_postgres::Error>> {
         let query = self.copy_query.clone();
-        let accessor = self.accessor.clone();
+        let client = self.client.clone();
+
         Box::pin(async move {
             let query = query;
-            accessor.client.copy_out(&query).await
+            client.copy_out(&query).await
+        })
+    }
+
+    async fn new(
+        query: String,
+        connection_string: String,
+        tunnel: Option<TunnelOptions>,
+    ) -> Result<StreamOpener> {
+        let accessor = PostgresAccessor::connect(connection_string.as_str(), tunnel).await?;
+        Ok(Self {
+            copy_query: query.clone(),
+            client: Arc::new(accessor.client),
         })
     }
 }

@@ -3,6 +3,8 @@ use crate::proto::arrow;
 use crate::proto::options;
 use datafusion::arrow::datatypes::{DataType, Field};
 use proptest_derive::Arbitrary;
+use serde::Deserialize;
+use serde::Serialize;
 use std::fmt;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
@@ -821,7 +823,7 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TunnelOptions {
     Internal(TunnelOptionsInternal),
     Debug(TunnelOptionsDebug),
@@ -884,7 +886,7 @@ impl From<TunnelOptions> for options::TunnelOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TunnelOptionsInternal {}
 
 impl TryFrom<options::TunnelOptionsInternal> for TunnelOptionsInternal {
@@ -900,7 +902,7 @@ impl From<TunnelOptionsInternal> for options::TunnelOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TunnelOptionsDebug {}
 
 impl TryFrom<options::TunnelOptionsDebug> for TunnelOptionsDebug {
@@ -916,7 +918,7 @@ impl From<TunnelOptionsDebug> for options::TunnelOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TunnelOptionsSsh {
     pub connection_string: String,
     pub ssh_key: Vec<u8>,
