@@ -414,7 +414,11 @@ impl DatabaseWorker {
     fn session_count_for_db(&self) -> usize {
         // The worker handle and worker itself have a strong reference to the
         // version. Don't include those when calculating session count.
-        Arc::strong_count(&self.version_hint) - 2
+        //
+        // TODO: Figure out why the strong count reference may be less than two.
+        // This can happen when running the python tests (so probably related to
+        // dropping workers on exit).
+        Arc::strong_count(&self.version_hint).saturating_sub(2)
     }
 
     /// Runs the worker until it exits from inactivity.
