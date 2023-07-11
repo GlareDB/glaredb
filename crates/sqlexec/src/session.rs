@@ -485,7 +485,7 @@ impl Session {
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
+    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
         //

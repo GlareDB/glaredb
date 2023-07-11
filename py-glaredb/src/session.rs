@@ -1,6 +1,7 @@
 use anyhow::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
+use futures::lock::Mutex;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
@@ -11,11 +12,13 @@ use sqlexec::{
 };
 use std::sync::Arc;
 
-use crate::{error::PyGlareDbError, runtime::wait_for_future};
+pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
+
+use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_for_future};
 
 #[pyclass]
 pub struct LocalSession {
-    pub(super) sess: TrackedSession,
+    pub(super) sess: PyTrackedSession,
     pub(super) _engine: Engine, // Avoid dropping
 }
 
@@ -30,36 +33,45 @@ impl From<ExecutionResult> for PyExecutionResult {
 
 #[pymethods]
 impl LocalSession {
-    fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
+    fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
+        let cloned_sess = self.sess.clone();
+        wait_for_future(py, async move {
+            let mut sess = self.sess.lock().await;
+            Ok(sess
+                .sql_to_lp(query)
+                .await
+                .map(|lp| PyLogicalPlan::new(lp, cloned_sess))
+                .map_err(PyGlareDbError::from)?)
+        })
+    }
+    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
         const UNNAMED: String = String::new();
 
         let mut statements = parser::parse_sql(query).map_err(PyGlareDbError::from)?;
 
         wait_for_future(py, async move {
+            let mut sess = self.sess.lock().await;
+
             match statements.len() {
                 0 => todo!(),
                 1 => {
                     let stmt = statements.pop_front().unwrap();
 
-                    self.sess
-                        .prepare_statement(UNNAMED, Some(stmt), Vec::new())
+                    sess.prepare_statement(UNNAMED, Some(stmt), Vec::new())
                         .await
                         .map_err(PyGlareDbError::from)?;
-                    let prepared = self
-                        .sess
+                    let prepared = sess
                         .get_prepared_statement(&UNNAMED)
                         .map_err(PyGlareDbError::from)?;
                     let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
-                    self.sess
-                        .bind_statement(
-                            UNNAMED,
-                            &UNNAMED,
-                            Vec::new(),
-                            vec![Format::Text; num_fields],
-                        )
-                        .map_err(PyGlareDbError::from)?;
-                    Ok(self
-                        .sess
+                    sess.bind_statement(
+                        UNNAMED,
+                        &UNNAMED,
+                        Vec::new(),
+                        vec![Format::Text; num_fields],
+                    )
+                    .map_err(PyGlareDbError::from)?;
+                    Ok(sess
                         .execute_portal(&UNNAMED, 0)
                         .await
                         .map_err(PyGlareDbError::from)?
@@ -118,7 +130,7 @@ impl PyExecutionResult {
     /// Convert to Arrow Table
     /// Collect the batches and pass to Arrow Table
     #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
-    fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
+    pub fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
         Python::with_gil(|py| {
@@ -131,7 +143,7 @@ impl PyExecutionResult {
     }
 
     #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
-    fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
+    pub fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
         Python::with_gil(|py| {
@@ -147,7 +159,7 @@ impl PyExecutionResult {
     }
 
     #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
-    fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
+    pub fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
         Python::with_gil(|py| {

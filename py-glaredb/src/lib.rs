@@ -1,10 +1,11 @@
 mod environment;
 mod error;
+mod logical_plan;
 mod runtime;
 mod session;
-
 use environment::PyEnvironmentReader;
 use error::PyGlareDbError;
+use futures::lock::Mutex;
 use runtime::{wait_for_future, TokioRuntime};
 use session::LocalSession;
 use std::{
@@ -110,9 +111,10 @@ fn connect(
             .map_err(PyGlareDbError::from)?;
 
         session.register_env_reader(Box::new(PyEnvironmentReader));
+        let sess = Arc::new(Mutex::new(session));
 
         Ok(LocalSession {
-            sess: session,
+            sess,
             _engine: engine,
         })
     })
