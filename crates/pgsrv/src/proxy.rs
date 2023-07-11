@@ -565,4 +565,31 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_compute_engine() {
+        #[derive(Debug)]
+        struct TestCase {
+            input: &'static str,
+            expected: (&'static str, &'static str),
+        }
+
+        let test_cases = vec![
+            TestCase {
+                input: "db",
+                expected: ("", "db"),
+            },
+            TestCase {
+                input: "compute.db",
+                expected: ("compute", "db"),
+            },
+        ];
+
+        for tc in test_cases {
+            println!("test case: {tc:?}");
+
+            let out = get_compute_engine(tc.input).unwrap();
+            assert_eq!(tc.expected, out);
+        }
+    }
 }
