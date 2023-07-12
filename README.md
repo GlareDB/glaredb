@@ -80,7 +80,7 @@ table names:
 SELECT *
 FROM my_pg.public.lineitem
 WHERE l_shipdate <= date '1998-12-01' - INTERVAL '90'
-LIMIT 5
+LIMIT 5;
 ```
 
 Check out the docs to learn about all [supported data sources](https://docs.glaredb.com/docs/data-sources/supported/). Many

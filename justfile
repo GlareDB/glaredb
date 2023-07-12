@@ -30,7 +30,8 @@ dist triple=target_triple: protoc
   just build --release --target {{triple}}
   src_path="target/{{triple}}/release/{{executable_name}}"
   dest_path="target/dist/glaredb-{{triple}}.zip"
-  zip -j $dest_path $src_path
+  mkdir -p target/dist
+  cargo xtask zip --src $src_path --dst $dest_path
 
 # Run tests with arbitrary arguments.
 test *args: protoc
@@ -98,6 +99,7 @@ default_target_triple := if os_arch == "macos-x86_64" {
 } else {
   error("Unsupported platform: " + os_arch)
 }
+
 target_triple:= env_var_or_default("DIST_TARGET_TRIPLE", default_target_triple)
 
 protoc_url := if os_arch == "macos-x86_64" {

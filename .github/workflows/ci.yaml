@@ -24,7 +24,9 @@ jobs:
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
+
       - uses: extractions/setup-just@v1
+
       - name: Build
         run: just build
 
