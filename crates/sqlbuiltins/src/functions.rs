@@ -1213,23 +1213,19 @@ fn string_from_scalar(val: ScalarValue) -> Result<String> {
 }
 
 fn is_scalar_int(val: &ScalarValue) -> bool {
-    match *val {
+    matches!(
+        *val,
         ScalarValue::Int8(_)
-        | ScalarValue::Int16(_)
-        | ScalarValue::Int32(_)
-        | ScalarValue::Int64(_)
-        | ScalarValue::UInt8(_)
-        | ScalarValue::UInt16(_)
-        | ScalarValue::UInt32(_)
-        | ScalarValue::UInt64(_) => true,
-        _ => false,
-    }
+            | ScalarValue::Int16(_)
+            | ScalarValue::Int32(_)
+            | ScalarValue::Int64(_)
+            | ScalarValue::UInt8(_)
+            | ScalarValue::UInt16(_)
+            | ScalarValue::UInt32(_)
+            | ScalarValue::UInt64(_)
+    )
 }
 
 fn is_scalar_float(val: &ScalarValue) -> bool {
-    let is_float = match *val {
-        ScalarValue::Float32(_) | ScalarValue::Float64(_) => true,
-        _ => false,
-    };
-    is_float | is_scalar_int(val)
+    matches!(*val, ScalarValue::Float32(_) | ScalarValue::Float64(_)) | is_scalar_int(val)
 }
