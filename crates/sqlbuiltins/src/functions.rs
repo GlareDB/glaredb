@@ -1,7 +1,7 @@
 //! Builtin table returning functions.
 use crate::errors::{BuiltinError, Result};
 use async_trait::async_trait;
-use datafusion::arrow::array::{Int64Array, StringArray};
+use datafusion::arrow::array::{Float64Array, Int64Array, StringArray};
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::streaming::{PartitionStream, StreamingTable};
@@ -857,6 +857,34 @@ impl TableFunc for GenerateSeries {
                     },
                 ],
             },
+            TableFuncParameters {
+                params: &[
+                    TableFuncParameter {
+                        name: "start",
+                        typ: DataType::Float64,
+                    },
+                    TableFuncParameter {
+                        name: "stop",
+                        typ: DataType::Float64,
+                    },
+                ],
+            },
+            TableFuncParameters {
+                params: &[
+                    TableFuncParameter {
+                        name: "start",
+                        typ: DataType::Float64,
+                    },
+                    TableFuncParameter {
+                        name: "stop",
+                        typ: DataType::Float64,
+                    },
+                    TableFuncParameter {
+                        name: "step",
+                        typ: DataType::Float64,
+                    },
+                ],
+            },
         ];
 
         PARAMS
@@ -867,36 +895,61 @@ impl TableFunc for GenerateSeries {
         _: &dyn TableFuncContextProvider,
         args: Vec<ScalarValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (start, stop, step) = match args.len() {
+        match args.len() {
             2 => {
                 let mut args = args.into_iter();
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
-                (i64_from_scalar(start)?, i64_from_scalar(stop)?, 1)
+                if is_scalar_int(&start) && is_scalar_int(&stop) {
+                    create_straming_table(i64_from_scalar(start)?, i64_from_scalar(stop)?, 1)
+                } else if is_scalar_float(&start) && is_scalar_float(&stop) {
+                    create_straming_table_float(
+                        f64_from_scalar(start)?,
+                        f64_from_scalar(stop)?,
+                        1.0f64,
+                    )
+                } else {
+                    return Err(BuiltinError::Static("Unsupported param types"));
+                }
             }
             3 => {
                 let mut args = args.into_iter();
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
                 let step = args.next().unwrap();
-                (
-                    i64_from_scalar(start)?,
-                    i64_from_scalar(stop)?,
-                    i64_from_scalar(step)?,
-                )
+                if is_scalar_int(&start) && is_scalar_int(&stop) && is_scalar_int(&step) {
+                    create_straming_table(
+                        i64_from_scalar(start)?,
+                        i64_from_scalar(stop)?,
+                        i64_from_scalar(step)?,
+                    )
+                } else if is_scalar_float(&start)
+                    && is_scalar_float(&stop)
+                    && is_scalar_float(&step)
+                {
+                    create_straming_table_float(
+                        f64_from_scalar(start)?,
+                        f64_from_scalar(stop)?,
+                        f64_from_scalar(step)?,
+                    )
+                } else {
+                    return Err(BuiltinError::Static("Unsupported param types"));
+                }
             }
             _ => return Err(BuiltinError::InvalidNumArgs),
-        };
-
-        if step == 0 {
-            return Err(BuiltinError::Static("'step' may not be zero"));
         }
-
-        let partition = GenerateSeriesIntPartition::new(start, stop, step);
-        let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
-
-        Ok(Arc::new(table))
     }
+}
+
+fn create_straming_table(start: i64, stop: i64, step: i64) -> Result<Arc<dyn TableProvider>> {
+    if step == 0 {
+        return Err(BuiltinError::Static("'step' may not be zero"));
+    }
+
+    let partition = GenerateSeriesIntPartition::new(start, stop, step);
+    let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
+
+    Ok(Arc::new(table))
 }
 
 struct GenerateSeriesIntPartition {
@@ -1000,6 +1053,119 @@ impl RecordBatchStream for GenerateSeriesIntStream {
     }
 }
 
+fn create_straming_table_float(start: f64, stop: f64, step: f64) -> Result<Arc<dyn TableProvider>> {
+    if step == 0.0f64 {
+        return Err(BuiltinError::Static("'step' may not be zero"));
+    }
+
+    let partition = GenerateSeriesFloatPartition::new(start, stop, step);
+    let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
+
+    Ok(Arc::new(table))
+}
+
+struct GenerateSeriesFloatPartition {
+    schema: Arc<Schema>,
+    start: f64,
+    stop: f64,
+    step: f64,
+}
+
+impl GenerateSeriesFloatPartition {
+    fn new(start: f64, stop: f64, step: f64) -> Self {
+        GenerateSeriesFloatPartition {
+            schema: Arc::new(Schema::new([Arc::new(Field::new(
+                "generate_series",
+                DataType::Float64,
+                false,
+            ))])),
+            start,
+            stop,
+            step,
+        }
+    }
+}
+
+impl PartitionStream for GenerateSeriesFloatPartition {
+    fn schema(&self) -> &Arc<Schema> {
+        &self.schema
+    }
+
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        Box::pin(GenerateSeriesFloatStream {
+            schema: self.schema.clone(),
+            exhausted: false,
+            curr: self.start,
+            stop: self.stop,
+            step: self.step,
+        })
+    }
+}
+
+struct GenerateSeriesFloatStream {
+    schema: Arc<Schema>,
+    exhausted: bool,
+    curr: f64,
+    stop: f64,
+    step: f64,
+}
+
+impl GenerateSeriesFloatStream {
+    fn generate_next(&mut self) -> Option<RecordBatch> {
+        if self.exhausted {
+            return None;
+        }
+
+        const BATCH_SIZE: usize = 1000;
+
+        let mut series: Vec<_> = Vec::new();
+        if self.curr < self.stop && self.step > 0.0 {
+            // Going up.
+            let mut count = 0;
+            while self.curr <= self.stop && count < BATCH_SIZE {
+                series.push(self.curr);
+                self.curr += self.step;
+                count += 1;
+            }
+        } else if self.curr > self.stop && self.step < 0.0 {
+            // Going down.
+            let mut count = 0;
+            while self.curr >= self.stop && count < BATCH_SIZE {
+                series.push(self.curr);
+                self.curr += self.step;
+                count += 1;
+            }
+        }
+
+        if series.len() < BATCH_SIZE {
+            self.exhausted = true
+        }
+
+        // Calculate the start value for the next iteration.
+        if let Some(last) = series.last() {
+            self.curr = *last + self.step;
+        }
+
+        let arr = Float64Array::from_iter_values(series);
+        let batch = RecordBatch::try_new(self.schema.clone(), vec![Arc::new(arr)]).unwrap();
+
+        Some(batch)
+    }
+}
+
+impl Stream for GenerateSeriesFloatStream {
+    type Item = DataFusionResult<RecordBatch>;
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.generate_next().map(Ok))
+    }
+}
+
+impl RecordBatchStream for GenerateSeriesFloatStream {
+    fn schema(&self) -> Arc<Schema> {
+        self.schema.clone()
+    }
+}
+
 fn i64_from_scalar(val: ScalarValue) -> Result<i64> {
     match val {
         ScalarValue::Int8(Some(v)) => Ok(v as i64),
@@ -1017,6 +1183,25 @@ fn i64_from_scalar(val: ScalarValue) -> Result<i64> {
     }
 }
 
+fn f64_from_scalar(val: ScalarValue) -> Result<f64> {
+    match val {
+        ScalarValue::Int8(Some(v)) => Ok(v as f64),
+        ScalarValue::Int16(Some(v)) => Ok(v as f64),
+        ScalarValue::Int32(Some(v)) => Ok(v as f64),
+        ScalarValue::Int64(Some(v)) => Ok(v as f64),
+        ScalarValue::UInt8(Some(v)) => Ok(v as f64),
+        ScalarValue::UInt16(Some(v)) => Ok(v as f64),
+        ScalarValue::UInt32(Some(v)) => Ok(v as f64),
+        ScalarValue::UInt64(Some(v)) => Ok(v as f64),
+        ScalarValue::Float32(Some(v)) => Ok(v as f64),
+        ScalarValue::Float64(Some(v)) => Ok(v),
+        other => Err(BuiltinError::UnexpectedArg {
+            scalar: other,
+            expected: DataType::Float64,
+        }),
+    }
+}
+
 fn string_from_scalar(val: ScalarValue) -> Result<String> {
     match val {
         ScalarValue::Utf8(Some(s)) => Ok(s),
@@ -1025,4 +1210,26 @@ fn string_from_scalar(val: ScalarValue) -> Result<String> {
             expected: DataType::Utf8,
         }),
     }
+}
+
+fn is_scalar_int(val: &ScalarValue) -> bool {
+    match *val {
+        ScalarValue::Int8(_)
+        | ScalarValue::Int16(_)
+        | ScalarValue::Int32(_)
+        | ScalarValue::Int64(_)
+        | ScalarValue::UInt8(_)
+        | ScalarValue::UInt16(_)
+        | ScalarValue::UInt32(_)
+        | ScalarValue::UInt64(_) => true,
+        _ => false,
+    }
+}
+
+fn is_scalar_float(val: &ScalarValue) -> bool {
+    let is_float = match *val {
+        ScalarValue::Float32(_) | ScalarValue::Float64(_) => true,
+        _ => false,
+    };
+    is_float | is_scalar_int(val)
 }
