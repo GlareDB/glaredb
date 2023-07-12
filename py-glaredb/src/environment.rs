@@ -8,6 +8,8 @@ use pyo3::{prelude::*, types::PyType};
 use sqlexec::environment::EnvironmentReader;
 use std::sync::Arc;
 
+use crate::logical_plan::PyLogicalPlan;
+
 /// Read polars dataframes from the python environment.
 #[derive(Debug, Clone, Copy)]
 pub struct PyEnvironmentReader;
@@ -30,6 +32,9 @@ impl EnvironmentReader for PyEnvironmentReader {
             }
             if let Ok(Some(table)) = resolve_pandas(py, var) {
                 return Ok(Some(table));
+            }
+            if let Ok(Some(tbl)) = resolve_logical_plan(py, var) {
+                return Ok(Some(tbl));
             }
 
             Ok(None)
@@ -124,4 +129,9 @@ fn resolve_pandas(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvi
     let table = MemTable::try_new(schema, vec![batches]).unwrap();
 
     Ok(Some(Arc::new(table) as Arc<dyn TableProvider>))
+}
+
+fn resolve_logical_plan(_py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
+    let lp: PyLogicalPlan = var.extract()?;
+    Ok(Some(Arc::new(lp) as Arc<dyn TableProvider>))
 }
