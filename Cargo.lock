@@ -5875,6 +5875,7 @@ dependencies = [
  "futures",
  "logutil",
  "metastoreproto",
+ "num-traits",
  "object_store",
  "once_cell",
  "pgrepr",
