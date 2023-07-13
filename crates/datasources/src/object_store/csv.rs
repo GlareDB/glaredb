@@ -68,13 +68,18 @@ where
 
     async fn scan(
         &self,
-        _ctx: &SessionState,
+        ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let file = self.accessor.object_meta().as_ref().clone();
         let base_url = self.accessor.base_path();
+        let url = url::Url::parse(&base_url).unwrap();
+        let store = self.accessor.store();
+
+        // we register the store at scan time so that it can be used by the exec.
+        ctx.runtime_env().register_object_store(&url, store.clone());
 
         let base_config = FileScanConfig {
             object_store_url: ObjectStoreUrl::parse(base_url)

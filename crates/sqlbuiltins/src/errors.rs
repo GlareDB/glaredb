@@ -29,6 +29,9 @@ pub enum BuiltinError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
+    #[error(transparent)]
+    DatasourceCommonError(#[from] datasources::common::errors::DatasourceCommonError),
+
     #[error("{0}")]
     Static(&'static str),
 

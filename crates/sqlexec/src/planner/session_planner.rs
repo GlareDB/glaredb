@@ -1052,6 +1052,7 @@ impl<'a> SessionPlanner<'a> {
                 DatasourceUrlScheme::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlScheme::Gcs => CopyToDestinationOptions::GCS,
                 DatasourceUrlScheme::S3 => CopyToDestinationOptions::S3_STORAGE,
+                DatasourceUrlScheme::Http => return Err(internal!("invalid URL scheme")),
             };
             (d, Some(u))
         };

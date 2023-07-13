@@ -14,7 +14,7 @@ python cmd *args: protoc
 
 # Run glaredb server
 run *args: protoc
-  cargo run --bin glaredb {{args}}
+  cargo run --bin glaredb -- {{args}}
 
 # Build glaredb.
 build *args: protoc
