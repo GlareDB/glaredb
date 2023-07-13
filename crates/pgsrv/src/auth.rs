@@ -84,12 +84,8 @@ pub struct DatabaseDetails {
     pub user_id: String,
     /// Bucket for session storage.
     pub gcs_storage_bucket: String,
-    /// Max number of data sources allowed
-    pub max_datasource_count: usize,
     /// Memory limit applied to session in bytes
     pub memory_limit_bytes: usize,
-    /// Max number of tunnels allowed
-    pub max_tunnel_count: usize,
 }
 
 /// Authenticate connections that go through the proxy.
