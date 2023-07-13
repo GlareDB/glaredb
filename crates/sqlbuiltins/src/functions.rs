@@ -1,7 +1,7 @@
 //! Builtin table returning functions.
 use crate::errors::{BuiltinError, Result};
 use async_trait::async_trait;
-use datafusion::arrow::array::{Float64Array, Int64Array, StringArray};
+use datafusion::arrow::array::{Array, Float64Array, Int64Array, StringArray};
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::streaming::{PartitionStream, StreamingTable};
@@ -27,8 +27,10 @@ use metastoreproto::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
+use num_traits::Zero;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -826,7 +828,6 @@ impl TableFunc for GenerateSeries {
 
     fn parameters(&self) -> &[TableFuncParameters] {
         // TODO: handle other supported types.
-        // - Floats
         // - Timestamps
         const PARAMS: &[TableFuncParameters] = &[
             TableFuncParameters {
@@ -901,15 +902,22 @@ impl TableFunc for GenerateSeries {
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
                 if is_scalar_int(&start) && is_scalar_int(&stop) {
-                    create_straming_table(i64_from_scalar(start)?, i64_from_scalar(stop)?, 1)
+                    create_straming_table::<GenerateSeriesTypeInt>(
+                        i64_from_scalar(start)?,
+                        i64_from_scalar(stop)?,
+                        1,
+                    )
                 } else if is_scalar_float(&start) && is_scalar_float(&stop) {
-                    create_straming_table_float(
+                    create_straming_table::<GenerateSeriesTypeFloat>(
                         f64_from_scalar(start)?,
                         f64_from_scalar(stop)?,
                         1.0f64,
                     )
                 } else {
-                    return Err(BuiltinError::Static("Unsupported param types"));
+                    return Err(BuiltinError::UnexpectedArgs {
+                        expected: String::from("ints or floats"),
+                        scalars: vec![start, stop],
+                    });
                 }
             }
             3 => {
@@ -918,7 +926,7 @@ impl TableFunc for GenerateSeries {
                 let stop = args.next().unwrap();
                 let step = args.next().unwrap();
                 if is_scalar_int(&start) && is_scalar_int(&stop) && is_scalar_int(&step) {
-                    create_straming_table(
+                    create_straming_table::<GenerateSeriesTypeInt>(
                         i64_from_scalar(start)?,
                         i64_from_scalar(stop)?,
                         i64_from_scalar(step)?,
@@ -927,13 +935,16 @@ impl TableFunc for GenerateSeries {
                     && is_scalar_float(&stop)
                     && is_scalar_float(&step)
                 {
-                    create_straming_table_float(
+                    create_straming_table::<GenerateSeriesTypeFloat>(
                         f64_from_scalar(start)?,
                         f64_from_scalar(stop)?,
                         f64_from_scalar(step)?,
                     )
                 } else {
-                    return Err(BuiltinError::Static("Unsupported param types"));
+                    return Err(BuiltinError::UnexpectedArgs {
+                        expected: String::from("ints or floats"),
+                        scalars: vec![start, stop, step],
+                    });
                 }
             }
             _ => return Err(BuiltinError::InvalidNumArgs),
@@ -941,142 +952,65 @@ impl TableFunc for GenerateSeries {
     }
 }
 
-fn create_straming_table(start: i64, stop: i64, step: i64) -> Result<Arc<dyn TableProvider>> {
-    if step == 0 {
+fn create_straming_table<T: GenerateSeriesType>(
+    start: T::PrimType,
+    stop: T::PrimType,
+    step: T::PrimType,
+) -> Result<Arc<dyn TableProvider>> {
+    if step.is_zero() {
         return Err(BuiltinError::Static("'step' may not be zero"));
     }
 
-    let partition = GenerateSeriesIntPartition::new(start, stop, step);
+    let partition: GenerateSeriesPartition<T> = GenerateSeriesPartition::new(start, stop, step);
     let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
 
     Ok(Arc::new(table))
 }
 
-struct GenerateSeriesIntPartition {
-    schema: Arc<Schema>,
-    start: i64,
-    stop: i64,
-    step: i64,
+trait GenerateSeriesType: Send + Sync + 'static {
+    type PrimType: Send + Sync + PartialOrd + AddAssign + Add + Zero + Copy + Unpin;
+    const ARROW_TYPE: DataType;
+
+    fn collect_array(batch: Vec<Self::PrimType>) -> Arc<dyn Array>;
 }
 
-impl GenerateSeriesIntPartition {
-    fn new(start: i64, stop: i64, step: i64) -> Self {
-        GenerateSeriesIntPartition {
-            schema: Arc::new(Schema::new([Arc::new(Field::new(
-                "generate_series",
-                DataType::Int64,
-                false,
-            ))])),
-            start,
-            stop,
-            step,
-        }
-    }
-}
+struct GenerateSeriesTypeInt;
 
-impl PartitionStream for GenerateSeriesIntPartition {
-    fn schema(&self) -> &Arc<Schema> {
-        &self.schema
-    }
+impl GenerateSeriesType for GenerateSeriesTypeInt {
+    type PrimType = i64;
+    const ARROW_TYPE: DataType = DataType::Int64;
 
-    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        Box::pin(GenerateSeriesIntStream {
-            schema: self.schema.clone(),
-            exhausted: false,
-            curr: self.start,
-            stop: self.stop,
-            step: self.step,
-        })
-    }
-}
-
-struct GenerateSeriesIntStream {
-    schema: Arc<Schema>,
-    exhausted: bool,
-    curr: i64,
-    stop: i64,
-    step: i64,
-}
-
-impl GenerateSeriesIntStream {
-    fn generate_next(&mut self) -> Option<RecordBatch> {
-        if self.exhausted {
-            return None;
-        }
-
-        const BATCH_SIZE: usize = 1000;
-
-        let series: Vec<_> = if self.curr < self.stop && self.step > 0 {
-            // Going up.
-            (self.curr..=self.stop)
-                .step_by(self.step as usize)
-                .take(BATCH_SIZE)
-                .collect()
-        } else if self.curr > self.stop && self.step < 0 {
-            // Going down.
-            (self.stop..=self.curr)
-                .rev()
-                .step_by(self.step.unsigned_abs() as usize)
-                .take(BATCH_SIZE)
-                .collect()
-        } else {
-            // Zero rows.
-            std::iter::empty().collect()
-        };
-
-        if series.len() < BATCH_SIZE {
-            self.exhausted = true
-        }
-
-        // Calculate the start value for the next iteration.
-        if let Some(last) = series.last() {
-            self.curr = *last + self.step;
-        }
-
+    fn collect_array(series: Vec<i64>) -> Arc<dyn Array> {
         let arr = Int64Array::from_iter_values(series);
-        let batch = RecordBatch::try_new(self.schema.clone(), vec![Arc::new(arr)]).unwrap();
-
-        Some(batch)
+        Arc::new(arr)
     }
 }
 
-impl Stream for GenerateSeriesIntStream {
-    type Item = DataFusionResult<RecordBatch>;
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Ready(self.generate_next().map(Ok))
+struct GenerateSeriesTypeFloat;
+
+impl GenerateSeriesType for GenerateSeriesTypeFloat {
+    type PrimType = f64;
+    const ARROW_TYPE: DataType = DataType::Float64;
+
+    fn collect_array(series: Vec<f64>) -> Arc<dyn Array> {
+        let arr = Float64Array::from_iter_values(series);
+        Arc::new(arr)
     }
 }
 
-impl RecordBatchStream for GenerateSeriesIntStream {
-    fn schema(&self) -> Arc<Schema> {
-        self.schema.clone()
-    }
-}
-
-fn create_straming_table_float(start: f64, stop: f64, step: f64) -> Result<Arc<dyn TableProvider>> {
-    if step == 0.0f64 {
-        return Err(BuiltinError::Static("'step' may not be zero"));
-    }
-
-    let partition = GenerateSeriesFloatPartition::new(start, stop, step);
-    let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
-
-    Ok(Arc::new(table))
-}
-
-struct GenerateSeriesFloatPartition {
+struct GenerateSeriesPartition<T: GenerateSeriesType> {
     schema: Arc<Schema>,
-    start: f64,
-    stop: f64,
-    step: f64,
+    start: T::PrimType,
+    stop: T::PrimType,
+    step: T::PrimType,
 }
 
-impl GenerateSeriesFloatPartition {
-    fn new(start: f64, stop: f64, step: f64) -> Self {
-        GenerateSeriesFloatPartition {
+impl<T: GenerateSeriesType> GenerateSeriesPartition<T> {
+    fn new(start: T::PrimType, stop: T::PrimType, step: T::PrimType) -> Self {
+        GenerateSeriesPartition {
             schema: Arc::new(Schema::new([Arc::new(Field::new(
                 "generate_series",
-                DataType::Float64,
+                T::ARROW_TYPE,
                 false,
             ))])),
             start,
@@ -1086,13 +1020,13 @@ impl GenerateSeriesFloatPartition {
     }
 }
 
-impl PartitionStream for GenerateSeriesFloatPartition {
+impl<T: GenerateSeriesType> PartitionStream for GenerateSeriesPartition<T> {
     fn schema(&self) -> &Arc<Schema> {
         &self.schema
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        Box::pin(GenerateSeriesFloatStream {
+        Box::pin(GenerateSeriesStream::<T> {
             schema: self.schema.clone(),
             exhausted: false,
             curr: self.start,
@@ -1102,15 +1036,15 @@ impl PartitionStream for GenerateSeriesFloatPartition {
     }
 }
 
-struct GenerateSeriesFloatStream {
+struct GenerateSeriesStream<T: GenerateSeriesType> {
     schema: Arc<Schema>,
     exhausted: bool,
-    curr: f64,
-    stop: f64,
-    step: f64,
+    curr: T::PrimType,
+    stop: T::PrimType,
+    step: T::PrimType,
 }
 
-impl GenerateSeriesFloatStream {
+impl<T: GenerateSeriesType> GenerateSeriesStream<T> {
     fn generate_next(&mut self) -> Option<RecordBatch> {
         if self.exhausted {
             return None;
@@ -1119,7 +1053,7 @@ impl GenerateSeriesFloatStream {
         const BATCH_SIZE: usize = 1000;
 
         let mut series: Vec<_> = Vec::new();
-        if self.curr < self.stop && self.step > 0.0 {
+        if self.curr < self.stop && self.step > T::PrimType::zero() {
             // Going up.
             let mut count = 0;
             while self.curr <= self.stop && count < BATCH_SIZE {
@@ -1127,7 +1061,7 @@ impl GenerateSeriesFloatStream {
                 self.curr += self.step;
                 count += 1;
             }
-        } else if self.curr > self.stop && self.step < 0.0 {
+        } else if self.curr > self.stop && self.step < T::PrimType::zero() {
             // Going down.
             let mut count = 0;
             while self.curr >= self.stop && count < BATCH_SIZE {
@@ -1146,21 +1080,21 @@ impl GenerateSeriesFloatStream {
             self.curr = *last + self.step;
         }
 
-        let arr = Float64Array::from_iter_values(series);
-        let batch = RecordBatch::try_new(self.schema.clone(), vec![Arc::new(arr)]).unwrap();
-
+        let arr = T::collect_array(series);
+        assert_eq!(arr.data_type(), &T::ARROW_TYPE);
+        let batch = RecordBatch::try_new(self.schema.clone(), vec![arr]).unwrap();
         Some(batch)
     }
 }
 
-impl Stream for GenerateSeriesFloatStream {
+impl<T: GenerateSeriesType> Stream for GenerateSeriesStream<T> {
     type Item = DataFusionResult<RecordBatch>;
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Ready(self.generate_next().map(Ok))
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.get_mut().generate_next().map(Ok))
     }
 }
 
-impl RecordBatchStream for GenerateSeriesFloatStream {
+impl<T: GenerateSeriesType> RecordBatchStream for GenerateSeriesStream<T> {
     fn schema(&self) -> Arc<Schema> {
         self.schema.clone()
     }
