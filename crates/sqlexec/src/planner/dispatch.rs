@@ -8,7 +8,7 @@ use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::common::ssh::{SshConnectionParameters, SshKey};
+use datasources::common::ssh::{key::SshKey, SshConnectionParameters};
 use datasources::debug::DebugTableType;
 use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
@@ -16,13 +16,9 @@ use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::object_store::TableAccessor;
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore::builtins::{
-    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
-    GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS,
-    GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
-};
 use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
@@ -33,6 +29,11 @@ use metastoreproto::types::options::{
     TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
     TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
     TableOptionsSnowflake, TunnelOptions,
+};
+use sqlbuiltins::builtins::{
+    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
+    GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS,
+    GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -86,6 +87,8 @@ pub enum DispatchError {
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
+    #[error(transparent)]
+    SshKey(#[from] datasources::common::ssh::key::SshKeyError),
 }
 
 impl DispatchError {
@@ -415,6 +418,15 @@ impl<'a> SessionDispatcher<'a> {
                     file_type: None,
                 };
                 let accessor = GcsAccessor::new(table_access).await?;
+                let store = accessor.store();
+                let url = accessor.base_path();
+                let url = url::Url::parse(&url).unwrap();
+
+                self.ctx
+                    .get_df_state()
+                    .runtime_env()
+                    .register_object_store(&url, store.clone());
+
                 let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }
@@ -434,6 +446,15 @@ impl<'a> SessionDispatcher<'a> {
                     file_type: None,
                 };
                 let accessor = S3Accessor::new(table_access).await?;
+                let store = accessor.store();
+                let url = accessor.base_path();
+                let url = url::Url::parse(&url).unwrap();
+
+                self.ctx
+                    .get_df_state()
+                    .runtime_env()
+                    .register_object_store(&url, store.clone());
+
                 let provider = accessor.into_table_provider(true).await?;
                 Ok(provider)
             }

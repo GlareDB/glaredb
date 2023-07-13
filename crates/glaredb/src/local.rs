@@ -183,7 +183,13 @@ impl LocalSession {
                     }
                 },
                 Ok(Signal::CtrlD) => break,
-                Ok(Signal::CtrlC) => continue,
+                Ok(Signal::CtrlC) => {
+                    if scratch.is_empty() {
+                        break;
+                    } else {
+                        scratch.clear();
+                    }
+                }
                 Err(e) => {
                     return Err(anyhow!("Unable to read from prompt: {e}"));
                 }
@@ -228,7 +234,6 @@ impl LocalSession {
                 other => println!("{:?}", other),
             }
         }
-
         Ok(())
     }
 

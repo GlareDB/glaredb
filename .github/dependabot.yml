@@ -1,22 +1,48 @@
 version: 2
 updates:
+
   # Maintain deps for GitHub Actions.
   - package-ecosystem: "github-actions"
     directory: "/"
+
     schedule:
       interval: "weekly"
       day: "friday"
       time: "09:00"
       timezone: "America/New_York"
+
     rebase-strategy: disabled
+
 
   # Maintain deps for Rust.
   - package-ecosystem: "cargo"
     directory: "/"
+
     schedule:
       interval: "weekly"
       day: "friday"
       time: "09:00"
       timezone: "America/New_York"
+    
     rebase-strategy: disabled
     open-pull-requests-limit: 20
+
+    reviewers:
+      - "scsmithr" 
+
+    labels:
+      - "dependencies"
+
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+    target-branch: "cargo-conf"
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*" # Maintain all deps.
+        exclude-patterns:
+          - "datafusion"
+          - "deltalake"
+          - "object_store"

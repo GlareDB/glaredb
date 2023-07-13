@@ -174,10 +174,7 @@ impl VirtualLister for BigQueryAccessor {
         let datasets = self
             .metadata
             .dataset()
-            .list(
-                &self.gcp_project_id,
-                dataset::ListOptions::default().all(true),
-            )
+            .list(&self.gcp_project_id, dataset::ListOptions::default())
             .await
             .map_err(|e| ListingErrBoxed(Box::new(BigQueryError::from(e))))?;
 

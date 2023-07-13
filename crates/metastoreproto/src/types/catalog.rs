@@ -519,7 +519,7 @@ mod tests {
     proptest! {
         #[test]
         fn roundtrip_entry_type(expected in any::<EntryType>()) {
-            let p: catalog::entry_meta::EntryType = expected.clone().into();
+            let p: catalog::entry_meta::EntryType = expected.into();
             let got: EntryType = p.try_into().unwrap();
             assert_eq!(expected, got);
         }

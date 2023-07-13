@@ -27,9 +27,6 @@ pub enum PostgresError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
-    #[error("Failed to create SSH Tunnel: {0}")]
-    Ssh(#[from] crate::common::errors::DatasourceCommonError),
-
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
@@ -41,6 +38,14 @@ pub enum PostgresError {
 
     #[error(transparent)]
     DecimalError(#[from] decimal::DecimalError),
+
+    #[error(transparent)]
+    Common(#[from] crate::common::errors::DatasourceCommonError),
+
+    #[error(transparent)]
+    SshKey(#[from] crate::common::ssh::key::SshKeyError),
+    #[error(transparent)]
+    SshTunnel(#[from] crate::common::ssh::session::SshTunnelError),
 }
 
 pub type Result<T, E = PostgresError> = std::result::Result<T, E>;

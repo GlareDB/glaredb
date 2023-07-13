@@ -5,6 +5,7 @@ use regex::{Captures, Regex};
 use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
+use std::sync::Arc;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -34,8 +35,12 @@ pub trait Hook: Send + Sync {
     }
 }
 
-pub type TestHook = Box<dyn Hook>;
+pub type TestHook = Arc<dyn Hook>;
 
+/// List of hooks that should be ran for tests that match a pattern.
+///
+/// For example, a pattern "*" will run a hook against all tests, while
+/// "*/tunnels/ssh" would only run hooks for the ssh tunnels tests.
 pub type TestHooks = Vec<(Pattern, TestHook)>;
 
 #[async_trait]

@@ -13,9 +13,6 @@ pub enum MysqlError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
-    Ssh(#[from] crate::common::errors::DatasourceCommonError),
-
-    #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
@@ -32,6 +29,14 @@ pub enum MysqlError {
 
     #[error(transparent)]
     ConnectionUrl(#[from] mysql_async::UrlError),
+
+    #[error(transparent)]
+    Common(#[from] crate::common::errors::DatasourceCommonError),
+
+    #[error(transparent)]
+    SshKey(#[from] crate::common::ssh::key::SshKeyError),
+    #[error(transparent)]
+    SshTunnel(#[from] crate::common::ssh::session::SshTunnelError),
 }
 
 pub type Result<T, E = MysqlError> = std::result::Result<T, E>;

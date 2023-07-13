@@ -1,0 +1,129 @@
+//! Utility for source "URLs".
+
+use std::{borrow::Cow, fmt::Display, path::PathBuf};
+
+use url::Url;
+
+use super::errors::{DatasourceCommonError, Result};
+
+#[derive(Debug)]
+pub enum DatasourceUrl {
+    File(PathBuf),
+    Url(Url),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DatasourceUrlScheme {
+    File,
+    Gcs,
+    S3,
+}
+
+impl Display for DatasourceUrlScheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File => write!(f, "file"),
+            Self::Gcs => write!(f, "gs"),
+            Self::S3 => write!(f, "s3"),
+        }
+    }
+}
+
+impl DatasourceUrl {
+    pub fn new(u: impl AsRef<str>) -> Result<Self> {
+        let u = u.as_ref();
+
+        let ds_url = match u.parse::<Url>() {
+            Err(url::ParseError::RelativeUrlWithoutBase) => {
+                // It's probably a local file path.
+                //
+                // TODO: Check if it's actually a file path (maybe invalid but
+                // probably check).
+                return Ok(Self::File(PathBuf::from(u)));
+            }
+            Err(e) => return Err(DatasourceCommonError::InvalidUrl(e.to_string())),
+            Ok(u) => u,
+        };
+
+        let ds_url = match ds_url.scheme() {
+            "file" => match ds_url.to_file_path() {
+                Ok(f) => Self::File(f),
+                Err(()) => {
+                    return Err(DatasourceCommonError::InvalidUrl(format!(
+                        "url not a valid file: {ds_url}"
+                    )))
+                }
+            },
+            "gs" | "s3" => Self::Url(ds_url),
+            other => {
+                return Err(DatasourceCommonError::InvalidUrl(format!(
+                    "unsupported scheme '{other}'"
+                )))
+            }
+        };
+
+        Ok(ds_url)
+    }
+
+    pub fn scheme(&self) -> DatasourceUrlScheme {
+        match self {
+            Self::File(_) => DatasourceUrlScheme::File,
+            Self::Url(u) => match u.scheme() {
+                "gs" => DatasourceUrlScheme::Gcs,
+                "s3" => DatasourceUrlScheme::S3,
+                _ => unreachable!(),
+            },
+        }
+    }
+
+    pub fn path(&self) -> Cow<str> {
+        match self {
+            Self::File(p) => p.to_string_lossy(),
+            Self::Url(u) => u.path().into(),
+        }
+    }
+
+    pub fn host(&self) -> Option<&str> {
+        match self {
+            Self::File(_) => None,
+            Self::Url(u) => u.host_str(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_url_parse() {
+        let u = DatasourceUrl::new("gs://my_bucket/my_obj").unwrap();
+        assert_eq!(Some("my_bucket"), u.host());
+        assert_eq!("/my_obj", u.path());
+        assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
+
+        let u = DatasourceUrl::new("gs://my_bucket/my_obj.parquet").unwrap();
+        assert_eq!(Some("my_bucket"), u.host());
+        assert_eq!("/my_obj.parquet", u.path());
+        assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
+
+        let u = DatasourceUrl::new("./my_bucket/my_obj.parquet").unwrap();
+        assert_eq!(None, u.host());
+        assert_eq!("./my_bucket/my_obj.parquet", u.path());
+        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+
+        let u = DatasourceUrl::new("/Users/mario/my_bucket/my_obj").unwrap();
+        assert_eq!(None, u.host());
+        assert_eq!("/Users/mario/my_bucket/my_obj", u.path());
+        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+
+        let u = DatasourceUrl::new("file:/my_bucket/my_obj.parquet").unwrap();
+        assert_eq!("/my_bucket/my_obj.parquet", u.path());
+        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+
+        // TODO: Maybe we don't want this...
+        let u = DatasourceUrl::new("file:my_bucket/my_obj.parquet").unwrap();
+        assert_eq!("/my_bucket/my_obj.parquet", u.path());
+        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+    }
+}

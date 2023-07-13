@@ -11,6 +11,12 @@ pub enum BuiltinError {
         expected: DataType,
     },
 
+    #[error("Unexpected argument for function, expected {expected}, found '{scalars:?}'")]
+    UnexpectedArgs {
+        expected: String,
+        scalars: Vec<ScalarValue>,
+    },
+
     #[error("Unable to find {obj_typ}: '{name}'")]
     MissingObject { obj_typ: &'static str, name: String },
 

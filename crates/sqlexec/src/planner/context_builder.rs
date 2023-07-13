@@ -1,4 +1,5 @@
 use crate::context::SessionContext;
+use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
 use crate::planner::dispatch::SessionDispatcher;
@@ -15,9 +16,9 @@ use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_planner::planner::AsyncContextProvider;
-use metastore::builtins::DEFAULT_CATALOG;
 use metastoreproto::types::catalog::CatalogEntry;
 use metastoreproto::types::catalog::DatabaseEntry;
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::TableFunc;
 use sqlbuiltins::functions::TableFuncContextProvider;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -70,6 +71,21 @@ impl<'a> PartialContextProvider<'a> {
                         }
                     }
                 }
+
+                // Try to read from the environment if we fail to find the table
+                // in the search path.
+                //
+                // TODO: We'll want to figure out how we want to handle
+                // shadowing/precedence.
+                if let Some(reader) = self.ctx.get_env_reader() {
+                    if let Some(table) = reader
+                        .resolve_table(table)
+                        .map_err(|e| ExecError::EnvironmentTableRead(e))?
+                    {
+                        return Ok(table);
+                    }
+                }
+
                 Err(PlanError::FailedToFindTableForReference {
                     reference: reference.to_string(),
                 })

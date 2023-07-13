@@ -8,23 +8,20 @@ on:
   push:
     tags:
       - "*"
-
 jobs:
   dist:
     strategy:
       fail-fast: false
       matrix:
         include:
-          # See https://github.com/GlareDB/glaredb/issues/1030
-          # - os: windows-latest
-          #   target: x86_64-pc-windows-msvc
+          - os: windows-latest-8-cores
+            target: x86_64-pc-windows-msvc
           - os: ubuntu-2004-8-cores
             target: x86_64-unknown-linux-gnu
           - os: macos-12-xl
             target: x86_64-apple-darwin
           - os: macos-12-xl
             target: aarch64-apple-darwin
-
 
     name: Build release (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
@@ -42,8 +39,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: extractions/setup-just@v1
+
       - name: Build
-        run: cargo xtask dist
+        run: just dist
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -67,6 +66,10 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: dist-x86_64-unknown-linux-gnu
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist-x86_64-pc-windows-msvc 
           path: dist
 
       - run: ls -al ./dist

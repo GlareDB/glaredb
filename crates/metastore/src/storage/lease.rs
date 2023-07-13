@@ -368,7 +368,7 @@ mod tests {
         let proto: storage::LeaseInformation = lease.into();
         let mut bs = BytesMut::new();
         proto.encode(&mut bs).unwrap();
-        store.put(&path, bs.freeze()).await.unwrap();
+        store.put(path, bs.freeze()).await.unwrap();
     }
 
     async fn get_lease(store: &dyn ObjectStore, path: &ObjectPath) -> LeaseInformation {
@@ -529,7 +529,7 @@ mod tests {
 
         assert!(lease.is_valid());
 
-        let _ = lease.drop_lease().await.unwrap();
+        lease.drop_lease().await.unwrap();
     }
 
     #[tokio::test]

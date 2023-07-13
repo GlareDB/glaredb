@@ -126,6 +126,9 @@ pub enum ExecError {
     #[error("Invalid storage configuration: {0}")]
     InvalidStorageConfig(&'static str),
 
+    #[error("Failed to read table from environment: {0}")]
+    EnvironmentTableRead(Box<dyn std::error::Error + Send + Sync>),
+
     #[error("internal error: {0}")]
     Internal(String),
 
@@ -137,6 +140,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
+
+    #[error(transparent)]
+    DatasourceObjectStore(#[from] datasources::object_store::errors::ObjectStoreSourceError),
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),

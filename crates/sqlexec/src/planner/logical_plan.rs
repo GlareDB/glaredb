@@ -2,9 +2,10 @@ use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::logical_expr::{Explain, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
+use metastore::types::{CopyToDestinationOptions, CopyToFormatOptions};
 use metastoreproto::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
@@ -67,6 +68,25 @@ impl LogicalPlan {
     /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
         if let LogicalPlan::Query(plan) = self {
+            // Replace placeholders in the inner plan if the wrapped in an
+            // EXPLAIN.
+            //
+            // TODO: Make sure this is the correct behavior.
+            if let DfLogicalPlan::Explain(explain) = plan {
+                let mut inner = explain.plan.clone();
+                let inner = Arc::make_mut(&mut inner);
+
+                *plan = DfLogicalPlan::Explain(Explain {
+                    verbose: explain.verbose,
+                    plan: Arc::new(inner.replace_params_with_values(&scalars)?),
+                    stringified_plans: explain.stringified_plans.clone(),
+                    schema: explain.schema.clone(),
+                    logical_optimization_succeeded: explain.logical_optimization_succeeded,
+                });
+
+                return Ok(());
+            }
+
             *plan = plan.replace_params_with_values(&scalars)?;
         }
 
@@ -83,6 +103,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     Insert(Insert),
+    CopyTo(CopyTo),
 }
 
 impl From<WritePlan> for LogicalPlan {
@@ -102,6 +123,23 @@ impl std::fmt::Debug for Insert {
         f.debug_struct("Insert")
             .field("source", &self.source)
             .field("table_provider", &self.table_provider.schema())
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct CopyTo {
+    pub source: DfLogicalPlan,
+    pub dest: CopyToDestinationOptions,
+    pub format: CopyToFormatOptions,
+}
+
+impl std::fmt::Debug for CopyTo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CopyTo")
+            .field("source", &self.source.schema())
+            .field("dest", &self.dest)
+            .field("format", &self.format)
             .finish()
     }
 }

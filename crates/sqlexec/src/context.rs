@@ -1,4 +1,5 @@
 use crate::engine::SessionInfo;
+use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
 use crate::metrics::SessionMetrics;
@@ -20,9 +21,8 @@ use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPl
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasources::native::access::NativeTableStorage;
+use datasources::object_store::registry::GlareDBRegistry;
 use futures::future::BoxFuture;
-use metastore::builtins::POSTGRES_SCHEMA;
-use metastore::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use metastore::errors::ResolveErrorStrategy;
 use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::{CatalogEntry, EntryType};
@@ -30,6 +30,7 @@ use metastoreproto::types::options::TableOptions;
 use metastoreproto::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
+use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG, POSTGRES_SCHEMA};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
@@ -75,6 +76,8 @@ pub struct SessionContext {
     /// This session state makes a ton of assumptions, try to keep usage of it
     /// to a minimum and ensure interactions with this are well-defined.
     df_state: SessionState,
+    /// Read tables from the environment.
+    env_reader: Option<Box<dyn EnvironmentReader>>,
 }
 
 impl SessionContext {
@@ -108,7 +111,13 @@ impl SessionContext {
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
+        let entries = catalog
+            .iter_entries()
+            .filter(|e| e.entry_type() == EntryType::Table && !e.builtin);
+
         let mut conf = RuntimeConfig::default();
+        conf =
+            conf.with_object_store_registry(Arc::new(GlareDBRegistry::try_new(entries).unwrap()));
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
@@ -139,7 +148,16 @@ impl SessionContext {
             portals: HashMap::new(),
             metrics,
             df_state: state,
+            env_reader: None,
         }
+    }
+
+    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
+        self.env_reader = Some(env_reader);
+    }
+
+    pub fn get_env_reader(&self) -> Option<&dyn EnvironmentReader> {
+        self.env_reader.as_deref()
     }
 
     pub fn get_info(&self) -> &SessionInfo {

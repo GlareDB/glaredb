@@ -14,6 +14,7 @@
 <a href="https://docs.glaredb.com"><img src="https://img.shields.io/static/v1?label=docs&message=GlareDB%20Reference&color=55A39B&style=flat-square"></img></a>
 <a href="https://github.com/GlareDB/glaredb/releases"><img src="https://img.shields.io/github/v/release/glaredb/glaredb?display_name=tag&style=flat-square"></img></a>
 <a href="https://twitter.com/glaredb"><img src="https://img.shields.io/twitter/follow/glaredb?color=blue&logo=twitter&style=flat-square"></img></a>
+<a href="https://discord.gg/2D7qxC5xkf"><img src="https://img.shields.io/static/v1?label=Chat on Discord&message= &color=360066&style=flat-square"></img></a>
 </div>
 
 ## About
@@ -79,7 +80,7 @@ table names:
 SELECT *
 FROM my_pg.public.lineitem
 WHERE l_shipdate <= date '1998-12-01' - INTERVAL '90'
-LIMIT 5
+LIMIT 5;
 ```
 
 Check out the docs to learn about all [supported data sources](https://docs.glaredb.com/docs/data-sources/supported/). Many
@@ -99,7 +100,7 @@ an easy way to install Rust on your system.
 Running the following command will build a release binary:
 
 ```shell
-cargo xtask build --release
+just build --release
 ```
 
 The compiled release binary can be found in `target/release/glaredb`.

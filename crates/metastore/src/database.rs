@@ -1,8 +1,4 @@
 //! Module for handling the catalog for a single database.
-use crate::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_SCHEMA_ID,
-};
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use crate::validation::{
@@ -19,6 +15,10 @@ use metastoreproto::types::service::Mutation;
 use metastoreproto::types::storage::{ExtraState, PersistedCatalog};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
+use sqlbuiltins::builtins::{
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    FIRST_NON_SCHEMA_ID,
+};
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1182,7 +1182,6 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtins::DEFAULT_CATALOG;
     use crate::storage::persist::Storage;
     use metastoreproto::types::options::DatabaseOptionsDebug;
     use metastoreproto::types::options::TableOptionsDebug;
@@ -1192,6 +1191,7 @@ mod tests {
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
     };
     use object_store::memory::InMemory;
+    use sqlbuiltins::builtins::DEFAULT_CATALOG;
     use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {

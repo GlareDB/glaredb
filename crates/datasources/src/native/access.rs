@@ -1,25 +1,22 @@
 use crate::native::errors::{NativeError, Result};
+use crate::native::insert::NativeTableInsertExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::insert::{DataSink, InsertExec};
-use datafusion::physical_plan::{ExecutionPlan, SendableRecordBatchStream, Statistics};
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
-use deltalake::operations::write::WriteBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
-use futures::StreamExt;
 use metastoreproto::types::catalog::TableEntry;
 use metastoreproto::types::options::{TableOptions, TableOptionsInternal};
 use object_store::prefix::PrefixStore;
 use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
 use std::any::Any;
-use std::fmt;
 use std::sync::Arc;
 use tokio::fs;
 use url::Url;
@@ -135,23 +132,16 @@ impl NativeTableStorage {
 
 #[derive(Debug)]
 pub struct NativeTable {
-    inner: Arc<NativeTableInner>,
-}
-
-#[derive(Debug)]
-struct NativeTableInner {
     delta: DeltaTable,
 }
 
 impl NativeTable {
     fn new(delta: DeltaTable) -> Self {
-        NativeTable {
-            inner: Arc::new(NativeTableInner { delta }),
-        }
+        NativeTable { delta }
     }
 
     pub fn storage_location(&self) -> String {
-        self.inner.delta.table_uri()
+        self.delta.table_uri()
     }
 
     pub fn into_table_provider(self) -> Arc<dyn TableProvider> {
@@ -166,19 +156,19 @@ impl TableProvider for NativeTable {
     }
 
     fn schema(&self) -> Arc<ArrowSchema> {
-        TableProvider::schema(&self.inner.delta)
+        TableProvider::schema(&self.delta)
     }
 
     fn table_type(&self) -> TableType {
-        self.inner.delta.table_type()
+        self.delta.table_type()
     }
 
     fn get_table_definition(&self) -> Option<&str> {
-        self.inner.delta.get_table_definition()
+        self.delta.get_table_definition()
     }
 
     fn get_logical_plan(&self) -> Option<&LogicalPlan> {
-        self.inner.delta.get_logical_plan()
+        self.delta.get_logical_plan()
     }
 
     async fn scan(
@@ -188,10 +178,7 @@ impl TableProvider for NativeTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        self.inner
-            .delta
-            .scan(session, projection, filters, limit)
-            .await
+        self.delta.scan(session, projection, filters, limit).await
     }
 
     fn supports_filter_pushdown(
@@ -199,11 +186,11 @@ impl TableProvider for NativeTable {
         filter: &Expr,
     ) -> DataFusionResult<TableProviderFilterPushDown> {
         #[allow(deprecated)]
-        self.inner.delta.supports_filter_pushdown(filter)
+        self.delta.supports_filter_pushdown(filter)
     }
 
     fn statistics(&self) -> Option<Statistics> {
-        self.inner.delta.statistics()
+        self.delta.statistics()
     }
 
     async fn insert_into(
@@ -211,39 +198,8 @@ impl TableProvider for NativeTable {
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Ok(Arc::new(InsertExec::new(input, self.inner.clone())))
-    }
-}
-
-impl fmt::Display for NativeTableInner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = self
-            .delta
-            .state
-            .current_metadata()
-            .and_then(|m| m.name.as_deref())
-            .unwrap_or("unknown");
-        write!(f, "NativeTable: {}", name)
-    }
-}
-
-#[async_trait]
-impl DataSink for NativeTableInner {
-    async fn write_all(&self, mut data: SendableRecordBatchStream) -> DataFusionResult<u64> {
-        // TODO: Don't buffer everything in memory...
-        let mut batches = Vec::new();
-        while let Some(result) = data.next().await {
-            let batch = result?;
-            batches.push(batch);
-        }
-
-        let count = batches.iter().fold(0, |acc, batch| acc + batch.num_rows());
-
-        let builder = WriteBuilder::new(self.delta.object_store(), self.delta.state.clone())
-            .with_input_batches(batches);
-
-        let _ = builder.await?;
-
-        Ok(count as u64)
+        let store = self.delta.object_store();
+        let snapshot = self.delta.state.clone();
+        Ok(Arc::new(NativeTableInsertExec::new(input, store, snapshot)))
     }
 }

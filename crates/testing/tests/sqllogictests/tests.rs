@@ -81,7 +81,7 @@ SELECT public_key
             (key2, "test_user2"),
         ];
         for (key, user) in test_cases {
-            let parts: Vec<_> = key.split(" ").collect();
+            let parts: Vec<_> = key.split(' ').collect();
             test_assert!(
                 parts.len() == 3,
                 anyhow!("each public key should be of format `<algo> <key> <user>`")

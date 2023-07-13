@@ -1,0 +1,121 @@
+name: python release
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+env:
+  PYTHON_VERSION: '3.7'
+  MATURIN_VERSION: '1.0.1'
+  MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+  MATURIN_USERNAME: 'seanglaredb' 
+  PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
+jobs:
+  linux:
+    runs-on: ubuntu-2004-8-cores
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x86_64]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v1
+      - name: install protoc
+        run: just protoc
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          docker-options: "--env PROTOC=${{ env.PROTOC }}"
+          target: ${{ matrix.target }}
+          args:  --release --out dist -m py-glaredb/Cargo.toml
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  windows:
+    runs-on: windows-latest-8-cores
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x64]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v1
+      - name: install protoc
+        run: just protoc
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          working-directory: py-glaredb
+          sccache: 'true'
+          container: 'off'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: py-glaredb/dist
+
+  macos:
+    runs-on: macos-12-xl
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v1
+      - name: install protoc
+        run: just protoc
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          working-directory: py-glaredb
+          sccache: 'true'
+          container: 'off'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: py-glaredb/dist
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [linux, macos, windows]
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: wheels
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --skip-existing *

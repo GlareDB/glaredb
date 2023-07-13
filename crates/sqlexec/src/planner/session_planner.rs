@@ -1,9 +1,10 @@
 use crate::context::SessionContext;
+use crate::parser::options::StmtOptions;
 use crate::parser::{
-    validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
-    AlterTunnelStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt,
-    CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, OptionValue,
-    StatementWithExtensions,
+    self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
+    AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt,
+    CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt,
+    DropTunnelStmt, StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
@@ -18,17 +19,24 @@ use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datafusion_planner::planner::SqlQueryPlanner;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::common::ssh::{SshConnection, SshConnectionParameters, SshKey};
+use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
 use datasources::debug::DebugTableType;
 use datasources::delta::access::DeltaLakeAccessor;
-use datasources::mongodb::{MongoAccessor, MongoDbConnection, MongoProtocol};
+use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use metastore::types::{
+    CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
+    CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
+    CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
+};
 use metastore::validation::{
+    validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
     validate_database_creds_support, validate_database_tunnel_support,
     validate_table_creds_support, validate_table_tunnel_support,
 };
@@ -42,8 +50,7 @@ use metastoreproto::types::options::{
     TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
     TunnelOptionsSsh,
 };
-use std::collections::BTreeMap;
-use std::env;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
@@ -86,6 +93,7 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
             StatementWithExtensions::CreateCredentials(stmt) => self.plan_create_credentials(stmt),
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
+            StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
         }
     }
 
@@ -135,16 +143,18 @@ impl<'a> SessionPlanner<'a> {
                 });
 
                 let service_account_key =
-                    remove_required_opt_or_creds(m, "service_account_key", creds, |c| {
+                    m.remove_required_or_creds("service_account_key", creds, |c| {
                         c.service_account_key.clone()
                     })?;
 
-                let project_id = remove_required_opt(m, "project_id")?;
+                let project_id: String = m.remove_required("project_id")?;
+
                 BigQueryAccessor::validate_external_database(&service_account_key, &project_id)
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
+
                 DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
                     service_account_key,
                     project_id,
@@ -170,12 +180,12 @@ impl<'a> SessionPlanner<'a> {
                 DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
-                let account_name = remove_required_opt(m, "account")?;
-                let login_name = remove_required_opt(m, "username")?;
-                let password = remove_required_opt(m, "password")?;
-                let database_name = remove_required_opt(m, "database")?;
-                let warehouse = remove_required_opt(m, "warehouse")?;
-                let role_name = remove_optional_opt(m, "role")?;
+                let account_name: String = m.remove_required("account")?;
+                let login_name: String = m.remove_required("username")?;
+                let password: String = m.remove_required("password")?;
+                let database_name: String = m.remove_required("database")?;
+                let warehouse: String = m.remove_required("warehouse")?;
+                let role_name: Option<String> = m.remove_optional("role")?;
                 SnowflakeAccessor::validate_external_database(SnowflakeDbConnection {
                     account_name: account_name.clone(),
                     login_name: login_name.clone(),
@@ -198,15 +208,15 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::DELTA => {
-                let access_key_id = remove_required_opt(m, "access_key_id")?;
-                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
-                let region = remove_required_opt(m, "region")?;
+                let access_key_id: String = m.remove_required("access_key_id")?;
+                let secret_access_key: String = m.remove_required("secret_access_key")?;
+                let region: String = m.remove_required("region")?;
 
-                let catalog = match remove_required_opt(m, "catalog_type")?.as_str() {
+                let catalog = match m.remove_required::<String>("catalog_type")?.as_str() {
                     "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
-                        catalog_id: remove_required_opt(m, "catalog_id")?,
-                        databricks_access_token: remove_required_opt(m, "access_token")?,
-                        workspace_url: remove_required_opt(m, "workspace_url")?,
+                        catalog_id: m.remove_required("catalog_id")?,
+                        databricks_access_token: m.remove_required("access_token")?,
+                        workspace_url: m.remove_required("workspace_url")?,
                     }),
                     other => return Err(internal!("Unknown catalog type: {}", other)),
                 };
@@ -276,8 +286,8 @@ impl<'a> SessionPlanner<'a> {
         let external_table_options = match datasource.as_str() {
             TableOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
-                let schema = remove_required_opt(m, "schema")?;
-                let table = remove_required_opt(m, "table")?;
+                let schema = m.remove_required("schema")?;
+                let table = m.remove_required("table")?;
 
                 let access = PostgresTableAccess {
                     schema,
@@ -307,13 +317,13 @@ impl<'a> SessionPlanner<'a> {
                 });
 
                 let service_account_key =
-                    remove_required_opt_or_creds(m, "service_account_key", creds, |c| {
+                    m.remove_required_or_creds("service_account_key", creds, |c| {
                         c.service_account_key.clone()
                     })?;
 
-                let project_id = remove_required_opt(m, "project_id")?;
-                let dataset_id = remove_required_opt(m, "dataset_id")?;
-                let table_id = remove_required_opt(m, "table_id")?;
+                let project_id: String = m.remove_required("project_id")?;
+                let dataset_id = m.remove_required("dataset_id")?;
+                let table_id = m.remove_required("table_id")?;
 
                 let access = BigQueryTableAccess {
                     dataset_id,
@@ -335,8 +345,8 @@ impl<'a> SessionPlanner<'a> {
             }
             TableOptions::MYSQL => {
                 let connection_string = get_mysql_conn_str(m)?;
-                let schema = remove_required_opt(m, "schema")?;
-                let table = remove_required_opt(m, "table")?;
+                let schema = m.remove_required("schema")?;
+                let table = m.remove_required("table")?;
 
                 let access = MysqlTableAccess {
                     schema,
@@ -357,8 +367,8 @@ impl<'a> SessionPlanner<'a> {
             }
             TableOptions::MONGO => {
                 let connection_string = get_mongo_conn_str(m)?;
-                let database = remove_required_opt(m, "database")?;
-                let collection = remove_required_opt(m, "collection")?;
+                let database = m.remove_required("database")?;
+                let collection = m.remove_required("collection")?;
 
                 TableOptions::Mongo(TableOptionsMongo {
                     connection_string,
@@ -367,14 +377,14 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::SNOWFLAKE => {
-                let account_name = remove_required_opt(m, "account")?;
-                let login_name = remove_required_opt(m, "username")?;
-                let password = remove_required_opt(m, "password")?;
-                let database_name = remove_required_opt(m, "database")?;
-                let warehouse = remove_required_opt(m, "warehouse")?;
-                let role_name = remove_optional_opt(m, "role")?;
-                let schema_name = remove_required_opt(m, "schema")?;
-                let table_name = remove_required_opt(m, "table")?;
+                let account_name: String = m.remove_required("account")?;
+                let login_name: String = m.remove_required("username")?;
+                let password: String = m.remove_required("password")?;
+                let database_name: String = m.remove_required("database")?;
+                let warehouse: String = m.remove_required("warehouse")?;
+                let role_name: Option<String> = m.remove_optional("role")?;
+                let schema_name: String = m.remove_required("schema")?;
+                let table_name: String = m.remove_required("table")?;
 
                 let conn_params = SnowflakeDbConnection {
                     account_name: account_name.clone(),
@@ -408,7 +418,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::LOCAL => {
-                let location = remove_required_opt(m, "location")?;
+                let location: String = m.remove_required("location")?;
 
                 let access = LocalTableAccess {
                     location: location.clone(),
@@ -430,12 +440,12 @@ impl<'a> SessionPlanner<'a> {
                 });
 
                 let service_account_key =
-                    remove_optional_opt_or_creds(m, "service_account_key", creds, |c| {
+                    m.remove_optional_or_creds("service_account_key", creds, |c| {
                         c.service_account_key.clone()
                     })?;
 
-                let bucket = remove_required_opt(m, "bucket")?;
-                let location = remove_required_opt(m, "location")?;
+                let bucket = m.remove_required("bucket")?;
+                let location = m.remove_required("location")?;
 
                 let access = GcsTableAccess {
                     bucket_name: bucket,
@@ -462,18 +472,18 @@ impl<'a> SessionPlanner<'a> {
                     other => unreachable!("invalid credentials {other} for aws s3"),
                 });
 
-                let access_key_id = remove_optional_opt_or_creds(m, "access_key_id", creds, |c| {
+                let access_key_id = m.remove_optional_or_creds("access_key_id", creds, |c| {
                     c.access_key_id.clone()
                 })?;
 
                 let secret_access_key =
-                    remove_optional_opt_or_creds(m, "secret_access_key", creds, |c| {
+                    m.remove_optional_or_creds("secret_access_key", creds, |c| {
                         c.secret_access_key.clone()
                     })?;
 
-                let region = remove_required_opt(m, "region")?;
-                let bucket = remove_required_opt(m, "bucket")?;
-                let location = remove_required_opt(m, "location")?;
+                let region = m.remove_required("region")?;
+                let bucket = m.remove_required("bucket")?;
+                let location = m.remove_required("location")?;
 
                 let access = S3TableAccess {
                     region,
@@ -507,7 +517,7 @@ impl<'a> SessionPlanner<'a> {
                 });
 
                 let typ =
-                    remove_required_opt_or_creds(m, "table_type", creds, |c| c.table_type.clone())?;
+                    m.remove_required_or_creds("table_type", creds, |c| c.table_type.clone())?;
                 let typ = DebugTableType::from_str(&typ)?;
 
                 TableOptions::Debug(TableOptionsDebug {
@@ -567,20 +577,20 @@ impl<'a> SessionPlanner<'a> {
 
         let options = match provider.as_str() {
             CredentialsOptions::DEBUG => {
-                let table_type = remove_required_opt(m, "table_type")?;
-                // Verify it's a correct table type.
-                let _ = table_type.parse::<DebugTableType>()?;
-                CredentialsOptions::Debug(CredentialsOptionsDebug { table_type })
+                let table_type: DebugTableType = m.remove_required("table_type")?;
+                CredentialsOptions::Debug(CredentialsOptionsDebug {
+                    table_type: table_type.to_string(),
+                })
             }
             CredentialsOptions::GCP => {
-                let service_account_key = remove_required_opt(m, "service_account_key")?;
+                let service_account_key = m.remove_required("service_account_key")?;
                 CredentialsOptions::Gcp(CredentialsOptionsGcp {
                     service_account_key,
                 })
             }
             CredentialsOptions::AWS => {
-                let access_key_id = remove_required_opt(m, "access_key_id")?;
-                let secret_access_key = remove_required_opt(m, "secret_access_key")?;
+                let access_key_id = m.remove_required("access_key_id")?;
+                let secret_access_key = m.remove_required("secret_access_key")?;
                 CredentialsOptions::Aws(CredentialsOptionsAws {
                     access_key_id,
                     secret_access_key,
@@ -1006,6 +1016,188 @@ impl<'a> SessionPlanner<'a> {
         Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename { name, new_name }).into())
     }
 
+    async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
+        let query = match stmt.source {
+            CopyToSource::Table(table) => {
+                validate_object_name(&table)?;
+                let table_ref = object_name_to_table_ref(table)?;
+                let table_ref = quoted_table_ref(table_ref);
+                let query = format!("SELECT * FROM {table_ref}");
+                match parser::parse_sql(&query)?.pop_front() {
+                    Some(StatementWithExtensions::Statement(ast::Statement::Query(q))) => *q,
+                    _ => unreachable!(),
+                }
+            }
+            CopyToSource::Query(query) => query,
+        };
+
+        let mut context_provider = PartialContextProvider::new(self.ctx)?;
+        let mut planner = SqlQueryPlanner::new(&mut context_provider);
+        let source = planner.query_to_plan(query).await?;
+
+        let mut m = stmt.options;
+
+        let dest = normalize_ident(stmt.dest);
+
+        let (dest, uri) = if matches!(
+            dest.as_str(),
+            CopyToDestinationOptions::LOCAL
+                | CopyToDestinationOptions::GCS
+                | CopyToDestinationOptions::S3_STORAGE
+        ) {
+            (dest.as_str(), None)
+        } else {
+            let u = DatasourceUrl::new(&dest)?;
+            let d = match u.scheme() {
+                DatasourceUrlScheme::File => CopyToDestinationOptions::LOCAL,
+                DatasourceUrlScheme::Gcs => CopyToDestinationOptions::GCS,
+                DatasourceUrlScheme::S3 => CopyToDestinationOptions::S3_STORAGE,
+            };
+            (d, Some(u))
+        };
+
+        let creds = stmt.credentials.map(normalize_ident);
+        let creds_options = self.get_credentials_opts(&creds)?;
+        if let Some(creds_options) = &creds_options {
+            validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
+                PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                }
+            })?;
+        }
+
+        fn get_location(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+            let location = match uri.as_ref() {
+                Some(u) => u.path().into_owned(),
+                None => m.remove_required("location")?,
+            };
+            Ok(location)
+        }
+
+        fn get_bucket(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+            let bucket = match uri.as_ref() {
+                Some(u) => u
+                    .host()
+                    .ok_or(internal!("missing bucket name in URL"))?
+                    .to_string(),
+                None => m.remove_required("bucket")?,
+            };
+            Ok(bucket)
+        }
+
+        let dest = match dest {
+            CopyToDestinationOptions::LOCAL => {
+                let location = get_location(&mut m, &uri)?;
+                CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
+            }
+            CopyToDestinationOptions::GCS => {
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c,
+                    other => unreachable!("Invalid credentials {other} to copy into gcs"),
+                });
+
+                let service_account_key =
+                    m.remove_optional_or_creds("service_account_key", creds, |c| {
+                        c.service_account_key.clone()
+                    })?;
+
+                let bucket = get_bucket(&mut m, &uri)?;
+                let location = get_location(&mut m, &uri)?;
+
+                CopyToDestinationOptions::Gcs(CopyToDestinationOptionsGcs {
+                    service_account_key,
+                    bucket,
+                    location,
+                })
+            }
+            CopyToDestinationOptions::S3_STORAGE => {
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Aws(c) => c,
+                    other => unreachable!("invalid credentials {other} for aws s3"),
+                });
+
+                let access_key_id = m.remove_optional_or_creds("access_key_id", creds, |c| {
+                    c.access_key_id.clone()
+                })?;
+
+                let secret_access_key =
+                    m.remove_optional_or_creds("secret_access_key", creds, |c| {
+                        c.secret_access_key.clone()
+                    })?;
+
+                let region = m.remove_required("region")?;
+
+                let bucket = get_bucket(&mut m, &uri)?;
+                let location = get_location(&mut m, &uri)?;
+
+                CopyToDestinationOptions::S3(CopyToDestinationOptionsS3 {
+                    access_key_id,
+                    secret_access_key,
+                    region,
+                    bucket,
+                    location,
+                })
+            }
+            other => {
+                return Err(internal!(
+                    "unsupported destination for copying data: {other}"
+                ))
+            }
+        };
+
+        let loc = dest.location();
+        let loc = Path::new(loc);
+        let ext = loc
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase());
+
+        let format = match stmt
+            .format
+            .as_ref()
+            .map(|f| f.value.as_str())
+            // Choose from specified format "OR" from location.
+            .or(ext.as_deref())
+        {
+            None => {
+                // TODO: Choose the default based on destination.
+                CopyToFormatOptions::default()
+            }
+            Some(CopyToFormatOptions::CSV) => {
+                let delim = m.remove_optional::<char>("delimeter")?.unwrap_or(',');
+                let header = m.remove_optional::<bool>("header")?.unwrap_or(true);
+                CopyToFormatOptions::Csv(CopyToFormatOptionsCsv {
+                    delim: delim as u8,
+                    header,
+                })
+            }
+            Some(CopyToFormatOptions::PARQUET) => {
+                let row_group_size = m
+                    .remove_optional::<usize>("row_group_size")?
+                    .unwrap_or(122880);
+                CopyToFormatOptions::Parquet(CopyToFormatOptionsParquet { row_group_size })
+            }
+            Some(CopyToFormatOptions::JSON) => {
+                let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
+                CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
+            }
+            Some(other) => return Err(internal!("unsupported output format: {other}")),
+        };
+
+        validate_copyto_dest_format_support(dest.as_str(), format.as_str()).map_err(|e| {
+            PlanError::InvalidExternalTable {
+                source: Box::new(e),
+            }
+        })?;
+
+        Ok(WritePlan::CopyTo(CopyTo {
+            source,
+            dest,
+            format,
+        })
+        .into())
+    }
+
     fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {
         // Check if the tunnel exists, get tunnel options and pass them on for
         // connection validation.
@@ -1057,6 +1249,18 @@ fn normalize_ident(ident: Ident) -> String {
 fn object_name_to_table_ref(name: ObjectName) -> Result<OwnedTableReference> {
     let r = object_name_to_table_reference(name, /* enable_normalization = */ true)?;
     Ok(r)
+}
+
+fn quoted_table_ref(table_ref: TableReference<'_>) -> String {
+    match table_ref {
+        TableReference::Bare { table } => format!("{table:?}"),
+        TableReference::Partial { schema, table } => format!("{schema:?}.{table:?}"),
+        TableReference::Full {
+            catalog,
+            schema,
+            table,
+        } => format!("{catalog:?}.{schema:?}.{table:?}"),
+    }
 }
 
 fn object_name_to_schema_ref(name: ObjectName) -> Result<SchemaReference> {
@@ -1127,7 +1331,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
                     // Timestamp Without Time zone
                     None
                 };
-                Ok(DataType::Timestamp(TimeUnit::Nanosecond, tz))
+                Ok(DataType::Timestamp(TimeUnit::Microsecond, tz))
             }
             ast::DataType::Date => Ok(DataType::Date32),
             ast::DataType::Time(None, tz_info) => {
@@ -1192,21 +1396,15 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
         }
 }
 
-fn get_pg_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
-    let conn = match remove_optional_opt(m, "connection_string")? {
+fn get_pg_conn_str(m: &mut StmtOptions) -> Result<String> {
+    let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => PostgresDbConnection::ConnectionString(conn_str),
         None => {
-            let host = remove_required_opt(m, "host")?;
-            let port = match remove_optional_opt(m, "port")? {
-                Some(p) => {
-                    let p: u16 = p.parse()?;
-                    Some(p)
-                }
-                None => None,
-            };
-            let user = remove_required_opt(m, "user")?;
-            let password = remove_optional_opt(m, "password")?;
-            let database = remove_required_opt(m, "database")?;
+            let host = m.remove_required("host")?;
+            let port = m.remove_optional("port")?;
+            let user = m.remove_required("user")?;
+            let password = m.remove_optional("password")?;
+            let database = m.remove_required("database")?;
             PostgresDbConnection::Parameters {
                 host,
                 port,
@@ -1220,21 +1418,15 @@ fn get_pg_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mysql_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
-    let conn = match remove_optional_opt(m, "connection_string")? {
+fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
+    let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MysqlDbConnection::ConnectionString(conn_str),
         None => {
-            let host = remove_required_opt(m, "host")?;
-            let port = match remove_optional_opt(m, "port")? {
-                Some(p) => {
-                    let p: u16 = p.parse()?;
-                    Some(p)
-                }
-                None => None,
-            };
-            let user = remove_required_opt(m, "user")?;
-            let password = remove_optional_opt(m, "password")?;
-            let database = remove_required_opt(m, "database")?;
+            let host = m.remove_required("host")?;
+            let port = m.remove_optional("port")?;
+            let user = m.remove_required("user")?;
+            let password = m.remove_optional("password")?;
+            let database = m.remove_required("database")?;
             MysqlDbConnection::Parameters {
                 host,
                 port,
@@ -1248,26 +1440,15 @@ fn get_mysql_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mongo_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
-    let conn = match remove_optional_opt(m, "connection_string")? {
+fn get_mongo_conn_str(m: &mut StmtOptions) -> Result<String> {
+    let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
         None => {
-            let protocol: MongoProtocol = match remove_optional_opt(m, "protocol")? {
-                Some(p) => p
-                    .parse()
-                    .map_err(|e| internal!("Cannot parse mongo protocol: {e}"))?,
-                None => Default::default(),
-            };
-            let host = remove_required_opt(m, "host")?;
-            let port = match remove_optional_opt(m, "port")? {
-                Some(p) => {
-                    let p: u16 = p.parse()?;
-                    Some(p)
-                }
-                None => None,
-            };
-            let user = remove_required_opt(m, "user")?;
-            let password = remove_optional_opt(m, "password")?;
+            let protocol = m.remove_optional("protocol")?.unwrap_or_default();
+            let host = m.remove_required("host")?;
+            let port = m.remove_optional("port")?;
+            let user = m.remove_required("user")?;
+            let password = m.remove_optional("password")?;
             MongoDbConnection::Parameters {
                 protocol,
                 host,
@@ -1281,19 +1462,13 @@ fn get_mongo_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_ssh_conn_str(m: &mut BTreeMap<String, OptionValue>) -> Result<String> {
-    let conn = match remove_optional_opt(m, "connection_string")? {
+fn get_ssh_conn_str(m: &mut StmtOptions) -> Result<String> {
+    let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => SshConnection::ConnectionString(conn_str),
         None => {
-            let host = remove_required_opt(m, "host")?;
-            let port = match remove_optional_opt(m, "port")? {
-                Some(p) => {
-                    let p: u16 = p.parse()?;
-                    Some(p)
-                }
-                None => None,
-            };
-            let user = remove_required_opt(m, "user")?;
+            let host = m.remove_required("host")?;
+            let port = m.remove_optional("port")?;
+            let user = m.remove_required("user")?;
             SshConnection::Parameters(SshConnectionParameters { host, port, user })
         }
     };
@@ -1329,58 +1504,4 @@ fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> Result<DataT
 fn is_show_transaction_isolation_level(variable: &[String]) -> bool {
     const TRANSACTION_ISOLATION_LEVEL_STMT: [&str; 3] = ["transaction", "isolation", "level"];
     variable.iter().eq(TRANSACTION_ISOLATION_LEVEL_STMT.iter())
-}
-
-fn remove_required_opt_or_creds<T>(
-    m: &mut BTreeMap<String, OptionValue>,
-    k: &str,
-    creds: Option<&T>,
-    f: impl FnOnce(&T) -> String,
-) -> Result<String> {
-    let opt = remove_optional_opt_or_creds(m, k, creds, f)?;
-    opt.ok_or_else(|| internal!("missing required_option: {}", k))
-}
-
-fn remove_optional_opt_or_creds<T>(
-    m: &mut BTreeMap<String, OptionValue>,
-    k: &str,
-    creds: Option<&T>,
-    f: impl FnOnce(&T) -> String,
-) -> Result<Option<String>> {
-    Ok(remove_optional_opt(m, k)?.or(creds.map(f)))
-}
-
-fn remove_required_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<String> {
-    let opt = remove_optional_opt(m, k)?;
-    opt.ok_or_else(|| internal!("missing required option: {}", k))
-}
-
-fn remove_optional_opt(m: &mut BTreeMap<String, OptionValue>, k: &str) -> Result<Option<String>> {
-    let val = match m.remove(k) {
-        Some(v) => v,
-        None => return Ok(None),
-    };
-
-    fn get_env(k: &str, upper: bool) -> Result<String> {
-        let key = format!("glaredb_secret_{k}");
-        let key = if upper {
-            key.to_uppercase()
-        } else {
-            key.to_lowercase()
-        };
-        env::var(key).map_err(|_e| internal!("invalid secret '{k}'"))
-    }
-
-    let opt = match val {
-        OptionValue::Literal(l) => l,
-        OptionValue::Secret(s) => {
-            if let Ok(opt) = get_env(&s, /* uppercase: */ true) {
-                opt
-            } else {
-                get_env(&s, /* uppercase: */ false)?
-            }
-        }
-    };
-
-    Ok(Some(opt))
 }

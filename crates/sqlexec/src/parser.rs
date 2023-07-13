@@ -1,37 +1,21 @@
+pub mod options;
+
 use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
-use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
+use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
+
+use self::options::{OptionValue, StmtOptions};
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
     let stmts = CustomParser::parse_sql(sql)?;
     Ok(stmts)
-}
-
-/// Contains the value parsed from Options(...).
-///
-/// `CREATE ... OPTIONS ( abc = 'def' )` will return the value `Literal("def")`
-/// for option "abc" where as `OPTIONS ( abc = SECRET def )` will return
-/// `Secret(def)` for key "abc".
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptionValue {
-    Literal(String),
-    Secret(String),
-}
-
-impl fmt::Display for OptionValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Literal(s) => write!(f, "'{s}'"),
-            Self::Secret(s) => write!(f, "SECRET {s}"),
-        }
-    }
 }
 
 /// DDL extension for GlareDB's external tables.
@@ -48,33 +32,28 @@ pub struct CreateExternalTableStmt {
     /// Credentials to use for configuration.
     pub credentials: Option<Ident>,
     /// Datasource specific options.
-    pub options: BTreeMap<String, OptionValue>,
+    pub options: StmtOptions,
 }
 
 impl fmt::Display for CreateExternalTableStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE EXTERNAL TABLE ")?;
+        write!(f, "CREATE EXTERNAL TABLE")?;
         if self.if_not_exists {
-            write!(f, "IF NOT EXISTS ")?;
+            write!(f, " IF NOT EXISTS")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.datasource)?;
+        write!(f, " {} FROM {}", self.name, self.datasource)?;
 
         if let Some(tunnel) = &self.tunnel {
-            write!(f, "TUNNEL {tunnel} ")?;
+            write!(f, " TUNNEL {tunnel}")?;
         }
 
         if let Some(creds) = &self.credentials {
-            write!(f, "CREDENTIALS {creds} ")?;
+            write!(f, " CREDENTIALS {creds}")?;
         }
 
-        let opts = self
-            .options
-            .iter()
-            .map(|(k, v)| format!("{} = {}", k, v))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        write!(f, "OPTIONS ({})", opts)?;
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
         Ok(())
     }
 }
@@ -93,33 +72,28 @@ pub struct CreateExternalDatabaseStmt {
     /// Credentials to use for configuration.
     pub credentials: Option<Ident>,
     /// Datasource specific options.
-    pub options: BTreeMap<String, OptionValue>,
+    pub options: StmtOptions,
 }
 
 impl fmt::Display for CreateExternalDatabaseStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE EXTERNAL DATABASE ")?;
+        write!(f, "CREATE EXTERNAL DATABASE")?;
         if self.if_not_exists {
-            write!(f, "IF NOT EXISTS ")?;
+            write!(f, " IF NOT EXISTS")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.datasource)?;
+        write!(f, " {} FROM {}", self.name, self.datasource)?;
 
         if let Some(tunnel) = &self.tunnel {
-            write!(f, "TUNNEL {tunnel} ")?;
+            write!(f, " TUNNEL {tunnel}")?;
         }
 
         if let Some(creds) = &self.credentials {
-            write!(f, "CREDENTIALS {creds} ")?;
+            write!(f, " CREDENTIALS {creds}")?;
         }
 
-        let opts = self
-            .options
-            .iter()
-            .map(|(k, v)| format!("{} = {}", k, v))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        write!(f, "OPTIONS ({})", opts)?;
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
         Ok(())
     }
 }
@@ -169,25 +143,19 @@ pub struct CreateTunnelStmt {
     /// The tunnel type the connection is for.
     pub tunnel: Ident,
     /// Tunnel specific options.
-    pub options: BTreeMap<String, OptionValue>,
+    pub options: StmtOptions,
 }
 
 impl fmt::Display for CreateTunnelStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE TUNNEL ")?;
+        write!(f, "CREATE TUNNEL")?;
         if self.if_not_exists {
-            write!(f, "IF NOT EXISTS ")?;
+            write!(f, " IF NOT EXISTS")?;
         }
-        write!(f, "{} FROM {} ", self.name, self.tunnel)?;
-
-        let opts = self
-            .options
-            .iter()
-            .map(|(k, v)| format!("{} = {}", k, v))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        write!(f, "OPTIONS ({})", opts)?;
+        write!(f, " {} FROM {}", self.name, self.tunnel)?;
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
         Ok(())
     }
 }
@@ -251,7 +219,7 @@ pub struct CreateCredentialsStmt {
     /// The credentials provider.
     pub provider: Ident,
     /// Credentials specific options.
-    pub options: BTreeMap<String, OptionValue>,
+    pub options: StmtOptions,
     /// Optional comment (what the credentials are for).
     pub comment: String,
 }
@@ -260,18 +228,12 @@ impl fmt::Display for CreateCredentialsStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "CREATE CREDENTIALS {} PROVIDER {} ",
+            "CREATE CREDENTIALS {} PROVIDER {}",
             self.name, self.provider
         )?;
-
-        let opts = self
-            .options
-            .iter()
-            .map(|(k, v)| format!("{} = {}", k, v))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        write!(f, "OPTIONS ({})", opts)?;
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
 
         if !self.comment.is_empty() {
             write!(f, " COMMENT '{}'", self.comment)?;
@@ -301,6 +263,52 @@ impl fmt::Display for DropCredentialsStmt {
     }
 }
 
+/// A source for a COPY TO statement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CopyToSource {
+    Table(ObjectName),
+    Query(ast::Query),
+}
+
+impl fmt::Display for CopyToSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CopyToSource::Table(table) => write!(f, "{table}"),
+            CopyToSource::Query(query) => write!(f, "({query})"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyToStmt {
+    /// Source to copy the data from (table or query).
+    pub source: CopyToSource,
+    /// Destination to copy the data to.
+    pub dest: Ident,
+    /// Optional format (in which to copy the data in).
+    pub format: Option<Ident>,
+    /// Optional credentials (for cloud storage).
+    pub credentials: Option<Ident>,
+    /// COPY TO specific options.
+    pub options: StmtOptions,
+}
+
+impl fmt::Display for CopyToStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "COPY {} TO {}", self.source, self.dest)?;
+        if let Some(format) = self.format.as_ref() {
+            write!(f, " FORMAT {format}")?;
+        }
+        if let Some(creds) = self.credentials.as_ref() {
+            write!(f, " CREDENTIALS {creds}")?;
+        }
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementWithExtensions {
     /// Statement parsed by `sqlparser`.
@@ -323,6 +331,8 @@ pub enum StatementWithExtensions {
     CreateCredentials(CreateCredentialsStmt),
     /// Drop credentials extension.
     DropCredentials(DropCredentialsStmt),
+    /// Copy To extension.
+    CopyTo(CopyToStmt),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -338,6 +348,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
         }
     }
 }
@@ -393,6 +404,10 @@ impl<'a> CustomParser<'a> {
                     self.parser.next_token();
                     self.parse_alter()
                 }
+                Keyword::COPY => {
+                    self.parser.next_token();
+                    self.parse_copy()
+                }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
                 )),
@@ -446,6 +461,43 @@ impl<'a> CustomParser<'a> {
                 self.parser.parse_alter()?,
             ))
         }
+    }
+
+    /// Parse a COPY statement.
+    fn parse_copy(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        // Parse table or query source:
+        //     COPY table ..
+        //     or
+        //     COPY (SELECT ..) ..
+        let source = if self.parser.consume_token(&Token::LParen) {
+            let query = self.parser.parse_query()?;
+            self.parser.expect_token(&Token::RParen)?;
+            CopyToSource::Query(query)
+        } else {
+            let table_name = self.parser.parse_object_name()?;
+            CopyToSource::Table(table_name)
+        };
+
+        // TO 'source'
+        self.parser.expect_keyword(Keyword::TO)?;
+        let dest = self.parser.parse_identifier()?;
+
+        // [FORMAT ..]
+        let format = self.parse_data_format()?;
+
+        // [CREDENTIALS ..]
+        let credentials = self.parse_connection_credentials()?;
+
+        // OPTIONS (..)
+        let options = self.parse_options()?;
+
+        Ok(StatementWithExtensions::CopyTo(CopyToStmt {
+            source,
+            dest,
+            format,
+            credentials,
+            options,
+        }))
     }
 
     /// Report unexpected token.
@@ -600,34 +652,41 @@ impl<'a> CustomParser<'a> {
         self.parse_optional_ref("CREDENTIALS")
     }
 
-    /// Parse options for a datasource.
-    fn parse_options(&mut self) -> Result<BTreeMap<String, OptionValue>, ParserError> {
-        let mut options = BTreeMap::new();
+    fn parse_data_format(&mut self) -> Result<Option<Ident>, ParserError> {
+        self.parse_optional_ref("FORMAT")
+    }
 
-        // No options provided.
-        if !self.consume_token(&Token::make_keyword("OPTIONS")) {
-            return Ok(options);
+    /// Parse options for a datasource.
+    fn parse_options(&mut self) -> Result<StmtOptions, ParserError> {
+        // Optional "OPTIONS" keyword
+        let _ = self.consume_token(&Token::make_keyword("OPTIONS"));
+
+        if !self.parser.consume_token(&Token::LParen) {
+            // If there's no "(" assume there's no options.
+            return Ok(StmtOptions::new(BTreeMap::new()));
         }
 
-        self.parser.expect_token(&Token::LParen)?;
-
+        let mut options = BTreeMap::new();
         loop {
-            let key = self.parser.parse_identifier()?.value;
-            self.parser.expect_token(&Token::Eq)?;
+            if self.parser.consume_token(&Token::RParen) {
+                // Break if there are no options `()`.
+                break;
+            }
 
-            // Check if we have a secret value.
-            let is_secret = self.consume_token(&Token::make_keyword("SECRET"));
-            let value = if is_secret {
-                OptionValue::Secret(self.parser.parse_identifier()?.value)
-            } else {
-                OptionValue::Literal(self.parser.parse_literal_string()?)
-            };
+            // TODO: Keep the options "key" as identifier so later we can
+            // normalize it.
+            let key = self.parser.parse_identifier()?.value;
+
+            // Optional `=`
+            let _ = self.parser.consume_token(&Token::Eq);
+
+            let value = self.parse_options_value()?;
 
             options.insert(key, value);
             let comma = self.parser.consume_token(&Token::Comma);
 
             if self.parser.consume_token(&Token::RParen) {
-                // allow a trailing comma, even though it's not in standard
+                // Allow a trailing comma, even though it's not in standard.
                 break;
             } else if !comma {
                 return self.expected(
@@ -637,7 +696,36 @@ impl<'a> CustomParser<'a> {
             }
         }
 
-        Ok(options)
+        Ok(StmtOptions::new(options))
+    }
+
+    fn parse_options_value(&mut self) -> Result<OptionValue, ParserError> {
+        let opt_val = if self.consume_token(&Token::make_keyword("SECRET")) {
+            OptionValue::Secret(self.parser.parse_identifier()?.value)
+        } else {
+            let tok = self.parser.next_token();
+            match tok.token {
+                Token::Word(Word {
+                    keyword: Keyword::TRUE,
+                    ..
+                }) => OptionValue::Boolean(true),
+                Token::Word(Word {
+                    keyword: Keyword::FALSE,
+                    ..
+                }) => OptionValue::Boolean(false),
+                Token::Word(Word { value, .. }) => OptionValue::UnquotedLiteral(value),
+                Token::SingleQuotedString(s) | Token::DoubleQuotedString(s) => {
+                    OptionValue::QuotedLiteral(s)
+                }
+                Token::Number(n, _) => OptionValue::Number(n),
+                _ => {
+                    return Err(ParserError::ParserError(format!(
+                        "Expected string, number or bool, found: {tok}"
+                    )))
+                }
+            }
+        };
+        Ok(opt_val)
     }
 
     /// Consume a token return, returning whether or not it was consumed.
@@ -794,11 +882,11 @@ mod tests {
         let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
-            OptionValue::Literal("host=localhost user=postgres".to_string()),
+            OptionValue::QuotedLiteral("host=localhost user=postgres".to_string()),
         );
         options.insert(
             "schema".to_string(),
-            OptionValue::Literal("public".to_string()),
+            OptionValue::QuotedLiteral("public".to_string()),
         );
         options.insert(
             "table".to_string(),
@@ -810,7 +898,7 @@ mod tests {
             datasource: Ident::new("postgres"),
             tunnel: None,
             credentials: None,
-            options,
+            options: StmtOptions::new(options),
         };
 
         let out = stmt.to_string();
@@ -830,11 +918,11 @@ mod tests {
         let mut options = BTreeMap::new();
         options.insert(
             "postgres_conn".to_string(),
-            OptionValue::Literal("host=localhost user=postgres".to_string()),
+            OptionValue::QuotedLiteral("host=localhost user=postgres".to_string()),
         );
         options.insert(
             "schema".to_string(),
-            OptionValue::Literal("public".to_string()),
+            OptionValue::QuotedLiteral("public".to_string()),
         );
         options.insert(
             "table".to_string(),
@@ -847,7 +935,7 @@ mod tests {
             datasource: Ident::new("postgres"),
             tunnel: None,
             credentials: None,
-            options,
+            options: StmtOptions::new(options),
         };
 
         assert_eq!(
@@ -873,8 +961,9 @@ mod tests {
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
-            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
         ];
 
         for test_case in test_cases {
@@ -893,6 +982,9 @@ mod tests {
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE EXTERNAL DATABASE test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
+            "CREATE EXTERNAL DATABASE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
+            "CREATE EXTERNAL DATABASE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
         ];
 
         for test_case in test_cases {
@@ -1004,6 +1096,147 @@ mod tests {
                 .pop_front()
                 .unwrap();
             assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn copy_to_roundtrips() {
+        let test_cases = [
+            "COPY table TO 's3://bucket'",
+            "COPY table TO 's3://bucket' OPTIONS (option1 = 'true', option2 = 'hello')",
+            "COPY (SELECT 1) TO 's3://bucket'",
+            "COPY (SELECT 1) TO 's3://bucket' OPTIONS (option1 = 'true', option2 = 'hello')",
+            "COPY table TO 's3://bucket' OPTIONS (bool_opt = TRUE, num_opt = 1)",
+            "COPY table TO 's3://bucket' FORMAT JSON",
+            "COPY table TO 's3://bucket' CREDENTIALS aws_creds",
+            "COPY table TO 's3://bucket' FORMAT JSON CREDENTIALS aws_creds",
+            "COPY table TO s3 OPTIONS (creds = 'something')",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn options_parse() {
+        let mut options = BTreeMap::new();
+        options.insert(
+            "o1".to_string(),
+            OptionValue::QuotedLiteral("abc".to_string()),
+        );
+        options.insert("o2".to_string(), OptionValue::Boolean(true));
+        options.insert(
+            "o3".to_string(),
+            OptionValue::UnquotedLiteral("def".to_string()),
+        );
+        options.insert("o4".to_string(), OptionValue::Number("123".to_string()));
+        options.insert(
+            "o5".to_string(),
+            OptionValue::Secret("super_secret".to_string()),
+        );
+
+        let test_cases = [
+            (
+                "OPTIONS (
+                    o1 = 'abc',
+                    o2 = TRUE,
+                    o3 = def,
+                    o4 = 123,
+                    o5 = SECRET super_secret
+                )",
+                options.clone(),
+            ),
+            (
+                "(
+                    o1 = 'abc',
+                    o2 = TRUE,
+                    o3 = def,
+                    o4 = 123,
+                    o5 = SECRET super_secret
+                )",
+                options.clone(),
+            ),
+            (
+                "OPTIONS (
+                    o1 'abc',
+                    o2 TRUE,
+                    o3 def,
+                    o4 123,
+                    o5 SECRET super_secret
+                )",
+                options.clone(),
+            ),
+            (
+                "(
+                    o1 'abc',
+                    o2 TRUE,
+                    o3 def,
+                    o4 123,
+                    o5 SECRET super_secret
+                )",
+                options.clone(),
+            ),
+            // Trailing comma
+            (
+                "OPTIONS (
+                    o1 = 'abc',
+                    o2 = TRUE,
+                    o3 = def,
+                    o4 = 123,
+                    o5 = SECRET super_secret,
+                )",
+                options.clone(),
+            ),
+            (
+                "(
+                    o1 = 'abc',
+                    o2 = TRUE,
+                    o3 = def,
+                    o4 = 123,
+                    o5 = SECRET super_secret,
+                )",
+                options.clone(),
+            ),
+            (
+                "OPTIONS (
+                    o1 'abc',
+                    o2 TRUE,
+                    o3 def,
+                    o4 123,
+                    o5 SECRET super_secret,
+                )",
+                options.clone(),
+            ),
+            (
+                "(
+                    o1 'abc',
+                    o2 TRUE,
+                    o3 def,
+                    o4 123,
+                    o5 SECRET super_secret,
+                )",
+                options.clone(),
+            ),
+            // Empty
+            ("", BTreeMap::new()),
+            ("OPTIONS ( )", BTreeMap::new()),
+            ("()", BTreeMap::new()),
+        ];
+
+        for (sql, map) in test_cases {
+            let d = PostgreSqlDialect {};
+            let t = Tokenizer::new(&d, sql).tokenize().unwrap();
+            let mut p = CustomParser {
+                parser: Parser::new(&d).with_tokens(t),
+            };
+            let opts = p.parse_options().unwrap();
+            let expected_opts = StmtOptions::new(map);
+            assert_eq!(opts, expected_opts);
         }
     }
 }
