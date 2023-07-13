@@ -15,6 +15,7 @@ pub enum DatasourceUrl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatasourceUrlScheme {
     File,
+    Http,
     Gcs,
     S3,
 }
@@ -23,6 +24,7 @@ impl Display for DatasourceUrlScheme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::File => write!(f, "file"),
+            Self::Http => write!(f, "http(s)"),
             Self::Gcs => write!(f, "gs"),
             Self::S3 => write!(f, "s3"),
         }
@@ -30,6 +32,12 @@ impl Display for DatasourceUrlScheme {
 }
 
 impl DatasourceUrl {
+    const FILE_SCHEME: &str = "file";
+    const HTTP_SCHEME: &str = "http";
+    const HTTPS_SCHEME: &str = "https";
+    const GS_SCHEME: &str = "gs";
+    const S3_SCHEME: &str = "s3";
+
     pub fn new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
 
@@ -46,7 +54,7 @@ impl DatasourceUrl {
         };
 
         let ds_url = match ds_url.scheme() {
-            "file" => match ds_url.to_file_path() {
+            Self::FILE_SCHEME => match ds_url.to_file_path() {
                 Ok(f) => Self::File(f),
                 Err(()) => {
                     return Err(DatasourceCommonError::InvalidUrl(format!(
@@ -54,7 +62,9 @@ impl DatasourceUrl {
                     )))
                 }
             },
-            "gs" | "s3" => Self::Url(ds_url),
+            Self::HTTP_SCHEME | Self::HTTPS_SCHEME | Self::GS_SCHEME | Self::S3_SCHEME => {
+                Self::Url(ds_url)
+            }
             other => {
                 return Err(DatasourceCommonError::InvalidUrl(format!(
                     "unsupported scheme '{other}'"
@@ -69,8 +79,9 @@ impl DatasourceUrl {
         match self {
             Self::File(_) => DatasourceUrlScheme::File,
             Self::Url(u) => match u.scheme() {
-                "gs" => DatasourceUrlScheme::Gcs,
-                "s3" => DatasourceUrlScheme::S3,
+                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlScheme::Http,
+                Self::GS_SCHEME => DatasourceUrlScheme::Gcs,
+                Self::S3_SCHEME => DatasourceUrlScheme::S3,
                 _ => unreachable!(),
             },
         }
