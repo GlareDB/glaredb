@@ -41,18 +41,8 @@ impl GcsTableAccess {
 
     pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
         let store = self.builder().build()?;
-
-        let location = ObjectStorePath::from_url_path(&self.bucket_name).unwrap();
+        let location = ObjectStorePath::from_url_path(&self.location).unwrap();
         Ok((Arc::new(store), location))
-    }
-
-    pub fn into_object_store(&self) -> Result<Arc<dyn ObjectStore>> {
-        let store = self.builder().build()?;
-        Ok(Arc::new(store))
-    }
-
-    fn location(&self) -> ObjectStorePath {
-        ObjectStorePath::from_url_path(&self.location).unwrap()
     }
 }
 
@@ -100,9 +90,7 @@ impl TableAccessor for GcsAccessor {
 impl GcsAccessor {
     /// Setup accessor for GCS
     pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let store = access.into_object_store()?;
-        // Use provided file type or infer from location
-        let location = access.location();
+        let (store, location) = access.store_and_path()?;
 
         let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
         trace!(?location, ?file_type, "location and file type");
@@ -117,9 +105,7 @@ impl GcsAccessor {
     }
 
     pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
-        let store = Arc::new(access.builder().build()?);
-        let location = access.location();
-
+        let (store, location) = access.store_and_path()?;
         store.head(&location).await?;
         Ok(())
     }

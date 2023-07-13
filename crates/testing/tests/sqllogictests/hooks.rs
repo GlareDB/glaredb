@@ -17,6 +17,7 @@ pub struct AllTestsHook;
 
 impl AllTestsHook {
     const VAR_CURRENT_DATABASE: &str = "SLT_CURRENT_DATABASE";
+    const TMP_DIR: &str = "TMP";
 }
 
 #[async_trait]
@@ -27,11 +28,33 @@ impl Hook for AllTestsHook {
         _: &mut Client,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
+        // Create a unique temp dir and set the variable instead of using the
+        // TMP environment variable.
+        let tmp_dir = tempfile::tempdir()?;
+        let tmp_dir = tmp_dir.into_path();
+        vars.insert(
+            Self::TMP_DIR.to_owned(),
+            tmp_dir.to_string_lossy().into_owned(),
+        );
+
         // Set the current database to test database
         vars.insert(
             Self::VAR_CURRENT_DATABASE.to_owned(),
             config.get_dbname().unwrap().to_owned(),
         );
+        Ok(())
+    }
+
+    async fn post(
+        &self,
+        _config: &Config,
+        _client: &mut Client,
+        vars: &HashMap<String, String>,
+    ) -> Result<()> {
+        if let Some(tmp_dir) = vars.get(Self::TMP_DIR) {
+            // It's ok if we fail to remove the tmp directory.
+            let _res = tokio::fs::remove_dir_all(tmp_dir).await;
+        }
         Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use crate::context::SessionContext;
 use crate::parser::options::StmtOptions;
 use crate::parser::{
-    validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
+    self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
     AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt,
     CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt,
     DropTunnelStmt, StatementWithExtensions,
@@ -20,6 +20,7 @@ use datafusion::sql::TableReference;
 use datafusion_planner::planner::SqlQueryPlanner;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
 use datasources::debug::DebugTableType;
 use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
@@ -49,6 +50,7 @@ use metastoreproto::types::options::{
     TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
     TunnelOptionsSsh,
 };
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
@@ -1018,10 +1020,13 @@ impl<'a> SessionPlanner<'a> {
         let query = match stmt.source {
             CopyToSource::Table(table) => {
                 validate_object_name(&table)?;
-                let _table_ref = object_name_to_table_ref(table)?;
-                return Err(PlanError::UnsupportedFeature(
-                    "COPY .. TO .. with table source",
-                ));
+                let table_ref = object_name_to_table_ref(table)?;
+                let table_ref = quoted_table_ref(table_ref);
+                let query = format!("SELECT * FROM {table_ref}");
+                match parser::parse_sql(&query)?.pop_front() {
+                    Some(StatementWithExtensions::Statement(ast::Statement::Query(q))) => *q,
+                    _ => unreachable!(),
+                }
             }
             CopyToSource::Query(query) => query,
         };
@@ -1032,22 +1037,57 @@ impl<'a> SessionPlanner<'a> {
 
         let mut m = stmt.options;
 
-        validate_ident(&stmt.dest)?;
         let dest = normalize_ident(stmt.dest);
+
+        let (dest, uri) = if matches!(
+            dest.as_str(),
+            CopyToDestinationOptions::LOCAL
+                | CopyToDestinationOptions::GCS
+                | CopyToDestinationOptions::S3_STORAGE
+        ) {
+            (dest.as_str(), None)
+        } else {
+            let u = DatasourceUrl::new(&dest)?;
+            let d = match u.scheme() {
+                DatasourceUrlScheme::File => CopyToDestinationOptions::LOCAL,
+                DatasourceUrlScheme::Gcs => CopyToDestinationOptions::GCS,
+                DatasourceUrlScheme::S3 => CopyToDestinationOptions::S3_STORAGE,
+            };
+            (d, Some(u))
+        };
 
         let creds = stmt.credentials.map(normalize_ident);
         let creds_options = self.get_credentials_opts(&creds)?;
         if let Some(creds_options) = &creds_options {
-            validate_copyto_dest_creds_support(&dest, creds_options.as_str()).map_err(|e| {
+            validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
                 PlanError::InvalidExternalTable {
                     source: Box::new(e),
                 }
             })?;
         }
 
-        let dest = match dest.as_str() {
+        fn get_location(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+            let location = match uri.as_ref() {
+                Some(u) => u.path().into_owned(),
+                None => m.remove_required("location")?,
+            };
+            Ok(location)
+        }
+
+        fn get_bucket(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+            let bucket = match uri.as_ref() {
+                Some(u) => u
+                    .host()
+                    .ok_or(internal!("missing bucket name in URL"))?
+                    .to_string(),
+                None => m.remove_required("bucket")?,
+            };
+            Ok(bucket)
+        }
+
+        let dest = match dest {
             CopyToDestinationOptions::LOCAL => {
-                let location: String = m.remove_required("location")?;
+                let location = get_location(&mut m, &uri)?;
                 CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
             }
             CopyToDestinationOptions::GCS => {
@@ -1061,8 +1101,8 @@ impl<'a> SessionPlanner<'a> {
                         c.service_account_key.clone()
                     })?;
 
-                let bucket: String = m.remove_required("bucket")?;
-                let location: String = m.remove_required("location")?;
+                let bucket = get_bucket(&mut m, &uri)?;
+                let location = get_location(&mut m, &uri)?;
 
                 CopyToDestinationOptions::Gcs(CopyToDestinationOptionsGcs {
                     service_account_key,
@@ -1086,8 +1126,9 @@ impl<'a> SessionPlanner<'a> {
                     })?;
 
                 let region = m.remove_required("region")?;
-                let bucket = m.remove_required("bucket")?;
-                let location = m.remove_required("location")?;
+
+                let bucket = get_bucket(&mut m, &uri)?;
+                let location = get_location(&mut m, &uri)?;
 
                 CopyToDestinationOptions::S3(CopyToDestinationOptionsS3 {
                     access_key_id,
@@ -1097,13 +1138,29 @@ impl<'a> SessionPlanner<'a> {
                     location,
                 })
             }
-            // TODO: Parse "other" as a URL.
-            other => return Err(internal!("unsupported datasource: {}", other)),
+            other => {
+                return Err(internal!(
+                    "unsupported destination for copying data: {other}"
+                ))
+            }
         };
 
-        let format = match stmt.format.as_ref().map(|f| f.value.as_str()) {
+        let loc = dest.location();
+        let loc = Path::new(loc);
+        let ext = loc
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase());
+
+        let format = match stmt
+            .format
+            .as_ref()
+            .map(|f| f.value.as_str())
+            // Choose from specified format "OR" from location.
+            .or(ext.as_deref())
+        {
             None => {
-                // TODO: Choose the default based on "destination".
+                // TODO: Choose the default based on destination.
                 CopyToFormatOptions::default()
             }
             Some(CopyToFormatOptions::CSV) => {
@@ -1194,6 +1251,18 @@ fn object_name_to_table_ref(name: ObjectName) -> Result<OwnedTableReference> {
     Ok(r)
 }
 
+fn quoted_table_ref(table_ref: TableReference<'_>) -> String {
+    match table_ref {
+        TableReference::Bare { table } => format!("{table:?}"),
+        TableReference::Partial { schema, table } => format!("{schema:?}.{table:?}"),
+        TableReference::Full {
+            catalog,
+            schema,
+            table,
+        } => format!("{catalog:?}.{schema:?}.{table:?}"),
+    }
+}
+
 fn object_name_to_schema_ref(name: ObjectName) -> Result<SchemaReference> {
     let r = match object_name_to_table_ref(name)? {
         // Table becomes the schema and schema becomes the catalog.
@@ -1269,7 +1338,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
                 if matches!(tz_info, ast::TimezoneInfo::None)
                     || matches!(tz_info, ast::TimezoneInfo::WithoutTimeZone)
                 {
-                    Ok(DataType::Time64(TimeUnit::Microsecond))
+                    Ok(DataType::Time64(TimeUnit::Nanosecond))
                 } else {
                     // We dont support TIMETZ and TIME WITH TIME ZONE for now
                     Err(internal!(

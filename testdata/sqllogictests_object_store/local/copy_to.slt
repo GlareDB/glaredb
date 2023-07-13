@@ -1,0 +1,105 @@
+# Basic test for copy to.
+
+statement ok
+CREATE TEMP TABLE copy_to_table (a INT, b TEXT);
+
+statement ok
+INSERT INTO copy_to_table VALUES
+	(1, 'abc'),
+	(2, 'def');
+
+statement ok
+COPY ( SELECT * FROM copy_to_table LIMIT 1 )
+	TO local
+	OPTIONS (
+		location = '${TMP}/query_copy.csv'
+	);
+
+query IT
+SELECT a, b FROM csv_scan('${TMP}/query_copy.csv');
+----
+1	abc
+
+statement ok
+COPY ( SELECT * FROM copy_to_table LIMIT 1 )
+	TO '${TMP}/query_copy_url.csv';
+
+query IT
+SELECT a, b FROM csv_scan('${TMP}/query_copy_url.csv');
+----
+1	abc
+
+# Copying again overrides the file.
+
+statement ok
+COPY ( SELECT b FROM copy_to_table ORDER BY a DESC )
+	TO '${TMP}/query_copy_url.csv';
+
+query T
+SELECT * FROM csv_scan('${TMP}/query_copy_url.csv');
+----
+def
+abc
+
+statement ok
+COPY current_session.copy_to_table
+	TO '${TMP}/table_copy_url.csv';
+
+query IT
+SELECT a, b FROM csv_scan('${TMP}/table_copy_url.csv');
+----
+1	abc
+2	def
+
+# Test "FORMAT" parameter
+
+statement ok
+COPY copy_to_table
+	TO '${TMP}/csv_copy_without_ext'
+	FORMAT csv;
+
+query IT
+SELECT a, b FROM csv_scan('${TMP}/csv_copy_without_ext');
+----
+1	abc
+2	def
+
+# Test if format is tried by file extension.
+
+# JSON format
+statement ok
+COPY default.current_session.copy_to_table
+	TO '${TMP}/copy_file.json';
+
+query IT
+SELECT a, b FROM ndjson_scan('${TMP}/copy_file.json');
+----
+1	abc
+2	def
+
+# Parquet format
+statement ok
+COPY default.current_session.copy_to_table
+	TO '${TMP}/copy_file.parquet';
+
+query IT
+SELECT a, b FROM parquet_scan('${TMP}/copy_file.parquet');
+----
+1	abc
+2	def
+
+# Use default format if it can't be determined.
+
+statement ok
+COPY copy_to_table TO '${TMP}/random_file';
+
+query IT
+SELECT a, b FROM csv_scan('${TMP}/random_file');
+----
+1	abc
+2	def
+
+# Unsupported format errors
+
+statement error unsupported output format
+COPY copy_to_table TO '${TMP}/random_file.abc' FORMAT abc;
