@@ -1,6 +1,6 @@
 //! Module for facilitating interaction with the Metastore.
 use crate::errors::{ExecError, Result};
-use metastore::errors::MetastoreError;
+use metastoreproto::errors::MetastoreProtoError;
 use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastoreproto::proto::service::{
     FetchCatalogRequest, InitializeCatalogRequest, MutateRequest,
@@ -493,7 +493,7 @@ impl DatabaseWorker {
                             }))
                             .await
                     }
-                    Err(e) => Err(MetastoreError::from(e).into()),
+                    Err(e) => Err(MetastoreProtoError::from(e).into()),
                 };
 
                 let result = match result {

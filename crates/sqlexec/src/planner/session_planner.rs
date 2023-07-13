@@ -30,15 +30,10 @@ use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
 use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore::types::{
+use metastoreproto::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
     CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
-};
-use metastore::validation::{
-    validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
-    validate_database_creds_support, validate_database_tunnel_support,
-    validate_table_creds_support, validate_table_tunnel_support,
 };
 use metastoreproto::types::options::{
     CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsDebug, CredentialsOptionsGcp,
@@ -49,6 +44,11 @@ use metastoreproto::types::options::{
     TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
     TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
     TunnelOptionsSsh,
+};
+use metastoreproto::validation::{
+    validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
+    validate_database_creds_support, validate_database_tunnel_support,
+    validate_table_creds_support, validate_table_tunnel_support,
 };
 use std::path::Path;
 use std::str::FromStr;

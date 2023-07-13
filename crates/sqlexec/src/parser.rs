@@ -861,7 +861,7 @@ impl<'a> CustomParser<'a> {
 }
 
 pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
-    metastore::validation::validate_object_name(&ident.value)
+    metastoreproto::validation::validate_object_name(&ident.value)
         .map_err(|e| ParserError::ParserError(e.to_string()))
 }
 

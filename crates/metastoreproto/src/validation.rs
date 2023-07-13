@@ -1,9 +1,6 @@
-use crate::{
-    errors::{MetastoreError, Result},
-    types::CopyToDestinationOptions,
-};
-use metastoreproto::types::options::{
-    CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
+use crate::errors::{MetastoreProtoError, Result};
+use crate::types::options::{
+    CopyToDestinationOptions, CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
 
 /// Validate idents as per postgres identifier
@@ -11,7 +8,7 @@ use metastoreproto::types::options::{
 pub fn validate_object_name(name: &str) -> Result<()> {
     const POSTGRES_IDENT_MAX_LENGTH: usize = 63;
     if name.len() > POSTGRES_IDENT_MAX_LENGTH {
-        return Err(MetastoreError::InvalidNameLength {
+        return Err(MetastoreProtoError::InvalidNameLength {
             length: name.len(),
             max: POSTGRES_IDENT_MAX_LENGTH,
         });
@@ -33,7 +30,7 @@ pub fn validate_database_tunnel_support(database: &str, tunnel: &str) -> Result<
     ) {
         Ok(())
     } else {
-        Err(MetastoreError::TunnelNotSupportedByDatasource {
+        Err(MetastoreProtoError::TunnelNotSupportedByDatasource {
             tunnel: tunnel.to_owned(),
             datasource: database.to_owned(),
         })
@@ -53,7 +50,7 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
     ) {
         Ok(())
     } else {
-        Err(MetastoreError::TunnelNotSupportedByDatasource {
+        Err(MetastoreProtoError::TunnelNotSupportedByDatasource {
             tunnel: tunnel.to_owned(),
             datasource: table.to_owned(),
         })
@@ -69,7 +66,7 @@ pub fn validate_database_creds_support(database: &str, creds: &str) -> Result<()
     ) {
         Ok(())
     } else {
-        Err(MetastoreError::CredentialsNotSupportedByDatasource {
+        Err(MetastoreProtoError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: database.to_owned(),
         })
@@ -90,7 +87,7 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
     ) {
         Ok(())
     } else {
-        Err(MetastoreError::CredentialsNotSupportedByDatasource {
+        Err(MetastoreProtoError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: table.to_owned(),
         })
@@ -109,7 +106,7 @@ pub fn validate_copyto_dest_creds_support(dest: &str, creds: &str) -> Result<()>
     ) {
         Ok(())
     } else {
-        Err(MetastoreError::CredentialsNotSupportedByDatasource {
+        Err(MetastoreProtoError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: dest.to_owned(),
         })
@@ -129,7 +126,7 @@ pub fn validate_copyto_dest_format_support(dest: &str, format: &str) -> Result<(
     ) {
         Ok(())
     } else {
-        Err(MetastoreError::FormatNotSupportedByDatasource {
+        Err(MetastoreProtoError::FormatNotSupportedByDatasource {
             format: format.to_owned(),
             datasource: dest.to_owned(),
         })

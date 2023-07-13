@@ -48,7 +48,7 @@ pub enum ExecError {
     // TODO: Need to be more granular about errors from Metastore.
     #[error("Failed Metastore request: {message}")]
     MetastoreTonic {
-        strategy: metastore::errors::ResolveErrorStrategy,
+        strategy: metastoreproto::errors::ResolveErrorStrategy,
         message: String,
     },
 
@@ -81,7 +81,7 @@ pub enum ExecError {
     MissingObject { typ: &'static str, name: String },
 
     #[error(transparent)]
-    Metastore(#[from] metastore::errors::MetastoreError),
+    MetastoreProto(#[from] metastoreproto::errors::MetastoreProtoError),
 
     #[error(transparent)]
     ProtoConvError(#[from] metastoreproto::types::ProtoConvError),
@@ -152,7 +152,7 @@ impl From<tonic::Status> for ExecError {
     fn from(value: tonic::Status) -> Self {
         let strat = value
             .metadata()
-            .get(metastore::errors::RESOLVE_ERROR_STRATEGY_META)
+            .get(metastoreproto::errors::RESOLVE_ERROR_STRATEGY_META)
             .map(|val| ResolveErrorStrategy::from_bytes(val.as_ref()))
             .unwrap_or(ResolveErrorStrategy::Unknown);
 
@@ -172,4 +172,4 @@ macro_rules! internal {
     };
 }
 pub(crate) use internal;
-use metastore::errors::ResolveErrorStrategy;
+use metastoreproto::errors::ResolveErrorStrategy;

@@ -23,7 +23,7 @@ use datafusion::sql::TableReference;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
 use futures::future::BoxFuture;
-use metastore::errors::ResolveErrorStrategy;
+use metastoreproto::errors::ResolveErrorStrategy;
 use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::{CatalogEntry, EntryType};
 use metastoreproto::types::options::TableOptions;
