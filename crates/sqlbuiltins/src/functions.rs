@@ -12,20 +12,22 @@ use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datafusion::{arrow::datatypes::DataType, datasource::TableProvider, scalar::ScalarValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::listing::VirtualLister;
+use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
 use datasources::object_store::http::HttpAccessor;
 use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::object_store::{FileType, TableAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use futures::Stream;
-use metastoreproto::types::catalog::DatabaseEntry;
+use metastoreproto::types::catalog::{CredentialsEntry, DatabaseEntry};
 use metastoreproto::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
+    CredentialsOptions, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo,
+    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
 use num_traits::Zero;
 use once_cell::sync::Lazy;
@@ -34,7 +36,6 @@ use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use url::Url;
 
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -66,9 +67,9 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
-            Arc::new(ParquetScan),
-            Arc::new(CsvScan),
-            Arc::new(JsonScan),
+            Arc::new(PARQUET_SCAN),
+            Arc::new(CSV_SCAN),
+            Arc::new(JSON_SCAN),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
@@ -100,6 +101,7 @@ impl Default for BuiltinTableFuncs {
 
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
+    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
 }
 
 #[async_trait]
@@ -476,90 +478,70 @@ impl TableFunc for ReadSnowflake {
     }
 }
 
+pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Parquet, "parquet_scan");
+
+pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Csv, "csv_scan");
+
+pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Json, "ndjson_scan");
+
 #[derive(Debug, Clone, Copy)]
-pub struct ParquetScan;
+pub struct ObjScanTableFunc(FileType, &'static str);
 
 #[async_trait]
-impl TableFunc for ParquetScan {
+impl TableFunc for ObjScanTableFunc {
     fn name(&self) -> &str {
-        "parquet_scan"
+        let Self(_, name) = self;
+        name
     }
 
     fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[TableFuncParameter {
-                name: "url",
-                typ: DataType::Utf8,
-            }],
-        }];
+        const PARAMS: &[TableFuncParameters] = &[
+            TableFuncParameters {
+                params: &[TableFuncParameter {
+                    name: "url",
+                    typ: DataType::Utf8,
+                }],
+            },
+            TableFuncParameters {
+                params: &[
+                    TableFuncParameter {
+                        name: "url",
+                        typ: DataType::Utf8,
+                    },
+                    TableFuncParameter {
+                        name: "credentials",
+                        typ: DataType::Utf8,
+                    },
+                ],
+            },
+            TableFuncParameters {
+                params: &[
+                    TableFuncParameter {
+                        name: "url",
+                        typ: DataType::Utf8,
+                    },
+                    TableFuncParameter {
+                        name: "credentials",
+                        typ: DataType::Utf8,
+                    },
+                    TableFuncParameter {
+                        name: "region",
+                        typ: DataType::Utf8,
+                    },
+                ],
+            },
+        ];
 
         PARAMS
     }
 
     async fn create_provider(
         &self,
-        _: &dyn TableFuncContextProvider,
+        ctx: &dyn TableFuncContextProvider,
         args: Vec<ScalarValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        create_provider_for_filetype(FileType::Parquet, args).await
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CsvScan;
-
-#[async_trait]
-impl TableFunc for CsvScan {
-    fn name(&self) -> &str {
-        "csv_scan"
-    }
-
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[TableFuncParameter {
-                name: "url",
-                typ: DataType::Utf8,
-            }],
-        }];
-
-        PARAMS
-    }
-
-    async fn create_provider(
-        &self,
-        _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        create_provider_for_filetype(FileType::Csv, args).await
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct JsonScan;
-
-#[async_trait]
-impl TableFunc for JsonScan {
-    fn name(&self) -> &str {
-        "ndjson_scan"
-    }
-
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[TableFuncParameter {
-                name: "url",
-                typ: DataType::Utf8,
-            }],
-        }];
-
-        PARAMS
-    }
-
-    async fn create_provider(
-        &self,
-        _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        create_provider_for_filetype(FileType::Json, args).await
+        let Self(file_type, _) = self;
+        create_provider_for_filetype(ctx, *file_type, args).await
     }
 }
 
@@ -567,73 +549,142 @@ impl TableFunc for JsonScan {
 pub struct ListSchemas;
 
 async fn create_provider_for_filetype(
+    ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
     args: Vec<ScalarValue>,
 ) -> Result<Arc<dyn TableProvider>> {
-    match args.len() {
+    let store = match args.len() {
         1 => {
             let mut args = args.into_iter();
             let url_string = string_from_scalar(args.next().unwrap())?;
+            let source_url = DatasourceUrl::new(&url_string)?;
 
-            Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
-                Ok("http" | "https") => HttpAccessor::try_new(url_string, file_type)
+            match source_url.scheme() {
+                DatasourceUrlScheme::Http => HttpAccessor::try_new(url_string, file_type)
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    .into_table_provider(false)
+                    .into_table_provider(true)
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?,
-                Ok("gs") => return Err(BuiltinError::InvalidNumArgs),
-                // no scheme so we assume it's a local file
-                _ => {
-                    let location = url_string
-                        .strip_prefix("file://")
-                        // if it's not a file url, we assume it's a local file
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| url_string);
-
-                    let table_access = LocalTableAccess {
+                DatasourceUrlScheme::File => {
+                    let location = source_url.path().into_owned();
+                    LocalAccessor::new(LocalTableAccess {
                         location,
                         file_type: Some(file_type),
-                    };
-                    LocalAccessor::new(table_access)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    })
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(true)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
-            })
+                // TODO: GCS, S3 without auth (though can use HTTP URL if
+                // objects are public).
+                _ => {
+                    return Err(BuiltinError::Static(
+                        "Unsupported datasource URL for given parameters",
+                    ))
+                }
+            }
         }
         2 => {
             let mut args = args.into_iter();
             let url_string = string_from_scalar(args.next().unwrap())?;
-            Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
-                Ok("gs") => {
-                    let creds = string_from_scalar(args.next().unwrap())?;
-                    let url = Url::parse(&url_string).unwrap();
+            let source_url = DatasourceUrl::new(url_string)?;
 
-                    let bucket = url.host_str().unwrap().to_string();
-                    let location = url.path().to_string();
+            let creds = string_from_scalar(args.next().unwrap())?;
+            let creds = ctx
+                .get_credentials_entry(&creds)
+                .ok_or(BuiltinError::Static("missing credentials object"))?;
 
-                    let access = GcsTableAccess {
-                        bucket_name: bucket,
-                        location,
-                        service_acccount_key_json: Some(creds),
-                        file_type: Some(file_type),
+            match source_url.scheme() {
+                DatasourceUrlScheme::Gcs => {
+                    let service_account_key = match &creds.options {
+                        CredentialsOptions::Gcp(o) => o.service_account_key.to_owned(),
+                        _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
                     };
-                    GcsAccessor::new(access)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+
+                    let bucket_name = source_url
+                        .host()
+                        .map(|b| b.to_owned())
+                        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+
+                    let location = source_url.path().into_owned();
+
+                    GcsAccessor::new(GcsTableAccess {
+                        bucket_name,
+                        service_acccount_key_json: Some(service_account_key),
+                        location,
+                        file_type: Some(file_type),
+                    })
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(true)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
-                _ => return Err(BuiltinError::InvalidNumArgs),
-            })
+                _ => {
+                    return Err(BuiltinError::Static(
+                        "Unsupported datasource URL for given parameters",
+                    ))
+                }
+            }
         }
-        _ => Err(BuiltinError::InvalidNumArgs),
-    }
+        3 => {
+            let mut args = args.into_iter();
+            let url_string = string_from_scalar(args.next().unwrap())?;
+            let source_url = DatasourceUrl::new(url_string)?;
+
+            let creds = string_from_scalar(args.next().unwrap())?;
+            let creds = ctx
+                .get_credentials_entry(&creds)
+                .ok_or(BuiltinError::Static("missing credentials object"))?;
+
+            match source_url.scheme() {
+                DatasourceUrlScheme::S3 => {
+                    let (access_key_id, secret_access_key) = match &creds.options {
+                        CredentialsOptions::Aws(o) => {
+                            (o.access_key_id.to_owned(), o.secret_access_key.to_owned())
+                        }
+                        _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
+                    };
+
+                    let bucket_name = source_url
+                        .host()
+                        .map(|b| b.to_owned())
+                        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+
+                    let location = source_url.path().into_owned();
+
+                    // S3 requires a region parameter.
+                    let region = string_from_scalar(args.next().unwrap())?;
+
+                    S3Accessor::new(S3TableAccess {
+                        bucket_name,
+                        location,
+                        file_type: Some(file_type),
+                        region,
+                        access_key_id: Some(access_key_id),
+                        secret_access_key: Some(secret_access_key),
+                    })
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(true)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                }
+                _ => {
+                    return Err(BuiltinError::Static(
+                        "Unsupported datasource URL for given parameters",
+                    ))
+                }
+            }
+        }
+        _ => return Err(BuiltinError::InvalidNumArgs),
+    };
+    Ok(store)
 }
+
 #[async_trait]
 impl TableFunc for ListSchemas {
     fn name(&self) -> &str {
