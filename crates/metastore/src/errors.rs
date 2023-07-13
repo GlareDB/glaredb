@@ -1,4 +1,4 @@
-use metastoreproto::errors::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
+use metastore_client::errors::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
 
 #[derive(thiserror::Error, Debug)]
 pub enum MetastoreError {
@@ -21,7 +21,7 @@ pub enum MetastoreError {
     },
 
     #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
-    BuiltinObjectPersisted(metastoreproto::types::catalog::EntryMeta),
+    BuiltinObjectPersisted(metastore_client::types::catalog::EntryMeta),
 
     #[error("Missing database catalog: {0}")]
     MissingCatalog(uuid::Uuid),
@@ -74,7 +74,7 @@ pub enum MetastoreError {
     FailedInProcessStartup(String),
 
     #[error("Cannot modify builtin object: {0:?}")]
-    CannotModifyBuiltin(metastoreproto::types::catalog::CatalogEntry),
+    CannotModifyBuiltin(metastore_client::types::catalog::CatalogEntry),
 
     #[error("Cannot exceed {max} objects in a database")]
     MaxNumberOfObjects { max: usize },
@@ -83,13 +83,13 @@ pub enum MetastoreError {
     Storage(#[from] crate::storage::StorageError),
 
     #[error(transparent)]
-    ProtoConv(#[from] metastoreproto::types::ProtoConvError),
+    ProtoConv(#[from] metastore_client::types::ProtoConvError),
 
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]
-    MetastoreProto(#[from] metastoreproto::errors::MetastoreProtoError),
+    MetastoreClient(#[from] metastore_client::errors::MetastoreClientError),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;

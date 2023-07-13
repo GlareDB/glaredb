@@ -23,7 +23,7 @@ use datafusion::physical_plan::{
 };
 use errors::DebugError;
 use futures::Stream;
-use metastoreproto::types::options::TunnelOptions;
+use metastore_client::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;

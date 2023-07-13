@@ -2,7 +2,7 @@ use tonic::metadata::AsciiMetadataValue;
 use tracing::warn;
 
 #[derive(thiserror::Error, Debug)]
-pub enum MetastoreProtoError {
+pub enum MetastoreClientError {
     #[error("Invalid object name length: {length}, max: {max}")]
     InvalidNameLength { length: usize, max: usize },
 
@@ -25,10 +25,10 @@ pub enum MetastoreProtoError {
     ProtoConv(#[from] crate::types::ProtoConvError),
 }
 
-pub type Result<T, E = MetastoreProtoError> = std::result::Result<T, E>;
+pub type Result<T, E = MetastoreClientError> = std::result::Result<T, E>;
 
-impl From<MetastoreProtoError> for tonic::Status {
-    fn from(value: MetastoreProtoError) -> Self {
+impl From<MetastoreClientError> for tonic::Status {
+    fn from(value: MetastoreClientError) -> Self {
         let strat = value.resolve_error_strategy();
         let mut status = tonic::Status::from_error(Box::new(value));
         status
@@ -79,7 +79,7 @@ impl ResolveErrorStrategy {
     }
 }
 
-impl MetastoreProtoError {
+impl MetastoreClientError {
     pub fn resolve_error_strategy(&self) -> ResolveErrorStrategy {
         match self {
             Self::VersionMismtatch { .. } => ResolveErrorStrategy::FetchCatalogAndRetry,

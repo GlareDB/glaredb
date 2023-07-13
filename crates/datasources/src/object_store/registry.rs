@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use datafusion::{error::DataFusionError, execution::object_store::ObjectStoreRegistry};
-use metastoreproto::{
+use metastore_client::{
     session::NamespacedCatalogEntry,
     types::options::{TableOptionsGcs, TableOptionsS3},
 };
@@ -23,8 +23,8 @@ pub struct GlareDBRegistry {
 impl GlareDBRegistry {
     /// Create a new registry for a set of catalog entries.
     pub fn try_new<'a>(entries: impl Iterator<Item = NamespacedCatalogEntry<'a>>) -> Result<Self> {
-        use metastoreproto::types::catalog::CatalogEntry;
-        use metastoreproto::types::options::TableOptions;
+        use metastore_client::types::catalog::CatalogEntry;
+        use metastore_client::types::options::TableOptions;
         let object_stores: DashMap<String, Arc<dyn ObjectStore>> = DashMap::new();
         object_stores.insert("file://".to_string(), Arc::new(LocalFileSystem::new()));
         for entry in entries {

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
-use metastoreproto::proto::service::metastore_service_client::MetastoreServiceClient;
+use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
 use std::fs;
 use std::path::PathBuf;
 use tonic::transport::Channel;

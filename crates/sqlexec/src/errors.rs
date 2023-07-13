@@ -26,8 +26,8 @@ pub enum ExecError {
 
     #[error("Unexpected entry type; got: {got}, want: {want}")]
     UnexpectedEntryType {
-        got: metastoreproto::types::catalog::EntryType,
-        want: metastoreproto::types::catalog::EntryType,
+        got: metastore_client::types::catalog::EntryType,
+        want: metastore_client::types::catalog::EntryType,
     },
 
     #[error("Missing connection by name; schema: {schema}, name: {name}")]
@@ -48,7 +48,7 @@ pub enum ExecError {
     // TODO: Need to be more granular about errors from Metastore.
     #[error("Failed Metastore request: {message}")]
     MetastoreTonic {
-        strategy: metastoreproto::errors::ResolveErrorStrategy,
+        strategy: metastore_client::errors::ResolveErrorStrategy,
         message: String,
     },
 
@@ -81,10 +81,10 @@ pub enum ExecError {
     MissingObject { typ: &'static str, name: String },
 
     #[error(transparent)]
-    MetastoreProto(#[from] metastoreproto::errors::MetastoreProtoError),
+    MetastoreClient(#[from] metastore_client::errors::MetastoreClientError),
 
     #[error(transparent)]
-    ProtoConvError(#[from] metastoreproto::types::ProtoConvError),
+    ProtoConvError(#[from] metastore_client::types::ProtoConvError),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
@@ -152,7 +152,7 @@ impl From<tonic::Status> for ExecError {
     fn from(value: tonic::Status) -> Self {
         let strat = value
             .metadata()
-            .get(metastoreproto::errors::RESOLVE_ERROR_STRATEGY_META)
+            .get(metastore_client::errors::RESOLVE_ERROR_STRATEGY_META)
             .map(|val| ResolveErrorStrategy::from_bytes(val.as_ref()))
             .unwrap_or(ResolveErrorStrategy::Unknown);
 
@@ -172,4 +172,4 @@ macro_rules! internal {
     };
 }
 pub(crate) use internal;
-use metastoreproto::errors::ResolveErrorStrategy;
+use metastore_client::errors::ResolveErrorStrategy;

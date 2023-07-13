@@ -19,11 +19,11 @@ use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::object_store::TableAccessor;
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastoreproto::session::SessionCatalog;
-use metastoreproto::types::catalog::{
+use metastore_client::session::SessionCatalog;
+use metastore_client::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
-use metastoreproto::types::options::{
+use metastore_client::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
     TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
