@@ -19,11 +19,6 @@ use datasources::object_store::s3::{S3Accessor, S3TableAccess};
 use datasources::object_store::TableAccessor;
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore::builtins::{
-    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
-    GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS,
-    GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
-};
 use metastoreproto::session::SessionCatalog;
 use metastoreproto::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
@@ -34,6 +29,11 @@ use metastoreproto::types::options::{
     TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
     TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
     TableOptionsSnowflake, TunnelOptions,
+};
+use sqlbuiltins::builtins::{
+    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
+    GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS,
+    GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 use std::str::FromStr;
 use std::sync::Arc;
