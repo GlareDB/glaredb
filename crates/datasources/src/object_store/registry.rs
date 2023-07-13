@@ -99,6 +99,7 @@ impl ObjectStoreRegistry for GlareDBRegistry {
                 }
             })
             .ok_or_else(|| {
+                println!("-----No suitable object store found for {url}------");
                 DataFusionError::Internal(format!("No suitable object store found for {url}"))
             })
     }
