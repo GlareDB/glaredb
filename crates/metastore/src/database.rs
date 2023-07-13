@@ -1182,7 +1182,6 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtins::DEFAULT_CATALOG;
     use crate::storage::persist::Storage;
     use metastoreproto::types::options::DatabaseOptionsDebug;
     use metastoreproto::types::options::TableOptionsDebug;
@@ -1192,6 +1191,7 @@ mod tests {
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
     };
     use object_store::memory::InMemory;
+    use sqlbuiltins::builtins::DEFAULT_CATALOG;
     use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {
