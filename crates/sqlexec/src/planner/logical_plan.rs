@@ -5,8 +5,8 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
-use metastore::types::{CopyToDestinationOptions, CopyToFormatOptions};
-use metastoreproto::types::options::{
+use metastore_client::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
+use metastore_client::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
 use std::collections::HashMap;

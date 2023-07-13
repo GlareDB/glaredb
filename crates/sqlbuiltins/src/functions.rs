@@ -24,8 +24,8 @@ use datasources::object_store::{FileType, TableAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use futures::Stream;
-use metastoreproto::types::catalog::{CredentialsEntry, DatabaseEntry};
-use metastoreproto::types::options::{
+use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
+use metastore_client::types::options::{
     CredentialsOptions, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo,
     DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };

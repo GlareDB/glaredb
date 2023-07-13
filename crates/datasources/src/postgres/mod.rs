@@ -28,7 +28,7 @@ use datafusion::physical_plan::Statistics;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use metastoreproto::types::options::TunnelOptions;
+use metastore_client::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};

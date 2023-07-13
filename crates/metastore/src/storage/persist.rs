@@ -3,9 +3,9 @@ use crate::storage::{
     Result, SingletonStorageObject, StorageError, StorageObject, VersionedStorageObject,
 };
 use bytes::BytesMut;
-use metastoreproto::proto::storage;
-use metastoreproto::types::catalog::CatalogState;
-use metastoreproto::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
+use metastore_client::proto::storage;
+use metastore_client::types::catalog::CatalogState;
+use metastore_client::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use prost::Message;

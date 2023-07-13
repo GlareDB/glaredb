@@ -1,7 +1,7 @@
 use crate::delta::catalog::{DataCatalog, UnityCatalog};
 use crate::delta::errors::Result;
 use deltalake::DeltaTable;
-use metastoreproto::types::options::{DeltaLakeCatalog, DeltaLakeUnityCatalog};
+use metastore_client::types::options::{DeltaLakeCatalog, DeltaLakeUnityCatalog};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;

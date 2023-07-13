@@ -1,5 +1,5 @@
 [package]
-name = "metastoreproto"
+name = "metastore_client"
 version = {workspace = true}
 edition = {workspace = true}
 

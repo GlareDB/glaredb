@@ -17,8 +17,8 @@
 
 use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
 use bytes::BytesMut;
-use metastoreproto::proto::storage;
-use metastoreproto::types::storage::{LeaseInformation, LeaseState};
+use metastore_client::proto::storage;
+use metastore_client::types::storage::{LeaseInformation, LeaseState};
 use object_store::{path::Path as ObjectPath, Error as ObjectStoreError, ObjectStore};
 use prost::Message;
 use std::sync::atomic::{AtomicBool, Ordering};
