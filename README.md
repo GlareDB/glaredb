@@ -76,6 +76,7 @@ CREATE EXTERNAL DATABASE my_pg
 Once the data source has been added, it can be queried using fully qualified
 table names:
 
+
 ```sql
 SELECT *
 FROM my_pg.public.lineitem
