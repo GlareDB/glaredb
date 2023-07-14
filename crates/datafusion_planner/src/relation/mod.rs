@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::f32::consts::E;
 use std::sync::Arc;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-use ast::{Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue};
 
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result};
@@ -51,10 +49,10 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                         // Table factor has arguments, look up table returning
                         // function.
 
-                        let scalars = args
-                            .into_iter()
-                            .map(|arg| self.get_constant_function_arg(arg))
-                            .collect::<Result<Vec<_>, _>>()?;
+                        // let scalars = args
+                        //     .into_iter()
+                        //     .map(|arg| self.get_constant_function_arg(arg))
+                        //     .collect::<Result<Vec<_>, _>>()?;
 
                         let func = self
                             .schema_provider
@@ -67,7 +65,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
                         let table_fn_provider = self.schema_provider.table_fn_ctx_provider();
                         let provider = func
-                            .create_provider(&table_fn_provider, scalars)
+                            .create_provider(&table_fn_provider, args.as_slice())
                             .await
                             .map_err(|e| DataFusionError::Plan(e.to_string()))?;
 
@@ -174,4 +172,3 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
     }
 }
-

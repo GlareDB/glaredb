@@ -14,5 +14,5 @@ mod vars;
 pub use planner::logical_plan::LogicalPlan;
 
 pub mod export {
-    pub use sqlparser;
+    pub use datafusion::sql::sqlparser;
 }

@@ -19,7 +19,6 @@ thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.71"
 serde_json = "1.0.100"
-sqlparser = "0.35.0"
 datafusion = {workspace = true}
 futures = "0.3.28"
 tracing = "0.1"

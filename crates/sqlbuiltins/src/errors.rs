@@ -1,5 +1,5 @@
-use datafusion::{arrow::datatypes::DataType, scalar::ScalarValue};
-use sqlparser::ast::FunctionArg;
+use datafusion::arrow::datatypes::DataType;
+use datafusion::sql::sqlparser::ast::FunctionArg;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuiltinError {
