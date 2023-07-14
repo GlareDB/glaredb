@@ -1,0 +1,63 @@
+# Basic tests for copy to.
+
+statement ok
+COPY ( SELECT 1 AS a, 2 AS b ) TO s3
+	OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+        region = '${AWS_S3_REGION}',
+        bucket = '${AWS_S3_BUCKET_NAME}',
+        location = 'copy_to/with_opts.csv'
+	);
+
+query II
+SELECT * FROM csv_scan(
+	's3://${AWS_S3_BUCKET_NAME}/copy_to/with_opts.csv',
+    access_key_id => '${AWS_ACCESS_KEY_ID}',
+    secret_access_key => '${AWS_SECRET_ACCESS_KEY}',
+    region => '${AWS_S3_REGION}'
+);
+----
+1	2
+
+statement ok
+COPY ( SELECT 3 AS a, 4 AS b )
+	TO 's3://${AWS_S3_BUCKET_NAME}/copy_to/with_url.csv'
+	OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+        region = '${AWS_S3_REGION}',
+	);
+
+query II
+SELECT b, a FROM csv_scan(
+	's3://${AWS_S3_BUCKET_NAME}/copy_to/with_url.csv',
+    access_key_id => '${AWS_ACCESS_KEY_ID}',
+    secret_access_key => '${AWS_SECRET_ACCESS_KEY}',
+    region => '${AWS_S3_REGION}'
+);
+----
+4	3
+
+# Credentials
+statement ok
+CREATE CREDENTIALS aws_creds PROVIDER aws
+	OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+	);
+
+statement ok
+COPY ( SELECT 5 AS a, 6 AS b )
+	TO 's3://${AWS_S3_BUCKET_NAME}/copy_to/with_creds.csv'
+	CREDENTIALS aws_creds
+	( region '${AWS_S3_REGION}' );
+
+query II
+SELECT a, b FROM csv_scan(
+	's3://${AWS_S3_BUCKET_NAME}/copy_to/with_creds.csv',
+	aws_Creds,
+    region => '${AWS_S3_REGION}'
+);
+----
+5	6
