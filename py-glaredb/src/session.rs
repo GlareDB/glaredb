@@ -4,7 +4,11 @@ use datafusion::arrow::record_batch::RecordBatch;
 use futures::lock::Mutex;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
+use pyo3::{
+    exceptions::PyRuntimeError,
+    prelude::*,
+    types::{IntoPyDict, PyTuple},
+};
 use sqlexec::{
     engine::{Engine, TrackedSession},
     parser,
@@ -169,6 +173,26 @@ impl PyExecutionResult {
 
             let result = table.call_method0(py, "to_pandas")?;
             Ok(result)
+        })
+    }
+
+    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
+    pub fn show(&mut self, py: Python, show_metadata: bool, n_cols: u64) -> PyResult<()> {
+        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
+
+        Python::with_gil(|py| {
+            let table_class = py.import("pyarrow")?.getattr("Table")?;
+            let args = PyTuple::new(py, &[batches, schema]);
+            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
+
+            let key_vals: &[(&str, PyObject)] = &[
+                ("show_metadata", show_metadata.to_object(py)),
+                ("preview_cols", n_cols.to_object(py)),
+            ];
+            let dict = key_vals.into_py_dict(py);
+            let result = table.call_method(py, "to_string", (), Some(dict))?;
+            println!("{}", result);
+            Ok(())
         })
     }
 }
