@@ -77,11 +77,12 @@ async fn object_meta_from_head(url: &url::Url) -> Result<ObjectMeta> {
         "Missing content-length header",
     ))?;
 
-    let path = url.path();
-    let path = ObjectStorePath::from_url_path(path).unwrap();
-    println!("path: {path}");
-
     Ok(ObjectMeta {
+        // Note that we're not providing a path here since the http object store
+        // will already have the full url to use.
+        //
+        // This is a workaround for object store percent encoding already
+        // percent encoded paths.
         location: ObjectStorePath::default(),
         last_modified: Utc::now(),
         size: len as usize,

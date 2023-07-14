@@ -17,3 +17,12 @@ query I
 select count(*) from parquet_scan('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet');
 ----
 1000
+
+# Huggingface (percent encoded paths)
+#
+# Note that this is a pretty big file, but the limit will be pushed down to the
+# exec, ensuring we don't need to load the whole thing.
+query T
+select length(head) > 1 from parquet_scan('https://huggingface.co/datasets/allenai/soda/resolve/refs%2Fconvert%2Fparquet/allenai--soda/parquet-train-00000-of-00003.parquet') limit 1;
+----
+t
