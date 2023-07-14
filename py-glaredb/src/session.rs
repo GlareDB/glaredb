@@ -176,7 +176,6 @@ impl PyExecutionResult {
         })
     }
 
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn show(&mut self, py: Python, show_metadata: bool, n_cols: u64) -> PyResult<()> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
