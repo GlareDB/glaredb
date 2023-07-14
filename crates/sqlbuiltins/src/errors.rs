@@ -1,4 +1,5 @@
 use datafusion::{arrow::datatypes::DataType, scalar::ScalarValue};
+use sqlparser::ast::FunctionArg;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuiltinError {
@@ -7,14 +8,14 @@ pub enum BuiltinError {
 
     #[error("Unexpected argument for function. Got '{scalar}', need value of type '{expected}'")]
     UnexpectedArg {
-        scalar: ScalarValue,
+        scalar: FunctionArg,
         expected: DataType,
     },
 
     #[error("Unexpected argument for function, expected {expected}, found '{scalars:?}'")]
     UnexpectedArgs {
         expected: String,
-        scalars: Vec<ScalarValue>,
+        scalars: Vec<FunctionArg>,
     },
 
     #[error("Unable to find {obj_typ}: '{name}'")]

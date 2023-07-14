@@ -29,6 +29,8 @@ use metastoreproto::types::options::{
 };
 use num_traits::Zero;
 use once_cell::sync::Lazy;
+use sqlparser::ast::FunctionArg;
+use sqlparser::ast::{Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue};
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
@@ -123,7 +125,7 @@ pub trait TableFunc: Sync + Send {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>>;
 }
 
@@ -160,14 +162,14 @@ impl TableFunc for ReadPostgres {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str = string_from_scalar(args.next().unwrap())?;
-                let schema = string_from_scalar(args.next().unwrap())?;
-                let table = string_from_scalar(args.next().unwrap())?;
+                let conn_str = String::try_from_sql_arg(args.next().unwrap())?;
+                let schema = String::try_from_sql_arg(args.next().unwrap())?;
+                let table = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let access = PostgresAccessor::connect(&conn_str, None)
                     .await
@@ -227,15 +229,15 @@ impl TableFunc for ReadBigQuery {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             4 => {
                 let mut args = args.into_iter();
-                let service_account = string_from_scalar(args.next().unwrap())?;
-                let project_id = string_from_scalar(args.next().unwrap())?;
-                let dataset_id = string_from_scalar(args.next().unwrap())?;
-                let table_id = string_from_scalar(args.next().unwrap())?;
+                let service_account = String::try_from_sql_arg(args.next().unwrap())?;
+                let project_id = String::try_from_sql_arg(args.next().unwrap())?;
+                let dataset_id = String::try_from_sql_arg(args.next().unwrap())?;
+                let table_id = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let access = BigQueryAccessor::connect(service_account, project_id)
                     .await
@@ -291,14 +293,14 @@ impl TableFunc for ReadMongoDb {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str = string_from_scalar(args.next().unwrap())?;
-                let database = string_from_scalar(args.next().unwrap())?;
-                let collection = string_from_scalar(args.next().unwrap())?;
+                let conn_str = String::try_from_sql_arg(args.next().unwrap())?;
+                let database = String::try_from_sql_arg(args.next().unwrap())?;
+                let collection = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let access = MongoAccessor::connect(&conn_str)
                     .await
@@ -352,14 +354,14 @@ impl TableFunc for ReadMysql {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str = string_from_scalar(args.next().unwrap())?;
-                let schema = string_from_scalar(args.next().unwrap())?;
-                let table = string_from_scalar(args.next().unwrap())?;
+                let conn_str = String::try_from_sql_arg(args.next().unwrap())?;
+                let schema = String::try_from_sql_arg(args.next().unwrap())?;
+                let table = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let access = MysqlAccessor::connect(&conn_str, None)
                     .await
@@ -435,19 +437,19 @@ impl TableFunc for ReadSnowflake {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             8 => {
                 let mut args = args.into_iter();
-                let account = string_from_scalar(args.next().unwrap())?;
-                let username = string_from_scalar(args.next().unwrap())?;
-                let password = string_from_scalar(args.next().unwrap())?;
-                let database = string_from_scalar(args.next().unwrap())?;
-                let warehouse = string_from_scalar(args.next().unwrap())?;
-                let role = string_from_scalar(args.next().unwrap())?;
-                let schema = string_from_scalar(args.next().unwrap())?;
-                let table = string_from_scalar(args.next().unwrap())?;
+                let account = String::try_from_sql_arg(args.next().unwrap())?;
+                let username = String::try_from_sql_arg(args.next().unwrap())?;
+                let password = String::try_from_sql_arg(args.next().unwrap())?;
+                let database = String::try_from_sql_arg(args.next().unwrap())?;
+                let warehouse = String::try_from_sql_arg(args.next().unwrap())?;
+                let role = String::try_from_sql_arg(args.next().unwrap())?;
+                let schema = String::try_from_sql_arg(args.next().unwrap())?;
+                let table = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let conn_params = SnowflakeDbConnection {
                     account_name: account,
@@ -499,7 +501,7 @@ impl TableFunc for ParquetScan {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         create_provider_for_filetype(FileType::Parquet, args).await
     }
@@ -528,7 +530,7 @@ impl TableFunc for CsvScan {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         create_provider_for_filetype(FileType::Csv, args).await
     }
@@ -557,7 +559,7 @@ impl TableFunc for JsonScan {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         create_provider_for_filetype(FileType::Json, args).await
     }
@@ -568,12 +570,12 @@ pub struct ListSchemas;
 
 async fn create_provider_for_filetype(
     file_type: FileType,
-    args: Vec<ScalarValue>,
+    args: &[FunctionArg],
 ) -> Result<Arc<dyn TableProvider>> {
     match args.len() {
         1 => {
             let mut args = args.into_iter();
-            let url_string = string_from_scalar(args.next().unwrap())?;
+            let url_string = String::try_from_sql_arg(args.next().unwrap())?;
 
             Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
                 Ok("http" | "https") => HttpAccessor::try_new(url_string, file_type)
@@ -606,10 +608,10 @@ async fn create_provider_for_filetype(
         }
         2 => {
             let mut args = args.into_iter();
-            let url_string = string_from_scalar(args.next().unwrap())?;
+            let url_string = String::try_from_sql_arg(args.next().unwrap())?;
             Ok(match Url::parse(&url_string).as_ref().map(Url::scheme) {
                 Ok("gs") => {
-                    let creds = string_from_scalar(args.next().unwrap())?;
+                    let creds = String::try_from_sql_arg(args.next().unwrap())?;
                     let url = Url::parse(&url_string).unwrap();
 
                     let bucket = url.host_str().unwrap().to_string();
@@ -654,12 +656,12 @@ impl TableFunc for ListSchemas {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             1 => {
                 let mut args = args.into_iter();
-                let database = string_from_scalar(args.next().unwrap())?;
+                let database = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
@@ -712,13 +714,13 @@ impl TableFunc for ListTables {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {
                 let mut args = args.into_iter();
-                let database = string_from_scalar(args.next().unwrap())?;
-                let schema_name = string_from_scalar(args.next().unwrap())?;
+                let database = String::try_from_sql_arg(args.next().unwrap())?;
+                let schema_name = String::try_from_sql_arg(args.next().unwrap())?;
 
                 let fields = vec![Field::new("table_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
@@ -894,7 +896,7 @@ impl TableFunc for GenerateSeries {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<ScalarValue>,
+        args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {
@@ -903,20 +905,20 @@ impl TableFunc for GenerateSeries {
                 let stop = args.next().unwrap();
                 if is_scalar_int(&start) && is_scalar_int(&stop) {
                     create_straming_table::<GenerateSeriesTypeInt>(
-                        i64_from_scalar(start)?,
-                        i64_from_scalar(stop)?,
+                        i64::try_from_sql_arg(start)?,
+                        i64::try_from_sql_arg(stop)?,
                         1,
                     )
                 } else if is_scalar_float(&start) && is_scalar_float(&stop) {
                     create_straming_table::<GenerateSeriesTypeFloat>(
-                        f64_from_scalar(start)?,
-                        f64_from_scalar(stop)?,
+                        f64::try_from_sql_arg(start)?,
+                        f64::try_from_sql_arg(stop)?,
                         1.0f64,
                     )
                 } else {
                     return Err(BuiltinError::UnexpectedArgs {
                         expected: String::from("ints or floats"),
-                        scalars: vec![start, stop],
+                        scalars: vec![start.clone(), stop.clone()],
                     });
                 }
             }
@@ -927,23 +929,23 @@ impl TableFunc for GenerateSeries {
                 let step = args.next().unwrap();
                 if is_scalar_int(&start) && is_scalar_int(&stop) && is_scalar_int(&step) {
                     create_straming_table::<GenerateSeriesTypeInt>(
-                        i64_from_scalar(start)?,
-                        i64_from_scalar(stop)?,
-                        i64_from_scalar(step)?,
+                        i64::try_from_sql_arg(start)?,
+                        i64::try_from_sql_arg(stop)?,
+                        i64::try_from_sql_arg(step)?,
                     )
                 } else if is_scalar_float(&start)
                     && is_scalar_float(&stop)
                     && is_scalar_float(&step)
                 {
                     create_straming_table::<GenerateSeriesTypeFloat>(
-                        f64_from_scalar(start)?,
-                        f64_from_scalar(stop)?,
-                        f64_from_scalar(step)?,
+                        f64::try_from_sql_arg(start)?,
+                        f64::try_from_sql_arg(stop)?,
+                        f64::try_from_sql_arg(step)?,
                     )
                 } else {
                     return Err(BuiltinError::UnexpectedArgs {
                         expected: String::from("ints or floats"),
-                        scalars: vec![start, stop, step],
+                        scalars: vec![start.clone(), stop.clone(), step.clone()],
                     });
                 }
             }
@@ -1100,66 +1102,86 @@ impl<T: GenerateSeriesType> RecordBatchStream for GenerateSeriesStream<T> {
     }
 }
 
-fn i64_from_scalar(val: ScalarValue) -> Result<i64> {
+fn is_scalar_int(val: &SqlFunctionArg) -> bool {
+    use sqlparser::ast::FunctionArgExpr;
     match val {
-        ScalarValue::Int8(Some(v)) => Ok(v as i64),
-        ScalarValue::Int16(Some(v)) => Ok(v as i64),
-        ScalarValue::Int32(Some(v)) => Ok(v as i64),
-        ScalarValue::Int64(Some(v)) => Ok(v),
-        ScalarValue::UInt8(Some(v)) => Ok(v as i64),
-        ScalarValue::UInt16(Some(v)) => Ok(v as i64),
-        ScalarValue::UInt32(Some(v)) => Ok(v as i64),
-        ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
-        other => Err(BuiltinError::UnexpectedArg {
-            scalar: other,
-            expected: DataType::Int64,
-        }),
+        FunctionArg::Named { .. } => false,
+        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
+            SqlValue::Number(s, _) => !s.contains('.'),
+            _ => todo!(),
+        },
+        _ => false,
     }
 }
 
-fn f64_from_scalar(val: ScalarValue) -> Result<f64> {
-    match val {
-        ScalarValue::Int8(Some(v)) => Ok(v as f64),
-        ScalarValue::Int16(Some(v)) => Ok(v as f64),
-        ScalarValue::Int32(Some(v)) => Ok(v as f64),
-        ScalarValue::Int64(Some(v)) => Ok(v as f64),
-        ScalarValue::UInt8(Some(v)) => Ok(v as f64),
-        ScalarValue::UInt16(Some(v)) => Ok(v as f64),
-        ScalarValue::UInt32(Some(v)) => Ok(v as f64),
-        ScalarValue::UInt64(Some(v)) => Ok(v as f64),
-        ScalarValue::Float32(Some(v)) => Ok(v as f64),
-        ScalarValue::Float64(Some(v)) => Ok(v),
-        other => Err(BuiltinError::UnexpectedArg {
-            scalar: other,
-            expected: DataType::Float64,
-        }),
+fn is_scalar_float(val: &SqlFunctionArg) -> bool {
+    !is_scalar_int(val)
+}
+
+pub trait FromSqlArg {
+    fn try_from_sql_arg(arg: &SqlFunctionArg) -> Result<Self>
+    where
+        Self: Sized;
+}
+
+impl FromSqlArg for String {
+    fn try_from_sql_arg(arg: &SqlFunctionArg) -> Result<Self> {
+        use sqlparser::ast::FunctionArgExpr;
+        match arg {
+            FunctionArg::Named { .. } => todo!(),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
+                SqlValue::UnQuotedString(s),
+            ))) => Ok(s.clone()),
+            other => Err(BuiltinError::UnexpectedArg {
+                scalar: other.clone(),
+                expected: DataType::Utf8,
+            }),
+        }
     }
 }
 
-fn string_from_scalar(val: ScalarValue) -> Result<String> {
-    match val {
-        ScalarValue::Utf8(Some(s)) => Ok(s),
-        other => Err(BuiltinError::UnexpectedArg {
-            scalar: other,
-            expected: DataType::Utf8,
-        }),
+impl FromSqlArg for i64 {
+    fn try_from_sql_arg(arg: &SqlFunctionArg) -> Result<Self> {
+        use sqlparser::ast::FunctionArgExpr;
+        match arg {
+            FunctionArg::Named { .. } => todo!(),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => {
+                match v {
+                    SqlValue::Number(s, _) => {
+                        // Check for existence of decimal separator dot
+                        if s.contains('.') {
+                            Err(BuiltinError::UnexpectedArg {
+                                scalar: arg.clone(),
+                                expected: DataType::Int64,
+                            })
+                        } else {
+                            Ok(s.parse::<i64>().unwrap())
+                        }
+                    }
+                    _ => todo!(),
+                }
+            }
+            other => Err(BuiltinError::UnexpectedArg {
+                scalar: other.clone(),
+                expected: DataType::Int64,
+            }),
+        }
     }
 }
 
-fn is_scalar_int(val: &ScalarValue) -> bool {
-    matches!(
-        *val,
-        ScalarValue::Int8(_)
-            | ScalarValue::Int16(_)
-            | ScalarValue::Int32(_)
-            | ScalarValue::Int64(_)
-            | ScalarValue::UInt8(_)
-            | ScalarValue::UInt16(_)
-            | ScalarValue::UInt32(_)
-            | ScalarValue::UInt64(_)
-    )
-}
-
-fn is_scalar_float(val: &ScalarValue) -> bool {
-    matches!(*val, ScalarValue::Float32(_) | ScalarValue::Float64(_)) | is_scalar_int(val)
+impl FromSqlArg for f64 {
+    fn try_from_sql_arg(arg: &SqlFunctionArg) -> Result<Self> {
+        use sqlparser::ast::FunctionArgExpr;
+        match arg {
+            FunctionArg::Named { .. } => todo!(),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
+                SqlValue::Number(s, _) => Ok(s.parse::<f64>().unwrap()),
+                _ => todo!(),
+            },
+            other => Err(BuiltinError::UnexpectedArg {
+                scalar: other.clone(),
+                expected: DataType::Int64,
+            }),
+        }
+    }
 }

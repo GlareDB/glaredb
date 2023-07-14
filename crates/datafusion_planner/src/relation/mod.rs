@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::f32::consts::E;
 use std::sync::Arc;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use ast::{Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue};
+
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result};
 use datafusion::datasource::DefaultTableSource;
@@ -171,3 +174,4 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
     }
 }
+
