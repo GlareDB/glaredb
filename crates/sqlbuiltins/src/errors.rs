@@ -15,7 +15,7 @@ pub enum BuiltinError {
     #[error(
         "Unexpected argument for function, expected {}, found '{}'",
         expected,
-        crate::functions::FuncParamValue::multiple_to_string(&params)
+        crate::functions::FuncParamValue::multiple_to_string(params)
     )]
     UnexpectedArgs {
         params: Vec<crate::functions::FuncParamValue>,

@@ -125,11 +125,11 @@ impl fmt::Display for FuncParamValue {
 
 impl FuncParamValue {
     /// Print multiple function parameter values.
-    pub fn multiple_to_string(vals: &[Self]) -> String {
+    pub fn multiple_to_string<T: AsRef<[Self]>>(vals: T) -> String {
         let mut s = String::new();
         write!(&mut s, "(").unwrap();
         let mut sep = "";
-        for val in vals {
+        for val in vals.as_ref() {
             write!(&mut s, "{sep}{val}").unwrap();
             sep = ", ";
         }
@@ -157,7 +157,6 @@ trait FromFuncParamValue: Sized {
 impl FromFuncParamValue for String {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
-            FuncParamValue::Ident(s) => Ok(s),
             FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Ok(s),
             other => Err(BuiltinError::UnexpectedArg {
                 param: other,
@@ -167,10 +166,40 @@ impl FromFuncParamValue for String {
     }
 
     fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Ident(_) | FuncParamValue::Scalar(ScalarValue::Utf8(Some(_)))
-        )
+        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
+    }
+}
+
+struct IdentValue(String);
+
+impl IdentValue {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<String> for IdentValue {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl From<IdentValue> for String {
+    fn from(value: IdentValue) -> Self {
+        value.0
+    }
+}
+
+impl FromFuncParamValue for IdentValue {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Ident(s) => Ok(Self(s)),
+            _other => Err(BuiltinError::Static("expected an identifier")),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(value, FuncParamValue::Ident(_))
     }
 }
 
@@ -797,9 +826,9 @@ async fn create_provider_for_filetype(
             let url_string: String = args.next().unwrap().param_into()?;
             let source_url = DatasourceUrl::new(url_string)?;
 
-            let creds: String = args.next().unwrap().param_into()?;
+            let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
-                .get_credentials_entry(&creds)
+                .get_credentials_entry(creds.as_str())
                 .ok_or(BuiltinError::Static("missing credentials object"))?;
 
             match source_url.scheme() {
@@ -902,12 +931,12 @@ impl TableFunc for ListSchemas {
         match args.len() {
             1 => {
                 let mut args = args.into_iter();
-                let database: String = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().param_into()?;
 
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database).await?;
+                let lister = get_db_lister(ctx, database.into()).await?;
                 let schema_list = lister
                     .list_schemas()
                     .await
@@ -961,15 +990,15 @@ impl TableFunc for ListTables {
         match args.len() {
             2 => {
                 let mut args = args.into_iter();
-                let database: String = args.next().unwrap().param_into()?;
-                let schema_name: String = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().param_into()?;
+                let schema_name: IdentValue = args.next().unwrap().param_into()?;
 
                 let fields = vec![Field::new("table_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database).await?;
+                let lister = get_db_lister(ctx, database.into()).await?;
                 let tables_list = lister
-                    .list_tables(&schema_name)
+                    .list_tables(schema_name.as_str())
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?;
                 let tables_list: StringArray = tables_list.into_iter().map(Some).collect();

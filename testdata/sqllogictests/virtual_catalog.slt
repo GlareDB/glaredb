@@ -4,7 +4,7 @@ statement ok
 CREATE EXTERNAL DATABASE virt_cat FROM debug;
 
 query T rowsort
-SELECT * FROM list_schemas('virt_cat');
+SELECT * FROM list_schemas(virt_cat);
 ----
 schema_0
 schema_1
@@ -12,7 +12,7 @@ schema_1
 # Check if it only fetches for the given schema name.
 
 query TT rowsort
-SELECT * FROM list_tables('virt_cat', 'debug_schema');
+SELECT * FROM list_tables(virt_cat, debug_schema);
 ----
 debug_schema_table_0
 debug_schema_table_1
