@@ -877,7 +877,6 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
- "metastore",
  "pgsrv",
  "regex",
  "tokio",
@@ -2021,7 +2020,7 @@ dependencies = [
  "futures",
  "gcp-bigquery-client",
  "logutil",
- "metastoreproto",
+ "metastore_client",
  "mongodb",
  "mysql_async",
  "mysql_common",
@@ -2742,7 +2741,7 @@ dependencies = [
  "futures",
  "logutil",
  "metastore",
- "metastoreproto",
+ "metastore_client",
  "nu-ansi-term 0.47.0",
  "object_store",
  "object_store_util",
@@ -3506,7 +3505,7 @@ dependencies = [
  "datafusion",
  "futures",
  "logutil",
- "metastoreproto",
+ "metastore_client",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -3526,7 +3525,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "metastoreproto"
+name = "metastore_client"
 version = "0.2.0"
 dependencies = [
  "async-trait",
@@ -5766,7 +5765,6 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
- "metastore",
  "object_store",
  "pgsrv",
  "regex",
@@ -5876,7 +5874,7 @@ dependencies = [
  "datasources",
  "futures",
  "logutil",
- "metastoreproto",
+ "metastore_client",
  "num-traits",
  "object_store",
  "once_cell",
@@ -5904,7 +5902,7 @@ dependencies = [
  "futures",
  "logutil",
  "metastore",
- "metastoreproto",
+ "metastore_client",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -6185,7 +6183,6 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
- "metastore",
  "num_cpus",
  "object_store",
  "openssh",

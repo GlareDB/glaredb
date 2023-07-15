@@ -20,7 +20,7 @@ deltalake = { workspace = true }
 futures = "0.3.28"
 gcp-bigquery-client = "0.17.0"
 logutil = {path = "../logutil"}
-metastoreproto = { path = "../metastoreproto" }
+metastore_client = { path = "../metastore_client" }
 mongodb = "2.6.0"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.30.6", features = ["chrono"] }

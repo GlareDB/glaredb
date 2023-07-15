@@ -25,7 +25,7 @@ pub enum NativeError {
     },
 
     #[error("Table entry not a native table: {0}")]
-    NotNative(metastoreproto::types::catalog::TableEntry),
+    NotNative(metastore_client::types::catalog::TableEntry),
 
     #[error("{0}")]
     Static(&'static str),

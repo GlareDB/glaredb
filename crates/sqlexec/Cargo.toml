@@ -8,8 +8,7 @@ edition = {workspace = true}
 [dependencies]
 logutil = {path = "../logutil"}
 pgrepr = {path = "../pgrepr"}
-metastore = {path = "../metastore"}
-metastoreproto = { path = "../metastoreproto" }
+metastore_client = { path = "../metastore_client" }
 datafusion_planner = { path = "../datafusion_planner" }
 telemetry = {path = "../telemetry"}
 sqlbuiltins = {path = "../sqlbuiltins"}
@@ -33,3 +32,4 @@ url.workspace = true
 [dev-dependencies]
 tempfile = "3"
 tower = "0.4"
+metastore = { path = "../metastore" }

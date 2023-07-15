@@ -1,24 +1,24 @@
 //! Module for handling the catalog for a single database.
-use crate::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_SCHEMA_ID,
-};
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
-use crate::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
-};
-use metastoreproto::types::catalog::{
+use metastore_client::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, EntryMeta, EntryType,
     FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
-use metastoreproto::types::options::{
+use metastore_client::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
 };
-use metastoreproto::types::service::Mutation;
-use metastoreproto::types::storage::{ExtraState, PersistedCatalog};
+use metastore_client::types::service::Mutation;
+use metastore_client::types::storage::{ExtraState, PersistedCatalog};
+use metastore_client::validation::{
+    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
+use sqlbuiltins::builtins::{
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    FIRST_NON_SCHEMA_ID,
+};
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1182,16 +1182,16 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtins::DEFAULT_CATALOG;
     use crate::storage::persist::Storage;
-    use metastoreproto::types::options::DatabaseOptionsDebug;
-    use metastoreproto::types::options::TableOptionsDebug;
-    use metastoreproto::types::service::AlterDatabaseRename;
-    use metastoreproto::types::service::DropDatabase;
-    use metastoreproto::types::service::{
+    use metastore_client::types::options::DatabaseOptionsDebug;
+    use metastore_client::types::options::TableOptionsDebug;
+    use metastore_client::types::service::AlterDatabaseRename;
+    use metastore_client::types::service::DropDatabase;
+    use metastore_client::types::service::{
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
     };
     use object_store::memory::InMemory;
+    use sqlbuiltins::builtins::DEFAULT_CATALOG;
     use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {

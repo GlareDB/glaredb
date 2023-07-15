@@ -16,9 +16,10 @@ use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_planner::planner::AsyncContextProvider;
-use metastore::builtins::DEFAULT_CATALOG;
-use metastoreproto::types::catalog::CatalogEntry;
-use metastoreproto::types::catalog::DatabaseEntry;
+use metastore_client::types::catalog::CatalogEntry;
+use metastore_client::types::catalog::CredentialsEntry;
+use metastore_client::types::catalog::DatabaseEntry;
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::TableFunc;
 use sqlbuiltins::functions::TableFuncContextProvider;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -235,5 +236,9 @@ pub struct TableFnCtxProvider<'a> {
 impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
         self.ctx.get_session_catalog().resolve_database(name)
+    }
+
+    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
+        self.ctx.get_session_catalog().resolve_credentials(name)
     }
 }

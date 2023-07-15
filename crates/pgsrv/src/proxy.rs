@@ -257,7 +257,8 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
         params.insert(GLAREDB_USER_ID_KEY.key.to_string(), db_details.user_id);
         params.insert(
             GLAREDB_MAX_DATASOURCE_COUNT_KEY.key.to_string(),
-            db_details.max_datasource_count.to_string(),
+            // use default here since we no longer get this from the cloud service
+            GLAREDB_MAX_DATASOURCE_COUNT_KEY.default.to_string(),
         );
         params.insert(
             GLAREDB_MEMORY_LIMIT_BYTES_KEY.key.to_string(),
@@ -265,7 +266,8 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
         );
         params.insert(
             GLAREDB_MAX_TUNNEL_COUNT_KEY.key.to_string(),
-            db_details.max_tunnel_count.to_string(),
+            // use default here since we no longer get this from the cloud service
+            GLAREDB_MAX_TUNNEL_COUNT_KEY.default.to_string(),
         );
         params.insert(
             GLAREDB_GCS_STORAGE_BUCKET_KEY.to_string(),

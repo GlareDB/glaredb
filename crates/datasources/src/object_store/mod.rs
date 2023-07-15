@@ -20,7 +20,7 @@ pub mod parquet;
 pub mod registry;
 pub mod s3;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum FileType {
     Csv,
     Parquet,

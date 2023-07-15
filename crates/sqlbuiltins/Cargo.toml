@@ -8,7 +8,7 @@ edition = {workspace = true}
 [dependencies]
 logutil = {path = "../logutil"}
 pgrepr = {path = "../pgrepr"}
-metastoreproto = { path = "../metastoreproto" }
+metastore_client = { path = "../metastore_client" }
 telemetry = {path = "../telemetry"}
 datasources = {path = "../datasources"}
 thiserror.workspace = true
