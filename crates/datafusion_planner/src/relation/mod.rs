@@ -64,15 +64,10 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             })?;
 
                         let table_fn_provider = self.schema_provider.table_fn_ctx_provider();
-                        let provider = func
-                            .create_provider(&table_fn_provider, args.as_slice())
+                        let plan = func
+                            .create_logical_plan(table_ref, &table_fn_provider, args.as_slice())
                             .await
                             .map_err(|e| DataFusionError::Plan(e.to_string()))?;
-
-                        let source = Arc::new(DefaultTableSource::new(provider));
-
-                        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
-                        let plan = plan_builder.build()?;
 
                         (plan, alias)
                     }

@@ -4,15 +4,17 @@ use async_trait::async_trait;
 use datafusion::arrow::array::{Array, Float64Array, Int64Array, StringArray};
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::OwnedTableReference;
 use datafusion::datasource::streaming::{PartitionStream, StreamingTable};
-use datafusion::datasource::MemTable;
+use datafusion::datasource::{DefaultTableSource, MemTable};
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::TaskContext;
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use datafusion::sql::sqlparser::ast::FunctionArg;
 use datafusion::sql::sqlparser::ast::{
     Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue,
 };
+use datafusion::sql::sqlparser::ast::{FunctionArg, FunctionArgExpr};
 use datafusion::{arrow::datatypes::DataType, datasource::TableProvider};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::listing::VirtualLister;
@@ -131,6 +133,21 @@ pub trait TableFunc: Sync + Send {
         ctx: &dyn TableFuncContextProvider,
         args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>>;
+
+    /// Return a table provider using the provided args.
+    async fn create_logical_plan(
+        &self,
+        table_ref: OwnedTableReference,
+        ctx: &dyn TableFuncContextProvider,
+        args: &[FunctionArg],
+    ) -> Result<LogicalPlan> {
+        let provider = self.create_provider(ctx, args).await?;
+        let source = Arc::new(DefaultTableSource::new(provider));
+
+        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
+        let plan = plan_builder.build()?;
+        Ok(plan)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -545,7 +562,46 @@ impl TableFunc for ObjScanTableFunc {
         args: &[FunctionArg],
     ) -> Result<Arc<dyn TableProvider>> {
         let Self(file_type, _) = self;
-        create_provider_for_filetype(ctx, *file_type, args).await
+        let first = &args[0];
+        let url_string: String = first.extract()?;
+
+        create_provider_for_filetype(ctx, *file_type, url_string, &args[1..]).await
+    }
+
+    async fn create_logical_plan(
+        &self,
+        table_ref: OwnedTableReference,
+        ctx: &dyn TableFuncContextProvider,
+        args: &[FunctionArg],
+    ) -> Result<LogicalPlan> {
+        if !is_scalar_array(&args[0]) {
+            let provider = self.create_provider(ctx, args).await?;
+            let source = Arc::new(DefaultTableSource::new(provider));
+            let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
+            let plan = pb.build()?;
+            Ok(plan)
+        } else {
+            let first = &args[0];
+            let urls: Vec<String> = first.extract()?;
+            let urls = urls.as_slice();
+            let first_url = &urls[0];
+            let provider =
+                create_provider_for_filetype(ctx, self.0, first_url.clone(), &args[1..]).await?;
+            let source = Arc::new(DefaultTableSource::new(provider));
+
+            let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
+
+            for url in &urls[1..] {
+                let provider =
+                    create_provider_for_filetype(ctx, self.0, url.clone(), &args[1..]).await?;
+                let source = Arc::new(DefaultTableSource::new(provider));
+                let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
+                let plan = pb.build()?;
+
+                plan_builder = plan_builder.union(plan)?;
+            }
+            Ok(plan_builder.build()?)
+        }
     }
 }
 
@@ -555,12 +611,11 @@ pub struct ListSchemas;
 async fn create_provider_for_filetype(
     ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
+    url_string: String,
     args: &[FunctionArg],
 ) -> Result<Arc<dyn TableProvider>> {
     let store = match args.len() {
-        1 => {
-            let mut args = args.into_iter();
-            let url_string: String = args.next().unwrap().extract()?;
+        0 => {
             let source_url = DatasourceUrl::new(&url_string)?;
 
             match source_url.scheme() {
@@ -591,7 +646,7 @@ async fn create_provider_for_filetype(
                 }
             }
         }
-        2 => {
+        1 => {
             let mut args = args.into_iter();
             let url_string: String = args.next().unwrap().extract()?;
             let source_url = DatasourceUrl::new(url_string)?;
@@ -634,7 +689,7 @@ async fn create_provider_for_filetype(
                 }
             }
         }
-        3 => {
+        2 => {
             let mut args = args.into_iter();
             let url_string: String = args.next().unwrap().extract()?;
             let source_url = DatasourceUrl::new(url_string)?;
@@ -1153,7 +1208,6 @@ impl<T: GenerateSeriesType> RecordBatchStream for GenerateSeriesStream<T> {
 }
 
 fn is_scalar_int(val: &SqlFunctionArg) -> bool {
-    use datafusion::sql::sqlparser::ast::FunctionArgExpr;
     match val {
         FunctionArg::Named { .. } => false,
         FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
@@ -1167,6 +1221,12 @@ fn is_scalar_int(val: &SqlFunctionArg) -> bool {
 fn is_scalar_float(val: &SqlFunctionArg) -> bool {
     !is_scalar_int(val)
 }
+fn is_scalar_array(val: &FunctionArg) -> bool {
+    matches!(
+        val,
+        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Array(_)))
+    )
+}
 
 pub trait ExtractInto<T> {
     fn extract(&self) -> Result<T>;
@@ -1174,23 +1234,52 @@ pub trait ExtractInto<T> {
 
 impl ExtractInto<String> for SqlFunctionArg {
     fn extract(&self) -> Result<String> {
-        use datafusion::sql::sqlparser::ast::FunctionArgExpr;
         match self {
             FunctionArg::Named { .. } => todo!(),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
                 SqlValue::UnQuotedString(s),
             ))) => Ok(s.clone()),
-            other => Err(BuiltinError::UnexpectedArg {
-                scalar: other.clone(),
-                expected: DataType::Utf8,
-            }),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
+                SqlValue::SingleQuotedString(s),
+            ))) => Ok(s.clone()),
+            other => {
+                Err(BuiltinError::UnexpectedArg {
+                    scalar: other.clone(),
+                    expected: DataType::Utf8,
+                })
+            }
+        }
+    }
+}
+
+impl ExtractInto<Vec<String>> for SqlFunctionArg {
+    fn extract(&self) -> Result<Vec<String>> {
+        match self {
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) => match expr {
+                SqlExpr::Array(arr) => arr
+                    .elem
+                    .iter()
+                    .map(|e| match e {
+                        SqlExpr::Value(SqlValue::SingleQuotedString(s)) => Ok(s.clone()),
+                        _ => Err(BuiltinError::UnexpectedArg {
+                            scalar: self.clone(),
+                            expected: DataType::Utf8,
+                        }),
+                    })
+                    .collect(),
+                other => {
+                    todo!()
+                }
+            },
+            other => {
+                todo!()
+            }
         }
     }
 }
 
 impl ExtractInto<f64> for SqlFunctionArg {
     fn extract(&self) -> Result<f64> {
-        use datafusion::sql::sqlparser::ast::FunctionArgExpr;
         match self {
             FunctionArg::Named { .. } => todo!(),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
@@ -1206,7 +1295,6 @@ impl ExtractInto<f64> for SqlFunctionArg {
 }
 impl ExtractInto<i64> for SqlFunctionArg {
     fn extract(&self) -> Result<i64> {
-        use datafusion::sql::sqlparser::ast::FunctionArgExpr;
         match self {
             FunctionArg::Named { .. } => todo!(),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => {
