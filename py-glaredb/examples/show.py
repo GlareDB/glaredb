@@ -11,7 +11,7 @@ df = pl.DataFrame(
         "cars": ["beetle", "audi", "beetle", "beetle", "beetle"],
     }
 )
-con.sql("select * from df where fruits = 'banana'").show(True, 2)
+con.sql("select * from df where fruits = 'banana'").show()
 
 df = pd.DataFrame(
     {
@@ -24,4 +24,4 @@ df = pd.DataFrame(
 
 con = glaredb.connect()
 
-con.sql("select * from df where fruits = 'banana'").show(True, 4);
+con.sql("select * from df where fruits = 'banana'").show();

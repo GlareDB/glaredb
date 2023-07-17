@@ -1,14 +1,12 @@
 use anyhow::Result;
-use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::util::display::FormatOptions;
+use datafusion::arrow::{datatypes::Schema, util::pretty};
 use futures::lock::Mutex;
 use futures::StreamExt;
+use once_cell::sync::Lazy;
 use pgrepr::format::Format;
-use pyo3::{
-    exceptions::PyRuntimeError,
-    prelude::*,
-    types::{IntoPyDict, PyTuple},
-};
+use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::{
     engine::{Engine, TrackedSession},
     parser,
@@ -129,6 +127,33 @@ fn to_arrow_batches_and_schema(
     }
 }
 
+static TABLE_FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
+    FormatOptions::default()
+        .with_display_error(false)
+        .with_null("NULL")
+});
+
+fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
+    match result {
+        ExecutionResult::Query { stream, .. } => {
+            let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
+                Ok(stream
+                    .collect::<Vec<_>>()
+                    .await
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()?)
+            });
+
+            let disp =
+                pretty::pretty_format_batches_with_options(&batches.unwrap(), &TABLE_FORMAT_OPTS)
+                    .unwrap();
+            println!("{disp}");
+            Ok(())
+        }
+        _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
+    }
+}
+
 #[pymethods]
 impl PyExecutionResult {
     /// Convert to Arrow Table
@@ -176,22 +201,8 @@ impl PyExecutionResult {
         })
     }
 
-    pub fn show(&mut self, py: Python, show_metadata: bool, n_cols: u64) -> PyResult<()> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-
-            let key_vals: &[(&str, PyObject)] = &[
-                ("show_metadata", show_metadata.to_object(py)),
-                ("preview_cols", n_cols.to_object(py)),
-            ];
-            let dict = key_vals.into_py_dict(py);
-            let result = table.call_method(py, "to_string", (), Some(dict))?;
-            println!("{}", result);
-            Ok(())
-        })
+    pub fn show(&mut self, py: Python) -> PyResult<()> {
+        print_batch(&mut self.0, py)?;
+        Ok(())
     }
 }

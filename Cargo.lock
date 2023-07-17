@@ -4609,6 +4609,7 @@ dependencies = [
  "datafusion",
  "futures",
  "metastore",
+ "once_cell",
  "pgrepr",
  "pgsrv",
  "pyo3",
