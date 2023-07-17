@@ -18,17 +18,17 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
+use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::engine::{EngineStorageConfig, SessionLimits};
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
+use sqlexec::vars::SessionVars;
 use std::env;
 use std::fmt::Write as _;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use telemetry::Tracker;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputMode {
@@ -119,15 +119,7 @@ impl LocalSession {
 
         Ok(LocalSession {
             sess: engine
-                .new_session(
-                    Uuid::nil(),
-                    "glaredb".to_string(),
-                    Uuid::nil(),
-                    Uuid::nil(),
-                    "glaredb".to_string(),
-                    SessionLimits::default(),
-                    SessionStorageConfig::default(),
-                )
+                .new_session(SessionVars::default(), SessionStorageConfig::default())
                 .await?,
             _engine: engine,
             opts,

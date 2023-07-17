@@ -1,5 +1,4 @@
 use crate::context::Portal;
-use crate::engine::SessionInfo;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result as DatafusionResult;
@@ -28,7 +27,10 @@ const UNKNOWN_RESULT_TYPE: &str = "unknown";
 /// batch instead of recreating one every time this gets queried.
 #[derive(Debug)]
 pub struct SessionMetrics {
-    info: Arc<SessionInfo>,
+    user_id: Uuid,
+    database_id: Uuid,
+    connection_id: Uuid,
+
     tracker: Arc<Tracker>,
 
     completed_rx: mpsc::Receiver<QueryMetrics>,
@@ -38,10 +40,17 @@ pub struct SessionMetrics {
 }
 
 impl SessionMetrics {
-    pub fn new(info: Arc<SessionInfo>, tracker: Arc<Tracker>) -> SessionMetrics {
+    pub fn new(
+        user_id: Uuid,
+        database_id: Uuid,
+        connection_id: Uuid,
+        tracker: Arc<Tracker>,
+    ) -> SessionMetrics {
         let (tx, rx) = mpsc::channel(1);
         SessionMetrics {
-            info,
+            user_id,
+            database_id,
+            connection_id,
             tracker,
             completed_rx: rx,
             completed_tx: tx,
@@ -70,11 +79,11 @@ impl SessionMetrics {
     pub fn push_metric(&mut self, metric: QueryMetrics) {
         self.tracker.track(
             "Execution metric",
-            self.info.user_id,
+            self.user_id,
             json!({
                 // Additional info.
-                "database_id": self.info.database_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
-                "connection_id": self.info.conn_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
+                "database_id": self.database_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
+                "connection_id": self.connection_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
 
                 // Metric fields.
                 "query_text": metric.query_text,
