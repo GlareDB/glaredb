@@ -4,7 +4,7 @@ use crate::object_store::{errors::ObjectStoreSourceError, Result, TableAccessor}
 
 use chrono::Utc;
 use datafusion::datasource::TableProvider;
-use object_store::{ObjectMeta, ObjectStore};
+use object_store::{path::Path as ObjectStorePath, ObjectMeta, ObjectStore};
 
 use super::{
     csv::CsvTableProvider, json::JsonTableProvider, parquet::ParquetTableProvider, FileType,
@@ -23,14 +23,14 @@ impl HttpAccessor {
         let url = url::Url::parse(&url).unwrap();
         let meta = object_meta_from_head(&url).await?;
         let builder = object_store::http::HttpBuilder::new();
-        let url = format!("{}://{}", url.scheme(), url.authority());
-        let store = builder.with_url(url.clone()).build()?;
+        let base_url = format!("{}://{}", url.scheme(), url.authority());
+        let store = builder.with_url(url.to_string()).build()?;
 
         Ok(Self {
             store: Arc::new(store),
             meta: Arc::new(meta),
             file_type,
-            base_url: url,
+            base_url,
         })
     }
 }
@@ -71,8 +71,6 @@ impl TableAccessor for HttpAccessor {
 /// We avoid using object store's `head` method since it does a PROPFIND
 /// request.
 async fn object_meta_from_head(url: &url::Url) -> Result<ObjectMeta> {
-    use object_store::path::Path as ObjectStorePath;
-
     let res = reqwest::Client::new().head(url.clone()).send().await?;
 
     let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
@@ -80,8 +78,14 @@ async fn object_meta_from_head(url: &url::Url) -> Result<ObjectMeta> {
     ))?;
 
     Ok(ObjectMeta {
-        location: ObjectStorePath::from_url_path(url.path()).unwrap(),
+        // Note that we're not providing a path here since the http object store
+        // will already have the full url to use.
+        //
+        // This is a workaround for object store percent encoding already
+        // percent encoded paths.
+        location: ObjectStorePath::default(),
         last_modified: Utc::now(),
         size: len as usize,
+        e_tag: None,
     })
 }

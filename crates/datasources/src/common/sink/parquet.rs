@@ -1,8 +1,10 @@
 use async_trait::async_trait;
 use datafusion::common::Result as DfResult;
+use datafusion::execution::TaskContext;
 use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::physical_plan::DisplayAs;
+use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use std::fmt;
@@ -34,6 +36,15 @@ pub struct ParquetSink {
 impl fmt::Display for ParquetSink {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ParquetSink({}:{})", self.store, self.loc)
+    }
+}
+
+impl DisplayAs for ParquetSink {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default => write!(f, "{self}"),
+            DisplayFormatType::Verbose => write!(f, "{self}"),
+        }
     }
 }
 
@@ -75,7 +86,11 @@ impl ParquetSink {
 
 #[async_trait]
 impl DataSink for ParquetSink {
-    async fn write_all(&self, stream: SendableRecordBatchStream) -> DfResult<u64> {
+    async fn write_all(
+        &self,
+        stream: SendableRecordBatchStream,
+        _context: &Arc<TaskContext>,
+    ) -> DfResult<u64> {
         self.stream_into_inner(stream).await.map(|x| x as u64)
     }
 }
