@@ -17,26 +17,6 @@ use tonic::transport::Channel;
 use tracing::{debug, info};
 use uuid::Uuid;
 
-/// Static information for database sessions.
-#[derive(Debug, Clone)]
-pub struct SessionInfo {
-    /// Database id that this session is connected to.
-    pub database_id: Uuid,
-    // Name of the database we're connected to.
-    pub database_name: String,
-    /// ID of the user who initiated the connection. This maps to a user account
-    /// on Cloud.
-    pub user_id: Uuid,
-    /// Name of the (database) user.
-    pub user_name: String,
-    /// Unique connection id.
-    pub conn_id: Uuid,
-    /// Limits that should be applied for this session.
-    pub limits: SessionLimits,
-    /// Storage for this session.
-    pub storage: SessionStorageConfig,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct SessionStorageConfig {
     /// The bucket that should be used for database storage for a session.
@@ -153,7 +133,8 @@ impl Engine {
         self.session_counter.load(Ordering::Relaxed)
     }
 
-    /// Create a new session.
+    /// Create a new session, initializing it with the provided session
+    /// variables.
     pub async fn new_session(
         &self,
         vars: SessionVars,

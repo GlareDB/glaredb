@@ -1,5 +1,4 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
-use crate::engine::SessionInfo;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -188,8 +187,13 @@ impl Session {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Session> {
-        // let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, spill_path);
+        let metrics = SessionMetrics::new(
+            *vars.user_id.value(),
+            *vars.database_id.value(),
+            *vars.connection_id.value(),
+            tracker,
+        );
+        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, metrics, spill_path);
         Ok(Session { ctx })
     }
 

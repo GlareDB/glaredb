@@ -67,8 +67,8 @@ pub struct SessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
-    // /// Track query metrics for this session.
-    // metrics: SessionMetrics,
+    /// Track query metrics for this session.
+    metrics: SessionMetrics,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -92,6 +92,7 @@ impl SessionContext {
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         native_tables: NativeTableStorage,
+        metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
     ) -> SessionContext {
         // NOTE: We handle catalog/schema defaults and information schemas
@@ -142,6 +143,7 @@ impl SessionContext {
             vars,
             prepared: HashMap::new(),
             portals: HashMap::new(),
+            metrics,
             df_state: state,
             env_reader: None,
         }
@@ -156,13 +158,11 @@ impl SessionContext {
     }
 
     pub fn get_metrics(&self) -> &SessionMetrics {
-        // &self.metrics
-        unimplemented!()
+        &self.metrics
     }
 
     pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
-        // &mut self.metrics
-        unimplemented!()
+        &mut self.metrics
     }
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
