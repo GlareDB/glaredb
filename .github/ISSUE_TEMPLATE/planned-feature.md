@@ -12,8 +12,8 @@ assignees: ""
 
 ## Rationale
 
-<!--- Mandatory - why are we doing this? -->
+<!-- Mandatory - why are we doing this? -->
 
 ## Breaking effects
 
-<!--- OPTIONAL - only if affects other systems/people etc -->
+<!-- OPTIONAL - only if affects other systems/people etc -->
