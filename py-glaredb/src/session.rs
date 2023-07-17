@@ -3,7 +3,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::{
     datatypes::Schema,
     pyarrow::ToPyArrow,
-    util::{pretty, display::FormatOptions}
+    util::{display::FormatOptions, pretty},
 };
 use futures::lock::Mutex;
 use futures::StreamExt;
