@@ -12,7 +12,7 @@ use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedString
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
-use datafusion::common::OwnedTableReference;
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -647,8 +647,8 @@ impl<'a> SessionPlanner<'a> {
                     }
                     ast::SchemaName::UnnamedAuthorization(ident) => {
                         validate_ident(&ident)?;
-                        SchemaReference::Bare {
-                            schema: normalize_ident(ident),
+                        OwnedSchemaReference::Bare {
+                            schema: normalize_ident(ident).into(),
                         }
                     }
                     ast::SchemaName::NamedAuthorization(name, ident) => {
@@ -1264,15 +1264,13 @@ fn quoted_table_ref(table_ref: TableReference<'_>) -> String {
     }
 }
 
-fn object_name_to_schema_ref(name: ObjectName) -> Result<SchemaReference> {
+fn object_name_to_schema_ref(name: ObjectName) -> Result<OwnedSchemaReference> {
     let r = match object_name_to_table_ref(name)? {
         // Table becomes the schema and schema becomes the catalog.
-        TableReference::Bare { table } => SchemaReference::Bare {
-            schema: table.into_owned(),
-        },
-        TableReference::Partial { schema, table } => SchemaReference::Full {
-            schema: table.into_owned(),
-            catalog: schema.into_owned(),
+        OwnedTableReference::Bare { table } => OwnedSchemaReference::Bare { schema: table },
+        OwnedTableReference::Partial { schema, table } => OwnedSchemaReference::Full {
+            schema: table,
+            catalog: schema,
         },
         tr => return Err(internal!("invalid schema object: {tr}")),
     };
