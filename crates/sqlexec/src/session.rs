@@ -6,7 +6,7 @@ use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
-use crate::vars::SessionVars;
+use crate::vars::{SessionVars, VarSetter};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -309,9 +309,11 @@ impl Session {
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx
-            .get_session_vars_mut()
-            .set(&plan.variable, plan.try_value_into_string()?.as_str())?;
+        self.ctx.get_session_vars_mut().set(
+            &plan.variable,
+            plan.try_value_into_string()?.as_str(),
+            VarSetter::User,
+        )?;
         Ok(())
     }
 

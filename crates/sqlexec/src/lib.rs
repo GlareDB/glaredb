@@ -6,11 +6,11 @@ pub mod errors;
 pub mod metastore;
 pub mod parser;
 pub mod session;
+pub mod vars;
 
 mod functions;
 mod metrics;
 mod planner;
-mod vars;
 pub use planner::logical_plan::LogicalPlan;
 
 pub mod export {

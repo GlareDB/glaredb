@@ -19,6 +19,7 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::{SessionLimits, SessionStorageConfig};
+use sqlexec::vars::VarSetter;
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -274,7 +275,7 @@ impl ProtocolHandler {
         // logs.
         let vars = sess.get_session_vars_mut();
         for (key, val) in &params {
-            if let Err(e) = vars.set(key, val) {
+            if let Err(e) = vars.set(key, val, VarSetter::User) {
                 debug!(%e, %key, %val, "unable to set session variable from startup param");
             }
         }
