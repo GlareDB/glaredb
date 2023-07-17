@@ -17,3 +17,12 @@ query I
 select count(*) from csv_scan('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
 ----
 102
+
+# Multi 
+query I
+select count(*) from csv_scan([
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv',
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+]);
+----
+204

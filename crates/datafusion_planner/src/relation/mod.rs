@@ -27,7 +27,7 @@ use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
-use sqlbuiltins::functions::FuncParamValue;
+// use sqlbuiltins::functions::FuncParamValue;
 
 mod join;
 
@@ -51,17 +51,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                         // Table factor has arguments, look up table returning
                         // function.
 
-                        let mut unnamed_args = Vec::new();
-                        let mut named_args = HashMap::new();
-                        for arg in args {
-                            let (name, val) = self.get_constant_function_arg(arg)?;
-                            if let Some(name) = name {
-                                named_args.insert(name, val);
-                            } else {
-                                unnamed_args.push(val);
-                            }
-                        }
-
                         let func = self
                             .schema_provider
                             .get_table_func(table_ref.clone())
@@ -72,16 +61,18 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             })?;
 
                         let table_fn_provider = self.schema_provider.table_fn_ctx_provider();
-<<<<<<< HEAD
                         let plan = func
-                            .create_logical_plan(table_ref, &table_fn_provider, args.as_slice())
-=======
-                        let provider = func
-                            .create_provider(&table_fn_provider, unnamed_args, named_args)
->>>>>>> 1b3e93970a17a64225aed58b2a953a585cab33c7
+                            .create_logical_plan(table_ref, &table_fn_provider, args)
+                            .await
+                            .map_err(|e| {
+                                DataFusionError::Plan(format!(
+                                    "Failed to create logical plan for table function\n Reason: {e}"
+                                ))
+                            })?;
+
+                        (plan, alias)
                     }
                     None => {
-
                         let table_name = table_ref.to_string();
 
                         let cte = planner_context.get_cte(&table_name);
@@ -111,6 +102,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 table_with_joins,
                 alias,
             } => (
+                
                 self.plan_table_with_joins(*table_with_joins, planner_context)
                     .await?,
                 alias,
@@ -129,70 +121,71 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
     }
 
-    /// Get a constant expression literal from a function argument.
-    ///
-    /// Returns an optional name for the argument.
-    fn get_constant_function_arg(
-        &mut self,
-        arg: ast::FunctionArg,
-    ) -> Result<(Option<String>, FuncParamValue)> {
-        match arg {
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
-                Ok((None, self.get_param_val(expr)?))
-            }
-            ast::FunctionArg::Named {
-                name,
-                arg: ast::FunctionArgExpr::Expr(expr),
-            } => {
-                let name = self.normalizer.normalize(name);
-                Ok((Some(name), self.get_param_val(expr)?))
-            }
-            other => Err(DataFusionError::NotImplemented(format!(
-                "Non-constant function argument: {other:?}",
-            ))),
-        }
-    }
+    // Get a constant expression literal from a function argument.
+    //
+    // Returns an optional name for the argument.
+    // fn get_constant_function_arg(
+    //     &mut self,
+    //     arg: ast::FunctionArg,
+    // ) -> Result<(Option<String>, FuncParamValue)> {
+    //     match arg {
+    //         ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
+    //             Ok((None, self.get_param_val(expr)?))
+    //         }
+    //         ast::FunctionArg::Named {
+    //             name,
+    //             arg: ast::FunctionArgExpr::Expr(expr),
+    //         } => {
+    //             let name = self.normalizer.normalize(name);
+    //             Ok((Some(name), self.get_param_val(expr)?))
+    //         }
+    //         other => Err(DataFusionError::NotImplemented(format!(
+    //             "Non-constant function argument: {other:?}",
+    //         ))),
+    //     }
+    // }
 
-    /// Get the parameter value from expr.
-    fn get_param_val(&self, expr: ast::Expr) -> Result<FuncParamValue> {
-        match expr {
-            ast::Expr::Identifier(ident) => Ok(self.normalizer.normalize(ident).into()),
-            ast::Expr::UnaryOp { op, expr } => match op {
-                ast::UnaryOperator::Minus => {
-                    match *expr {
-                        // optimization: if it's a number literal, we apply the negative operator
-                        // here directly to calculate the new literal.
-                        ast::Expr::Value(ast::Value::Number(n, _)) => match n.parse::<i64>() {
-                            Ok(n) => Ok(ScalarValue::Int64(Some(-n)).into()),
-                            Err(_) => {
-                                let n = n.parse::<f64>().map_err(|_e| {
-                                    DataFusionError::Internal(format!(
-                                        "negative operator can be only applied to integer and float operands, got: {n}"))
-                                })?;
-                                Ok(ScalarValue::Float64(Some(-n)).into())
-                            }
-                        },
-                        other => Err(DataFusionError::NotImplemented(format!(
-                            "Non-constant function argument: {other:?}",
-                        ))),
-                    }
-                }
-                other => Err(DataFusionError::NotImplemented(format!(
-                    "Non-constant function argument: {other:?}",
-                ))),
-            },
+    // /// Get the parameter value from expr.
+    // fn get_param_val(&self, expr: ast::Expr) -> Result<FuncParamValue> {
+    //     match expr {
+    //         ast::Expr::Identifier(ident) => Ok(self.normalizer.normalize(ident).into()),
+    //         ast::Expr::UnaryOp { op, expr } => match op {
+    //             ast::UnaryOperator::Minus => {
+    //                 match *expr {
+    //                     // optimization: if it's a number literal, we apply the negative operator
+    //                     // here directly to calculate the new literal.
+    //                     ast::Expr::Value(ast::Value::Number(n, _)) => match n.parse::<i64>() {
+    //                         Ok(n) => Ok(ScalarValue::Int64(Some(-n)).into()),
+    //                         Err(_) => {
+    //                             let n = n.parse::<f64>().map_err(|_e| {
+    //                                 DataFusionError::Internal(format!(
+    //                                     "negative operator can be only applied to integer and float operands, got: {n}"))
+    //                             })?;
+    //                             Ok(ScalarValue::Float64(Some(-n)).into())
+    //                         }
+    //                     },
+    //                     other => Err(DataFusionError::NotImplemented(format!(
+    //                         "Non-constant function argument: {other:?}",
+    //                     ))),
+    //                 }
+    //             }
+    //             other => Err(DataFusionError::NotImplemented(format!(
+    //                 "Non-constant function argument: {other:?}",
+    //             ))),
+    //         },
 
-            ast::Expr::Value(v) => match self.parse_value(v, &[]) {
-                Ok(Expr::Literal(lit)) => Ok(lit.into()),
-                Ok(v) => Err(DataFusionError::NotImplemented(format!(
-                    "Non-constant function argument: {v:?}"
-                ))),
-                Err(e) => Err(e),
-            },
+    //         ast::Expr::Value(v) => match self.parse_value(v, &[]) {
+    //             Ok(Expr::Literal(lit)) => Ok(lit.into()),
+    //             Ok(v) => Err(DataFusionError::NotImplemented(format!(
+    //                 "Non-constant function argument: {v:?}"
+    //             ))),
+    //             Err(e) => Err(e),
+    //         },
 
-            other => Err(DataFusionError::NotImplemented(format!(
-                "Non-constant function argument: {other:?}",
-            ))),
-        }
-    }
+    //         other => Err(DataFusionError::NotImplemented(format!(
+    //             "Non-constant function argument: {other:?}",
+    //         ))),
+    //     }
+    // }
+
 }

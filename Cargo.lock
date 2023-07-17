@@ -5588,7 +5588,6 @@ dependencies = [
  "regex",
  "serde_json",
  "sqlbuiltins",
- "sqlparser",
  "telemetry",
  "tempfile",
  "thiserror",
