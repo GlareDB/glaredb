@@ -6,23 +6,14 @@ labels: "feat :sparkler:"
 assignees: ""
 ---
 
-## Summary
+## Description
 
-### Specifications
-
-<!--- Mandatory
-  Seek to define "what" more than "how", though sometimes "how" is necessary
-  to. If we don't know "what", we need more research or design.
--->
+<!-- Mandatory - Answer "What" most importantly, possibly "How" -->
 
 ## Rationale
 
 <!--- Mandatory - why are we doing this? -->
 
-## Impact
+## Breaking effects
 
 <!--- OPTIONAL - only if affects other systems/people etc -->
-
-## Tasks
-
-<!--- OPTIONAL - only if separate from Specifications -->
