@@ -128,7 +128,7 @@ impl BuiltinScalarFunction {
                 })
             }
             BuiltinScalarFunction::ConnectionId => {
-                let id = sess.get_info().conn_id;
+                let id = *sess.get_session_vars().connection_id.value();
                 Arc::new(move |_| {
                     Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
                         id.to_string(),
@@ -180,10 +180,12 @@ impl PgFunctionBuilder {
         let func = match name {
             "array_to_string" => pg_array_to_string(),
             "current_database" | "current_catalog" => {
-                pg_current_database(&ctx.get_info().database_name)
+                pg_current_database(ctx.get_session_vars().database_name.value())
             }
             "current_schema" => pg_current_schema(ctx.search_path_iter().next()),
-            "current_user" | "current_role" | "user" => pg_current_user(&ctx.get_info().user_name),
+            "current_user" | "current_role" | "user" => {
+                pg_current_user(ctx.get_session_vars().user_name.value())
+            }
             "has_database_privilege" => pg_has_database_privilege(),
             "has_schema_privilege" => pg_has_schema_privilege(),
             "has_table_privilege" => pg_has_table_privilege(),
