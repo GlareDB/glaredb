@@ -1,6 +1,6 @@
 use anyhow::Result;
-use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::{datatypes::Schema, pyarrow::ToPyArrow};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use pgrepr::format::Format;
@@ -88,7 +88,6 @@ fn to_arrow_batches_and_schema(
     result: &mut ExecutionResult,
     py: Python<'_>,
 ) -> PyResult<(PyObject, PyObject)> {
-    use datafusion::arrow::pyarrow::PyArrowConvert;
     match result {
         ExecutionResult::Query { stream, .. } => {
             let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {

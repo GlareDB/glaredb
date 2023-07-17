@@ -134,6 +134,9 @@ impl ExecutionPlan for NativeTableInsertExec {
             DisplayFormatType::Default => {
                 write!(f, "NativeTableInsertExec")
             }
+            DisplayFormatType::Verbose => {
+                write!(f, "NativeTableInsertExec")
+            }
         }
     }
 

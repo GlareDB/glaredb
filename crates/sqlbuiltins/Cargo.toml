@@ -19,7 +19,7 @@ sqlparser = "0.35.0"
 datafusion = {workspace = true}
 futures = "0.3.28"
 tracing = "0.1"
-object_store = "0.5"
+object_store = { workspace = true }
 uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }

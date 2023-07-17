@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::MultipartId;
 use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
+use object_store::{GetOptions, MultipartId};
 use std::ops::Range;
 use std::sync::Arc;
 use tokio::io::AsyncWrite;
@@ -51,6 +51,10 @@ impl ObjectStore for SharedObjectStore {
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
         self.inner.get(location).await
+    }
+
+    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
+        self.inner.get_opts(location, options).await
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {

@@ -86,5 +86,6 @@ async fn object_meta_from_head(url: &url::Url) -> Result<ObjectMeta> {
         location: ObjectStorePath::default(),
         last_modified: Utc::now(),
         size: len as usize,
+        e_tag: None,
     })
 }

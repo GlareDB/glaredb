@@ -3,8 +3,10 @@ use datafusion::arrow::json::writer::{JsonArray, JsonFormat, LineDelimited, Writ
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
+use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::physical_plan::DisplayAs;
+use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use std::fmt::Display;
@@ -40,6 +42,15 @@ pub struct JsonSink {
 impl Display for JsonSink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "JsonSink({}:{})", self.store, self.loc)
+    }
+}
+
+impl DisplayAs for JsonSink {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match t {
+            DisplayFormatType::Default => write!(f, "{self}"),
+            DisplayFormatType::Verbose => write!(f, "{self}"),
+        }
     }
 }
 
@@ -80,7 +91,11 @@ impl JsonSink {
 
 #[async_trait]
 impl DataSink for JsonSink {
-    async fn write_all(&self, data: SendableRecordBatchStream) -> DfResult<u64> {
+    async fn write_all(
+        &self,
+        data: SendableRecordBatchStream,
+        _context: &Arc<TaskContext>,
+    ) -> DfResult<u64> {
         self.stream_into_inner(data)
             .await
             .map(|x| x as u64)
