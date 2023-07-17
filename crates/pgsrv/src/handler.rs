@@ -18,7 +18,7 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
-use sqlexec::engine::{SessionLimits, SessionStorageConfig};
+use sqlexec::engine::SessionStorageConfig;
 use sqlexec::vars::{SessionVars, VarSetter};
 use sqlexec::{
     engine::Engine,

@@ -180,11 +180,11 @@ impl PgFunctionBuilder {
         let func = match name {
             "array_to_string" => pg_array_to_string(),
             "current_database" | "current_catalog" => {
-                pg_current_database(&ctx.get_session_vars().database_name.value())
+                pg_current_database(ctx.get_session_vars().database_name.value())
             }
             "current_schema" => pg_current_schema(ctx.search_path_iter().next()),
             "current_user" | "current_role" | "user" => {
-                pg_current_user(&ctx.get_session_vars().user_name.value())
+                pg_current_user(ctx.get_session_vars().user_name.value())
             }
             "has_database_privilege" => pg_has_database_privilege(),
             "has_schema_privilege" => pg_has_schema_privilege(),

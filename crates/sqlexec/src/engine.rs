@@ -26,18 +26,6 @@ pub struct SessionStorageConfig {
     pub gcs_bucket: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct SessionLimits {
-    /// Max datasource count allowed.
-    pub max_datasource_count: Option<usize>,
-    /// Memory limit applied to the session.
-    pub memory_limit_bytes: Option<usize>,
-    /// Max tunnel count allowed.
-    pub max_tunnel_count: Option<usize>,
-    /// Max credentials count.
-    pub max_credentials_count: Option<usize>,
-}
-
 /// Storage configuration for the compute engine.
 ///
 /// The configuration defined here alongside the configuration passed in through
