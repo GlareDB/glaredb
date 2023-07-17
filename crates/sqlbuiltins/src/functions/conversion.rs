@@ -63,24 +63,18 @@ impl ExtractInto<Ident> for SqlFunctionArg {
 impl ExtractInto<Vec<String>> for SqlFunctionArg {
     fn extract(&self) -> Result<Vec<String>> {
         match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) => match expr {
-                SqlExpr::Array(arr) => arr
-                    .elem
-                    .iter()
-                    .map(|e| match e {
-                        SqlExpr::Value(SqlValue::SingleQuotedString(s)) => Ok(s.clone()),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Array(arr))) => arr
+                .elem
+                .iter()
+                .map(|e| match e {
+                    SqlExpr::Value(SqlValue::SingleQuotedString(s)) => Ok(s.clone()),
 
-                        _ => Err(BuiltinError::UnexpectedFunctionArg {
-                            param: self.clone(),
-                            expected: DataType::Utf8,
-                        }),
-                    })
-                    .collect(),
-                _ => Err(BuiltinError::UnexpectedFunctionArg {
-                    param: self.clone(),
-                    expected: DataType::Utf8,
-                }),
-            },
+                    _ => Err(BuiltinError::UnexpectedFunctionArg {
+                        param: self.clone(),
+                        expected: DataType::Utf8,
+                    }),
+                })
+                .collect(),
 
             _ => Err(BuiltinError::UnexpectedFunctionArg {
                 param: self.clone(),
@@ -93,28 +87,17 @@ impl ExtractInto<Vec<String>> for SqlFunctionArg {
 impl ExtractInto<f64> for SqlFunctionArg {
     fn extract(&self) -> Result<f64> {
         match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
-                SqlValue::Number(s, _) => Ok(s.parse::<f64>().unwrap()),
-                _ => Err(BuiltinError::UnexpectedFunctionArg {
-                    param: self.clone(),
-                    expected: DataType::Float64,
-                }),
-            },
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(SqlValue::Number(s, _)))) => {
+                Ok(s.parse::<f64>().unwrap())
+            }
+
             FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::UnaryOp {
                 op: UnaryOperator::Minus,
                 expr: v,
             })) => {
-                if let SqlExpr::Value(v) = v.as_ref() {
-                    match v {
-                        SqlValue::Number(s, _) => {
-                            let v = s.parse::<f64>().unwrap();
-                            Ok(-v)
-                        }
-                        _ => Err(BuiltinError::UnexpectedFunctionArg {
-                            param: self.clone(),
-                            expected: DataType::Int64,
-                        }),
-                    }
+                if let SqlExpr::Value(SqlValue::Number(s, _)) = v.as_ref() {
+                    let v = s.parse::<f64>().unwrap();
+                    Ok(-v)
                 } else {
                     Err(BuiltinError::UnexpectedFunctionArg {
                         param: self.clone(),
@@ -133,55 +116,37 @@ impl ExtractInto<f64> for SqlFunctionArg {
 impl ExtractInto<i64> for SqlFunctionArg {
     fn extract(&self) -> Result<i64> {
         match self {
-            FunctionArg::Named { .. } => todo!(),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => {
-                match v {
-                    SqlValue::Number(s, _) => {
-                        // Check for existence of decimal separator dot
-                        if !s.contains('.') {
-                            Ok(s.parse::<i64>().unwrap())
-                        } else {
-                            Err(BuiltinError::UnexpectedFunctionArg {
-                                param: self.clone(),
-                                expected: DataType::Int64,
-                            })
-                        }
-                    }
-                    _ => Err(BuiltinError::UnexpectedFunctionArg {
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(SqlValue::Number(s, _)))) => {
+                // Check for existence of decimal separator dot
+                if !s.contains('.') {
+                    Ok(s.parse::<i64>().unwrap())
+                } else {
+                    Err(BuiltinError::UnexpectedFunctionArg {
                         param: self.clone(),
                         expected: DataType::Int64,
-                    }),
+                    })
                 }
             }
             FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::UnaryOp {
                 op: UnaryOperator::Minus,
                 expr: v,
             })) => {
-                if let SqlExpr::Value(v) = v.as_ref() {
-                    match v {
-                        SqlValue::Number(s, _) => {
-                            // Check for existence of decimal separator dot
-                            if !s.contains('.') {
-                                let v = s.parse::<i64>().unwrap();
-                                Ok(-v)
-                            } else {
-                                Err(BuiltinError::UnexpectedFunctionArg {
-                                    param: self.clone(),
-                                    expected: DataType::Int64,
-                                })
-                            }
-                        }
-                        _ => Err(BuiltinError::UnexpectedFunctionArg {
+                if let SqlExpr::Value(SqlValue::Number(s, _)) = v.as_ref() {
+                    // Check for existence of decimal separator dot
+                    if !s.contains('.') {
+                        let v = s.parse::<i64>().unwrap();
+                        Ok(-v)
+                    } else {
+                        Err(BuiltinError::UnexpectedFunctionArg {
                             param: self.clone(),
                             expected: DataType::Int64,
-                        }),
+                        })
                     }
                 } else {
-                    todo!()
-                    // Err(BuiltinError::UnexpectedFunctionArg {
-                    //     param: self.clone(),
-                    //     expected: DataType::Int64,
-                    // })
+                    Err(BuiltinError::UnexpectedFunctionArg {
+                        param: self.clone(),
+                        expected: DataType::Int64,
+                    })
                 }
             }
 
@@ -196,11 +161,11 @@ impl ExtractInto<i64> for SqlFunctionArg {
 impl ExtractInto<String> for [SqlFunctionArg] {
     fn extract(&self) -> Result<String> {
         for arg in self {
-            match arg {
-                FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
-                    SqlValue::SingleQuotedString(s),
-                ))) => return Ok(s.clone()),
-                _ => (),
+            if let FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
+                SqlValue::SingleQuotedString(s),
+            ))) = arg
+            {
+                return Ok(s.clone());
             }
         }
         Err(BuiltinError::UnexpectedFunctionArgs {
@@ -275,11 +240,10 @@ impl FromFuncParamValue for String {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Ok(s),
-            // other => Err(BuiltinError::UnexpectedArg {
-            //     param: other,
-            //     expected: DataType::Utf8,
-            // }),
-            _ => todo!(),
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::Utf8,
+            }),
         }
     }
 
@@ -333,17 +297,15 @@ impl FromFuncParamValue for i64 {
                 ScalarValue::UInt16(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt32(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
-                // other => Err(BuiltinError::UnexpectedArg {
-                //     param: other.into(),
-                //     expected: DataType::Int64,
-                // }),
-                _ => todo!(),
+                other => Err(BuiltinError::UnexpectedArg {
+                    param: other.into(),
+                    expected: DataType::Int64,
+                }),
             },
-            // other => Err(BuiltinError::UnexpectedArg {
-            //     param: other,
-            //     expected: DataType::Int64,
-            // }),
-            _ => todo!(),
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::Int64,
+            }),
         }
     }
 
@@ -376,17 +338,15 @@ impl FromFuncParamValue for f64 {
                 ScalarValue::UInt64(Some(v)) => Ok(v as f64),
                 ScalarValue::Float32(Some(v)) => Ok(v as f64),
                 ScalarValue::Float64(Some(v)) => Ok(v),
-                // other => Err(BuiltinError::UnexpectedArg {
-                //     param: other.into(),
-                //     expected: DataType::Float64,
-                // }),
-                _ => todo!(),
+                other => Err(BuiltinError::UnexpectedArg {
+                    param: other.into(),
+                    expected: DataType::Float64,
+                }),
             },
-            // other => Err(BuiltinError::UnexpectedArg {
-            //     param: other,
-            //     expected: DataType::Float64,
-            // }),
-            _ => todo!(),
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::Float64,
+            }),
         }
     }
 
