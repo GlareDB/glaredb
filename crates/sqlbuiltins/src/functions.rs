@@ -38,12 +38,12 @@ use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use datafusion::sql::sqlparser::ast::UnaryOperator;
+
 use datafusion::sql::sqlparser::ast::{
     Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue,
 };
 use datafusion::sql::sqlparser::ast::{FunctionArg, FunctionArgExpr};
-use datafusion::{arrow::datatypes::DataType, datasource::TableProvider, scalar::ScalarValue};
+use datafusion::{arrow::datatypes::DataType, datasource::TableProvider};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::listing::VirtualLister;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
@@ -66,7 +66,7 @@ use metastore_client::types::options::{
 use num_traits::Zero;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::fmt::{self, Write};
+use std::fmt::Write;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -93,10 +93,12 @@ pub trait TableFunc: Sync + Send {
     fn parameters(&self) -> &[TableFuncParameters];
 
     /// Return a table provider using the provided args.
+    /// Return a table provider using the provided args.
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>>;
 
     /// Return a logical plan using the provided args.
@@ -104,9 +106,11 @@ pub trait TableFunc: Sync + Send {
         &self,
         table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        _: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
-        let provider = self.create_provider(ctx, args).await?;
+        let provider = self.create_provider(ctx, args, opts).await?;
         let source = Arc::new(DefaultTableSource::new(provider));
 
         let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
@@ -177,45 +181,6 @@ impl Default for BuiltinTableFuncs {
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
-}
-
-fn is_scalar_int(val: &SqlFunctionArg) -> bool {
-    match val {
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(SqlValue::Number(s, _)))) => {
-            !s.contains('.')
-        }
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::UnaryOp {
-            op: UnaryOperator::Minus,
-            expr: v,
-        })) => {
-            if let SqlExpr::Value(SqlValue::Number(s, _)) = v.as_ref() {
-                !s.contains('.')
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-fn is_scalar_float(val: &SqlFunctionArg) -> bool {
-    match val {
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(SqlValue::Number(_, _)))) => true,
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::UnaryOp {
-            op: UnaryOperator::Minus,
-            expr: v,
-        })) => {
-            if let SqlExpr::Value(v) = v.as_ref() {
-                match v {
-                    SqlValue::Number(_, _) => true,
-                    _ => false,
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
 }
 
 fn is_scalar_array(val: &FunctionArg) -> bool {

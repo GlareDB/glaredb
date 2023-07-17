@@ -1,5 +1,3 @@
-use datafusion::sql::sqlparser::ast::Ident;
-
 use super::*;
 
 #[derive(Debug, Clone, Copy)]
@@ -25,18 +23,18 @@ impl TableFunc for ListSchemas {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
-        // _opts: HashMap<String, FuncParamValue>,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             1 => {
                 let mut args = args.into_iter();
-                let database: Ident = args.next().unwrap().extract()?;
+                let database: IdentValue = args.next().unwrap().param_into()?;
 
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.value).await?;
+                let lister = get_db_lister(ctx, database.into()).await?;
                 let schema_list = lister
                     .list_schemas()
                     .await

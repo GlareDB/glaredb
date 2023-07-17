@@ -53,20 +53,20 @@ impl TableFunc for ReadSnowflake {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
-        // _opts: HashMap<String, FuncParamValue>,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             8 => {
                 let mut args = args.into_iter();
-                let account = args.next().unwrap().extract()?;
-                let username = args.next().unwrap().extract()?;
-                let password = args.next().unwrap().extract()?;
-                let database = args.next().unwrap().extract()?;
-                let warehouse = args.next().unwrap().extract()?;
-                let role = args.next().unwrap().extract()?;
-                let schema = args.next().unwrap().extract()?;
-                let table = args.next().unwrap().extract()?;
+                let account: String = args.next().unwrap().param_into()?;
+                let username: String = args.next().unwrap().param_into()?;
+                let password: String = args.next().unwrap().param_into()?;
+                let database: String = args.next().unwrap().param_into()?;
+                let warehouse: String = args.next().unwrap().param_into()?;
+                let role: String = args.next().unwrap().param_into()?;
+                let schema: String = args.next().unwrap().param_into()?;
+                let table: String = args.next().unwrap().param_into()?;
 
                 let conn_params = SnowflakeDbConnection {
                     account_name: account,

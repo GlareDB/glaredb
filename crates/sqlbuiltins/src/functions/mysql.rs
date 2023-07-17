@@ -1,4 +1,5 @@
 use super::*;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ReadMysql;
 
@@ -32,15 +33,15 @@ impl TableFunc for ReadMysql {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-
-                let conn_str: String = args.next().unwrap().extract()?;
-                let schema: String = args.next().unwrap().extract()?;
-                let table: String = args.next().unwrap().extract()?;
+                let conn_str: String = args.next().unwrap().param_into()?;
+                let schema: String = args.next().unwrap().param_into()?;
+                let table: String = args.next().unwrap().param_into()?;
 
                 let access = MysqlAccessor::connect(&conn_str, None)
                     .await

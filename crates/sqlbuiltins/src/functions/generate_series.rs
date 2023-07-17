@@ -77,53 +77,62 @@ impl TableFunc for GenerateSeries {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {
-                let mut args = args.iter();
+                let mut args = args.into_iter();
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
-                if is_scalar_int(start) && is_scalar_int(stop) {
+
+                if i64::is_param_valid(&start) && i64::is_param_valid(&stop) {
                     create_straming_table::<GenerateSeriesTypeInt>(
-                        start.extract()?,
-                        stop.extract()?,
+                        start.param_into()?,
+                        stop.param_into()?,
                         1,
                     )
-                } else if is_scalar_float(start) && is_scalar_float(stop) {
+                } else if f64::is_param_valid(&start) && f64::is_param_valid(&stop) {
                     create_straming_table::<GenerateSeriesTypeFloat>(
-                        start.extract()?,
-                        stop.extract()?,
-                        1.0f64,
+                        start.param_into()?,
+                        stop.param_into()?,
+                        1.0_f64,
                     )
                 } else {
-                    return Err(BuiltinError::UnexpectedFunctionArgs {
+                    return Err(BuiltinError::UnexpectedArgs {
                         expected: String::from("ints or floats"),
-                        params: vec![start.clone(), stop.clone()],
+                        params: vec![start, stop],
                     });
                 }
             }
             3 => {
-                let mut args = args.iter();
+                let mut args = args.into_iter();
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
                 let step = args.next().unwrap();
-                if is_scalar_int(start) && is_scalar_int(stop) && is_scalar_int(step) {
+
+                if i64::is_param_valid(&start)
+                    && i64::is_param_valid(&stop)
+                    && i64::is_param_valid(&step)
+                {
                     create_straming_table::<GenerateSeriesTypeInt>(
-                        start.extract()?,
-                        stop.extract()?,
-                        step.extract()?,
+                        start.param_into()?,
+                        stop.param_into()?,
+                        step.param_into()?,
                     )
-                } else if is_scalar_float(start) && is_scalar_float(stop) && is_scalar_float(step) {
+                } else if f64::is_param_valid(&start)
+                    && f64::is_param_valid(&stop)
+                    && f64::is_param_valid(&step)
+                {
                     create_straming_table::<GenerateSeriesTypeFloat>(
-                        start.extract()?,
-                        stop.extract()?,
-                        step.extract()?,
+                        start.param_into()?,
+                        stop.param_into()?,
+                        step.param_into()?,
                     )
                 } else {
-                    return Err(BuiltinError::UnexpectedFunctionArgs {
+                    return Err(BuiltinError::UnexpectedArgs {
                         expected: String::from("ints or floats"),
-                        params: vec![start.clone(), stop.clone(), step.clone()],
+                        params: vec![start, stop, step],
                     });
                 }
             }
@@ -131,6 +140,7 @@ impl TableFunc for GenerateSeries {
         }
     }
 }
+
 fn create_straming_table<T: GenerateSeriesType>(
     start: T::PrimType,
     stop: T::PrimType,

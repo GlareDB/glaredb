@@ -7,6 +7,22 @@ pub enum BuiltinError {
 
     #[error("Missing named argument: '{0}'")]
     MissingNamedArgument(&'static str),
+
+    #[error("Unexpected argument for function. Got '{param}', need value of type '{expected}'")]
+    UnexpectedArg {
+        param: crate::functions::FuncParamValue,
+        expected: datafusion::arrow::datatypes::DataType,
+    },
+
+    #[error(
+        "Unexpected argument for function, expected {}, found '{}'",
+        expected,
+        crate::functions::FuncParamValue::multiple_to_string(params)
+    )]
+    UnexpectedArgs {
+        params: Vec<crate::functions::FuncParamValue>,
+        expected: String,
+    },
     #[error("Unexpected argument for function. Got '{param}', need value of type '{expected}'")]
     UnexpectedFunctionArg {
         param: FunctionArg,

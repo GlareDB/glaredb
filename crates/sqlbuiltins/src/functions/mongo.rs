@@ -33,14 +33,15 @@ impl TableFunc for ReadMongoDb {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().extract()?;
-                let database: String = args.next().unwrap().extract()?;
-                let collection: String = args.next().unwrap().extract()?;
+                let conn_str: String = args.next().unwrap().param_into()?;
+                let database: String = args.next().unwrap().param_into()?;
+                let collection: String = args.next().unwrap().param_into()?;
 
                 let access = MongoAccessor::connect(&conn_str)
                     .await
