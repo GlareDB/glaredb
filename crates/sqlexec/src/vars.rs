@@ -7,7 +7,11 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlbuiltins::builtins::DEFAULT_SCHEMA;
 use std::borrow::{Borrow, ToOwned};
+use std::fmt::Display;
+use std::str::FromStr;
 use std::sync::Arc;
+use tracing::error;
+use uuid::Uuid;
 
 // TODO: Decide proper postgres version to spoof/support
 const SERVER_VERSION: ServerVar<str> = ServerVar {
@@ -97,7 +101,71 @@ const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
     user_configurable: true,
 };
 
+const DATABASE_ID: ServerVar<Uuid> = ServerVar {
+    name: "database_id",
+    value: &Uuid::nil(),
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const CONNECTION_ID: ServerVar<Uuid> = ServerVar {
+    name: "connection_id",
+    value: &Uuid::nil(),
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const USER_ID: ServerVar<Uuid> = ServerVar {
+    name: "user_id",
+    value: &Uuid::nil(),
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const USER_NAME: ServerVar<str> = ServerVar {
+    name: "user_name",
+    value: "",
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const DATABASE_NAME: ServerVar<str> = ServerVar {
+    name: "database_name",
+    value: "",
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const MAX_DATASOURCE_COUNT: ServerVar<Option<usize>> = ServerVar {
+    name: "max_datasource_count",
+    value: &None,
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const MEMORY_LIMIT_BYTES: ServerVar<Option<usize>> = ServerVar {
+    name: "memory_limit_bytes",
+    value: &None,
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const MAX_TUNNEL_COUNT: ServerVar<Option<usize>> = ServerVar {
+    name: "max_tunnel_count",
+    value: &None,
+    group: "glaredb",
+    user_configurable: false,
+};
+
+const MAX_CREDENTIALS_COUNT: ServerVar<Option<usize>> = ServerVar {
+    name: "max_credentials_count",
+    value: &None,
+    group: "glaredb",
+    user_configurable: false,
+};
+
 /// Variables for a session.
+#[derive(Debug)]
 pub struct SessionVars {
     pub server_version: SessionVar<str>,
     pub application_name: SessionVar<str>,
@@ -111,6 +179,15 @@ pub struct SessionVars {
     pub enable_debug_datasources: SessionVar<bool>,
     pub force_catalog_refresh: SessionVar<bool>,
     pub glaredb_version: SessionVar<str>,
+    pub database_id: SessionVar<Uuid>,
+    pub connection_id: SessionVar<Uuid>,
+    pub user_id: SessionVar<Uuid>,
+    pub user_name: SessionVar<str>,
+    pub database_name: SessionVar<str>,
+    pub max_datasource_count: SessionVar<Option<usize>>,
+    pub memory_limit_bytes: SessionVar<Option<usize>>,
+    pub max_tunnel_count: SessionVar<Option<usize>>,
+    pub max_credentials_count: SessionVar<Option<usize>>,
 }
 
 impl SessionVars {
@@ -151,6 +228,24 @@ impl SessionVars {
             Ok(&self.force_catalog_refresh)
         } else if name.eq_ignore_ascii_case(GLAREDB_VERSION.name) {
             Ok(&self.glaredb_version)
+        } else if name.eq_ignore_ascii_case(DATABASE_ID.name) {
+            Ok(&self.database_id)
+        } else if name.eq_ignore_ascii_case(USER_ID.name) {
+            Ok(&self.user_id)
+        } else if name.eq_ignore_ascii_case(CONNECTION_ID.name) {
+            Ok(&self.connection_id)
+        } else if name.eq_ignore_ascii_case(USER_NAME.name) {
+            Ok(&self.user_name)
+        } else if name.eq_ignore_ascii_case(DATABASE_NAME.name) {
+            Ok(&self.database_name)
+        } else if name.eq_ignore_ascii_case(MAX_DATASOURCE_COUNT.name) {
+            Ok(&self.max_datasource_count)
+        } else if name.eq_ignore_ascii_case(MEMORY_LIMIT_BYTES.name) {
+            Ok(&self.memory_limit_bytes)
+        } else if name.eq_ignore_ascii_case(MAX_TUNNEL_COUNT.name) {
+            Ok(&self.max_tunnel_count)
+        } else if name.eq_ignore_ascii_case(MAX_CREDENTIALS_COUNT.name) {
+            Ok(&self.max_credentials_count)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -159,29 +254,47 @@ impl SessionVars {
     /// Try to set a value for a variable.
     pub fn set(&mut self, name: &str, val: &str, setter: VarSetter) -> Result<()> {
         if name.eq_ignore_ascii_case(SERVER_VERSION.name) {
-            self.server_version.set(val, setter)
+            self.server_version.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(APPLICATION_NAME.name) {
-            self.application_name.set(val, setter)
+            self.application_name.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(CLIENT_ENCODING.name) {
-            self.client_encoding.set(val, setter)
+            self.client_encoding.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(EXTRA_FLOAT_DIGITS.name) {
-            self.extra_floating_digits.set(val, setter)
+            self.extra_floating_digits.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(STATEMENT_TIMEOUT.name) {
-            self.statement_timeout.set(val, setter)
+            self.statement_timeout.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(TIMEZONE.name) {
-            self.timezone.set(val, setter)
+            self.timezone.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(DATESTYLE.name) {
-            self.datestyle.set(val, setter)
+            self.datestyle.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(TRANSACTION_ISOLATION.name) {
-            self.transaction_isolation.set(val, setter)
+            self.transaction_isolation.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
-            self.search_path.set(val, setter)
+            self.search_path.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
-            self.enable_debug_datasources.set(val, setter)
+            self.enable_debug_datasources.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
-            self.force_catalog_refresh.set(val, setter)
+            self.force_catalog_refresh.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(GLAREDB_VERSION.name) {
-            self.glaredb_version.set(val, setter)
+            self.glaredb_version.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(DATABASE_ID.name) {
+            self.database_id.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(USER_ID.name) {
+            self.user_id.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(CONNECTION_ID.name) {
+            self.connection_id.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(USER_NAME.name) {
+            self.user_name.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(DATABASE_NAME.name) {
+            self.database_name.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(MAX_DATASOURCE_COUNT.name) {
+            self.max_datasource_count.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(MEMORY_LIMIT_BYTES.name) {
+            self.memory_limit_bytes.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(MAX_TUNNEL_COUNT.name) {
+            self.max_tunnel_count.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(MAX_CREDENTIALS_COUNT.name) {
+            self.max_credentials_count.set_from_str(val, setter)
         } else {
             Err(ExecError::UnknownVariable(name.to_string()))
         }
@@ -203,6 +316,15 @@ impl Default for SessionVars {
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
             force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
             glaredb_version: SessionVar::new(&GLAREDB_VERSION),
+            database_id: SessionVar::new(&DATABASE_ID),
+            user_id: SessionVar::new(&USER_ID),
+            connection_id: SessionVar::new(&CONNECTION_ID),
+            user_name: SessionVar::new(&USER_NAME),
+            database_name: SessionVar::new(&DATABASE_NAME),
+            max_datasource_count: SessionVar::new(&MAX_DATASOURCE_COUNT),
+            memory_limit_bytes: SessionVar::new(&MEMORY_LIMIT_BYTES),
+            max_tunnel_count: SessionVar::new(&MAX_TUNNEL_COUNT),
+            max_credentials_count: SessionVar::new(&MAX_CREDENTIALS_COUNT),
         }
     }
 }
@@ -238,6 +360,7 @@ pub enum VarSetter {
 /// Static configuration variables. These are all defined in code and are not
 /// persisted.
 #[derive(Debug)]
+#[allow(dead_code)] // `group` currently unused
 pub struct ServerVar<T: Value + ?Sized + 'static> {
     /// Name of the variable.
     name: &'static str,
@@ -296,14 +419,26 @@ impl<T: Value + ?Sized + 'static> SessionVar<T> {
         }
     }
 
-    /// Set a value for this variable.
-    fn set(&mut self, s: &str, setter: VarSetter) -> Result<()> {
+    /// Set the value for a variable directly.
+    pub fn set_raw(&mut self, v: T::Owned, setter: VarSetter) -> Result<()> {
         if !self.inherit.user_configurable && matches!(setter, VarSetter::User) {
             return Err(ExecError::VariableReadonly(self.inherit.name.to_string()));
         }
+        self.value = Some(v);
+        Ok(())
+    }
 
+    /// Set a value for a variable directly, emitting an error log if it's not able to be set.
+    pub fn set_and_log(&mut self, v: T::Owned, setter: VarSetter) {
+        if let Err(e) = self.set_raw(v, setter) {
+            error!(%e, "unable to set session variable");
+        }
+    }
+
+    /// Parse a string as a variable value and set it.
+    fn set_from_str(&mut self, s: &str, setter: VarSetter) -> Result<()> {
         match T::try_parse(s) {
-            Some(v) => self.value = Some(v),
+            Some(v) => self.set_raw(v, setter)?,
             None => {
                 return Err(ExecError::InvalidSessionVarValue {
                     name: self.name().to_string(),
@@ -364,6 +499,43 @@ impl Value for i32 {
 
     fn format(&self) -> String {
         self.to_string()
+    }
+}
+
+impl Value for usize {
+    fn try_parse(s: &str) -> Option<Self::Owned> {
+        s.parse().ok()
+    }
+
+    fn format(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl Value for Uuid {
+    fn try_parse(s: &str) -> Option<Self::Owned> {
+        s.parse().ok()
+    }
+
+    fn format(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl<V> Value for Option<V>
+where
+    V: Value + ToOwned + Clone + FromStr + Display,
+{
+    fn try_parse(s: &str) -> Option<Self::Owned> {
+        let v = s.parse::<V>().ok()?;
+        Some(Some(v))
+    }
+
+    fn format(&self) -> String {
+        match self {
+            Some(v) => v.to_string(),
+            None => "None".to_string(),
+        }
     }
 }
 
@@ -438,11 +610,11 @@ mod tests {
             user_configurable: true,
         };
         let mut var = SessionVar::new(&SETTABLE);
-        var.set("user", VarSetter::User).unwrap();
+        var.set_from_str("user", VarSetter::User).unwrap();
         assert_eq!("user", var.value());
 
         // Should also be able to be set by the system.
-        var.set("system", VarSetter::System).unwrap();
+        var.set_from_str("system", VarSetter::System).unwrap();
         assert_eq!("system", var.value());
     }
 
@@ -455,13 +627,13 @@ mod tests {
             user_configurable: false,
         };
         let mut var = SessionVar::new(&UNSETTABLE);
-        var.set("custom", VarSetter::User)
+        var.set_from_str("custom", VarSetter::User)
             .expect_err("Unsettable var should not be allowed to be set by user");
 
         assert_eq!("test", var.value());
 
         // System should be able to set the var.
-        var.set("custom", VarSetter::System).unwrap();
+        var.set_from_str("custom", VarSetter::System).unwrap();
         assert_eq!("custom", var.value());
     }
 }

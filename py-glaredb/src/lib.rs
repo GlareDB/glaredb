@@ -21,7 +21,10 @@ use uuid::Uuid;
 
 use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
-use sqlexec::engine::{Engine, EngineStorageConfig, SessionLimits, SessionStorageConfig};
+use sqlexec::{
+    engine::{Engine, EngineStorageConfig, SessionLimits, SessionStorageConfig},
+    vars::SessionVars,
+};
 use telemetry::Tracker;
 
 /// Ensure that a directory at the given path exists. Errors if the path exists
@@ -98,15 +101,7 @@ fn connect(
             .map_err(PyGlareDbError::from)?;
 
         let mut session = engine
-            .new_session(
-                Uuid::nil(),
-                "glaredb".to_string(),
-                Uuid::nil(),
-                Uuid::nil(),
-                "glaredb".to_string(),
-                SessionLimits::default(),
-                SessionStorageConfig::default(),
-            )
+            .new_session(SessionVars::default(), SessionStorageConfig::default())
             .await
             .map_err(PyGlareDbError::from)?;
 

@@ -1,4 +1,3 @@
-use crate::engine::SessionInfo;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -55,7 +54,6 @@ const IMPLICIT_SCHEMAS: [&str; 2] = [
 // TODO: Need to make session context less pervasive. Pretty much everything in
 // this crate relies on it, make test setup a pain.
 pub struct SessionContext {
-    info: Arc<SessionInfo>,
     /// Database catalog.
     metastore_catalog: SessionCatalog,
     metastore: SupervisorClient,
@@ -69,8 +67,8 @@ pub struct SessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
-    /// Track query metrics for this session.
-    metrics: SessionMetrics,
+    // /// Track query metrics for this session.
+    // metrics: SessionMetrics,
     /// Datafusion session state used for planning and execution.
     ///
     /// This session state makes a ton of assumptions, try to keep usage of it
@@ -90,11 +88,10 @@ impl SessionContext {
     /// If `info.memory_limit_bytes` is non-zero, a new memory pool will be
     /// created with the max set to this value.
     pub fn new(
-        info: Arc<SessionInfo>,
+        vars: SessionVars,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         native_tables: NativeTableStorage,
-        metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
     ) -> SessionContext {
         // NOTE: We handle catalog/schema defaults and information schemas
@@ -121,7 +118,7 @@ impl SessionContext {
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
-        if let Some(mem_limit) = info.limits.memory_limit_bytes {
+        if let &Some(mem_limit) = vars.memory_limit_bytes.value() {
             // TODO: Make this actually have optional semantics.
             if mem_limit > 0 {
                 conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
@@ -138,15 +135,13 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         SessionContext {
-            info,
             metastore_catalog: catalog,
             metastore,
             current_session_tables: HashMap::new(),
             tables: native_tables,
-            vars: SessionVars::default(),
+            vars,
             prepared: HashMap::new(),
             portals: HashMap::new(),
-            metrics,
             df_state: state,
             env_reader: None,
         }
@@ -160,16 +155,14 @@ impl SessionContext {
         self.env_reader.as_deref()
     }
 
-    pub fn get_info(&self) -> &SessionInfo {
-        self.info.as_ref()
-    }
-
     pub fn get_metrics(&self) -> &SessionMetrics {
-        &self.metrics
+        // &self.metrics
+        unimplemented!()
     }
 
     pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
-        &mut self.metrics
+        // &mut self.metrics
+        unimplemented!()
     }
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
@@ -276,7 +269,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if let Some(limit) = self.info.limits.max_datasource_count {
+        if let &Some(limit) = self.vars.max_datasource_count.value() {
             if self.get_datasource_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "datasources",
@@ -312,7 +305,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        if let Some(limit) = self.info.limits.max_datasource_count {
+        if let &Some(limit) = self.vars.max_datasource_count.value() {
             if self.get_datasource_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "datasources",
@@ -335,7 +328,7 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        if let Some(limit) = self.info.limits.max_tunnel_count {
+        if let &Some(limit) = self.vars.max_tunnel_count.value() {
             if self.get_tunnel_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "tunnels",
@@ -355,7 +348,7 @@ impl SessionContext {
     }
 
     pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        if let Some(limit) = self.info.limits.max_credentials_count {
+        if let &Some(limit) = self.vars.max_credentials_count.value() {
             if self.get_credentials_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "credentials",

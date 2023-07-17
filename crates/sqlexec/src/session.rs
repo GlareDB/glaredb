@@ -181,15 +181,15 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
-        info: Arc<SessionInfo>,
+        vars: SessionVars,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Session> {
-        let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, native_tables, metrics, spill_path);
+        // let metrics = SessionMetrics::new(info.clone(), tracker);
+        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, spill_path);
         Ok(Session { ctx })
     }
 

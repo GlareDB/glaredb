@@ -19,7 +19,7 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::{SessionLimits, SessionStorageConfig};
-use sqlexec::vars::VarSetter;
+use sqlexec::vars::{SessionVars, VarSetter};
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -234,20 +234,40 @@ impl ProtocolHandler {
             }
         }
 
-        let mut sess = match self
+        let mut vars = SessionVars::default();
+        // Set "system" variables first.
+        // Info
+        vars.user_id.set_and_log(user_id, VarSetter::System);
+        vars.user_name.set_and_log(user_name, VarSetter::System);
+        vars.connection_id.set_and_log(conn_id, VarSetter::System);
+        vars.database_id.set_and_log(db_id, VarSetter::System);
+        vars.database_name
+            .set_and_log(database_name, VarSetter::System);
+        // Limits
+        vars.max_datasource_count
+            .set_and_log(Some(max_datasource_count), VarSetter::System);
+        vars.memory_limit_bytes
+            .set_and_log(Some(memory_limit_bytes), VarSetter::System);
+        vars.max_tunnel_count
+            .set_and_log(Some(max_tunnel_count), VarSetter::System);
+        vars.max_credentials_count
+            .set_and_log(Some(max_credentials_count), VarSetter::System);
+
+        // Set other params provided on startup. Note that these are all set as
+        // the "user" since these include values set in options.
+        //
+        // Note that we're ignoring unknown params, or params that we're unable
+        // to set as a user.
+        for (key, val) in &params {
+            if let Err(e) = vars.set(key, val, VarSetter::User) {
+                debug!(%e, %key, %val, "unable to set session variable from startup param");
+            }
+        }
+
+        let sess = match self
             .engine
             .new_session(
-                user_id,
-                user_name,
-                conn_id,
-                db_id,
-                database_name,
-                SessionLimits {
-                    max_datasource_count: Some(max_datasource_count),
-                    memory_limit_bytes: Some(memory_limit_bytes),
-                    max_tunnel_count: Some(max_tunnel_count),
-                    max_credentials_count: Some(max_credentials_count),
-                },
+                vars,
                 SessionStorageConfig {
                     gcs_bucket: storage_bucket,
                 },
@@ -265,20 +285,6 @@ impl ProtocolHandler {
                 return Err(e.into());
             }
         };
-
-        // Set params provided on startup.
-        //
-        // Note that we're ignoring unknown params.
-        //
-        // TODO: We might also want to filter out custom params that pgsrv sets.
-        // No harm leaving those in for now, will just get some additional trace
-        // logs.
-        let vars = sess.get_session_vars_mut();
-        for (key, val) in &params {
-            if let Err(e) = vars.set(key, val, VarSetter::User) {
-                debug!(%e, %key, %val, "unable to set session variable from startup param");
-            }
-        }
 
         // Send server parameters.
         let msgs: Vec<_> = sess

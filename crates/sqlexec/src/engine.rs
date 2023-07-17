@@ -1,6 +1,7 @@
 use crate::errors::{ExecError, Result};
 use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
+use crate::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
 use metastore_client::session::SessionCatalog;
@@ -152,38 +153,24 @@ impl Engine {
         self.session_counter.load(Ordering::Relaxed)
     }
 
-    /// Create a new session with the given id.
-    #[allow(clippy::too_many_arguments)]
+    /// Create a new session.
     pub async fn new_session(
         &self,
-        user_id: Uuid,
-        user_name: String,
-        conn_id: Uuid,
-        database_id: Uuid,
-        database_name: String,
-        limits: SessionLimits,
+        vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
+        let conn_id = *vars.connection_id.value();
+        let database_id = *vars.database_id.value();
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
         let native = self
             .storage
             .new_native_tables_storage(database_id, &storage)?;
 
-        let info = Arc::new(SessionInfo {
-            database_id,
-            database_name,
-            user_id,
-            user_name,
-            conn_id,
-            limits,
-            storage,
-        });
-
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
         let session = Session::new(
-            info,
+            vars,
             catalog,
             metastore,
             native,
