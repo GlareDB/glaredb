@@ -18,4 +18,4 @@ build *args: requirements
 	{{VENV_BIN}}/maturin develop {{args}}
 
 test: requirements
-	{{VENV_BIN}}/pytest
+	{{VENV_BIN}}/pytest -s

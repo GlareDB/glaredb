@@ -1,8 +1,13 @@
 use anyhow::Result;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::{datatypes::Schema, pyarrow::ToPyArrow};
+use datafusion::arrow::{
+    datatypes::Schema,
+    pyarrow::ToPyArrow,
+    util::{display::FormatOptions, pretty},
+};
 use futures::lock::Mutex;
 use futures::StreamExt;
+use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::{
@@ -124,6 +129,33 @@ fn to_arrow_batches_and_schema(
     }
 }
 
+static TABLE_FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
+    FormatOptions::default()
+        .with_display_error(false)
+        .with_null("NULL")
+});
+
+fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
+    match result {
+        ExecutionResult::Query { stream, .. } => {
+            let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
+                Ok(stream
+                    .collect::<Vec<_>>()
+                    .await
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()?)
+            });
+
+            let disp =
+                pretty::pretty_format_batches_with_options(&batches.unwrap(), &TABLE_FORMAT_OPTS)
+                    .unwrap();
+            println!("{disp}");
+            Ok(())
+        }
+        _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
+    }
+}
+
 #[pymethods]
 impl PyExecutionResult {
     /// Convert to Arrow Table
@@ -169,5 +201,10 @@ impl PyExecutionResult {
             let result = table.call_method0(py, "to_pandas")?;
             Ok(result)
         })
+    }
+
+    pub fn show(&mut self, py: Python) -> PyResult<()> {
+        print_batch(&mut self.0, py)?;
+        Ok(())
     }
 }

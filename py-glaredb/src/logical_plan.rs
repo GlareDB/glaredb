@@ -60,6 +60,9 @@ impl PyLogicalPlan {
     fn to_pandas(&self, py: Python) -> PyResult<PyObject> {
         self.collect(py)?.to_pandas(py)
     }
+    fn show(&self, py: Python) -> PyResult<()> {
+        self.collect(py)?.show(py)
+    }
 }
 
 // just a wrapper around the logical plan so that we can compose multiple subqueries
