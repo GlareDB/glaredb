@@ -1,6 +1,6 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::OwnedTableReference;
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference};
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
@@ -200,7 +200,7 @@ pub struct CreateCredentials {
 
 #[derive(Clone, Debug)]
 pub struct CreateSchema {
-    pub schema_name: SchemaReference,
+    pub schema_name: OwnedSchemaReference,
     pub if_not_exists: bool,
 }
 
@@ -260,7 +260,7 @@ pub struct DropViews {
 
 #[derive(Clone, Debug)]
 pub struct DropSchemas {
-    pub names: Vec<SchemaReference>,
+    pub names: Vec<OwnedSchemaReference>,
     pub if_exists: bool,
     pub cascade: bool,
 }
@@ -354,12 +354,4 @@ impl SetVariable {
 #[derive(Clone, Debug)]
 pub struct ShowVariable {
     pub variable: String,
-}
-
-/// [`SchemaReference`] represents a multi-part schema that may require further
-/// resolution.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SchemaReference {
-    Bare { schema: String },
-    Full { schema: String, catalog: String },
 }

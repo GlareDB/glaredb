@@ -10,7 +10,7 @@ use crate::planner::session_planner::SessionPlanner;
 use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::Column as DfColumn;
+use datafusion::common::{Column as DfColumn, SchemaReference};
 use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
@@ -752,10 +752,12 @@ impl SessionContext {
     }
 
     /// Resolve schema reference.
-    fn resolve_schema_ref(r: SchemaReference) -> (String, String) {
+    fn resolve_schema_ref(r: SchemaReference<'_>) -> (String, String) {
         match r {
-            SchemaReference::Bare { schema } => (DEFAULT_CATALOG.to_owned(), schema),
-            SchemaReference::Full { schema, catalog } => (catalog, schema),
+            SchemaReference::Bare { schema } => (DEFAULT_CATALOG.to_owned(), schema.into_owned()),
+            SchemaReference::Full { schema, catalog } => {
+                (catalog.into_owned(), schema.into_owned())
+            }
         }
     }
 
