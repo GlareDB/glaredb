@@ -6,8 +6,10 @@ use datafusion::arrow::csv::{Writer as CsvWriter, WriterBuilder as CsvWriterBuil
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
+use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::physical_plan::DisplayAs;
+use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::path::Path as ObjectPath;
 use object_store::ObjectStore;
@@ -49,6 +51,15 @@ impl fmt::Display for CsvSink {
     }
 }
 
+impl DisplayAs for CsvSink {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default => write!(f, "{self}"),
+            DisplayFormatType::Verbose => write!(f, "{self}"),
+        }
+    }
+}
+
 impl CsvSink {
     pub fn from_obj_store(
         store: Arc<dyn ObjectStore>,
@@ -78,7 +89,11 @@ impl CsvSink {
 
 #[async_trait]
 impl DataSink for CsvSink {
-    async fn write_all(&self, stream: SendableRecordBatchStream) -> DfResult<u64> {
+    async fn write_all(
+        &self,
+        stream: SendableRecordBatchStream,
+        _context: &Arc<TaskContext>,
+    ) -> DfResult<u64> {
         self.stream_into_inner(stream)
             .await
             .map(|x| x as u64)

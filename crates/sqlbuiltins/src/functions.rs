@@ -4,18 +4,13 @@ use async_trait::async_trait;
 use datafusion::arrow::array::{Array, Float64Array, Int64Array, StringArray};
 use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::OwnedTableReference;
-use datafusion::datasource::streaming::{PartitionStream, StreamingTable};
-use datafusion::datasource::{DefaultTableSource, MemTable};
+use datafusion::datasource::streaming::StreamingTable;
+use datafusion::datasource::MemTable;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::TaskContext;
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use datafusion::sql::sqlparser::ast::{
-    Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue,
-};
-use datafusion::sql::sqlparser::ast::{FunctionArg, FunctionArgExpr};
-use datafusion::{arrow::datatypes::DataType, datasource::TableProvider};
+use datafusion::{arrow::datatypes::DataType, datasource::TableProvider, scalar::ScalarValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::listing::VirtualLister;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
@@ -38,6 +33,7 @@ use metastore_client::types::options::{
 use num_traits::Zero;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::fmt::{self, Write};
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -110,6 +106,190 @@ pub trait TableFuncContextProvider: Sync + Send {
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
 }
 
+/// Value from a function parameter.
+#[derive(Debug, Clone)]
+pub enum FuncParamValue {
+    /// Normalized value from an ident.
+    Ident(String),
+    /// Scalar value.
+    Scalar(ScalarValue),
+}
+
+impl fmt::Display for FuncParamValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ident(s) => write!(f, "{s}"),
+            Self::Scalar(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl FuncParamValue {
+    /// Print multiple function parameter values.
+    pub fn multiple_to_string<T: AsRef<[Self]>>(vals: T) -> String {
+        let mut s = String::new();
+        write!(&mut s, "(").unwrap();
+        let mut sep = "";
+        for val in vals.as_ref() {
+            write!(&mut s, "{sep}{val}").unwrap();
+            sep = ", ";
+        }
+        write!(&mut s, ")").unwrap();
+        s
+    }
+
+    /// Wrapper over `FromFuncParamValue::from_param`.
+    fn param_into<T>(self) -> Result<T>
+    where
+        T: FromFuncParamValue,
+    {
+        T::from_param(self)
+    }
+}
+
+trait FromFuncParamValue: Sized {
+    /// Get the value from parameter.
+    fn from_param(value: FuncParamValue) -> Result<Self>;
+
+    /// Check if the value is valid (able to convert).
+    fn is_param_valid(value: &FuncParamValue) -> bool;
+}
+
+impl FromFuncParamValue for String {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Ok(s),
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::Utf8,
+            }),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
+    }
+}
+
+struct IdentValue(String);
+
+impl IdentValue {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<String> for IdentValue {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl From<IdentValue> for String {
+    fn from(value: IdentValue) -> Self {
+        value.0
+    }
+}
+
+impl FromFuncParamValue for IdentValue {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Ident(s) => Ok(Self(s)),
+            _other => Err(BuiltinError::Static("expected an identifier")),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(value, FuncParamValue::Ident(_))
+    }
+}
+
+impl FromFuncParamValue for i64 {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Int8(Some(v)) => Ok(v as i64),
+                ScalarValue::Int16(Some(v)) => Ok(v as i64),
+                ScalarValue::Int32(Some(v)) => Ok(v as i64),
+                ScalarValue::Int64(Some(v)) => Ok(v),
+                ScalarValue::UInt8(Some(v)) => Ok(v as i64),
+                ScalarValue::UInt16(Some(v)) => Ok(v as i64),
+                ScalarValue::UInt32(Some(v)) => Ok(v as i64),
+                ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
+                other => Err(BuiltinError::UnexpectedArg {
+                    param: other.into(),
+                    expected: DataType::Int64,
+                }),
+            },
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::Int64,
+            }),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(
+            value,
+            FuncParamValue::Scalar(ScalarValue::Int8(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::Int16(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::Int32(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::Int64(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::UInt8(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::UInt16(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::UInt32(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::UInt64(Some(_)))
+        )
+    }
+}
+
+impl FromFuncParamValue for f64 {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Int8(Some(v)) => Ok(v as f64),
+                ScalarValue::Int16(Some(v)) => Ok(v as f64),
+                ScalarValue::Int32(Some(v)) => Ok(v as f64),
+                ScalarValue::Int64(Some(v)) => Ok(v as f64),
+                ScalarValue::UInt8(Some(v)) => Ok(v as f64),
+                ScalarValue::UInt16(Some(v)) => Ok(v as f64),
+                ScalarValue::UInt32(Some(v)) => Ok(v as f64),
+                ScalarValue::UInt64(Some(v)) => Ok(v as f64),
+                ScalarValue::Float32(Some(v)) => Ok(v as f64),
+                ScalarValue::Float64(Some(v)) => Ok(v),
+                other => Err(BuiltinError::UnexpectedArg {
+                    param: other.into(),
+                    expected: DataType::Float64,
+                }),
+            },
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::Float64,
+            }),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(
+            value,
+            FuncParamValue::Scalar(ScalarValue::Float32(Some(_)))
+                | FuncParamValue::Scalar(ScalarValue::Float64(Some(_)))
+        ) || i64::is_param_valid(value)
+    }
+}
+
+impl From<String> for FuncParamValue {
+    fn from(value: String) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl From<ScalarValue> for FuncParamValue {
+    fn from(value: ScalarValue) -> Self {
+        Self::Scalar(value)
+    }
+}
+
 #[async_trait]
 pub trait TableFunc: Sync + Send {
     /// The name for this table function. This name will be used when looking up
@@ -131,23 +311,9 @@ pub trait TableFunc: Sync + Send {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>>;
-
-    /// Return a table provider using the provided args.
-    async fn create_logical_plan(
-        &self,
-        table_ref: OwnedTableReference,
-        ctx: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
-    ) -> Result<LogicalPlan> {
-        let provider = self.create_provider(ctx, args).await?;
-        let source = Arc::new(DefaultTableSource::new(provider));
-
-        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
-        let plan = plan_builder.build()?;
-        Ok(plan)
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -183,14 +349,15 @@ impl TableFunc for ReadPostgres {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
-                let mut args = args.iter();
-                let conn_str: String = args.next().unwrap().extract()?;
-                let schema: String = args.next().unwrap().extract()?;
-                let table: String = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let conn_str: String = args.next().unwrap().param_into()?;
+                let schema: String = args.next().unwrap().param_into()?;
+                let table: String = args.next().unwrap().param_into()?;
 
                 let access = PostgresAccessor::connect(&conn_str, None)
                     .await
@@ -250,15 +417,16 @@ impl TableFunc for ReadBigQuery {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             4 => {
-                let mut args = args.iter();
-                let service_account = args.next().unwrap().extract()?;
-                let project_id = args.next().unwrap().extract()?;
-                let dataset_id = args.next().unwrap().extract()?;
-                let table_id = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let service_account: String = args.next().unwrap().param_into()?;
+                let project_id: String = args.next().unwrap().param_into()?;
+                let dataset_id: String = args.next().unwrap().param_into()?;
+                let table_id: String = args.next().unwrap().param_into()?;
 
                 let access = BigQueryAccessor::connect(service_account, project_id)
                     .await
@@ -314,14 +482,15 @@ impl TableFunc for ReadMongoDb {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
-                let mut args = args.iter();
-                let conn_str: String = args.next().unwrap().extract()?;
-                let database = args.next().unwrap().extract()?;
-                let collection = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let conn_str: String = args.next().unwrap().param_into()?;
+                let database: String = args.next().unwrap().param_into()?;
+                let collection: String = args.next().unwrap().param_into()?;
 
                 let access = MongoAccessor::connect(&conn_str)
                     .await
@@ -375,14 +544,15 @@ impl TableFunc for ReadMysql {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             3 => {
-                let mut args = args.iter();
-                let conn_str: String = args.next().unwrap().extract()?;
-                let schema: String = args.next().unwrap().extract()?;
-                let table: String = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let conn_str: String = args.next().unwrap().param_into()?;
+                let schema: String = args.next().unwrap().param_into()?;
+                let table: String = args.next().unwrap().param_into()?;
 
                 let access = MysqlAccessor::connect(&conn_str, None)
                     .await
@@ -458,19 +628,20 @@ impl TableFunc for ReadSnowflake {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             8 => {
-                let mut args = args.iter();
-                let account = args.next().unwrap().extract()?;
-                let username = args.next().unwrap().extract()?;
-                let password = args.next().unwrap().extract()?;
-                let database = args.next().unwrap().extract()?;
-                let warehouse = args.next().unwrap().extract()?;
-                let role = args.next().unwrap().extract()?;
-                let schema = args.next().unwrap().extract()?;
-                let table = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let account: String = args.next().unwrap().param_into()?;
+                let username: String = args.next().unwrap().param_into()?;
+                let password: String = args.next().unwrap().param_into()?;
+                let database: String = args.next().unwrap().param_into()?;
+                let warehouse: String = args.next().unwrap().param_into()?;
+                let role: String = args.next().unwrap().param_into()?;
+                let schema: String = args.next().unwrap().param_into()?;
+                let table: String = args.next().unwrap().param_into()?;
 
                 let conn_params = SnowflakeDbConnection {
                     account_name: account,
@@ -535,22 +706,6 @@ impl TableFunc for ObjScanTableFunc {
                     },
                 ],
             },
-            TableFuncParameters {
-                params: &[
-                    TableFuncParameter {
-                        name: "url",
-                        typ: DataType::Utf8,
-                    },
-                    TableFuncParameter {
-                        name: "credentials",
-                        typ: DataType::Utf8,
-                    },
-                    TableFuncParameter {
-                        name: "region",
-                        typ: DataType::Utf8,
-                    },
-                ],
-            },
         ];
 
         PARAMS
@@ -559,49 +714,11 @@ impl TableFunc for ObjScanTableFunc {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let Self(file_type, _) = self;
-        let first = &args[0];
-        let url_string: String = first.extract()?;
-
-        create_provider_for_filetype(ctx, *file_type, url_string, &args[1..]).await
-    }
-
-    async fn create_logical_plan(
-        &self,
-        table_ref: OwnedTableReference,
-        ctx: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
-    ) -> Result<LogicalPlan> {
-        if !is_scalar_array(&args[0]) {
-            let provider = self.create_provider(ctx, args).await?;
-            let source = Arc::new(DefaultTableSource::new(provider));
-            let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-            let plan = pb.build()?;
-            Ok(plan)
-        } else {
-            let first = &args[0];
-            let urls: Vec<String> = first.extract()?;
-            let urls = urls.as_slice();
-            let first_url = &urls[0];
-            let provider =
-                create_provider_for_filetype(ctx, self.0, first_url.clone(), &args[1..]).await?;
-            let source = Arc::new(DefaultTableSource::new(provider));
-
-            let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-
-            for url in &urls[1..] {
-                let provider =
-                    create_provider_for_filetype(ctx, self.0, url.clone(), &args[1..]).await?;
-                let source = Arc::new(DefaultTableSource::new(provider));
-                let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-                let plan = pb.build()?;
-
-                plan_builder = plan_builder.union(plan)?;
-            }
-            Ok(plan_builder.build()?)
-        }
+        create_provider_for_filetype(ctx, *file_type, args, opts).await
     }
 }
 
@@ -611,11 +728,13 @@ pub struct ListSchemas;
 async fn create_provider_for_filetype(
     ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
-    url_string: String,
-    args: &[FunctionArg],
+    args: Vec<FuncParamValue>,
+    mut opts: HashMap<String, FuncParamValue>,
 ) -> Result<Arc<dyn TableProvider>> {
     let store = match args.len() {
-        0 => {
+        1 => {
+            let mut args = args.into_iter();
+            let url_string: String = args.next().unwrap().param_into()?;
             let source_url = DatasourceUrl::new(&url_string)?;
 
             match source_url.scheme() {
@@ -637,23 +756,80 @@ async fn create_provider_for_filetype(
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
-                // TODO: GCS, S3 without auth (though can use HTTP URL if
-                // objects are public).
-                _ => {
-                    return Err(BuiltinError::Static(
-                        "Unsupported datasource URL for given parameters",
-                    ))
+                DatasourceUrlScheme::Gcs => {
+                    let service_account_key = opts
+                        .remove("service_account_key")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    let bucket_name = source_url
+                        .host()
+                        .map(|b| b.to_owned())
+                        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+
+                    let location = source_url.path().into_owned();
+
+                    GcsAccessor::new(GcsTableAccess {
+                        bucket_name,
+                        service_acccount_key_json: service_account_key,
+                        location,
+                        file_type: Some(file_type),
+                    })
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(true)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                }
+                DatasourceUrlScheme::S3 => {
+                    let access_key_id = opts
+                        .remove("access_key_id")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    let secret_access_key = opts
+                        .remove("secret_access_key")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    let bucket_name = source_url
+                        .host()
+                        .map(|b| b.to_owned())
+                        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+
+                    let location = source_url.path().into_owned();
+
+                    // S3 requires a region parameter.
+                    const REGION_KEY: &str = "region";
+                    let region = opts
+                        .remove(REGION_KEY)
+                        .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+                        .param_into()?;
+
+                    S3Accessor::new(S3TableAccess {
+                        bucket_name,
+                        location,
+                        file_type: Some(file_type),
+                        region,
+                        access_key_id,
+                        secret_access_key,
+                    })
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    .into_table_provider(true)
+                    .await
+                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
             }
         }
-        1 => {
+        2 => {
             let mut args = args.into_iter();
-            let url_string: String = args.next().unwrap().extract()?;
+            let url_string: String = args.next().unwrap().param_into()?;
             let source_url = DatasourceUrl::new(url_string)?;
 
-            let creds: String = args.next().unwrap().extract()?;
+            let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
-                .get_credentials_entry(&creds)
+                .get_credentials_entry(creds.as_str())
                 .ok_or(BuiltinError::Static("missing credentials object"))?;
 
             match source_url.scheme() {
@@ -682,24 +858,6 @@ async fn create_provider_for_filetype(
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?
                 }
-                _ => {
-                    return Err(BuiltinError::Static(
-                        "Unsupported datasource URL for given parameters",
-                    ))
-                }
-            }
-        }
-        2 => {
-            let mut args = args.into_iter();
-            let url_string: String = args.next().unwrap().extract()?;
-            let source_url = DatasourceUrl::new(url_string)?;
-
-            let creds: String = args.next().unwrap().extract()?;
-            let creds = ctx
-                .get_credentials_entry(&creds)
-                .ok_or(BuiltinError::Static("missing credentials object"))?;
-
-            match source_url.scheme() {
                 DatasourceUrlScheme::S3 => {
                     let (access_key_id, secret_access_key) = match &creds.options {
                         CredentialsOptions::Aws(o) => {
@@ -716,7 +874,11 @@ async fn create_provider_for_filetype(
                     let location = source_url.path().into_owned();
 
                     // S3 requires a region parameter.
-                    let region: String = args.next().unwrap().extract()?;
+                    const REGION_KEY: &str = "region";
+                    let region = opts
+                        .remove(REGION_KEY)
+                        .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+                        .param_into()?;
 
                     S3Accessor::new(S3TableAccess {
                         bucket_name,
@@ -764,17 +926,18 @@ impl TableFunc for ListSchemas {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             1 => {
-                let mut args = args.iter();
-                let database = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let database: IdentValue = args.next().unwrap().param_into()?;
 
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database).await?;
+                let lister = get_db_lister(ctx, database.into()).await?;
                 let schema_list = lister
                     .list_schemas()
                     .await
@@ -822,20 +985,21 @@ impl TableFunc for ListTables {
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {
-                let mut args = args.iter();
-                let database = args.next().unwrap().extract()?;
-                let schema_name: String = args.next().unwrap().extract()?;
+                let mut args = args.into_iter();
+                let database: IdentValue = args.next().unwrap().param_into()?;
+                let schema_name: IdentValue = args.next().unwrap().param_into()?;
 
                 let fields = vec![Field::new("table_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database).await?;
+                let lister = get_db_lister(ctx, database.into()).await?;
                 let tables_list = lister
-                    .list_tables(&schema_name)
+                    .list_tables(schema_name.as_str())
                     .await
                     .map_err(|e| BuiltinError::Access(Box::new(e)))?;
                 let tables_list: StringArray = tables_list.into_iter().map(Some).collect();
@@ -1004,53 +1168,62 @@ impl TableFunc for GenerateSeries {
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
-        args: &[FunctionArg],
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {
-                let mut args = args.iter();
+                let mut args = args.into_iter();
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
-                if is_scalar_int(start) && is_scalar_int(stop) {
+
+                if i64::is_param_valid(&start) && i64::is_param_valid(&stop) {
                     create_straming_table::<GenerateSeriesTypeInt>(
-                        start.extract()?,
-                        stop.extract()?,
+                        start.param_into()?,
+                        stop.param_into()?,
                         1,
                     )
-                } else if is_scalar_float(start) && is_scalar_float(stop) {
+                } else if f64::is_param_valid(&start) && f64::is_param_valid(&stop) {
                     create_straming_table::<GenerateSeriesTypeFloat>(
-                        start.extract()?,
-                        stop.extract()?,
-                        1.0f64,
+                        start.param_into()?,
+                        stop.param_into()?,
+                        1.0_f64,
                     )
                 } else {
                     return Err(BuiltinError::UnexpectedArgs {
                         expected: String::from("ints or floats"),
-                        scalars: vec![start.clone(), stop.clone()],
+                        params: vec![start, stop],
                     });
                 }
             }
             3 => {
-                let mut args = args.iter();
+                let mut args = args.into_iter();
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
                 let step = args.next().unwrap();
-                if is_scalar_int(start) && is_scalar_int(stop) && is_scalar_int(step) {
+
+                if i64::is_param_valid(&start)
+                    && i64::is_param_valid(&stop)
+                    && i64::is_param_valid(&step)
+                {
                     create_straming_table::<GenerateSeriesTypeInt>(
-                        start.extract()?,
-                        stop.extract()?,
-                        step.extract()?,
+                        start.param_into()?,
+                        stop.param_into()?,
+                        step.param_into()?,
                     )
-                } else if is_scalar_float(start) && is_scalar_float(stop) && is_scalar_float(step) {
+                } else if f64::is_param_valid(&start)
+                    && f64::is_param_valid(&stop)
+                    && f64::is_param_valid(&step)
+                {
                     create_straming_table::<GenerateSeriesTypeFloat>(
-                        start.extract()?,
-                        stop.extract()?,
-                        step.extract()?,
+                        start.param_into()?,
+                        stop.param_into()?,
+                        step.param_into()?,
                     )
                 } else {
                     return Err(BuiltinError::UnexpectedArgs {
                         expected: String::from("ints or floats"),
-                        scalars: vec![start.clone(), stop.clone(), step.clone()],
+                        params: vec![start, stop, step],
                     });
                 }
             }
@@ -1204,119 +1377,5 @@ impl<T: GenerateSeriesType> Stream for GenerateSeriesStream<T> {
 impl<T: GenerateSeriesType> RecordBatchStream for GenerateSeriesStream<T> {
     fn schema(&self) -> Arc<Schema> {
         self.schema.clone()
-    }
-}
-
-fn is_scalar_int(val: &SqlFunctionArg) -> bool {
-    match val {
-        FunctionArg::Named { .. } => false,
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
-            SqlValue::Number(s, _) => !s.contains('.'),
-            _ => todo!(),
-        },
-        _ => false,
-    }
-}
-
-fn is_scalar_float(val: &SqlFunctionArg) -> bool {
-    !is_scalar_int(val)
-}
-fn is_scalar_array(val: &FunctionArg) -> bool {
-    matches!(
-        val,
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Array(_)))
-    )
-}
-
-pub trait ExtractInto<T> {
-    fn extract(&self) -> Result<T>;
-}
-
-impl ExtractInto<String> for SqlFunctionArg {
-    fn extract(&self) -> Result<String> {
-        match self {
-            FunctionArg::Named { .. } => todo!(),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
-                SqlValue::UnQuotedString(s),
-            ))) => Ok(s.clone()),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
-                SqlValue::SingleQuotedString(s),
-            ))) => Ok(s.clone()),
-            other => {
-                Err(BuiltinError::UnexpectedArg {
-                    scalar: other.clone(),
-                    expected: DataType::Utf8,
-                })
-            }
-        }
-    }
-}
-
-impl ExtractInto<Vec<String>> for SqlFunctionArg {
-    fn extract(&self) -> Result<Vec<String>> {
-        match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) => match expr {
-                SqlExpr::Array(arr) => arr
-                    .elem
-                    .iter()
-                    .map(|e| match e {
-                        SqlExpr::Value(SqlValue::SingleQuotedString(s)) => Ok(s.clone()),
-                        _ => Err(BuiltinError::UnexpectedArg {
-                            scalar: self.clone(),
-                            expected: DataType::Utf8,
-                        }),
-                    })
-                    .collect(),
-                other => {
-                    todo!()
-                }
-            },
-            other => {
-                todo!()
-            }
-        }
-    }
-}
-
-impl ExtractInto<f64> for SqlFunctionArg {
-    fn extract(&self) -> Result<f64> {
-        match self {
-            FunctionArg::Named { .. } => todo!(),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => match v {
-                SqlValue::Number(s, _) => Ok(s.parse::<f64>().unwrap()),
-                _ => todo!(),
-            },
-            other => Err(BuiltinError::UnexpectedArg {
-                scalar: other.clone(),
-                expected: DataType::Int64,
-            }),
-        }
-    }
-}
-impl ExtractInto<i64> for SqlFunctionArg {
-    fn extract(&self) -> Result<i64> {
-        match self {
-            FunctionArg::Named { .. } => todo!(),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(v))) => {
-                match v {
-                    SqlValue::Number(s, _) => {
-                        // Check for existence of decimal separator dot
-                        if s.contains('.') {
-                            Err(BuiltinError::UnexpectedArg {
-                                scalar: self.clone(),
-                                expected: DataType::Int64,
-                            })
-                        } else {
-                            Ok(s.parse::<i64>().unwrap())
-                        }
-                    }
-                    _ => todo!(),
-                }
-            }
-            other => Err(BuiltinError::UnexpectedArg {
-                scalar: other.clone(),
-                expected: DataType::Int64,
-            }),
-        }
     }
 }

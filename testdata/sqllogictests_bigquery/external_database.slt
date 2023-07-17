@@ -16,14 +16,14 @@ SELECT count(*) FROM external_db.${BIGQUERY_DATASET_ID}.bikeshare_stations;
 # Ensure we can query into the virtual schema.
 
 query T
-SELECT * FROM list_schemas('external_db')
+SELECT * FROM list_schemas(external_db)
 	WHERE schema_name = '${BIGQUERY_DATASET_ID}';
 ----
 ${BIGQUERY_DATASET_ID}
 
 query T
 SELECT table_name
-	FROM list_tables('external_db', '${BIGQUERY_DATASET_ID}')
+	FROM list_tables(external_db, ${BIGQUERY_DATASET_ID})
 	WHERE table_name = 'bikeshare_stations';
 ----
 bikeshare_stations

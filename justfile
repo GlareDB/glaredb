@@ -38,8 +38,8 @@ test *args: protoc
   cargo test {{args}}
 
 # Run unit tests.
-unit-tests: protoc
-  just test --lib --bins
+unit-tests *args: protoc
+  just test --lib --bins {{args}}
 
 # Run doc tests.
 doc-tests: protoc
