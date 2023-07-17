@@ -8,11 +8,11 @@ use datafusion::datasource::file_format::file_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::object_store::ObjectStoreUrl;
+use datafusion::datasource::physical_plan::{FileScanConfig, NdJsonExec};
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::TableType;
-use datafusion::physical_plan::file_format::{FileScanConfig, NdJsonExec};
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::{Expr, SessionContext};
 

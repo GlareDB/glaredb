@@ -414,7 +414,7 @@ impl Session {
         let physical = self.create_physical_plan(plan.source).await?;
         let stream = self.execute_physical(physical)?;
 
-        sink.write_all(stream).await?;
+        sink.write_all(stream, &self.ctx.task_context()).await?;
         Ok(())
     }
 
