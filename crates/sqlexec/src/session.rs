@@ -1,6 +1,6 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
+use crate::errors::Result;
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
@@ -233,10 +233,6 @@ impl Session {
     pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
         self.ctx.create_external_table(plan).await?;
         Ok(())
-    }
-
-    pub(crate) async fn create_table_as(&self, _plan: CreateTableAs) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("CREATE TABLE ... AS ..."))
     }
 
     pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
@@ -526,10 +522,6 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateCredentials(plan)) => {
                 self.create_credentials(plan).await?;
                 ExecutionResult::CreateCredentials
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
-                self.create_table_as(plan).await?;
-                ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;

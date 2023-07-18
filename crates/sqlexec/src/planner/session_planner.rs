@@ -665,26 +665,37 @@ impl<'a> SessionPlanner<'a> {
                 .into())
             }
 
-            // Normal tables.
+            // Normal tables OR Tables generated from a source query.
+            // CREATE TABLE
+            // CREATE TABLE table2 AS (SELECT * FROM table1);
             ast::Statement::CreateTable {
                 external: false,
                 if_not_exists,
                 engine: None,
                 name,
                 columns,
-                query: None,
+                query,
                 temporary,
                 ..
             } => {
                 validate_object_name(&name)?;
                 let table_name = object_name_to_table_ref(name)?;
 
-                let mut arrow_cols = Vec::with_capacity(columns.len());
-                for column in columns.into_iter() {
-                    let dt = convert_data_type(&column.data_type)?;
-                    let field = Field::new(&column.name.value, dt, /* nullable = */ true);
-                    arrow_cols.push(field);
-                }
+                let (source, arrow_cols) = if let Some(q) = query {
+                    let source = planner.query_to_plan(*q).await?;
+                    let fields = source.schema().fields();
+                    let fields: Vec<_> =
+                        fields.iter().map(|f| f.field().as_ref().clone()).collect();
+                    (Some(source), fields)
+                } else {
+                    let mut arrow_cols = Vec::with_capacity(columns.len());
+                    for column in columns.into_iter() {
+                        let dt = convert_data_type(&column.data_type)?;
+                        let field = Field::new(&column.name.value, dt, /* nullable = */ true);
+                        arrow_cols.push(field);
+                    }
+                    (None, arrow_cols)
+                };
 
                 if temporary {
                     let table_name = match table_name {
@@ -705,25 +716,10 @@ impl<'a> SessionPlanner<'a> {
                         table_name: table_name.to_owned_reference(),
                         table_options: opts,
                         if_not_exists,
+                        source,
                     })
                     .into())
                 }
-            }
-
-            // Tables generated from a source query.
-            //
-            // CREATE TABLE table2 AS (SELECT * FROM table1);
-            ast::Statement::CreateTable {
-                external: false,
-                name,
-                query: Some(query),
-                ..
-            } => {
-                validate_object_name(&name)?;
-                let table_name = object_name_to_table_ref(name)?;
-
-                let source = planner.query_to_plan(*query).await?;
-                Ok(DdlPlan::CreateTableAs(CreateTableAs { table_name, source }).into())
             }
 
             // Views
