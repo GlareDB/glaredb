@@ -1,8 +1,15 @@
 # Tests `delta_scan`
 
-# Absolute path
+# Absolute path (trailing slash)
 query IT
 select * from delta_scan('file://${PWD}/testdata/delta/table1/') order by a;
+----
+1   hello
+2   world
+
+# Absolute path (no trailing slash)
+query IT
+select * from delta_scan('file://${PWD}/testdata/delta/table1') order by a;
 ----
 1   hello
 2   world
@@ -13,3 +20,4 @@ select * from delta_scan('file://${PWD}/testdata/delta/table1/') order by a;
 # ----
 # 1   hello
 # 2   world
+

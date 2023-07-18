@@ -2,8 +2,7 @@ use crate::delta::catalog::{DataCatalog, UnityCatalog};
 use crate::delta::errors::Result;
 use deltalake::DeltaTable;
 use metastore_client::types::options::{
-    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsGcp, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog,
+    CredentialsOptionsAws, CredentialsOptionsGcp, DeltaLakeCatalog, DeltaLakeUnityCatalog,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,7 +22,13 @@ pub enum DeltaLakeStorageOptions {
 }
 
 impl DeltaLakeStorageOptions {
-    /// Turn self into a hashmap containing object_store specific options.
+    /// Turn self into a hashmap containing object_store specific options. This
+    /// hashmap is passed into delta-rs which will then create the appropriate
+    /// object store for us using these options.
+    ///
+    /// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
+    /// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
+    /// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
     fn into_opts_hashmap(self) -> HashMap<String, String> {
         let mut opts = HashMap::new();
         match self {

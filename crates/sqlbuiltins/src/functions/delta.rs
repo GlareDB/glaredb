@@ -47,7 +47,7 @@ impl TableFunc for DeltaScan {
         &self,
         ctx: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
-        _opts: HashMap<String, FuncParamValue>,
+        mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let (loc, delta_opts) = match args.len() {
             1 => {
@@ -68,15 +68,15 @@ impl TableFunc for DeltaScan {
                 let first = args.get(0).unwrap().clone();
                 let url = first.param_into()?;
                 let source_url = DatasourceUrl::new(&url)?;
-                let creds: String = args.get(1).unwrap().clone().param_into()?;
+                let creds: IdentValue = args.get(1).unwrap().clone().param_into()?;
+
+                let creds = ctx
+                    .get_credentials_entry(creds.as_str())
+                    .cloned()
+                    .ok_or(BuiltinError::Static("missing credentials object"))?;
 
                 match source_url.scheme() {
                     DatasourceUrlScheme::Gcs => {
-                        let creds = ctx
-                            .get_credentials_entry(creds.as_str())
-                            .cloned()
-                            .ok_or(BuiltinError::Static("missing credentials object"))?;
-
                         if let CredentialsOptions::Gcp(creds) = creds.options {
                             (url, DeltaLakeStorageOptions::Gcs { creds })
                         } else {
@@ -84,7 +84,18 @@ impl TableFunc for DeltaScan {
                         }
                     }
                     DatasourceUrlScheme::S3 => {
-                        todo!()
+                        // S3 requires a region parameter.
+                        const REGION_KEY: &str = "region";
+                        let region = opts
+                            .remove(REGION_KEY)
+                            .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+                            .param_into()?;
+
+                        if let CredentialsOptions::Aws(creds) = creds.options {
+                            (url, DeltaLakeStorageOptions::S3 { creds, region })
+                        } else {
+                            return Err(BuiltinError::Static("invalid credentials for S3"));
+                        }
                     }
                     DatasourceUrlScheme::File => {
                         return Err(BuiltinError::Static(
