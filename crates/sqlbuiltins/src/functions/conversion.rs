@@ -70,8 +70,7 @@ impl FromFuncParamValue for String {
     }
 }
 
-impl FromFuncParamValue for Vec<String>
-{
+impl FromFuncParamValue for Vec<String> {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Array(arr) => {
