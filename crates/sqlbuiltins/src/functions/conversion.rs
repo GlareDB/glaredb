@@ -70,16 +70,14 @@ impl FromFuncParamValue for String {
     }
 }
 
-impl<T> FromFuncParamValue for Vec<T>
-where
-    T: FromFuncParamValue,
+impl FromFuncParamValue for Vec<String>
 {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Array(arr) => {
                 let mut res = Vec::with_capacity(arr.len());
                 for val in arr {
-                    res.push(T::from_param(val)?);
+                    res.push(String::from_param(val)?);
                 }
                 Ok(res)
             }
