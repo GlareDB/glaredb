@@ -11,3 +11,11 @@ select * from basic;
 ----
 1  a
 2  b
+
+# https://github.com/GlareDB/glaredb/issues/1321
+
+statement ok
+create table table_with_list (a text[])
+
+statement ok
+insert into table_with_list values (['hello', 'world'])

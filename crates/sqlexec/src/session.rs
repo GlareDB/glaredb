@@ -1,12 +1,11 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
-use crate::engine::SessionInfo;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
-use crate::vars::SessionVars;
+use crate::vars::{SessionVars, VarSetter};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -181,15 +180,20 @@ impl Session {
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
     pub fn new(
-        info: Arc<SessionInfo>,
+        vars: SessionVars,
         catalog: SessionCatalog,
         metastore: SupervisorClient,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Session> {
-        let metrics = SessionMetrics::new(info.clone(), tracker);
-        let ctx = SessionContext::new(info, catalog, metastore, native_tables, metrics, spill_path);
+        let metrics = SessionMetrics::new(
+            *vars.user_id.value(),
+            *vars.database_id.value(),
+            *vars.connection_id.value(),
+            tracker,
+        );
+        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, metrics, spill_path);
         Ok(Session { ctx })
     }
 
@@ -309,9 +313,11 @@ impl Session {
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx
-            .get_session_vars_mut()
-            .set(&plan.variable, plan.try_value_into_string()?.as_str())?;
+        self.ctx.get_session_vars_mut().set(
+            &plan.variable,
+            plan.try_value_into_string()?.as_str(),
+            VarSetter::User,
+        )?;
         Ok(())
     }
 
