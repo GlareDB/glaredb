@@ -16,18 +16,18 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result};
-use datafusion::datasource::DefaultTableSource;
-use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
+
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
 use sqlbuiltins::functions::FuncParamValue;
-
 mod join;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
@@ -44,14 +44,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             } => {
                 // normalize name and alias
                 let table_ref = self.object_name_to_table_reference(name)?;
+                let mut unnamed_args = Vec::new();
+                let mut named_args = HashMap::new();
 
                 match args {
                     Some(args) => {
                         // Table factor has arguments, look up table returning
                         // function.
-
-                        let mut unnamed_args = Vec::new();
-                        let mut named_args = HashMap::new();
                         for arg in args {
                             let (name, val) = self.get_constant_function_arg(arg)?;
                             if let Some(name) = name {
@@ -60,7 +59,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 unnamed_args.push(val);
                             }
                         }
-
                         let func = self
                             .schema_provider
                             .get_table_func(table_ref.clone())
@@ -71,21 +69,23 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             })?;
 
                         let table_fn_provider = self.schema_provider.table_fn_ctx_provider();
-                        let provider = func
-                            .create_provider(&table_fn_provider, unnamed_args, named_args)
+                        let plan = func
+                            .create_logical_plan(
+                                table_ref,
+                                &table_fn_provider,
+                                unnamed_args,
+                                named_args,
+                            )
                             .await
-                            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
-
-                        let source = Arc::new(DefaultTableSource::new(provider));
-
-                        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
-                        let plan = plan_builder.build()?;
+                            .map_err(|e| {
+                                DataFusionError::Plan(format!(
+                                    "Failed to create logical plan for table function\n Reason: {e}"
+                                ))
+                            })?;
 
                         (plan, alias)
                     }
                     None => {
-                        // No arguments provided. Just a basic table.
-
                         let table_name = table_ref.to_string();
 
                         let cte = planner_context.get_cte(&table_name);
@@ -161,6 +161,14 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     fn get_param_val(&self, expr: ast::Expr) -> Result<FuncParamValue> {
         match expr {
             ast::Expr::Identifier(ident) => Ok(self.normalizer.normalize(ident).into()),
+            ast::Expr::Array(arr) => {
+                let arr = arr
+                    .elem
+                    .iter()
+                    .map(|e| self.get_param_val(e.clone()))
+                    .collect::<Result<Vec<FuncParamValue>>>();
+                Ok(FuncParamValue::Array(arr?))
+            }
             ast::Expr::UnaryOp { op, expr } => match op {
                 ast::UnaryOperator::Minus => {
                     match *expr {
@@ -187,7 +195,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             },
 
             ast::Expr::Value(v) => match self.parse_value(v, &[]) {
-                Ok(Expr::Literal(lit)) => Ok(lit.into()),
+                Ok(datafusion::logical_expr::expr::Expr::Literal(lit)) => Ok(lit.into()),
                 Ok(v) => Err(DataFusionError::NotImplemented(format!(
                     "Non-constant function argument: {v:?}"
                 ))),

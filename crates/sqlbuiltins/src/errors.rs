@@ -21,7 +21,6 @@ pub enum BuiltinError {
         params: Vec<crate::functions::FuncParamValue>,
         expected: String,
     },
-
     #[error("Unable to find {obj_typ}: '{name}'")]
     MissingObject { obj_typ: &'static str, name: String },
 
