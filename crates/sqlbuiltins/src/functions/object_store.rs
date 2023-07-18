@@ -375,7 +375,7 @@ async fn create_provider_for_filetype(
                         let creds: IdentValue = creds.clone().param_into()?;
 
                         let creds = ctx
-                            .get_credentials_entry(&creds.as_str())
+                            .get_credentials_entry(creds.as_str())
                             .ok_or(BuiltinError::Static("missing credentials object"))?;
 
                         if let CredentialsOptions::Gcp(creds) = &creds.options {
