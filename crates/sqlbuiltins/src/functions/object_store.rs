@@ -1,5 +1,3 @@
-use datafusion::sql::sqlparser::ast::Ident;
-
 use super::*;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Parquet, "parquet_scan");
@@ -197,20 +195,10 @@ impl ObjScanTableFunc {
         &self,
         table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
-        orig_args: Vec<FunctionArg>,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
-        let first_unnamed = orig_args
-            .iter()
-            .position(|arg| matches!(arg, FunctionArg::Unnamed { .. }));
-        let has_array = if let Some(first) = first_unnamed {
-            let args = orig_args.as_slice();
-            let first = &args[first];
-            is_scalar_array(first)
-        } else {
-            false
-        };
+        let has_array = matches!(&args[0], FuncParamValue::Array(_));
 
         if has_array {
             unimplemented!("array of urls not supported yet for named args")
@@ -226,41 +214,56 @@ impl ObjScanTableFunc {
     async fn create_provider_for_positional(
         &self,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let args = args.as_slice();
         let Self(file_type, _) = self;
-        let first = &args[0];
-        let url_string: String = first.extract()?;
-        create_provider_for_filetype(ctx, *file_type, url_string, &args[1..]).await
+        let first = args.get(0).unwrap();
+
+        let url_string: String = first.clone().param_into()?;
+        create_provider_for_filetype(ctx, *file_type, url_string, &args[1..], opts).await
     }
 
     async fn create_lp_for_positional(
         &self,
         table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
-        args: Vec<FunctionArg>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
-        if !is_scalar_array(&args[0]) {
-            let provider = self.create_provider_for_positional(ctx, args).await?;
+        if !matches!(&args[0], FuncParamValue::Array(_)) {
+            let provider = self.create_provider_for_positional(ctx, args, opts).await?;
             let source = Arc::new(DefaultTableSource::new(provider));
             let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
             let plan = pb.build()?;
             Ok(plan)
         } else {
             let first = &args[0];
-            let urls: Vec<String> = first.extract()?;
+            let urls: Vec<String> = first.clone().param_into()?;
             let urls = urls.as_slice();
             let first_url = &urls[0];
-            let provider =
-                create_provider_for_filetype(ctx, self.0, first_url.clone(), &args[1..]).await?;
+            let provider = create_provider_for_filetype(
+                ctx,
+                self.0,
+                first_url.clone(),
+                &args[1..],
+                opts.clone(),
+            )
+            .await?;
             let source = Arc::new(DefaultTableSource::new(provider));
 
             let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
 
             for url in &urls[1..] {
-                let provider =
-                    create_provider_for_filetype(ctx, self.0, url.clone(), &args[1..]).await?;
+                let provider = create_provider_for_filetype(
+                    ctx,
+                    self.0,
+                    url.clone(),
+                    &args[1..],
+                    opts.clone(),
+                )
+                .await?;
                 let source = Arc::new(DefaultTableSource::new(provider));
                 let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
                 let plan = pb.build()?;
@@ -317,16 +320,14 @@ impl TableFunc for ObjScanTableFunc {
         &self,
         table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
-        orig_args: Vec<FunctionArg>,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
-        if matches!(&orig_args[0], FunctionArg::Named { .. }) {
-            self.create_lp_for_named(table_ref, ctx, orig_args, args, opts)
+        if opts.is_empty() {
+            self.create_lp_for_positional(table_ref, ctx, args, opts)
                 .await
         } else {
-            self.create_lp_for_positional(table_ref, ctx, orig_args)
-                .await
+            self.create_lp_for_named(table_ref, ctx, args, opts).await
         }
     }
 }
@@ -335,7 +336,8 @@ async fn create_provider_for_filetype(
     ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
     url_string: String,
-    args: &[FunctionArg],
+    args: &[FuncParamValue],
+    mut opts: HashMap<String, FuncParamValue>,
 ) -> Result<Arc<dyn TableProvider>> {
     let store = match args.len() {
         0 => {
@@ -369,11 +371,11 @@ async fn create_provider_for_filetype(
 
             match source_url.scheme() {
                 DatasourceUrlScheme::Gcs => {
-                    let service_account_key = if is_ident(creds) {
-                        let creds: Ident = creds.extract()?;
+                    let service_account_key = if matches!(creds, FuncParamValue::Ident(_)) {
+                        let creds: IdentValue = creds.clone().param_into()?;
 
                         let creds = ctx
-                            .get_credentials_entry(&creds.value)
+                            .get_credentials_entry(&creds.as_str())
                             .ok_or(BuiltinError::Static("missing credentials object"))?;
 
                         if let CredentialsOptions::Gcp(creds) = &creds.options {
@@ -382,9 +384,9 @@ async fn create_provider_for_filetype(
                             return Err(BuiltinError::Static("invalid credentials for GCS"));
                         }
                     } else {
-                        creds
-                            .extract_named("service_account_key")
-                            .or_else(|_| creds.extract())?
+                        opts.remove("service_account_key")
+                            .map(FuncParamValue::param_into)
+                            .unwrap_or_else(|| creds.clone().param_into())?
                     };
 
                     let bucket_name = source_url
@@ -415,10 +417,10 @@ async fn create_provider_for_filetype(
         }
         2 => {
             let mut args = args.iter();
-            let url_string: String = args.next().unwrap().extract()?;
+            let url_string: String = args.next().unwrap().clone().param_into()?;
             let source_url = DatasourceUrl::new(url_string)?;
 
-            let creds: String = args.next().unwrap().extract()?;
+            let creds: String = args.next().unwrap().clone().param_into()?;
             let creds = ctx
                 .get_credentials_entry(&creds)
                 .ok_or(BuiltinError::Static("missing credentials object"))?;
@@ -440,7 +442,7 @@ async fn create_provider_for_filetype(
                     let location = source_url.path().into_owned();
 
                     // S3 requires a region parameter.
-                    let region: String = args.next().unwrap().extract()?;
+                    let region: String = args.next().unwrap().clone().param_into()?;
 
                     S3Accessor::new(S3TableAccess {
                         bucket_name,

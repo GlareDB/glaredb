@@ -1,192 +1,8 @@
 use std::fmt;
 
-use datafusion::{
-    scalar::ScalarValue,
-    sql::sqlparser::ast::{Ident, UnaryOperator},
-};
+use datafusion::scalar::ScalarValue;
 
 use super::*;
-
-pub trait ExtractInto<T> {
-    fn extract(&self) -> Result<T>;
-    fn extract_named(&self, _name: &'static str) -> Result<T> {
-        Err(BuiltinError::Unimplemented("named parameters"))
-    }
-}
-pub trait ExtractNamedInto<T> {
-    fn extract_named(&self, name: &'static str) -> Result<T>;
-}
-
-impl ExtractInto<String> for SqlFunctionArg {
-    fn extract(&self) -> Result<String> {
-        match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
-                SqlValue::SingleQuotedString(s),
-            ))) => Ok(s.clone()),
-
-            other => Err(BuiltinError::UnexpectedFunctionArg {
-                param: other.clone(),
-                expected: DataType::Utf8,
-            }),
-        }
-    }
-}
-
-impl ExtractInto<Ident> for SqlFunctionArg {
-    fn extract(&self) -> Result<Ident> {
-        match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Identifier(ident))) => {
-                Ok(ident.clone())
-            }
-
-            other => Err(BuiltinError::UnexpectedFunctionArg {
-                param: other.clone(),
-                expected: DataType::Utf8,
-            }),
-        }
-    }
-
-    fn extract_named(&self, name: &'static str) -> Result<Ident> {
-        match self {
-            FunctionArg::Named {
-                name: n,
-                arg: FunctionArgExpr::Expr(SqlExpr::Identifier(ident)),
-            } if n.value == name => Ok(ident.clone()),
-            _ => Err(BuiltinError::UnexpectedFunctionArgs {
-                params: vec![self.clone()],
-                expected: format!("named parameter {}", name),
-            }),
-        }
-    }
-}
-
-impl ExtractInto<Vec<String>> for SqlFunctionArg {
-    fn extract(&self) -> Result<Vec<String>> {
-        match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Array(arr))) => arr
-                .elem
-                .iter()
-                .map(|e| match e {
-                    SqlExpr::Value(SqlValue::SingleQuotedString(s)) => Ok(s.clone()),
-
-                    _ => Err(BuiltinError::UnexpectedFunctionArg {
-                        param: self.clone(),
-                        expected: DataType::Utf8,
-                    }),
-                })
-                .collect(),
-
-            _ => Err(BuiltinError::UnexpectedFunctionArg {
-                param: self.clone(),
-                expected: DataType::Utf8,
-            }),
-        }
-    }
-}
-
-impl ExtractInto<f64> for SqlFunctionArg {
-    fn extract(&self) -> Result<f64> {
-        match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(SqlValue::Number(s, _)))) => {
-                Ok(s.parse::<f64>().unwrap())
-            }
-
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::UnaryOp {
-                op: UnaryOperator::Minus,
-                expr: v,
-            })) => {
-                if let SqlExpr::Value(SqlValue::Number(s, _)) = v.as_ref() {
-                    let v = s.parse::<f64>().unwrap();
-                    Ok(-v)
-                } else {
-                    Err(BuiltinError::UnexpectedFunctionArg {
-                        param: self.clone(),
-                        expected: DataType::Int64,
-                    })
-                }
-            }
-            _ => Err(BuiltinError::UnexpectedFunctionArg {
-                param: self.clone(),
-                expected: DataType::Float64,
-            }),
-        }
-    }
-}
-
-impl ExtractInto<i64> for SqlFunctionArg {
-    fn extract(&self) -> Result<i64> {
-        match self {
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(SqlValue::Number(s, _)))) => {
-                // Check for existence of decimal separator dot
-                if !s.contains('.') {
-                    Ok(s.parse::<i64>().unwrap())
-                } else {
-                    Err(BuiltinError::UnexpectedFunctionArg {
-                        param: self.clone(),
-                        expected: DataType::Int64,
-                    })
-                }
-            }
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::UnaryOp {
-                op: UnaryOperator::Minus,
-                expr: v,
-            })) => {
-                if let SqlExpr::Value(SqlValue::Number(s, _)) = v.as_ref() {
-                    // Check for existence of decimal separator dot
-                    if !s.contains('.') {
-                        let v = s.parse::<i64>().unwrap();
-                        Ok(-v)
-                    } else {
-                        Err(BuiltinError::UnexpectedFunctionArg {
-                            param: self.clone(),
-                            expected: DataType::Int64,
-                        })
-                    }
-                } else {
-                    Err(BuiltinError::UnexpectedFunctionArg {
-                        param: self.clone(),
-                        expected: DataType::Int64,
-                    })
-                }
-            }
-
-            _ => Err(BuiltinError::UnexpectedFunctionArg {
-                param: self.clone(),
-                expected: DataType::Int64,
-            }),
-        }
-    }
-}
-
-impl ExtractInto<String> for [SqlFunctionArg] {
-    fn extract(&self) -> Result<String> {
-        for arg in self {
-            if let FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Value(
-                SqlValue::SingleQuotedString(s),
-            ))) = arg
-            {
-                return Ok(s.clone());
-            }
-        }
-        Err(BuiltinError::UnexpectedFunctionArgs {
-            params: self.to_vec(),
-            expected: "list of strings".to_string(),
-        })
-    }
-    fn extract_named(&self, name: &'static str) -> Result<String> {
-        for arg in self {
-            match arg {
-                FunctionArg::Named { name: n, .. } if n.value == name => return arg.extract(),
-                _ => (),
-            }
-        }
-        Err(BuiltinError::UnexpectedFunctionArgs {
-            params: self.to_vec(),
-            expected: "list of strings".to_string(),
-        })
-    }
-}
-
 /// Value from a function parameter.
 #[derive(Debug, Clone)]
 pub enum FuncParamValue {
@@ -194,6 +10,7 @@ pub enum FuncParamValue {
     Ident(String),
     /// Scalar value.
     Scalar(ScalarValue),
+    Array(Vec<FuncParamValue>),
 }
 
 impl fmt::Display for FuncParamValue {
@@ -201,6 +18,7 @@ impl fmt::Display for FuncParamValue {
         match self {
             Self::Ident(s) => write!(f, "{s}"),
             Self::Scalar(s) => write!(f, "{s}"),
+            Self::Array(vals) => write!(f, "{vals:?}"),
         }
     }
 }
@@ -243,6 +61,28 @@ impl FromFuncParamValue for String {
             other => Err(BuiltinError::UnexpectedArg {
                 param: other,
                 expected: DataType::Utf8,
+            }),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
+    }
+}
+
+impl FromFuncParamValue for Vec<String> {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Array(arr) => {
+                let mut res = Vec::with_capacity(arr.len());
+                for val in arr {
+                    res.push(String::from_param(val)?);
+                }
+                Ok(res)
+            }
+            other => Err(BuiltinError::UnexpectedArg {
+                param: other,
+                expected: DataType::List(Arc::new(Field::new("list", DataType::Utf8, false))),
             }),
         }
     }

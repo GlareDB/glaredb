@@ -39,10 +39,6 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 
-use datafusion::sql::sqlparser::ast::{
-    Expr as SqlExpr, FunctionArg as SqlFunctionArg, Value as SqlValue,
-};
-use datafusion::sql::sqlparser::ast::{FunctionArg, FunctionArgExpr};
 use datafusion::{arrow::datatypes::DataType, datasource::TableProvider};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::listing::VirtualLister;
@@ -106,7 +102,6 @@ pub trait TableFunc: Sync + Send {
         &self,
         table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
-        _: Vec<FunctionArg>,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
@@ -181,21 +176,4 @@ impl Default for BuiltinTableFuncs {
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
-}
-
-fn is_scalar_array(val: &FunctionArg) -> bool {
-    matches!(
-        val,
-        FunctionArg::Unnamed(FunctionArgExpr::Expr(SqlExpr::Array(_)))
-    )
-}
-
-fn is_ident(val: &FunctionArg) -> bool {
-    matches!(
-        val,
-        FunctionArg::Named { .. }
-            | FunctionArg::Unnamed(FunctionArgExpr::Expr(
-                SqlExpr::Identifier(_) | SqlExpr::CompoundIdentifier(_)
-            ))
-    )
 }

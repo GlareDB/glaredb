@@ -75,7 +75,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             .create_logical_plan(
                                 table_ref,
                                 &table_fn_provider,
-                                args,
                                 unnamed_args,
                                 named_args,
                             )
@@ -164,6 +163,14 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     fn get_param_val(&self, expr: ast::Expr) -> Result<FuncParamValue> {
         match expr {
             ast::Expr::Identifier(ident) => Ok(self.normalizer.normalize(ident).into()),
+            ast::Expr::Array(arr) => {
+                let arr = arr
+                    .elem
+                    .iter()
+                    .map(|e| self.get_param_val(e.clone()))
+                    .collect::<Result<Vec<FuncParamValue>>>();
+                Ok(FuncParamValue::Array(arr?))
+            }
             ast::Expr::UnaryOp { op, expr } => match op {
                 ast::UnaryOperator::Minus => {
                     match *expr {
