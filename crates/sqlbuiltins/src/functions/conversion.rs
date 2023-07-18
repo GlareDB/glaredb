@@ -18,7 +18,7 @@ impl fmt::Display for FuncParamValue {
         match self {
             Self::Ident(s) => write!(f, "{s}"),
             Self::Scalar(s) => write!(f, "{s}"),
-            Self::Array(vals) => write!(f, "{vals:?}"),
+            Self::Array(vals) => write!(f, "{}", FuncParamValue::multiple_to_string(vals)),
         }
     }
 }
@@ -70,13 +70,16 @@ impl FromFuncParamValue for String {
     }
 }
 
-impl FromFuncParamValue for Vec<String> {
+impl<T> FromFuncParamValue for Vec<T>
+where
+    T: FromFuncParamValue,
+{
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Array(arr) => {
                 let mut res = Vec::with_capacity(arr.len());
                 for val in arr {
-                    res.push(String::from_param(val)?);
+                    res.push(T::from_param(val)?);
                 }
                 Ok(res)
             }

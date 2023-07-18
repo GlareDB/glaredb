@@ -1,5 +1,3 @@
-use datafusion::sql::sqlparser::ast::FunctionArg;
-
 #[derive(Debug, thiserror::Error)]
 pub enum BuiltinError {
     #[error("Invalid number of arguments.")]
@@ -23,22 +21,6 @@ pub enum BuiltinError {
         params: Vec<crate::functions::FuncParamValue>,
         expected: String,
     },
-    #[error("Unexpected argument for function. Got '{param}', need value of type '{expected}'")]
-    UnexpectedFunctionArg {
-        param: FunctionArg,
-        expected: datafusion::arrow::datatypes::DataType,
-    },
-
-    #[error(
-        "Unexpected argument for function, expected {}, found '{:?}'",
-        expected,
-        params
-    )]
-    UnexpectedFunctionArgs {
-        params: Vec<FunctionArg>,
-        expected: String,
-    },
-
     #[error("Unable to find {obj_typ}: '{name}'")]
     MissingObject { obj_typ: &'static str, name: String },
 

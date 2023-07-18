@@ -28,8 +28,6 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
 use sqlbuiltins::functions::FuncParamValue;
-// use sqlbuiltins::functions::FuncParamValue;
-
 mod join;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
@@ -53,8 +51,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     Some(args) => {
                         // Table factor has arguments, look up table returning
                         // function.
-                        for arg in &args {
-                            let (name, val) = self.get_constant_function_arg(arg.clone())?;
+                        for arg in args {
+                            let (name, val) = self.get_constant_function_arg(arg)?;
                             if let Some(name) = name {
                                 named_args.insert(name, val);
                             } else {
@@ -135,9 +133,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
     }
 
-    // Get a constant expression literal from a function argument.
-    //
-    // Returns an optional name for the argument.
+    /// Get a constant expression literal from a function argument.
+    ///
+    /// Returns an optional name for the argument.
     fn get_constant_function_arg(
         &mut self,
         arg: ast::FunctionArg,
@@ -159,7 +157,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
     }
 
-    // /// Get the parameter value from expr.
+    /// Get the parameter value from expr.
     fn get_param_val(&self, expr: ast::Expr) -> Result<FuncParamValue> {
         match expr {
             ast::Expr::Identifier(ident) => Ok(self.normalizer.normalize(ident).into()),
