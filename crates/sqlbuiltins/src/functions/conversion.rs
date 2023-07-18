@@ -88,7 +88,11 @@ impl FromFuncParamValue for Vec<String> {
     }
 
     fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
+        if let FuncParamValue::Array(arr) = value {
+            String::is_param_valid(&arr[0])
+        } else {
+            false
+        }
     }
 }
 
