@@ -9,23 +9,6 @@ impl TableFunc for ListTables {
         "list_tables"
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "database",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "schema",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,

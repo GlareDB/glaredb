@@ -9,27 +9,6 @@ impl TableFunc for ReadMysql {
         "read_mysql"
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "connection_str",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "schema",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "table",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,

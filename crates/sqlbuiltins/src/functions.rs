@@ -79,18 +79,6 @@ pub trait TableFunc: Sync + Send {
     /// function implementations.
     fn name(&self) -> &str;
 
-    /// A list of function parameters.
-    ///
-    /// Note that returns a slice to allow for functions that take a variable
-    /// number of arguments. For example, a function implementation might allow
-    /// 2 or 3 parameters. The same implementation would be able to handle both
-    /// of these calls:
-    ///
-    /// my_func(arg1, arg2)
-    /// my_func(arg1, arg2, arg3)
-    fn parameters(&self) -> &[TableFuncParameters];
-
-    /// Return a table provider using the provided args.
     /// Return a table provider using the provided args.
     async fn create_provider(
         &self,
