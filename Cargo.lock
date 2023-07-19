@@ -386,6 +386,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrow_util"
+version = "0.2.1"
+dependencies = [
+ "comfy-table",
+ "datafusion",
+ "once_cell",
+]
+
+[[package]]
 name = "async-channel"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1076,6 +1085,7 @@ version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ab77dbd8adecaf3f0db40581631b995f312a8a5ae3aa9993188bb8f23d83a5b"
 dependencies = [
+ "crossterm",
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "unicode-width",
@@ -2435,8 +2445,10 @@ name = "glaredb"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "arrow_util",
  "clap",
  "colored",
+ "crossterm",
  "datafusion",
  "futures",
  "logutil",

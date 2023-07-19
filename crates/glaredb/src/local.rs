@@ -2,6 +2,7 @@ use crate::highlighter::SQLHighlighter;
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
+use arrow_util::pretty::pretty_format_batches;
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
@@ -11,7 +12,6 @@ use datafusion::arrow::json::writer::{
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::display::FormatOptions;
-use datafusion::arrow::util::pretty;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use once_cell::sync::Lazy;
@@ -59,6 +59,12 @@ pub struct LocalClientOpts {
     /// Display output mode.
     #[arg(long, value_enum, default_value_t=OutputMode::Table)]
     pub mode: OutputMode,
+
+    /// Max width for tables to display.
+    pub width: Option<usize>,
+
+    /// Max number of rows to display.
+    pub max_rows: Option<usize>,
 }
 
 impl LocalClientOpts {
@@ -221,7 +227,8 @@ impl LocalSession {
             match result {
                 ExecutionResult::Query { stream, .. }
                 | ExecutionResult::ShowVariable { stream } => {
-                    print_stream(stream, self.opts.mode).await?
+                    print_stream(stream, self.opts.mode, self.opts.width, self.opts.max_rows)
+                        .await?
                 }
                 other => println!("{:?}", other),
             }
@@ -275,7 +282,12 @@ async fn process_stream(stream: SendableRecordBatchStream) -> Result<Vec<RecordB
     Ok(batches)
 }
 
-async fn print_stream(stream: SendableRecordBatchStream, mode: OutputMode) -> Result<()> {
+async fn print_stream(
+    stream: SendableRecordBatchStream,
+    mode: OutputMode,
+    width: Option<usize>,
+    max_rows: Option<usize>,
+) -> Result<()> {
     let batches = process_stream(stream).await?;
 
     fn write_json<F: JsonFormat>(batches: &[RecordBatch]) -> Result<()> {
@@ -293,7 +305,11 @@ async fn print_stream(stream: SendableRecordBatchStream, mode: OutputMode) -> Re
 
     match mode {
         OutputMode::Table => {
-            let disp = pretty::pretty_format_batches_with_options(&batches, &TABLE_FORMAT_OPTS)?;
+            // If width not explicitly set by the user, try to get the width of ther
+            // terminal.
+            let width = width.unwrap_or(term_width());
+            println!("width: {width}");
+            let disp = pretty_format_batches(&batches, Some(width), max_rows)?;
             println!("{disp}");
         }
         OutputMode::Csv => {
@@ -358,4 +374,10 @@ fn get_history_path() -> PathBuf {
     home_dir.push(".glaredb");
     home_dir.push("history.txt");
     home_dir
+}
+
+fn term_width() -> usize {
+    crossterm::terminal::size()
+        .map(|(width, _)| width as usize)
+        .unwrap_or(80)
 }
