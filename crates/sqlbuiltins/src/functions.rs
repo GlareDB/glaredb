@@ -104,19 +104,6 @@ pub trait TableFunc: Sync + Send {
     }
 }
 
-/// A single parameter for a table function.
-#[derive(Debug, Clone)]
-pub struct TableFuncParameter {
-    pub name: &'static str,
-    pub typ: DataType,
-}
-
-/// A set of parameters for a table function.
-#[derive(Debug, Clone)]
-pub struct TableFuncParameters {
-    pub params: &'static [TableFuncParameter],
-}
-
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {
     funcs: HashMap<String, Arc<dyn TableFunc>>,
