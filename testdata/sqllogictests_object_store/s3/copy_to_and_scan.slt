@@ -61,3 +61,36 @@ SELECT a, b FROM csv_scan(
 );
 ----
 5	6
+
+# Multiple URLs
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		's3://${AWS_S3_BUCKET_NAME}/copy_to/with_opts.csv',
+		's3://${AWS_S3_BUCKET_NAME}/copy_to/with_url.csv',
+		's3://${AWS_S3_BUCKET_NAME}/copy_to/with_creds.csv'
+	],
+    access_key_id => '${AWS_ACCESS_KEY_ID}',
+    secret_access_key => '${AWS_SECRET_ACCESS_KEY}',
+    region => '${AWS_S3_REGION}'
+);
+----
+1	2
+3	4
+5	6
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		's3://${AWS_S3_BUCKET_NAME}/copy_to/with_opts.csv',
+		's3://${AWS_S3_BUCKET_NAME}/copy_to/with_url.csv',
+		's3://${AWS_S3_BUCKET_NAME}/copy_to/with_creds.csv'
+	],
+	AWS_CREDS,
+    region => '${AWS_S3_REGION}'
+);
+----
+1	2
+3	4
+5	6

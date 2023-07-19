@@ -103,3 +103,15 @@ SELECT a, b FROM csv_scan('${TMP}/random_file');
 
 statement error unsupported output format
 COPY copy_to_table TO '${TMP}/random_file.abc' FORMAT abc;
+
+# Multiple URLs
+
+query IT rowsort
+SELECT a, b FROM csv_scan([
+	'${TMP}/query_copy.csv',
+	'${TMP}/csv_copy_without_ext'
+]);
+----
+1	abc
+1	abc
+2	def

@@ -51,6 +51,9 @@ pub(super) trait FromFuncParamValue: Sized {
     fn from_param(value: FuncParamValue) -> Result<Self>;
 
     /// Check if the value is valid (able to convert).
+    ///
+    /// If `is_param_valid` returns true, `from_param` should be safely
+    /// `unwrap`able (i.e., not panic).
     fn is_param_valid(value: &FuncParamValue) -> bool;
 }
 
@@ -70,26 +73,29 @@ impl FromFuncParamValue for String {
     }
 }
 
-impl FromFuncParamValue for Vec<String> {
+impl<T> FromFuncParamValue for Vec<T>
+where
+    T: FromFuncParamValue,
+{
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Array(arr) => {
                 let mut res = Vec::with_capacity(arr.len());
                 for val in arr {
-                    res.push(String::from_param(val)?);
+                    res.push(T::from_param(val)?);
                 }
                 Ok(res)
             }
             other => Err(BuiltinError::UnexpectedArg {
                 param: other,
-                expected: DataType::List(Arc::new(Field::new("list", DataType::Utf8, false))),
+                expected: DataType::List(Arc::new(Field::new("list", DataType::Null, false))),
             }),
         }
     }
 
     fn is_param_valid(value: &FuncParamValue) -> bool {
         if let FuncParamValue::Array(arr) = value {
-            String::is_param_valid(&arr[0])
+            arr.iter().all(|v| T::is_param_valid(v))
         } else {
             false
         }

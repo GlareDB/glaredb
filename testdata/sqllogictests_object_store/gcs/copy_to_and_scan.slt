@@ -48,3 +48,33 @@ SELECT a, b FROM csv_scan(
 );
 ----
 5	6
+
+# Multiple URLs
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		'gs://${GCS_BUCKET_NAME}/copy_to/with_opts.csv',
+		'gs://${GCS_BUCKET_NAME}/copy_to/with_url.csv',
+		'gs://${GCS_BUCKET_NAME}/copy_to/with_creds.csv'
+	],
+	service_account_key => '${GCP_SERVICE_ACCOUNT_KEY}'
+);
+----
+1	2
+3	4
+5	6
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		'gs://${GCS_BUCKET_NAME}/copy_to/with_opts.csv',
+		'gs://${GCS_BUCKET_NAME}/copy_to/with_url.csv',
+		'gs://${GCS_BUCKET_NAME}/copy_to/with_creds.csv'
+	],
+	gcp_creds
+);
+----
+1	2
+3	4
+5	6

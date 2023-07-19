@@ -51,7 +51,7 @@ impl GlareDBRegistry {
 fn gcs_to_store(opts: &TableOptionsGcs) -> Result<Arc<dyn ObjectStore>> {
     let (store, _) = GcsTableAccess {
         bucket_name: opts.bucket.clone(),
-        service_acccount_key_json: opts.service_account_key.clone(),
+        service_account_key_json: opts.service_account_key.clone(),
         location: opts.location.clone(),
         file_type: None,
     }
