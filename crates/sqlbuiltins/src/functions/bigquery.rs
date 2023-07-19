@@ -9,31 +9,6 @@ impl TableFunc for ReadBigQuery {
         "read_bigquery"
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "gcp_service_account_key",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "project_id",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "dataset_id",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "table_id",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,

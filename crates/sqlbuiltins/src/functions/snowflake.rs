@@ -9,47 +9,6 @@ impl TableFunc for ReadSnowflake {
         "read_snowflake"
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "account",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "username",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "password",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "database",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "warehouse",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "role",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "schema",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "table",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,

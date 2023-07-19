@@ -18,49 +18,6 @@ impl TableFunc for ObjScanTableFunc {
         name
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[
-            TableFuncParameters {
-                params: &[TableFuncParameter {
-                    name: "url",
-                    typ: DataType::Utf8,
-                }],
-            },
-            // TableFuncParameters {
-            //     params: &[TableFuncParameter {
-            //         name: "urls",
-            //         typ: DataType::List(Arc::new(Field::new("url", DataType::Utf8, false))),
-            //     }],
-            // },
-            TableFuncParameters {
-                params: &[
-                    TableFuncParameter {
-                        name: "url",
-                        typ: DataType::Utf8,
-                    },
-                    TableFuncParameter {
-                        name: "credentials",
-                        typ: DataType::Utf8,
-                    },
-                ],
-            },
-            // TableFuncParameters {
-            //     params: &[
-            //         TableFuncParameter {
-            //             name: "urls",
-            //             typ: DataType::List(Arc::new(Field::new("url", DataType::Utf8, false))),
-            //         },
-            //         TableFuncParameter {
-            //             name: "credentials",
-            //             typ: DataType::Utf8,
-            //         },
-            //     ],
-            // },
-        ];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
