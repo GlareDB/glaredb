@@ -412,7 +412,7 @@ impl<'a> SessionDispatcher<'a> {
                 location,
             }) => {
                 let table_access = GcsTableAccess {
-                    service_acccount_key_json: service_account_key.clone(),
+                    service_account_key_json: service_account_key.clone(),
                     bucket_name: bucket.clone(),
                     location: location.clone(),
                     file_type: None,

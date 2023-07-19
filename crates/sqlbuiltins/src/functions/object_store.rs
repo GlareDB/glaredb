@@ -1,3 +1,5 @@
+use std::vec;
+
 use super::*;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Parquet, "parquet_scan");
@@ -8,272 +10,6 @@ pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Json, "ndjson
 
 #[derive(Debug, Clone, Copy)]
 pub struct ObjScanTableFunc(FileType, &'static str);
-
-impl ObjScanTableFunc {
-    async fn create_provider_for_named(
-        &self,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        mut opts: HashMap<String, FuncParamValue>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let store = match args.len() {
-            1 => {
-                let mut args = args.into_iter();
-                let url_string: String = args.next().unwrap().param_into()?;
-                let source_url = DatasourceUrl::new(&url_string)?;
-
-                match source_url.scheme() {
-                    DatasourceUrlScheme::Http => HttpAccessor::try_new(url_string, self.0)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?,
-                    DatasourceUrlScheme::File => {
-                        let location = source_url.path().into_owned();
-                        LocalAccessor::new(LocalTableAccess {
-                            location,
-                            file_type: Some(self.0),
-                        })
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    }
-                    DatasourceUrlScheme::Gcs => {
-                        let service_account_key = opts
-                            .remove("service_account_key")
-                            .map(FuncParamValue::param_into)
-                            .transpose()?;
-
-                        let bucket_name = source_url
-                            .host()
-                            .map(|b| b.to_owned())
-                            .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
-
-                        let location = source_url.path().into_owned();
-
-                        GcsAccessor::new(GcsTableAccess {
-                            bucket_name,
-                            service_acccount_key_json: service_account_key,
-                            location,
-                            file_type: Some(self.0),
-                        })
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    }
-                    DatasourceUrlScheme::S3 => {
-                        let access_key_id = opts
-                            .remove("access_key_id")
-                            .map(FuncParamValue::param_into)
-                            .transpose()?;
-
-                        let secret_access_key = opts
-                            .remove("secret_access_key")
-                            .map(FuncParamValue::param_into)
-                            .transpose()?;
-
-                        let bucket_name = source_url
-                            .host()
-                            .map(|b| b.to_owned())
-                            .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
-
-                        let location = source_url.path().into_owned();
-
-                        // S3 requires a region parameter.
-                        const REGION_KEY: &str = "region";
-                        let region = opts
-                            .remove(REGION_KEY)
-                            .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
-                            .param_into()?;
-
-                        S3Accessor::new(S3TableAccess {
-                            bucket_name,
-                            location,
-                            file_type: Some(self.0),
-                            region,
-                            access_key_id,
-                            secret_access_key,
-                        })
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    }
-                }
-            }
-            2 => {
-                let mut args = args.into_iter();
-                let url_string: String = args.next().unwrap().param_into()?;
-                let source_url = DatasourceUrl::new(url_string)?;
-
-                let creds: IdentValue = args.next().unwrap().param_into()?;
-                let creds = ctx
-                    .get_credentials_entry(creds.as_str())
-                    .ok_or(BuiltinError::Static("missing credentials object"))?;
-
-                match source_url.scheme() {
-                    DatasourceUrlScheme::Gcs => {
-                        let service_account_key = match &creds.options {
-                            CredentialsOptions::Gcp(o) => o.service_account_key.to_owned(),
-                            _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
-                        };
-
-                        let bucket_name = source_url
-                            .host()
-                            .map(|b| b.to_owned())
-                            .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
-
-                        let location = source_url.path().into_owned();
-
-                        GcsAccessor::new(GcsTableAccess {
-                            bucket_name,
-                            service_acccount_key_json: Some(service_account_key),
-                            location,
-                            file_type: Some(self.0),
-                        })
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    }
-                    DatasourceUrlScheme::S3 => {
-                        let (access_key_id, secret_access_key) = match &creds.options {
-                            CredentialsOptions::Aws(o) => {
-                                (o.access_key_id.to_owned(), o.secret_access_key.to_owned())
-                            }
-                            _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
-                        };
-
-                        let bucket_name = source_url
-                            .host()
-                            .map(|b| b.to_owned())
-                            .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
-
-                        let location = source_url.path().into_owned();
-
-                        // S3 requires a region parameter.
-                        const REGION_KEY: &str = "region";
-                        let region = opts
-                            .remove(REGION_KEY)
-                            .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
-                            .param_into()?;
-
-                        S3Accessor::new(S3TableAccess {
-                            bucket_name,
-                            location,
-                            file_type: Some(self.0),
-                            region,
-                            access_key_id: Some(access_key_id),
-                            secret_access_key: Some(secret_access_key),
-                        })
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                        .into_table_provider(true)
-                        .await
-                        .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    }
-                    _ => {
-                        return Err(BuiltinError::Static(
-                            "Unsupported datasource URL for given parameters",
-                        ))
-                    }
-                }
-            }
-            _ => return Err(BuiltinError::InvalidNumArgs),
-        };
-        Ok(store)
-    }
-
-    async fn create_lp_for_named(
-        &self,
-        table_ref: OwnedTableReference,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> Result<LogicalPlan> {
-        let has_array = matches!(&args[0], FuncParamValue::Array(_));
-
-        if has_array {
-            unimplemented!("array of urls not supported yet for named args")
-        }
-
-        let provider = self.create_provider_for_named(ctx, args, opts).await?;
-        let source = Arc::new(DefaultTableSource::new(provider));
-        let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-        let plan = pb.build()?;
-        Ok(plan)
-    }
-
-    async fn create_provider_for_positional(
-        &self,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let args = args.as_slice();
-        let Self(file_type, _) = self;
-        let first = args.get(0).unwrap();
-
-        let url_string: String = first.clone().param_into()?;
-        create_provider_for_filetype(ctx, *file_type, url_string, &args[1..], opts).await
-    }
-
-    async fn create_lp_for_positional(
-        &self,
-        table_ref: OwnedTableReference,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> Result<LogicalPlan> {
-        if !matches!(&args[0], FuncParamValue::Array(_)) {
-            let provider = self.create_provider_for_positional(ctx, args, opts).await?;
-            let source = Arc::new(DefaultTableSource::new(provider));
-            let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-            let plan = pb.build()?;
-            Ok(plan)
-        } else {
-            let first = &args[0];
-            let urls: Vec<String> = first.clone().param_into()?;
-            let urls = urls.as_slice();
-            let first_url = &urls[0];
-            let provider = create_provider_for_filetype(
-                ctx,
-                self.0,
-                first_url.clone(),
-                &args[1..],
-                opts.clone(),
-            )
-            .await?;
-            let source = Arc::new(DefaultTableSource::new(provider));
-
-            let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-
-            for url in &urls[1..] {
-                let provider = create_provider_for_filetype(
-                    ctx,
-                    self.0,
-                    url.clone(),
-                    &args[1..],
-                    opts.clone(),
-                )
-                .await?;
-                let source = Arc::new(DefaultTableSource::new(provider));
-                let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-                let plan = pb.build()?;
-
-                plan_builder = plan_builder.union(plan)?;
-            }
-            Ok(plan_builder.build()?)
-        }
-    }
-}
 
 #[async_trait]
 impl TableFunc for ObjScanTableFunc {
@@ -290,6 +26,12 @@ impl TableFunc for ObjScanTableFunc {
                     typ: DataType::Utf8,
                 }],
             },
+            // TableFuncParameters {
+            //     params: &[TableFuncParameter {
+            //         name: "urls",
+            //         typ: DataType::List(Arc::new(Field::new("url", DataType::Utf8, false))),
+            //     }],
+            // },
             TableFuncParameters {
                 params: &[
                     TableFuncParameter {
@@ -302,6 +44,18 @@ impl TableFunc for ObjScanTableFunc {
                     },
                 ],
             },
+            // TableFuncParameters {
+            //     params: &[
+            //         TableFuncParameter {
+            //             name: "urls",
+            //             typ: DataType::List(Arc::new(Field::new("url", DataType::Utf8, false))),
+            //         },
+            //         TableFuncParameter {
+            //             name: "credentials",
+            //             typ: DataType::Utf8,
+            //         },
+            //     ],
+            // },
         ];
 
         PARAMS
@@ -323,12 +77,47 @@ impl TableFunc for ObjScanTableFunc {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
-        if opts.is_empty() {
-            self.create_lp_for_positional(table_ref, ctx, args, opts)
-                .await
-        } else {
-            self.create_lp_for_named(table_ref, ctx, args, opts).await
+        if args.is_empty() {
+            return Err(BuiltinError::InvalidNumArgs);
         }
+
+        let mut args = args.into_iter();
+        let url_arg = args.next().unwrap();
+
+        let urls = if String::is_param_valid(&url_arg) {
+            let url: String = url_arg.param_into()?;
+            vec![url]
+        } else {
+            url_arg.param_into::<Vec<String>>()?
+        };
+
+        if urls.is_empty() {
+            return Err(BuiltinError::Static("at least one url expected in list"));
+        }
+
+        let file_type = self.0;
+
+        let mut urls = urls.into_iter();
+
+        let first_url = urls.next().unwrap();
+        let provider =
+            create_provider_for_filetype(ctx, file_type, first_url, args.clone(), opts.clone())
+                .await?;
+        let source = Arc::new(DefaultTableSource::new(provider));
+        let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
+
+        for url in urls {
+            let provider =
+                create_provider_for_filetype(ctx, file_type, url, args.clone(), opts.clone())
+                    .await?;
+            let source = Arc::new(DefaultTableSource::new(provider));
+            let pb = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
+            let plan = pb.build()?;
+
+            plan_builder = plan_builder.union(plan)?;
+        }
+
+        Ok(plan_builder.build()?)
     }
 }
 
@@ -336,127 +125,85 @@ async fn create_provider_for_filetype(
     ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
     url_string: String,
-    args: &[FuncParamValue],
+    mut args: vec::IntoIter<FuncParamValue>,
     mut opts: HashMap<String, FuncParamValue>,
 ) -> Result<Arc<dyn TableProvider>> {
-    let store = match args.len() {
-        0 => {
-            let source_url = DatasourceUrl::new(&url_string)?;
+    let source_url = DatasourceUrl::new(&url_string)?;
 
+    let provider = match args.len() {
+        0 => {
+            // Raw credentials or No credentials
             match source_url.scheme() {
-                DatasourceUrlScheme::Http => HttpAccessor::try_new(url_string, file_type)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    .into_table_provider(true)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?,
-                DatasourceUrlScheme::File => {
-                    let location = source_url.path().into_owned();
-                    LocalAccessor::new(LocalTableAccess {
-                        location,
-                        file_type: Some(file_type),
-                    })
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    .into_table_provider(true)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                DatasourceUrlScheme::Http => {
+                    create_http_table_provider(file_type, url_string).await?
                 }
-                _ => todo!(),
+                DatasourceUrlScheme::File => {
+                    create_local_table_provider(file_type, &source_url).await?
+                }
+                DatasourceUrlScheme::Gcs => {
+                    let service_account_key = opts
+                        .remove("service_account_key")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    create_gcs_table_provider(file_type, &source_url, service_account_key).await?
+                }
+                DatasourceUrlScheme::S3 => {
+                    let access_key_id = opts
+                        .remove("access_key_id")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    let secret_access_key = opts
+                        .remove("secret_access_key")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    create_s3_table_provider(
+                        file_type,
+                        &source_url,
+                        &mut opts,
+                        access_key_id,
+                        secret_access_key,
+                    )
+                    .await?
+                }
             }
         }
         1 => {
+            // Credentials object
             let source_url = DatasourceUrl::new(url_string)?;
-            let creds = &args[0];
-
-            match source_url.scheme() {
-                DatasourceUrlScheme::Gcs => {
-                    let service_account_key = if matches!(creds, FuncParamValue::Ident(_)) {
-                        let creds: IdentValue = creds.clone().param_into()?;
-
-                        let creds = ctx
-                            .get_credentials_entry(creds.as_str())
-                            .ok_or(BuiltinError::Static("missing credentials object"))?;
-
-                        if let CredentialsOptions::Gcp(creds) = &creds.options {
-                            creds.service_account_key.clone()
-                        } else {
-                            return Err(BuiltinError::Static("invalid credentials for GCS"));
-                        }
-                    } else {
-                        opts.remove("service_account_key")
-                            .map(FuncParamValue::param_into)
-                            .unwrap_or_else(|| creds.clone().param_into())?
-                    };
-
-                    let bucket_name = source_url
-                        .host()
-                        .map(|b| b.to_owned())
-                        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
-
-                    let location = source_url.path().into_owned();
-
-                    GcsAccessor::new(GcsTableAccess {
-                        bucket_name,
-                        service_acccount_key_json: Some(service_account_key),
-                        location,
-                        file_type: Some(file_type),
-                    })
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    .into_table_provider(true)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                }
-                _ => {
-                    return Err(BuiltinError::Static(
-                        "Unsupported datasource URL for given parameters",
-                    ))
-                }
-            }
-        }
-        2 => {
-            let mut args = args.iter();
-            let url_string: String = args.next().unwrap().clone().param_into()?;
-            let source_url = DatasourceUrl::new(url_string)?;
-
-            let creds: String = args.next().unwrap().clone().param_into()?;
+            let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
-                .get_credentials_entry(&creds)
+                .get_credentials_entry(creds.as_str())
                 .ok_or(BuiltinError::Static("missing credentials object"))?;
 
             match source_url.scheme() {
+                DatasourceUrlScheme::Gcs => {
+                    let service_account_key = match &creds.options {
+                        CredentialsOptions::Gcp(o) => o.service_account_key.to_owned(),
+                        _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
+                    };
+
+                    create_gcs_table_provider(file_type, &source_url, Some(service_account_key))
+                        .await?
+                }
                 DatasourceUrlScheme::S3 => {
                     let (access_key_id, secret_access_key) = match &creds.options {
                         CredentialsOptions::Aws(o) => {
                             (o.access_key_id.to_owned(), o.secret_access_key.to_owned())
                         }
-                        _ => return Err(BuiltinError::Static("invalid credentials for S3")),
+                        _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
                     };
 
-                    let bucket_name = source_url
-                        .host()
-                        .map(|b| b.to_owned())
-                        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
-
-                    let location = source_url.path().into_owned();
-
-                    // S3 requires a region parameter.
-                    let region: String = args.next().unwrap().clone().param_into()?;
-
-                    S3Accessor::new(S3TableAccess {
-                        bucket_name,
-                        location,
-                        file_type: Some(file_type),
-                        region,
-                        access_key_id: Some(access_key_id),
-                        secret_access_key: Some(secret_access_key),
-                    })
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-                    .into_table_provider(true)
-                    .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+                    create_s3_table_provider(
+                        file_type,
+                        &source_url,
+                        &mut opts,
+                        Some(access_key_id),
+                        Some(secret_access_key),
+                    )
+                    .await?
                 }
                 _ => {
                     return Err(BuiltinError::Static(
@@ -467,5 +214,95 @@ async fn create_provider_for_filetype(
         }
         _ => return Err(BuiltinError::InvalidNumArgs),
     };
-    Ok(store)
+    Ok(provider)
+}
+
+async fn create_local_table_provider(
+    file_type: FileType,
+    source_url: &DatasourceUrl,
+) -> Result<Arc<dyn TableProvider>> {
+    let location = source_url.path().into_owned();
+
+    LocalAccessor::new(LocalTableAccess {
+        location,
+        file_type: Some(file_type),
+    })
+    .await
+    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+    .into_table_provider(true)
+    .await
+    .map_err(|e| BuiltinError::Access(Box::new(e)))
+}
+
+async fn create_http_table_provider(
+    file_type: FileType,
+    url_string: String,
+) -> Result<Arc<dyn TableProvider>> {
+    HttpAccessor::try_new(url_string, file_type)
+        .await
+        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+        .into_table_provider(true)
+        .await
+        .map_err(|e| BuiltinError::Access(Box::new(e)))
+}
+
+async fn create_gcs_table_provider(
+    file_type: FileType,
+    source_url: &DatasourceUrl,
+    service_account_key_json: Option<String>,
+) -> Result<Arc<dyn TableProvider>> {
+    let bucket_name = source_url
+        .host()
+        .map(|b| b.to_owned())
+        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+
+    let location = source_url.path().into_owned();
+
+    GcsAccessor::new(GcsTableAccess {
+        bucket_name,
+        service_account_key_json,
+        location,
+        file_type: Some(file_type),
+    })
+    .await
+    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+    .into_table_provider(true)
+    .await
+    .map_err(|e| BuiltinError::Access(Box::new(e)))
+}
+
+async fn create_s3_table_provider(
+    file_type: FileType,
+    source_url: &DatasourceUrl,
+    opts: &mut HashMap<String, FuncParamValue>,
+    access_key_id: Option<String>,
+    secret_access_key: Option<String>,
+) -> Result<Arc<dyn TableProvider>> {
+    let bucket_name = source_url
+        .host()
+        .map(|b| b.to_owned())
+        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+
+    let location = source_url.path().into_owned();
+
+    // S3 requires a region parameter.
+    const REGION_KEY: &str = "region";
+    let region = opts
+        .remove(REGION_KEY)
+        .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+        .param_into()?;
+
+    S3Accessor::new(S3TableAccess {
+        bucket_name,
+        location,
+        file_type: Some(file_type),
+        region,
+        access_key_id,
+        secret_access_key,
+    })
+    .await
+    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+    .into_table_provider(true)
+    .await
+    .map_err(|e| BuiltinError::Access(Box::new(e)))
 }
