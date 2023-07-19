@@ -51,7 +51,8 @@ impl TableFunc for DeltaScan {
     ) -> Result<Arc<dyn TableProvider>> {
         let (loc, delta_opts) = match args.len() {
             1 => {
-                let first = args.get(0).unwrap().clone();
+                let mut args = args.into_iter();
+                let first = args.next().unwrap();
                 let url: String = first.param_into()?;
                 let source_url = DatasourceUrl::new(&url)?;
 
@@ -65,10 +66,11 @@ impl TableFunc for DeltaScan {
                 }
             }
             2 => {
-                let first = args.get(0).unwrap().clone();
+                let mut args = args.into_iter();
+                let first = args.next().unwrap();
                 let url = first.param_into()?;
                 let source_url = DatasourceUrl::new(&url)?;
-                let creds: IdentValue = args.get(1).unwrap().clone().param_into()?;
+                let creds: IdentValue = args.next().unwrap().param_into()?;
 
                 let creds = ctx
                     .get_credentials_entry(creds.as_str())
