@@ -12,7 +12,7 @@ pub(super) async fn get_db_lister(
         })?;
 
     let lister: Box<dyn VirtualLister> = match &db.options {
-        DatabaseOptions::Internal(_) => unimplemented!(),
+        DatabaseOptions::Internal(_) => unimplemented!(), // TODO: https://github.com/GlareDB/glaredb/issues/1153
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
             let accessor = PostgresAccessor::connect(connection_string, None)

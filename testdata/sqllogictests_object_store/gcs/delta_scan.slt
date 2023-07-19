@@ -1,0 +1,11 @@
+# Tests `delta_scan` with delta table in gcs.
+
+statement ok
+CREATE CREDENTIALS gcp_creds PROVIDER gcp
+	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+
+query IT
+select * from delta_scan('gs://${GCS_BUCKET_NAME}/delta/table1', gcp_creds) order by a;
+----
+1   hello
+2   world

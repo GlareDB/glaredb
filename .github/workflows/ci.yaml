@@ -100,6 +100,10 @@ jobs:
           export AWS_S3_REGION=us-east-1
           export AWS_S3_BUCKET_NAME=glaredb-test
 
+          # Unset application default credentials. We don't want to unknowingle
+          # depend on this.
+          unset GOOGLE_APPLICATION_CREDENTIALS
+
           # Prepare SLT (Postgres)
           POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
           export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
