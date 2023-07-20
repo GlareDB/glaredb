@@ -18,31 +18,6 @@ impl TableFunc for DeltaScan {
         "delta_scan"
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[
-            TableFuncParameters {
-                params: &[TableFuncParameter {
-                    name: "url",
-                    typ: DataType::Utf8,
-                }],
-            },
-            TableFuncParameters {
-                params: &[
-                    TableFuncParameter {
-                        name: "url",
-                        typ: DataType::Utf8,
-                    },
-                    TableFuncParameter {
-                        name: "credentials",
-                        typ: DataType::Utf8,
-                    },
-                ],
-            },
-        ];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,

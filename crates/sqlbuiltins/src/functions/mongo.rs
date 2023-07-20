@@ -9,27 +9,6 @@ impl TableFunc for ReadMongoDb {
         "read_mongodb"
     }
 
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "connection_str",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "database",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "collection",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
-    }
-
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,

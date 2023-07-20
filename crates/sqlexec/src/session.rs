@@ -1,6 +1,6 @@
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
+use crate::errors::Result;
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
@@ -9,8 +9,7 @@ use crate::vars::{SessionVars, VarSetter};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, execute_stream, memory::MemoryStream,
-    ExecutionPlan, SendableRecordBatchStream,
+    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
@@ -20,7 +19,6 @@ use datasources::native::access::NativeTableStorage;
 use datasources::object_store::gcs::GcsTableAccess;
 use datasources::object_store::local::LocalTableAccess;
 use datasources::object_store::s3::S3TableAccess;
-use futures::StreamExt;
 use metastore_client::session::SessionCatalog;
 use metastore_client::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use object_store::path::Path as ObjectStorePath;
@@ -235,10 +233,6 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn create_table_as(&self, _plan: CreateTableAs) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("CREATE TABLE ... AS ..."))
-    }
-
     pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         self.ctx.create_schema(plan).await?;
         Ok(())
@@ -321,27 +315,8 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn insert_into(&self, plan: Insert) -> Result<()> {
-        let physical = self.create_physical_plan(plan.source).await?;
-        // Ensure physical plan has one output partition.
-        let physical: Arc<dyn ExecutionPlan> =
-            match physical.output_partitioning().partition_count() {
-                1 => physical,
-                _ => {
-                    // merge into a single partition
-                    Arc::new(CoalescePartitionsExec::new(physical))
-                }
-            };
-
-        let physical = plan
-            .table_provider
-            .insert_into(self.ctx.get_df_state(), physical)
-            .await?;
-        let mut stream = self.execute_physical(physical)?;
-        // Drain the stream to actually "write" successfully.
-        while let Some(res) = stream.next().await {
-            let _ = res?;
-        }
+    pub(crate) async fn insert_into(&mut self, plan: Insert) -> Result<()> {
+        self.ctx.insert(plan).await?;
         Ok(())
     }
 
@@ -526,10 +501,6 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateCredentials(plan)) => {
                 self.create_credentials(plan).await?;
                 ExecutionResult::CreateCredentials
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
-                self.create_table_as(plan).await?;
-                ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;

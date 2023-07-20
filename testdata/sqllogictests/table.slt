@@ -19,3 +19,13 @@ create table table_with_list (a text[])
 
 statement ok
 insert into table_with_list values (['hello', 'world'])
+
+statement ok
+create table t1 as select * from generate_series(1, 5, 2);
+
+query I
+select * from t1;
+----
+1
+3
+5

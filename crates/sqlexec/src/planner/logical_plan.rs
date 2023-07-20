@@ -157,7 +157,6 @@ pub enum DdlPlan {
     CreateTempTable(CreateTempTable),
     CreateExternalTable(CreateExternalTable),
     CreateTable(CreateTable),
-    CreateTableAs(CreateTableAs),
     CreateView(CreateView),
     AlterTableRaname(AlterTableRename),
     AlterDatabaseRename(AlterDatabaseRename),
@@ -209,6 +208,7 @@ pub struct CreateTable {
     pub table_name: OwnedTableReference,
     pub if_not_exists: bool,
     pub table_options: TableOptionsInternal,
+    pub source: Option<DfLogicalPlan>,
 }
 
 #[derive(Clone, Debug)]
@@ -224,12 +224,6 @@ pub struct CreateExternalTable {
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateTableAs {
-    pub table_name: OwnedTableReference,
-    pub source: DfLogicalPlan,
 }
 
 #[derive(Clone, Debug)]
