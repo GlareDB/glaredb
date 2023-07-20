@@ -21,3 +21,7 @@ Changelog = "https://github.com/glaredb/glaredb/releases"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+[tool.ruff]
+line-length = 88
+fix = true

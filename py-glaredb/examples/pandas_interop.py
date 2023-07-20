@@ -12,6 +12,6 @@ df = pd.DataFrame(
 
 con = glaredb.connect()
 
-df = con.sql("select * from df where fruits = 'banana'").to_pandas();
+df = con.sql("select * from df where fruits = 'banana'").to_pandas()
 
 print(df)

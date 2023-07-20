@@ -14,3 +14,5 @@ flamegraph.svg
 benchmarks/artifacts/
 # Deps downloaded from external sources
 /deps
+
+.vscode/

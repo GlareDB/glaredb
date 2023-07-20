@@ -19,3 +19,15 @@ build *args: requirements
 
 test: requirements
 	{{VENV_BIN}}/pytest -s
+
+## Run autoformatting and linting
+fmt: venv  
+	{{VENV_BIN}}/ruff .
+	# {{VENV_BIN}}/black .
+	# {{VENV_BIN}}/blackdoc .
+	# {{VENV_BIN}}/python scripts/check_stacklevels.py
+	# cargo fmt --all
+	# -$(VENV_BIN)/mypy
+
+example path: requirements
+	{{VENV_BIN}}/python examples/{{path}}.py
