@@ -24,7 +24,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
-use futures::{executor, future::BoxFuture, StreamExt};
+use futures::{future::BoxFuture, StreamExt};
 use metastore_client::errors::ResolveErrorStrategy;
 use metastore_client::session::SessionCatalog;
 use metastore_client::types::catalog::{CatalogEntry, EntryType};
@@ -203,7 +203,7 @@ impl SessionContext {
     }
 
     /// Create a temp table.
-    pub fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
+    pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self.current_session_tables.contains_key(&plan.table_name) {
             if plan.if_not_exists {
                 return Ok(());
@@ -223,7 +223,7 @@ impl SessionContext {
                 source,
                 table_provider: table,
             };
-            executor::block_on(self.insert(insert_plan))?;
+            self.insert(insert_plan).await?;
         }
 
         Ok(())
