@@ -203,7 +203,7 @@ impl SessionContext {
     }
 
     /// Create a temp table.
-    pub fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
+    pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self.current_session_tables.contains_key(&plan.table_name) {
             if plan.if_not_exists {
                 return Ok(());
@@ -213,9 +213,19 @@ impl SessionContext {
 
         let schema = Arc::new(ArrowSchema::new(plan.columns));
         let data = RecordBatch::new_empty(Arc::clone(&schema));
-        let table = MemTable::try_new(schema, vec![vec![data]])?;
+        let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
         self.current_session_tables
-            .insert(plan.table_name, Arc::new(table));
+            .insert(plan.table_name, Arc::clone(&table));
+
+        // Write to the table if it has a source query
+        if let Some(source) = plan.source {
+            let insert_plan = Insert {
+                source,
+                table_provider: table,
+            };
+            self.insert(insert_plan).await?;
+        }
+
         Ok(())
     }
 
