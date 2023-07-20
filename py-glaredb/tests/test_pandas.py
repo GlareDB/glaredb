@@ -1,9 +1,10 @@
 import glaredb
 import pandas as pd
 
+
 def test_sql():
     con = glaredb.connect()
-    pd.DataFrame(
+    df = pd.DataFrame(
         {
             "A": [1, 2, 3, 4, 5],
             "fruits": ["banana", "banana", "apple", "apple", "banana"],
@@ -22,11 +23,12 @@ def test_sql():
         }
     )
 
-    assert(out.equals(expected))
+    assert out.equals(expected)
+
 
 def test_sql_multiple_references():
     con = glaredb.connect()
-    pd.DataFrame(
+    df = pd.DataFrame(
         {
             "A": [1, 2, 3, 4, 5],
             "fruits": ["banana", "banana", "apple", "apple", "banana"],
@@ -47,8 +49,8 @@ def test_sql_multiple_references():
         }
     )
 
-    assert(out1.equals(expected))
-    assert(out2.equals(expected))
+    assert out1.equals(expected)
+    assert out2.equals(expected)
 
 
 def test_can_query_outer_scope_var():
@@ -63,7 +65,7 @@ def test_can_query_outer_scope_var():
 
     def inner_func():
         con = glaredb.connect()
-        pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "A": [1, 2, 3, 4, 5],
                 "fruits": ["banana", "banana", "apple", "apple", "banana"],
@@ -84,11 +86,12 @@ def test_can_query_outer_scope_var():
         }
     )
 
-    assert(out.equals(expected))
+    assert out.equals(expected)
+
 
 def test_execute():
     con = glaredb.connect()
-    pd.DataFrame(
+    df = pd.DataFrame(
         {
             "A": [1, 2, 3, 4, 5],
             "fruits": ["banana", "banana", "apple", "apple", "banana"],
@@ -107,4 +110,4 @@ def test_execute():
         }
     )
 
-    assert(out.equals(expected))
+    assert out.equals(expected)

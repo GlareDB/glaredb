@@ -25,3 +25,6 @@ features = ["pyo3/extension-module"]
 [tool.ruff]
 line-length = 88
 fix = true
+ignore = [
+    "F841" # unused variables
+]

@@ -23,10 +23,8 @@ test: requirements
 ## Run autoformatting and linting
 fmt: venv  
 	{{VENV_BIN}}/ruff .
-	{{VENV_BIN}}/black .
-	{{VENV_BIN}}/blackdoc .
+	{{VENV_BIN}}/mypy
 	cargo fmt --all
-	-$(VENV_BIN)/mypy
 
 example path: requirements
 	{{VENV_BIN}}/python examples/{{path}}.py
