@@ -26,3 +26,13 @@ query T
 select length(head) > 1 from parquet_scan('https://huggingface.co/datasets/allenai/soda/resolve/refs%2Fconvert%2Fparquet/allenai--soda/parquet-train-00000-of-00003.parquet') limit 1;
 ----
 t
+
+# Multiple URLs
+
+query I
+select count(*) from parquet_scan([
+  'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet',
+  'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet'
+]);
+----
+2000

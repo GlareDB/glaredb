@@ -449,7 +449,7 @@ impl<'a> SessionPlanner<'a> {
 
                 let access = GcsTableAccess {
                     bucket_name: bucket,
-                    service_acccount_key_json: service_account_key,
+                    service_account_key_json: service_account_key,
                     location,
                     file_type: None,
                 };
@@ -461,7 +461,7 @@ impl<'a> SessionPlanner<'a> {
                     })?;
 
                 TableOptions::Gcs(TableOptionsGcs {
-                    service_account_key: access.service_acccount_key_json,
+                    service_account_key: access.service_account_key_json,
                     bucket: access.bucket_name,
                     location: access.location,
                 })

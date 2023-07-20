@@ -1,0 +1,14 @@
+# Tests `delta_scan` with delta table in s3.
+
+statement ok
+CREATE CREDENTIALS aws_creds PROVIDER aws
+	OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+	);
+
+query IT
+select * from delta_scan('s3://${AWS_S3_BUCKET_NAME}/delta/table1', aws_creds, region => '${AWS_S3_REGION}') order by a;
+----
+1   hello
+2   world

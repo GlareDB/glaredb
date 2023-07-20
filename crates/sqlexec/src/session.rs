@@ -392,7 +392,7 @@ impl Session {
             (CopyToDestinationOptions::Gcs(gcs_options), format) => {
                 let access = GcsTableAccess {
                     bucket_name: gcs_options.bucket,
-                    service_acccount_key_json: gcs_options.service_account_key,
+                    service_account_key_json: gcs_options.service_account_key,
                     location: gcs_options.location,
                     file_type: None,
                 };

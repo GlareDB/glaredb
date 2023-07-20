@@ -17,3 +17,16 @@ query I
 select count(*) from csv_scan('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
 ----
 102
+
+# Multiple URLs
+
+query I
+select count(*) from csv_scan([
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv',
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+]);
+----
+204
+
+statement error at least one url expected
+select * from csv_scan([]);
