@@ -23,11 +23,10 @@ test: requirements
 ## Run autoformatting and linting
 fmt: venv  
 	{{VENV_BIN}}/ruff .
-	# {{VENV_BIN}}/black .
-	# {{VENV_BIN}}/blackdoc .
-	# {{VENV_BIN}}/python scripts/check_stacklevels.py
-	# cargo fmt --all
-	# -$(VENV_BIN)/mypy
+	{{VENV_BIN}}/black .
+	{{VENV_BIN}}/blackdoc .
+	cargo fmt --all
+	-$(VENV_BIN)/mypy
 
 example path: requirements
 	{{VENV_BIN}}/python examples/{{path}}.py
