@@ -265,32 +265,44 @@ impl SessionContext {
 
         // Write to the table if it has a source query
         if let Some(source) = plan.source {
-            let physical = self.get_df_state().create_physical_plan(&source).await?;
-
-            // Ensure physical plan has one output partition.
-            let physical: Arc<dyn ExecutionPlan> =
-                match physical.output_partitioning().partition_count() {
-                    1 => physical,
-                    _ => {
-                        // merge into a single partition
-                        Arc::new(CoalescePartitionsExec::new(physical))
-                    }
-                };
-
-            let physical = table
-                .into_table_provider()
-                .insert_into(self.get_df_state(), physical)
-                .await?;
-
-            let context = self.task_context();
-            let mut stream = execute_stream(physical, context)?;
-
-            // Drain the stream to actually "write" successfully.
-            while let Some(res) = stream.next().await {
-                let _ = res?;
-            }
+            let insert_plan = Insert {
+                source,
+                table_provider: table.into_table_provider(),
+            };
+            self.insert(insert_plan).await?;
         }
 
+        Ok(())
+    }
+
+    pub async fn insert(&mut self, plan: Insert) -> Result<()> {
+        let physical = self
+            .get_df_state()
+            .create_physical_plan(&plan.source)
+            .await?;
+
+        // Ensure physical plan has one output partition.
+        let physical: Arc<dyn ExecutionPlan> =
+            match physical.output_partitioning().partition_count() {
+                1 => physical,
+                _ => {
+                    // merge into a single partition
+                    Arc::new(CoalescePartitionsExec::new(physical))
+                }
+            };
+
+        let physical = plan
+            .table_provider
+            .insert_into(self.get_df_state(), physical)
+            .await?;
+
+        let context = self.task_context();
+        let mut stream = execute_stream(physical, context)?;
+
+        // Drain the stream to actually "write" successfully.
+        while let Some(res) = stream.next().await {
+            let _ = res?;
+        }
         Ok(())
     }
 
