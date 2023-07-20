@@ -24,7 +24,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
-use futures::{future::BoxFuture, StreamExt};
+use futures::{executor, future::BoxFuture, StreamExt};
 use metastore_client::errors::ResolveErrorStrategy;
 use metastore_client::session::SessionCatalog;
 use metastore_client::types::catalog::{CatalogEntry, EntryType};
@@ -213,9 +213,19 @@ impl SessionContext {
 
         let schema = Arc::new(ArrowSchema::new(plan.columns));
         let data = RecordBatch::new_empty(Arc::clone(&schema));
-        let table = MemTable::try_new(schema, vec![vec![data]])?;
+        let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
         self.current_session_tables
-            .insert(plan.table_name, Arc::new(table));
+            .insert(plan.table_name, Arc::clone(&table));
+
+        // Write to the table if it has a source query
+        if let Some(source) = plan.source {
+            let insert_plan = Insert {
+                source,
+                table_provider: table,
+            };
+            executor::block_on(self.insert(insert_plan))?;
+        }
+
         Ok(())
     }
 

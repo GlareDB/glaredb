@@ -63,3 +63,13 @@ select a, b, c from abc;
 9	8	7
 1	2	3
 1	2	3
+
+statement ok
+create temp table t1 as select * from generate_series(1, 5, 2);
+
+query I
+select * from t1;
+----
+1
+3
+5
