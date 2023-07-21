@@ -30,14 +30,6 @@ updates:
     reviewers:
       - "scsmithr" 
 
-    labels:
-      - "dependencies"
-
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-
-    target-branch: "cargo-conf"
     groups:
       cargo-dependencies:
         patterns:
