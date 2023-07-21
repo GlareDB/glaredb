@@ -123,6 +123,11 @@ impl SessionCatalog {
         }
     }
 
+    // Check if a schema exists in the metastore.
+    pub fn schema_exists(&self, schema_name: &str) -> bool {
+        self.schema_names.contains_key(schema_name)
+    }
+
     /// Resolve a schema by name.
     pub fn resolve_schema(&self, name: &str) -> Option<&SchemaEntry> {
         // Similar invariants as `resolve_database`. If we find an entry in the

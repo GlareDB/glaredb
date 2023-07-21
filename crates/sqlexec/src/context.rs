@@ -351,9 +351,25 @@ impl SessionContext {
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        // TODO: if_not_exists
-        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema { name })])
-            .await?;
+
+        info!("create_schema ==> Creating schema with name: {}", name);
+
+        // Check if the schema already exists
+        if plan.if_not_exists && self.metastore_catalog.schema_exists(&name) {
+            info!(
+                "create_schema ==> Schema already exists, skipping creation of: {}",
+                name
+            );
+            return Ok(());
+        }
+        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema {
+            name,
+            if_not_exists: plan.if_not_exists,
+        })])
+        .await?;
+
+        info!("STATUS | create_schema ==> Schema created successfully");
+
         Ok(())
     }
 

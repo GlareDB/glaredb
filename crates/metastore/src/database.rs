@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
-use tracing::debug;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 /// Special id indicating that databases have no parents.
@@ -688,9 +688,23 @@ impl State {
                 }
                 Mutation::CreateSchema(create_schema) => {
                     validate_object_name(&create_schema.name)?;
-                    // TODO: If not exists.
+
+                    info!(
+                        "CreateSchema mutation ==> Creating schema with name: {}",
+                        create_schema.name
+                    );
+
                     if self.schema_names.contains_key(&create_schema.name) {
-                        return Err(MetastoreError::DuplicateName(create_schema.name));
+                        if create_schema.if_not_exists {
+                            info!("CreateSchema mutation: Schema already exists and 'if_not_exists' is true, skipping mutation");
+                            continue; // Skipping this mutation if the schema already exists.
+                        } else {
+                            error!(
+                                "CreateSchema mutation ==> Duplicate schema name: {}",
+                                create_schema.name
+                            );
+                            return Err(MetastoreError::DuplicateName(create_schema.name));
+                        }
                     }
 
                     // Create new entry
@@ -707,9 +721,9 @@ impl State {
                         },
                     };
                     self.entries.insert(oid, CatalogEntry::Schema(ent))?;
-
                     // Add to name map
                     self.schema_names.insert(create_schema.name, oid);
+                    info!("STATUS | CreateSchema mutation ==> Schema created successfully");
                 }
                 Mutation::CreateView(create_view) => {
                     validate_object_name(&create_view.name)?;
@@ -1252,6 +1266,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "numbers".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1294,6 +1309,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1304,6 +1320,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+                if_not_exists: false,
             })],
         )
         .await
@@ -1326,6 +1343,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1341,6 +1359,7 @@ mod tests {
                 version(&db).await,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
+                    if_not_exists: true,
                 })],
             )
             .await
@@ -1382,6 +1401,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "luigi".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1549,6 +1569,7 @@ mod tests {
                 initial,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
+                    if_not_exists: true,
                 })],
             )
             .await
