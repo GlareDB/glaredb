@@ -1688,6 +1688,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "datafusion_ext"
+version = "0.2.1"
+dependencies = [
+ "datafusion",
+ "once_cell",
+ "regex",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "datafusion_planner"
 version = "0.2.1"
 dependencies = [
@@ -1715,6 +1727,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "datafusion",
+ "datafusion_ext",
  "decimal",
  "deltalake",
  "futures",
@@ -2438,6 +2451,7 @@ dependencies = [
  "clap",
  "colored",
  "datafusion",
+ "datafusion_ext",
  "futures",
  "logutil",
  "metastore",
@@ -3905,6 +3919,7 @@ dependencies = [
  "bytes",
  "bytesutil",
  "datafusion",
+ "datafusion_ext",
  "futures",
  "pgrepr",
  "reqwest",
@@ -4298,6 +4313,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "datafusion",
+ "datafusion_ext",
  "futures",
  "metastore",
  "once_cell",
@@ -5575,6 +5591,7 @@ version = "0.2.1"
 dependencies = [
  "async-trait",
  "datafusion",
+ "datafusion_ext",
  "datafusion_planner",
  "datasources",
  "futures",

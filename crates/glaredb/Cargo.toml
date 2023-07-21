@@ -11,6 +11,7 @@ path = "src/bin/main.rs"
 logutil = {path = "../logutil"}
 sqlexec = {path = "../sqlexec"}
 telemetry = {path = "../telemetry"}
+datafusion_ext = {path = "../datafusion_ext"}
 datafusion = {workspace = true}
 pgsrv = {path = "../pgsrv"}
 pgrepr = {path = "../pgrepr"}

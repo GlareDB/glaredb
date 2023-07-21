@@ -6,7 +6,6 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
-use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -22,6 +21,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
 use futures::{future::BoxFuture, StreamExt};
@@ -108,7 +108,8 @@ impl SessionContext {
         let mut config_opts = ConfigOptions::new();
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
-        let config: SessionConfig = config_opts.into();
+        let mut config: SessionConfig = config_opts.into();
+        config = config.with_extension(Arc::new(vars.clone()));
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.

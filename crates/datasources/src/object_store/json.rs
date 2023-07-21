@@ -68,11 +68,13 @@ where
 
     async fn scan(
         &self,
-        _ctx: &SessionState,
+        ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        self.accessor.validate_access(ctx)?;
+
         let file = self.accessor.object_meta().as_ref().clone().into();
         let base_url = self.accessor.base_path();
 

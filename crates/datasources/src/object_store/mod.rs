@@ -3,6 +3,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
+use datafusion::error::Result as DatafusionResult;
+use datafusion::execution::context::SessionState;
 use errors::ObjectStoreSourceError;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -56,6 +58,9 @@ pub trait TableAccessor: Send + Sync {
     /// - s3://bucket_name/path/to/file.parquet -> path/to/file.parquet
     fn location(&self) -> String;
     async fn into_table_provider(self, predicate_pushdown: bool) -> Result<Arc<dyn TableProvider>>;
+    fn validate_access(&self, _ctx: &SessionState) -> DatafusionResult<()> {
+        Ok(())
+    }
 }
 
 pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {

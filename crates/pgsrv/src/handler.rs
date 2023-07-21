@@ -14,12 +14,12 @@ use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::vars::{SessionVars, VarSetter};
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::SessionStorageConfig;
-use sqlexec::vars::{SessionVars, VarSetter};
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -252,6 +252,7 @@ impl ProtocolHandler {
             .set_and_log(Some(max_tunnel_count), VarSetter::System);
         vars.max_credentials_count
             .set_and_log(Some(max_credentials_count), VarSetter::System);
+        vars.is_cloud_instance.set_and_log(true, VarSetter::System);
 
         // Set other params provided on startup. Note that these are all set as
         // the "user" since these include values set in options.

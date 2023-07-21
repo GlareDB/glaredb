@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
+use datafusion::error::Result as DatafusionResult;
+use datafusion::execution::context::SessionState;
+use datafusion_ext::vars::SessionVars;
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -64,6 +67,17 @@ impl TableAccessor for LocalAccessor {
             FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
         };
         Ok(table_provider)
+    }
+
+    fn validate_access(&self, ctx: &SessionState) -> DatafusionResult<()> {
+        let vars = ctx.config().get_extension::<SessionVars>().unwrap();
+        if *vars.is_cloud_instance.value() {
+            Err(datafusion::error::DataFusionError::Plan(
+                "Unable to read from local filesystem".to_string(),
+            ))?
+        } else {
+            Ok(())
+        }
     }
 }
 

@@ -1,0 +1,15 @@
+[package]
+name = "datafusion_ext"
+description = "Shared datafusion extensions"
+version = { workspace = true }
+edition = { workspace = true }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+datafusion = { workspace = true }
+uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+regex = "1.8"
+once_cell = "1.18.0"
+tracing = "0.1"
+thiserror.workspace = true

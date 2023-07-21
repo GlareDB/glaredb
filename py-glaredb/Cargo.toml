@@ -20,6 +20,7 @@ metastore = { path = "../crates/metastore" }
 telemetry = { path = "../crates/telemetry" }
 pgsrv = { path = "../crates/pgsrv" }
 pgrepr = { path = "../crates/pgrepr" }
+datafusion_ext = { path = "../crates/datafusion_ext" }
 futures = "0.3.28"
 url = "2.4.0"
 uuid = "1.4.0"
