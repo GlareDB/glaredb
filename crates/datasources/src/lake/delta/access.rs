@@ -1,5 +1,6 @@
-use crate::delta::catalog::{DataCatalog, UnityCatalog};
-use crate::delta::errors::Result;
+use crate::lake::delta::catalog::{DataCatalog, UnityCatalog};
+use crate::lake::delta::errors::Result;
+use crate::lake::LakeStorageOptions;
 use deltalake::DeltaTable;
 use metastore_client::types::options::{
     CredentialsOptionsAws, CredentialsOptionsGcp, DeltaLakeCatalog, DeltaLakeUnityCatalog,
@@ -7,47 +8,6 @@ use metastore_client::types::options::{
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
-
-/// Options required for each of GCS/S3/local.
-#[derive(Debug, Clone)]
-pub enum DeltaLakeStorageOptions {
-    S3 {
-        creds: CredentialsOptionsAws,
-        region: String,
-    },
-    Gcs {
-        creds: CredentialsOptionsGcp,
-    },
-    Local, // Nothing needed for local.
-}
-
-impl DeltaLakeStorageOptions {
-    /// Turn self into a hashmap containing object_store specific options. This
-    /// hashmap is passed into delta-rs which will then create the appropriate
-    /// object store for us using these options.
-    ///
-    /// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
-    /// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
-    /// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
-    fn into_opts_hashmap(self) -> HashMap<String, String> {
-        let mut opts = HashMap::new();
-        match self {
-            Self::S3 { creds, region } => {
-                opts.insert("aws_access_key_id".to_string(), creds.access_key_id);
-                opts.insert("aws_secret_access_key".to_string(), creds.secret_access_key);
-                opts.insert("aws_region".to_string(), region);
-            }
-            Self::Gcs { creds } => {
-                opts.insert(
-                    "google_service_account_key".to_string(),
-                    creds.service_account_key,
-                );
-            }
-            Self::Local => (),
-        }
-        opts
-    }
-}
 
 /// Access a delta lake using a catalog.
 pub struct DeltaLakeAccessor {
@@ -97,7 +57,7 @@ impl DeltaLakeAccessor {
         debug!(%loc, %database, %table, "deltalake location");
 
         // Currently we only support delta lake on S3.
-        let opts = DeltaLakeStorageOptions::S3 {
+        let opts = LakeStorageOptions::S3 {
             creds: CredentialsOptionsAws {
                 access_key_id: self.access_key_id,
                 secret_access_key: self.secret_access_key,
@@ -112,10 +72,7 @@ impl DeltaLakeAccessor {
 }
 
 /// Loads the table at the given location.
-pub async fn load_table_direct(
-    location: &str,
-    opts: DeltaLakeStorageOptions,
-) -> Result<DeltaTable> {
+pub async fn load_table_direct(location: &str, opts: LakeStorageOptions) -> Result<DeltaTable> {
     let opts = opts.into_opts_hashmap();
     let table = deltalake::open_table_with_storage_options(location, opts).await?;
 

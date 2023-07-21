@@ -5558,6 +5558,7 @@ dependencies = [
  "once_cell",
  "pgrepr",
  "regex",
+ "serde",
  "serde_json",
  "telemetry",
  "thiserror",

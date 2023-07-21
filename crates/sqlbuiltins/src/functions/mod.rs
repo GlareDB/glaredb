@@ -2,8 +2,8 @@
 //! mod bigquery;
 mod bigquery;
 mod conversion;
-mod delta;
 mod generate_series;
+mod lake;
 mod list_schemas;
 mod list_tables;
 mod mongo;
@@ -14,8 +14,8 @@ mod snowflake;
 mod utils;
 
 use self::bigquery::*;
-use self::delta::*;
 use self::generate_series::*;
+use self::lake::*;
 use self::list_schemas::*;
 use self::list_tables::*;
 use self::mongo::*;
@@ -122,6 +122,7 @@ impl BuiltinTableFuncs {
             Arc::new(CSV_SCAN),
             Arc::new(JSON_SCAN),
             Arc::new(DeltaScan),
+            Arc::new(IcebergScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),

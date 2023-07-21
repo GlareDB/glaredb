@@ -22,7 +22,7 @@ use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
 use datasources::debug::DebugTableType;
-use datasources::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};

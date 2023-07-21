@@ -10,7 +10,7 @@ use datafusion::datasource::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnectionParameters};
 use datasources::debug::DebugTableType;
-use datasources::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
@@ -82,7 +82,7 @@ pub enum DispatchError {
     #[error(transparent)]
     SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
     #[error(transparent)]
-    DeltaDatasource(#[from] datasources::delta::errors::DeltaError),
+    DeltaDatasource(#[from] datasources::lake::delta::errors::DeltaError),
     #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]

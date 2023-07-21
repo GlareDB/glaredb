@@ -1,5 +1,6 @@
 use super::*;
-use datasources::delta::access::{load_table_direct, DeltaLakeStorageOptions};
+use datasources::lake::delta::access::load_table_direct;
+use datasources::lake::LakeStorageOptions;
 
 /// Function for scanning delta tables.
 ///
@@ -32,7 +33,7 @@ impl TableFunc for DeltaScan {
                 let source_url = DatasourceUrl::new(&url)?;
 
                 match source_url.scheme() {
-                    DatasourceUrlScheme::File => (url, DeltaLakeStorageOptions::Local),
+                    DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
                     _ => {
                         return Err(BuiltinError::Static(
                             "Credentials required when accessing delta table in S3 or GCS",
@@ -55,7 +56,7 @@ impl TableFunc for DeltaScan {
                 match source_url.scheme() {
                     DatasourceUrlScheme::Gcs => {
                         if let CredentialsOptions::Gcp(creds) = creds.options {
-                            (url, DeltaLakeStorageOptions::Gcs { creds })
+                            (url, LakeStorageOptions::Gcs { creds })
                         } else {
                             return Err(BuiltinError::Static("invalid credentials for GCS"));
                         }
@@ -69,7 +70,7 @@ impl TableFunc for DeltaScan {
                             .param_into()?;
 
                         if let CredentialsOptions::Aws(creds) = creds.options {
-                            (url, DeltaLakeStorageOptions::S3 { creds, region })
+                            (url, LakeStorageOptions::S3 { creds, region })
                         } else {
                             return Err(BuiltinError::Static("invalid credentials for S3"));
                         }
@@ -94,5 +95,43 @@ impl TableFunc for DeltaScan {
             .map_err(|e| BuiltinError::Access(Box::new(e)))?;
 
         Ok(Arc::new(table))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IcebergScan;
+
+#[async_trait]
+impl TableFunc for IcebergScan {
+    fn name(&self) -> &str {
+        "iceberg_scan"
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        mut opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let (loc, delta_opts) = match args.len() {
+            1 => {
+                let mut args = args.into_iter();
+                let first = args.next().unwrap();
+                let url: String = first.param_into()?;
+                let source_url = DatasourceUrl::new(&url)?;
+
+                match source_url.scheme() {
+                    DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
+                    _ => {
+                        return Err(BuiltinError::Static(
+                            "Credentials required when accessing delta table in S3 or GCS",
+                        ))
+                    }
+                }
+            }
+            _ => unimplemented!(),
+        };
+
+        unimplemented!()
     }
 }

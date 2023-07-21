@@ -16,3 +16,7 @@ benchmarks/artifacts/
 /deps
 
 .vscode/
+
+# Stuff for iceberg testing. Remove/cleanup before merge
+*.jar
+iceberg/out
