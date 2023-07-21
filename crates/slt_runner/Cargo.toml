@@ -10,7 +10,7 @@ logutil = {path = "../logutil"}
 glaredb = {path = "../glaredb"}
 pgsrv = {path = "../pgsrv"}
 tokio = { version = "1", features = ["full"] }
-sqllogictest = "0.14.0"
+sqllogictest = "0.15.0"
 tokio-postgres = "0.7.8"
 object_store = { workspace = true, features = ["gcp"] }
 anyhow = "1.0"
