@@ -1,17 +1,20 @@
+use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
 use crate::vars::SessionVars;
-use datasources::native::access::NativeTableStorage;
-use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
-use metastore_client::session::SessionCatalog;
-use object_store_util::conf::StorageConfig;
+
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+
+use datasources::native::access::NativeTableStorage;
+use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
+use metastore_client::session::SessionCatalog;
+use object_store_util::conf::StorageConfig;
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
@@ -97,6 +100,8 @@ pub struct Engine {
     spill_path: Option<PathBuf>,
     /// Number of active sessions.
     session_counter: Arc<AtomicU64>,
+    /// Background jobs to run.
+    background_jobs: JobRunner,
 }
 
 impl Engine {
@@ -113,7 +118,14 @@ impl Engine {
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
+            background_jobs: JobRunner::new(),
         })
+    }
+
+    /// Attempts to shutdown the engine gracefully.
+    pub async fn shutdown(&self) -> Result<()> {
+        self.background_jobs.close().await?;
+        Ok(())
     }
 
     /// Get the current number of sessions.

@@ -100,17 +100,17 @@ impl Server {
 
         // Shutdown handler.
         let (tx, mut rx) = oneshot::channel();
-        let pg_hander = self.pg_handler.clone();
+        let pg_handler = self.pg_handler.clone();
         tokio::spawn(async move {
             match signal::ctrl_c().await {
                 Ok(()) => {
                     info!("shutdown triggered");
+                    let engine_shutdown = pg_handler.engine.shutdown();
+
                     loop {
-                        let sess_count = pg_hander.engine.session_count();
+                        let sess_count = pg_handler.engine.session_count();
                         if sess_count == 0 {
-                            // Shutdown!
-                            let _ = tx.send(());
-                            return;
+                            break;
                         }
 
                         info!(%sess_count, "shutdown prevented, active sessions");
@@ -119,6 +119,16 @@ impl Server {
                         // between.
                         tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                     }
+
+                    match engine_shutdown.await {
+                        Ok(()) => {}
+                        Err(err) => {
+                            error!(%err, "unable to shutdown the engine gracefully");
+                        }
+                    };
+
+                    // Shutdown!
+                    let _ = tx.send(());
                 }
                 Err(err) => {
                     error!(%err, "unable to listen for shutdown signal");

@@ -129,6 +129,9 @@ pub enum ExecError {
     #[error("Failed to read table from environment: {0}")]
     EnvironmentTableRead(Box<dyn std::error::Error + Send + Sync>),
 
+    #[error("Unable to send message over channel: {0}")]
+    ChannelSendError(Box<dyn std::error::Error + Send + Sync>),
+
     #[error("internal error: {0}")]
     Internal(String),
 
