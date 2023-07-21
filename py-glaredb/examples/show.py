@@ -24,4 +24,4 @@ df = pd.DataFrame(
 
 con = glaredb.connect()
 
-con.sql("select * from df where fruits = 'banana'").show();
+con.sql("select * from df where fruits = 'banana'").show()
