@@ -1,6 +1,6 @@
 import glaredb
 import pandas as pd
-import pytest
+
 
 def test_sql():
     con = glaredb.connect()
@@ -23,7 +23,8 @@ def test_sql():
         }
     )
 
-    assert(out.equals(expected))
+    assert out.equals(expected)
+
 
 def test_sql_multiple_references():
     con = glaredb.connect()
@@ -37,8 +38,8 @@ def test_sql_multiple_references():
     )
 
     lp = con.sql("select * from df where fruits = 'banana'")
-    out1 = lp.to_pandas();
-    out2 = lp.to_pandas();
+    out1 = lp.to_pandas()
+    out2 = lp.to_pandas()
     expected = pd.DataFrame(
         {
             "A": [1, 2, 5],
@@ -48,12 +49,12 @@ def test_sql_multiple_references():
         }
     )
 
-    assert(out1.equals(expected))
-    assert(out2.equals(expected))
+    assert out1.equals(expected)
+    assert out2.equals(expected)
 
 
 def test_can_query_outer_scope_var():
-    df = pd.DataFrame(
+    pd.DataFrame(
         {
             "A": [1, 2, 3, 4, 5],
             "fruits": ["banana", "banana", "apple", "apple", "banana"],
@@ -85,7 +86,8 @@ def test_can_query_outer_scope_var():
         }
     )
 
-    assert(out.equals(expected))
+    assert out.equals(expected)
+
 
 def test_execute():
     con = glaredb.connect()
@@ -108,4 +110,4 @@ def test_execute():
         }
     )
 
-    assert(out.equals(expected))
+    assert out.equals(expected)

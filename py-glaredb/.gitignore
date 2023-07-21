@@ -69,4 +69,10 @@ docs/_build/
 .vscode/
 
 # Pyenv
+.ipynb_checkpoints/
+.mypy_cache/
+.pytest_cache/
 .python-version
+.yarn/
+.vscode/
+__pycache__/

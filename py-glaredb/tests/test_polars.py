@@ -2,6 +2,7 @@ import glaredb
 import polars as pl
 import pytest
 
+
 def test_sql():
     con = glaredb.connect()
     df = pl.DataFrame(
@@ -23,7 +24,8 @@ def test_sql():
         }
     )
 
-    assert(out.frame_equal(expected))
+    assert out.frame_equal(expected)
+
 
 def test_sql_multiple_references():
     con = glaredb.connect()
@@ -37,8 +39,8 @@ def test_sql_multiple_references():
     )
 
     lp = con.sql("select * from df where fruits = 'banana'")
-    out1 = lp.to_polars();
-    out2 = lp.to_polars();
+    out1 = lp.to_polars()
+    out2 = lp.to_polars()
     expected = pl.DataFrame(
         {
             "A": [1, 2, 5],
@@ -48,8 +50,8 @@ def test_sql_multiple_references():
         }
     )
 
-    assert(out1.frame_equal(expected))
-    assert(out2.frame_equal(expected))
+    assert out1.frame_equal(expected)
+    assert out2.frame_equal(expected)
 
 
 def test_can_query_outer_scope_var():
@@ -85,7 +87,7 @@ def test_can_query_outer_scope_var():
         }
     )
 
-    assert(out.frame_equal(expected))
+    assert out.frame_equal(expected)
 
 
 def test_execute():
@@ -109,5 +111,4 @@ def test_execute():
         }
     )
 
-    assert(out.frame_equal(expected))
-
+    assert out.frame_equal(expected)
