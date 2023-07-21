@@ -29,12 +29,3 @@ updates:
 
     reviewers:
       - "scsmithr" 
-
-    groups:
-      cargo-dependencies:
-        patterns:
-          - "*" # Maintain all deps.
-        exclude-patterns:
-          - "datafusion"
-          - "deltalake"
-          - "object_store"
