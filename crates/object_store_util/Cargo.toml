@@ -10,10 +10,10 @@ logutil = {path = "../logutil"}
 object_store = { workspace = true }
 tempfile = "3"
 futures = "0.3.28"
-async-trait = "0.1.71"
+async-trait = "0.1.72"
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 bytes = "1.4.0"
 tracing = "0.1"
 moka = { version = "0.11.2", features = ["future"] }
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
