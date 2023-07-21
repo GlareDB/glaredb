@@ -8,6 +8,6 @@ edition = {workspace = true}
 [dependencies]
 thiserror.workspace = true
 num-traits = "0.2.15"
-dtoa = "1.0.8"
+dtoa = "1.0.9"
 chrono = "0.4.26"
 decimal = { path = "../decimal" }
