@@ -706,6 +706,7 @@ impl<'a> SessionPlanner<'a> {
                         table_name,
                         columns: arrow_cols,
                         if_not_exists,
+                        source,
                     })
                     .into())
                 } else {

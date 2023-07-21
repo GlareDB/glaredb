@@ -224,7 +224,7 @@ impl Session {
     }
 
     pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
-        self.ctx.create_temp_table(plan)?;
+        self.ctx.create_temp_table(plan).await?;
         Ok(())
     }
 
