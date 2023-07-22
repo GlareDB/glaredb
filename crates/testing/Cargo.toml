@@ -17,7 +17,7 @@ sqllogictest = "0.14.0"
 object_store = { workspace = true, features = ["gcp"] }
 async-trait = "0.1.72"
 regex = "1.8.1"
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 openssh = "0.9.9"
 logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }
