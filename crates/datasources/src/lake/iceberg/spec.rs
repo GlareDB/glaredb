@@ -1,11 +1,7 @@
 use crate::lake::iceberg::errors::{IcebergError, Result};
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
-
-#[derive(Debug, Clone, Copy)]
-pub enum FormatVersion {
-    V1,
-    V2,
-}
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
 pub enum FileFormat {
@@ -29,7 +25,7 @@ pub enum FileFormat {
 // fixed(L)	Fixed-length byte array of length L
 // binary
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub enum PrimitiveType {
     Boolean,
     Int,
@@ -40,7 +36,7 @@ pub enum PrimitiveType {
     Date,
     Time,
     Timestamp,
-    TimestampTz,
+    Timestamptz,
     String,
     Uuid,
     Fixed(usize),
@@ -65,4 +61,78 @@ impl TryFrom<PrimitiveType> for DataType {
             _ => unimplemented!(),
         })
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct TableMetadata {
+    format_version: i32,
+    table_uuid: String,
+    location: String,
+    last_updated_ms: i64,
+    last_column_id: i32,
+    schemas: Vec<Schema>,
+    current_schema_id: i32,
+    // partition_specs: Vec<PartitionSpec>,
+    default_spec_id: i32,
+    last_partition_id: i32,
+    properties: Option<HashMap<String, String>>,
+    current_snapshot_id: Option<i64>,
+    snapshots: Vec<Snapshot>,
+    snapshot_log: Vec<SnapshotLog>,
+    metadata_log: Vec<MetadataLog>,
+    // sort_orders: Vec<SortOrder>,
+    default_sort_order_id: i32,
+    // refs: Option<HashMap<String, SnapshotReference>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Schema {
+    schema_id: i32,
+    identifier_field_ids: Vec<i32>,
+    fields: Vec<Field>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Field {
+    id: i32,
+    name: String,
+    required: bool,
+    r#type: String, // TODO
+    doc: String,
+    initial_value: String, // TODO
+    write_default: String, // TODO
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Snapshot {
+    snapshot_id: i32,
+    timestamp_ms: i32,
+    summary: HashMap<String, String>,
+    manifest_list: String,
+    schema_id: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SnapshotLog {
+    snapshot_id: i32,
+    timestamp_ms: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct MetadataLog {
+    metadata_file: String,
+    timestamp_ms: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Reference {
+    snapshot_id: i32,
+    r#type: String,
 }
