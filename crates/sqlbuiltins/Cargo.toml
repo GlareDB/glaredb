@@ -20,7 +20,7 @@ datafusion = {workspace = true}
 futures = "0.3.28"
 tracing = "0.1"
 object_store = { workspace = true }
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 tokio-postgres = "0.7.8"
