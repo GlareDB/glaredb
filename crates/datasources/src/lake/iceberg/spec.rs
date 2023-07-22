@@ -63,7 +63,7 @@ impl TryFrom<PrimitiveType> for DataType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TableMetadata {
     format_version: i32,
@@ -90,7 +90,7 @@ pub struct TableMetadata {
 #[serde(rename_all = "kebab-case")]
 pub struct Schema {
     schema_id: i32,
-    identifier_field_ids: Vec<i32>,
+    identifier_field_ids: Option<Vec<i32>>,
     fields: Vec<Field>,
 }
 
@@ -101,16 +101,16 @@ pub struct Field {
     name: String,
     required: bool,
     r#type: String, // TODO
-    doc: String,
-    initial_value: String, // TODO
-    write_default: String, // TODO
+    doc: Option<String>,
+    initial_value: Option<String>, // TODO
+    write_default: Option<String>, // TODO
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Snapshot {
-    snapshot_id: i32,
-    timestamp_ms: i32,
+    snapshot_id: i64,
+    timestamp_ms: i64,
     summary: HashMap<String, String>,
     manifest_list: String,
     schema_id: i32,
@@ -119,20 +119,20 @@ pub struct Snapshot {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct SnapshotLog {
-    snapshot_id: i32,
-    timestamp_ms: i32,
+    snapshot_id: i64,
+    timestamp_ms: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct MetadataLog {
     metadata_file: String,
-    timestamp_ms: i32,
+    timestamp_ms: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Reference {
-    snapshot_id: i32,
+    snapshot_id: i64,
     r#type: String,
 }

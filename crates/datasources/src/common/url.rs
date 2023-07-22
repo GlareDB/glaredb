@@ -6,7 +6,7 @@ use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DatasourceUrl {
     File(PathBuf),
     Url(Url),
@@ -38,7 +38,7 @@ impl DatasourceUrl {
     const GS_SCHEME: &str = "gs";
     const S3_SCHEME: &str = "s3";
 
-    pub fn new(u: impl AsRef<str>) -> Result<Self> {
+    pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
 
         let ds_url = match u.parse::<Url>() {
@@ -108,32 +108,32 @@ mod tests {
 
     #[test]
     fn test_url_parse() {
-        let u = DatasourceUrl::new("gs://my_bucket/my_obj").unwrap();
+        let u = DatasourceUrl::try_new("gs://my_bucket/my_obj").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("/my_obj", u.path());
         assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
 
-        let u = DatasourceUrl::new("gs://my_bucket/my_obj.parquet").unwrap();
+        let u = DatasourceUrl::try_new("gs://my_bucket/my_obj.parquet").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
 
-        let u = DatasourceUrl::new("./my_bucket/my_obj.parquet").unwrap();
+        let u = DatasourceUrl::try_new("./my_bucket/my_obj.parquet").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("./my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::File, u.scheme());
 
-        let u = DatasourceUrl::new("/Users/mario/my_bucket/my_obj").unwrap();
+        let u = DatasourceUrl::try_new("/Users/mario/my_bucket/my_obj").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("/Users/mario/my_bucket/my_obj", u.path());
         assert_eq!(DatasourceUrlScheme::File, u.scheme());
 
-        let u = DatasourceUrl::new("file:/my_bucket/my_obj.parquet").unwrap();
+        let u = DatasourceUrl::try_new("file:/my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::File, u.scheme());
 
         // TODO: Maybe we don't want this...
-        let u = DatasourceUrl::new("file:my_bucket/my_obj.parquet").unwrap();
+        let u = DatasourceUrl::try_new("file:my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::File, u.scheme());
     }

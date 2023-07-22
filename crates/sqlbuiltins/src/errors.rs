@@ -36,6 +36,12 @@ pub enum BuiltinError {
     #[error(transparent)]
     DatasourceCommonError(#[from] datasources::common::errors::DatasourceCommonError),
 
+    #[error(transparent)]
+    LakeStorageOptions(#[from] datasources::lake::LakeStorageOptionsError),
+
+    #[error(transparent)]
+    Iceberg(#[from] datasources::lake::iceberg::errors::IcebergError),
+
     #[error("{0}")]
     Static(&'static str),
 

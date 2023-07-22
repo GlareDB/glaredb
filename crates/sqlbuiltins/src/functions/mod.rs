@@ -112,17 +112,20 @@ pub struct BuiltinTableFuncs {
 impl BuiltinTableFuncs {
     pub fn new() -> BuiltinTableFuncs {
         let funcs: Vec<Arc<dyn TableFunc>> = vec![
-            // Read from table sources
+            // Databases/warehouses
             Arc::new(ReadPostgres),
             Arc::new(ReadBigQuery),
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(CSV_SCAN),
             Arc::new(JSON_SCAN),
+            // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
+            Arc::new(IcebergMetadata),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),

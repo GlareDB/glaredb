@@ -85,7 +85,7 @@ async fn create_provider_for_filetype(
     mut args: vec::IntoIter<FuncParamValue>,
     mut opts: HashMap<String, FuncParamValue>,
 ) -> Result<Arc<dyn TableProvider>> {
-    let source_url = DatasourceUrl::new(&url_string)?;
+    let source_url = DatasourceUrl::try_new(&url_string)?;
 
     let provider = match args.len() {
         0 => {
@@ -129,7 +129,7 @@ async fn create_provider_for_filetype(
         }
         1 => {
             // Credentials object
-            let source_url = DatasourceUrl::new(url_string)?;
+            let source_url = DatasourceUrl::try_new(url_string)?;
             let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
                 .get_credentials_entry(creds.as_str())

@@ -1,5 +1,7 @@
 use super::*;
+use datafusion::arrow::array::StringBuilder;
 use datasources::lake::delta::access::load_table_direct;
+use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::LakeStorageOptions;
 
 /// Function for scanning delta tables.
@@ -30,7 +32,7 @@ impl TableFunc for DeltaScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url: String = first.param_into()?;
-                let source_url = DatasourceUrl::new(&url)?;
+                let source_url = DatasourceUrl::try_new(&url)?;
 
                 match source_url.scheme() {
                     DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
@@ -45,7 +47,7 @@ impl TableFunc for DeltaScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url = first.param_into()?;
-                let source_url = DatasourceUrl::new(&url)?;
+                let source_url = DatasourceUrl::try_new(&url)?;
                 let creds: IdentValue = args.next().unwrap().param_into()?;
 
                 let creds = ctx
@@ -118,7 +120,7 @@ impl TableFunc for IcebergScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url: String = first.param_into()?;
-                let source_url = DatasourceUrl::new(&url)?;
+                let source_url = DatasourceUrl::try_new(&url)?;
 
                 match source_url.scheme() {
                     DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
@@ -133,5 +135,63 @@ impl TableFunc for IcebergScan {
         };
 
         unimplemented!()
+    }
+}
+
+/// Function for getting iceberg table metadata.
+#[derive(Debug, Clone, Copy)]
+pub struct IcebergMetadata;
+
+#[async_trait]
+impl TableFunc for IcebergMetadata {
+    fn name(&self) -> &str {
+        "iceberg_metadata"
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let (loc, opts) = match args.len() {
+            1 => {
+                let mut args = args.into_iter();
+                let first = args.next().unwrap();
+                let url: String = first.param_into()?;
+                let source_url = DatasourceUrl::try_new(&url)?;
+
+                match source_url.scheme() {
+                    DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
+                    _ => {
+                        return Err(BuiltinError::Static(
+                            "Credentials required when accessing delta table in S3 or GCS",
+                        ))
+                    }
+                }
+            }
+            _ => unimplemented!(),
+        };
+
+        let url = DatasourceUrl::try_new(loc)?;
+        let store = opts.into_object_store(&url)?;
+        let table = IcebergTable::open(url, store).await?;
+
+        let serialized = serde_json::to_string_pretty(table.metadata()).unwrap();
+
+        let mut builder = StringBuilder::new();
+        builder.append_value(serialized);
+
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "metadata",
+            DataType::Utf8,
+            false,
+        )]));
+
+        let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(builder.finish())]).unwrap();
+
+        Ok(Arc::new(
+            MemTable::try_new(schema, vec![vec![batch]]).unwrap(),
+        ))
     }
 }

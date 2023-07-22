@@ -1044,7 +1044,7 @@ impl<'a> SessionPlanner<'a> {
         ) {
             (dest.as_str(), None)
         } else {
-            let u = DatasourceUrl::new(&dest)?;
+            let u = DatasourceUrl::try_new(&dest)?;
             let d = match u.scheme() {
                 DatasourceUrlScheme::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlScheme::Gcs => CopyToDestinationOptions::GCS,
