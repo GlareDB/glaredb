@@ -490,455 +490,440 @@ impl State {
         (self.version, _) = self.version.overflowing_add(1);
 
         for mutation in mutations {
-            match mutation {
-                Mutation::DropDatabase(drop_database) => {
-                    // TODO: Dependency checking (for child objects like views, etc.)
-                    let if_exists = drop_database.if_exists;
-                    let database_id = match self.database_names.remove(&drop_database.name) {
-                        None if if_exists => return Ok(()),
-                        None => return Err(MetastoreError::MissingDatabase(drop_database.name)),
-                        Some(id) => id,
-                    };
-
-                    self.entries.remove(&database_id)?.unwrap();
-                }
-                Mutation::DropTunnel(drop_tunnel) => {
-                    let if_exists = drop_tunnel.if_exists;
-                    let tunnel_id = match self.tunnel_names.remove(&drop_tunnel.name) {
-                        None if if_exists => return Ok(()),
-                        None => return Err(MetastoreError::MissingTunnel(drop_tunnel.name)),
-                        Some(id) => id,
-                    };
-
-                    self.entries.remove(&tunnel_id)?.unwrap();
-                }
-                Mutation::DropCredentials(drop_credentials) => {
-                    let if_exists = drop_credentials.if_exists;
-                    let credentials_id = match self.credentials_names.remove(&drop_credentials.name)
-                    {
-                        None if if_exists => return Ok(()),
-                        None => {
-                            return Err(MetastoreError::MissingCredentials(drop_credentials.name))
-                        }
-                        Some(id) => id,
-                    };
-
-                    self.entries.remove(&credentials_id)?.unwrap();
-                }
-                Mutation::DropSchema(drop_schema) => {
-                    let if_exists = drop_schema.if_exists;
-                    let schema_id = match self.schema_names.remove(&drop_schema.name) {
-                        None if if_exists => return Ok(()),
-                        None => return Err(MetastoreError::MissingNamedSchema(drop_schema.name)),
-                        Some(id) => id,
-                    };
-
-                    // Check if any child objects exist for this schema
-                    match self.schema_objects.get(&schema_id) {
-                        Some(so) if so.is_empty() => {
-                            self.schema_objects.remove(&schema_id);
-                        }
-                        Some(_) if drop_schema.cascade => {
-                            // Remove all child objects.
-                            let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
-                            for child_oid in objs.iter_oids() {
-                                // TODO: Dependency checking.
-                                self.entries.remove(child_oid)?.unwrap(); // Bug if it doesn't exist.
-                            }
-                        }
-                        None => (), // Empty schema that never had any child objects
-                        Some(so) => {
-                            return Err(MetastoreError::SchemaHasChildren {
-                                schema: schema_id,
-                                num_objects: so.num_objects(),
-                            });
-                        }
-                    }
-
-                    self.entries.remove(&schema_id)?.unwrap(); // Bug if doesn't exist.
-                }
-                // Can drop db objects like tables and views
-                Mutation::DropObject(drop_object) => {
-                    // TODO: Dependency checking (for child objects like tables, views, etc.)
-                    let if_exists = drop_object.if_exists;
-
-                    let schema_id = match self.schema_names.get(&drop_object.schema) {
-                        None if if_exists => return Ok(()),
-                        None => return Err(MetastoreError::MissingNamedSchema(drop_object.schema)),
-                        Some(id) => *id,
-                    };
-
-                    let objs = match self.schema_objects.get_mut(&schema_id) {
-                        None if if_exists => return Ok(()),
-                        None => {
-                            return Err(MetastoreError::MissingNamedObject {
-                                schema: drop_object.schema,
-                                name: drop_object.name,
-                            })
-                        }
-                        Some(objs) => objs,
-                    };
-
-                    // TODO: This will need to be tweaked if/when we support
-                    // dropping functions.
-                    let ent_id = match objs.tables.remove(&drop_object.name) {
-                        None if if_exists => return Ok(()),
-                        None => {
-                            return Err(MetastoreError::MissingNamedObject {
-                                schema: drop_object.schema,
-                                name: drop_object.name,
-                            })
-                        }
-                        Some(id) => id,
-                    };
-
-                    self.entries.remove(&ent_id)?.unwrap(); // Bug if doesn't exist.
-                }
-                Mutation::CreateExternalDatabase(create_database) => {
-                    validate_object_name(&create_database.name)?;
-                    match self.database_names.get(&create_database.name) {
-                        Some(_) if create_database.if_not_exists => return Ok(()), // Already exists, nothing to do.
-                        Some(_) => return Err(MetastoreError::DuplicateName(create_database.name)),
-                        None => (),
-                    }
-
-                    // Check if the tunnel exists and validate.
-                    let tunnel_id = if let Some(tunnel_entry) =
-                        self.get_tunnel_entry(create_database.tunnel.as_ref())?
-                    {
-                        validate_database_tunnel_support(
-                            create_database.options.as_str(),
-                            tunnel_entry.options.as_str(),
-                        )?;
-                        Some(tunnel_entry.meta.id)
-                    } else {
-                        None
-                    };
-
-                    // Create new entry
-                    let oid = self.next_oid();
-                    let ent = DatabaseEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::Database,
-                            id: oid,
-                            parent: DATABASE_PARENT_ID,
-                            name: create_database.name.clone(),
-                            builtin: false,
-                            external: true,
-                        },
-                        options: create_database.options,
-                        tunnel_id,
-                    };
-                    self.entries.insert(oid, CatalogEntry::Database(ent))?;
-
-                    // Add to database map
-                    self.database_names.insert(create_database.name, oid);
-                }
-                Mutation::CreateTunnel(create_tunnel) => {
-                    validate_object_name(&create_tunnel.name)?;
-                    match self.tunnel_names.get(&create_tunnel.name) {
-                        Some(_) if create_tunnel.if_not_exists => return Ok(()), // Already exists, nothing to do.
-                        Some(_) => return Err(MetastoreError::DuplicateName(create_tunnel.name)),
-                        None => (),
-                    }
-
-                    // Create new entry
-                    let oid = self.next_oid();
-                    let ent = TunnelEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::Tunnel,
-                            id: oid,
-                            // The tunnel, just like databases doesn't have any parent.
-                            parent: DATABASE_PARENT_ID,
-                            name: create_tunnel.name.clone(),
-                            builtin: false,
-                            external: false,
-                        },
-                        options: create_tunnel.options,
-                    };
-                    self.entries.insert(oid, CatalogEntry::Tunnel(ent))?;
-
-                    // Add to tunnel map
-                    self.tunnel_names.insert(create_tunnel.name, oid);
-                }
-                Mutation::CreateCredentials(create_credentials) => {
-                    validate_object_name(&create_credentials.name)?;
-                    if self
-                        .credentials_names
-                        .get(&create_credentials.name)
-                        .is_some()
-                    {
-                        return Err(MetastoreError::DuplicateName(create_credentials.name));
-                    }
-
-                    // Create new entry
-                    let oid = self.next_oid();
-                    let ent = CredentialsEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::Credentials,
-                            id: oid,
-                            // The credentials, just like databases doesn't have any parent.
-                            parent: DATABASE_PARENT_ID,
-                            name: create_credentials.name.clone(),
-                            builtin: false,
-                            external: false,
-                        },
-                        options: create_credentials.options,
-                        comment: create_credentials.comment,
-                    };
-                    self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
-
-                    // Add to creadentials map
-                    self.credentials_names.insert(create_credentials.name, oid);
-                }
-                Mutation::CreateSchema(create_schema) => {
-                    validate_object_name(&create_schema.name)?;
-
-                    if self.schema_names.contains_key(&create_schema.name) {
-                        if create_schema.if_not_exists {
-                            continue; // Skipping this mutation if the schema already exists.
-                        } else {
-                            return Err(MetastoreError::DuplicateName(create_schema.name));
-                        }
-                    }
-
-                    // Create new entry
-                    let oid = self.next_oid();
-                    let ent = SchemaEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::Schema,
-                            id: oid,
-                            // Schemas can only be created in the default builtin database for now.
-                            parent: DATABASE_DEFAULT.oid,
-                            name: create_schema.name.clone(),
-                            builtin: false,
-                            external: false,
-                        },
-                    };
-                    self.entries.insert(oid, CatalogEntry::Schema(ent))?;
-                    // Add to name map
-                    self.schema_names.insert(create_schema.name, oid);
-                }
-                Mutation::CreateView(create_view) => {
-                    validate_object_name(&create_view.name)?;
-
-                    let schema_id = self.get_schema_id(&create_view.schema)?;
-
-                    // Create new entry
-                    let oid = self.next_oid();
-                    let ent = ViewEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::View,
-                            id: oid,
-                            parent: schema_id,
-                            name: create_view.name.clone(),
-                            builtin: false,
-                            external: false,
-                        },
-                        sql: create_view.sql,
-                        columns: create_view.columns,
-                    };
-
-                    let policy = if create_view.or_replace {
-                        CreatePolicy::CreateOrReplace
-                    } else {
-                        CreatePolicy::Create
-                    };
-
-                    self.try_insert_table_namespace(
-                        CatalogEntry::View(ent),
-                        schema_id,
-                        oid,
-                        policy,
-                    )?;
-                }
-                Mutation::CreateTable(create_table) => {
-                    validate_object_name(&create_table.name)?;
-
-                    let schema_id = self.get_schema_id(&create_table.schema)?;
-
-                    // Create new entry
-                    let oid = self.next_oid();
-                    let ent = TableEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::Table,
-                            id: oid,
-                            parent: schema_id,
-                            name: create_table.name.clone(),
-                            builtin: false,
-                            external: false,
-                        },
-                        options: TableOptions::Internal(create_table.options),
-                        tunnel_id: None,
-                    };
-
-                    let policy = if create_table.if_not_exists {
-                        CreatePolicy::CreateIfNotExists
-                    } else {
-                        CreatePolicy::Create
-                    };
-
-                    self.try_insert_table_namespace(
-                        CatalogEntry::Table(ent),
-                        schema_id,
-                        oid,
-                        policy,
-                    )?;
-                }
-
-                Mutation::CreateExternalTable(create_ext) => {
-                    validate_object_name(&create_ext.name)?;
-                    let schema_id = self.get_schema_id(&create_ext.schema)?;
-
-                    // Check if the tunnel exists and validate.
-                    let tunnel_id = if let Some(tunnel_entry) =
-                        self.get_tunnel_entry(create_ext.tunnel.as_ref())?
-                    {
-                        validate_table_tunnel_support(
-                            create_ext.options.as_str(),
-                            tunnel_entry.options.as_str(),
-                        )?;
-                        Some(tunnel_entry.meta.id)
-                    } else {
-                        None
-                    };
-
-                    // Create new entry.
-                    let oid = self.next_oid();
-                    let ent = TableEntry {
-                        meta: EntryMeta {
-                            entry_type: EntryType::Table,
-                            id: oid,
-                            parent: schema_id,
-                            name: create_ext.name.clone(),
-                            builtin: false,
-                            external: true,
-                        },
-                        options: create_ext.options,
-                        tunnel_id,
-                    };
-
-                    let policy = if create_ext.if_not_exists {
-                        CreatePolicy::CreateIfNotExists
-                    } else {
-                        CreatePolicy::Create
-                    };
-
-                    self.try_insert_table_namespace(
-                        CatalogEntry::Table(ent),
-                        schema_id,
-                        oid,
-                        policy,
-                    )?;
-                }
-                Mutation::AlterTableRename(alter_table_rename) => {
-                    validate_object_name(&alter_table_rename.new_name)?;
-                    if self.schema_names.contains_key(&alter_table_rename.new_name) {
-                        return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
-                    }
-
-                    let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
-                        None => {
-                            return Err(MetastoreError::MissingNamedSchema(
-                                alter_table_rename.schema,
-                            ))
-                        }
-                        Some(id) => *id,
-                    };
-
-                    let objs = match self.schema_objects.get_mut(&schema_id) {
-                        None => {
-                            return Err(MetastoreError::MissingNamedObject {
-                                schema: alter_table_rename.schema,
-                                name: alter_table_rename.name,
-                            })
-                        }
-                        Some(objs) => objs,
-                    };
-
-                    let oid = match objs.tables.remove(&alter_table_rename.name) {
-                        None => {
-                            return Err(MetastoreError::MissingNamedObject {
-                                schema: alter_table_rename.schema,
-                                name: alter_table_rename.name,
-                            })
-                        }
-                        Some(id) => id,
-                    };
-
-                    let mut table = match self.entries.remove(&oid)?.unwrap() {
-                        CatalogEntry::Table(ent) => ent,
-                        other => unreachable!("unexpected entry type: {:?}", other),
-                    };
-
-                    table.meta.name = alter_table_rename.new_name;
-
-                    self.try_insert_table_namespace(
-                        CatalogEntry::Table(table.clone()),
-                        schema_id,
-                        table.meta.id,
-                        CreatePolicy::Create,
-                    )?;
-                }
-                Mutation::AlterDatabaseRename(alter_database_rename) => {
-                    validate_object_name(&alter_database_rename.new_name)?;
-                    if self
-                        .database_names
-                        .contains_key(&alter_database_rename.new_name)
-                    {
-                        return Err(MetastoreError::DuplicateName(
-                            alter_database_rename.new_name,
-                        ));
-                    }
-
-                    let oid = match self.database_names.remove(&alter_database_rename.name) {
-                        None => {
-                            return Err(MetastoreError::MissingDatabase(
-                                alter_database_rename.name,
-                            ));
-                        }
-                        Some(objs) => objs,
-                    };
-
-                    let ent = self.entries.get_mut(&oid)?.unwrap();
-                    ent.get_meta_mut().name = alter_database_rename.new_name.clone();
-
-                    // Add to database map
-                    self.database_names
-                        .insert(alter_database_rename.new_name, oid);
-                }
-                Mutation::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
-                    let oid = match self.tunnel_names.get(&alter_tunnel_rotate_keys.name) {
-                        None if alter_tunnel_rotate_keys.if_exists => return Ok(()),
-                        None => {
-                            return Err(MetastoreError::MissingTunnel(
-                                alter_tunnel_rotate_keys.name,
-                            ))
-                        }
-                        Some(oid) => oid,
-                    };
-
-                    match self.entries.get_mut(oid)?.unwrap() {
-                        CatalogEntry::Tunnel(tunnel_entry) => match &mut tunnel_entry.options {
-                            TunnelOptions::Ssh(tunnel_options_ssh) => {
-                                tunnel_options_ssh.ssh_key = alter_tunnel_rotate_keys.new_ssh_key;
-                            }
-                            opt => {
-                                return Err(MetastoreError::TunnelNotSupportedForAction {
-                                    tunnel: opt.to_string(),
-                                    action: "rotating keys",
-                                })
-                            }
-                        },
-                        _ => unreachable!("entry should be a tunnel"),
-                    };
-                }
-                Mutation::UpdateDeploymentStorage(update_deployment_storage) => {
-                    // Update the new storage size
-                    self.deployment.storage_size = update_deployment_storage.new_storage_size;
-                }
-            }
+            self.mutate_one(mutation)?;
         }
+
+        Ok(())
+    }
+
+    /// Execute a single mutation against the state.
+    fn mutate_one(&mut self, mutation: Mutation) -> Result<()> {
+        match mutation {
+            Mutation::DropDatabase(drop_database) => {
+                // TODO: Dependency checking (for child objects like views, etc.)
+                let if_exists = drop_database.if_exists;
+                let database_id = match self.database_names.remove(&drop_database.name) {
+                    None if if_exists => return Ok(()),
+                    None => return Err(MetastoreError::MissingDatabase(drop_database.name)),
+                    Some(id) => id,
+                };
+
+                self.entries.remove(&database_id)?.unwrap();
+            }
+            Mutation::DropTunnel(drop_tunnel) => {
+                let if_exists = drop_tunnel.if_exists;
+                let tunnel_id = match self.tunnel_names.remove(&drop_tunnel.name) {
+                    None if if_exists => return Ok(()),
+                    None => return Err(MetastoreError::MissingTunnel(drop_tunnel.name)),
+                    Some(id) => id,
+                };
+
+                self.entries.remove(&tunnel_id)?.unwrap();
+            }
+            Mutation::DropCredentials(drop_credentials) => {
+                let if_exists = drop_credentials.if_exists;
+                let credentials_id = match self.credentials_names.remove(&drop_credentials.name) {
+                    None if if_exists => return Ok(()),
+                    None => return Err(MetastoreError::MissingCredentials(drop_credentials.name)),
+                    Some(id) => id,
+                };
+
+                self.entries.remove(&credentials_id)?.unwrap();
+            }
+            Mutation::DropSchema(drop_schema) => {
+                let if_exists = drop_schema.if_exists;
+                let schema_id = match self.schema_names.remove(&drop_schema.name) {
+                    None if if_exists => return Ok(()),
+                    None => return Err(MetastoreError::MissingNamedSchema(drop_schema.name)),
+                    Some(id) => id,
+                };
+
+                // Check if any child objects exist for this schema
+                match self.schema_objects.get(&schema_id) {
+                    Some(so) if so.is_empty() => {
+                        self.schema_objects.remove(&schema_id);
+                    }
+                    Some(_) if drop_schema.cascade => {
+                        // Remove all child objects.
+                        let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
+                        for child_oid in objs.iter_oids() {
+                            // TODO: Dependency checking.
+                            self.entries.remove(child_oid)?.unwrap(); // Bug if it doesn't exist.
+                        }
+                    }
+                    None => (), // Empty schema that never had any child objects
+                    Some(so) => {
+                        return Err(MetastoreError::SchemaHasChildren {
+                            schema: schema_id,
+                            num_objects: so.num_objects(),
+                        });
+                    }
+                }
+
+                self.entries.remove(&schema_id)?.unwrap(); // Bug if doesn't exist.
+            }
+            // Can drop db objects like tables and views
+            Mutation::DropObject(drop_object) => {
+                // TODO: Dependency checking (for child objects like tables, views, etc.)
+                let if_exists = drop_object.if_exists;
+
+                let schema_id = match self.schema_names.get(&drop_object.schema) {
+                    None if if_exists => return Ok(()),
+                    None => return Err(MetastoreError::MissingNamedSchema(drop_object.schema)),
+                    Some(id) => *id,
+                };
+
+                let objs = match self.schema_objects.get_mut(&schema_id) {
+                    None if if_exists => return Ok(()),
+                    None => {
+                        return Err(MetastoreError::MissingNamedObject {
+                            schema: drop_object.schema,
+                            name: drop_object.name,
+                        })
+                    }
+                    Some(objs) => objs,
+                };
+
+                // TODO: This will need to be tweaked if/when we support
+                // dropping functions.
+                let ent_id = match objs.tables.remove(&drop_object.name) {
+                    None if if_exists => return Ok(()),
+                    None => {
+                        return Err(MetastoreError::MissingNamedObject {
+                            schema: drop_object.schema,
+                            name: drop_object.name,
+                        })
+                    }
+                    Some(id) => id,
+                };
+
+                self.entries.remove(&ent_id)?.unwrap(); // Bug if doesn't exist.
+            }
+            Mutation::CreateExternalDatabase(create_database) => {
+                validate_object_name(&create_database.name)?;
+                match self.database_names.get(&create_database.name) {
+                    Some(_) if create_database.if_not_exists => return Ok(()), // Already exists, nothing to do.
+                    Some(_) => return Err(MetastoreError::DuplicateName(create_database.name)),
+                    None => (),
+                }
+
+                // Check if the tunnel exists and validate.
+                let tunnel_id = if let Some(tunnel_entry) =
+                    self.get_tunnel_entry(create_database.tunnel.as_ref())?
+                {
+                    validate_database_tunnel_support(
+                        create_database.options.as_str(),
+                        tunnel_entry.options.as_str(),
+                    )?;
+                    Some(tunnel_entry.meta.id)
+                } else {
+                    None
+                };
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = DatabaseEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Database,
+                        id: oid,
+                        parent: DATABASE_PARENT_ID,
+                        name: create_database.name.clone(),
+                        builtin: false,
+                        external: true,
+                    },
+                    options: create_database.options,
+                    tunnel_id,
+                };
+                self.entries.insert(oid, CatalogEntry::Database(ent))?;
+
+                // Add to database map
+                self.database_names.insert(create_database.name, oid);
+            }
+            Mutation::CreateTunnel(create_tunnel) => {
+                validate_object_name(&create_tunnel.name)?;
+                match self.tunnel_names.get(&create_tunnel.name) {
+                    Some(_) if create_tunnel.if_not_exists => return Ok(()), // Already exists, nothing to do.
+                    Some(_) => return Err(MetastoreError::DuplicateName(create_tunnel.name)),
+                    None => (),
+                }
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = TunnelEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Tunnel,
+                        id: oid,
+                        // The tunnel, just like databases doesn't have any parent.
+                        parent: DATABASE_PARENT_ID,
+                        name: create_tunnel.name.clone(),
+                        builtin: false,
+                        external: false,
+                    },
+                    options: create_tunnel.options,
+                };
+                self.entries.insert(oid, CatalogEntry::Tunnel(ent))?;
+
+                // Add to tunnel map
+                self.tunnel_names.insert(create_tunnel.name, oid);
+            }
+            Mutation::CreateCredentials(create_credentials) => {
+                validate_object_name(&create_credentials.name)?;
+                if self
+                    .credentials_names
+                    .get(&create_credentials.name)
+                    .is_some()
+                {
+                    return Err(MetastoreError::DuplicateName(create_credentials.name));
+                }
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = CredentialsEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Credentials,
+                        id: oid,
+                        // The credentials, just like databases doesn't have any parent.
+                        parent: DATABASE_PARENT_ID,
+                        name: create_credentials.name.clone(),
+                        builtin: false,
+                        external: false,
+                    },
+                    options: create_credentials.options,
+                    comment: create_credentials.comment,
+                };
+                self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
+
+                // Add to creadentials map
+                self.credentials_names.insert(create_credentials.name, oid);
+            }
+            Mutation::CreateSchema(create_schema) => {
+                validate_object_name(&create_schema.name)?;
+
+                if self.schema_names.contains_key(&create_schema.name) {
+                    if create_schema.if_not_exists {
+                        return Ok(());
+                    } else {
+                        return Err(MetastoreError::DuplicateName(create_schema.name));
+                    }
+                }
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = SchemaEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Schema,
+                        id: oid,
+                        // Schemas can only be created in the default builtin database for now.
+                        parent: DATABASE_DEFAULT.oid,
+                        name: create_schema.name.clone(),
+                        builtin: false,
+                        external: false,
+                    },
+                };
+                self.entries.insert(oid, CatalogEntry::Schema(ent))?;
+                // Add to name map
+                self.schema_names.insert(create_schema.name, oid);
+            }
+            Mutation::CreateView(create_view) => {
+                validate_object_name(&create_view.name)?;
+
+                let schema_id = self.get_schema_id(&create_view.schema)?;
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = ViewEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::View,
+                        id: oid,
+                        parent: schema_id,
+                        name: create_view.name.clone(),
+                        builtin: false,
+                        external: false,
+                    },
+                    sql: create_view.sql,
+                    columns: create_view.columns,
+                };
+
+                let policy = if create_view.or_replace {
+                    CreatePolicy::CreateOrReplace
+                } else {
+                    CreatePolicy::Create
+                };
+
+                self.try_insert_table_namespace(CatalogEntry::View(ent), schema_id, oid, policy)?;
+            }
+            Mutation::CreateTable(create_table) => {
+                validate_object_name(&create_table.name)?;
+
+                let schema_id = self.get_schema_id(&create_table.schema)?;
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = TableEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Table,
+                        id: oid,
+                        parent: schema_id,
+                        name: create_table.name.clone(),
+                        builtin: false,
+                        external: false,
+                    },
+                    options: TableOptions::Internal(create_table.options),
+                    tunnel_id: None,
+                };
+
+                let policy = if create_table.if_not_exists {
+                    CreatePolicy::CreateIfNotExists
+                } else {
+                    CreatePolicy::Create
+                };
+
+                self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
+            }
+
+            Mutation::CreateExternalTable(create_ext) => {
+                validate_object_name(&create_ext.name)?;
+                let schema_id = self.get_schema_id(&create_ext.schema)?;
+
+                // Check if the tunnel exists and validate.
+                let tunnel_id = if let Some(tunnel_entry) =
+                    self.get_tunnel_entry(create_ext.tunnel.as_ref())?
+                {
+                    validate_table_tunnel_support(
+                        create_ext.options.as_str(),
+                        tunnel_entry.options.as_str(),
+                    )?;
+                    Some(tunnel_entry.meta.id)
+                } else {
+                    None
+                };
+
+                // Create new entry.
+                let oid = self.next_oid();
+                let ent = TableEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Table,
+                        id: oid,
+                        parent: schema_id,
+                        name: create_ext.name.clone(),
+                        builtin: false,
+                        external: true,
+                    },
+                    options: create_ext.options,
+                    tunnel_id,
+                };
+
+                let policy = if create_ext.if_not_exists {
+                    CreatePolicy::CreateIfNotExists
+                } else {
+                    CreatePolicy::Create
+                };
+
+                self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
+            }
+            Mutation::AlterTableRename(alter_table_rename) => {
+                validate_object_name(&alter_table_rename.new_name)?;
+                if self.schema_names.contains_key(&alter_table_rename.new_name) {
+                    return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
+                }
+
+                let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
+                    None => {
+                        return Err(MetastoreError::MissingNamedSchema(
+                            alter_table_rename.schema,
+                        ))
+                    }
+                    Some(id) => *id,
+                };
+
+                let objs = match self.schema_objects.get_mut(&schema_id) {
+                    None => {
+                        return Err(MetastoreError::MissingNamedObject {
+                            schema: alter_table_rename.schema,
+                            name: alter_table_rename.name,
+                        })
+                    }
+                    Some(objs) => objs,
+                };
+
+                let oid = match objs.tables.remove(&alter_table_rename.name) {
+                    None => {
+                        return Err(MetastoreError::MissingNamedObject {
+                            schema: alter_table_rename.schema,
+                            name: alter_table_rename.name,
+                        })
+                    }
+                    Some(id) => id,
+                };
+
+                let mut table = match self.entries.remove(&oid)?.unwrap() {
+                    CatalogEntry::Table(ent) => ent,
+                    other => unreachable!("unexpected entry type: {:?}", other),
+                };
+
+                table.meta.name = alter_table_rename.new_name;
+
+                self.try_insert_table_namespace(
+                    CatalogEntry::Table(table.clone()),
+                    schema_id,
+                    table.meta.id,
+                    CreatePolicy::Create,
+                )?;
+            }
+            Mutation::AlterDatabaseRename(alter_database_rename) => {
+                validate_object_name(&alter_database_rename.new_name)?;
+                if self
+                    .database_names
+                    .contains_key(&alter_database_rename.new_name)
+                {
+                    return Err(MetastoreError::DuplicateName(
+                        alter_database_rename.new_name,
+                    ));
+                }
+
+                let oid = match self.database_names.remove(&alter_database_rename.name) {
+                    None => {
+                        return Err(MetastoreError::MissingDatabase(alter_database_rename.name));
+                    }
+                    Some(objs) => objs,
+                };
+
+                let ent = self.entries.get_mut(&oid)?.unwrap();
+                ent.get_meta_mut().name = alter_database_rename.new_name.clone();
+
+                // Add to database map
+                self.database_names
+                    .insert(alter_database_rename.new_name, oid);
+            }
+            Mutation::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
+                let oid = match self.tunnel_names.get(&alter_tunnel_rotate_keys.name) {
+                    None if alter_tunnel_rotate_keys.if_exists => return Ok(()),
+                    None => {
+                        return Err(MetastoreError::MissingTunnel(alter_tunnel_rotate_keys.name))
+                    }
+                    Some(oid) => oid,
+                };
+
+                match self.entries.get_mut(oid)?.unwrap() {
+                    CatalogEntry::Tunnel(tunnel_entry) => match &mut tunnel_entry.options {
+                        TunnelOptions::Ssh(tunnel_options_ssh) => {
+                            tunnel_options_ssh.ssh_key = alter_tunnel_rotate_keys.new_ssh_key;
+                        }
+                        opt => {
+                            return Err(MetastoreError::TunnelNotSupportedForAction {
+                                tunnel: opt.to_string(),
+                                action: "rotating keys",
+                            })
+                        }
+                    },
+                    _ => unreachable!("entry should be a tunnel"),
+                };
+            }
+            Mutation::UpdateDeploymentStorage(update_deployment_storage) => {
+                // Update the new storage size
+                self.deployment.storage_size = update_deployment_storage.new_storage_size;
+            }
+        };
 
         Ok(())
     }
@@ -1264,7 +1249,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "numbers".to_string(),
-                if_not_exists: true,
+                if_not_exists: false,
             })],
         )
         .await
@@ -1307,7 +1292,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
-                if_not_exists: true,
+                if_not_exists: false,
             })],
         )
         .await
@@ -1357,7 +1342,7 @@ mod tests {
                 version(&db).await,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
-                    if_not_exists: true,
+                    if_not_exists: false,
                 })],
             )
             .await
@@ -1399,7 +1384,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "luigi".to_string(),
-                if_not_exists: true,
+                if_not_exists: false,
             })],
         )
         .await
@@ -1567,7 +1552,7 @@ mod tests {
                 initial,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
-                    if_not_exists: true,
+                    if_not_exists: false,
                 })],
             )
             .await

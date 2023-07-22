@@ -196,7 +196,7 @@ mod tests {
             catalog_version: resp.catalog.unwrap().version,
             mutations: vec![Mutation::CreateSchema(CreateSchema {
                 name: "test_schema".to_string(),
-                if_not_exists: true,
+                if_not_exists: false,
             })
             .try_into()
             .unwrap()],
