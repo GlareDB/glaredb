@@ -44,7 +44,7 @@ tokio = { version = "1.29.1", features = ["full"] }
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
 tokio-rustls = "0.24.1"
 tracing = "0.1"
-uuid = "1.4.0"
+uuid = "1.4.1"
 url.workspace = true
 webpki-roots = "0.24.0"
 dashmap = "5.5.0"
