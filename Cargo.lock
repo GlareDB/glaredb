@@ -5446,25 +5446,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "slt_runner"
-version = "0.2.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "glaredb",
- "glob",
- "logutil",
- "object_store",
- "pgsrv",
- "regex",
- "sqllogictest",
- "tokio",
- "tokio-postgres",
- "tracing",
-]
-
-[[package]]
 name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
