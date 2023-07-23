@@ -24,7 +24,7 @@ impl Display for DatasourceUrlScheme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::File => write!(f, "file"),
-            Self::Http => write!(f, "http(s)"),
+            Self::Http => write!(f, "https"),
             Self::Gcs => write!(f, "gs"),
             Self::S3 => write!(f, "s3"),
         }

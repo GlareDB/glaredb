@@ -138,9 +138,9 @@ impl TableFunc for IcebergScan {
         let store = opts.into_object_store(&url)?;
         let table = IcebergTable::open(url, store).await?;
 
-        let _ = table.table_reader().await?;
+        let reader = table.table_reader().await?;
 
-        unimplemented!()
+        Ok(reader)
     }
 }
 
@@ -183,21 +183,22 @@ impl TableFunc for IcebergMetadata {
         let store = opts.into_object_store(&url)?;
         let table = IcebergTable::open(url, store).await?;
 
-        let serialized = serde_json::to_string_pretty(table.metadata()).unwrap();
+        unimplemented!()
+        // let serialized = serde_json::to_string_pretty(table.metadata()).unwrap();
 
-        let mut builder = StringBuilder::new();
-        builder.append_value(serialized);
+        // let mut builder = StringBuilder::new();
+        // builder.append_value(serialized);
 
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "metadata",
-            DataType::Utf8,
-            false,
-        )]));
+        // let schema = Arc::new(Schema::new(vec![Field::new(
+        //     "metadata",
+        //     DataType::Utf8,
+        //     false,
+        // )]));
 
-        let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(builder.finish())]).unwrap();
+        // let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(builder.finish())]).unwrap();
 
-        Ok(Arc::new(
-            MemTable::try_new(schema, vec![vec![batch]]).unwrap(),
-        ))
+        // Ok(Arc::new(
+        //     MemTable::try_new(schema, vec![vec![batch]]).unwrap(),
+        // ))
     }
 }

@@ -1,5 +1,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum IcebergError {
+    #[error("Unsupported format version: {0}")]
+    UnsupportedFormatVersion(i32),
+
     #[error("Data is invalid: {0}")]
     DataInvalid(String),
 

@@ -2,12 +2,13 @@ use crate::lake::iceberg::errors::{IcebergError, Result};
 use apache_avro::{from_value, Reader};
 use datafusion::arrow::{
     array::{Array, ArrayAccessor, Int32Array, Int64Array, StringArray},
-    datatypes::{DataType, TimeUnit},
+    datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit},
     record_batch::RecordBatch,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
 pub enum FileFormat {
@@ -31,7 +32,9 @@ pub enum FileFormat {
 // fixed(L)	Fixed-length byte array of length L
 // binary
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+/// Primitive types supported in iceberg tables.
+// TODO: struct, list, map
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveType {
     Boolean,
     Int,
@@ -69,7 +72,31 @@ impl TryFrom<PrimitiveType> for DataType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+impl FromStr for PrimitiveType {
+    type Err = IcebergError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(match s {
+            "boolean" => PrimitiveType::Boolean,
+            "int" => PrimitiveType::Int,
+            "long" => PrimitiveType::Long,
+            "float" => PrimitiveType::Float,
+            "double" => PrimitiveType::Double,
+            "date" => PrimitiveType::Date,
+            "time" => PrimitiveType::Time,
+            "timestamp" => PrimitiveType::Timestamp,
+            "timestamptz" => PrimitiveType::Timestamptz,
+            "string" => PrimitiveType::String,
+            "uuid" => PrimitiveType::Uuid,
+            other => unimplemented!("data type: {}", other),
+        })
+    }
+}
+
+/// On disk table metadata.
+///
+/// JSON serialization only.
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TableMetadata {
     pub format_version: i32,
@@ -92,7 +119,10 @@ pub struct TableMetadata {
     // refs: Option<HashMap<String, SnapshotReference>>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+/// On disk schema from table metadata.
+///
+/// JSON serialization only.
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Schema {
     pub schema_id: i32,
@@ -100,16 +130,52 @@ pub struct Schema {
     pub fields: Vec<Field>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+impl Schema {
+    pub fn to_arrow_schema(&self) -> Result<ArrowSchema> {
+        let fields = self
+            .fields
+            .iter()
+            .map(|f| f.to_arrow_field())
+            .collect::<Result<Vec<_>>>()?;
+        Ok(ArrowSchema::new(fields))
+    }
+}
+
+/// Fields in a schema.
+///
+/// JSON serialization only.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct Field {
     pub id: i32,
     pub name: String,
     pub required: bool,
-    pub r#type: String, // TODO
+    #[serde(deserialize_with = "Field::deserialize_type")]
+    pub r#type: PrimitiveType,
     pub doc: Option<String>,
     pub initial_value: Option<String>, // TODO
     pub write_default: Option<String>, // TODO
+}
+
+impl Field {
+    pub fn to_arrow_field(&self) -> Result<ArrowField> {
+        // TODO: This will need to be extended to support nested types (maps,
+        // lists, structs).
+        Ok(ArrowField::new(
+            &self.name,
+            self.r#type.try_into()?,
+            !self.required,
+        ))
+    }
+
+    /// Deserialize a string into a `PrimitiveType`.
+    fn deserialize_type<'de, D>(deserializer: D) -> Result<PrimitiveType, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        PrimitiveType::from_str(s).map_err(de::Error::custom)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -352,14 +418,15 @@ pub struct I64Entry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::{
-        array::Int64Builder,
-        datatypes::{DataType, Field, Schema},
-    };
-    use std::sync::Arc;
 
     #[test]
     fn test_get_value() -> Result<()> {
+        use datafusion::arrow::{
+            array::Int64Builder,
+            datatypes::{DataType, Field, Schema},
+        };
+        use std::sync::Arc;
+
         let mut builder = Int64Builder::new();
         builder.append_value(1);
 
@@ -370,5 +437,28 @@ mod tests {
         let v: i64 = get_value!(Int64Array, &batch, 0, 0);
         assert_eq!(1, v);
         Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_long_field() {
+        let json = r#"
+            {
+              "id" : 1,
+              "name" : "l_orderkey",
+              "required" : false,
+              "type" : "long"
+            }"#;
+
+        let deserialized: Field = serde_json::from_str(json).unwrap();
+        let expected = Field {
+            id: 1,
+            name: "l_orderkey".to_string(),
+            required: false,
+            r#type: PrimitiveType::Long,
+            doc: None,
+            initial_value: None,
+            write_default: None,
+        };
+        assert_eq!(expected, deserialized);
     }
 }
