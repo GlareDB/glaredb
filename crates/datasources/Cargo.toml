@@ -6,6 +6,7 @@ edition = {workspace = true}
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+apache-avro = "0.15"
 async-channel = "1.9.0"
 async-stream = "0.3.5"
 async-trait = "0.1.72"
@@ -35,7 +36,9 @@ ring = "0.16.20"
 rustls = "0.21.5"
 rust_decimal = { version = "1.30.0", features = ["db-tokio-postgres"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11.12"
 serde_json = "1.0.103"
+serde_with = "3.1.0"
 snowflake_connector = { path = "../snowflake_connector" }
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
 tempfile = "3.7.0"

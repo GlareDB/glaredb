@@ -1,10 +1,27 @@
 use crate::common::url::DatasourceUrl;
 use crate::lake::iceberg::errors::{IcebergError, Result};
-use crate::lake::iceberg::spec::{ManifestList, TableMetadata};
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use crate::lake::iceberg::spec::{Manifest, ManifestList, TableMetadata};
+use async_trait::async_trait;
 use datafusion::datasource::avro_to_arrow as avro;
 use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::context::SessionState;
+use datafusion::execution::context::TaskContext;
+use datafusion::logical_expr::Expr;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::display::DisplayFormatType;
+use datafusion::physical_plan::{
+    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+};
+use datafusion::{
+    arrow::datatypes::{
+        DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    },
+    physical_plan::memory::MemoryExec,
+};
 use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::any::Any;
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -92,6 +109,7 @@ impl IcebergTable {
             // HACK: Avro reader will panic since it thinks there's a null in
             // the partitions list during array validation. I'm not sure why yet
             // though.
+            // TODO: Try not converting to record batch
             let schema = avro::read_avro_schema_from_reader(&mut cursor)?;
             let fields: Vec<_> = schema
                 .fields
@@ -114,7 +132,7 @@ impl IcebergTable {
                     }
                 })
                 .collect();
-            let schema = Schema::new(fields);
+            let schema = ArrowSchema::new(fields);
 
             let mut reader = avro::ReaderBuilder::new()
                 .with_schema(Arc::new(schema))
@@ -129,23 +147,23 @@ impl IcebergTable {
             ManifestList::try_from_batch(batch)?
         };
 
-        let data_files = {
-            // let mut data_files = Vec::new();
-
+        let manifests = {
+            let mut manifests = Vec::new();
             for ent in manifest_list.entries {
                 let manifest_path = self.relative_path(&ent.manifest_path);
 
                 let path = format_object_path(&self.location, manifest_path)?;
                 let bs = self.store.get(&path).await?.bytes().await?;
 
-                let mut cursor = Cursor::new(bs);
+                let cursor = Cursor::new(bs);
 
-                let schema = avro::read_avro_schema_from_reader(&mut cursor)?;
-                println!("schema: {schema:#?}");
+                let manifest = Manifest::from_raw_avro(cursor)?;
+                manifests.push(manifest);
             }
+            manifests
         };
 
-        unimplemented!()
+        Ok(Arc::new(IcebergTableReader { manifests }))
     }
 
     /// Get the relative path for a file according to the table's metadata.
@@ -162,6 +180,43 @@ impl IcebergTable {
     fn relative_path<'a, 'b>(&'a self, path: &'b str) -> &'b str {
         path.trim_start_matches(&self.metadata.location)
             .trim_matches('/')
+    }
+}
+
+#[derive(Debug)]
+pub struct IcebergTableReader {
+    manifests: Vec<Manifest>,
+}
+
+#[async_trait]
+impl TableProvider for IcebergTableReader {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> ArrowSchemaRef {
+        unimplemented!()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
+
+    fn supports_filter_pushdown(
+        &self,
+        _filter: &Expr,
+    ) -> DataFusionResult<TableProviderFilterPushDown> {
+        Ok(TableProviderFilterPushDown::Inexact)
+    }
+
+    async fn scan(
+        &self,
+        _ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        unimplemented!()
     }
 }
 
