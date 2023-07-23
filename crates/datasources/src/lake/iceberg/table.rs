@@ -42,6 +42,8 @@ pub struct IcebergTable {
     store: Arc<dyn ObjectStore>,
 
     metadata: TableMetadata,
+
+    resolver: PathResolver,
 }
 
 impl IcebergTable {
@@ -76,10 +78,13 @@ impl IcebergTable {
             metadata
         };
 
+        let resolver = PathResolver::from_metadata(&metadata);
+
         Ok(IcebergTable {
             location,
             store,
             metadata,
+            resolver,
         })
     }
 
@@ -143,7 +148,7 @@ impl IcebergTable {
 
         let mut manifests = Vec::new();
         for ent in list.entries {
-            let manifest_path = self.relative_path(&ent.manifest_path);
+            let manifest_path = self.resolver.relative_path(&ent.manifest_path);
 
             let path = format_object_path(&self.location, manifest_path)?;
             let bs = self.store.get(&path).await?.bytes().await?;
@@ -160,7 +165,7 @@ impl IcebergTable {
     /// Read the manifest list using the table's current snapshot.
     async fn read_manifest_list(&self) -> Result<ManifestList> {
         let current_snapshot = self.current_snapshot()?;
-        let manifest_list_path = self.relative_path(&current_snapshot.manifest_list);
+        let manifest_list_path = self.resolver.relative_path(&current_snapshot.manifest_list);
 
         let path = format_object_path(&self.location, manifest_list_path)?;
         let bs = self.store.get(&path).await?.bytes().await?;
@@ -203,8 +208,6 @@ impl IcebergTable {
             IcebergError::DataInvalid("No data found in manifest list".to_string())
         })?;
 
-        datafusion::arrow::util::pretty::print_batches(&[batch.clone()]).unwrap();
-
         let list = ManifestList::try_from_batch(batch)?;
 
         Ok(list)
@@ -228,7 +231,23 @@ impl IcebergTable {
             store: self.store.clone(),
             schema: Arc::new(schema),
             files: data_files,
+            resolver: self.resolver.clone(),
         }))
+    }
+}
+
+/// Helper for resolving paths for files.
+#[derive(Debug, Clone)]
+struct PathResolver {
+    /// The locations according to the tables metadata file.
+    metadata_location: String,
+}
+
+impl PathResolver {
+    fn from_metadata(metadata: &TableMetadata) -> PathResolver {
+        PathResolver {
+            metadata_location: metadata.location.clone(),
+        }
     }
 
     /// Get the relative path for a file according to the table's metadata.
@@ -243,7 +262,7 @@ impl IcebergTable {
     /// This should give us:
     /// metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro
     fn relative_path<'a, 'b>(&'a self, path: &'b str) -> &'b str {
-        path.trim_start_matches(&self.metadata.location)
+        path.trim_start_matches(&self.metadata_location)
             .trim_matches('/')
     }
 }
@@ -254,6 +273,7 @@ pub struct IcebergTableReader {
     store: Arc<dyn ObjectStore>,
     schema: Arc<ArrowSchema>,
     files: Vec<DataFile>,
+    resolver: PathResolver,
 }
 
 #[async_trait]
@@ -297,8 +317,9 @@ impl TableProvider for IcebergTableReader {
             .files
             .iter()
             .map(|f| {
+                let path = self.resolver.relative_path(&f.file_path);
                 let meta = ObjectMeta {
-                    location: format_object_path(&self.location, &f.file_path)?,
+                    location: format_object_path(&self.location, &path)?,
                     last_modified: DateTime::<Utc>::MIN_UTC, // TODO: Get the actual time.
                     size: f.file_size_in_bytes as usize,
                     e_tag: None,
@@ -336,12 +357,12 @@ impl TableProvider for IcebergTableReader {
 
 /// Creates a datafusion object store url from the provided data source url.
 fn datasource_url_to_unique_url(url: &DatasourceUrl) -> ObjectStoreUrl {
-    // Replace delimiters.
+    // Snagged this from delta-rs
     ObjectStoreUrl::parse(format!(
         "iceberg://{}{}{}",
         url.scheme(),
-        url.host().unwrap_or_default(),
-        url.path()
+        url.host().unwrap_or("file"),
+        url.path().replace('/', "-")
     ))
     .unwrap()
 }
@@ -399,6 +420,7 @@ fn format_object_path(
     path: impl AsRef<str>,
 ) -> Result<ObjectPath, object_store::path::Error> {
     let path = path.as_ref();
+
     match url {
         DatasourceUrl::Url(_) => {
             let path = format!("{}/{path}", url.path());

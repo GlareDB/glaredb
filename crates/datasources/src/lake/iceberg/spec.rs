@@ -5,6 +5,8 @@ use datafusion::arrow::{
     datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit},
     record_batch::RecordBatch,
 };
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
 use std::collections::HashMap;
@@ -88,7 +90,42 @@ impl FromStr for PrimitiveType {
             "timestamptz" => PrimitiveType::Timestamptz,
             "string" => PrimitiveType::String,
             "uuid" => PrimitiveType::Uuid,
-            other => unimplemented!("data type: {}", other),
+            other if other.starts_with("decimal") => {
+                // Regex that matches:
+                // decimal(15, 2)
+                // decimal(15,2)
+                static DECIMAL_RE: Lazy<Regex> =
+                    Lazy::new(|| Regex::new(r#"^decimal\((?P<p>\d+),\s?(?P<s>\d+)\)$"#).unwrap());
+
+                let captures = DECIMAL_RE.captures(other).ok_or_else(|| {
+                    IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
+                })?;
+
+                let p: u8 = captures
+                    .name("p")
+                    .ok_or_else(|| {
+                        IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
+                    })?
+                    .as_str()
+                    .parse()
+                    .map_err(|e| {
+                        IcebergError::DataInvalid(format!("Decimal precision not a u8: {e}"))
+                    })?;
+
+                let s: u8 = captures
+                    .name("s")
+                    .ok_or_else(|| {
+                        IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
+                    })?
+                    .as_str()
+                    .parse()
+                    .map_err(|e| {
+                        IcebergError::DataInvalid(format!("Decimal scale not a u8: {e}"))
+                    })?;
+
+                PrimitiveType::Decimal { p, s }
+            }
+            other => return Err(IcebergError::DataInvalid(format!("Invalid type: {other}"))),
         })
     }
 }
@@ -455,6 +492,53 @@ mod tests {
             name: "l_orderkey".to_string(),
             required: false,
             r#type: PrimitiveType::Long,
+            doc: None,
+            initial_value: None,
+            write_default: None,
+        };
+        assert_eq!(expected, deserialized);
+    }
+
+    #[test]
+    fn test_deserialize_decimal_field() {
+        let json = r#"
+            {
+              "id" : 6,
+              "name" : "l_extendedprice",
+              "required" : false,
+              "type" : "decimal(15, 2)"
+            }"#;
+
+        let deserialized: Field = serde_json::from_str(json).unwrap();
+        let expected = Field {
+            id: 6,
+            name: "l_extendedprice".to_string(),
+            required: false,
+            r#type: PrimitiveType::Decimal { p: 15, s: 2 },
+            doc: None,
+            initial_value: None,
+            write_default: None,
+        };
+        assert_eq!(expected, deserialized);
+    }
+
+    #[test]
+    fn test_deserialize_decimal_no_space_field() {
+        // See lack of space after comma in decimal type.
+        let json = r#"
+            {
+              "id" : 6,
+              "name" : "l_extendedprice",
+              "required" : false,
+              "type" : "decimal(15,2)"
+            }"#;
+
+        let deserialized: Field = serde_json::from_str(json).unwrap();
+        let expected = Field {
+            id: 6,
+            name: "l_extendedprice".to_string(),
+            required: false,
+            r#type: PrimitiveType::Decimal { p: 15, s: 2 },
             doc: None,
             initial_value: None,
             write_default: None,

@@ -1792,6 +1792,7 @@ dependencies = [
  "openssh",
  "parking_lot",
  "rand 0.8.5",
+ "regex",
  "repr",
  "reqwest",
  "ring",
