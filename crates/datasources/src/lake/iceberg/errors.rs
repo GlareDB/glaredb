@@ -9,6 +9,12 @@ pub enum IcebergError {
     #[error(transparent)]
     ObjectStorePath(#[from] object_store::path::Error),
 
+    #[error(transparent)]
+    DataFusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
+
     #[error("{0}")]
     Static(&'static str),
 }

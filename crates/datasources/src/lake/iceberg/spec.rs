@@ -1,5 +1,9 @@
 use crate::lake::iceberg::errors::{IcebergError, Result};
-use datafusion::arrow::datatypes::{DataType, TimeUnit};
+use datafusion::arrow::{
+    array::{Array, ArrayAccessor, Int32Array, Int64Array, StringArray},
+    datatypes::{DataType, TimeUnit},
+    record_batch::RecordBatch,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -66,73 +70,188 @@ impl TryFrom<PrimitiveType> for DataType {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TableMetadata {
-    format_version: i32,
-    table_uuid: String,
-    location: String,
-    last_updated_ms: i64,
-    last_column_id: i32,
-    schemas: Vec<Schema>,
-    current_schema_id: i32,
+    pub format_version: i32,
+    pub table_uuid: String,
+    pub location: String,
+    pub last_updated_ms: i64,
+    pub last_column_id: i32,
+    pub schemas: Vec<Schema>,
+    pub current_schema_id: i32,
     // partition_specs: Vec<PartitionSpec>,
-    default_spec_id: i32,
-    last_partition_id: i32,
-    properties: Option<HashMap<String, String>>,
-    current_snapshot_id: Option<i64>,
-    snapshots: Vec<Snapshot>,
-    snapshot_log: Vec<SnapshotLog>,
-    metadata_log: Vec<MetadataLog>,
+    pub default_spec_id: i32,
+    pub last_partition_id: i32,
+    pub properties: Option<HashMap<String, String>>,
+    pub current_snapshot_id: Option<i64>,
+    pub snapshots: Vec<Snapshot>,
+    pub snapshot_log: Vec<SnapshotLog>,
+    pub metadata_log: Vec<MetadataLog>,
     // sort_orders: Vec<SortOrder>,
-    default_sort_order_id: i32,
+    pub default_sort_order_id: i32,
     // refs: Option<HashMap<String, SnapshotReference>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Schema {
-    schema_id: i32,
-    identifier_field_ids: Option<Vec<i32>>,
-    fields: Vec<Field>,
+    pub schema_id: i32,
+    pub identifier_field_ids: Option<Vec<i32>>,
+    pub fields: Vec<Field>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Field {
-    id: i32,
-    name: String,
-    required: bool,
-    r#type: String, // TODO
-    doc: Option<String>,
-    initial_value: Option<String>, // TODO
-    write_default: Option<String>, // TODO
+    pub id: i32,
+    pub name: String,
+    pub required: bool,
+    pub r#type: String, // TODO
+    pub doc: Option<String>,
+    pub initial_value: Option<String>, // TODO
+    pub write_default: Option<String>, // TODO
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct StructField {
+    pub id: i32,
+    pub name: String,
+    pub required: bool,
+    pub field_type: String, // TODO
+    pub doc: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Snapshot {
-    snapshot_id: i64,
-    timestamp_ms: i64,
-    summary: HashMap<String, String>,
-    manifest_list: String,
-    schema_id: i32,
+    pub snapshot_id: i64,
+    pub timestamp_ms: i64,
+    pub summary: HashMap<String, String>,
+    pub manifest_list: String,
+    pub schema_id: i32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct SnapshotLog {
-    snapshot_id: i64,
-    timestamp_ms: i64,
+    pub snapshot_id: i64,
+    pub timestamp_ms: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct MetadataLog {
-    metadata_file: String,
-    timestamp_ms: i64,
+    pub metadata_file: String,
+    pub timestamp_ms: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Reference {
-    snapshot_id: i64,
-    r#type: String,
+    pub snapshot_id: i64,
+    pub r#type: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ManifestListEntry {
+    pub manifest_path: String,
+    pub manifest_length: i64,
+    pub partition_spec_id: i32,
+    pub content: i32, // 0: data, 1: deletes
+    pub sequence_number: i64,
+    pub min_sequence_number: i64,
+    pub added_snapshot_id: i64,
+    pub added_files_count: i32,
+    pub existing_files_count: i32,
+    pub deleted_files_count: i32,
+    pub added_rows_count: i64,
+    pub existing_rows_count: i64,
+    pub deleted_rows_count: i64,
+    pub partitions: Vec<FieldSummary>,
+    pub key_metadata: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ManifestList {
+    pub entries: Vec<ManifestListEntry>,
+}
+
+/// Utility macro for getting a value at some column/row in a record batch.
+macro_rules! get_value {
+    ($array_type:ty, $batch:expr, $col:expr, $row:expr) => {{
+        let col: usize = $col;
+        let row: usize = $row;
+        let batch: &RecordBatch = $batch;
+        batch
+            .column(col)
+            .as_any()
+            .downcast_ref::<$array_type>()
+            .ok_or_else(|| {
+                IcebergError::DataInvalid(format!(
+                    "Invalid column value for column {col}, row {row}"
+                ))
+            })?
+            .value(row)
+    }};
+}
+
+impl ManifestList {
+    /// Try to convert a record batch to a manifest list.
+    pub fn try_from_batch(batch: RecordBatch) -> Result<ManifestList> {
+        let mut entries = Vec::with_capacity(batch.num_rows());
+
+        for row in 0..batch.num_rows() {
+            let ent = ManifestListEntry {
+                manifest_path: get_value!(StringArray, &batch, 0, row).to_string(),
+                manifest_length: get_value!(Int64Array, &batch, 1, row),
+                partition_spec_id: get_value!(Int32Array, &batch, 2, row),
+                content: get_value!(Int32Array, &batch, 3, row),
+                sequence_number: get_value!(Int64Array, &batch, 4, row),
+                min_sequence_number: get_value!(Int64Array, &batch, 5, row),
+                added_snapshot_id: get_value!(Int64Array, &batch, 6, row),
+                added_files_count: get_value!(Int32Array, &batch, 7, row),
+                existing_files_count: get_value!(Int32Array, &batch, 8, row),
+                deleted_files_count: get_value!(Int32Array, &batch, 9, row),
+                added_rows_count: get_value!(Int64Array, &batch, 10, row),
+                existing_rows_count: get_value!(Int64Array, &batch, 11, row),
+                deleted_rows_count: get_value!(Int64Array, &batch, 12, row),
+                partitions: Vec::new(),   // TODO
+                key_metadata: Vec::new(), // TODO
+            };
+            entries.push(ent);
+        }
+
+        Ok(ManifestList { entries })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldSummary {
+    pub contains_null: bool,
+    pub contains_nan: bool,
+    pub lower_bound: Vec<u8>,
+    pub upper_count: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::arrow::{
+        array::Int64Builder,
+        datatypes::{DataType, Field, Schema},
+    };
+    use std::sync::Arc;
+
+    #[test]
+    fn test_get_value() -> Result<()> {
+        let mut builder = Int64Builder::new();
+        builder.append_value(1);
+
+        let schema = Arc::new(Schema::new(vec![Field::new("num", DataType::Int64, false)]));
+
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(builder.finish())]).unwrap();
+
+        let v: i64 = get_value!(Int64Array, &batch, 0, 0);
+        assert_eq!(1, v);
+        Ok(())
+    }
 }

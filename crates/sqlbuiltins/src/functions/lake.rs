@@ -113,9 +113,9 @@ impl TableFunc for IcebergScan {
         &self,
         ctx: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
-        mut opts: HashMap<String, FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (loc, delta_opts) = match args.len() {
+        let (loc, opts) = match args.len() {
             1 => {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
@@ -133,6 +133,12 @@ impl TableFunc for IcebergScan {
             }
             _ => unimplemented!(),
         };
+
+        let url = DatasourceUrl::try_new(loc)?;
+        let store = opts.into_object_store(&url)?;
+        let table = IcebergTable::open(url, store).await?;
+
+        let _ = table.table_reader().await?;
 
         unimplemented!()
     }
