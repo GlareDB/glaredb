@@ -113,26 +113,72 @@ impl TableFunc for IcebergScan {
         &self,
         ctx: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
-        _opts: HashMap<String, FuncParamValue>,
+        mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (loc, opts) = match args.len() {
-            1 => {
-                let mut args = args.into_iter();
-                let first = args.next().unwrap();
-                let url: String = first.param_into()?;
-                let source_url = DatasourceUrl::try_new(&url)?;
+        // TODO: Reduce duplication
+        let (loc, opts) =
+            match args.len() {
+                1 => {
+                    let mut args = args.into_iter();
+                    let first = args.next().unwrap();
+                    let url: String = first.param_into()?;
+                    let source_url = DatasourceUrl::try_new(&url)?;
 
-                match source_url.scheme() {
-                    DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
-                    _ => {
-                        return Err(BuiltinError::Static(
-                            "Credentials required when accessing delta table in S3 or GCS",
-                        ))
+                    match source_url.scheme() {
+                        DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
+                        _ => {
+                            return Err(BuiltinError::Static(
+                                "Credentials required when accessing delta table in S3 or GCS",
+                            ))
+                        }
                     }
                 }
-            }
-            _ => unimplemented!(),
-        };
+                2 => {
+                    let mut args = args.into_iter();
+                    let first = args.next().unwrap();
+                    let url = first.param_into()?;
+                    let source_url = DatasourceUrl::try_new(&url)?;
+                    let creds: IdentValue = args.next().unwrap().param_into()?;
+
+                    let creds = ctx
+                        .get_credentials_entry(creds.as_str())
+                        .cloned()
+                        .ok_or(BuiltinError::Static("missing credentials object"))?;
+
+                    match source_url.scheme() {
+                        DatasourceUrlScheme::Gcs => {
+                            if let CredentialsOptions::Gcp(creds) = creds.options {
+                                (url, LakeStorageOptions::Gcs { creds })
+                            } else {
+                                return Err(BuiltinError::Static("invalid credentials for GCS"));
+                            }
+                        }
+                        DatasourceUrlScheme::S3 => {
+                            // S3 requires a region parameter.
+                            const REGION_KEY: &str = "region";
+                            let region = opts
+                                .remove(REGION_KEY)
+                                .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+                                .param_into()?;
+
+                            if let CredentialsOptions::Aws(creds) = creds.options {
+                                (url, LakeStorageOptions::S3 { creds, region })
+                            } else {
+                                return Err(BuiltinError::Static("invalid credentials for S3"));
+                            }
+                        }
+                        DatasourceUrlScheme::File => return Err(BuiltinError::Static(
+                            "Credentials incorrectly provided when accessing local iceberg table",
+                        )),
+                        DatasourceUrlScheme::Http => {
+                            return Err(BuiltinError::Static(
+                                "Accessing iceberg tables over http not supported",
+                            ))
+                        }
+                    }
+                }
+                _ => return Err(BuiltinError::InvalidNumArgs),
+            };
 
         let url = DatasourceUrl::try_new(loc)?;
         let store = opts.into_object_store(&url)?;
