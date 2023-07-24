@@ -41,8 +41,11 @@ pub struct IcebergTable {
     /// Store for accessing the table.
     store: Arc<dyn ObjectStore>,
 
+    /// Loaded table metadata. Table reads will use the snapshot in this
+    /// metadata.
     metadata: TableMetadata,
 
+    /// Resolve paths relative to the table's root.
     resolver: PathResolver,
 }
 

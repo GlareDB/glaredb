@@ -12,122 +12,14 @@ use serde_with::{serde_as, Bytes};
 use std::collections::HashMap;
 use std::str::FromStr;
 
+mod schema;
+pub use schema::*;
+
 #[derive(Debug, Clone, Copy)]
 pub enum FileFormat {
     Parquet,
     Orc,
     Avro,
-}
-
-// boolean	True or false
-// int	32-bit signed integers	Can promote to long
-// long	64-bit signed integers
-// float	32-bit IEEE 754 floating point	Can promote to double
-// double	64-bit IEEE 754 floating point
-// decimal(P,S)	Fixed-point decimal; precision P, scale S	Scale is fixed [1], precision must be 38 or less
-// date	Calendar date without timezone or time
-// time	Time of day without date, timezone	Microsecond precision [2]
-// timestamp	Timestamp without timezone	Microsecond precision [2]
-// timestamptz	Timestamp with timezone	Stored as UTC [2]
-// string	Arbitrary-length character sequences	Encoded with UTF-8 [3]
-// uuid	Universally unique identifiers	Should use 16-byte fixed
-// fixed(L)	Fixed-length byte array of length L
-// binary
-
-/// Primitive types supported in iceberg tables.
-// TODO: struct, list, map
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PrimitiveType {
-    Boolean,
-    Int,
-    Long,
-    Float,
-    Double,
-    Decimal { p: u8, s: u8 },
-    Date,
-    Time,
-    Timestamp,
-    Timestamptz,
-    String,
-    Uuid,
-    Fixed(usize),
-    Binary,
-}
-
-impl TryFrom<PrimitiveType> for DataType {
-    type Error = IcebergError;
-
-    fn try_from(value: PrimitiveType) -> Result<Self> {
-        Ok(match value {
-            PrimitiveType::Boolean => DataType::Boolean,
-            PrimitiveType::Int => DataType::Int32,
-            PrimitiveType::Long => DataType::Int64,
-            PrimitiveType::Float => DataType::Float32,
-            PrimitiveType::Double => DataType::Float64,
-            PrimitiveType::Decimal { p, s } => DataType::Decimal128(p, s as i8),
-            PrimitiveType::Date => DataType::Date32,
-            PrimitiveType::Time => unimplemented!(),
-            PrimitiveType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond, None),
-            PrimitiveType::String => DataType::Utf8,
-            _ => unimplemented!(),
-        })
-    }
-}
-
-impl FromStr for PrimitiveType {
-    type Err = IcebergError;
-
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(match s {
-            "boolean" => PrimitiveType::Boolean,
-            "int" => PrimitiveType::Int,
-            "long" => PrimitiveType::Long,
-            "float" => PrimitiveType::Float,
-            "double" => PrimitiveType::Double,
-            "date" => PrimitiveType::Date,
-            "time" => PrimitiveType::Time,
-            "timestamp" => PrimitiveType::Timestamp,
-            "timestamptz" => PrimitiveType::Timestamptz,
-            "string" => PrimitiveType::String,
-            "uuid" => PrimitiveType::Uuid,
-            other if other.starts_with("decimal") => {
-                // Regex that matches:
-                // decimal(15, 2)
-                // decimal(15,2)
-                static DECIMAL_RE: Lazy<Regex> =
-                    Lazy::new(|| Regex::new(r#"^decimal\((?P<p>\d+),\s?(?P<s>\d+)\)$"#).unwrap());
-
-                let captures = DECIMAL_RE.captures(other).ok_or_else(|| {
-                    IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
-                })?;
-
-                let p: u8 = captures
-                    .name("p")
-                    .ok_or_else(|| {
-                        IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
-                    })?
-                    .as_str()
-                    .parse()
-                    .map_err(|e| {
-                        IcebergError::DataInvalid(format!("Decimal precision not a u8: {e}"))
-                    })?;
-
-                let s: u8 = captures
-                    .name("s")
-                    .ok_or_else(|| {
-                        IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
-                    })?
-                    .as_str()
-                    .parse()
-                    .map_err(|e| {
-                        IcebergError::DataInvalid(format!("Decimal scale not a u8: {e}"))
-                    })?;
-
-                PrimitiveType::Decimal { p, s }
-            }
-            other => return Err(IcebergError::DataInvalid(format!("Invalid type: {other}"))),
-        })
-    }
 }
 
 /// On disk table metadata.
@@ -154,75 +46,6 @@ pub struct TableMetadata {
     // sort_orders: Vec<SortOrder>,
     pub default_sort_order_id: i32,
     // refs: Option<HashMap<String, SnapshotReference>>,
-}
-
-/// On disk schema from table metadata.
-///
-/// JSON serialization only.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct Schema {
-    pub schema_id: i32,
-    pub identifier_field_ids: Option<Vec<i32>>,
-    pub fields: Vec<Field>,
-}
-
-impl Schema {
-    pub fn to_arrow_schema(&self) -> Result<ArrowSchema> {
-        let fields = self
-            .fields
-            .iter()
-            .map(|f| f.to_arrow_field())
-            .collect::<Result<Vec<_>>>()?;
-        Ok(ArrowSchema::new(fields))
-    }
-}
-
-/// Fields in a schema.
-///
-/// JSON serialization only.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct Field {
-    pub id: i32,
-    pub name: String,
-    pub required: bool,
-    #[serde(deserialize_with = "Field::deserialize_type")]
-    pub r#type: PrimitiveType,
-    pub doc: Option<String>,
-    pub initial_value: Option<String>, // TODO
-    pub write_default: Option<String>, // TODO
-}
-
-impl Field {
-    pub fn to_arrow_field(&self) -> Result<ArrowField> {
-        // TODO: This will need to be extended to support nested types (maps,
-        // lists, structs).
-        Ok(ArrowField::new(
-            &self.name,
-            self.r#type.try_into()?,
-            !self.required,
-        ))
-    }
-
-    /// Deserialize a string into a `PrimitiveType`.
-    fn deserialize_type<'de, D>(deserializer: D) -> Result<PrimitiveType, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        PrimitiveType::from_str(s).map_err(de::Error::custom)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct StructField {
-    pub id: i32,
-    pub name: String,
-    pub required: bool,
-    pub field_type: String, // TODO
-    pub doc: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -474,75 +297,5 @@ mod tests {
         let v: i64 = get_value!(Int64Array, &batch, 0, 0);
         assert_eq!(1, v);
         Ok(())
-    }
-
-    #[test]
-    fn test_deserialize_long_field() {
-        let json = r#"
-            {
-              "id" : 1,
-              "name" : "l_orderkey",
-              "required" : false,
-              "type" : "long"
-            }"#;
-
-        let deserialized: Field = serde_json::from_str(json).unwrap();
-        let expected = Field {
-            id: 1,
-            name: "l_orderkey".to_string(),
-            required: false,
-            r#type: PrimitiveType::Long,
-            doc: None,
-            initial_value: None,
-            write_default: None,
-        };
-        assert_eq!(expected, deserialized);
-    }
-
-    #[test]
-    fn test_deserialize_decimal_field() {
-        let json = r#"
-            {
-              "id" : 6,
-              "name" : "l_extendedprice",
-              "required" : false,
-              "type" : "decimal(15, 2)"
-            }"#;
-
-        let deserialized: Field = serde_json::from_str(json).unwrap();
-        let expected = Field {
-            id: 6,
-            name: "l_extendedprice".to_string(),
-            required: false,
-            r#type: PrimitiveType::Decimal { p: 15, s: 2 },
-            doc: None,
-            initial_value: None,
-            write_default: None,
-        };
-        assert_eq!(expected, deserialized);
-    }
-
-    #[test]
-    fn test_deserialize_decimal_no_space_field() {
-        // See lack of space after comma in decimal type.
-        let json = r#"
-            {
-              "id" : 6,
-              "name" : "l_extendedprice",
-              "required" : false,
-              "type" : "decimal(15,2)"
-            }"#;
-
-        let deserialized: Field = serde_json::from_str(json).unwrap();
-        let expected = Field {
-            id: 6,
-            name: "l_extendedprice".to_string(),
-            required: false,
-            r#type: PrimitiveType::Decimal { p: 15, s: 2 },
-            doc: None,
-            initial_value: None,
-            write_default: None,
-        };
-        assert_eq!(expected, deserialized);
     }
 }
