@@ -153,8 +153,10 @@ impl TryFrom<&AnyType> for DataType {
 
     fn try_from(value: &AnyType) -> Result<Self> {
         Ok(match value {
-            AnyType::Primitive(p) => p.clone().try_into()?,
-            _ => unimplemented!(),
+            AnyType::Primitive(t) => t.clone().try_into()?,
+            AnyType::List(t) => t.try_into()?,
+            AnyType::Struct(t) => t.try_into()?,
+            AnyType::Map(t) => t.try_into()?,
         })
     }
 }
