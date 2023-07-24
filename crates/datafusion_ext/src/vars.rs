@@ -490,7 +490,7 @@ where
     /// Name of the variable.
     name: &'static str,
 
-    /// Descriptino of the variable
+    /// Description of the variable
     description: &'static str,
 
     /// Starting value of the variable.
