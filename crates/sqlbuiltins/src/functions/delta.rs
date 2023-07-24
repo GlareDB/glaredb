@@ -29,7 +29,8 @@ impl TableFunc for DeltaScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url: String = first.param_into()?;
-                let source_url = DatasourceUrl::new(&url)?;
+                let source_url =
+                    DatasourceUrl::new(&url).map_err(|e| BuiltinError::Access(Box::new(e)))?;
 
                 match source_url.scheme() {
                     DatasourceUrlScheme::File => (url, DeltaLakeStorageOptions::Local),
@@ -44,7 +45,8 @@ impl TableFunc for DeltaScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url = first.param_into()?;
-                let source_url = DatasourceUrl::new(&url)?;
+                let source_url =
+                    DatasourceUrl::new(&url).map_err(|e| BuiltinError::Access(Box::new(e)))?;
                 let creds: IdentValue = args.next().unwrap().param_into()?;
 
                 let creds = ctx

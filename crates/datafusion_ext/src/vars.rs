@@ -2,7 +2,6 @@
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::config::{ConfigEntry, ConfigExtension, ExtensionOptions};
 use datafusion::error::{DataFusionError, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -14,7 +13,7 @@ use tracing::error;
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ExecError {
+pub enum VarError {
     #[error("Invalid value for session variable: Variable name: {name}, Value: {val}")]
     InvalidSessionVarValue { name: String, val: String },
 
@@ -25,8 +24,8 @@ pub enum ExecError {
     UnknownVariable(String),
 }
 
-impl From<ExecError> for DataFusionError {
-    fn from(e: ExecError) -> Self {
+impl From<VarError> for DataFusionError {
+    fn from(e: VarError) -> Self {
         DataFusionError::Execution(e.to_string())
     }
 }
@@ -212,7 +211,7 @@ const IS_CLOUD_INSTANCE: ServerVar<bool> = ServerVar {
 };
 
 /// Variables for a session.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SessionVars {
     pub server_version: SessionVar<str>,
     pub application_name: SessionVar<str>,
@@ -236,77 +235,6 @@ pub struct SessionVars {
     pub max_tunnel_count: SessionVar<Option<usize>>,
     pub max_credentials_count: SessionVar<Option<usize>>,
     pub is_cloud_instance: SessionVar<bool>,
-}
-
-impl ConfigExtension for SessionVars {
-    const PREFIX: &'static str = "session";
-}
-
-impl ExtensionOptions for SessionVars {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
-    fn cloned(&self) -> Box<dyn ExtensionOptions> {
-        Box::new(self.clone())
-    }
-
-    fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
-        SessionVars::set(self, key, value, VarSetter::System).map_err(|_| {
-            datafusion::error::DataFusionError::Execution(
-                ExecError::InvalidSessionVarValue {
-                    name: key.to_string(),
-                    val: value.to_string(),
-                }
-                .to_string(),
-            )
-        })
-    }
-
-    fn entries(&self) -> Vec<datafusion::config::ConfigEntry> {
-        macro_rules! config_entries {
-            ($($field:ident),+) => {
-                vec![
-                    $(
-                        ConfigEntry {
-                            key: self.$field.name().to_string(),
-                            value: Some(self.$field.formatted_value()),
-                            description: self.$field.description(),
-                        },
-                    )+
-                ]
-            };
-        }
-
-        config_entries!(
-            server_version,
-            application_name,
-            client_encoding,
-            extra_floating_digits,
-            statement_timeout,
-            timezone,
-            datestyle,
-            transaction_isolation,
-            search_path,
-            enable_debug_datasources,
-            force_catalog_refresh,
-            glaredb_version,
-            database_id,
-            connection_id,
-            user_id,
-            user_name,
-            database_name,
-            max_datasource_count,
-            memory_limit_bytes,
-            max_tunnel_count,
-            max_credentials_count,
-            is_cloud_instance
-        )
-    }
 }
 
 impl SessionVars {
@@ -368,7 +296,7 @@ impl SessionVars {
         } else if name.eq_ignore_ascii_case(IS_CLOUD_INSTANCE.name) {
             Ok(&self.is_cloud_instance)
         } else {
-            Err(ExecError::UnknownVariable(name.to_string()).into())
+            Err(VarError::UnknownVariable(name.to_string()).into())
         }
     }
 
@@ -417,7 +345,7 @@ impl SessionVars {
         } else if name.eq_ignore_ascii_case(MAX_CREDENTIALS_COUNT.name) {
             self.max_credentials_count.set_from_str(val, setter)
         } else {
-            Err(ExecError::UnknownVariable(name.to_string()).into())
+            Err(VarError::UnknownVariable(name.to_string()).into())
         }
     }
 }
@@ -516,21 +444,6 @@ where
     }
 }
 
-impl<T> Clone for ServerVar<T>
-where
-    T: Value + ?Sized + 'static,
-{
-    fn clone(&self) -> Self {
-        ServerVar {
-            name: self.name,
-            description: self.description,
-            value: self.value,
-            group: self.group,
-            user_configurable: self.user_configurable,
-        }
-    }
-}
-
 impl<T> AnyVar for ServerVar<T>
 where
     T: Value + ?Sized + 'static,
@@ -554,23 +467,9 @@ where
     value: Option<T::Owned>,
 }
 
-impl<T> Clone for SessionVar<T>
-where
-    T: Value + ?Sized + 'static,
-    T::Owned: Clone,
-{
-    fn clone(&self) -> Self {
-        SessionVar {
-            inherit: self.inherit,
-            value: self.value.clone(),
-        }
-    }
-}
-
 impl<T> SessionVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     pub fn new(inherit: &'static ServerVar<T>) -> Self {
         SessionVar {
@@ -591,7 +490,7 @@ where
     /// Set the value for a variable directly.
     pub fn set_raw(&mut self, v: T::Owned, setter: VarSetter) -> Result<()> {
         if !self.inherit.user_configurable && matches!(setter, VarSetter::User) {
-            return Err(ExecError::VariableReadonly(self.inherit.name.to_string()).into());
+            return Err(VarError::VariableReadonly(self.inherit.name.to_string()).into());
         }
         self.value = Some(v);
         Ok(())
@@ -609,7 +508,7 @@ where
         match T::try_parse(s) {
             Some(v) => self.set_raw(v, setter)?,
             None => {
-                return Err(ExecError::InvalidSessionVarValue {
+                return Err(VarError::InvalidSessionVarValue {
                     name: self.name().to_string(),
                     val: s.to_string(),
                 }
@@ -711,8 +610,7 @@ impl Value for Uuid {
 
 impl<V> Value for Option<V>
 where
-    V: Value + ?Sized + 'static,
-    V: Value + ToOwned + Clone + FromStr + Display,
+    V: Value + ?Sized + 'static + ToOwned + Clone + FromStr + Display,
 {
     fn try_parse(s: &str) -> Option<Self::Owned> {
         let v = s.parse::<V>().ok()?;

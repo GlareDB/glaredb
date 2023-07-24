@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 
+use crate::functions::FuncParamValue;
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 use async_recursion::async_recursion;
@@ -27,7 +28,7 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
-use sqlbuiltins::functions::FuncParamValue;
+
 mod join;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
