@@ -6,9 +6,9 @@ edition = {workspace = true}
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-channel = "1.8.0"
+async-channel = "1.9.0"
 async-stream = "0.3.5"
-async-trait = "0.1.71"
+async-trait = "0.1.72"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
 bitflags = "2.3"
 bitvec = "1"
@@ -35,22 +35,22 @@ rand = "0.8.5"
 repr = { path = "../repr" }
 reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls"] }
 ring = "0.16.20"
-rustls = "0.21.3"
+rustls = "0.21.5"
 rust_decimal = { version = "1.30.0", features = ["db-tokio-postgres"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.100"
+serde_json = "1.0.103"
 snowflake_connector = { path = "../snowflake_connector" }
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
-tempfile = "3.6.0"
+tempfile = "3.7.0"
 thiserror.workspace = true
 tokio = { version = "1.29.1", features = ["full"] }
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
 tokio-rustls = "0.24.1"
 tracing = "0.1"
-uuid = "1.4.0"
+uuid = "1.4.1"
 url.workspace = true
 webpki-roots = "0.24.0"
-dashmap = "5.4.0"
+dashmap = "5.5.0"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]

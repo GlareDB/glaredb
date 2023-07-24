@@ -5,5 +5,5 @@ edition = {workspace = true}
 
 [dependencies]
 thiserror.workspace = true
-num-traits = "0.2.15"
+num-traits = "0.2.16"
 regex = "1.8.1"
