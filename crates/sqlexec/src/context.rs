@@ -108,8 +108,7 @@ impl SessionContext {
         let mut config_opts = ConfigOptions::new();
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
-        let mut config: SessionConfig = config_opts.into();
-        config = config.with_extension(Arc::new(vars.clone()));
+        let config: SessionConfig = config_opts.into();
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.

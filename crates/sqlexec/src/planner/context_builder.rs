@@ -15,6 +15,7 @@ use datafusion::logical_expr::AggregateUDF;
 use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
+use datafusion_ext::vars::SessionVars;
 use datafusion_planner::planner::AsyncContextProvider;
 use metastore_client::types::catalog::CatalogEntry;
 use metastore_client::types::catalog::CredentialsEntry;
@@ -240,5 +241,9 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
 
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
         self.ctx.get_session_catalog().resolve_credentials(name)
+    }
+
+    fn get_session_vars(&self) -> &SessionVars {
+        self.ctx.get_session_vars()
     }
 }

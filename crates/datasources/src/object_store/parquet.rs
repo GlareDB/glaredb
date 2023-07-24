@@ -162,8 +162,6 @@ where
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        self.accessor.validate_access(ctx)?;
-
         let predicate = if self.predicate_pushdown {
             // Adapted from df...
             if let Some(expr) = conjunction(filters.to_vec()) {

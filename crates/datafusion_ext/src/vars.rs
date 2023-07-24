@@ -425,28 +425,28 @@ impl SessionVars {
 impl Default for SessionVars {
     fn default() -> Self {
         SessionVars {
-            server_version: SessionVar::new_default(&SERVER_VERSION),
-            application_name: SessionVar::new_default(&APPLICATION_NAME),
-            client_encoding: SessionVar::new_default(&CLIENT_ENCODING),
-            extra_floating_digits: SessionVar::new_default(&EXTRA_FLOAT_DIGITS),
-            statement_timeout: SessionVar::new_default(&STATEMENT_TIMEOUT),
-            timezone: SessionVar::new_default(&TIMEZONE),
-            datestyle: SessionVar::new_default(&DATESTYLE),
-            transaction_isolation: SessionVar::new_default(&TRANSACTION_ISOLATION),
-            search_path: SessionVar::new_default(&SEARCH_PATH),
-            enable_debug_datasources: SessionVar::new_default(&ENABLE_DEBUG_DATASOURCES),
-            force_catalog_refresh: SessionVar::new_default(&FORCE_CATALOG_REFRESH),
-            glaredb_version: SessionVar::new_default(&GLAREDB_VERSION),
-            database_id: SessionVar::new_default(&DATABASE_ID),
-            user_id: SessionVar::new_default(&USER_ID),
-            connection_id: SessionVar::new_default(&CONNECTION_ID),
-            user_name: SessionVar::new_default(&USER_NAME),
-            database_name: SessionVar::new_default(&DATABASE_NAME),
-            max_datasource_count: SessionVar::new_default(&MAX_DATASOURCE_COUNT),
-            memory_limit_bytes: SessionVar::new_default(&MEMORY_LIMIT_BYTES),
-            max_tunnel_count: SessionVar::new_default(&MAX_TUNNEL_COUNT),
-            max_credentials_count: SessionVar::new_default(&MAX_CREDENTIALS_COUNT),
-            is_cloud_instance: SessionVar::new_default(&IS_CLOUD_INSTANCE),
+            server_version: SessionVar::new(&SERVER_VERSION),
+            application_name: SessionVar::new(&APPLICATION_NAME),
+            client_encoding: SessionVar::new(&CLIENT_ENCODING),
+            extra_floating_digits: SessionVar::new(&EXTRA_FLOAT_DIGITS),
+            statement_timeout: SessionVar::new(&STATEMENT_TIMEOUT),
+            timezone: SessionVar::new(&TIMEZONE),
+            datestyle: SessionVar::new(&DATESTYLE),
+            transaction_isolation: SessionVar::new(&TRANSACTION_ISOLATION),
+            search_path: SessionVar::new(&SEARCH_PATH),
+            enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
+            force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
+            glaredb_version: SessionVar::new(&GLAREDB_VERSION),
+            database_id: SessionVar::new(&DATABASE_ID),
+            user_id: SessionVar::new(&USER_ID),
+            connection_id: SessionVar::new(&CONNECTION_ID),
+            user_name: SessionVar::new(&USER_NAME),
+            database_name: SessionVar::new(&DATABASE_NAME),
+            max_datasource_count: SessionVar::new(&MAX_DATASOURCE_COUNT),
+            memory_limit_bytes: SessionVar::new(&MEMORY_LIMIT_BYTES),
+            max_tunnel_count: SessionVar::new(&MAX_TUNNEL_COUNT),
+            max_credentials_count: SessionVar::new(&MAX_CREDENTIALS_COUNT),
+            is_cloud_instance: SessionVar::new(&IS_CLOUD_INSTANCE),
         }
     }
 }
@@ -486,7 +486,6 @@ pub enum VarSetter {
 pub struct ServerVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     /// Name of the variable.
     name: &'static str,
@@ -510,7 +509,6 @@ where
 impl<T> ServerVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     /// Get a reference to underlying value.
     pub fn value(&self) -> &T {
@@ -521,7 +519,6 @@ where
 impl<T> Clone for ServerVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     fn clone(&self) -> Self {
         ServerVar {
@@ -537,7 +534,6 @@ where
 impl<T> AnyVar for ServerVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     fn name(&self) -> &'static str {
         self.name
@@ -553,7 +549,6 @@ where
 pub struct SessionVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     inherit: &'static ServerVar<T>,
     value: Option<T::Owned>,
@@ -577,21 +572,11 @@ where
     T: Value + ?Sized + 'static,
     T::Owned: Clone,
 {
-    pub fn new_default(inherit: &'static ServerVar<T>) -> Self {
+    pub fn new(inherit: &'static ServerVar<T>) -> Self {
         SessionVar {
             inherit,
             value: None,
         }
-    }
-
-    pub fn new(inherit: &'static ServerVar<T>, value: T::Owned) -> Self {
-        SessionVar {
-            inherit,
-            value: Some(value),
-        }
-    }
-    pub fn new_option(inherit: &'static ServerVar<T>, value: Option<T::Owned>) -> Self {
-        SessionVar { inherit, value }
     }
 
     /// Get a reference to the underlying value. If value hasn't been set for
@@ -642,7 +627,6 @@ where
 impl<T> AnyVar for SessionVar<T>
 where
     T: Value + ?Sized + 'static,
-    T::Owned: Clone,
 {
     fn name(&self) -> &'static str {
         self.inherit.name()
@@ -656,10 +640,7 @@ where
     }
 }
 
-pub trait Value: ToOwned
-where
-    Self::Owned: Clone,
-{
+pub trait Value: ToOwned {
     fn try_parse(s: &str) -> Option<Self::Owned>;
     fn format(&self) -> String;
 }
@@ -731,7 +712,6 @@ impl Value for Uuid {
 impl<V> Value for Option<V>
 where
     V: Value + ?Sized + 'static,
-    V::Owned: Clone,
     V: Value + ToOwned + Clone + FromStr + Display,
 {
     fn try_parse(s: &str) -> Option<Self::Owned> {
@@ -818,7 +798,7 @@ mod tests {
             group: "test",
             user_configurable: true,
         };
-        let mut var = SessionVar::new_default(&SETTABLE);
+        let mut var = SessionVar::new(&SETTABLE);
         var.set_from_str("user", VarSetter::User).unwrap();
         assert_eq!("user", var.value());
 
@@ -836,7 +816,7 @@ mod tests {
             group: "test",
             user_configurable: false,
         };
-        let mut var = SessionVar::new_default(&UNSETTABLE);
+        let mut var = SessionVar::new(&UNSETTABLE);
         var.set_from_str("custom", VarSetter::User)
             .expect_err("Unsettable var should not be allowed to be set by user");
 

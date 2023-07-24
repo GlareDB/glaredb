@@ -95,7 +95,7 @@ async fn create_provider_for_filetype(
                     create_http_table_provider(file_type, url_string).await?
                 }
                 DatasourceUrlScheme::File => {
-                    create_local_table_provider(file_type, &source_url).await?
+                    create_local_table_provider(ctx, file_type, &source_url).await?
                 }
                 DatasourceUrlScheme::Gcs => {
                     let service_account_key = opts
@@ -175,20 +175,27 @@ async fn create_provider_for_filetype(
 }
 
 async fn create_local_table_provider(
+    ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
     source_url: &DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>> {
-    let location = source_url.path().into_owned();
+    if *ctx.get_session_vars().is_cloud_instance.value() {
+        Err(BuiltinError::Static(
+            "Local file access is not supported in cloud mode",
+        ))
+    } else {
+        let location = source_url.path().into_owned();
 
-    LocalAccessor::new(LocalTableAccess {
-        location,
-        file_type: Some(file_type),
-    })
-    .await
-    .map_err(|e| BuiltinError::Access(Box::new(e)))?
-    .into_table_provider(true)
-    .await
-    .map_err(|e| BuiltinError::Access(Box::new(e)))
+        LocalAccessor::new(LocalTableAccess {
+            location,
+            file_type: Some(file_type),
+        })
+        .await
+        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+        .into_table_provider(true)
+        .await
+        .map_err(|e| BuiltinError::Access(Box::new(e)))
+    }
 }
 
 async fn create_http_table_provider(

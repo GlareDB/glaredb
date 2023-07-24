@@ -40,6 +40,7 @@ use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion_ext::vars::SessionVars;
 
 use datafusion::{arrow::datatypes::DataType, datasource::TableProvider};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
@@ -154,4 +155,5 @@ impl Default for BuiltinTableFuncs {
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
+    fn get_session_vars(&self) -> &SessionVars;
 }

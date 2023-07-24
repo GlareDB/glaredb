@@ -5565,6 +5565,7 @@ version = "0.2.1"
 dependencies = [
  "async-trait",
  "datafusion",
+ "datafusion_ext",
  "datasources",
  "futures",
  "logutil",

@@ -65,6 +65,9 @@ pub enum DispatchError {
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::planner::errors::PlanError>),
 
+    #[error("Invalid dispatch: {0}")]
+    InvalidDispatch(&'static str),
+
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
     #[error(transparent)]
@@ -398,6 +401,11 @@ impl<'a> SessionDispatcher<'a> {
                 Ok(Arc::new(provider))
             }
             TableOptions::Local(TableOptionsLocal { location }) => {
+                if *self.ctx.get_session_vars().is_cloud_instance.value() {
+                    return Err(DispatchError::InvalidDispatch(
+                        "Local file access is not supported in cloud mode",
+                    ));
+                }
                 let table_access = LocalTableAccess {
                     location: location.clone(),
                     file_type: None,
