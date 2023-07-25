@@ -146,6 +146,8 @@ impl ProtocolHandler {
         let db_id = self
             .read_proxy_key_val(&mut framed, &GLAREDB_DATABASE_ID_KEY, &params)
             .await?;
+        let is_cloud_instance = !db_id.is_nil();
+
         let user_id = self
             .read_proxy_key_val(&mut framed, &GLAREDB_USER_ID_KEY, &params)
             .await?;
@@ -167,7 +169,6 @@ impl ProtocolHandler {
         // Standard postgres params. These values are used only for informational purposes.
         let user_name = params.get("user").cloned().unwrap_or_default();
         let database_name = params.get("database").cloned().unwrap_or_default();
-
         let db_id = if self.is_integration_testing_enabled() {
             // When in integration testing mode, try to get the database ID from dbname.
             database_name.parse::<Uuid>().unwrap_or(db_id)
@@ -252,7 +253,9 @@ impl ProtocolHandler {
             .set_and_log(Some(max_tunnel_count), VarSetter::System);
         vars.max_credentials_count
             .set_and_log(Some(max_credentials_count), VarSetter::System);
-        vars.is_cloud_instance.set_and_log(true, VarSetter::System);
+
+        vars.is_cloud_instance
+            .set_and_log(is_cloud_instance, VarSetter::System);
 
         // Set other params provided on startup. Note that these are all set as
         // the "user" since these include values set in options.
