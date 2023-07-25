@@ -43,7 +43,16 @@ message CatalogState {
   // ID -> Entry
   map<uint32, CatalogEntry> entries = 2;
 
-  // next: 3
+  // Metadata for the deployment.
+  DeploymentMetadata deployment = 3;
+  
+  // next: 4
+}
+
+// Metadata for the deployment.
+message DeploymentMetadata {
+  // Current (native) storage used by the deployment.
+  uint64 storage_size = 1;
 }
 
 // Possible top-level catalog entries.

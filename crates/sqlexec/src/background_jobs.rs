@@ -1,12 +1,6 @@
-// FIXME: Remove this once we have real jobs.
-#![allow(dead_code)]
+pub mod storage;
 
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Write},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -19,20 +13,30 @@ use tracing::{debug, error, info};
 
 use crate::errors::{ExecError, Result};
 
+#[derive(Debug)]
+pub struct JobRunnerOpts {
+    pub health_check_interval: Duration,
+}
+
+impl Default for JobRunnerOpts {
+    fn default() -> Self {
+        Self {
+            // Health check every 2 minutes.
+            health_check_interval: Duration::from_secs(2 * 60),
+        }
+    }
+}
+
 /// Collection of background jobs.
+#[derive(Debug, Clone)]
 pub struct JobRunner {
     sender: mpsc::UnboundedSender<RequestMessage>,
     listen: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
-struct JobHandle {
-    join: JoinHandle<()>,
-    sleep: JoinHandle<()>,
-}
-
 #[derive(Debug)]
 enum RequestMessage {
-    NewJob(Box<dyn BgJob>),
+    NewJob(Arc<dyn BgJob>),
     JobComplete(String, Result<()>),
     HealthCheck,
     Close,
@@ -40,8 +44,24 @@ enum RequestMessage {
 
 impl JobRunner {
     /// Create a new collection of background jobs.
-    pub fn new() -> Self {
+    pub fn new(opts: JobRunnerOpts) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
+
+        // Sends a "health check" mesage to the channel.
+        let sender_clone = sender.clone();
+        tokio::spawn(async move {
+            let sender = sender_clone;
+
+            let mut health_check = tokio::time::interval(opts.health_check_interval);
+            loop {
+                let _ = health_check.tick().await;
+                if sender.send(RequestMessage::HealthCheck).is_err() {
+                    debug!("exiting background jobs health checker");
+                    return;
+                }
+            }
+        });
+
         // Spawn the listener for receiving messages.
         let sender_clone = sender.clone();
         let listen = tokio::spawn(async move { Self::listen(sender_clone, receiver).await });
@@ -54,23 +74,10 @@ impl JobRunner {
         sender: mpsc::UnboundedSender<RequestMessage>,
         mut receiver: mpsc::UnboundedReceiver<RequestMessage>,
     ) {
-        // Sends a "health check" mesage to the channel every two minutes.
-        let sender_clone = sender.clone();
-        tokio::spawn(async move {
-            let sender = sender_clone;
-
-            let tick_interval = if cfg!(test) {
-                Duration::from_secs(2)
-            } else {
-                Duration::from_secs(2 * 60)
-            };
-
-            let mut health_check = tokio::time::interval(tick_interval);
-            loop {
-                let _ = health_check.tick().await;
-                sender.send(RequestMessage::HealthCheck).unwrap();
-            }
-        });
+        struct JobHandle {
+            join: JoinHandle<()>,
+            sleep: JoinHandle<()>,
+        }
 
         let mut jobs: HashMap<String, JobHandle> = HashMap::new();
         while let Some(msg) = receiver.recv().await {
@@ -187,13 +194,7 @@ impl JobRunner {
     }
 
     /// Add a new background job.
-    pub fn add(&self, options: BackgroundJobOptions) -> Result<()> {
-        let job = match options {
-            BackgroundJobOptions::Debug(debug_opts) => {
-                Box::new(BackgroundJobDebug::new(debug_opts))
-            }
-        };
-
+    pub fn add(&self, job: Arc<dyn BgJob>) -> Result<()> {
         self.sender
             .send(RequestMessage::NewJob(job))
             .map_err(|e| ExecError::ChannelSendError(Box::new(e)))?;
@@ -217,109 +218,102 @@ pub trait BgJob: Debug + Send + Sync {
     async fn start(&self) -> Result<()>;
 }
 
-pub enum BackgroundJobOptions {
-    Debug(BackgroundJobOptionsDebug),
-}
-
-pub struct BackgroundJobOptionsDebug {
-    pub suffix: Option<&'static str>,
-    pub batched: bool,
-    pub panic: bool,
-    pub sender: mpsc::UnboundedSender<Instant>,
-}
-
-#[derive(Debug)]
-struct BackgroundJobDebug {
-    name: String,
-    start_at: Instant,
-    panic: bool,
-    sender: mpsc::UnboundedSender<Instant>,
-}
-
-impl BackgroundJobDebug {
-    fn new(opts: BackgroundJobOptionsDebug) -> Self {
-        let mut name = "debug".to_string();
-        if let Some(suffix) = opts.suffix {
-            write!(&mut name, "_{suffix}").unwrap();
-        }
-
-        let start_at = if opts.batched {
-            Instant::now() + Duration::from_secs(1)
-        } else {
-            Instant::now()
-        };
-
-        Self {
-            name,
-            start_at,
-            panic: opts.panic,
-            sender: opts.sender,
-        }
-    }
-}
-
-#[async_trait]
-impl BgJob for BackgroundJobDebug {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn start_at(&self) -> Instant {
-        self.start_at
-    }
-
-    async fn start(&self) -> Result<()> {
-        if self.panic {
-            panic!("expected panic");
-        }
-
-        self.sender.send(Instant::now()).unwrap();
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write;
+
     use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
 
+    #[derive(Debug)]
+    struct BackgroundJobTest {
+        name: String,
+        start_at: Instant,
+        panic: bool,
+        sender: mpsc::UnboundedSender<Instant>,
+    }
+
+    impl BackgroundJobTest {
+        fn new(
+            suffix: Option<&'static str>,
+            batched: bool,
+            panic: bool,
+            sender: mpsc::UnboundedSender<Instant>,
+        ) -> Arc<Self> {
+            let mut name = "debug".to_string();
+            if let Some(suffix) = suffix {
+                write!(&mut name, "_{suffix}").unwrap();
+            }
+
+            let start_at = if batched {
+                Instant::now() + Duration::from_secs(1)
+            } else {
+                Instant::now()
+            };
+
+            Arc::new(Self {
+                name,
+                start_at,
+                panic,
+                sender,
+            })
+        }
+    }
+
+    #[async_trait]
+    impl BgJob for BackgroundJobTest {
+        fn name(&self) -> String {
+            self.name.clone()
+        }
+
+        fn start_at(&self) -> Instant {
+            self.start_at
+        }
+
+        async fn start(&self) -> Result<()> {
+            if self.panic {
+                panic!("expected panic");
+            }
+
+            self.sender.send(Instant::now()).unwrap();
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn test_background_jobs() {
-        let jobs = JobRunner::new();
+        let jobs = JobRunner::new(JobRunnerOpts {
+            health_check_interval: Duration::from_secs(2),
+        });
 
         let (sender, mut receiver) = mpsc::unbounded_channel();
 
         // Start an instantaneous job.
         let start = Instant::now();
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: None,
-            batched: false,
-            panic: false,
-            sender: sender.clone(),
-        }))
-        .unwrap();
+        jobs.add(BackgroundJobTest::new(None, false, false, sender.clone()))
+            .unwrap();
 
         let end = receiver.recv().await.unwrap();
         assert!(end - start < Duration::from_millis(500));
 
         // Start a batched job (that's executed after 2 seconds).
         let start = Instant::now();
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("batched"),
-            batched: true,
-            panic: false,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("batched"),
+            true,
+            false,
+            sender.clone(),
+        ))
         .unwrap();
 
         // Try to add a new job with the same name immediately.
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("batched"),
-            batched: true,
-            panic: false,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("batched"),
+            true,
+            false,
+            sender.clone(),
+        ))
         .unwrap();
 
         let end = receiver.recv().await.unwrap();
@@ -329,20 +323,20 @@ mod tests {
         assert_eq!(receiver.try_recv().unwrap_err(), TryRecvError::Empty);
 
         // Health check by adding a job that panics and another that doesn't.
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("might_panic"),
-            batched: false,
-            panic: true,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("might_panic"),
+            false,
+            true,
+            sender.clone(),
+        ))
         .unwrap();
 
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("batched"),
-            batched: true, // batched so that health checker runs once
-            panic: false,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("batched"),
+            true, // batched so that health checker runs once
+            false,
+            sender.clone(),
+        ))
         .unwrap();
 
         // Should be able to receive only once (for the valid job).
@@ -350,12 +344,12 @@ mod tests {
         assert_eq!(receiver.try_recv().unwrap_err(), TryRecvError::Empty);
 
         // But we can add another job with the same name that won't panic now.
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("might_panic"),
-            batched: false,
-            panic: false,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("might_panic"),
+            false,
+            false,
+            sender.clone(),
+        ))
         .unwrap();
 
         let _ = receiver.recv().await.unwrap();
@@ -363,24 +357,24 @@ mod tests {
 
         // Adding a new batched job should work now.
         let start = Instant::now();
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("batched"),
-            batched: true,
-            panic: false,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("batched"),
+            true,
+            false,
+            sender.clone(),
+        ))
         .unwrap();
 
         // Close the job runner (this should wait for all existing jobs to
         // complete).
 
         // Add another job (to test close).
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: Some("another_batched"),
-            batched: true,
-            panic: false,
-            sender: sender.clone(),
-        }))
+        jobs.add(BackgroundJobTest::new(
+            Some("another_batched"),
+            true,
+            false,
+            sender.clone(),
+        ))
         .unwrap();
 
         jobs.close().await.unwrap();
@@ -392,12 +386,7 @@ mod tests {
         assert!(end - start < Duration::from_millis(500));
 
         // We shouldn't be able to add jobs now.
-        jobs.add(BackgroundJobOptions::Debug(BackgroundJobOptionsDebug {
-            suffix: None,
-            batched: false,
-            panic: false,
-            sender: sender.clone(),
-        }))
-        .unwrap_err();
+        jobs.add(BackgroundJobTest::new(None, false, false, sender.clone()))
+            .unwrap_err();
     }
 }

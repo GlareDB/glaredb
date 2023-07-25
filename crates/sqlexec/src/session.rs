@@ -1,3 +1,4 @@
+use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
 use crate::errors::Result;
@@ -184,6 +185,7 @@ impl Session {
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
+        background_jobs: JobRunner,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
@@ -191,7 +193,15 @@ impl Session {
             *vars.connection_id.value(),
             tracker,
         );
-        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, metrics, spill_path);
+        let ctx = SessionContext::new(
+            vars,
+            catalog,
+            metastore,
+            native_tables,
+            metrics,
+            spill_path,
+            background_jobs,
+        );
         Ok(Session { ctx })
     }
 
