@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-GCP_PROJECT_ID="glaredb-artifacts"
 GCP_BUCKET_NAME="glaredb-testdata"
 
 # Specify the testdata as "<directory to store in repo>:<object name>"
@@ -27,5 +26,5 @@ for OBJ in "${OBJECTS_TO_PULL[@]}"; do
 	test -d "$LOCAL_PATH" || mkdir -p "$LOCAL_PATH"
 
 	echo "Attempting to pull $GCP_BUCKET_NAME/$OBJECT_NAME into $LOCAL_PATH"
-	gcloud storage cp "gs://$GCP_BUCKET_NAME/$OBJECT_NAME" "$LOCAL_PATH"
+	curl -o "$LOCAL_PATH/$OBJECT_NAME" "https://storage.googleapis.com/$GCP_BUCKET_NAME/$OBJECT_NAME"
 done

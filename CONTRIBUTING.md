@@ -9,7 +9,8 @@ before merging in a PR. Since we squash merge, PR titles should follow
 Developing GlareDB requires that you have Rust and Cargo installed, along with
 some additional system dependencies:
 
-- Protobuf (protoc) <https://grpc.io/docs/protoc-installation/>
+- [Protobuf](https://grpc.io/docs/protoc-installation/)
+- [Just](https://just.systems/man/en/chapter_1.html)
 
 ### Additional tooling
 
@@ -19,7 +20,7 @@ While not strictly required for development, having Docker installed and running
 can be helpful in certain scenarios. For example, spinning up a scratch Postgres
 instance in Docker can be done via:
 
-``` shell
+```shell
 docker run --rm --name my_scratch_postgres -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d postgres:14
 ```
 
@@ -38,6 +39,8 @@ the only divergence is with SSH tunnels. The Linux and Mac code paths both use
 openssl, while the Windows code path is a stub that returns an "unsupported"
 error.
 
+---
+
 ## Testing
 
 ### Unit Tests
@@ -45,7 +48,7 @@ error.
 Unit tests attempt to test small parts of the system. These can be ran via
 cargo:
 
-``` shell
+```shell
 just unit-tests
 ```
 
@@ -71,7 +74,7 @@ You can simply run the binary to run all the tests. Test cases can be found in
 `testdata/sqllogictest*`.
 
 ```shell
-cargo test --test sqllogictests
+just slt
 ```
 
 You might have to set a few environment variables for running tests in
@@ -81,7 +84,7 @@ Variables](#test-environment-variables) section for details.
 To run basic sqllogictests:
 
 ```shell
-cargo test --test sqllogictests -- 'sqllogictests/*'
+just slt 'sqllogictests/*'
 ```
 
 This will run all tests in `testdata/sqllogictests` directory. Basically to run
@@ -93,7 +96,7 @@ specific tests you can provide an glob-like regex argument:
 #
 # Note the quotes (') around `sqllogictests/cast/*`. This is so the shell
 # doesn't try and expand the argument into files.
-cargo test --test sqllogictests -- 'sqllogictests/cast/*'
+just slt 'sqllogictests/cast/*'
 ```
 
 Note that, all the test names don't have `.slt` but the runner only picks up
@@ -101,7 +104,7 @@ files that have this extension. So, to run the test `testdata/sqllogictests/
 simple.slt`, you would run:
 
 ```shell
-cargo test --test sqllogictests -- sqllogictests/simple
+just slt sqllogictests/simple
 ```
 
 To list the test cases, use the `--list` flag. This flag can be used to check
@@ -109,7 +112,7 @@ dry run of all the tests that will run. You can pass the regex along with the
 flag as well.
 
 ```shell
-cargo test --test sqllogictests -- --list '*/full_outer/*'
+just slt --list '*/full_outer/*'
 ```
 
 `sqllogictests` can run either against an external database using the
@@ -117,8 +120,8 @@ cargo test --test sqllogictests -- --list '*/full_outer/*'
 
 An example invocation using an embedded database:
 
-``` shell
-cargo test --test sqllogictests -- --keep-running
+```shell
+just slt --keep-running
 ```
 
 The `--keep-running` flag will keep the GlareDB server up to allow for
@@ -126,7 +129,7 @@ additional debugging. `sqllogictests` will print out the postgres connection
 string corresponding to the errored test. You can then connect to it via `psql`,
 for example:
 
-``` shell
+```shell
 # Logs:
 #
 # connect to the database using connection string:
@@ -136,11 +139,13 @@ for example:
 psql "host=localhost port=50383 dbname=a2216761-7e80-4156-919f-7c5d56262bac user=glaredb password=glaredb"
 ```
 
-##### Test data on the cloud
+---
 
-Some testdata lives in the cloud in GCS bucket `glaredb-testdata` (in the
-`glaredb-artifacts` project). This test data is mostly too huge to store in the
-repository. To pull the data run:
+<details>
+<summary><h3>Testing large datasets</h3></summary>
+<br>
+
+Some testdata is too large to be checked into the repository. For these datasets, we keep them in a public gcs bucket. To pull them run:
 
 ```shell
 ./scripts/prepare-testdata.sh
@@ -160,7 +165,13 @@ Make sure to add a comment with index number when adding new objects to script.
 ./scripts/prepare-testdata.sh 13
 ```
 
-##### Test Environment variables
+</details>
+
+## Integration Testing
+
+Many of the sql logic tests require integrating with external systems. As such, you will need to have access to the systems being tested against. We use environment variables to connect to these external systems.
+
+### Test Environment variables
 
 Some SQL Logic Tests depend on setting a few environment variables:
 
@@ -170,8 +181,8 @@ Some SQL Logic Tests depend on setting a few environment variables:
    ```sh
    POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
    export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
-
    ```
+
 1. **`POSTGRES_TUNNEL_SSH_CONN_STRING`**: To run postgres datasource tests
    with SSH tunnel. Use the string returned from setting up the local database
    (second line):
@@ -211,8 +222,8 @@ Some SQL Logic Tests depend on setting a few environment variables:
    variable to the contents of the file.
 
    ```sh
-   export GCP_SERVICE_ACCOUNT_KEY=$(cat /path/to/glaredb-dev-playground-key.json)
-   ``` 
+   export GCP_SERVICE_ACCOUNT_KEY=<SERVICE_ACCOUNT_KEY>
+   ```
 
 1. **`BIGQUERY_DATASET_ID`**: To run the bigquery tests. Use the string
    returned from setting up a custom dataset in `glaredb-dev-playground`.
@@ -223,7 +234,7 @@ Some SQL Logic Tests depend on setting a few environment variables:
 
 1. **`SNOWFLAKE_DATABASE`**: To run the snowflake tests. Use the string returned
    from setting up a custom database in the snowflake account (`hmpfscx-
-   xo23956`).
+xo23956`).
 
    ```sh
    export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
@@ -233,11 +244,11 @@ Some SQL Logic Tests depend on setting a few environment variables:
    username.
 
    ```sh
-   export SNOWFLAKE_USERNAME=vaibhavglaredb
+   export SNOWFLAKE_USERNAME=<USERNAME>
    ```
 
 1. **`SNOWFLAKE_PASSWORD`**: To run the snowflake tests. Set it to the password
-   corresponding to the *SNOWFLAKE_USERNAME*.
+   corresponding to the _SNOWFLAKE_USERNAME_.
 
    ```sh
    export SNOWFLAKE_PASSWORD=...
@@ -257,7 +268,7 @@ testing, as well as set up a unique schema to work within. E.g.
 `join_on_aggregates.slt` should have something like the following at the top of
 the file:
 
-``` text
+```text
 # Test join on aggregates
 
 statement ok
@@ -272,7 +283,7 @@ between tests without having to fully qualify table names and other resources.
 
 An example SQL logic test is as follows:
 
-``` text
+```text
 query III nosort
 select * from (values (1, 2, 3), (3, 4, 5))
 ----
@@ -307,7 +318,7 @@ will be translated to:
 
 ```
 statement ok
-select * from cool_table; 
+select * from cool_table;
 ```
 
 ##### Interpreting Test Output
@@ -321,7 +332,7 @@ any logging metadata like timestamps or thread IDs.
 Errors in the expected output of a query will print a color-coded diff between
 the expected and actual results:
 
-``` text
+```text
 2023-05-19T07:24:58.857496Z ERROR main ThreadId(01) testing::slt::cli: crates/testing/src/slt/cli.rs:209: Error while running test `simple` error=test fail: query result mismatch:
 [SQL] select * from (values (1, 2, 3), (3, 4, 5))
 [Diff]
@@ -338,7 +349,7 @@ CTRL-C to exit
 Other errors not related to comparing expected and actual output (e.g. failing
 to parse, missing function) will look something like the following:
 
-``` text
+```text
 2023-05-19T07:24:58.857496Z ERROR main ThreadId(01) testing::slt::cli: crates/testing/src/slt/cli.rs:209: Error while running test `simple` error=test fail: statement failed: db error: ERROR: failed to execute: DataFusion(SchemaError(FieldNotFound { qualifier: None, name: "function_does_not_exist", valid_fields: Some([]) }))
 [SQL] select function_does_not_exist;
 at testdata/sqllogictests/simple.slt:19
@@ -362,7 +373,7 @@ Test cases can be found in `./testdata/pgprototest`.
 
 Tests can be ran with the `pgprototest` command:
 
-``` shell
+```shell
 cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:6543 --user glaredb --password dummy --database glaredb
 ```
 
@@ -382,20 +393,20 @@ Writing a test case is a 4 step process:
 4. Execute `pgprototest` against a running GlareDB instance with rewriting
    disabled. A successful run indicates we are returning the same messages as
    Postgres for that test case.
-   
+
 Breaking each step down further...
 
 Step 1: Write the frontend messages you want to send. For example, a simple
 query:
 
-``` text
+```text
 send
 Query {"query": "select 1, 2"}
 ----
 
 ```
 
-We prepend the message(s) we want to send with the `send` directive. 
+We prepend the message(s) we want to send with the `send` directive.
 
 The next line contains the frontend message type (`Query`) and the actual
 contents of the message as JSON `{"query": "select 1, 2"}`.
@@ -407,7 +418,7 @@ Step 2: Write the type(s) of messages you expect to receive from the backend.
 For our simple query, once we receive a `ReadyForQuery`, we know that the "flow"
 for this query is over:
 
-``` text
+```text
 until
 ReadyForQuery
 ----
@@ -424,20 +435,20 @@ Step 3: Execute against a running postgres instance.
 
 For this, ensure you have a Postgres instance running. For example, with docker[^1]:
 
-``` shell
+```shell
 docker run --rm --name "my_postgres" -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d postgres:14
 ```
 
 Now run `pgprototest` with rewriting:
 
-``` shell
+```shell
 cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:5432 --user postgres --database postgres --rewrite
 ```
 
 If everything runs correctly, you should see the `until` that we wrote above
 gets rewritten to the following:
 
-``` text
+```text
 until
 ReadyForQuery
 ----
@@ -454,7 +465,7 @@ Step 4: Execute against a running GlareDB instance. This will ensure that the
 messages we receive from GlareDB match the messages we received from Postgres in
 Step 3.
 
-``` shell
+```shell
 cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:6543 --user glaredb --password dummy --database glaredb
 ```
 
@@ -464,7 +475,7 @@ same messages as Postgres.
 If there's a mismatch, `pgpprototest` will print out the expected and actual
 results for the failing test, e.g.:
 
-``` text
+```text
 ./testdata/pgprototest/simple.pt:7:
 ReadyForQuery
 
@@ -481,7 +492,8 @@ CommandComplete {"tag":"SELECT 2"}
 ReadyForQuery {"status":"I"}
 ```
 
-[^1]: `pgprototest` onlys support clear text authentication. Postgres will
+[^1]:
+    `pgprototest` onlys support clear text authentication. Postgres will
     typically use SASL when doing password based authentication, so it's
     recommended to configure Postgres with no password to avoid this shortcoming
     (e.g. via the `POSTGRES_HOST_AUTH_METHOD=true` environment variable for the
