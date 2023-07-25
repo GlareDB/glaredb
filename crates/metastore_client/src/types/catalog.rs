@@ -12,6 +12,7 @@ use std::fmt;
 pub struct CatalogState {
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
+    pub deployment: DeploymentMetadata,
 }
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
@@ -24,6 +25,7 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
         Ok(CatalogState {
             version: value.version,
             entries,
+            deployment: value.deployment.required("deployment")?,
         })
     }
 }
@@ -41,6 +43,31 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
                     Err(e) => Err(e),
                 })
                 .collect::<Result<_, _>>()?,
+            deployment: Some(value.deployment.try_into()?),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeploymentMetadata {
+    pub storage_size: u64,
+}
+
+impl TryFrom<catalog::DeploymentMetadata> for DeploymentMetadata {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DeploymentMetadata) -> Result<Self, Self::Error> {
+        Ok(Self {
+            storage_size: value.storage_size,
+        })
+    }
+}
+
+impl TryFrom<DeploymentMetadata> for catalog::DeploymentMetadata {
+    type Error = ProtoConvError;
+
+    fn try_from(value: DeploymentMetadata) -> Result<Self, Self::Error> {
+        Ok(Self {
+            storage_size: value.storage_size,
         })
     }
 }
