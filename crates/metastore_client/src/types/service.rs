@@ -207,22 +207,28 @@ impl From<DropObject> for service::DropObject {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct CreateSchema {
     pub name: String,
+    pub if_not_exists: bool,
 }
 
 impl TryFrom<service::CreateSchema> for CreateSchema {
     type Error = ProtoConvError;
     fn try_from(value: service::CreateSchema) -> Result<Self, Self::Error> {
         // TODO: Check if string are zero value.
-        Ok(CreateSchema { name: value.name })
+        Ok(CreateSchema {
+            name: value.name,
+            if_not_exists: value.if_not_exists,
+        })
     }
 }
 
 impl From<CreateSchema> for service::CreateSchema {
     fn from(value: CreateSchema) -> Self {
-        service::CreateSchema { name: value.name }
+        service::CreateSchema {
+            name: value.name,
+            if_not_exists: value.if_not_exists,
+        }
     }
 }
-
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct CreateView {
     pub schema: String,

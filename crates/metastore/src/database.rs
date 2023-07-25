@@ -693,9 +693,13 @@ impl State {
                 }
                 Mutation::CreateSchema(create_schema) => {
                     validate_object_name(&create_schema.name)?;
-                    // TODO: If not exists.
+
                     if self.schema_names.contains_key(&create_schema.name) {
-                        return Err(MetastoreError::DuplicateName(create_schema.name));
+                        if create_schema.if_not_exists {
+                            continue; // Skipping this mutation if the schema already exists.
+                        } else {
+                            return Err(MetastoreError::DuplicateName(create_schema.name));
+                        }
                     }
 
                     // Create new entry
@@ -712,7 +716,6 @@ impl State {
                         },
                     };
                     self.entries.insert(oid, CatalogEntry::Schema(ent))?;
-
                     // Add to name map
                     self.schema_names.insert(create_schema.name, oid);
                 }
@@ -1261,6 +1264,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "numbers".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1303,6 +1307,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1313,6 +1318,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+                if_not_exists: false,
             })],
         )
         .await
@@ -1335,6 +1341,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
+                if_not_exists: false,
             })],
         )
         .await
@@ -1350,6 +1357,7 @@ mod tests {
                 version(&db).await,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
+                    if_not_exists: true,
                 })],
             )
             .await
@@ -1391,6 +1399,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "luigi".to_string(),
+                if_not_exists: true,
             })],
         )
         .await
@@ -1558,6 +1567,7 @@ mod tests {
                 initial,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
+                    if_not_exists: true,
                 })],
             )
             .await

@@ -362,9 +362,15 @@ impl SessionContext {
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        // TODO: if_not_exists
-        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema { name })])
+
+        let create_schema = service::CreateSchema {
+            name,
+            if_not_exists: plan.if_not_exists,
+        };
+
+        self.mutate_catalog([Mutation::CreateSchema(create_schema)])
             .await?;
+
         Ok(())
     }
 
