@@ -2,7 +2,7 @@ use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
-use crate::vars::SessionVars;
+use datafusion_ext::vars::SessionVars;
 
 use std::fs;
 use std::ops::{Deref, DerefMut};

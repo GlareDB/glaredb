@@ -17,7 +17,7 @@ use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
-use datafusion_planner::planner::SqlQueryPlanner;
+use datafusion_ext::planner::SqlQueryPlanner;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
