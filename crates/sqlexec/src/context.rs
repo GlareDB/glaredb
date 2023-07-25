@@ -500,6 +500,8 @@ impl SessionContext {
 
         self.mutate_catalog(drops).await?;
 
+        // Add a background job that deletes all tables
+
         Ok(())
     }
 
