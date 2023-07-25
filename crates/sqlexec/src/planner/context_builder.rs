@@ -15,13 +15,14 @@ use datafusion::logical_expr::AggregateUDF;
 use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
-use datafusion_planner::planner::AsyncContextProvider;
+use datafusion_ext::functions::TableFunc;
+use datafusion_ext::functions::TableFuncContextProvider;
+use datafusion_ext::planner::AsyncContextProvider;
+use datafusion_ext::vars::SessionVars;
 use metastore_client::types::catalog::CatalogEntry;
 use metastore_client::types::catalog::CredentialsEntry;
 use metastore_client::types::catalog::DatabaseEntry;
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::TableFunc;
-use sqlbuiltins::functions::TableFuncContextProvider;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -240,5 +241,9 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
 
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
         self.ctx.get_session_catalog().resolve_credentials(name)
+    }
+
+    fn get_session_vars(&self) -> &SessionVars {
+        self.ctx.get_session_vars()
     }
 }

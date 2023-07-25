@@ -50,8 +50,9 @@ message Mutation {
     CreateTable create_table = 14;
     CreateCredentials create_credentials = 15;
     DropCredentials drop_credentials = 16;
+    UpdateDeploymentStorage update_deployment_storage = 17;
   }
-  // next: 17
+  // next: 18
 }
 
 message DropDatabase {
@@ -147,6 +148,10 @@ message CreateCredentials {
 message DropCredentials {
   string name = 1;
   bool if_exists = 2;
+}
+
+message UpdateDeploymentStorage {
+  uint64 new_storage_size = 1;
 }
 
 message MutateRequest {

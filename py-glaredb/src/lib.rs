@@ -18,12 +18,11 @@ use std::{
 };
 use tokio::runtime::Builder;
 
+use datafusion_ext::vars::SessionVars;
 use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
-use sqlexec::{
-    engine::{Engine, EngineStorageConfig, SessionStorageConfig},
-    vars::SessionVars,
-};
+use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig};
+
 use telemetry::Tracker;
 
 /// Ensure that a directory at the given path exists. Errors if the path exists

@@ -2,8 +2,8 @@
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use metastore_client::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, EntryMeta, EntryType,
-    FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
+    EntryType, FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
 use metastore_client::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -149,6 +149,7 @@ impl DatabaseCatalog {
         CatalogState {
             version: guard.version,
             entries: guard.entries.as_ref().clone(),
+            deployment: guard.deployment.clone(),
         }
     }
 
@@ -284,6 +285,8 @@ enum CreatePolicy {
 struct State {
     /// Version incremented on every update.
     version: u64,
+    /// Deployment metadata.
+    deployment: DeploymentMetadata,
     /// Next OID to use.
     oid_counter: u32,
     /// All entries in the catalog.
@@ -435,6 +438,7 @@ impl State {
 
         let internal_state = State {
             version: state.version,
+            deployment: state.deployment,
             oid_counter: persisted.extra.oid_counter,
             entries: state.entries.into(),
             database_names,
@@ -455,6 +459,7 @@ impl State {
         PersistedCatalog {
             state: CatalogState {
                 version: self.version,
+                deployment: self.deployment.clone(),
                 entries: self
                     .entries
                     .as_ref()
@@ -927,6 +932,10 @@ impl State {
                         },
                         _ => unreachable!("entry should be a tunnel"),
                     };
+                }
+                Mutation::UpdateDeploymentStorage(update_deployment_storage) => {
+                    // Update the new storage size
+                    self.deployment.storage_size = update_deployment_storage.new_storage_size;
                 }
             }
         }

@@ -16,8 +16,18 @@
 // under the License.
 
 //! SQL Query Planner (produces logical plan from SQL AST)
+mod expr;
+mod query;
+mod relation;
+mod select;
+mod set_expr;
+mod statement;
+pub mod utils;
+mod values;
+
 use std::sync::Arc;
 
+use crate::functions::*;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::datatypes::Field;
@@ -39,8 +49,6 @@ use datafusion::sql::sqlparser::ast::ExactNumberInfo;
 use datafusion::sql::sqlparser::ast::TimezoneInfo;
 use datafusion::sql::sqlparser::ast::{ColumnDef as SQLColumnDef, ColumnOption};
 use datafusion::sql::sqlparser::ast::{DataType as SQLDataType, Ident, ObjectName, TableAlias};
-use sqlbuiltins::functions::TableFunc;
-use sqlbuiltins::functions::TableFuncContextProvider;
 
 use crate::utils::make_decimal_type;
 

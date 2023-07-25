@@ -1,6 +1,6 @@
 use crate::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, EntryType, SchemaEntry,
-    TunnelEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
+    SchemaEntry, TunnelEntry,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -48,6 +48,11 @@ impl SessionCatalog {
     pub fn swap_state(&mut self, new_state: Arc<CatalogState>) {
         self.state = new_state;
         self.rebuild_name_maps();
+    }
+
+    /// Returns the deployment metadata.
+    pub fn deployment_metadata(&self) -> DeploymentMetadata {
+        self.state.deployment.clone()
     }
 
     /// Resolve a database by name.

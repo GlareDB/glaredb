@@ -25,24 +25,4 @@ updates:
       timezone: "America/New_York"
     
     rebase-strategy: disabled
-    open-pull-requests-limit: 20
-
-    reviewers:
-      - "scsmithr" 
-
-    labels:
-      - "dependencies"
-
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-
-    target-branch: "cargo-conf"
-    groups:
-      cargo-dependencies:
-        patterns:
-          - "*" # Maintain all deps.
-        exclude-patterns:
-          - "datafusion"
-          - "deltalake"
-          - "object_store"
+    open-pull-requests-limit: 30

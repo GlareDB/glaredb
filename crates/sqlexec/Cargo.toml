@@ -1,28 +1,28 @@
 [package]
 name = "sqlexec"
-version = {workspace = true}
-edition = {workspace = true}
+version = { workspace = true }
+edition = { workspace = true }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-logutil = {path = "../logutil"}
-pgrepr = {path = "../pgrepr"}
+logutil = { path = "../logutil" }
+pgrepr = { path = "../pgrepr" }
 metastore_client = { path = "../metastore_client" }
-datafusion_planner = { path = "../datafusion_planner" }
-telemetry = {path = "../telemetry"}
-sqlbuiltins = {path = "../sqlbuiltins"}
-datasources = {path = "../datasources"}
-object_store_util = {path = "../object_store_util"}
+telemetry = { path = "../telemetry" }
+sqlbuiltins = { path = "../sqlbuiltins" }
+datasources = { path = "../datasources" }
+datafusion_ext = { path = "../datafusion_ext" }
+object_store_util = { path = "../object_store_util" }
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
-async-trait = "0.1.71"
-serde_json = "1.0.100"
+async-trait = "0.1.72"
+serde_json = "1.0.103"
 datafusion = { workspace = true }
 futures = "0.3.28"
 tracing = "0.1"
 object_store = { workspace = true }
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 tokio-postgres = "0.7.8"

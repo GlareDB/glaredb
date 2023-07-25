@@ -20,7 +20,7 @@ impl FnTest for SshKeysTest {
     async fn run(
         &self,
         _config: &Config,
-        client: &mut Client,
+        client: &Client,
         _vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         client
