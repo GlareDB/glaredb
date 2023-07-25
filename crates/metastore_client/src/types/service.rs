@@ -22,6 +22,8 @@ pub enum Mutation {
     AlterTunnelRotateKeys(AlterTunnelRotateKeys),
     CreateCredentials(CreateCredentials),
     DropCredentials(DropCredentials),
+    // Deployment metadata updates
+    UpdateDeploymentStorage(UpdateDeploymentStorage),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -64,6 +66,9 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::DropCredentials(v) => {
                 Mutation::DropCredentials(v.try_into()?)
             }
+            service::mutation::Mutation::UpdateDeploymentStorage(v) => {
+                Mutation::UpdateDeploymentStorage(v.try_into()?)
+            }
         })
     }
 }
@@ -99,6 +104,9 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
                 service::mutation::Mutation::CreateCredentials(v.into())
             }
             Mutation::DropCredentials(v) => service::mutation::Mutation::DropCredentials(v.into()),
+            Mutation::UpdateDeploymentStorage(v) => {
+                service::mutation::Mutation::UpdateDeploymentStorage(v.into())
+            }
         })
     }
 }
@@ -533,6 +541,28 @@ impl From<DropCredentials> for service::DropCredentials {
         service::DropCredentials {
             name: value.name,
             if_exists: value.if_exists,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct UpdateDeploymentStorage {
+    pub new_storage_size: u64,
+}
+
+impl TryFrom<service::UpdateDeploymentStorage> for UpdateDeploymentStorage {
+    type Error = ProtoConvError;
+    fn try_from(value: service::UpdateDeploymentStorage) -> Result<Self, Self::Error> {
+        Ok(Self {
+            new_storage_size: value.new_storage_size,
+        })
+    }
+}
+
+impl From<UpdateDeploymentStorage> for service::UpdateDeploymentStorage {
+    fn from(value: UpdateDeploymentStorage) -> Self {
+        Self {
+            new_storage_size: value.new_storage_size,
         }
     }
 }

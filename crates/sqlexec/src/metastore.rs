@@ -36,6 +36,7 @@ pub const DEFAULT_WORKER_CONFIG: WorkerRunConfig = WorkerRunConfig {
 };
 
 /// Worker client. This client can only make requests for a single database.
+#[derive(Debug, Clone)]
 pub struct SupervisorClient {
     /// Shared with worker. Used to hint if this client should get the latest
     /// state from the worker.

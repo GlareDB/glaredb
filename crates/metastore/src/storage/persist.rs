@@ -4,7 +4,7 @@ use crate::storage::{
 };
 use bytes::BytesMut;
 use metastore_client::proto::storage;
-use metastore_client::types::catalog::CatalogState;
+use metastore_client::types::catalog::{CatalogState, DeploymentMetadata};
 use metastore_client::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
@@ -68,6 +68,7 @@ impl Storage {
             state: CatalogState {
                 version: 0,
                 entries: HashMap::new(),
+                deployment: DeploymentMetadata { storage_size: 0 },
             },
             extra: ExtraState {
                 oid_counter: FIRST_AVAILABLE_ID,

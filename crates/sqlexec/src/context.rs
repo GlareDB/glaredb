@@ -1,3 +1,5 @@
+use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -79,6 +81,8 @@ pub struct SessionContext {
     df_state: SessionState,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
+    /// Job runner for background jobs.
+    background_jobs: JobRunner,
 }
 
 impl SessionContext {
@@ -97,6 +101,7 @@ impl SessionContext {
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
+        background_jobs: JobRunner,
     ) -> SessionContext {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -149,6 +154,7 @@ impl SessionContext {
             metrics,
             df_state: state,
             env_reader: None,
+            background_jobs,
         }
     }
 
@@ -313,6 +319,11 @@ impl SessionContext {
         while let Some(res) = stream.next().await {
             let _ = res?;
         }
+
+        // Add the storage tracker job once data is inserted.
+        let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), self.metastore.clone());
+        self.background_jobs.add(tracker)?;
+
         Ok(())
     }
 
