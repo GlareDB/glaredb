@@ -1,0 +1,39 @@
+# Basic tests for schema
+
+statement ok
+CREATE SCHEMA test_schema;
+
+statement ok
+CREATE VIEW test_schema.test_view AS
+	VALUES (1), (2), (3);
+
+query I
+SELECT * FROM test_schema.test_view;
+----
+1
+2
+3
+
+statement error Failed to find table for reference
+SELECT * FROM test_view;
+
+statement ok
+SET search_path = test_schema;
+
+query T
+SHOW search_path;
+----
+test_schema
+
+query I
+SELECT * FROM test_view;
+----
+1
+2
+3
+
+statement error Duplicate name
+CREATE SCHEMA test_schema;
+
+statement ok
+CREATE SCHEMA IF NOT EXISTS test_schema;

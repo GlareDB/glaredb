@@ -72,9 +72,9 @@ message DropObject {
   bool if_exists = 3;
 }
 
-message CreateSchema { 
+message CreateSchema {
   string name = 1;
-  bool if_not_exists = 2; 
+  bool if_not_exists = 2;
 }
 
 message CreateView {

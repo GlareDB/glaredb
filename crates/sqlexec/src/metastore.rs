@@ -632,7 +632,7 @@ mod tests {
                 s1.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "wario".to_string(),
-                    if_not_exists: true,
+                    if_not_exists: false,
                 })],
             )
             .await
@@ -643,7 +643,7 @@ mod tests {
             s2.version,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "yoshi".to_string(),
-                if_not_exists: true,
+                if_not_exists: false,
             })],
         )
         .await
@@ -662,7 +662,7 @@ mod tests {
                 s2.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "yoshi".to_string(),
-                    if_not_exists: true,
+                    if_not_exists: false,
                 })],
             )
             .await
