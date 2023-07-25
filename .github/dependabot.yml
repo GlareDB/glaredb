@@ -25,7 +25,4 @@ updates:
       timezone: "America/New_York"
     
     rebase-strategy: disabled
-    open-pull-requests-limit: 20
-
-    reviewers:
-      - "scsmithr" 
+    open-pull-requests-limit: 30

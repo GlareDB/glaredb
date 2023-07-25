@@ -7,7 +7,7 @@ edition = { workspace = true }
 num_cpus = "1.16.0"
 anyhow = "1.0"
 walkdir = "2.3.3"
-clap = { version = "4.3.11", features = ["derive"] }
+clap = { version = "4.3.19", features = ["derive"] }
 glob = "0.3.1"
 tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
@@ -15,9 +15,9 @@ tokio-postgres = "0.7.8"
 tempfile = "3"
 sqllogictest = "0.15.0"
 object_store = { workspace = true, features = ["gcp"] }
-async-trait = "0.1.71"
+async-trait = "0.1.72"
 regex = "1.8.1"
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 openssh = "0.9.9"
 logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }
