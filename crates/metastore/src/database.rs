@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
-use tracing::{debug, error, info};
+use tracing::debug;
 use uuid::Uuid;
 
 /// Special id indicating that databases have no parents.
@@ -689,20 +689,10 @@ impl State {
                 Mutation::CreateSchema(create_schema) => {
                     validate_object_name(&create_schema.name)?;
 
-                    info!(
-                        "CreateSchema mutation ==> Creating schema with name: {}",
-                        create_schema.name
-                    );
-
                     if self.schema_names.contains_key(&create_schema.name) {
                         if create_schema.if_not_exists {
-                            info!("CreateSchema mutation: Schema already exists and 'if_not_exists' is true, skipping mutation");
                             continue; // Skipping this mutation if the schema already exists.
                         } else {
-                            error!(
-                                "CreateSchema mutation ==> Duplicate schema name: {}",
-                                create_schema.name
-                            );
                             return Err(MetastoreError::DuplicateName(create_schema.name));
                         }
                     }
@@ -723,7 +713,6 @@ impl State {
                     self.entries.insert(oid, CatalogEntry::Schema(ent))?;
                     // Add to name map
                     self.schema_names.insert(create_schema.name, oid);
-                    info!("STATUS | CreateSchema mutation ==> Schema created successfully");
                 }
                 Mutation::CreateView(create_view) => {
                     validate_object_name(&create_view.name)?;
@@ -1343,7 +1332,7 @@ mod tests {
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
-                if_not_exists: true,
+                if_not_exists: false,
             })],
         )
         .await
