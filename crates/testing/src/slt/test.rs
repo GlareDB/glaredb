@@ -19,7 +19,7 @@ pub trait Hook: Send + Sync {
     async fn pre(
         &self,
         _config: &Config,
-        _client: &mut Client,
+        _client: &Client,
         _vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         Ok(())
@@ -28,7 +28,7 @@ pub trait Hook: Send + Sync {
     async fn post(
         &self,
         _config: &Config,
-        _client: &mut Client,
+        _client: &Client,
         _vars: &HashMap<String, String>,
     ) -> Result<()> {
         Ok(())
@@ -48,7 +48,7 @@ pub trait FnTest: Send + Sync {
     async fn run(
         &self,
         config: &Config,
-        client: &mut Client,
+        client: &Client,
         vars: &mut HashMap<String, String>,
     ) -> Result<()>;
 }
@@ -73,20 +73,25 @@ impl Test {
     pub async fn execute(
         self,
         config: &Config,
-        client: &mut Client,
+        client: Arc<Client>,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         match self {
             Self::File(path) => {
                 let regx = Regex::new(ENV_REGEX).unwrap();
                 let records = parse_file(&regx, &path, vars)?;
-                let mut runner = Runner::new(TestClient { client });
+
+                let mut runner = Runner::new(|| {
+                    let client = client.clone();
+                    async { Ok(TestClient { client }) }
+                });
+
                 runner
                     .run_multi_async(records)
                     .await
                     .map_err(|e| anyhow!("test fail: {}", e))
             }
-            Self::FnTest(fn_test) => fn_test.run(config, client, vars).await,
+            Self::FnTest(fn_test) => fn_test.run(config, client.as_ref(), vars).await,
         }
     }
 }
@@ -171,12 +176,12 @@ fn parse_file<T: ColumnType>(
     Ok(records)
 }
 
-pub struct TestClient<'a> {
-    pub client: &'a mut Client,
+pub struct TestClient {
+    pub client: Arc<Client>,
 }
 
 #[async_trait]
-impl AsyncDB for TestClient<'_> {
+impl AsyncDB for TestClient {
     type Error = tokio_postgres::Error;
     type ColumnType = DefaultColumnType;
 
