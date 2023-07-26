@@ -1,5 +1,13 @@
-use super::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
 use datasources::delta::access::{load_table_direct, DeltaLakeStorageOptions};
+use metastore_client::types::options::CredentialsOptions;
 
 /// Function for scanning delta tables.
 ///
@@ -30,14 +38,14 @@ impl TableFunc for DeltaScan {
                 let first = args.next().unwrap();
                 let url: String = first.param_into()?;
                 let source_url =
-                    DatasourceUrl::new(&url).map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    DatasourceUrl::new(&url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 match source_url.scheme() {
                     DatasourceUrlScheme::File => (url, DeltaLakeStorageOptions::Local),
-                    _ => {
-                        return Err(BuiltinError::Static(
-                            "Credentials required when accessing delta table in S3 or GCS",
-                        ))
+                    other => {
+                        return Err(ExtensionError::String(format!(
+                            "Credentials required when accessing delta table in {other}"
+                        )))
                     }
                 }
             }
@@ -46,54 +54,64 @@ impl TableFunc for DeltaScan {
                 let first = args.next().unwrap();
                 let url = first.param_into()?;
                 let source_url =
-                    DatasourceUrl::new(&url).map_err(|e| BuiltinError::Access(Box::new(e)))?;
-                let creds: IdentValue = args.next().unwrap().param_into()?;
+                    DatasourceUrl::new(&url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-                let creds = ctx
-                    .get_credentials_entry(creds.as_str())
-                    .cloned()
-                    .ok_or(BuiltinError::Static("missing credentials object"))?;
+                let creds: IdentValue = args.next().unwrap().param_into()?;
+                let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
+                    ExtensionError::String(format!("missing credentials object: {creds}")),
+                )?;
 
                 match source_url.scheme() {
-                    DatasourceUrlScheme::Gcs => {
-                        if let CredentialsOptions::Gcp(creds) = creds.options {
+                    DatasourceUrlScheme::Gcs => match creds.options {
+                        CredentialsOptions::Gcp(creds) => {
                             (url, DeltaLakeStorageOptions::Gcs { creds })
-                        } else {
-                            return Err(BuiltinError::Static("invalid credentials for GCS"));
                         }
-                    }
+                        other => {
+                            return Err(ExtensionError::String(format!(
+                                "invalid credentials for GCS, got {}",
+                                other.as_str()
+                            )))
+                        }
+                    },
                     DatasourceUrlScheme::S3 => {
                         // S3 requires a region parameter.
                         const REGION_KEY: &str = "region";
                         let region = opts
                             .remove(REGION_KEY)
-                            .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+                            .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
                             .param_into()?;
 
-                        if let CredentialsOptions::Aws(creds) = creds.options {
-                            (url, DeltaLakeStorageOptions::S3 { creds, region })
-                        } else {
-                            return Err(BuiltinError::Static("invalid credentials for S3"));
+                        match creds.options {
+                            CredentialsOptions::Aws(creds) => {
+                                (url, DeltaLakeStorageOptions::S3 { creds, region })
+                            }
+                            other => {
+                                return Err(ExtensionError::String(format!(
+                                    "invalid credentials for S3, got {}",
+                                    other.as_str()
+                                )))
+                            }
                         }
                     }
                     DatasourceUrlScheme::File => {
-                        return Err(BuiltinError::Static(
-                            "Credentials incorrectly provided when accessing local delta table",
+                        return Err(ExtensionError::String(
+                            "Credentials incorrectly provided when accessing local delta table"
+                                .to_string(),
                         ))
                     }
                     DatasourceUrlScheme::Http => {
-                        return Err(BuiltinError::Static(
-                            "Accessing delta tables over http not supported",
+                        return Err(ExtensionError::String(
+                            "Accessing delta tables over http not supported".to_string(),
                         ))
                     }
                 }
             }
-            _ => return Err(BuiltinError::InvalidNumArgs),
+            _ => return Err(ExtensionError::InvalidNumArgs),
         };
 
         let table = load_table_direct(&loc, delta_opts)
             .await
-            .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+            .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
         Ok(Arc::new(table))
     }

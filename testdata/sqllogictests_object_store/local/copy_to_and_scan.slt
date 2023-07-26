@@ -115,3 +115,21 @@ SELECT a, b FROM csv_scan([
 1	abc
 1	abc
 2	def
+
+# Glob pattern
+
+statement ok
+COPY ( SELECT * FROM generate_series(1, 2) )
+	TO '${TMP}/some_glob_1.parquet';
+
+statement ok
+COPY ( SELECT * FROM generate_series(3, 4) )
+	TO '${TMP}/another_glob_2' FORMAT parquet;
+
+query I rowsort
+SELECT * FROM parquet_scan('${TMP}/*_glob_*');
+----
+1
+2
+3
+4
