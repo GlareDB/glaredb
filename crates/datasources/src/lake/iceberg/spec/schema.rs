@@ -113,6 +113,8 @@ impl FromStr for PrimitiveType {
                 PrimitiveType::Decimal { p, s }
             }
             other if other.starts_with("fixed") => {
+                // Regex that matches:
+                // fixed[16]
                 static FIXED_RE: Lazy<Regex> =
                     Lazy::new(|| Regex::new(r#"^fixed\[(?P<l>\d+)\]$"#).unwrap());
 

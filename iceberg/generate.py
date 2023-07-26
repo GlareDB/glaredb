@@ -30,3 +30,8 @@ sc = spark.sparkContext
 spark.read.parquet(SRC).createOrReplaceTempView("src");
 spark.sql(f"CREATE OR REPLACE TABLE iceberg_catalog.iceberg_table TBLPROPERTIES ('format-version'='2', 'write.update.mode'='merge-on-read') AS SELECT * FROM src");
 
+# Partitioned
+spark.read.parquet(SRC).createOrReplaceTempView("src");
+spark.sql(f"CREATE OR REPLACE TABLE iceberg_catalog.iceberg_table_partition PARTITIONED BY (l_shipmode) TBLPROPERTIES ('format-version'='2', 'write.update.mode'='merge-on-read') AS SELECT * FROM src ORDER BY l_shipmode");
+
+
