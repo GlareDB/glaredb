@@ -108,7 +108,7 @@ fn connect(
 
         Ok(LocalSession {
             sess,
-            _engine: engine,
+            engine: engine,
         })
     })
 }
