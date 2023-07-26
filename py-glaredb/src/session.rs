@@ -24,7 +24,7 @@ use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_fo
 #[pyclass]
 pub struct LocalSession {
     pub(super) sess: PyTrackedSession,
-    pub(super) _engine: Engine, // Avoid dropping
+    pub(super) engine: Engine,
 }
 
 #[pyclass]
@@ -86,6 +86,11 @@ impl LocalSession {
                     todo!()
                 }
             }
+        })
+    }
+    fn close(&mut self, py: Python<'_>) -> PyResult<()> {
+        wait_for_future(py, async move {
+            Ok(self.engine.shutdown().await.map_err(PyGlareDbError::from)?)
         })
     }
 }

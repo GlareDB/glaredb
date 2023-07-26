@@ -6,8 +6,8 @@ pub mod errors;
 pub mod metastore;
 pub mod parser;
 pub mod session;
-pub mod vars;
 
+mod background_jobs;
 mod functions;
 mod metrics;
 mod planner;

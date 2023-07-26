@@ -11,7 +11,6 @@ df = pl.DataFrame(
 )
 
 con = glaredb.connect()
-
-df = con.sql("select * from df where fruits = 'banana'").to_polars();
-
+df = con.sql("select * from df where fruits = 'banana'").to_polars()
 print(df)
+con.close()

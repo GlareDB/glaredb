@@ -166,10 +166,7 @@ fn main() -> Result<()> {
             let runtime = build_runtime("local")?;
             runtime.block_on(async move {
                 let local = LocalSession::connect(opts).await?;
-                match query {
-                    Some(q) => local.execute_one(&q).await,
-                    None => local.run_interactive().await,
-                }
+                local.run(query).await
             })?;
         }
         Commands::Server {

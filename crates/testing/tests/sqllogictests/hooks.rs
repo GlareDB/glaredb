@@ -25,7 +25,7 @@ impl Hook for AllTestsHook {
     async fn pre(
         &self,
         config: &Config,
-        _: &mut Client,
+        _: &Client,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         // Create a unique temp dir and set the variable instead of using the
@@ -48,7 +48,7 @@ impl Hook for AllTestsHook {
     async fn post(
         &self,
         _config: &Config,
-        _client: &mut Client,
+        _client: &Client,
         vars: &HashMap<String, String>,
     ) -> Result<()> {
         if let Some(tmp_dir) = vars.get(Self::TMP_DIR) {
@@ -79,7 +79,7 @@ impl SshTunnelHook {
         Ok(addr.port())
     }
 
-    async fn try_create_tunnel(try_num: i32, client: &mut Client) -> Result<(String, String)> {
+    async fn try_create_tunnel(try_num: i32, client: &Client) -> Result<(String, String)> {
         let tunnel_name = format!("{}_{}", Self::TUNNEL_NAME_PREFIX, try_num);
         let port = Self::generate_random_port().await?;
         // Create the tunnel and get public key.
@@ -169,7 +169,7 @@ SELECT public_key
                 Err(anyhow!("container not started yet"))
             }
         }
-        let deadline = Instant::now() + Duration::from_secs(30);
+        let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             if check_container(container_id).await.is_ok() {
                 return Ok(());
@@ -187,7 +187,7 @@ impl Hook for SshTunnelHook {
     async fn pre(
         &self,
         _: &Config,
-        client: &mut Client,
+        client: &Client,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         let mut err = None;
@@ -213,7 +213,7 @@ impl Hook for SshTunnelHook {
     async fn post(
         &self,
         _config: &Config,
-        _client: &mut Client,
+        _client: &Client,
         vars: &HashMap<String, String>,
     ) -> Result<()> {
         Command::new("docker")

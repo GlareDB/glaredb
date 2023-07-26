@@ -1,4 +1,11 @@
-use super::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadSnowflake;
@@ -7,47 +14,6 @@ pub struct ReadSnowflake;
 impl TableFunc for ReadSnowflake {
     fn name(&self) -> &str {
         "read_snowflake"
-    }
-
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "account",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "username",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "password",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "database",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "warehouse",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "role",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "schema",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "table",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
     }
 
     async fn create_provider(
@@ -82,15 +48,15 @@ impl TableFunc for ReadSnowflake {
                 };
                 let accessor = SnowflakeAccessor::connect(conn_params)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
                 let prov = accessor
                     .into_table_provider(access_info, true)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 Ok(Arc::new(prov))
             }
-            _ => Err(BuiltinError::InvalidNumArgs),
+            _ => Err(ExtensionError::InvalidNumArgs),
         }
     }
 }

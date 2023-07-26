@@ -2,7 +2,7 @@ import glaredb
 import polars as pl
 import pandas as pd
 
-con = glaredb.connect()
+con1 = glaredb.connect()
 df = pl.DataFrame(
     {
         "A": [1, 2, 3, 4, 5],
@@ -11,7 +11,8 @@ df = pl.DataFrame(
         "cars": ["beetle", "audi", "beetle", "beetle", "beetle"],
     }
 )
-con.sql("select * from df where fruits = 'banana'").show()
+con1.sql("select * from df where fruits = 'banana'").show()
+con1.close()
 
 df = pd.DataFrame(
     {
@@ -22,6 +23,7 @@ df = pd.DataFrame(
     }
 )
 
-con = glaredb.connect()
+con2 = glaredb.connect()
 
-con.sql("select * from df where fruits = 'banana'").show();
+con2.sql("select * from df where fruits = 'banana'").show()
+con2.close()

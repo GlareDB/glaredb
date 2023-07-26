@@ -27,8 +27,8 @@ select length(head) > 1 from parquet_scan('https://huggingface.co/datasets/allen
 ----
 t
 
+# Multiple URLs
 
-# Multi 
 query I
 select count(*) from parquet_scan([
   'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet',

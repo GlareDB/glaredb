@@ -32,8 +32,9 @@ use metastore_client::types::options::{
 };
 use sqlbuiltins::builtins::{
     CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
-    GLARE_DATABASES, GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS,
-    GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
+    GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
+    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
+    SCHEMA_CURRENT_SESSION,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -64,6 +65,9 @@ pub enum DispatchError {
 
     #[error("failed to do late planning: {0}")]
     LatePlanning(Box<crate::planner::errors::PlanError>),
+
+    #[error("Invalid dispatch: {0}")]
+    InvalidDispatch(&'static str),
 
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
@@ -398,6 +402,11 @@ impl<'a> SessionDispatcher<'a> {
                 Ok(Arc::new(provider))
             }
             TableOptions::Local(TableOptionsLocal { location }) => {
+                if *self.ctx.get_session_vars().is_cloud_instance.value() {
+                    return Err(DispatchError::InvalidDispatch(
+                        "Local file access is not supported in cloud mode",
+                    ));
+                }
                 let table_access = LocalTableAccess {
                     location: location.clone(),
                     file_type: None,
@@ -412,7 +421,7 @@ impl<'a> SessionDispatcher<'a> {
                 location,
             }) => {
                 let table_access = GcsTableAccess {
-                    service_acccount_key_json: service_account_key.clone(),
+                    service_account_key_json: service_account_key.clone(),
                     bucket_name: bucket.clone(),
                     location: location.clone(),
                     file_type: None,
@@ -525,6 +534,8 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_session_query_metrics())
         } else if GLARE_SSH_KEYS.matches(schema, name) {
             Arc::new(self.build_ssh_keys()?)
+        } else if GLARE_DEPLOYMENT_METADATA.matches(schema, name) {
+            Arc::new(self.build_glare_deployment_metadata()?)
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -1005,6 +1016,26 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(ssh_tunnel_name.finish()),
                 Arc::new(public_key.finish()),
             ],
+        )
+        .unwrap();
+
+        Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
+    }
+
+    fn build_glare_deployment_metadata(&self) -> Result<MemTable> {
+        let arrow_schema = Arc::new(GLARE_DEPLOYMENT_METADATA.arrow_schema());
+        let deployment = self.catalog().deployment_metadata();
+
+        let (mut key, mut value): (StringBuilder, StringBuilder) = [(
+            Some("storage_size"),
+            Some(deployment.storage_size.to_string()),
+        )]
+        .into_iter()
+        .unzip();
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![Arc::new(key.finish()), Arc::new(value.finish())],
         )
         .unwrap();
 

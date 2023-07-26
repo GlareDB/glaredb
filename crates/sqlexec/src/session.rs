@@ -1,18 +1,18 @@
+use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
+use crate::errors::Result;
 use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
-use crate::vars::{SessionVars, VarSetter};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, execute_stream, memory::MemoryStream,
-    ExecutionPlan, SendableRecordBatchStream,
+    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::vars::{SessionVars, VarSetter};
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -20,7 +20,6 @@ use datasources::native::access::NativeTableStorage;
 use datasources::object_store::gcs::GcsTableAccess;
 use datasources::object_store::local::LocalTableAccess;
 use datasources::object_store::s3::S3TableAccess;
-use futures::StreamExt;
 use metastore_client::session::SessionCatalog;
 use metastore_client::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use object_store::path::Path as ObjectStorePath;
@@ -186,6 +185,7 @@ impl Session {
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
+        background_jobs: JobRunner,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
@@ -193,7 +193,15 @@ impl Session {
             *vars.connection_id.value(),
             tracker,
         );
-        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, metrics, spill_path);
+        let ctx = SessionContext::new(
+            vars,
+            catalog,
+            metastore,
+            native_tables,
+            metrics,
+            spill_path,
+            background_jobs,
+        );
         Ok(Session { ctx })
     }
 
@@ -226,17 +234,13 @@ impl Session {
     }
 
     pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
-        self.ctx.create_temp_table(plan)?;
+        self.ctx.create_temp_table(plan).await?;
         Ok(())
     }
 
     pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
         self.ctx.create_external_table(plan).await?;
         Ok(())
-    }
-
-    pub(crate) async fn create_table_as(&self, _plan: CreateTableAs) -> Result<()> {
-        Err(ExecError::UnsupportedFeature("CREATE TABLE ... AS ..."))
     }
 
     pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
@@ -321,27 +325,8 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn insert_into(&self, plan: Insert) -> Result<()> {
-        let physical = self.create_physical_plan(plan.source).await?;
-        // Ensure physical plan has one output partition.
-        let physical: Arc<dyn ExecutionPlan> =
-            match physical.output_partitioning().partition_count() {
-                1 => physical,
-                _ => {
-                    // merge into a single partition
-                    Arc::new(CoalescePartitionsExec::new(physical))
-                }
-            };
-
-        let physical = plan
-            .table_provider
-            .insert_into(self.ctx.get_df_state(), physical)
-            .await?;
-        let mut stream = self.execute_physical(physical)?;
-        // Drain the stream to actually "write" successfully.
-        while let Some(res) = stream.next().await {
-            let _ = res?;
-        }
+    pub(crate) async fn insert_into(&mut self, plan: Insert) -> Result<()> {
+        self.ctx.insert(plan).await?;
         Ok(())
     }
 
@@ -396,7 +381,7 @@ impl Session {
             (CopyToDestinationOptions::Gcs(gcs_options), format) => {
                 let access = GcsTableAccess {
                     bucket_name: gcs_options.bucket,
-                    service_acccount_key_json: gcs_options.service_account_key,
+                    service_account_key_json: gcs_options.service_account_key,
                     location: gcs_options.location,
                     file_type: None,
                 };
@@ -526,10 +511,6 @@ impl Session {
             LogicalPlan::Ddl(DdlPlan::CreateCredentials(plan)) => {
                 self.create_credentials(plan).await?;
                 ExecutionResult::CreateCredentials
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateTableAs(plan)) => {
-                self.create_table_as(plan).await?;
-                ExecutionResult::CreateTable
             }
             LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
                 self.create_schema(plan).await?;

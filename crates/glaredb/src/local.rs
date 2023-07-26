@@ -18,17 +18,18 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
+use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
-use sqlexec::vars::SessionVars;
 use std::env;
 use std::fmt::Write as _;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use telemetry::Tracker;
+use tracing::error;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputMode {
@@ -90,7 +91,7 @@ impl LocalClientOpts {
 
 pub struct LocalSession {
     sess: TrackedSession,
-    _engine: Engine, // Avoid dropping
+    engine: Engine,
     opts: LocalClientOpts,
 }
 
@@ -127,12 +128,27 @@ impl LocalSession {
             sess: engine
                 .new_session(SessionVars::default(), SessionStorageConfig::default())
                 .await?,
-            _engine: engine,
+            engine,
             opts,
         })
     }
 
-    pub async fn run_interactive(mut self) -> Result<()> {
+    pub async fn run(mut self, query: Option<String>) -> Result<()> {
+        let result = if let Some(query) = query {
+            self.execute_one(&query).await
+        } else {
+            self.run_interactive().await
+        };
+
+        // Try to shutdown the engine gracefully.
+        if let Err(err) = self.engine.shutdown().await {
+            error!(%err, "unable to shutdown the engine gracefully");
+        }
+
+        result
+    }
+
+    async fn run_interactive(&mut self) -> Result<()> {
         let history = Box::new(
             FileBackedHistory::with_file(100, get_history_path())
                 .expect("Error configuring history with file"),
@@ -196,7 +212,7 @@ impl LocalSession {
         Ok(())
     }
 
-    pub async fn execute_one(mut self, query: &str) -> Result<()> {
+    async fn execute_one(&mut self, query: &str) -> Result<()> {
         self.execute(query).await?;
         Ok(())
     }

@@ -36,6 +36,7 @@ pub const DEFAULT_WORKER_CONFIG: WorkerRunConfig = WorkerRunConfig {
 };
 
 /// Worker client. This client can only make requests for a single database.
+#[derive(Debug, Clone)]
 pub struct SupervisorClient {
     /// Shared with worker. Used to hint if this client should get the latest
     /// state from the worker.
@@ -631,6 +632,7 @@ mod tests {
                 s1.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "wario".to_string(),
+                    if_not_exists: false,
                 })],
             )
             .await
@@ -641,6 +643,7 @@ mod tests {
             s2.version,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "yoshi".to_string(),
+                if_not_exists: false,
             })],
         )
         .await
@@ -659,6 +662,7 @@ mod tests {
                 s2.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "yoshi".to_string(),
+                    if_not_exists: false,
                 })],
             )
             .await

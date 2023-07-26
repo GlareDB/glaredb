@@ -1,4 +1,11 @@
-use super::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadMongoDb;
@@ -7,27 +14,6 @@ pub struct ReadMongoDb;
 impl TableFunc for ReadMongoDb {
     fn name(&self) -> &str {
         "read_mongodb"
-    }
-
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "connection_str",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "database",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "collection",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
     }
 
     async fn create_provider(
@@ -45,7 +31,7 @@ impl TableFunc for ReadMongoDb {
 
                 let access = MongoAccessor::connect(&conn_str)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
                 let prov = access
                     .into_table_accessor(MongoTableAccessInfo {
                         database,
@@ -53,11 +39,11 @@ impl TableFunc for ReadMongoDb {
                     })
                     .into_table_provider()
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 Ok(Arc::new(prov))
             }
-            _ => Err(BuiltinError::InvalidNumArgs),
+            _ => Err(ExtensionError::InvalidNumArgs),
         }
     }
 }

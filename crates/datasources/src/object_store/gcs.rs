@@ -20,7 +20,7 @@ pub struct GcsTableAccess {
     /// GCS object store bucket name
     pub bucket_name: String,
     /// GCS object store service account key
-    pub service_acccount_key_json: Option<String>,
+    pub service_account_key_json: Option<String>,
     /// GCS object store table location
     pub location: String,
     /// Optionally specify file type for the table.
@@ -30,7 +30,7 @@ pub struct GcsTableAccess {
 impl GcsTableAccess {
     fn builder(&self) -> GoogleCloudStorageBuilder {
         let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket_name);
-        match &self.service_acccount_key_json {
+        match &self.service_account_key_json {
             Some(key) => builder.with_service_account_key(key),
             None => {
                 // TODO: Null Credentials

@@ -9,7 +9,8 @@ host = os.environ["PG_HOST"]
 user = os.environ["PG_USER"]
 password = os.environ["PG_PASS"]
 
-con.execute(f"""
+con.execute(
+    f"""
 CREATE EXTERNAL DATABASE my_pg
 	FROM postgres
 	OPTIONS (
@@ -19,7 +20,8 @@ CREATE EXTERNAL DATABASE my_pg
 		password = '{password}',
 		database = 'postgres',
 	);
-""")
+"""
+)
 
 df = con.sql("select * from my_pg.public.users").to_pandas()
 
@@ -27,3 +29,5 @@ llm = OpenAI(api_token=os.environ["OPEN_AI_KEY"])
 
 pandas_ai = PandasAI(llm)
 pandas_ai(df, prompt="Which users are from GlareDB?")
+
+con.close()

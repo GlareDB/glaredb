@@ -1,4 +1,11 @@
-use super::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadMysql;
@@ -7,27 +14,6 @@ pub struct ReadMysql;
 impl TableFunc for ReadMysql {
     fn name(&self) -> &str {
         "read_mysql"
-    }
-
-    fn parameters(&self) -> &[TableFuncParameters] {
-        const PARAMS: &[TableFuncParameters] = &[TableFuncParameters {
-            params: &[
-                TableFuncParameter {
-                    name: "connection_str",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "schema",
-                    typ: DataType::Utf8,
-                },
-                TableFuncParameter {
-                    name: "table",
-                    typ: DataType::Utf8,
-                },
-            ],
-        }];
-
-        PARAMS
     }
 
     async fn create_provider(
@@ -45,7 +31,7 @@ impl TableFunc for ReadMysql {
 
                 let access = MysqlAccessor::connect(&conn_str, None)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
                 let prov = access
                     .into_table_provider(
                         MysqlTableAccess {
@@ -55,11 +41,11 @@ impl TableFunc for ReadMysql {
                         true,
                     )
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 Ok(Arc::new(prov))
             }
-            _ => Err(BuiltinError::InvalidNumArgs),
+            _ => Err(ExtensionError::InvalidNumArgs),
         }
     }
 }

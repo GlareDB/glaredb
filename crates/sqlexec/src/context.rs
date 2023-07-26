@@ -1,3 +1,5 @@
+use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -6,7 +8,6 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
-use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -17,11 +18,15 @@ use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
+use datafusion::physical_plan::{
+    coalesce_partitions::CoalescePartitionsExec, execute_stream, ExecutionPlan,
+};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, StreamExt};
 use metastore_client::errors::ResolveErrorStrategy;
 use metastore_client::session::SessionCatalog;
 use metastore_client::types::catalog::{CatalogEntry, EntryType};
@@ -76,6 +81,8 @@ pub struct SessionContext {
     df_state: SessionState,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
+    /// Job runner for background jobs.
+    background_jobs: JobRunner,
 }
 
 impl SessionContext {
@@ -94,6 +101,7 @@ impl SessionContext {
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
+        background_jobs: JobRunner,
     ) -> SessionContext {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -146,6 +154,7 @@ impl SessionContext {
             metrics,
             df_state: state,
             env_reader: None,
+            background_jobs,
         }
     }
 
@@ -200,7 +209,7 @@ impl SessionContext {
     }
 
     /// Create a temp table.
-    pub fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
+    pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self.current_session_tables.contains_key(&plan.table_name) {
             if plan.if_not_exists {
                 return Ok(());
@@ -210,9 +219,19 @@ impl SessionContext {
 
         let schema = Arc::new(ArrowSchema::new(plan.columns));
         let data = RecordBatch::new_empty(Arc::clone(&schema));
-        let table = MemTable::try_new(schema, vec![vec![data]])?;
+        let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
         self.current_session_tables
-            .insert(plan.table_name, Arc::new(table));
+            .insert(plan.table_name, Arc::clone(&table));
+
+        // Write to the table if it has a source query
+        if let Some(source) = plan.source {
+            let insert_plan = Insert {
+                source,
+                table_provider: table,
+            };
+            self.insert(insert_plan).await?;
+        }
+
         Ok(())
     }
 
@@ -260,6 +279,51 @@ impl SessionContext {
         let table = self.tables.create_table(ent).await?;
         info!(loc = %table.storage_location(), "native table created");
 
+        // Write to the table if it has a source query
+        if let Some(source) = plan.source {
+            let insert_plan = Insert {
+                source,
+                table_provider: table.into_table_provider(),
+            };
+            self.insert(insert_plan).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn insert(&mut self, plan: Insert) -> Result<()> {
+        let physical = self
+            .get_df_state()
+            .create_physical_plan(&plan.source)
+            .await?;
+
+        // Ensure physical plan has one output partition.
+        let physical: Arc<dyn ExecutionPlan> =
+            match physical.output_partitioning().partition_count() {
+                1 => physical,
+                _ => {
+                    // merge into a single partition
+                    Arc::new(CoalescePartitionsExec::new(physical))
+                }
+            };
+
+        let physical = plan
+            .table_provider
+            .insert_into(self.get_df_state(), physical)
+            .await?;
+
+        let context = self.task_context();
+        let mut stream = execute_stream(physical, context)?;
+
+        // Drain the stream to actually "write" successfully.
+        while let Some(res) = stream.next().await {
+            let _ = res?;
+        }
+
+        // Add the storage tracker job once data is inserted.
+        let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), self.metastore.clone());
+        self.background_jobs.add(tracker)?;
+
         Ok(())
     }
 
@@ -298,9 +362,11 @@ impl SessionContext {
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        // TODO: if_not_exists
-        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema { name })])
-            .await?;
+        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema {
+            name,
+            if_not_exists: plan.if_not_exists,
+        })])
+        .await?;
         Ok(())
     }
 

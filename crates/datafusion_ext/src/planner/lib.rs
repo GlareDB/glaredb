@@ -27,3 +27,5 @@ mod set_expr;
 mod statement;
 pub mod utils;
 mod values;
+pub mod vars;
+pub mod functions;
