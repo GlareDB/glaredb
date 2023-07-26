@@ -5579,6 +5579,7 @@ dependencies = [
  "datafusion_ext",
  "datasources",
  "futures",
+ "glob",
  "logutil",
  "metastore_client",
  "num-traits",

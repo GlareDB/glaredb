@@ -1,4 +1,25 @@
-use super::*;
+use std::collections::HashMap;
+use std::ops::{Add, AddAssign};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use async_trait::async_trait;
+use datafusion::arrow::array::{Array, Float64Array, Int64Array};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::Result as DataFusionResult;
+use datafusion::datasource::streaming::StreamingTable;
+use datafusion::datasource::TableProvider;
+use datafusion::execution::TaskContext;
+use datafusion::physical_plan::streaming::PartitionStream;
+use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{
+    FromFuncParamValue, FuncParamValue, TableFunc, TableFuncContextProvider,
+};
+use futures::Stream;
+use num_traits::Zero;
 
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
@@ -34,9 +55,9 @@ impl TableFunc for GenerateSeries {
                         1.0_f64,
                     )
                 } else {
-                    return Err(BuiltinError::UnexpectedArgs {
-                        expected: String::from("ints or floats"),
-                        params: vec![start, stop],
+                    return Err(ExtensionError::InvalidParamValue {
+                        param: format!("({start}, {stop})"),
+                        expected: "integers or floats",
                     });
                 }
             }
@@ -65,13 +86,13 @@ impl TableFunc for GenerateSeries {
                         step.param_into()?,
                     )
                 } else {
-                    return Err(BuiltinError::UnexpectedArgs {
-                        expected: String::from("ints or floats"),
-                        params: vec![start, stop, step],
+                    return Err(ExtensionError::InvalidParamValue {
+                        param: format!("({start}, {stop}, {step})"),
+                        expected: "integers or floats",
                     });
                 }
             }
-            _ => return Err(BuiltinError::InvalidNumArgs),
+            _ => return Err(ExtensionError::InvalidNumArgs),
         }
     }
 }
@@ -82,7 +103,7 @@ fn create_straming_table<T: GenerateSeriesType>(
     step: T::PrimType,
 ) -> Result<Arc<dyn TableProvider>> {
     if step.is_zero() {
-        return Err(BuiltinError::Static("'step' may not be zero"));
+        return Err(ExtensionError::String("'step' may not be zero".to_string()));
     }
 
     let partition: GenerateSeriesPartition<T> = GenerateSeriesPartition::new(start, stop, step);

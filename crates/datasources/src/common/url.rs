@@ -2,15 +2,14 @@
 
 use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
+use datafusion::scalar::ScalarValue;
+use datafusion_ext::{
+    errors::ExtensionError,
+    functions::{FromFuncParamValue, FuncParamValue},
+};
 use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
-
-#[derive(Debug)]
-pub enum DatasourceUrl {
-    File(PathBuf),
-    Url(Url),
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatasourceUrlScheme {
@@ -27,6 +26,38 @@ impl Display for DatasourceUrlScheme {
             Self::Http => write!(f, "http(s)"),
             Self::Gcs => write!(f, "gs"),
             Self::S3 => write!(f, "s3"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum DatasourceUrl {
+    File(PathBuf),
+    Url(Url),
+}
+
+impl Display for DatasourceUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File(p) => write!(f, "{}", p.to_string_lossy()),
+            Self::Url(u) => write!(f, "{u}"),
+        }
+    }
+}
+
+impl FromFuncParamValue for DatasourceUrl {
+    fn from_param(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
+        let url_string: String = value.param_into()?;
+        Self::new(&url_string).map_err(|_e| ExtensionError::InvalidParamValue {
+            param: url_string,
+            expected: "datasource url",
+        })
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        match value {
+            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Self::new(s).is_ok(),
+            _ => false,
         }
     }
 }
