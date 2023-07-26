@@ -200,6 +200,15 @@ pub static GLARE_SSH_KEYS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     ]),
 });
 
+pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "deployment_metadata",
+    columns: InternalColumnDefinition::from_tuples([
+        ("key", DataType::Utf8, false),
+        ("value", DataType::Utf8, false),
+    ]),
+});
+
 impl BuiltinTable {
     /// Check if this table matches the provided schema and name.
     pub fn matches(&self, schema: &str, name: &str) -> bool {
@@ -229,6 +238,7 @@ impl BuiltinTable {
             &GLARE_FUNCTIONS,
             &GLARE_SESSION_QUERY_METRICS,
             &GLARE_SSH_KEYS,
+            &GLARE_DEPLOYMENT_METADATA,
         ]
     }
 }

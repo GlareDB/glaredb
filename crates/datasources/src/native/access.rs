@@ -12,9 +12,12 @@ use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
+use futures::StreamExt;
 use metastore_client::types::catalog::TableEntry;
 use metastore_client::types::options::{TableOptions, TableOptionsInternal};
+use object_store::path::Path as ObjectStorePath;
 use object_store::prefix::PrefixStore;
+use object_store::ObjectStore;
 use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
 use std::any::Any;
 use std::sync::Arc;
@@ -47,6 +50,26 @@ impl NativeTableStorage {
             conf,
             store: SharedObjectStore::new(store),
         })
+    }
+
+    /// Returns the database ID.
+    pub fn db_id(&self) -> Uuid {
+        self.db_id
+    }
+
+    /// Calculates the total size of storage being used by the database in
+    /// bytes.
+    pub async fn calculate_db_size(&self) -> Result<usize> {
+        let prefix: ObjectStorePath = format!("databases/{}/", self.db_id).into();
+        let mut objects = self.store.list(Some(&prefix)).await?;
+
+        let mut total_size = 0;
+        while let Some(meta) = objects.next().await {
+            let meta = meta?;
+            total_size += meta.size;
+        }
+
+        Ok(total_size)
     }
 
     pub async fn create_table(&self, table: &TableEntry) -> Result<NativeTable> {

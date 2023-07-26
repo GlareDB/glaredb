@@ -8,10 +8,11 @@ use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
+    pub deployment: DeploymentMetadata,
 }
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
@@ -21,9 +22,21 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
         for (id, ent) in value.entries {
             entries.insert(id, ent.try_into()?);
         }
+
+        // Try to convert deployment metadata if we have it.
+        //
+        // If we don't have it (e.g. for catalogs that existed prior to this
+        // field being added), use a default.
+        let deployment = value
+            .deployment
+            .map(DeploymentMetadata::try_from)
+            .transpose()?
+            .unwrap_or_default();
+
         Ok(CatalogState {
             version: value.version,
             entries,
+            deployment,
         })
     }
 }
@@ -41,13 +54,38 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
                     Err(e) => Err(e),
                 })
                 .collect::<Result<_, _>>()?,
+            deployment: Some(value.deployment.try_into()?),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DeploymentMetadata {
+    pub storage_size: u64,
+}
+
+impl TryFrom<catalog::DeploymentMetadata> for DeploymentMetadata {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::DeploymentMetadata) -> Result<Self, Self::Error> {
+        Ok(Self {
+            storage_size: value.storage_size,
+        })
+    }
+}
+
+impl TryFrom<DeploymentMetadata> for catalog::DeploymentMetadata {
+    type Error = ProtoConvError;
+
+    fn try_from(value: DeploymentMetadata) -> Result<Self, Self::Error> {
+        Ok(Self {
+            storage_size: value.storage_size,
         })
     }
 }
 
 // TODO: Implement Arbitrary and add test. This would require implementing
 // Arbitrary for arrow's DataType.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogEntry {
     Database(DatabaseEntry),
     Schema(SchemaEntry),
@@ -253,7 +291,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
@@ -282,7 +320,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct SchemaEntry {
     pub meta: EntryMeta,
 }
@@ -303,7 +341,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
@@ -349,7 +387,7 @@ impl fmt::Display for TableEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct ViewEntry {
     pub meta: EntryMeta,
     pub sql: String,
@@ -378,7 +416,7 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct TunnelEntry {
     pub meta: EntryMeta,
     pub options: TunnelOptions,
@@ -404,7 +442,7 @@ impl From<TunnelEntry> for catalog::TunnelEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary)]
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum FunctionType {
     Aggregate,
     Scalar,
@@ -454,7 +492,7 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
@@ -481,7 +519,7 @@ impl From<FunctionEntry> for catalog::FunctionEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct CredentialsEntry {
     pub meta: EntryMeta,
     pub options: CredentialsOptions,
@@ -532,5 +570,26 @@ mod tests {
             let got: EntryMeta = p.try_into().unwrap();
             assert_eq!(expected, got);
         }
+    }
+
+    #[test]
+    fn convert_catalog_state_no_deployment_metadata() {
+        // New `deployment` field added. Assert we can handle catalogs that
+        // don't have this field.
+
+        let state = catalog::CatalogState {
+            version: 4,
+            entries: HashMap::new(),
+            deployment: None,
+        };
+
+        let converted: CatalogState = state.try_into().unwrap();
+        let expected = CatalogState {
+            version: 4,
+            entries: HashMap::new(),
+            deployment: DeploymentMetadata { storage_size: 0 },
+        };
+
+        assert_eq!(expected, converted);
     }
 }

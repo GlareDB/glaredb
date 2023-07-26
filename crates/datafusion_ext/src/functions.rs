@@ -1,8 +1,58 @@
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::fmt::Write;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::common::OwnedTableReference;
+use datafusion::datasource::DefaultTableSource;
+use datafusion::datasource::TableProvider;
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
+
+use crate::errors::{ExtensionError, Result};
+use crate::vars::SessionVars;
+
+#[async_trait]
+pub trait TableFunc: Sync + Send {
+    /// The name for this table function. This name will be used when looking up
+    /// function implementations.
+    fn name(&self) -> &str;
+
+    /// Return a table provider using the provided args.
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>>;
+
+    /// Return a logical plan using the provided args.
+    async fn create_logical_plan(
+        &self,
+        table_ref: OwnedTableReference,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<LogicalPlan> {
+        let provider = self.create_provider(ctx, args, opts).await?;
+        let source = Arc::new(DefaultTableSource::new(provider));
+
+        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
+        let plan = plan_builder.build()?;
+        Ok(plan)
+    }
+}
+pub trait TableFuncContextProvider: Sync + Send {
+    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
+    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
+    fn get_session_vars(&self) -> &SessionVars;
+}
+
 use std::fmt;
 
 use datafusion::scalar::ScalarValue;
 
-use super::*;
 /// Value from a function parameter.
 #[derive(Debug, Clone)]
 pub enum FuncParamValue {
@@ -10,6 +60,7 @@ pub enum FuncParamValue {
     Ident(String),
     /// Scalar value.
     Scalar(ScalarValue),
+    /// A list of function parameter values.
     Array(Vec<FuncParamValue>),
 }
 
@@ -25,7 +76,7 @@ impl fmt::Display for FuncParamValue {
 
 impl FuncParamValue {
     /// Print multiple function parameter values.
-    pub fn multiple_to_string<T: AsRef<[Self]>>(vals: T) -> String {
+    fn multiple_to_string<T: AsRef<[Self]>>(vals: T) -> String {
         let mut s = String::new();
         write!(&mut s, "(").unwrap();
         let mut sep = "";
@@ -38,7 +89,7 @@ impl FuncParamValue {
     }
 
     /// Wrapper over `FromFuncParamValue::from_param`.
-    pub(super) fn param_into<T>(self) -> Result<T>
+    pub fn param_into<T>(self) -> Result<T>
     where
         T: FromFuncParamValue,
     {
@@ -46,7 +97,7 @@ impl FuncParamValue {
     }
 }
 
-pub(super) trait FromFuncParamValue: Sized {
+pub trait FromFuncParamValue: Sized {
     /// Get the value from parameter.
     fn from_param(value: FuncParamValue) -> Result<Self>;
 
@@ -61,9 +112,9 @@ impl FromFuncParamValue for String {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Ok(s),
-            other => Err(BuiltinError::UnexpectedArg {
-                param: other,
-                expected: DataType::Utf8,
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "string",
             }),
         }
     }
@@ -86,9 +137,10 @@ where
                 }
                 Ok(res)
             }
-            other => Err(BuiltinError::UnexpectedArg {
-                param: other,
-                expected: DataType::List(Arc::new(Field::new("list", DataType::Null, false))),
+
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "list",
             }),
         }
     }
@@ -102,11 +154,17 @@ where
     }
 }
 
-pub(super) struct IdentValue(String);
+pub struct IdentValue(String);
 
 impl IdentValue {
-    pub(super) fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+impl Display for IdentValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -126,7 +184,10 @@ impl FromFuncParamValue for IdentValue {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Ident(s) => Ok(Self(s)),
-            _other => Err(BuiltinError::Static("expected an identifier")),
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "ident",
+            }),
         }
     }
 
@@ -147,14 +208,15 @@ impl FromFuncParamValue for i64 {
                 ScalarValue::UInt16(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt32(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
-                other => Err(BuiltinError::UnexpectedArg {
-                    param: other.into(),
-                    expected: DataType::Int64,
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "integer",
                 }),
             },
-            other => Err(BuiltinError::UnexpectedArg {
-                param: other,
-                expected: DataType::Int64,
+
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "integer",
             }),
         }
     }
@@ -188,14 +250,14 @@ impl FromFuncParamValue for f64 {
                 ScalarValue::UInt64(Some(v)) => Ok(v as f64),
                 ScalarValue::Float32(Some(v)) => Ok(v as f64),
                 ScalarValue::Float64(Some(v)) => Ok(v),
-                other => Err(BuiltinError::UnexpectedArg {
-                    param: other.into(),
-                    expected: DataType::Float64,
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "double",
                 }),
             },
-            other => Err(BuiltinError::UnexpectedArg {
-                param: other,
-                expected: DataType::Float64,
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "double",
             }),
         }
     }
@@ -206,17 +268,5 @@ impl FromFuncParamValue for f64 {
             FuncParamValue::Scalar(ScalarValue::Float32(Some(_)))
                 | FuncParamValue::Scalar(ScalarValue::Float64(Some(_)))
         ) || i64::is_param_valid(value)
-    }
-}
-
-impl From<String> for FuncParamValue {
-    fn from(value: String) -> Self {
-        Self::Ident(value)
-    }
-}
-
-impl From<ScalarValue> for FuncParamValue {
-    fn from(value: ScalarValue) -> Self {
-        Self::Scalar(value)
     }
 }

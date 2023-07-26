@@ -1,3 +1,5 @@
+use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -6,7 +8,6 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
-use crate::vars::SessionVars;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -22,6 +23,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
 use futures::{future::BoxFuture, StreamExt};
@@ -79,6 +81,8 @@ pub struct SessionContext {
     df_state: SessionState,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
+    /// Job runner for background jobs.
+    background_jobs: JobRunner,
 }
 
 impl SessionContext {
@@ -97,6 +101,7 @@ impl SessionContext {
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
+        background_jobs: JobRunner,
     ) -> SessionContext {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -149,6 +154,7 @@ impl SessionContext {
             metrics,
             df_state: state,
             env_reader: None,
+            background_jobs,
         }
     }
 
@@ -313,6 +319,11 @@ impl SessionContext {
         while let Some(res) = stream.next().await {
             let _ = res?;
         }
+
+        // Add the storage tracker job once data is inserted.
+        let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), self.metastore.clone());
+        self.background_jobs.add(tracker)?;
+
         Ok(())
     }
 
@@ -351,9 +362,11 @@ impl SessionContext {
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        // TODO: if_not_exists
-        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema { name })])
-            .await?;
+        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema {
+            name,
+            if_not_exists: plan.if_not_exists,
+        })])
+        .await?;
         Ok(())
     }
 

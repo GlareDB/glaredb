@@ -1,11 +1,10 @@
 //! Server and session variables.
-use crate::errors::{ExecError, Result};
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sqlbuiltins::builtins::DEFAULT_SCHEMA;
 use std::borrow::{Borrow, ToOwned};
 use std::fmt::Display;
 use std::str::FromStr;
@@ -13,12 +12,31 @@ use std::sync::Arc;
 use tracing::error;
 use uuid::Uuid;
 
+#[derive(Debug, thiserror::Error)]
+pub enum VarError {
+    #[error("Invalid value for session variable: Variable name: {name}, Value: {val}")]
+    InvalidSessionVarValue { name: String, val: String },
+
+    #[error("Variable is readonly: {0}")]
+    VariableReadonly(String),
+
+    #[error("Unknown variable: {0}")]
+    UnknownVariable(String),
+}
+
+impl From<VarError> for DataFusionError {
+    fn from(e: VarError) -> Self {
+        DataFusionError::Execution(e.to_string())
+    }
+}
+
 // TODO: Decide proper postgres version to spoof/support
 const SERVER_VERSION: ServerVar<str> = ServerVar {
     name: "server_version",
     value: "15.1",
     group: "postgres",
     user_configurable: false,
+    description: "Version of the server",
 };
 
 const APPLICATION_NAME: ServerVar<str> = ServerVar {
@@ -26,6 +44,7 @@ const APPLICATION_NAME: ServerVar<str> = ServerVar {
     value: "",
     group: "postgres",
     user_configurable: true,
+    description: "Name of the application",
 };
 
 const CLIENT_ENCODING: ServerVar<str> = ServerVar {
@@ -33,6 +52,7 @@ const CLIENT_ENCODING: ServerVar<str> = ServerVar {
     value: "UTF8",
     group: "postgres",
     user_configurable: true,
+    description: "Encoding of the client",
 };
 
 const EXTRA_FLOAT_DIGITS: ServerVar<i32> = ServerVar {
@@ -40,6 +60,7 @@ const EXTRA_FLOAT_DIGITS: ServerVar<i32> = ServerVar {
     value: &1,
     group: "postgres",
     user_configurable: true,
+    description: "Extra precision in float values",
 };
 
 const STATEMENT_TIMEOUT: ServerVar<i32> = ServerVar {
@@ -47,6 +68,7 @@ const STATEMENT_TIMEOUT: ServerVar<i32> = ServerVar {
     value: &0,
     group: "postgres",
     user_configurable: true,
+    description: "Statement timeout in milliseconds",
 };
 
 const TIMEZONE: ServerVar<str> = ServerVar {
@@ -54,6 +76,7 @@ const TIMEZONE: ServerVar<str> = ServerVar {
     value: "UTC",
     group: "postgres",
     user_configurable: true,
+    description: "Timezone of the client, default UTC",
 };
 
 const DATESTYLE: ServerVar<str> = ServerVar {
@@ -61,6 +84,7 @@ const DATESTYLE: ServerVar<str> = ServerVar {
     value: "ISO",
     group: "postgres",
     user_configurable: true,
+    description: "Date style of the client, default ISO",
 };
 
 const TRANSACTION_ISOLATION: ServerVar<str> = ServerVar {
@@ -68,14 +92,16 @@ const TRANSACTION_ISOLATION: ServerVar<str> = ServerVar {
     value: "read uncommitted",
     group: "postgres",
     user_configurable: false,
+    description: "Transaction isolation level, defaults to 'read uncommitted'",
 };
 
-static DEFAULT_SEARCH_PATH: Lazy<[String; 1]> = Lazy::new(|| [DEFAULT_SCHEMA.to_owned()]);
+static DEFAULT_SEARCH_PATH: Lazy<[String; 1]> = Lazy::new(|| ["public".to_owned()]);
 static SEARCH_PATH: Lazy<ServerVar<[String]>> = Lazy::new(|| ServerVar {
     name: "search_path",
     value: &*DEFAULT_SEARCH_PATH,
     group: "postgres",
     user_configurable: true,
+    description: "Search path for schemas",
 });
 
 static GLAREDB_VERSION_OWNED: Lazy<String> =
@@ -85,6 +111,7 @@ static GLAREDB_VERSION: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {
     value: &GLAREDB_VERSION_OWNED,
     group: "glaredb",
     user_configurable: false,
+    description: "Version of glaredb",
 });
 
 const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
@@ -92,6 +119,7 @@ const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
     value: &false,
     group: "glaredb",
     user_configurable: true,
+    description: "Enable debug datasources",
 };
 
 const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
@@ -99,6 +127,7 @@ const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
     value: &false,
     group: "glaredb",
     user_configurable: true,
+    description: "Force catalog refresh",
 };
 
 const DATABASE_ID: ServerVar<Uuid> = ServerVar {
@@ -106,6 +135,7 @@ const DATABASE_ID: ServerVar<Uuid> = ServerVar {
     value: &Uuid::nil(),
     group: "glaredb",
     user_configurable: false,
+    description: "Database ID",
 };
 
 const CONNECTION_ID: ServerVar<Uuid> = ServerVar {
@@ -113,6 +143,7 @@ const CONNECTION_ID: ServerVar<Uuid> = ServerVar {
     value: &Uuid::nil(),
     group: "glaredb",
     user_configurable: false,
+    description: "Connection ID",
 };
 
 const USER_ID: ServerVar<Uuid> = ServerVar {
@@ -120,6 +151,7 @@ const USER_ID: ServerVar<Uuid> = ServerVar {
     value: &Uuid::nil(),
     group: "glaredb",
     user_configurable: false,
+    description: "User ID",
 };
 
 const USER_NAME: ServerVar<str> = ServerVar {
@@ -127,6 +159,7 @@ const USER_NAME: ServerVar<str> = ServerVar {
     value: "",
     group: "glaredb",
     user_configurable: false,
+    description: "User name",
 };
 
 const DATABASE_NAME: ServerVar<str> = ServerVar {
@@ -134,6 +167,7 @@ const DATABASE_NAME: ServerVar<str> = ServerVar {
     value: "",
     group: "glaredb",
     user_configurable: false,
+    description: "Database name",
 };
 
 const MAX_DATASOURCE_COUNT: ServerVar<Option<usize>> = ServerVar {
@@ -141,6 +175,7 @@ const MAX_DATASOURCE_COUNT: ServerVar<Option<usize>> = ServerVar {
     value: &None,
     group: "glaredb",
     user_configurable: false,
+    description: "Max datasource count",
 };
 
 const MEMORY_LIMIT_BYTES: ServerVar<Option<usize>> = ServerVar {
@@ -148,6 +183,7 @@ const MEMORY_LIMIT_BYTES: ServerVar<Option<usize>> = ServerVar {
     value: &None,
     group: "glaredb",
     user_configurable: false,
+    description: "Memory limit in bytes",
 };
 
 const MAX_TUNNEL_COUNT: ServerVar<Option<usize>> = ServerVar {
@@ -155,6 +191,7 @@ const MAX_TUNNEL_COUNT: ServerVar<Option<usize>> = ServerVar {
     value: &None,
     group: "glaredb",
     user_configurable: false,
+    description: "Max tunnel count",
 };
 
 const MAX_CREDENTIALS_COUNT: ServerVar<Option<usize>> = ServerVar {
@@ -162,6 +199,15 @@ const MAX_CREDENTIALS_COUNT: ServerVar<Option<usize>> = ServerVar {
     value: &None,
     group: "glaredb",
     user_configurable: false,
+    description: "Max credentials allowed",
+};
+
+const IS_CLOUD_INSTANCE: ServerVar<bool> = ServerVar {
+    name: "is_cloud_instance",
+    value: &false,
+    group: "glaredb",
+    user_configurable: false,
+    description: "Determines if the server is local or cloud",
 };
 
 /// Variables for a session.
@@ -188,6 +234,7 @@ pub struct SessionVars {
     pub memory_limit_bytes: SessionVar<Option<usize>>,
     pub max_tunnel_count: SessionVar<Option<usize>>,
     pub max_credentials_count: SessionVar<Option<usize>>,
+    pub is_cloud_instance: SessionVar<bool>,
 }
 
 impl SessionVars {
@@ -203,7 +250,7 @@ impl SessionVars {
     }
 
     /// Get a value for a variable.
-    pub fn get(&self, name: &str) -> Result<&dyn AnyVar> {
+    pub fn get(&self, name: &str) -> datafusion::error::Result<&dyn AnyVar> {
         if name.eq_ignore_ascii_case(SERVER_VERSION.name) {
             Ok(&self.server_version)
         } else if name.eq_ignore_ascii_case(APPLICATION_NAME.name) {
@@ -246,8 +293,10 @@ impl SessionVars {
             Ok(&self.max_tunnel_count)
         } else if name.eq_ignore_ascii_case(MAX_CREDENTIALS_COUNT.name) {
             Ok(&self.max_credentials_count)
+        } else if name.eq_ignore_ascii_case(IS_CLOUD_INSTANCE.name) {
+            Ok(&self.is_cloud_instance)
         } else {
-            Err(ExecError::UnknownVariable(name.to_string()))
+            Err(VarError::UnknownVariable(name.to_string()).into())
         }
     }
 
@@ -296,7 +345,7 @@ impl SessionVars {
         } else if name.eq_ignore_ascii_case(MAX_CREDENTIALS_COUNT.name) {
             self.max_credentials_count.set_from_str(val, setter)
         } else {
-            Err(ExecError::UnknownVariable(name.to_string()))
+            Err(VarError::UnknownVariable(name.to_string()).into())
         }
     }
 }
@@ -325,6 +374,7 @@ impl Default for SessionVars {
             memory_limit_bytes: SessionVar::new(&MEMORY_LIMIT_BYTES),
             max_tunnel_count: SessionVar::new(&MAX_TUNNEL_COUNT),
             max_credentials_count: SessionVar::new(&MAX_CREDENTIALS_COUNT),
+            is_cloud_instance: SessionVar::new(&IS_CLOUD_INSTANCE),
         }
     }
 }
@@ -361,9 +411,15 @@ pub enum VarSetter {
 /// persisted.
 #[derive(Debug)]
 #[allow(dead_code)] // `group` currently unused
-pub struct ServerVar<T: Value + ?Sized + 'static> {
+pub struct ServerVar<T>
+where
+    T: Value + ?Sized + 'static,
+{
     /// Name of the variable.
     name: &'static str,
+
+    /// Description of the variable
+    description: &'static str,
 
     /// Starting value of the variable.
     value: &'static T,
@@ -378,14 +434,20 @@ pub struct ServerVar<T: Value + ?Sized + 'static> {
     user_configurable: bool,
 }
 
-impl<T: Value + ?Sized + 'static> ServerVar<T> {
+impl<T> ServerVar<T>
+where
+    T: Value + ?Sized + 'static,
+{
     /// Get a reference to underlying value.
     pub fn value(&self) -> &T {
         self.value
     }
 }
 
-impl<T: Value + ?Sized + 'static> AnyVar for ServerVar<T> {
+impl<T> AnyVar for ServerVar<T>
+where
+    T: Value + ?Sized + 'static,
+{
     fn name(&self) -> &'static str {
         self.name
     }
@@ -397,12 +459,18 @@ impl<T: Value + ?Sized + 'static> AnyVar for ServerVar<T> {
 
 /// Session local variables. Unset variables will inherit the system variable.
 #[derive(Debug)]
-pub struct SessionVar<T: Value + ?Sized + 'static> {
+pub struct SessionVar<T>
+where
+    T: Value + ?Sized + 'static,
+{
     inherit: &'static ServerVar<T>,
     value: Option<T::Owned>,
 }
 
-impl<T: Value + ?Sized + 'static> SessionVar<T> {
+impl<T> SessionVar<T>
+where
+    T: Value + ?Sized + 'static,
+{
     pub fn new(inherit: &'static ServerVar<T>) -> Self {
         SessionVar {
             inherit,
@@ -422,7 +490,7 @@ impl<T: Value + ?Sized + 'static> SessionVar<T> {
     /// Set the value for a variable directly.
     pub fn set_raw(&mut self, v: T::Owned, setter: VarSetter) -> Result<()> {
         if !self.inherit.user_configurable && matches!(setter, VarSetter::User) {
-            return Err(ExecError::VariableReadonly(self.inherit.name.to_string()));
+            return Err(VarError::VariableReadonly(self.inherit.name.to_string()).into());
         }
         self.value = Some(v);
         Ok(())
@@ -440,17 +508,25 @@ impl<T: Value + ?Sized + 'static> SessionVar<T> {
         match T::try_parse(s) {
             Some(v) => self.set_raw(v, setter)?,
             None => {
-                return Err(ExecError::InvalidSessionVarValue {
+                return Err(VarError::InvalidSessionVarValue {
                     name: self.name().to_string(),
                     val: s.to_string(),
-                })
+                }
+                .into())
             }
         }
         Ok(())
     }
+
+    pub fn description(&self) -> &'static str {
+        self.inherit.description
+    }
 }
 
-impl<T: Value + ?Sized + 'static> AnyVar for SessionVar<T> {
+impl<T> AnyVar for SessionVar<T>
+where
+    T: Value + ?Sized + 'static,
+{
     fn name(&self) -> &'static str {
         self.inherit.name()
     }
@@ -475,6 +551,16 @@ impl Value for str {
 
     fn format(&self) -> String {
         self.to_string()
+    }
+}
+
+impl Value for String {
+    fn try_parse(s: &str) -> Option<Self::Owned> {
+        Some(s.to_string())
+    }
+
+    fn format(&self) -> String {
+        self.clone()
     }
 }
 
@@ -524,7 +610,7 @@ impl Value for Uuid {
 
 impl<V> Value for Option<V>
 where
-    V: Value + ToOwned + Clone + FromStr + Display,
+    V: Value + ?Sized + 'static + ToOwned + Clone + FromStr + Display,
 {
     fn try_parse(s: &str) -> Option<Self::Owned> {
         let v = s.parse::<V>().ok()?;
@@ -605,6 +691,7 @@ mod tests {
     fn user_configurable() {
         const SETTABLE: ServerVar<str> = ServerVar {
             name: "unsettable",
+            description: "test",
             value: "test",
             group: "test",
             user_configurable: true,
@@ -622,6 +709,7 @@ mod tests {
     fn not_user_configurable() {
         const UNSETTABLE: ServerVar<str> = ServerVar {
             name: "unsettable",
+            description: "test",
             value: "test",
             group: "test",
             user_configurable: false,

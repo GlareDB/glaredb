@@ -329,7 +329,8 @@ impl Cli {
         let mut local_vars = HashMap::new();
 
         // Run the actual test
-        let (mut client, conn) = client_config.connect(NoTls).await?;
+        let (client, conn) = client_config.connect(NoTls).await?;
+        let client = Arc::new(client);
         let (conn_err_tx, mut conn_err_rx) = oneshot::channel();
         tokio::spawn(async move { conn_err_tx.send(conn.await) });
 
@@ -342,18 +343,17 @@ impl Cli {
         // Run the pre-test hooks
         for (pattern, hook) in hooks.clone() {
             tracing::debug!(%pattern, %test_name, "Running pre hook for test");
-            hook.pre(&client_config, &mut client, &mut local_vars)
-                .await?;
+            hook.pre(&client_config, &client, &mut local_vars).await?;
         }
 
         // Run the actual test
-        test.execute(&client_config, &mut client, &mut local_vars)
+        test.execute(&client_config, client.clone(), &mut local_vars)
             .await?;
 
         // Run the post-test hooks
         for (pattern, hook) in hooks {
             tracing::debug!(%pattern, %test_name, "Running post hook for test");
-            hook.post(&client_config, &mut client, &local_vars).await?;
+            hook.post(&client_config, &client, &local_vars).await?;
         }
 
         if let Ok(result) = conn_err_rx.try_recv() {

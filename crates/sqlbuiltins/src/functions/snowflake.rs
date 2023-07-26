@@ -1,4 +1,11 @@
-use super::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadSnowflake;
@@ -41,15 +48,15 @@ impl TableFunc for ReadSnowflake {
                 };
                 let accessor = SnowflakeAccessor::connect(conn_params)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
                 let prov = accessor
                     .into_table_provider(access_info, true)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 Ok(Arc::new(prov))
             }
-            _ => Err(BuiltinError::InvalidNumArgs),
+            _ => Err(ExtensionError::InvalidNumArgs),
         }
     }
 }

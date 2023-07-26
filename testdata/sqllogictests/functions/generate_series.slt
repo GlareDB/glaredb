@@ -85,5 +85,5 @@ select * from generate_series(4.1, 1.0, -1.0);
 2.0999999999999998
 1.0999999999999997
 
-statement error Unexpected argument for function
+statement error Invalid parameter value
 select * from generate_series('hi', 1.0, -1.0);

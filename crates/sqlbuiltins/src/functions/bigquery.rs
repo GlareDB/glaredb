@@ -1,4 +1,12 @@
-use super::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use datafusion::datasource::TableProvider;
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadBigQuery;
@@ -25,7 +33,7 @@ impl TableFunc for ReadBigQuery {
 
                 let access = BigQueryAccessor::connect(service_account, project_id)
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
                 let prov = access
                     .into_table_provider(
                         BigQueryTableAccess {
@@ -35,11 +43,11 @@ impl TableFunc for ReadBigQuery {
                         true,
                     )
                     .await
-                    .map_err(|e| BuiltinError::Access(Box::new(e)))?;
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 Ok(Arc::new(prov))
             }
-            _ => Err(BuiltinError::InvalidNumArgs),
+            _ => Err(ExtensionError::InvalidNumArgs),
         }
     }
 }

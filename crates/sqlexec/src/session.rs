@@ -1,3 +1,4 @@
+use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
 use crate::errors::Result;
@@ -5,13 +6,13 @@ use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
-use crate::vars::{SessionVars, VarSetter};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::vars::{SessionVars, VarSetter};
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -184,6 +185,7 @@ impl Session {
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
+        background_jobs: JobRunner,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
@@ -191,7 +193,15 @@ impl Session {
             *vars.connection_id.value(),
             tracker,
         );
-        let ctx = SessionContext::new(vars, catalog, metastore, native_tables, metrics, spill_path);
+        let ctx = SessionContext::new(
+            vars,
+            catalog,
+            metastore,
+            native_tables,
+            metrics,
+            spill_path,
+            background_jobs,
+        );
         Ok(Session { ctx })
     }
 

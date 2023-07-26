@@ -1749,7 +1749,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "datafusion_planner"
+name = "datafusion_ext"
 version = "0.2.1"
 dependencies = [
  "async-recursion",
@@ -1757,9 +1757,14 @@ dependencies = [
  "ctor",
  "datafusion",
  "env_logger",
+ "metastore_client",
+ "once_cell",
  "paste",
+ "regex",
  "rstest",
- "sqlbuiltins",
+ "thiserror",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1777,6 +1782,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "datafusion",
+ "datafusion_ext",
  "decimal",
  "deltalake",
  "futures",
@@ -2045,9 +2051,9 @@ dependencies = [
 
 [[package]]
 name = "educe"
-version = "0.4.20"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb0188e3c3ba8df5753894d54461f0e39bc91741dc5b22e1c46999ec2c71f4e4"
+checksum = "079044df30bb07de7d846d41a184c4b00e66ebdac93ee459253474f3a47e50ae"
 dependencies = [
  "enum-ordinalize",
  "proc-macro2 1.0.63",
@@ -2509,6 +2515,7 @@ dependencies = [
  "clap",
  "colored",
  "datafusion",
+ "datafusion_ext",
  "futures",
  "logutil",
  "metastore",
@@ -4000,6 +4007,7 @@ dependencies = [
  "bytes",
  "bytesutil",
  "datafusion",
+ "datafusion_ext",
  "futures",
  "pgrepr",
  "reqwest",
@@ -4393,6 +4401,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "datafusion",
+ "datafusion_ext",
  "futures",
  "metastore",
  "once_cell",
@@ -5594,25 +5603,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "slt_runner"
-version = "0.2.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "glaredb",
- "glob",
- "logutil",
- "object_store",
- "pgsrv",
- "regex",
- "sqllogictest",
- "tokio",
- "tokio-postgres",
- "tracing",
-]
-
-[[package]]
 name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5709,8 +5699,10 @@ version = "0.2.1"
 dependencies = [
  "async-trait",
  "datafusion",
+ "datafusion_ext",
  "datasources",
  "futures",
+ "glob",
  "logutil",
  "metastore_client",
  "num-traits",
@@ -5736,7 +5728,7 @@ version = "0.2.1"
 dependencies = [
  "async-trait",
  "datafusion",
- "datafusion_planner",
+ "datafusion_ext",
  "datasources",
  "futures",
  "logutil",
@@ -5764,9 +5756,9 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "556b08485afb80bb29ed93a0a364641dbfdb65d832c0d08f5b16cb3b750696e5"
+checksum = "43c4e6422d7c801de4897553c0a9be42d28dfe5c3deec7387855f258d16eb9dd"
 dependencies = [
  "async-trait",
  "educe",
@@ -5774,7 +5766,7 @@ dependencies = [
  "futures",
  "glob",
  "humantime",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "libtest-mimic",
  "md-5 0.10.5",
  "owo-colors",
@@ -7184,9 +7176,9 @@ dependencies = [
 
 [[package]]
 name = "xml-rs"
-version = "0.8.14"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52839dc911083a8ef63efa4d039d1f58b5e409f923e44c80828f206f66e5541c"
+checksum = "47430998a7b5d499ccee752b41567bc3afc57e1327dc855b1a2aa44ce29b5fa1"
 
 [[package]]
 name = "xshell"

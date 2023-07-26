@@ -2,7 +2,7 @@ use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
-use crate::vars::SessionVars;
+use datafusion_ext::vars::SessionVars;
 
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -118,7 +118,7 @@ impl Engine {
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
-            background_jobs: JobRunner::new(),
+            background_jobs: JobRunner::new(Default::default()),
         })
     }
 
@@ -157,6 +157,7 @@ impl Engine {
             native,
             self.tracker.clone(),
             self.spill_path.clone(),
+            self.background_jobs.clone(),
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);

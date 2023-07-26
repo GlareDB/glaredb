@@ -18,11 +18,11 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
+use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
 use sqlexec::session::ExecutionResult;
-use sqlexec::vars::SessionVars;
 use std::env;
 use std::fmt::Write as _;
 use std::io::Write;
