@@ -113,8 +113,12 @@ impl NativeTableStorage {
     }
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
-        let (_, url) = self.get_object_path(table).await?;
-        let path = ObjectStorePath::from(url.as_ref());
+        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
+        let path: ObjectStorePath = match &self.conf {
+            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
+            StorageConfig::Memory => format!("memory://{}", prefix).into(),
+            _ => prefix.into(),
+        };
         Ok(self.store.delete(&path).await?)
     }
 
@@ -130,15 +134,8 @@ impl NativeTableStorage {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<DeltaObjectStore>> {
-        let (prefix, url) = self.get_object_path(table).await?;
-        let prefixed = PrefixStore::new(self.store.clone(), prefix);
-
-        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
-        Ok(Arc::new(delta_store))
-    }
-
-    async fn get_object_path(&self, table: &TableEntry) -> Result<(String, Url)> {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
+
         let url = match &self.conf {
             StorageConfig::Gcs { bucket, .. } => {
                 Url::parse(&format!("gs://{}/{}", bucket, prefix.clone()))?
@@ -159,7 +156,11 @@ impl NativeTableStorage {
                 Url::parse(&s)?
             }
         };
-        Ok((prefix, url))
+
+        let prefixed = PrefixStore::new(self.store.clone(), prefix);
+
+        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
+        Ok(Arc::new(delta_store))
     }
 }
 
@@ -234,5 +235,58 @@ impl TableProvider for NativeTable {
         let store = self.delta.object_store();
         let snapshot = self.delta.state.clone();
         Ok(Arc::new(NativeTableInsertExec::new(input, store, snapshot)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use datafusion::arrow::datatypes::DataType;
+    use metastore_client::types::{
+        catalog::{EntryMeta, EntryType, TableEntry},
+        options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
+    };
+    use object_store_util::conf::StorageConfig;
+    use tempfile::tempdir;
+    use uuid::Uuid;
+
+    use crate::native::access::NativeTableStorage;
+
+    #[tokio::test]
+    async fn test_delete_table() {
+        let db_id = Uuid::new_v4();
+        let dir = tempdir().unwrap();
+
+        let storage = NativeTableStorage::from_config(
+            db_id,
+            StorageConfig::Local {
+                path: dir.path().to_path_buf(),
+            },
+        )
+        .unwrap();
+
+        let entry = TableEntry {
+            meta: EntryMeta {
+                entry_type: EntryType::Table,
+                id: 12345,
+                parent: 54321,
+                name: "table_1".to_string(),
+                builtin: false,
+                external: false,
+            },
+            options: TableOptions::Internal(TableOptionsInternal {
+                columns: vec![InternalColumnDefinition {
+                    name: "id".to_string(),
+                    nullable: true,
+                    arrow_type: DataType::Int32,
+                }],
+            }),
+            tunnel_id: None,
+        };
+
+        // Add some tables inside the temp dir to get a non-zero storage size.
+        storage.create_table(&entry).await.unwrap();
+        storage.load_table(&entry).await.unwrap();
+        storage.delete_table(&entry).await.unwrap();
+        storage.load_table(&entry).await.unwrap();
     }
 }

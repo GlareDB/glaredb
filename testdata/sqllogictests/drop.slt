@@ -177,6 +177,15 @@ select a, b, c from drop_table.test limit 1;
 ----
 1 2 3
 
+statement ok
+create table native_table (a int);
+
+statement ok
+insert into native_table values (1);
+
+statement ok
+drop table native_table;
+
 # We cannot drop a schema before removing the table or views (child objects on
 # schema) without CASCADE.
 statement error
