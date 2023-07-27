@@ -27,7 +27,7 @@ pub struct TableMetadata {
     pub snapshots: Vec<Snapshot>,
     pub snapshot_log: Vec<SnapshotLog>,
     pub metadata_log: Vec<MetadataLog>,
-    // sort_orders: Vec<SortOrder>,
+    pub sort_orders: Vec<SortOrder>,
     pub default_sort_order_id: i32,
     // refs: Option<HashMap<String, SnapshotReference>>,
 }
@@ -63,19 +63,49 @@ pub struct PartitionSpec {
     pub fields: Vec<PartitionField>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PartitionField {
     pub source_id: i32,
     pub field_id: i32,
     pub name: String,
-    pub transform: PartitionTransform,
+    pub transform: Transform,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SortOrder {
+    pub order_id: i32,
+    pub fields: Vec<SortField>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SortField {
+    pub transform: Transform,
+    pub source_id: i32,
+    pub direction: SortDirection,
+    pub null_order: NullOrder,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NullOrder {
+    NullsFirst,
+    NullsLast,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 // TODO: Spec also has "Partition Field" under json serialization section, not
 // sure what that means.
-pub enum PartitionTransform {
+pub enum Transform {
     Identity,
     Year,
     Month,
@@ -86,17 +116,17 @@ pub enum PartitionTransform {
     Truncate(usize),
 }
 
-impl FromStr for PartitionTransform {
+impl FromStr for Transform {
     type Err = IcebergError;
 
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
-            "identity" => PartitionTransform::Identity,
-            "year" => PartitionTransform::Year,
-            "month" => PartitionTransform::Month,
-            "day" => PartitionTransform::Day,
-            "hour" => PartitionTransform::Hour,
-            "void" => PartitionTransform::Void,
+            "identity" => Transform::Identity,
+            "year" => Transform::Year,
+            "month" => Transform::Month,
+            "day" => Transform::Day,
+            "hour" => Transform::Hour,
+            "void" => Transform::Void,
 
             // bucket
             other if other.starts_with("bucket") => {
@@ -118,7 +148,7 @@ impl FromStr for PartitionTransform {
                     .parse()
                     .map_err(|e| IcebergError::DataInvalid(format!("'n' not a usize: {e}")))?;
 
-                PartitionTransform::Bucket(n)
+                Transform::Bucket(n)
             }
 
             // truncate
@@ -141,25 +171,25 @@ impl FromStr for PartitionTransform {
                     .parse()
                     .map_err(|e| IcebergError::DataInvalid(format!("'n' not a usize: {e}")))?;
 
-                PartitionTransform::Truncate(n)
+                Transform::Truncate(n)
             }
 
             other => {
                 return Err(IcebergError::DataInvalid(format!(
-                    "Invalid partition transform: {other}"
+                    "Invalid transform: {other}"
                 )))
             }
         })
     }
 }
 
-impl<'de> Deserialize<'de> for PartitionTransform {
+impl<'de> Deserialize<'de> for Transform {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s: &str = Deserialize::deserialize(deserializer)?;
-        PartitionTransform::from_str(s).map_err(de::Error::custom)
+        Transform::from_str(s).map_err(de::Error::custom)
     }
 }
 
@@ -168,22 +198,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_str_partition_transform() {
+    fn test_from_str_transform() {
         // (json, expected)
         let test_cases = vec![
-            ("identity", PartitionTransform::Identity),
-            ("year", PartitionTransform::Year),
-            ("month", PartitionTransform::Month),
-            ("day", PartitionTransform::Day),
-            ("hour", PartitionTransform::Hour),
-            ("void", PartitionTransform::Void),
-            ("bucket[16]", PartitionTransform::Bucket(16)),
-            ("truncate[32]", PartitionTransform::Truncate(32)),
+            ("identity", Transform::Identity),
+            ("year", Transform::Year),
+            ("month", Transform::Month),
+            ("day", Transform::Day),
+            ("hour", Transform::Hour),
+            ("void", Transform::Void),
+            ("bucket[16]", Transform::Bucket(16)),
+            ("truncate[32]", Transform::Truncate(32)),
         ];
 
         for t in test_cases {
-            let out: PartitionTransform = t.0.parse().unwrap();
+            let out: Transform = t.0.parse().unwrap();
             assert_eq!(t.1, out);
         }
+    }
+
+    #[test]
+    fn test_deserialize_partiton_field() {
+        let json = r#"
+            {
+              "source-id": 4,
+              "field-id": 1000,
+              "name": "ts_day",
+              "transform": "day"
+            }"#;
+
+        let deserialized: PartitionField = serde_json::from_str(json).unwrap();
+        let expected = PartitionField {
+            source_id: 4,
+            field_id: 1000,
+            name: "ts_day".to_string(),
+            transform: Transform::Day,
+        };
+
+        assert_eq!(expected, deserialized);
     }
 }
