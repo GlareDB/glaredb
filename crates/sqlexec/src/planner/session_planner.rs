@@ -1,14 +1,6 @@
-use crate::context::SessionContext;
-use crate::parser::options::StmtOptions;
-use crate::parser::{
-    self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
-    AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt,
-    CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt,
-    DropTunnelStmt, StatementWithExtensions,
-};
-use crate::planner::errors::{internal, PlanError, Result};
-use crate::planner::logical_plan::*;
-use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use std::path::Path;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
@@ -25,9 +17,10 @@ use datasources::debug::DebugTableType;
 use datasources::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
-use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
-use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::local::LocalStoreAccess;
+use datasources::object_store::s3::S3StoreAccess;
+use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore_client::types::options::{
@@ -50,10 +43,19 @@ use metastore_client::validation::{
     validate_database_creds_support, validate_database_tunnel_support,
     validate_table_creds_support, validate_table_tunnel_support,
 };
-use std::path::Path;
-use std::str::FromStr;
-use std::sync::Arc;
 use tracing::debug;
+
+use crate::context::SessionContext;
+use crate::parser::options::StmtOptions;
+use crate::parser::{
+    self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
+    AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt,
+    CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt,
+    DropTunnelStmt, StatementWithExtensions,
+};
+use crate::planner::errors::{internal, PlanError, Result};
+use crate::planner::logical_plan::*;
+use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 
 use super::context_builder::PartialContextProvider;
 
@@ -137,15 +139,13 @@ impl<'a> SessionPlanner<'a> {
                 DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
             }
             DatabaseOptions::BIGQUERY => {
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c,
+                let service_account_key = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for bigquery"),
                 });
 
                 let service_account_key =
-                    m.remove_required_or_creds("service_account_key", creds, |c| {
-                        c.service_account_key.clone()
-                    })?;
+                    m.remove_required_or("service_account_key", service_account_key)?;
 
                 let project_id: String = m.remove_required("project_id")?;
 
@@ -311,15 +311,13 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::BIGQUERY => {
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c,
+                let service_account_key = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for bigquery"),
                 });
 
                 let service_account_key =
-                    m.remove_required_or_creds("service_account_key", creds, |c| {
-                        c.service_account_key.clone()
-                    })?;
+                    m.remove_required_or("service_account_key", service_account_key)?;
 
                 let project_id: String = m.remove_required("project_id")?;
                 let dataset_id = m.remove_required("dataset_id")?;
@@ -420,50 +418,33 @@ impl<'a> SessionPlanner<'a> {
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
-                let access = LocalTableAccess {
-                    location: location.clone(),
-                    file_type: None,
-                };
-
-                LocalAccessor::validate_table_access(access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
+                let access = Arc::new(LocalStoreAccess);
+                validate_obj_store(access, &location).await?;
 
                 TableOptions::Local(TableOptionsLocal { location })
             }
             TableOptions::GCS => {
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c,
+                let service_account_key = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for google cloud storage"),
                 });
 
                 let service_account_key =
-                    m.remove_optional_or_creds("service_account_key", creds, |c| {
-                        c.service_account_key.clone()
-                    })?;
+                    m.remove_optional_or("service_account_key", service_account_key)?;
 
-                let bucket = m.remove_required("bucket")?;
-                let location = m.remove_required("location")?;
+                let bucket: String = m.remove_required("bucket")?;
+                let location: String = m.remove_required("location")?;
 
-                let access = GcsTableAccess {
-                    bucket_name: bucket,
-                    service_account_key_json: service_account_key,
-                    location,
-                    file_type: None,
-                };
-
-                GcsAccessor::validate_table_access(access.clone())
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
+                let access = Arc::new(GcsStoreAccess {
+                    bucket: bucket.clone(),
+                    service_account_key: service_account_key.clone(),
+                });
+                validate_obj_store(access, &location).await?;
 
                 TableOptions::Gcs(TableOptionsGcs {
-                    service_account_key: access.service_account_key_json,
-                    bucket: access.bucket_name,
-                    location: access.location,
+                    bucket,
+                    service_account_key,
+                    location,
                 })
             }
             TableOptions::S3_STORAGE => {
@@ -472,53 +453,47 @@ impl<'a> SessionPlanner<'a> {
                     other => unreachable!("invalid credentials {other} for aws s3"),
                 });
 
-                let access_key_id = m.remove_optional_or_creds("access_key_id", creds, |c| {
-                    c.access_key_id.clone()
-                })?;
+                let (access_key_id, secret_access_key) = match creds {
+                    Some(c) => (
+                        Some(c.access_key_id.clone()),
+                        Some(c.secret_access_key.clone()),
+                    ),
+                    None => (None, None),
+                };
 
+                let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
                 let secret_access_key =
-                    m.remove_optional_or_creds("secret_access_key", creds, |c| {
-                        c.secret_access_key.clone()
-                    })?;
+                    m.remove_optional_or("secret_access_key", secret_access_key)?;
 
-                let region = m.remove_required("region")?;
-                let bucket = m.remove_required("bucket")?;
-                let location = m.remove_required("location")?;
+                let region: String = m.remove_required("region")?;
+                let bucket: String = m.remove_required("bucket")?;
+                let location: String = m.remove_required("location")?;
 
-                let access = S3TableAccess {
+                let access = Arc::new(S3StoreAccess {
+                    region: region.clone(),
+                    bucket: bucket.clone(),
+                    access_key_id: access_key_id.clone(),
+                    secret_access_key: secret_access_key.clone(),
+                });
+                validate_obj_store(access, &location).await?;
+
+                TableOptions::S3(TableOptionsS3 {
                     region,
-                    bucket_name: bucket,
+                    bucket,
                     access_key_id,
                     secret_access_key,
                     location,
-                    file_type: None,
-                };
-
-                S3Accessor::validate_table_access(access.clone())
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
-
-                TableOptions::S3(TableOptionsS3 {
-                    access_key_id: access.access_key_id,
-                    secret_access_key: access.secret_access_key,
-                    region: access.region,
-                    bucket: access.bucket_name,
-                    location: access.location,
                 })
             }
             TableOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
 
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Debug(c) => c,
-                    other => unreachable!("invalid credentials {other} for debug datasource"),
-                });
-
-                let typ =
-                    m.remove_required_or_creds("table_type", creds, |c| c.table_type.clone())?;
-                let typ = DebugTableType::from_str(&typ)?;
+                let typ: Option<DebugTableType> = match creds_options {
+                    Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
+                    Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
+                    None => None,
+                };
+                let typ: DebugTableType = m.remove_required_or("table_type", typ)?;
 
                 TableOptions::Debug(TableOptionsDebug {
                     table_type: typ.to_string(),
@@ -1089,15 +1064,13 @@ impl<'a> SessionPlanner<'a> {
                 CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
             }
             CopyToDestinationOptions::GCS => {
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c,
-                    other => unreachable!("Invalid credentials {other} to copy into gcs"),
+                let service_account_key = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+                    other => unreachable!("invalid credentials {other} for google cloud storage"),
                 });
 
                 let service_account_key =
-                    m.remove_optional_or_creds("service_account_key", creds, |c| {
-                        c.service_account_key.clone()
-                    })?;
+                    m.remove_optional_or("service_account_key", service_account_key)?;
 
                 let bucket = get_bucket(&mut m, &uri)?;
                 let location = get_location(&mut m, &uri)?;
@@ -1114,17 +1087,19 @@ impl<'a> SessionPlanner<'a> {
                     other => unreachable!("invalid credentials {other} for aws s3"),
                 });
 
-                let access_key_id = m.remove_optional_or_creds("access_key_id", creds, |c| {
-                    c.access_key_id.clone()
-                })?;
+                let (access_key_id, secret_access_key) = match creds {
+                    Some(c) => (
+                        Some(c.access_key_id.clone()),
+                        Some(c.secret_access_key.clone()),
+                    ),
+                    None => (None, None),
+                };
 
+                let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
                 let secret_access_key =
-                    m.remove_optional_or_creds("secret_access_key", creds, |c| {
-                        c.secret_access_key.clone()
-                    })?;
+                    m.remove_optional_or("secret_access_key", secret_access_key)?;
 
                 let region = m.remove_required("region")?;
-
                 let bucket = get_bucket(&mut m, &uri)?;
                 let location = get_location(&mut m, &uri)?;
 
@@ -1235,6 +1210,29 @@ impl<'a> SessionPlanner<'a> {
             None
         };
         Ok(credentials_options)
+    }
+}
+
+/// Creates an accessor from object store external table and validates if the
+/// location returns any objects.
+async fn validate_obj_store(access: Arc<dyn ObjStoreAccess>, location: &str) -> Result<()> {
+    let accessor =
+        ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
+            source: Box::new(e),
+        })?;
+
+    let objects = accessor.list([location].into_iter()).await.map_err(|e| {
+        PlanError::InvalidExternalTable {
+            source: Box::new(e),
+        }
+    })?;
+
+    if objects.is_empty() {
+        Err(PlanError::InvalidExternalTable {
+            source: Box::new(internal!("object '{location}' not found")),
+        })
+    } else {
+        Ok(())
     }
 }
 

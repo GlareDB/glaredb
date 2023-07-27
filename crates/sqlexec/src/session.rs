@@ -1,11 +1,7 @@
-use crate::background_jobs::JobRunner;
-use crate::context::{Portal, PreparedStatement, SessionContext};
-use crate::environment::EnvironmentReader;
-use crate::errors::Result;
-use crate::metastore::SupervisorClient;
-use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
+use std::fmt;
+use std::path::PathBuf;
+use std::sync::Arc;
+
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -17,18 +13,23 @@ use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::native::access::NativeTableStorage;
-use datasources::object_store::gcs::GcsTableAccess;
-use datasources::object_store::local::LocalTableAccess;
-use datasources::object_store::s3::S3TableAccess;
+use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::local::LocalStoreAccess;
+use datasources::object_store::s3::S3StoreAccess;
+use datasources::object_store::ObjStoreAccess;
 use metastore_client::session::SessionCatalog;
 use metastore_client::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
-use object_store::path::Path as ObjectStorePath;
-use object_store::ObjectStore;
 use pgrepr::format::Format;
-use std::fmt;
-use std::path::PathBuf;
-use std::sync::Arc;
 use telemetry::Tracker;
+
+use crate::background_jobs::JobRunner;
+use crate::context::{Portal, PreparedStatement, SessionContext};
+use crate::environment::EnvironmentReader;
+use crate::errors::Result;
+use crate::metastore::SupervisorClient;
+use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::*;
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
@@ -193,6 +194,7 @@ impl Session {
             *vars.connection_id.value(),
             tracker,
         );
+
         let ctx = SessionContext::new(
             vars,
             catalog,
@@ -201,7 +203,8 @@ impl Session {
             metrics,
             spill_path,
             background_jobs,
-        );
+        )?;
+
         Ok(Session { ctx })
     }
 
@@ -333,9 +336,12 @@ impl Session {
     pub(crate) async fn plan_copy_to(&self, plan: CopyTo) -> Result<()> {
         fn get_sink_for_obj(
             format: CopyToFormatOptions,
-            store: Arc<dyn ObjectStore>,
-            path: ObjectStorePath,
+            access: &dyn ObjStoreAccess,
+            location: &str,
         ) -> Result<Box<dyn DataSink>> {
+            let store = access.create_store()?;
+            let path = access.path(location)?;
+
             let sink: Box<dyn DataSink> = match format {
                 CopyToFormatOptions::Csv(csv_opts) => Box::new(CsvSink::from_obj_store(
                     store,
@@ -371,34 +377,24 @@ impl Session {
                     // Create the path if it doesn't exist (for local).
                     let _ = tokio::fs::File::create(&local_options.location).await?;
                 }
-                let access = LocalTableAccess {
-                    location: local_options.location,
-                    file_type: None,
-                };
-                let (store, path) = access.store_and_path()?;
-                get_sink_for_obj(format, store, path)?
+                let access = LocalStoreAccess;
+                get_sink_for_obj(format, &access, &local_options.location)?
             }
             (CopyToDestinationOptions::Gcs(gcs_options), format) => {
-                let access = GcsTableAccess {
-                    bucket_name: gcs_options.bucket,
-                    service_account_key_json: gcs_options.service_account_key,
-                    location: gcs_options.location,
-                    file_type: None,
+                let access = GcsStoreAccess {
+                    bucket: gcs_options.bucket,
+                    service_account_key: gcs_options.service_account_key,
                 };
-                let (store, path) = access.store_and_path()?;
-                get_sink_for_obj(format, store, path)?
+                get_sink_for_obj(format, &access, &gcs_options.location)?
             }
             (CopyToDestinationOptions::S3(s3_options), format) => {
-                let access = S3TableAccess {
+                let access = S3StoreAccess {
                     region: s3_options.region,
-                    bucket_name: s3_options.bucket,
+                    bucket: s3_options.bucket,
                     access_key_id: s3_options.access_key_id,
                     secret_access_key: s3_options.secret_access_key,
-                    location: s3_options.location,
-                    file_type: None,
                 };
-                let (store, path) = access.store_and_path()?;
-                get_sink_for_obj(format, store, path)?
+                get_sink_for_obj(format, &access, &s3_options.location)?
             }
         };
 
