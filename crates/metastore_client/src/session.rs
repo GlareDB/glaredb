@@ -1,7 +1,8 @@
 use crate::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
-    SchemaEntry, TunnelEntry,
+    SchemaEntry, TableEntry, TunnelEntry,
 };
+use crate::types::options::TableOptions;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -53,6 +54,31 @@ impl SessionCatalog {
     /// Returns the deployment metadata.
     pub fn deployment_metadata(&self) -> DeploymentMetadata {
         self.state.deployment.clone()
+    }
+
+    pub fn resolve_native_table(
+        &self,
+        _database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Option<&TableEntry> {
+        let schema_id = self.schema_names.get(schema)?;
+        let obj = self.schema_objects.get(schema_id)?;
+        let obj_id = obj.objects.get(name)?;
+
+        let ent = self
+            .state
+            .entries
+            .get(obj_id)
+            .expect("object name points to invalid id");
+
+        match ent {
+            CatalogEntry::Table(table) => match &table.options {
+                TableOptions::Internal(_) => Some(table),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// Resolve a database by name.

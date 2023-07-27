@@ -492,34 +492,14 @@ impl SessionContext {
         for r in plan.names {
             let (database, schema, name) = self.resolve_table_ref(r)?;
 
-            let table_entry = match self
+            if let Some(table_entry) = self
                 .metastore_catalog
-                .resolve_entry(&database, &schema, &name)
+                .resolve_native_table(&database, &schema, &name)
             {
-                Some(CatalogEntry::Table(table)) => match &table.options {
-                    TableOptions::Internal(_) => table,
-                    other => {
-                        return Err(ExecError::Internal(format!(
-                            "Unexpected set of table options: {:?}",
-                            other
-                        )))
-                    }
-                },
-                Some(other) => {
-                    return Err(ExecError::Internal(format!(
-                        "Unexpected catalog entry type: {:?}",
-                        other
-                    )))
-                }
-                None => {
-                    return Err(ExecError::Internal(
-                        "Missing table in the catalog".to_string(),
-                    ));
-                }
-            };
-
-            let tracker = BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
-            self.background_jobs.add(tracker)?;
+                let tracker =
+                    BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
+                self.background_jobs.add(tracker)?;
+            }
 
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
