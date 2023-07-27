@@ -66,11 +66,7 @@ impl SessionCatalog {
         let obj = self.schema_objects.get(schema_id)?;
         let obj_id = obj.objects.get(name)?;
 
-        let ent = self
-            .state
-            .entries
-            .get(obj_id)
-            .expect("object name points to invalid id");
+        let ent = self.state.entries.get(obj_id)?;
 
         match ent {
             CatalogEntry::Table(table) => match &table.options {

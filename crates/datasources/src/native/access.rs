@@ -114,7 +114,7 @@ impl NativeTableStorage {
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
         let (_, url) = self.get_object_path(table).await?;
-        let path = ObjectStorePath::from_url_path(url).unwrap();
+        let path = ObjectStorePath::from(url.as_ref());
         Ok(self.store.delete(&path).await?)
     }
 
