@@ -1,4 +1,4 @@
-use super::spec::{Manifest, ManifestContent, ManifestList, TableMetadata};
+use super::spec::{Manifest, ManifestContent, ManifestList, Snapshot, TableMetadata};
 
 use crate::common::url::DatasourceUrl;
 use crate::lake::iceberg::errors::{IcebergError, Result};
@@ -32,8 +32,6 @@ use std::any::Any;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use super::spec::{DataFile, PartitionField, Snapshot};
-
 #[derive(Debug)]
 pub struct IcebergTable {
     state: TableState,
@@ -50,8 +48,16 @@ impl IcebergTable {
         Ok(IcebergTable { state })
     }
 
+    /// Get the table metadata.
     pub fn metadata(&self) -> &TableMetadata {
         &self.state.metadata
+    }
+
+    /// Read all manifests for the current snapshot according to the currently
+    /// loaded table metadata.
+    pub async fn read_manifests(&self) -> Result<Vec<Manifest>> {
+        let manifests = self.state.read_manifests().await?;
+        Ok(manifests)
     }
 
     /// Get the table's arrow schema.
@@ -69,6 +75,7 @@ impl IcebergTable {
     }
 }
 
+/// Information about the state of the table at some table version.
 #[derive(Debug, Clone)]
 struct TableState {
     /// The root of the table.

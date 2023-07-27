@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 use self::bigquery::ReadBigQuery;
 use self::delta::DeltaScan;
 use self::generate_series::GenerateSeries;
-use self::iceberg::{IcebergMetadata, IcebergScan};
+use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
@@ -53,7 +53,8 @@ impl BuiltinTableFuncs {
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
-            Arc::new(IcebergMetadata),
+            Arc::new(IcebergSnapshots),
+            Arc::new(IcebergDataFiles),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),

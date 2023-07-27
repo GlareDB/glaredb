@@ -8,6 +8,7 @@ use datafusion::arrow::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
+use std::fmt;
 use std::{collections::HashMap, str::FromStr};
 
 #[derive(Debug, Clone)]
@@ -119,6 +120,15 @@ impl FromStr for ManifestContent {
                 )))
             }
         })
+    }
+}
+
+impl fmt::Display for ManifestContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ManifestContent::Data => write!(f, "data"),
+            ManifestContent::Delete => write!(f, "delete"),
+        }
     }
 }
 
