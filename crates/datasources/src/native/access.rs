@@ -112,6 +112,21 @@ impl NativeTableStorage {
         Ok(NativeTable::new(table))
     }
 
+    pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
+        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
+        let path: ObjectStorePath = match &self.conf {
+            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
+            StorageConfig::Memory => format!("memory://{}", prefix).into(),
+            _ => prefix.into(),
+        };
+        let mut x = self.store.list(Some(&path)).await?;
+        while let Some(meta) = x.next().await {
+            let meta = meta?;
+            self.store.delete(&meta.location).await?
+        }
+        Ok(())
+    }
+
     fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
         let opts = match &table.options {
             TableOptions::Internal(opts) => opts,
@@ -125,11 +140,10 @@ impl NativeTableStorage {
         table: &TableEntry,
     ) -> Result<Arc<DeltaObjectStore>> {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
-        let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
 
         let url = match &self.conf {
             StorageConfig::Gcs { bucket, .. } => {
-                Url::parse(&format!("gs://{}/{}", bucket, prefix))?
+                Url::parse(&format!("gs://{}/{}", bucket, prefix.clone()))?
             }
             StorageConfig::Local { path } => {
                 let path =
@@ -139,14 +153,16 @@ impl NativeTableStorage {
                             path: path.clone(),
                             e,
                         })?;
-                let path = path.join(prefix);
+                let path = path.join(prefix.clone());
                 Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
             }
             StorageConfig::Memory => {
-                let s = format!("memory://{}", prefix);
+                let s = format!("memory://{}", prefix.clone());
                 Url::parse(&s)?
             }
         };
+
+        let prefixed = PrefixStore::new(self.store.clone(), prefix);
 
         let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
         Ok(Arc::new(delta_store))
@@ -224,5 +240,63 @@ impl TableProvider for NativeTable {
         let store = self.delta.object_store();
         let snapshot = self.delta.state.clone();
         Ok(Arc::new(NativeTableInsertExec::new(input, store, snapshot)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use datafusion::arrow::datatypes::DataType;
+    use metastore_client::types::{
+        catalog::{EntryMeta, EntryType, TableEntry},
+        options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
+    };
+    use object_store_util::conf::StorageConfig;
+    use tempfile::tempdir;
+    use uuid::Uuid;
+
+    use crate::native::access::NativeTableStorage;
+
+    #[tokio::test]
+    async fn test_delete_table() {
+        let db_id = Uuid::new_v4();
+        let dir = tempdir().unwrap();
+
+        let storage = NativeTableStorage::from_config(
+            db_id,
+            StorageConfig::Local {
+                path: dir.path().to_path_buf(),
+            },
+        )
+        .unwrap();
+
+        let entry = TableEntry {
+            meta: EntryMeta {
+                entry_type: EntryType::Table,
+                id: 12345,
+                parent: 54321,
+                name: "table_1".to_string(),
+                builtin: false,
+                external: false,
+            },
+            options: TableOptions::Internal(TableOptionsInternal {
+                columns: vec![InternalColumnDefinition {
+                    name: "id".to_string(),
+                    nullable: true,
+                    arrow_type: DataType::Int32,
+                }],
+            }),
+            tunnel_id: None,
+        };
+
+        // Create a table, load it, delete it and load it again!
+        storage.create_table(&entry).await.unwrap();
+        storage.load_table(&entry).await.unwrap();
+        storage.delete_table(&entry).await.unwrap();
+        let err = storage
+            .load_table(&entry)
+            .await
+            .map_err(|_| "Error loading table")
+            .unwrap_err();
+        assert_eq!(err, "Error loading table");
     }
 }

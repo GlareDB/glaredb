@@ -1,4 +1,4 @@
-use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobStorageTracker};
 use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
@@ -490,16 +490,24 @@ impl SessionContext {
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for r in plan.names {
-            let (_, schema, name) = self.resolve_table_ref(r)?;
+            let (database, schema, name) = self.resolve_table_ref(r)?;
+
+            if let Some(table_entry) = self
+                .metastore_catalog
+                .resolve_native_table(&database, &schema, &name)
+            {
+                let tracker =
+                    BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
+                self.background_jobs.add(tracker)?;
+            }
+
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
                 if_exists: plan.if_exists,
             }));
         }
-
         self.mutate_catalog(drops).await?;
-
         Ok(())
     }
 
