@@ -119,7 +119,12 @@ impl NativeTableStorage {
             StorageConfig::Memory => format!("memory://{}", prefix).into(),
             _ => prefix.into(),
         };
-        Ok(self.store.delete(&path).await?)
+        let mut x = self.store.list(Some(&path)).await?;
+        while let Some(meta) = x.next().await {
+            let meta = meta?;
+            self.store.delete(&meta.location).await?
+        }
+        Ok(())
     }
 
     fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
@@ -283,10 +288,15 @@ mod tests {
             tunnel_id: None,
         };
 
-        // Add some tables inside the temp dir to get a non-zero storage size.
+        // Create a table, load it, delete it and load it again!
         storage.create_table(&entry).await.unwrap();
         storage.load_table(&entry).await.unwrap();
         storage.delete_table(&entry).await.unwrap();
-        storage.load_table(&entry).await.unwrap();
+        let err = storage
+            .load_table(&entry)
+            .await
+            .map_err(|_| "Error loading table")
+            .unwrap_err();
+        assert_eq!(err, "Error loading table");
     }
 }
