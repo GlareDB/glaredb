@@ -113,24 +113,9 @@ impl NativeTableStorage {
     }
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
-        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
-        let path = match &self.conf {
-            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
-            StorageConfig::Local { path } => {
-                let path =
-                    fs::canonicalize(path)
-                        .await
-                        .map_err(|e| NativeError::CanonicalizePath {
-                            path: path.clone(),
-                            e,
-                        })?;
-                let path = path.join(prefix);
-                format!("{:?}", path.to_str()).into()
-            }
-            StorageConfig::Memory => format!("memory://{}", prefix).into(),
-        };
-        self.store.delete(&path).await?;
-        Ok(())
+        let (_, url) = self.get_object_path(table).await?;
+        let path = ObjectStorePath::from_url_path(url).unwrap();
+        Ok(self.store.delete(&path).await?)
     }
 
     fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
@@ -145,12 +130,18 @@ impl NativeTableStorage {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<DeltaObjectStore>> {
-        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
-        let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
+        let (prefix, url) = self.get_object_path(table).await?;
+        let prefixed = PrefixStore::new(self.store.clone(), prefix);
 
+        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
+        Ok(Arc::new(delta_store))
+    }
+
+    async fn get_object_path(&self, table: &TableEntry) -> Result<(String, Url)> {
+        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
         let url = match &self.conf {
             StorageConfig::Gcs { bucket, .. } => {
-                Url::parse(&format!("gs://{}/{}", bucket, prefix))?
+                Url::parse(&format!("gs://{}/{}", bucket, prefix.clone()))?
             }
             StorageConfig::Local { path } => {
                 let path =
@@ -160,17 +151,15 @@ impl NativeTableStorage {
                             path: path.clone(),
                             e,
                         })?;
-                let path = path.join(prefix);
+                let path = path.join(prefix.clone());
                 Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
             }
             StorageConfig::Memory => {
-                let s = format!("memory://{}", prefix);
+                let s = format!("memory://{}", prefix.clone());
                 Url::parse(&s)?
             }
         };
-
-        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
-        Ok(Arc::new(delta_store))
+        Ok((prefix, url))
     }
 }
 
