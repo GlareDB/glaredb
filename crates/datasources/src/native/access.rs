@@ -112,6 +112,27 @@ impl NativeTableStorage {
         Ok(NativeTable::new(table))
     }
 
+    pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
+        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
+        let path = match &self.conf {
+            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
+            StorageConfig::Local { path } => {
+                let path =
+                    fs::canonicalize(path)
+                        .await
+                        .map_err(|e| NativeError::CanonicalizePath {
+                            path: path.clone(),
+                            e,
+                        })?;
+                let path = path.join(prefix);
+                format!("{:?}", path.to_str()).into()
+            }
+            StorageConfig::Memory => format!("memory://{}", prefix).into(),
+        };
+        self.store.delete(&path).await?;
+        Ok(())
+    }
+
     fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
         let opts = match &table.options {
             TableOptions::Internal(opts) => opts,

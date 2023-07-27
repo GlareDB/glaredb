@@ -1,4 +1,4 @@
-use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobStorageTracker};
 use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
@@ -490,18 +490,44 @@ impl SessionContext {
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for r in plan.names {
-            let (_, schema, name) = self.resolve_table_ref(r)?;
+            let (database, schema, name) = self.resolve_table_ref(r)?;
+
+            let table_entry = match self
+                .metastore_catalog
+                .resolve_entry(&database, &schema, &name)
+            {
+                Some(CatalogEntry::Table(table)) => match &table.options {
+                    TableOptions::Internal(_) => table,
+                    other => {
+                        return Err(ExecError::Internal(format!(
+                            "Unexpected set of table options: {:?}",
+                            other
+                        )))
+                    }
+                },
+                Some(other) => {
+                    return Err(ExecError::Internal(format!(
+                        "Unexpected catalog entry type: {:?}",
+                        other
+                    )))
+                }
+                None => {
+                    return Err(ExecError::Internal(
+                        "Missing table in the catalog".to_string(),
+                    ));
+                }
+            };
+
+            let tracker = BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
+            self.background_jobs.add(tracker)?;
+
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
                 if_exists: plan.if_exists,
             }));
         }
-
         self.mutate_catalog(drops).await?;
-
-        // Add a background job that deletes all tables
-
         Ok(())
     }
 
