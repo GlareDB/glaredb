@@ -1,71 +1,31 @@
 //! Builtin table returning functions.
 //! mod bigquery;
+
 mod bigquery;
 mod delta;
 mod generate_series;
-mod list_schemas;
-mod list_tables;
 mod mongo;
 mod mysql;
 mod object_store;
 mod postgres;
 mod snowflake;
-mod utils;
+mod virtual_listing;
 
-use self::bigquery::*;
-use self::delta::*;
-use self::generate_series::*;
-use self::list_schemas::*;
-use self::list_tables::*;
-use self::mongo::*;
-use self::mysql::*;
-use self::object_store::*;
-use self::postgres::*;
-use self::snowflake::*;
-pub(self) use self::utils::*;
-pub(self) use datafusion_ext::functions::*;
-
-use crate::errors::{BuiltinError, Result};
-use async_trait::async_trait;
-use datafusion::arrow::array::{Array, Float64Array, Int64Array, StringArray};
-use datafusion::arrow::datatypes::{Field, Schema};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::OwnedTableReference;
-use datafusion::datasource::streaming::StreamingTable;
-use datafusion::datasource::{DefaultTableSource, MemTable};
-use datafusion::error::Result as DataFusionResult;
-use datafusion::execution::TaskContext;
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
-use datafusion::physical_plan::streaming::PartitionStream;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use datafusion_ext::functions::TableFunc;
-
-use datafusion::{arrow::datatypes::DataType, datasource::TableProvider};
-use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::common::listing::VirtualLister;
-use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
-use datasources::debug::DebugVirtualLister;
-use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
-use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasources::object_store::http::HttpAccessor;
-use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
-use datasources::object_store::s3::{S3Accessor, S3TableAccess};
-use datasources::object_store::{FileType, TableAccessor};
-use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
-use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use futures::Stream;
-use metastore_client::types::options::{
-    CredentialsOptions, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-};
-use num_traits::Zero;
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::ops::{Add, AddAssign};
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+
+use datafusion_ext::functions::TableFunc;
+use once_cell::sync::Lazy;
+
+use self::bigquery::ReadBigQuery;
+use self::delta::DeltaScan;
+use self::generate_series::GenerateSeries;
+use self::mongo::ReadMongoDb;
+use self::mysql::ReadMysql;
+use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
+use self::postgres::ReadPostgres;
+use self::snowflake::ReadSnowflake;
+use self::virtual_listing::{ListSchemas, ListTables};
 
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);

@@ -1,6 +1,22 @@
-use std::vec;
+use std::collections::HashMap;
+use std::{sync::Arc, vec};
 
-use super::*;
+use async_trait::async_trait;
+use datafusion::common::OwnedTableReference;
+use datafusion::datasource::{DefaultTableSource, TableProvider};
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion_ext::errors::{ExtensionError, Result};
+use datafusion_ext::functions::{
+    FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
+};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
+use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
+use datasources::object_store::http::HttpAccessor;
+use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
+use datasources::object_store::s3::{S3Accessor, S3TableAccess};
+use datasources::object_store::{FileType, TableAccessor};
+use glob::{glob_with, MatchOptions};
+use metastore_client::types::options::CredentialsOptions;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Parquet, "parquet_scan");
 
@@ -35,21 +51,46 @@ impl TableFunc for ObjScanTableFunc {
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
         if args.is_empty() {
-            return Err(BuiltinError::InvalidNumArgs);
+            return Err(ExtensionError::InvalidNumArgs);
         }
 
         let mut args = args.into_iter();
         let url_arg = args.next().unwrap();
 
-        let urls = if String::is_param_valid(&url_arg) {
-            let url: String = url_arg.param_into()?;
-            vec![url]
+        let urls = if DatasourceUrl::is_param_valid(&url_arg) {
+            let url: DatasourceUrl = url_arg.param_into()?;
+            let path = url.path();
+            match url.scheme() {
+                DatasourceUrlScheme::File if path.contains(['*', '?', '[', ']', '!']) => {
+                    // The url might be a glob pattern.
+                    let paths = glob_with(
+                        &path,
+                        MatchOptions {
+                            case_sensitive: true,
+                            require_literal_separator: true,
+                            require_literal_leading_dot: true,
+                        },
+                    )
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+                    let mut urls = Vec::new();
+                    for path in paths {
+                        let path = path.map_err(|e| ExtensionError::Access(Box::new(e)))?;
+                        let url = DatasourceUrl::File(path);
+                        urls.push(url);
+                    }
+                    urls
+                }
+                _ => vec![url],
+            }
         } else {
-            url_arg.param_into::<Vec<String>>()?
+            url_arg.param_into::<Vec<DatasourceUrl>>()?
         };
 
         if urls.is_empty() {
-            return Err(BuiltinError::Static("at least one url expected in list"));
+            return Err(ExtensionError::String(
+                "at least one url expected in list".to_string(),
+            ));
         }
 
         let file_type = self.0;
@@ -81,19 +122,16 @@ impl TableFunc for ObjScanTableFunc {
 async fn create_provider_for_filetype(
     ctx: &dyn TableFuncContextProvider,
     file_type: FileType,
-    url_string: String,
+    source_url: DatasourceUrl,
     mut args: vec::IntoIter<FuncParamValue>,
     mut opts: HashMap<String, FuncParamValue>,
 ) -> Result<Arc<dyn TableProvider>> {
-    let source_url =
-        DatasourceUrl::new(&url_string).map_err(|e| BuiltinError::Access(Box::new(e)))?;
-
     let provider = match args.len() {
         0 => {
             // Raw credentials or No credentials
             match source_url.scheme() {
                 DatasourceUrlScheme::Http => {
-                    create_http_table_provider(file_type, url_string).await?
+                    create_http_table_provider(file_type, &source_url).await?
                 }
                 DatasourceUrlScheme::File => {
                     create_local_table_provider(ctx, file_type, &source_url).await?
@@ -130,18 +168,23 @@ async fn create_provider_for_filetype(
         }
         1 => {
             // Credentials object
-            let source_url =
-                DatasourceUrl::new(url_string).map_err(|e| BuiltinError::Access(Box::new(e)))?;
             let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
                 .get_credentials_entry(creds.as_str())
-                .ok_or(BuiltinError::Static("missing credentials object"))?;
+                .ok_or(ExtensionError::String(format!(
+                    "missing credentials object: {creds}"
+                )))?;
 
             match source_url.scheme() {
                 DatasourceUrlScheme::Gcs => {
                     let service_account_key = match &creds.options {
                         CredentialsOptions::Gcp(o) => o.service_account_key.to_owned(),
-                        _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
+                        other => {
+                            return Err(ExtensionError::String(format!(
+                                "invalid credentials for GCS, got {}",
+                                other.as_str()
+                            )))
+                        }
                     };
 
                     create_gcs_table_provider(file_type, &source_url, Some(service_account_key))
@@ -152,7 +195,12 @@ async fn create_provider_for_filetype(
                         CredentialsOptions::Aws(o) => {
                             (o.access_key_id.to_owned(), o.secret_access_key.to_owned())
                         }
-                        _ => return Err(BuiltinError::Static("invalid credentials for GCS")),
+                        other => {
+                            return Err(ExtensionError::String(format!(
+                                "invalid credentials for S3, got {}",
+                                other.as_str()
+                            )))
+                        }
                     };
 
                     create_s3_table_provider(
@@ -164,14 +212,14 @@ async fn create_provider_for_filetype(
                     )
                     .await?
                 }
-                _ => {
-                    return Err(BuiltinError::Static(
-                        "Unsupported datasource URL for given parameters",
-                    ))
+                other => {
+                    return Err(ExtensionError::String(format!(
+                        "Cannot get {other} datasource with credentials"
+                    )))
                 }
             }
         }
-        _ => return Err(BuiltinError::InvalidNumArgs),
+        _ => return Err(ExtensionError::InvalidNumArgs),
     };
     Ok(provider)
 }
@@ -182,8 +230,8 @@ async fn create_local_table_provider(
     source_url: &DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>> {
     if *ctx.get_session_vars().is_cloud_instance.value() {
-        Err(BuiltinError::Static(
-            "Local file access is not supported in cloud mode",
+        Err(ExtensionError::String(
+            "Local file access is not supported in cloud mode".to_string(),
         ))
     } else {
         let location = source_url.path().into_owned();
@@ -193,23 +241,23 @@ async fn create_local_table_provider(
             file_type: Some(file_type),
         })
         .await
-        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+        .map_err(|e| ExtensionError::Access(Box::new(e)))?
         .into_table_provider(true)
         .await
-        .map_err(|e| BuiltinError::Access(Box::new(e)))
+        .map_err(|e| ExtensionError::Access(Box::new(e)))
     }
 }
 
 async fn create_http_table_provider(
     file_type: FileType,
-    url_string: String,
+    source_url: &DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>> {
-    HttpAccessor::try_new(url_string, file_type)
+    HttpAccessor::try_new(source_url.to_string(), file_type)
         .await
-        .map_err(|e| BuiltinError::Access(Box::new(e)))?
+        .map_err(|e| ExtensionError::Access(Box::new(e)))?
         .into_table_provider(true)
         .await
-        .map_err(|e| BuiltinError::Access(Box::new(e)))
+        .map_err(|e| ExtensionError::Access(Box::new(e)))
 }
 
 async fn create_gcs_table_provider(
@@ -220,7 +268,9 @@ async fn create_gcs_table_provider(
     let bucket_name = source_url
         .host()
         .map(|b| b.to_owned())
-        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+        .ok_or(ExtensionError::String(
+            "expected bucket name in URL".to_string(),
+        ))?;
 
     let location = source_url.path().into_owned();
 
@@ -231,10 +281,10 @@ async fn create_gcs_table_provider(
         file_type: Some(file_type),
     })
     .await
-    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+    .map_err(|e| ExtensionError::Access(Box::new(e)))?
     .into_table_provider(true)
     .await
-    .map_err(|e| BuiltinError::Access(Box::new(e)))
+    .map_err(|e| ExtensionError::Access(Box::new(e)))
 }
 
 async fn create_s3_table_provider(
@@ -247,7 +297,9 @@ async fn create_s3_table_provider(
     let bucket_name = source_url
         .host()
         .map(|b| b.to_owned())
-        .ok_or(BuiltinError::Static("expected bucket name in URL"))?;
+        .ok_or(ExtensionError::String(
+            "expected bucket name in URL".to_owned(),
+        ))?;
 
     let location = source_url.path().into_owned();
 
@@ -255,7 +307,7 @@ async fn create_s3_table_provider(
     const REGION_KEY: &str = "region";
     let region = opts
         .remove(REGION_KEY)
-        .ok_or(BuiltinError::MissingNamedArgument(REGION_KEY))?
+        .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
         .param_into()?;
 
     S3Accessor::new(S3TableAccess {
@@ -267,8 +319,8 @@ async fn create_s3_table_provider(
         secret_access_key,
     })
     .await
-    .map_err(|e| BuiltinError::Access(Box::new(e)))?
+    .map_err(|e| ExtensionError::Access(Box::new(e)))?
     .into_table_provider(true)
     .await
-    .map_err(|e| BuiltinError::Access(Box::new(e)))
+    .map_err(|e| ExtensionError::Access(Box::new(e)))
 }

@@ -8,6 +8,7 @@ name = "glaredb"
 path = "src/bin/main.rs"
 
 [dependencies]
+arrow_util = {path = "../arrow_util"}
 logutil = {path = "../logutil"}
 sqlexec = {path = "../sqlexec"}
 telemetry = {path = "../telemetry"}
@@ -30,3 +31,4 @@ futures = "0.3.28"
 colored = "2.0.4"
 reedline = "0.21.0"
 nu-ansi-term = "0.47.0"
+crossterm = "0.26.1"
