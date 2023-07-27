@@ -1,6 +1,7 @@
+use super::spec::{Manifest, ManifestContent, ManifestList, TableMetadata};
+
 use crate::common::url::DatasourceUrl;
 use crate::lake::iceberg::errors::{IcebergError, Result};
-use crate::lake::iceberg::spec::{Manifest, ManifestList, TableMetadata};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::datasource::avro_to_arrow as avro;
@@ -31,10 +32,45 @@ use std::any::Any;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use super::spec::{DataFile, Snapshot};
+use super::spec::{DataFile, PartitionField, Snapshot};
 
 #[derive(Debug)]
 pub struct IcebergTable {
+    state: TableState,
+}
+
+impl IcebergTable {
+    /// Open a table at a location using the provided object store.
+    pub async fn open(
+        location: DatasourceUrl,
+        store: Arc<dyn ObjectStore>,
+    ) -> Result<IcebergTable> {
+        let state = TableState::open(location, store).await?;
+
+        Ok(IcebergTable { state })
+    }
+
+    pub fn metadata(&self) -> &TableMetadata {
+        &self.state.metadata
+    }
+
+    /// Get the table's arrow schema.
+    pub fn table_arrow_schema(&self) -> Result<ArrowSchema> {
+        self.state.table_arrow_schema()
+    }
+
+    pub async fn table_reader(&self) -> Result<Arc<dyn TableProvider>> {
+        let schema = self.table_arrow_schema()?;
+
+        Ok(Arc::new(IcebergTableReader {
+            schema: Arc::new(schema),
+            state: self.state.clone(),
+        }))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TableState {
     /// The root of the table.
     location: DatasourceUrl,
 
@@ -49,12 +85,8 @@ pub struct IcebergTable {
     resolver: PathResolver,
 }
 
-impl IcebergTable {
-    /// Open a table at a location using the provided object store.
-    pub async fn open(
-        location: DatasourceUrl,
-        store: Arc<dyn ObjectStore>,
-    ) -> Result<IcebergTable> {
+impl TableState {
+    async fn open(location: DatasourceUrl, store: Arc<dyn ObjectStore>) -> Result<TableState> {
         // Get table version.
         let version = {
             let path = format_object_path(&location, "metadata/version-hint.text")?;
@@ -83,7 +115,7 @@ impl IcebergTable {
 
         let resolver = PathResolver::from_metadata(&metadata);
 
-        Ok(IcebergTable {
+        Ok(TableState {
             location,
             store,
             metadata,
@@ -91,12 +123,8 @@ impl IcebergTable {
         })
     }
 
-    pub fn metadata(&self) -> &TableMetadata {
-        &self.metadata
-    }
-
     /// Get the current snapshot from the table metadata
-    pub fn current_snapshot(&self) -> Result<&Snapshot> {
+    fn current_snapshot(&self) -> Result<&Snapshot> {
         let current_snapshot_id = self
             .metadata
             .current_snapshot_id
@@ -117,8 +145,7 @@ impl IcebergTable {
         Ok(current_snapshot)
     }
 
-    /// Get the table's arrow schema.
-    pub fn table_arrow_schema(&self) -> Result<ArrowSchema> {
+    fn table_arrow_schema(&self) -> Result<ArrowSchema> {
         // v1: Read `schema`
         //
         // v2: Read `current-schema-id`, then find that correct schema in
@@ -145,8 +172,7 @@ impl IcebergTable {
         schema.to_arrow_schema()
     }
 
-    /// Read the manifests using the table's current snapshot.
-    pub async fn read_manifests(&self) -> Result<Vec<Manifest>> {
+    async fn read_manifests(&self) -> Result<Vec<Manifest>> {
         let list = self.read_manifest_list().await?;
 
         let mut manifests = Vec::new();
@@ -165,7 +191,6 @@ impl IcebergTable {
         Ok(manifests)
     }
 
-    /// Read the manifest list using the table's current snapshot.
     async fn read_manifest_list(&self) -> Result<ManifestList> {
         let current_snapshot = self.current_snapshot()?;
         let manifest_list_path = self.resolver.relative_path(&current_snapshot.manifest_list);
@@ -215,28 +240,6 @@ impl IcebergTable {
 
         Ok(list)
     }
-
-    pub async fn table_reader(&self) -> Result<Arc<dyn TableProvider>> {
-        let manifests = self.read_manifests().await?;
-
-        // TODO: Only get data files where a manifest's `content` field is
-        // "data".
-
-        let data_files: Vec<_> = manifests
-            .into_iter()
-            .flat_map(|m| m.entries.into_iter().map(|ent| ent.data_file))
-            .collect();
-
-        let schema = self.table_arrow_schema()?;
-
-        Ok(Arc::new(IcebergTableReader {
-            location: self.location.clone(),
-            store: self.store.clone(),
-            schema: Arc::new(schema),
-            files: data_files,
-            resolver: self.resolver.clone(),
-        }))
-    }
 }
 
 /// Helper for resolving paths for files.
@@ -272,11 +275,8 @@ impl PathResolver {
 
 #[derive(Debug)]
 pub struct IcebergTableReader {
-    location: DatasourceUrl,
-    store: Arc<dyn ObjectStore>,
     schema: Arc<ArrowSchema>,
-    files: Vec<DataFile>,
-    resolver: PathResolver,
+    state: TableState,
 }
 
 #[async_trait]
@@ -304,25 +304,49 @@ impl TableProvider for IcebergTableReader {
         &self,
         ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _filters: &[Expr],
         limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         // Create the datafusion specific url, and register the object store.
-        let object_url = datasource_url_to_unique_url(&self.location);
+        let object_url = datasource_url_to_unique_url(&self.state.location);
         ctx.runtime_env()
             .object_store_registry
-            .register_store(object_url.as_ref(), self.store.clone());
+            .register_store(object_url.as_ref(), self.state.store.clone());
 
-        // TODO: Partitions. Currently assuming all data files are part of the
-        // same partition.
+        // TODO: Properly prune based on partition values. This currently skips
+        // any partition processing, and shoves everything into a single file
+        // group when passing to the parquet exec.
+        //
+        // We also miss out on parallel reading by using a single file group.
 
-        let partitioned_files = self
-            .files
+        // TODO: Properly handle row-level deletes. Currently files containing
+        // delete information are ignored.
+
+        // TODO: Use provided filters to prune out partitions and/or data files
+        // (since the metadata will have some info about file content).
+
+        // TODO: Collect statistics and pass to exec.
+
+        let manifests = self
+            .state
+            .read_manifests()
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        // Get only data files with "data" content. TODO: Handle "delete"
+        // content and also pull out partition information.
+        let data_files: Vec<_> = manifests
+            .into_iter()
+            .filter(|m| matches!(m.metadata.content, ManifestContent::Data))
+            .flat_map(|m| m.entries.into_iter().map(|ent| ent.data_file))
+            .collect();
+
+        let partitioned_files = data_files
             .iter()
             .map(|f| {
-                let path = self.resolver.relative_path(&f.file_path);
+                let path = self.state.resolver.relative_path(&f.file_path);
                 let meta = ObjectMeta {
-                    location: format_object_path(&self.location, &path)?,
+                    location: format_object_path(&self.state.location, &path)?,
                     last_modified: DateTime::<Utc>::MIN_UTC, // TODO: Get the actual time.
                     size: f.file_size_in_bytes as usize,
                     e_tag: None,
@@ -359,6 +383,9 @@ impl TableProvider for IcebergTableReader {
 }
 
 /// Creates a datafusion object store url from the provided data source url.
+///
+/// The returned object store url should be treated as a "key" for the object
+/// store registry, and otherwise is semantically meaningless.
 fn datasource_url_to_unique_url(url: &DatasourceUrl) -> ObjectStoreUrl {
     // Snagged this from delta-rs
     ObjectStoreUrl::parse(format!(

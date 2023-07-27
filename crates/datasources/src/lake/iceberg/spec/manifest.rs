@@ -1,4 +1,4 @@
-use super::Schema;
+use super::{PartitionField, PartitionSpec, Schema};
 
 use crate::lake::iceberg::errors::{IcebergError, Result};
 use apache_avro::{from_value, Reader};
@@ -8,7 +8,7 @@ use datafusion::arrow::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct ManifestListEntry {
@@ -95,10 +95,31 @@ pub struct FieldSummary {
 pub struct ManifestMetadata {
     pub schema: Schema,
     pub schema_id: i32,
-    // pub partition_spec: (), // TODO
+    pub partition_spec: Vec<PartitionField>,
     pub partition_spec_id: i32,
     pub format_version: i32,
-    pub content: String, // "data" or "delete"
+    pub content: ManifestContent,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ManifestContent {
+    Data,
+    Delete,
+}
+
+impl FromStr for ManifestContent {
+    type Err = IcebergError;
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(match s {
+            "data" => ManifestContent::Data,
+            "delete" => ManifestContent::Delete,
+            other => {
+                return Err(IcebergError::DataInvalid(format!(
+                    "'{other}' is not valid content for manifest"
+                )))
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -133,15 +154,19 @@ impl Manifest {
         // Spec says schema id is required, but seems like it's actually
         // optional. Missing from the spark outputs.
         let schema_id = get_metadata_as_i32(&m, "schema-id").unwrap_or_default();
-        let partition_spec = (); // TODO
+        let partition_spec = serde_json::from_slice(m.get("partition-spec").ok_or_else(|| {
+            IcebergError::DataInvalid(format!(
+                "Missing field 'partition-spec' in manifest metadata"
+            ))
+        })?)?;
         let partition_spec_id = get_metadata_as_i32(&m, "partition-spec-id")?;
         let format_version = get_metadata_as_i32(&m, "format-version")?;
-        let content = String::from_utf8_lossy(get_metadata_field(&m, "content")?).to_string();
+        let content = String::from_utf8_lossy(get_metadata_field(&m, "content")?).parse()?;
 
         let metadata = ManifestMetadata {
             schema,
             schema_id,
-            // partition_spec,
+            partition_spec,
             partition_spec_id,
             format_version,
             content,
