@@ -1778,7 +1778,7 @@ dependencies = [
 [[package]]
 name = "deltalake"
 version = "0.13.1"
-source = "git+https://github.com/delta-io/delta-rs.git?branch=main#f4a43416c1d1d1ab753019d99f983ff52a99161f"
+source = "git+https://github.com/delta-io/delta-rs.git?branch=main#38b9732ed2423f6af7cb27e2a7667187a086e258"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -6422,7 +6422,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
