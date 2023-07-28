@@ -365,7 +365,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             }
             SelectItem::QualifiedWildcard(ref object_name, options) => {
                 Self::check_wildcard_options(&options)?;
-
                 let qualifier = format!("{object_name}");
                 // do not expand from outer schema
                 expand_qualified_wildcard(&qualifier, plan.schema().as_ref(), Some(options))
