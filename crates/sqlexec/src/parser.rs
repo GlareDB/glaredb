@@ -2,7 +2,7 @@ pub mod options;
 
 use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
-use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
+use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
@@ -360,7 +360,7 @@ pub struct CustomParser<'a> {
 
 impl<'a> CustomParser<'a> {
     pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
-        let dialect = PostgreSqlDialect {};
+        let dialect = GenericDialect {};
         let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
         let mut parser = CustomParser {
             parser: Parser::new(&dialect).with_tokens(tokens),
