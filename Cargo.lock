@@ -2467,7 +2467,7 @@ dependencies = [
  "logutil",
  "metastore",
  "metastore_client",
- "nu-ansi-term 0.47.0",
+ "nu-ansi-term 0.49.0",
  "object_store",
  "object_store_util",
  "once_cell",
