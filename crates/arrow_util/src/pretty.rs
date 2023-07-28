@@ -128,13 +128,14 @@ fn create_table(
             )?;
             tbl_rows += rows_to_take;
         }
+
         if tbl_rows == row_split && needs_split {
-            // Add placeholder
+            // Add continuation
             let dots: Vec<_> = (0..max_cols).map(|_| Cell::new("…")).collect();
             table.add_row(dots);
             needs_split = false;
-            tbl_rows += 1;
         }
+
         processed_rows += num_rows;
 
         if processed_rows >= n_last_rows {
