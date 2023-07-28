@@ -1229,7 +1229,7 @@ mod tests {
         ];
 
         for (sql, map) in test_cases {
-            let d = PostgreSqlDialect {};
+            let d = GenericDialect {};
             let t = Tokenizer::new(&d, sql).tokenize().unwrap();
             let mut p = CustomParser {
                 parser: Parser::new(&d).with_tokens(t),
