@@ -44,23 +44,32 @@ jobs:
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
+        if: github.repository_owner == 'glaredb'
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
       - name: Setup snowsql
+        if: github.repository_owner == 'glaredb'
         run: |
           curl -o snowsql.bash \
             https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
           mkdir -p ~/bin
           SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
 
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
-
-      - name: Download testdata from GCS
+      - name: Download testdata
         run: ./scripts/prepare-testdata.sh
 
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        if: github.repository_owner == 'glaredb'
+
+      - name: SQL Logic Tests public
+        if: github.repository_owner != 'glaredb'
+        run: just slt -v 'sqllogictests/*'
+
       - name: SQL Logic Tests
+        if: github.repository_owner == 'glaredb'
+
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GCP_PROJECT_ID: glaredb-artifacts
