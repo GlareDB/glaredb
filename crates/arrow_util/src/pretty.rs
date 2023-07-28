@@ -27,6 +27,13 @@ pub fn pretty_format_batches(
     create_table(batches, &TABLE_FORMAT_OPTS, width, max_rows, max_columns)
 }
 
+fn default_table() -> Table {
+    let mut table = Table::new();
+    table.load_preset(DEFAULT_PRESET);
+    table.set_content_arrangement(ContentArrangement::Dynamic);
+    table
+}
+
 fn create_table(
     batches: &[RecordBatch],
     opts: &FormatOptions,
@@ -34,6 +41,9 @@ fn create_table(
     max_rows: Option<usize>,
     max_columns: Option<usize>,
 ) -> Result<Table, ArrowError> {
+    if batches.is_empty() {
+        return Ok(default_table());
+    }
     let num_columns = batches[0].num_columns();
     let num_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
 
@@ -50,17 +60,10 @@ fn create_table(
     // todo: make this configurable
     let str_truncate = 32;
 
-    let mut table = Table::new();
-
-    table.load_preset(DEFAULT_PRESET);
-    table.set_content_arrangement(ContentArrangement::Dynamic);
+    let mut table = default_table();
 
     if let Some(width) = width {
         table.set_width(width as u16);
-    }
-
-    if batches.is_empty() {
-        return Ok(table);
     }
 
     table.set_constraints(
