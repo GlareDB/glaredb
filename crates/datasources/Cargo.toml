@@ -49,7 +49,7 @@ tokio-rustls = "0.24.1"
 tracing = "0.1"
 uuid = "1.4.1"
 url.workspace = true
-webpki-roots = "0.24.0"
+webpki-roots = "0.25.1"
 dashmap = "5.5.0"
 
 # SSH tunnels
