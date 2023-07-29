@@ -1,13 +1,9 @@
 use anyhow::Result;
+use arrow_util::pretty::pretty_format_batches;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::{
-    datatypes::Schema,
-    pyarrow::ToPyArrow,
-    util::{display::FormatOptions, pretty},
-};
+use datafusion::arrow::{datatypes::Schema, pyarrow::ToPyArrow};
 use futures::lock::Mutex;
 use futures::StreamExt;
-use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::{
@@ -134,26 +130,19 @@ fn to_arrow_batches_and_schema(
     }
 }
 
-static TABLE_FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
-    FormatOptions::default()
-        .with_display_error(false)
-        .with_null("NULL")
-});
-
 fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
     match result {
         ExecutionResult::Query { stream, .. } => {
-            let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
-                Ok(stream
+            let batches = wait_for_future(py, async move {
+                stream
                     .collect::<Vec<_>>()
                     .await
                     .into_iter()
-                    .collect::<Result<Vec<_>, _>>()?)
-            });
+                    .collect::<Result<Vec<RecordBatch>, _>>()
+            })?;
 
-            let disp =
-                pretty::pretty_format_batches_with_options(&batches.unwrap(), &TABLE_FORMAT_OPTS)
-                    .unwrap();
+            let disp = pretty_format_batches(&batches, None, None, None)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             println!("{disp}");
             Ok(())
         }
