@@ -4329,6 +4329,7 @@ name = "py-glaredb"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "arrow_util",
  "async-trait",
  "datafusion",
  "datafusion_ext",
