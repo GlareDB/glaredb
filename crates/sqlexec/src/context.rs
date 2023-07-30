@@ -28,7 +28,6 @@ use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, execute_stream, ExecutionPlan,
 };
-use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion_ext::execution::optimizer::SessionOptimizer;
@@ -308,10 +307,10 @@ impl SessionContext {
 
     pub fn optimize_plan(&self, plan: DfLogicalPlan) -> Result<(DfLogicalPlan, ExecutionProps)> {
         // Optimizer with recommended set of rules.
-        static OPTIMIZER: Lazy<Optimizer> = Lazy::new(|| Optimizer::new());
+        static OPTIMIZER: Lazy<Optimizer> = Lazy::new(Optimizer::new);
 
         // Analyzer with recommended set of rules..
-        static ANALYZER: Lazy<Analyzer> = Lazy::new(|| Analyzer::new());
+        static ANALYZER: Lazy<Analyzer> = Lazy::new(Analyzer::new);
 
         let sess_optimizer = SessionOptimizer {
             optimizer: &OPTIMIZER,

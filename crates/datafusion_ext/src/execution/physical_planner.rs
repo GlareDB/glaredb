@@ -24,7 +24,6 @@ impl QueryPlanner for ErroringPlanner {
         _logical_plan: &LogicalPlan,
         _session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        panic!("what");
         Err(DataFusionError::Plan("Invalid query planner".to_string()))
     }
 }

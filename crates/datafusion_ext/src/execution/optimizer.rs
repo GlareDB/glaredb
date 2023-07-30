@@ -110,6 +110,6 @@ impl<'a> OptimizerConfig for SessionOptimizerConfig<'a> {
     }
 
     fn options(&self) -> &ConfigOptions {
-        &self.opts
+        self.opts
     }
 }
