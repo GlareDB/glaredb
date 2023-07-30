@@ -306,13 +306,7 @@ impl SessionContext {
         Ok(())
     }
 
-    /// Create a physical plan from a datafusion logical plan.
-    ///
-    /// Optimizes the logical plan prior to creating the physical plan.
-    pub async fn create_physical_plan(
-        &self,
-        plan: DfLogicalPlan,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    pub fn optimize_plan(&self, plan: DfLogicalPlan) -> Result<(DfLogicalPlan, ExecutionProps)> {
         // Optimizer with recommended set of rules.
         static OPTIMIZER: Lazy<Optimizer> = Lazy::new(|| Optimizer::new());
 
@@ -327,6 +321,18 @@ impl SessionContext {
         // Props to use for optimizing and planning.
         let props = ExecutionProps::new().with_query_execution_start_time(Utc::now());
         let optimized = sess_optimizer.optimize(&plan, &props, self.df_state.config_options())?;
+
+        Ok((optimized, props))
+    }
+
+    /// Create a physical plan from a datafusion logical plan.
+    ///
+    /// Optimizes the logical plan prior to creating the physical plan.
+    pub async fn create_physical_plan(
+        &self,
+        plan: DfLogicalPlan,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let (optimized, props) = self.optimize_plan(plan)?;
 
         let sess_planner = SessionQueryPlanner { props };
         let physical = sess_planner

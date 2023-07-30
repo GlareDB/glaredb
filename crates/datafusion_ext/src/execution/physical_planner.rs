@@ -61,7 +61,7 @@ pub struct SessionPhysicalPlanner {
 }
 
 impl SessionPhysicalPlanner {
-    fn with_props(props: ExecutionProps) -> SessionPhysicalPlanner {
+    pub fn with_props(props: ExecutionProps) -> SessionPhysicalPlanner {
         SessionPhysicalPlanner {
             default: DefaultPhysicalPlanner::default(),
             props,

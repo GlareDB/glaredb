@@ -6,7 +6,8 @@ use datafusion::arrow::array::{
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
-use datafusion::datasource::ViewTable;
+use datafusion_ext::execution::physical_planner::SessionPhysicalPlanner;
+use datafusion_ext::source::view::ViewTable;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnectionParameters};
 use datasources::debug::DebugTableType;
@@ -64,7 +65,7 @@ pub enum DispatchError {
     UnhandledEntry(EntryMeta),
 
     #[error("failed to do late planning: {0}")]
-    LatePlanning(Box<crate::planner::errors::PlanError>),
+    LatePlanning(Box<dyn std::error::Error + Sync + Send>),
 
     #[error("Invalid dispatch: {0}")]
     InvalidDispatch(&'static str),
@@ -471,12 +472,20 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
-        let plan = self
+        let logical = self
             .ctx
             .late_view_plan(&view.sql, &view.columns)
             .await
             .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
-        Ok(Arc::new(ViewTable::try_new(plan, None)?))
+
+        let (optimized, props) = self
+            .ctx
+            .optimize_plan(logical)
+            .map_err(|e| DispatchError::LatePlanning(Box::new(e)))?;
+
+        let planner = SessionPhysicalPlanner::with_props(props);
+
+        Ok(Arc::new(ViewTable::new(optimized, planner)))
     }
 
     fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {
