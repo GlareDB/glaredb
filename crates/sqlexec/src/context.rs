@@ -8,21 +8,31 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+use chrono::Utc;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
 use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
 use datafusion::datasource::MemTable;
+use datafusion::execution::context::QueryPlanner;
 use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
 use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
-use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
+use datafusion::logical_expr::{
+    Expr as DfExpr, LogicalPlan as DfLogicalPlan, LogicalPlanBuilder as DfLogicalPlanBuilder,
+};
+use datafusion::optimizer::analyzer::Analyzer;
+use datafusion::optimizer::optimizer::Optimizer;
+use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, execute_stream, ExecutionPlan,
 };
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion_ext::execution::optimizer::SessionOptimizer;
+use datafusion_ext::execution::physical_planner::{ErroringPlanner, SessionQueryPlanner};
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::registry::GlareDBRegistry;
@@ -32,6 +42,7 @@ use metastore_client::session::SessionCatalog;
 use metastore_client::types::catalog::{CatalogEntry, EntryType};
 use metastore_client::types::options::TableOptions;
 use metastore_client::types::service::{self, Mutation};
+use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG, POSTGRES_SCHEMA};
@@ -135,7 +146,11 @@ impl SessionContext {
         }
         let runtime = Arc::new(RuntimeEnv::new(conf).unwrap());
 
-        let state = SessionState::with_config_rt(config, runtime);
+        // Note that a planner that always returns an error is placed on the
+        // session state. This ensures that we're never using the incorrect
+        // planner.
+        let state = SessionState::with_config_rt(config, runtime)
+            .with_query_planner(Arc::new(ErroringPlanner));
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
@@ -291,11 +306,38 @@ impl SessionContext {
         Ok(())
     }
 
-    pub async fn insert(&mut self, plan: Insert) -> Result<()> {
-        let physical = self
-            .get_df_state()
-            .create_physical_plan(&plan.source)
+    /// Create a physical plan from a datafusion logical plan.
+    ///
+    /// Optimizes the logical plan prior to creating the physical plan.
+    pub async fn create_physical_plan(
+        &self,
+        plan: DfLogicalPlan,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        // Optimizer with recommended set of rules.
+        static OPTIMIZER: Lazy<Optimizer> = Lazy::new(|| Optimizer::new());
+
+        // Analyzer with recommended set of rules..
+        static ANALYZER: Lazy<Analyzer> = Lazy::new(|| Analyzer::new());
+
+        let sess_optimizer = SessionOptimizer {
+            optimizer: &OPTIMIZER,
+            analyzer: &ANALYZER,
+        };
+
+        // Props to use for optimizing and planning.
+        let props = ExecutionProps::new().with_query_execution_start_time(Utc::now());
+        let optimized = sess_optimizer.optimize(&plan, &props, self.df_state.config_options())?;
+
+        let sess_planner = SessionQueryPlanner { props };
+        let physical = sess_planner
+            .create_physical_plan(&optimized, &self.df_state)
             .await?;
+
+        Ok(physical)
+    }
+
+    pub async fn insert(&mut self, plan: Insert) -> Result<()> {
+        let physical = self.create_physical_plan(plan.source).await?;
 
         // Ensure physical plan has one output partition.
         let physical: Arc<dyn ExecutionPlan> =

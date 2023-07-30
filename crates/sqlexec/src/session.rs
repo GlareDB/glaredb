@@ -214,7 +214,7 @@ impl Session {
         &self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let plan = self.ctx.get_df_state().create_physical_plan(&plan).await?;
+        let plan = self.ctx.create_physical_plan(plan).await?;
         Ok(plan)
     }
 

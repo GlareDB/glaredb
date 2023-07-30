@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-use crate::utils::{
+use super::utils::{
     check_columns_satisfy_exprs, extract_aliases, rebase_expr, resolve_aliases_to_exprs,
     resolve_columns, resolve_positions_to_exprs,
 };
+use super::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DataFusionError, Result};
 use datafusion::logical_expr::expr_rewriter::{
     normalize_col, normalize_col_with_schemas_and_ambiguity_check,
