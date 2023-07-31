@@ -223,6 +223,17 @@ impl StmtOptions {
         Ok(Some(opt))
     }
 
+    pub fn remove_optional_or<T>(
+        &mut self,
+        k: &str,
+        or: Option<T>,
+    ) -> Result<Option<T>, ParserError>
+    where
+        OptionValue: ParseOptionValue<T>,
+    {
+        Ok(self.remove_optional(k)?.or(or))
+    }
+
     pub fn remove_required<T>(&mut self, k: &str) -> Result<T, ParserError>
     where
         OptionValue: ParseOptionValue<T>,
@@ -231,28 +242,11 @@ impl StmtOptions {
             .ok_or(parser_err!("missing option: {k}"))
     }
 
-    pub fn remove_optional_or_creds<T, C>(
-        &mut self,
-        k: &str,
-        creds: Option<&C>,
-        f: impl FnOnce(&C) -> T,
-    ) -> Result<Option<T>, ParserError>
+    pub fn remove_required_or<T>(&mut self, k: &str, or: Option<T>) -> Result<T, ParserError>
     where
         OptionValue: ParseOptionValue<T>,
     {
-        Ok(self.remove_optional(k)?.or(creds.map(f)))
-    }
-
-    pub fn remove_required_or_creds<T, C>(
-        &mut self,
-        k: &str,
-        creds: Option<&C>,
-        f: impl FnOnce(&C) -> T,
-    ) -> Result<T, ParserError>
-    where
-        OptionValue: ParseOptionValue<T>,
-    {
-        self.remove_optional_or_creds(k, creds, f)?
+        self.remove_optional_or(k, or)?
             .ok_or(parser_err!("missing option: {k}"))
     }
 }

@@ -1,112 +1,49 @@
+use std::fmt::Display;
 use std::sync::Arc;
 
-use datafusion::datasource::TableProvider;
+use datafusion::execution::object_store::ObjectStoreUrl;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::path::Path as ObjectStorePath;
-use object_store::{ObjectMeta, ObjectStore};
-use serde::{Deserialize, Serialize};
-use tracing::trace;
+use object_store::ObjectStore;
 
-use super::csv::CsvTableProvider;
 use super::errors::Result;
-use super::json::JsonTableProvider;
-use super::parquet::ParquetTableProvider;
-use super::{file_type_from_path, FileType, TableAccessor};
+use super::ObjStoreAccess;
 
-/// Information needed for accessing an external Parquet file on Google Cloud
-/// Storage.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GcsTableAccess {
-    /// GCS object store bucket name
-    pub bucket_name: String,
-    /// GCS object store service account key
-    pub service_account_key_json: Option<String>,
-    /// GCS object store table location
-    pub location: String,
-    /// Optionally specify file type for the table.
-    pub file_type: Option<FileType>,
+#[derive(Debug, Clone)]
+pub struct GcsStoreAccess {
+    /// Bucket name for GCS store.
+    pub bucket: String,
+    /// Service account key (JSON) for credentials.
+    pub service_account_key: Option<String>,
 }
 
-impl GcsTableAccess {
-    fn builder(&self) -> GoogleCloudStorageBuilder {
-        let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket_name);
-        match &self.service_account_key_json {
+impl Display for GcsStoreAccess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GCS(bucket: {})", self.bucket)
+    }
+}
+
+impl ObjStoreAccess for GcsStoreAccess {
+    fn base_url(&self) -> Result<ObjectStoreUrl> {
+        let u = format!("gs://{}", self.bucket);
+        let u = ObjectStoreUrl::parse(u)?;
+        Ok(u)
+    }
+
+    fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
+        let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket);
+        let builder = match &self.service_account_key {
             Some(key) => builder.with_service_account_key(key),
             None => {
                 // TODO: Null Credentials
                 builder
             }
-        }
-    }
-
-    pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
-        let store = self.builder().build()?;
-        let location = ObjectStorePath::from_url_path(&self.location).unwrap();
-        Ok((Arc::new(store), location))
-    }
-}
-
-#[derive(Debug)]
-pub struct GcsAccessor {
-    /// GCS object store access info
-    pub store: Arc<dyn ObjectStore>,
-    /// Meta information for location/object
-    pub meta: Arc<ObjectMeta>,
-    pub file_type: FileType,
-    base_url: String,
-}
-
-#[async_trait::async_trait]
-impl TableAccessor for GcsAccessor {
-    fn base_path(&self) -> String {
-        format!("gs://{}", self.base_url)
-    }
-
-    fn location(&self) -> String {
-        self.meta.location.to_string()
-    }
-
-    fn store(&self) -> &Arc<dyn ObjectStore> {
-        &self.store
-    }
-
-    fn object_meta(&self) -> &Arc<ObjectMeta> {
-        &self.meta
-    }
-
-    async fn into_table_provider(self, predicate_pushdown: bool) -> Result<Arc<dyn TableProvider>> {
-        let table_provider: Arc<dyn TableProvider> = match self.file_type {
-            FileType::Parquet => {
-                Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
-            }
-            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
-            FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
         };
-
-        Ok(table_provider)
-    }
-}
-
-impl GcsAccessor {
-    /// Setup accessor for GCS
-    pub async fn new(access: GcsTableAccess) -> Result<Self> {
-        let (store, location) = access.store_and_path()?;
-
-        let file_type = access.file_type.unwrap_or(file_type_from_path(&location)?);
-        trace!(?location, ?file_type, "location and file type");
-
-        let meta = Arc::new(store.head(&location).await?);
-        Ok(Self {
-            store,
-            meta,
-            file_type,
-            base_url: access.bucket_name,
-        })
+        let build = builder.build()?;
+        Ok(Arc::new(build))
     }
 
-    pub async fn validate_table_access(access: GcsTableAccess) -> Result<()> {
-        let (store, location) = access.store_and_path()?;
-        store.head(&location).await?;
-        Ok(())
+    fn path(&self, location: &str) -> Result<ObjectStorePath> {
+        Ok(ObjectStorePath::from_url_path(location)?)
     }
 }

@@ -1,96 +1,68 @@
+use std::fmt::Display;
 use std::sync::Arc;
 
-use datafusion::datasource::TableProvider;
+use async_trait::async_trait;
+use datafusion::execution::object_store::ObjectStoreUrl;
+use glob::{glob_with, MatchOptions};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use serde::{Deserialize, Serialize};
-use tracing::trace;
 
-use super::csv::CsvTableProvider;
 use super::errors::Result;
-use super::json::JsonTableProvider;
-use super::parquet::ParquetTableProvider;
-use super::{file_type_from_path, FileType, TableAccessor};
+use super::ObjStoreAccess;
 
-/// Information needed for accessing an Parquet file on local file system.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocalTableAccess {
-    pub location: String,
-    pub file_type: Option<FileType>,
-}
+#[derive(Debug, Clone)]
+pub struct LocalStoreAccess;
 
-impl LocalTableAccess {
-    pub fn store_and_path(&self) -> Result<(Arc<dyn ObjectStore>, ObjectStorePath)> {
-        let store = Arc::new(LocalFileSystem::new());
-        let location = ObjectStorePath::from_filesystem_path(self.location.as_str())?;
-        Ok((store, location))
+impl Display for LocalStoreAccess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LocalStoreAccess")
     }
 }
 
-#[derive(Debug)]
-pub struct LocalAccessor {
-    /// Local filesystem  object store access info
-    pub store: Arc<dyn ObjectStore>,
-    /// Meta information for location/object
-    pub meta: Arc<ObjectMeta>,
-    pub file_type: FileType,
-}
-
-#[async_trait::async_trait]
-impl TableAccessor for LocalAccessor {
-    fn base_path(&self) -> String {
-        "file://".to_string()
+#[async_trait]
+impl ObjStoreAccess for LocalStoreAccess {
+    fn base_url(&self) -> Result<ObjectStoreUrl> {
+        Ok(ObjectStoreUrl::local_filesystem())
     }
 
-    fn location(&self) -> String {
-        self.meta.location.to_string()
+    fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
+        Ok(Arc::new(LocalFileSystem::new()))
     }
 
-    fn store(&self) -> &Arc<dyn ObjectStore> {
-        &self.store
+    fn path(&self, location: &str) -> Result<ObjectStorePath> {
+        Ok(ObjectStorePath::from_filesystem_path(location)?)
     }
 
-    fn object_meta(&self) -> &Arc<ObjectMeta> {
-        &self.meta
-    }
+    /// Given relative paths and all other stuff, it's much simpler to use
+    /// `glob_with` from the crate to get metas for all objects.
+    async fn list_globbed(
+        &self,
+        _store: Arc<dyn ObjectStore>,
+        pattern: &str,
+    ) -> Result<Vec<ObjectMeta>> {
+        let paths = glob_with(
+            pattern,
+            MatchOptions {
+                case_sensitive: true,
+                require_literal_separator: true,
+                require_literal_leading_dot: true,
+            },
+        )?;
 
-    async fn into_table_provider(self, predicate_pushdown: bool) -> Result<Arc<dyn TableProvider>> {
-        let table_provider: Arc<dyn TableProvider> = match self.file_type {
-            FileType::Parquet => {
-                Arc::new(ParquetTableProvider::from_table_accessor(self, predicate_pushdown).await?)
-            }
-            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
-            FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
-        };
-        Ok(table_provider)
-    }
-}
+        let mut objects = Vec::new();
+        for path in paths {
+            let path = path?;
+            let meta = path.metadata()?;
+            let meta = ObjectMeta {
+                location: self.path(path.to_string_lossy().as_ref())?,
+                last_modified: meta.modified()?.into(),
+                size: meta.len() as usize,
+                e_tag: None,
+            };
+            objects.push(meta);
+        }
 
-impl LocalAccessor {
-    /// Setup accessor for Local file system
-    pub async fn new(access: LocalTableAccess) -> Result<Self> {
-        let (store, location) = access.store_and_path()?;
-        // Use provided file type or infer from location
-        let file_type = if let Some(ft) = access.file_type {
-            ft
-        } else {
-            file_type_from_path(&location)?
-        };
-        trace!(?location, ?file_type, "location and file type");
-
-        let meta = Arc::new(store.head(&location).await?);
-
-        Ok(Self {
-            store,
-            meta,
-            file_type,
-        })
-    }
-
-    pub async fn validate_table_access(access: LocalTableAccess) -> Result<()> {
-        let (store, location) = access.store_and_path()?;
-        store.head(&location).await?;
-        Ok(())
+        Ok(objects)
     }
 }

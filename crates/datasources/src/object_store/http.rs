@@ -1,91 +1,85 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
-use crate::object_store::{errors::ObjectStoreSourceError, Result, TableAccessor};
-
+use async_trait::async_trait;
 use chrono::Utc;
-use datafusion::datasource::TableProvider;
-use object_store::{path::Path as ObjectStorePath, ObjectMeta, ObjectStore};
+use datafusion::execution::object_store::ObjectStoreUrl;
+use object_store::{http::HttpBuilder, path::Path as ObjectStorePath, ObjectMeta, ObjectStore};
+use url::Url;
 
-use super::{
-    csv::CsvTableProvider, json::JsonTableProvider, parquet::ParquetTableProvider, FileType,
-};
+use crate::object_store::{errors::ObjectStoreSourceError, Result};
 
-#[derive(Debug)]
-pub struct HttpAccessor {
-    pub store: Arc<dyn ObjectStore>,
-    pub meta: Arc<ObjectMeta>,
-    pub file_type: FileType,
-    base_url: String,
+use super::ObjStoreAccess;
+
+#[derive(Debug, Clone)]
+pub struct HttpStoreAccess {
+    /// Http(s) URL for the object.
+    pub url: Url,
 }
 
-impl HttpAccessor {
-    pub async fn try_new(url: String, file_type: FileType) -> Result<Self> {
-        let url = url::Url::parse(&url).unwrap();
-        let meta = object_meta_from_head(&url).await?;
-        let builder = object_store::http::HttpBuilder::new();
-        let base_url = format!("{}://{}", url.scheme(), url.authority());
-        let store = builder.with_url(url.to_string()).build()?;
+impl Display for HttpStoreAccess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HttpStoreAccess(url: {})", self.url)
+    }
+}
 
-        Ok(Self {
-            store: Arc::new(store),
-            meta: Arc::new(meta),
-            file_type,
-            base_url,
+#[async_trait]
+impl ObjStoreAccess for HttpStoreAccess {
+    fn base_url(&self) -> Result<ObjectStoreUrl> {
+        // `ObjectStoreUrl` takes the URL and strips off the path. This doesn't
+        // work with Http store since we want a different store for each base
+        // domain. (Context: Tried using base domain and adding path but that
+        // causes some bugs with setting percent encoded path and since there's
+        // no actual benefit of not storing path, storing full URL just works).
+        let u = self
+            .url
+            .to_string()
+            // To make path part of URL we make it a '/'.
+            .replace('/', "__slash__")
+            // TODO: Add more characters which might be invalid for domain.
+            .replace('%', "__percent__");
+
+        Ok(ObjectStoreUrl::parse(u)?)
+    }
+
+    fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
+        let builder = HttpBuilder::new().with_url(self.url.to_string());
+        let build = builder.build()?;
+        Ok(Arc::new(build))
+    }
+
+    fn path(&self, _location: &str) -> Result<ObjectStorePath> {
+        Ok(ObjectStorePath::default())
+    }
+
+    /// Not supported for HTTP. Simply return the meta assuming no-glob.
+    async fn list_globbed(
+        &self,
+        store: Arc<dyn ObjectStore>,
+        pattern: &str,
+    ) -> Result<Vec<ObjectMeta>> {
+        let location = self.path(pattern)?;
+        Ok(vec![self.object_meta(store, &location).await?])
+    }
+
+    /// Get the object meta from a HEAD request to the url.
+    ///
+    /// We avoid using object store's `head` method since it does a PROPFIND
+    /// request.
+    async fn object_meta(
+        &self,
+        _store: Arc<dyn ObjectStore>,
+        location: &ObjectStorePath,
+    ) -> Result<ObjectMeta> {
+        let res = reqwest::Client::new().head(self.url.clone()).send().await?;
+        let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
+            "Missing content-length header",
+        ))?;
+
+        Ok(ObjectMeta {
+            location: location.clone(),
+            last_modified: Utc::now(),
+            size: len as usize,
+            e_tag: None,
         })
     }
-}
-
-#[async_trait::async_trait]
-impl TableAccessor for HttpAccessor {
-    fn base_path(&self) -> String {
-        self.base_url.clone()
-    }
-
-    fn location(&self) -> String {
-        self.meta.location.to_string()
-    }
-
-    fn store(&self) -> &Arc<dyn ObjectStore> {
-        &self.store
-    }
-
-    fn object_meta(&self) -> &Arc<ObjectMeta> {
-        &self.meta
-    }
-
-    async fn into_table_provider(self, _: bool) -> Result<Arc<dyn TableProvider>> {
-        let table_provider: Arc<dyn TableProvider> = match self.file_type {
-            FileType::Parquet => {
-                Arc::new(ParquetTableProvider::from_table_accessor(self, true).await?)
-            }
-            FileType::Csv => Arc::new(CsvTableProvider::from_table_accessor(self).await?),
-            FileType::Json => Arc::new(JsonTableProvider::from_table_accessor(self).await?),
-        };
-
-        Ok(table_provider)
-    }
-}
-
-/// Get the object meta from a HEAD request to the url.
-///
-/// We avoid using object store's `head` method since it does a PROPFIND
-/// request.
-async fn object_meta_from_head(url: &url::Url) -> Result<ObjectMeta> {
-    let res = reqwest::Client::new().head(url.clone()).send().await?;
-
-    let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
-        "Missing content-length header",
-    ))?;
-
-    Ok(ObjectMeta {
-        // Note that we're not providing a path here since the http object store
-        // will already have the full url to use.
-        //
-        // This is a workaround for object store percent encoding already
-        // percent encoded paths.
-        location: ObjectStorePath::default(),
-        last_modified: Utc::now(),
-        size: len as usize,
-        e_tag: None,
-    })
 }
