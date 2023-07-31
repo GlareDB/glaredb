@@ -27,6 +27,13 @@ pub fn pretty_format_batches(
     create_table(batches, &TABLE_FORMAT_OPTS, width, max_rows, max_columns)
 }
 
+fn default_table() -> Table {
+    let mut table = Table::new();
+    table.load_preset(DEFAULT_PRESET);
+    table.set_content_arrangement(ContentArrangement::Dynamic);
+    table
+}
+
 fn create_table(
     batches: &[RecordBatch],
     opts: &FormatOptions,
@@ -34,6 +41,9 @@ fn create_table(
     max_rows: Option<usize>,
     max_columns: Option<usize>,
 ) -> Result<Table, ArrowError> {
+    if batches.is_empty() {
+        return Ok(default_table());
+    }
     let num_columns = batches[0].num_columns();
     let num_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
 
@@ -50,17 +60,10 @@ fn create_table(
     // todo: make this configurable
     let str_truncate = 32;
 
-    let mut table = Table::new();
-
-    table.load_preset(DEFAULT_PRESET);
-    table.set_content_arrangement(ContentArrangement::Dynamic);
+    let mut table = default_table();
 
     if let Some(width) = width {
         table.set_width(width as u16);
-    }
-
-    if batches.is_empty() {
-        return Ok(table);
     }
 
     table.set_constraints(
@@ -70,7 +73,7 @@ fn create_table(
         .take(max_cols),
     );
 
-    let mut total_rows = 0;
+    let mut processed_rows = 0;
     // if the number of columns is greater than the max columns, we split the columns into 2 halves
     // and we add a placeholder in the middle.
     // we try to evenly split from the beginning and end.
@@ -104,20 +107,17 @@ fn create_table(
         reduce_columns,
         str_truncate,
     )?;
+    let n_last_rows = num_rows - row_split;
 
+    let mut tbl_rows = 0;
     for batch in batches {
         let num_rows = batch.num_rows();
-
-        if total_rows >= max_rows {
-            break;
-        }
         // if the batch is smaller than the row split upper bound, we can just process it in one go
         // otherwise, we need to process them in 2 halves. The first half is from 0..row_split, the second half is from (max_rows - (row_split +1))..max_rows
         // if we split it, we add a placeholder row in the middle
-        if total_rows < row_split {
-            let remaining_rows = row_split - total_rows;
+        if tbl_rows < row_split {
+            let remaining_rows = row_split - tbl_rows;
             let rows_to_take = remaining_rows.min(num_rows);
-
             process_batch(
                 &mut table,
                 opts,
@@ -126,29 +126,31 @@ fn create_table(
                 column_ranges.clone(),
                 reduce_columns,
             )?;
-            total_rows += rows_to_take;
+            tbl_rows += rows_to_take;
         }
 
-        if total_rows == row_split && needs_split {
-            // Add placeholder
+        if tbl_rows == row_split && needs_split {
+            // Add continuation
             let dots: Vec<_> = (0..max_cols).map(|_| Cell::new("…")).collect();
             table.add_row(dots);
             needs_split = false;
-            total_rows += 1;
         }
 
-        if total_rows >= row_split && total_rows < max_rows {
-            let remaining_rows = max_rows - total_rows;
+        processed_rows += num_rows;
+
+        if processed_rows >= n_last_rows {
+            let remaining_rows = max_rows - tbl_rows;
             let rows_to_take = remaining_rows.min(num_rows);
+            let row_range = (batch.num_rows() - rows_to_take)..batch.num_rows();
             process_batch(
                 &mut table,
                 opts,
                 batch,
-                0..rows_to_take,
+                row_range,
                 column_ranges.clone(),
                 reduce_columns,
             )?;
-            total_rows += rows_to_take;
+            processed_rows += rows_to_take;
         }
     }
     process_footer(&mut table, num_rows, max_rows, n_tbl_cols)?;
@@ -168,6 +170,7 @@ fn make_str_val(v: &str, truncate: usize) -> String {
         format!("{v_trunc}…")
     }
 }
+
 fn fmt_timeunit(tu: &TimeUnit) -> String {
     match tu {
         TimeUnit::Second => "s",
