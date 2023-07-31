@@ -285,7 +285,7 @@ fn get_timezone(tz: &str) -> Tz {
     *TZ_VARIANTS
         .iter()
         .find(|&v| v.name() == tz)
-        .unwrap_or_else(|| panic!("invalid timezone in scalar value: {tz}"))
+        .unwrap_or(&chrono_tz::UTC)
 }
 
 fn get_date_time_nano(nanos: i64, tz: &str) -> DateTime<Tz> {
@@ -305,4 +305,15 @@ fn get_nanos_from_time<T: Timelike>(t: &T) -> i64 {
     let secs = t.num_seconds_from_midnight() as i64;
     let nanos = (t.nanosecond() % 1_000_000_000) as i64;
     (secs * 1_000_000_000) + nanos
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_timezone() {
+        let tz = get_timezone("+00:00");
+        assert_eq!(chrono_tz::UTC, tz);
+    }
 }
