@@ -88,3 +88,28 @@ SELECT a, b FROM csv_scan(
 1	2
 3	4
 5	6
+
+# Test multiple URLs with globs (and different kinds of globs).
+
+statement ok
+COPY ( SELECT 7 AS a, 8 AS b )
+	TO 'gs://${GCS_BUCKET_NAME}/copy_to_with_creds.csv'
+	CREDENTIALS gcp_creds;
+
+# Found a bug out of the blue, previous code took the prefix for search as
+# "abc" when querying glob pattern "abc*". Since object_store adds a "/",
+# prefix in this case should be None.
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		'gs://${GCS_BUCKET_NAME}/copy_to*',
+		'gs://${GCS_BUCKET_NAME}/**/with_*.csv'
+	],
+	gcp_creds
+);
+----
+1	2
+3	4
+5	6
+7	8

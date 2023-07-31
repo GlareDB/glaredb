@@ -19,6 +19,7 @@ pub struct ServerConfig {
 }
 
 pub struct Server {
+    integration_testing: bool,
     pg_handler: Arc<ProtocolHandler>,
 }
 
@@ -90,6 +91,7 @@ impl Server {
             integration_testing,
         };
         Ok(Server {
+            integration_testing,
             pg_handler: Arc::new(ProtocolHandler::new(engine, handler_conf)),
         })
     }
@@ -107,17 +109,21 @@ impl Server {
                     info!("shutdown triggered");
                     let engine_shutdown = pg_handler.engine.shutdown();
 
-                    loop {
-                        let sess_count = pg_handler.engine.session_count();
-                        if sess_count == 0 {
-                            break;
+                    // Don't wait for active-sessions if integration testing is
+                    // not set. This helps when doing "CTRL-C" during testing.
+                    if !self.integration_testing {
+                        loop {
+                            let sess_count = pg_handler.engine.session_count();
+                            if sess_count == 0 {
+                                break;
+                            }
+
+                            info!(%sess_count, "shutdown prevented, active sessions");
+
+                            // Still have sessions. Keep looping with some sleep in
+                            // between.
+                            tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                         }
-
-                        info!(%sess_count, "shutdown prevented, active sessions");
-
-                        // Still have sessions. Keep looping with some sleep in
-                        // between.
-                        tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                     }
 
                     match engine_shutdown.await {

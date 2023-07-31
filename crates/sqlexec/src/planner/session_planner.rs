@@ -20,7 +20,7 @@ use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
+use datasources::object_store::{file_type_from_path, FileType, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore_client::types::options::{
@@ -419,9 +419,12 @@ impl<'a> SessionPlanner<'a> {
                 let location: String = m.remove_required("location")?;
 
                 let access = Arc::new(LocalStoreAccess);
-                validate_obj_store(access, &location).await?;
+                let file_type = validate_obj_and_get_file_type(access, &location, m).await?;
 
-                TableOptions::Local(TableOptionsLocal { location })
+                TableOptions::Local(TableOptionsLocal {
+                    location,
+                    file_type: file_type.to_string(),
+                })
             }
             TableOptions::GCS => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
@@ -439,12 +442,13 @@ impl<'a> SessionPlanner<'a> {
                     bucket: bucket.clone(),
                     service_account_key: service_account_key.clone(),
                 });
-                validate_obj_store(access, &location).await?;
+                let file_type = validate_obj_and_get_file_type(access, &location, m).await?;
 
                 TableOptions::Gcs(TableOptionsGcs {
                     bucket,
                     service_account_key,
                     location,
+                    file_type: file_type.to_string(),
                 })
             }
             TableOptions::S3_STORAGE => {
@@ -475,7 +479,7 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
                 });
-                validate_obj_store(access, &location).await?;
+                let file_type = validate_obj_and_get_file_type(access, &location, m).await?;
 
                 TableOptions::S3(TableOptionsS3 {
                     region,
@@ -483,6 +487,7 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id,
                     secret_access_key,
                     location,
+                    file_type: file_type.to_string(),
                 })
             }
             TableOptions::DEBUG => {
@@ -1214,25 +1219,47 @@ impl<'a> SessionPlanner<'a> {
 }
 
 /// Creates an accessor from object store external table and validates if the
-/// location returns any objects.
-async fn validate_obj_store(access: Arc<dyn ObjStoreAccess>, location: &str) -> Result<()> {
+/// location returns any objects. If objects are returned, tries to get the
+/// file type of the object.
+async fn validate_obj_and_get_file_type(
+    access: Arc<dyn ObjStoreAccess>,
+    location: &str,
+    m: &mut StmtOptions,
+) -> Result<FileType> {
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
             source: Box::new(e),
         })?;
 
-    let objects = accessor.list([location].into_iter()).await.map_err(|e| {
-        PlanError::InvalidExternalTable {
-            source: Box::new(e),
-        }
-    })?;
+    let objects =
+        accessor
+            .list_globbed(location)
+            .await
+            .map_err(|e| PlanError::InvalidExternalTable {
+                source: Box::new(e),
+            })?;
 
     if objects.is_empty() {
-        Err(PlanError::InvalidExternalTable {
+        return Err(PlanError::InvalidExternalTable {
             source: Box::new(internal!("object '{location}' not found")),
-        })
-    } else {
-        Ok(())
+        });
+    }
+
+    match m.remove_optional("file_type")? {
+        Some(file_type) => Ok(file_type),
+        None => {
+            for obj in objects {
+                match file_type_from_path(&obj.location) {
+                    Err(_) => continue,
+                    Ok(file_type) => return Ok(file_type),
+                }
+            }
+            Err(PlanError::InvalidExternalTable {
+                source: Box::new(internal!(
+                    "unable to resolve file type from the objects, try passing `file_type` option"
+                )),
+            })
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt};
 
 use datafusion::sql::sqlparser::parser::ParserError;
-use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
+use datasources::{debug::DebugTableType, mongodb::MongoProtocol, object_store::FileType};
 
 /// Contains the value parsed from Options(...).
 ///
@@ -153,6 +153,18 @@ impl ParseOptionValue<DebugTableType> for OptionValue {
                 s.parse().map_err(|e| parser_err!("{e}"))?
             }
             o => return Err(unexpected_type_err!("debug table type", o)),
+        };
+        Ok(opt)
+    }
+}
+
+impl ParseOptionValue<FileType> for OptionValue {
+    fn parse_opt(self) -> Result<FileType, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                s.parse().map_err(|e| parser_err!("{e}"))?
+            }
+            o => return Err(unexpected_type_err!("file type", o)),
         };
         Ok(opt)
     }

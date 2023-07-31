@@ -44,20 +44,37 @@ pub enum FileType {
     Json,
 }
 
+impl FileType {
+    const CSV: &str = "csv";
+    const PARQUET: &str = "parquet";
+    const JSON: &str = "json";
+}
+
 impl FromStr for FileType {
     type Err = ObjectStoreSourceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let typ = if s.eq_ignore_ascii_case("parquet") {
+        let typ = if s.eq_ignore_ascii_case(Self::PARQUET) {
             Self::Parquet
-        } else if s.eq_ignore_ascii_case("csv") {
+        } else if s.eq_ignore_ascii_case(Self::CSV) {
             Self::Csv
-        } else if s.eq_ignore_ascii_case("json") {
+        } else if s.eq_ignore_ascii_case(Self::JSON) {
             Self::Json
         } else {
             return Err(Self::Err::NotSupportFileType(s.to_owned()));
         };
         Ok(typ)
+    }
+}
+
+impl Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Csv => Self::CSV,
+            Self::Parquet => Self::PARQUET,
+            Self::Json => Self::JSON,
+        };
+        f.write_str(s)
     }
 }
 
@@ -110,16 +127,13 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
             // NOTE: Break the path at "/" (delimeter) since `object_store` will
             // add it and assume that's the prefix. Yes, it's annoying but what
             // can you do :shrug:!
-            let prefix =
-                if let Some((new_prefix, _)) = prefix.rsplit_once(object_store::path::DELIMITER) {
-                    new_prefix
-                } else {
-                    prefix
-                };
+            let prefix = prefix
+                .rsplit_once(object_store::path::DELIMITER)
+                .map(|(new_prefix, _)| self.path(new_prefix))
+                .transpose()?;
 
             let objects = {
-                let prefix = self.path(prefix)?;
-                let mut object_futs = store.list(Some(&prefix)).await?;
+                let mut object_futs = store.list(prefix.as_ref()).await?;
 
                 let pattern = Pattern::new(pattern)?;
                 const MATCH_OPTS: MatchOptions = MatchOptions {
@@ -170,6 +184,7 @@ impl Display for ObjStoreAccessor {
 }
 
 impl ObjStoreAccessor {
+    /// Creates a new object store accessor for the given access.
     pub fn new(access: Arc<dyn ObjStoreAccess>) -> Result<Self> {
         Ok(Self {
             store: access.create_store()?,
@@ -184,21 +199,7 @@ impl ObjStoreAccessor {
             .await
     }
 
-    /// Returns a list of objects from locations.
-    pub async fn list<S, V>(&self, locations: V) -> Result<Vec<ObjectMeta>>
-    where
-        S: AsRef<str>,
-        V: Iterator<Item = S>,
-    {
-        let mut objects = Vec::new();
-        for location in locations {
-            let path = self.access.path(location.as_ref())?;
-            let meta = self.access.object_meta(self.store.clone(), &path).await?;
-            objects.push(meta);
-        }
-        Ok(objects)
-    }
-
+    /// Takes all the objects and creates the table provider from the accesor.
     pub async fn into_table_provider(
         self,
         file_access: Arc<dyn FileTypeAccess>,
