@@ -1,5 +1,5 @@
 use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobStorageTracker};
-use crate::background_jobs::JobRunner;
+use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::SupervisorClient;
@@ -498,6 +498,8 @@ impl SessionContext {
     /// Drop one or more tables.
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
+        let mut jobs = Vec::with_capacity(plan.names.len());
+
         for r in plan.names {
             let (database, schema, name) = self.resolve_table_ref(r)?;
 
@@ -505,9 +507,9 @@ impl SessionContext {
                 .metastore_catalog
                 .resolve_native_table(&database, &schema, &name)
             {
-                let tracker =
+                let job: Arc<dyn BgJob> =
                     BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
-                self.background_jobs.add(tracker)?;
+                jobs.push(job);
             }
 
             drops.push(Mutation::DropObject(service::DropObject {
@@ -517,6 +519,13 @@ impl SessionContext {
             }));
         }
         self.mutate_catalog(drops).await?;
+
+        // Run background jobs _after_ tables get removed from the catalog.
+        //
+        // Note: If/when we have transactions, background jobs should be stored
+        // on the session until transaction commit.
+        self.background_jobs.add_many(jobs)?;
+
         Ok(())
     }
 

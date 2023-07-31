@@ -195,10 +195,31 @@ impl JobRunner {
 
     /// Add a new background job.
     pub fn add(&self, job: Arc<dyn BgJob>) -> Result<()> {
-        self.sender
-            .send(RequestMessage::NewJob(job))
-            .map_err(|e| ExecError::ChannelSendError(Box::new(e)))?;
+        match self.sender.send(RequestMessage::NewJob(job)) {
+            Ok(_) => Ok(()),
+            Err(e) => match &e {
+                mpsc::error::SendError(RequestMessage::NewJob(job)) => {
+                    // We'll want to know when we fail to send as we may end up
+                    // leaking resources somewhere that will need manual
+                    // cleanup.
+                    error!(name = %job.name(), "unexpected error from send channel");
+                    Err(ExecError::ChannelSendError(Box::new(e)))
+                }
+                mpsc::error::SendError(msg) => {
+                    // Technically unreachable since we should be getting back what
+                    // we just sent.
+                    error!(?msg, "unexpected msg from send error");
+                    Err(ExecError::ChannelSendError(Box::new(e)))
+                }
+            },
+        }
+    }
 
+    /// Add many background jobs.
+    pub fn add_many(&self, jobs: impl IntoIterator<Item = Arc<dyn BgJob>>) -> Result<()> {
+        for job in jobs {
+            self.add(job)?;
+        }
         Ok(())
     }
 }
