@@ -88,6 +88,8 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     /// Examples:
     /// * `s3//bucket/path/to/file.csv`: `s3://bucket`
     /// * `/some/local/file`: `file://`
+    /// * `https://abc.com/xyz/pqr`: `https://abc.com__slash__xyz__slash__pqr`
+    ///
     fn base_url(&self) -> Result<ObjectStoreUrl>;
 
     /// Creates an object store.
