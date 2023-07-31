@@ -280,6 +280,8 @@ fn get_naive_date_time_nano(nanos: i64) -> NaiveDateTime {
     Utc.timestamp_nanos(nanos).naive_utc()
 }
 
+// TODO: Figure out if this should be parsing time zone names like
+// 'Australia/Melbourne' or offsets like '+03:00'.
 fn get_timezone(tz: &str) -> Tz {
     // TODO: Make a map at compile time to use (to speed this up).
     *TZ_VARIANTS
