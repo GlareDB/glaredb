@@ -6,7 +6,7 @@ from pyspark import SparkContext
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-OUTPUT_DIR = f"{SCRIPT_DIR}/iceberg/tables"
+OUTPUT_DIR = f"./iceberg/tables"
 LINEITEM_SRC = f"{SCRIPT_DIR}/iceberg/source_data/lineitem.parquet"
 
 # Configure spark

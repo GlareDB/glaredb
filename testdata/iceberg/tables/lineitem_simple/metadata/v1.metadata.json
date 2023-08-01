@@ -1,9 +1,9 @@
 {
   "format-version" : 2,
-  "table-uuid" : "7e50e1e9-2f8f-4bca-8781-c0a8d1843f07",
-  "location" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_simple",
+  "table-uuid" : "6f4d8a47-2611-4f70-b018-defcbfc6377e",
+  "location" : "./iceberg/tables/lineitem_simple",
   "last-sequence-number" : 1,
-  "last-updated-ms" : 1690860660437,
+  "last-updated-ms" : 1690903621972,
   "last-column-id" : 16,
   "current-schema-id" : 0,
   "schemas" : [ {
@@ -106,38 +106,38 @@
     "owner" : "sean",
     "write.update.mode" : "merge-on-read"
   },
-  "current-snapshot-id" : 1819069885126139644,
+  "current-snapshot-id" : 7051076103797751626,
   "refs" : {
     "main" : {
-      "snapshot-id" : 1819069885126139644,
+      "snapshot-id" : 7051076103797751626,
       "type" : "branch"
     }
   },
   "snapshots" : [ {
     "sequence-number" : 1,
-    "snapshot-id" : 1819069885126139644,
-    "timestamp-ms" : 1690860660437,
+    "snapshot-id" : 7051076103797751626,
+    "timestamp-ms" : 1690903621972,
     "summary" : {
       "operation" : "append",
-      "spark.app.id" : "local-1690860657794",
+      "spark.app.id" : "local-1690903619201",
       "added-data-files" : "1",
-      "added-records" : "4000",
-      "added-files-size" : "130930",
+      "added-records" : "1000",
+      "added-files-size" : "37204",
       "changed-partition-count" : "1",
-      "total-records" : "4000",
-      "total-files-size" : "130930",
+      "total-records" : "1000",
+      "total-files-size" : "37204",
       "total-data-files" : "1",
       "total-delete-files" : "0",
       "total-position-deletes" : "0",
       "total-equality-deletes" : "0"
     },
-    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_simple/metadata/snap-1819069885126139644-1-a7b56a59-ded4-4a33-a3b9-c2a45db63d8c.avro",
+    "manifest-list" : "iceberg/tables/lineitem_simple/metadata/snap-7051076103797751626-1-84151bf4-ec53-4513-ace5-b94e197e6162.avro",
     "schema-id" : 0
   } ],
   "statistics" : [ ],
   "snapshot-log" : [ {
-    "timestamp-ms" : 1690860660437,
-    "snapshot-id" : 1819069885126139644
+    "timestamp-ms" : 1690903621972,
+    "snapshot-id" : 7051076103797751626
   } ],
   "metadata-log" : [ ]
 }

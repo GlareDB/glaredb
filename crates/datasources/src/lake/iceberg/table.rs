@@ -230,8 +230,14 @@ impl PathResolver {
     /// This should give us:
     /// metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro
     fn relative_path<'a>(&self, path: &'a str) -> &'a str {
-        path.trim_start_matches(&self.metadata_location)
-            .trim_matches('/')
+        // TODO: We'll probably want some better path resolution here. I'm not
+        // sure what all is allowed for metadata location.
+
+        // Remove leading "./" from metadata location
+        let metadata_location = self.metadata_location.trim_start_matches("./");
+
+        // Remove metadata location from path that was passed in.
+        path.trim_start_matches(metadata_location).trim_matches('/')
     }
 }
 
@@ -423,6 +429,61 @@ fn format_object_path(
         DatasourceUrl::File(root_path) => {
             let path = root_path.join(path);
             ObjectPath::from_filesystem_path(path)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_path_resolve() {
+        struct TestCase {
+            metadata_location: &'static str,
+            input: &'static str,
+            expected: &'static str,
+        }
+
+        let test_cases = vec![
+            // Relative table location
+            TestCase {
+                metadata_location: "out/iceberg_table",
+                input: "out/iceberg_table/metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro",
+                expected: "metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro",
+            },
+            // Relative table location with "./"
+            TestCase {
+                metadata_location: "./out/iceberg_table",
+                input: "out/iceberg_table/metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro",
+                expected: "metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro",
+            },
+            // Absolute table location
+            TestCase {
+                 metadata_location: "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned",
+                input: "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-2591356646088336681-1-481f5867-e369-4c1c-a9ba-6c9e04030958.avro",
+                expected: "metadata/snap-2591356646088336681-1-481f5867-e369-4c1c-a9ba-6c9e04030958.avro",
+            },
+            // s3 table location
+            TestCase {
+                 metadata_location: "s3://testdata/iceberg/tables/lineitem_versioned",
+                input: "s3://testdata/iceberg/tables/lineitem_versioned/metadata/snap-2591356646088336681-1-481f5867-e369-4c1c-a9ba-6c9e04030958.avro",
+                expected: "metadata/snap-2591356646088336681-1-481f5867-e369-4c1c-a9ba-6c9e04030958.avro",
+            }
+
+        ];
+
+        for tc in test_cases {
+            let resolver = PathResolver {
+                metadata_location: tc.metadata_location.to_string(),
+            };
+            let out = resolver.relative_path(tc.input);
+
+            assert_eq!(
+                tc.expected, out,
+                "metadata location: {}",
+                tc.metadata_location,
+            );
         }
     }
 }

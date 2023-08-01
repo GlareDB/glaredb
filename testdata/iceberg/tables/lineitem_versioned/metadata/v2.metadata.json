@@ -1,9 +1,9 @@
 {
   "format-version" : 2,
-  "table-uuid" : "9ce639d0-7bd8-4299-9a42-8c930202457b",
-  "location" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned",
+  "table-uuid" : "26e7c3fb-8f67-4ed6-9c66-8e3f1a2e7538",
+  "location" : "./iceberg/tables/lineitem_versioned",
   "last-sequence-number" : 2,
-  "last-updated-ms" : 1690861704201,
+  "last-updated-ms" : 1690903624477,
   "last-column-id" : 16,
   "current-schema-id" : 0,
   "schemas" : [ {
@@ -106,65 +106,65 @@
     "owner" : "sean",
     "write.update.mode" : "merge-on-read"
   },
-  "current-snapshot-id" : 811617685892558872,
+  "current-snapshot-id" : 2290745669989949290,
   "refs" : {
     "main" : {
-      "snapshot-id" : 811617685892558872,
+      "snapshot-id" : 2290745669989949290,
       "type" : "branch"
     }
   },
   "snapshots" : [ {
     "sequence-number" : 1,
-    "snapshot-id" : 2591356646088336681,
-    "timestamp-ms" : 1690861703722,
+    "snapshot-id" : 4808627676923931467,
+    "timestamp-ms" : 1690903623706,
     "summary" : {
       "operation" : "append",
-      "spark.app.id" : "local-1690861700060",
+      "spark.app.id" : "local-1690903619201",
       "added-data-files" : "1",
-      "added-records" : "4000",
-      "added-files-size" : "130930",
+      "added-records" : "1000",
+      "added-files-size" : "37204",
       "changed-partition-count" : "1",
-      "total-records" : "4000",
-      "total-files-size" : "130930",
+      "total-records" : "1000",
+      "total-files-size" : "37204",
       "total-data-files" : "1",
       "total-delete-files" : "0",
       "total-position-deletes" : "0",
       "total-equality-deletes" : "0"
     },
-    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-2591356646088336681-1-481f5867-e369-4c1c-a9ba-6c9e04030958.avro",
+    "manifest-list" : "iceberg/tables/lineitem_versioned/metadata/snap-4808627676923931467-1-da7b607a-4cb2-4b2f-811c-4368319f5266.avro",
     "schema-id" : 0
   }, {
     "sequence-number" : 2,
-    "snapshot-id" : 811617685892558872,
-    "parent-snapshot-id" : 2591356646088336681,
-    "timestamp-ms" : 1690861704201,
+    "snapshot-id" : 2290745669989949290,
+    "parent-snapshot-id" : 4808627676923931467,
+    "timestamp-ms" : 1690903624477,
     "summary" : {
       "operation" : "append",
-      "spark.app.id" : "local-1690861700060",
+      "spark.app.id" : "local-1690903619201",
       "added-data-files" : "1",
-      "added-records" : "4000",
-      "added-files-size" : "130930",
+      "added-records" : "1000",
+      "added-files-size" : "37204",
       "changed-partition-count" : "1",
-      "total-records" : "8000",
-      "total-files-size" : "261860",
+      "total-records" : "2000",
+      "total-files-size" : "74408",
       "total-data-files" : "2",
       "total-delete-files" : "0",
       "total-position-deletes" : "0",
       "total-equality-deletes" : "0"
     },
-    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-811617685892558872-1-42f6dfe0-4e9d-446b-8ef9-9b3a0fcdc883.avro",
+    "manifest-list" : "iceberg/tables/lineitem_versioned/metadata/snap-2290745669989949290-1-0862f308-a048-4962-ac20-30ef0d6bdfcb.avro",
     "schema-id" : 0
   } ],
   "statistics" : [ ],
   "snapshot-log" : [ {
-    "timestamp-ms" : 1690861703722,
-    "snapshot-id" : 2591356646088336681
+    "timestamp-ms" : 1690903623706,
+    "snapshot-id" : 4808627676923931467
   }, {
-    "timestamp-ms" : 1690861704201,
-    "snapshot-id" : 811617685892558872
+    "timestamp-ms" : 1690903624477,
+    "snapshot-id" : 2290745669989949290
   } ],
   "metadata-log" : [ {
-    "timestamp-ms" : 1690861703722,
-    "metadata-file" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/v1.metadata.json"
+    "timestamp-ms" : 1690903623706,
+    "metadata-file" : "iceberg/tables/lineitem_versioned/metadata/v1.metadata.json"
   } ]
 }
