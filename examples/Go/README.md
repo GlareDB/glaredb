@@ -1,7 +1,15 @@
 # Go example
 
 👋 This example demonstrates connecting to an instance of GlareDB and running
-an example query in Go. The example requires:
+an example query in Go. Since GlareDB is postgres-compatible, familiar tools
+are used:
+
+- [`database/sql` standard library]
+- [`lib/pq` Postgres driver]
+
+## Running
+
+ The example requires:
 
 - running `glaredb` locally in `server` mode:
 
@@ -20,7 +28,11 @@ an example query in Go. The example requires:
   go run main.go
   ```
 
-For more information on installing `glaredb` locally, see: <https://docs.glaredb.com/glaredb/local/>.
-For more information on our cloud offering, see: <https://docs.glaredb.com/docs/about/getting-started.html#glaredb-cloud>
+For more information on installing `glaredb` locally, see: [Trying GlareDB locally].
+For more information on our cloud offering, see: [Getting Started].
 
+[`database/sql` standard library]: https://pkg.go.dev/database/sql
+[`lib/pq` Postgres driver]: https://github.com/lib/pq
 [Go installed]: https://go.dev/
+[Trying GlareDB locally]: https://docs.glaredb.com/glaredb/local/
+[Getting Started]: https://docs.glaredb.com/docs/about/getting-started.html#glaredb-cloud
