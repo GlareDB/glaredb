@@ -17,7 +17,7 @@ impl Prompt for SQLPrompt {
         &self,
         _prompt_mode: reedline::PromptEditMode,
     ) -> std::borrow::Cow<str> {
-        "〉".into()
+        "> ".into()
     }
 
     fn render_prompt_multiline_indicator(&self) -> std::borrow::Cow<str> {
