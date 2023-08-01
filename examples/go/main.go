@@ -23,7 +23,13 @@ func main() {
 	// you want to connect to a remote Cloud-hosted instance, use the connection
 	// string generated for you in the web client.
 	//
-	// See <https://docs.glaredb.com/cloud/access/connection-details/>
+	// For more information on connection strings for our Cloud offering, see:
+	//
+	//     <https://docs.glaredb.com/cloud/access/connection-details/>
+	//
+	// An example connection string might look like:
+	//
+	//     postgresql://user:pass@my_org.proxy.glaredb.com:6543/my_db
 	localHostStr := "host=localhost port=6543 user=glaredb dbname=glaredb sslmode=disable"
 
 	db, err := sql.Open("postgres", localHostStr)
