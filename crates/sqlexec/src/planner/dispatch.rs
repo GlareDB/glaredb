@@ -19,9 +19,7 @@ use datasources::object_store::json::JsonFileAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::parquet::ParquetFileAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{
-    file_type_from_path, FileType, FileTypeAccess, ObjStoreAccess, ObjStoreAccessor,
-};
+use datasources::object_store::{FileType, FileTypeAccess, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore_client::session::SessionCatalog;
@@ -406,25 +404,29 @@ impl<'a> SessionDispatcher<'a> {
                     .await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Local(TableOptionsLocal { location }) => {
+            TableOptions::Local(TableOptionsLocal {
+                location,
+                file_type,
+            }) => {
                 if *self.ctx.get_session_vars().is_cloud_instance.value() {
                     return Err(DispatchError::InvalidDispatch(
                         "Local file access is not supported in cloud mode",
                     ));
                 }
                 let access = Arc::new(LocalStoreAccess);
-                create_obj_store_table_provider(access, location).await
+                create_obj_store_table_provider(access, location, file_type).await
             }
             TableOptions::Gcs(TableOptionsGcs {
                 service_account_key,
                 bucket,
                 location,
+                file_type,
             }) => {
                 let access = Arc::new(GcsStoreAccess {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
                 });
-                create_obj_store_table_provider(access, location).await
+                create_obj_store_table_provider(access, location, file_type).await
             }
             TableOptions::S3(TableOptionsS3 {
                 access_key_id,
@@ -432,6 +434,7 @@ impl<'a> SessionDispatcher<'a> {
                 region,
                 bucket,
                 location,
+                file_type,
             }) => {
                 let access = Arc::new(S3StoreAccess {
                     region: region.clone(),
@@ -439,7 +442,7 @@ impl<'a> SessionDispatcher<'a> {
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
                 });
-                create_obj_store_table_provider(access, location).await
+                create_obj_store_table_provider(access, location, file_type).await
             }
         }
     }
@@ -476,8 +479,9 @@ impl<'a> SessionDispatcher<'a> {
 async fn create_obj_store_table_provider(
     access: Arc<dyn ObjStoreAccess>,
     location: &str,
+    file_type: &str,
 ) -> Result<Arc<dyn TableProvider>> {
-    let ft = file_type_from_path(&access.path(location)?)?;
+    let ft: FileType = file_type.parse()?;
     let ft: Arc<dyn FileTypeAccess> = match ft {
         FileType::Csv => Arc::new(CsvFileAccess::default()),
         FileType::Parquet => Arc::new(ParquetFileAccess),
@@ -485,7 +489,7 @@ async fn create_obj_store_table_provider(
     };
 
     let accessor = ObjStoreAccessor::new(access)?;
-    let objects = accessor.list([location].into_iter()).await?;
+    let objects = accessor.list_globbed(location).await?;
     let provider = accessor
         .into_table_provider(ft, objects, /* predicate_pushdown = */ true)
         .await?;
