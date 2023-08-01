@@ -24,7 +24,7 @@ are used:
 
   ```console
   # from the repository root
-  cd examples/Go
+  cd examples/go
   go run main.go
   ```
 
