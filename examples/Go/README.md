@@ -6,12 +6,13 @@ an example query in Go. The example requires:
 - running `glaredb` locally in `server` mode:
 
   ```console
+  # change to a directory you'd like glaredb installed into
   cd ~
   curl https://glaredb.com/install.sh | sh
   ./glaredb server
   ```
 
-- having Go installed and running `main.go`
+- having [Go installed] and running `main.go`
 
   ```console
   # from the repository root
@@ -21,3 +22,5 @@ an example query in Go. The example requires:
 
 For more information on installing `glaredb` locally, see: <https://docs.glaredb.com/glaredb/local/>.
 For more information on our cloud offering, see: <https://docs.glaredb.com/docs/about/getting-started.html#glaredb-cloud>
+
+[Go installed]: https://go.dev/
