@@ -8,7 +8,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::LakeStorageOptions;
 use metastore_client::types::options::CredentialsOptions;
@@ -196,8 +196,8 @@ fn iceberg_location_and_opts(
             let url: String = first.param_into()?;
             let source_url = DatasourceUrl::try_new(url).unwrap();
 
-            match source_url.scheme() {
-                DatasourceUrlScheme::File => (source_url, LakeStorageOptions::Local),
+            match source_url.datasource_url_type() {
+                DatasourceUrlType::File => (source_url, LakeStorageOptions::Local),
                 _ => {
                     return Err(ExtensionError::String(
                         "Credentials required when accessing delta table in S3 or GCS".to_string(),
@@ -215,8 +215,8 @@ fn iceberg_location_and_opts(
                 ExtensionError::String("missing credentials object".to_string()),
             )?;
 
-            match url.scheme() {
-                DatasourceUrlScheme::Gcs => {
+            match url.datasource_url_type() {
+                DatasourceUrlType::Gcs => {
                     if let CredentialsOptions::Gcp(creds) = creds.options {
                         (url, LakeStorageOptions::Gcs { creds })
                     } else {
@@ -225,7 +225,7 @@ fn iceberg_location_and_opts(
                         ));
                     }
                 }
-                DatasourceUrlScheme::S3 => {
+                DatasourceUrlType::S3 => {
                     // S3 requires a region parameter.
                     const REGION_KEY: &str = "region";
                     let region = opts
@@ -241,13 +241,13 @@ fn iceberg_location_and_opts(
                         ));
                     }
                 }
-                DatasourceUrlScheme::File => {
+                DatasourceUrlType::File => {
                     return Err(ExtensionError::String(
                         "Credentials incorrectly provided when accessing local iceberg table"
                             .to_string(),
                     ))
                 }
-                DatasourceUrlScheme::Http => {
+                DatasourceUrlType::Http => {
                     return Err(ExtensionError::String(
                         "Accessing iceberg tables over http not supported".to_string(),
                     ))

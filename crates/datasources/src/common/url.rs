@@ -11,19 +11,20 @@ use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
 
+/// Describes the type of a data source url.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DatasourceUrlScheme {
+pub enum DatasourceUrlType {
     File,
     Http,
     Gcs,
     S3,
 }
 
-impl Display for DatasourceUrlScheme {
+impl Display for DatasourceUrlType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::File => write!(f, "file"),
-            Self::Http => write!(f, "https"),
+            Self::Http => write!(f, "http(s)"),
             Self::Gcs => write!(f, "gs"),
             Self::S3 => write!(f, "s3"),
         }
@@ -106,15 +107,22 @@ impl DatasourceUrl {
         Ok(ds_url)
     }
 
-    pub fn scheme(&self) -> DatasourceUrlScheme {
+    pub fn datasource_url_type(&self) -> DatasourceUrlType {
         match self {
-            Self::File(_) => DatasourceUrlScheme::File,
+            Self::File(_) => DatasourceUrlType::File,
             Self::Url(u) => match u.scheme() {
-                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlScheme::Http,
-                Self::GS_SCHEME => DatasourceUrlScheme::Gcs,
-                Self::S3_SCHEME => DatasourceUrlScheme::S3,
+                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http,
+                Self::GS_SCHEME => DatasourceUrlType::Gcs,
+                Self::S3_SCHEME => DatasourceUrlType::S3,
                 _ => unreachable!(),
             },
+        }
+    }
+
+    pub fn scheme(&self) -> &str {
+        match self {
+            Self::File(_) => Self::FILE_SCHEME,
+            Self::Url(u) => u.scheme(),
         }
     }
 
@@ -154,29 +162,29 @@ mod tests {
         let u = DatasourceUrl::try_new("gs://my_bucket/my_obj").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("my_obj", u.path());
-        assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
+        assert_eq!(DatasourceUrlType::Gcs, u.datasource_url_type());
 
         let u = DatasourceUrl::try_new("gs://my_bucket/my_obj.parquet").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("my_obj.parquet", u.path());
-        assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
+        assert_eq!(DatasourceUrlType::Gcs, u.datasource_url_type());
 
         let u = DatasourceUrl::try_new("./my_bucket/my_obj.parquet").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("./my_bucket/my_obj.parquet", u.path());
-        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+        assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
 
         let u = DatasourceUrl::try_new("/Users/mario/my_bucket/my_obj").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("/Users/mario/my_bucket/my_obj", u.path());
-        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+        assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
 
         let u = DatasourceUrl::try_new("file:/my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
-        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+        assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
 
         let u = DatasourceUrl::try_new("file:my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
-        assert_eq!(DatasourceUrlScheme::File, u.scheme());
+        assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
     }
 }

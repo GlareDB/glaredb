@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::delta::access::load_table_direct;
 use datasources::lake::LakeStorageOptions;
 use metastore_client::types::options::CredentialsOptions;
@@ -41,8 +41,8 @@ impl TableFunc for DeltaScan {
                 let source_url = DatasourceUrl::try_new(&url)
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-                match source_url.scheme() {
-                    DatasourceUrlScheme::File => (url, LakeStorageOptions::Local),
+                match source_url.datasource_url_type() {
+                    DatasourceUrlType::File => (url, LakeStorageOptions::Local),
                     other => {
                         return Err(ExtensionError::String(format!(
                             "Credentials required when accessing delta table in {other}"
@@ -62,8 +62,8 @@ impl TableFunc for DeltaScan {
                     ExtensionError::String(format!("missing credentials object: {creds}")),
                 )?;
 
-                match source_url.scheme() {
-                    DatasourceUrlScheme::Gcs => match creds.options {
+                match source_url.datasource_url_type() {
+                    DatasourceUrlType::Gcs => match creds.options {
                         CredentialsOptions::Gcp(creds) => (url, LakeStorageOptions::Gcs { creds }),
                         other => {
                             return Err(ExtensionError::String(format!(
@@ -72,7 +72,7 @@ impl TableFunc for DeltaScan {
                             )))
                         }
                     },
-                    DatasourceUrlScheme::S3 => {
+                    DatasourceUrlType::S3 => {
                         // S3 requires a region parameter.
                         const REGION_KEY: &str = "region";
                         let region = opts
@@ -92,13 +92,13 @@ impl TableFunc for DeltaScan {
                             }
                         }
                     }
-                    DatasourceUrlScheme::File => {
+                    DatasourceUrlType::File => {
                         return Err(ExtensionError::String(
                             "Credentials incorrectly provided when accessing local delta table"
                                 .to_string(),
                         ))
                     }
-                    DatasourceUrlScheme::Http => {
+                    DatasourceUrlType::Http => {
                         return Err(ExtensionError::String(
                             "Accessing delta tables over http not supported".to_string(),
                         ))
