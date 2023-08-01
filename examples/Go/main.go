@@ -2,11 +2,10 @@
 // of GlareDB in Go.
 //
 // To try this example, install glaredb locally and run it in 'server' mode:
-// ```
-// cd ~
-// curl https://glaredb.com/install.sh | sh
-// ./glaredb server
-// ```
+//
+//	cd ~
+//	curl https://glaredb.com/install.sh | sh
+//	./glaredb server
 //
 // See: <https://github.com/GlareDB/glaredb#install>
 package main
