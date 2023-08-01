@@ -5,8 +5,9 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
-use datasources::delta::access::{load_table_direct, DeltaLakeStorageOptions};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::lake::delta::access::load_table_direct;
+use datasources::lake::LakeStorageOptions;
 use metastore_client::types::options::CredentialsOptions;
 
 /// Function for scanning delta tables.
@@ -37,11 +38,11 @@ impl TableFunc for DeltaScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url: String = first.param_into()?;
-                let source_url =
-                    DatasourceUrl::new(&url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
+                let source_url = DatasourceUrl::try_new(&url)
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-                match source_url.scheme() {
-                    DatasourceUrlScheme::File => (url, DeltaLakeStorageOptions::Local),
+                match source_url.datasource_url_type() {
+                    DatasourceUrlType::File => (url, LakeStorageOptions::Local),
                     other => {
                         return Err(ExtensionError::String(format!(
                             "Credentials required when accessing delta table in {other}"
@@ -53,19 +54,17 @@ impl TableFunc for DeltaScan {
                 let mut args = args.into_iter();
                 let first = args.next().unwrap();
                 let url = first.param_into()?;
-                let source_url =
-                    DatasourceUrl::new(&url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
+                let source_url = DatasourceUrl::try_new(&url)
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 let creds: IdentValue = args.next().unwrap().param_into()?;
                 let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
                     ExtensionError::String(format!("missing credentials object: {creds}")),
                 )?;
 
-                match source_url.scheme() {
-                    DatasourceUrlScheme::Gcs => match creds.options {
-                        CredentialsOptions::Gcp(creds) => {
-                            (url, DeltaLakeStorageOptions::Gcs { creds })
-                        }
+                match source_url.datasource_url_type() {
+                    DatasourceUrlType::Gcs => match creds.options {
+                        CredentialsOptions::Gcp(creds) => (url, LakeStorageOptions::Gcs { creds }),
                         other => {
                             return Err(ExtensionError::String(format!(
                                 "invalid credentials for GCS, got {}",
@@ -73,7 +72,7 @@ impl TableFunc for DeltaScan {
                             )))
                         }
                     },
-                    DatasourceUrlScheme::S3 => {
+                    DatasourceUrlType::S3 => {
                         // S3 requires a region parameter.
                         const REGION_KEY: &str = "region";
                         let region = opts
@@ -83,7 +82,7 @@ impl TableFunc for DeltaScan {
 
                         match creds.options {
                             CredentialsOptions::Aws(creds) => {
-                                (url, DeltaLakeStorageOptions::S3 { creds, region })
+                                (url, LakeStorageOptions::S3 { creds, region })
                             }
                             other => {
                                 return Err(ExtensionError::String(format!(
@@ -93,13 +92,13 @@ impl TableFunc for DeltaScan {
                             }
                         }
                     }
-                    DatasourceUrlScheme::File => {
+                    DatasourceUrlType::File => {
                         return Err(ExtensionError::String(
                             "Credentials incorrectly provided when accessing local delta table"
                                 .to_string(),
                         ))
                     }
-                    DatasourceUrlScheme::Http => {
+                    DatasourceUrlType::Http => {
                         return Err(ExtensionError::String(
                             "Accessing delta tables over http not supported".to_string(),
                         ))

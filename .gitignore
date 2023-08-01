@@ -16,3 +16,6 @@ benchmarks/artifacts/
 /deps
 
 .vscode/
+
+# Spark jar for iceberg data generation
+*.jar

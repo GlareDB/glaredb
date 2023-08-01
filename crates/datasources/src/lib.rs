@@ -2,7 +2,7 @@
 
 pub mod bigquery;
 pub mod debug;
-pub mod delta;
+pub mod lake;
 pub mod mongodb;
 pub mod mysql;
 pub mod native;

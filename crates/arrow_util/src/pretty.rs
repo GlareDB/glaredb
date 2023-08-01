@@ -46,9 +46,24 @@ fn create_table(
     }
     let num_columns = batches[0].num_columns();
     let num_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+    let str_truncate = 32;
+    let mut max_cols = max_columns.unwrap_or_else(|| {
+        if let Some(width) = width {
+            // sum the length of all the column names
+            // and divide by the number of columns
+            let avg_colum_len = batches[0]
+                .schema()
+                .fields()
+                .iter()
+                .map(|f| f.name().len())
+                .sum::<usize>()
+                / num_columns;
+            (width - 10) / avg_colum_len
+        } else {
+            DEFAULT_MAX_COLUMNS
+        }
+    });
 
-    let mut max_cols =
-        max_columns.unwrap_or_else(|| std::cmp::min(num_columns, DEFAULT_MAX_COLUMNS));
     if max_cols == 0 || max_cols > num_columns {
         max_cols = num_columns;
     }
@@ -58,7 +73,6 @@ fn create_table(
         max_rows = num_rows;
     }
     // todo: make this configurable
-    let str_truncate = 32;
 
     let mut table = default_table();
 

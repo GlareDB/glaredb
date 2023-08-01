@@ -10,7 +10,7 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
 };
-use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::csv::CsvFileAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
@@ -158,10 +158,10 @@ fn get_store_access(
     let access: Arc<dyn ObjStoreAccess> = match args.len() {
         0 => {
             // Raw credentials or No credentials
-            match source_url.scheme() {
-                DatasourceUrlScheme::Http => create_http_store_access(source_url)?,
-                DatasourceUrlScheme::File => create_local_store_access(ctx)?,
-                DatasourceUrlScheme::Gcs => {
+            match source_url.datasource_url_type() {
+                DatasourceUrlType::Http => create_http_store_access(source_url)?,
+                DatasourceUrlType::File => create_local_store_access(ctx)?,
+                DatasourceUrlType::Gcs => {
                     let service_account_key = opts
                         .remove("service_account_key")
                         .map(FuncParamValue::param_into)
@@ -169,7 +169,7 @@ fn get_store_access(
 
                     create_gcs_table_provider(source_url, service_account_key)?
                 }
-                DatasourceUrlScheme::S3 => {
+                DatasourceUrlType::S3 => {
                     let access_key_id = opts
                         .remove("access_key_id")
                         .map(FuncParamValue::param_into)
@@ -193,8 +193,8 @@ fn get_store_access(
                     "missing credentials object: {creds}"
                 )))?;
 
-            match source_url.scheme() {
-                DatasourceUrlScheme::Gcs => {
+            match source_url.datasource_url_type() {
+                DatasourceUrlType::Gcs => {
                     let service_account_key = match &creds.options {
                         CredentialsOptions::Gcp(o) => o.service_account_key.to_owned(),
                         other => {
@@ -207,7 +207,7 @@ fn get_store_access(
 
                     create_gcs_table_provider(source_url, Some(service_account_key))?
                 }
-                DatasourceUrlScheme::S3 => {
+                DatasourceUrlType::S3 => {
                     let (access_key_id, secret_access_key) = match &creds.options {
                         CredentialsOptions::Aws(o) => {
                             (o.access_key_id.to_owned(), o.secret_access_key.to_owned())

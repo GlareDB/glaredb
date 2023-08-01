@@ -4,6 +4,7 @@
 mod bigquery;
 mod delta;
 mod generate_series;
+mod iceberg;
 mod mongo;
 mod mysql;
 mod object_store;
@@ -20,6 +21,7 @@ use once_cell::sync::Lazy;
 use self::bigquery::ReadBigQuery;
 use self::delta::DeltaScan;
 use self::generate_series::GenerateSeries;
+use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
@@ -38,16 +40,21 @@ pub struct BuiltinTableFuncs {
 impl BuiltinTableFuncs {
     pub fn new() -> BuiltinTableFuncs {
         let funcs: Vec<Arc<dyn TableFunc>> = vec![
-            // Read from table sources
+            // Databases/warehouses
             Arc::new(ReadPostgres),
             Arc::new(ReadBigQuery),
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(CSV_SCAN),
             Arc::new(JSON_SCAN),
+            // Data lakes
             Arc::new(DeltaScan),
+            Arc::new(IcebergScan),
+            Arc::new(IcebergSnapshots),
+            Arc::new(IcebergDataFiles),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
