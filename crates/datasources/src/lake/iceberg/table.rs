@@ -4,7 +4,7 @@ use crate::common::url::DatasourceUrl;
 use crate::lake::iceberg::errors::{IcebergError, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use datafusion::datasource::avro_to_arrow as avro;
+use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::PartitionedFile;
@@ -17,15 +17,8 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
-};
-use datafusion::{
-    arrow::datatypes::{
-        DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-    },
-    physical_plan::memory::MemoryExec,
+    ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
 };
 use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::any::Any;
@@ -95,6 +88,7 @@ struct TableState {
 impl TableState {
     async fn open(location: DatasourceUrl, store: Arc<dyn ObjectStore>) -> Result<TableState> {
         // Get table version.
+        // TODO: Handle not finding a version hint.
         let version = {
             let path = format_object_path(&location, "metadata/version-hint.text")?;
             let path = ObjectPath::parse(path)?;
@@ -103,11 +97,9 @@ impl TableState {
                 IcebergError::DataInvalid(format!("Expected utf-8 in version hint: {}", e))
             })?;
 
-            let table_version = s.parse::<i32>().map_err(|e| {
-                IcebergError::DataInvalid(format!("Version hint to be a number: {}", e))
-            })?;
-
-            table_version
+            s.parse::<i32>().map_err(|e| {
+                IcebergError::DataInvalid(format!("Expected version hint to be a number: {}", e))
+            })?
         };
 
         // Read metadata.
@@ -205,7 +197,7 @@ impl TableState {
         let path = format_object_path(&self.location, manifest_list_path)?;
         let bs = self.store.get(&path).await?.bytes().await?;
 
-        let mut cursor = Cursor::new(bs);
+        let cursor = Cursor::new(bs);
         let list = ManifestList::from_raw_avro(cursor)?;
 
         Ok(list)
@@ -237,7 +229,7 @@ impl PathResolver {
     ///
     /// This should give us:
     /// metadata/snap-4160073268445560424-1-095d0ad9-385f-406f-b29c-966a6e222e58.avro
-    fn relative_path<'a, 'b>(&'a self, path: &'b str) -> &'b str {
+    fn relative_path<'a>(&self, path: &'a str) -> &'a str {
         path.trim_start_matches(&self.metadata_location)
             .trim_matches('/')
     }
@@ -318,7 +310,7 @@ impl TableProvider for IcebergTableReader {
             .map(|f| {
                 let path = self.state.resolver.relative_path(&f.file_path);
                 let meta = ObjectMeta {
-                    location: format_object_path(&self.state.location, &path)?,
+                    location: format_object_path(&self.state.location, path)?,
                     last_modified: DateTime::<Utc>::MIN_UTC, // TODO: Get the actual time.
                     size: f.file_size_in_bytes as usize,
                     e_tag: None,

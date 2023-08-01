@@ -9,7 +9,6 @@ use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 
 use crate::common::url::DatasourceUrl;
@@ -26,7 +25,8 @@ pub enum LakeStorageOptionsError {
     MissingHost(DatasourceUrl),
 }
 
-/// Options required for each of GCS/S3/local.
+/// Options required for each of GCS/S3/local when accessing Iceberg and Delta
+/// tables.
 #[derive(Debug, Clone)]
 pub enum LakeStorageOptions {
     S3 {

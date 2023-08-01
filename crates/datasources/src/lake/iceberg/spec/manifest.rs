@@ -150,9 +150,9 @@ impl Manifest {
 
         let m = reader.user_metadata();
 
-        fn get_metadata_field<'a, 'b>(
+        fn get_metadata_field<'a>(
             m: &'a HashMap<String, Vec<u8>>,
-            field: &'b str,
+            field: &str,
         ) -> Result<&'a Vec<u8>> {
             m.get(field).ok_or_else(|| {
                 IcebergError::DataInvalid(format!("Missing field '{field}' in manifest metadata"))
@@ -166,18 +166,18 @@ impl Manifest {
             })
         }
 
-        let schema = serde_json::from_slice::<Schema>(get_metadata_field(&m, "schema")?)?;
+        let schema = serde_json::from_slice::<Schema>(get_metadata_field(m, "schema")?)?;
         // Spec says schema id is required, but seems like it's actually
         // optional. Missing from the spark outputs.
-        let schema_id = get_metadata_as_i32(&m, "schema-id").unwrap_or_default();
+        let schema_id = get_metadata_as_i32(m, "schema-id").unwrap_or_default();
         let partition_spec = serde_json::from_slice(m.get("partition-spec").ok_or_else(|| {
-            IcebergError::DataInvalid(format!(
-                "Missing field 'partition-spec' in manifest metadata"
-            ))
+            IcebergError::DataInvalid(
+                "Missing field 'partition-spec' in manifest metadata".to_string(),
+            )
         })?)?;
-        let partition_spec_id = get_metadata_as_i32(&m, "partition-spec-id")?;
-        let format_version = get_metadata_as_i32(&m, "format-version")?;
-        let content = String::from_utf8_lossy(get_metadata_field(&m, "content")?).parse()?;
+        let partition_spec_id = get_metadata_as_i32(m, "partition-spec-id")?;
+        let format_version = get_metadata_as_i32(m, "format-version")?;
+        let content = String::from_utf8_lossy(get_metadata_field(m, "content")?).parse()?;
 
         let metadata = ManifestMetadata {
             schema,

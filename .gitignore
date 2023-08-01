@@ -17,6 +17,5 @@ benchmarks/artifacts/
 
 .vscode/
 
-# Stuff for iceberg testing. Remove/cleanup before merge
+# Spark jar for iceberg data generation
 *.jar
-iceberg/out

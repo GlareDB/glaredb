@@ -194,14 +194,14 @@ fn iceberg_location_and_opts(
             let mut args = args.into_iter();
             let first = args.next().unwrap();
             let url: String = first.param_into()?;
-            let source_url = DatasourceUrl::try_new(&url).unwrap();
+            let source_url = DatasourceUrl::try_new(url).unwrap();
 
             match source_url.scheme() {
                 DatasourceUrlScheme::File => (source_url, LakeStorageOptions::Local),
                 _ => {
-                    return Err(ExtensionError::String(format!(
-                        "Credentials required when accessing delta table in S3 or GCS",
-                    )))
+                    return Err(ExtensionError::String(
+                        "Credentials required when accessing delta table in S3 or GCS".to_string(),
+                    ))
                 }
             }
         }
@@ -212,7 +212,7 @@ fn iceberg_location_and_opts(
             let creds: IdentValue = args.next().unwrap().param_into()?;
 
             let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
-                ExtensionError::String(format!("missing credentials object")),
+                ExtensionError::String("missing credentials object".to_string()),
             )?;
 
             match url.scheme() {
@@ -220,9 +220,9 @@ fn iceberg_location_and_opts(
                     if let CredentialsOptions::Gcp(creds) = creds.options {
                         (url, LakeStorageOptions::Gcs { creds })
                     } else {
-                        return Err(ExtensionError::String(format!(
-                            "invalid credentials for GCS"
-                        )));
+                        return Err(ExtensionError::String(
+                            "invalid credentials for GCS".to_string(),
+                        ));
                     }
                 }
                 DatasourceUrlScheme::S3 => {
@@ -236,20 +236,21 @@ fn iceberg_location_and_opts(
                     if let CredentialsOptions::Aws(creds) = creds.options {
                         (url, LakeStorageOptions::S3 { creds, region })
                     } else {
-                        return Err(ExtensionError::String(format!(
-                            "invalid credentials for S3"
-                        )));
+                        return Err(ExtensionError::String(
+                            "invalid credentials for S3".to_string(),
+                        ));
                     }
                 }
                 DatasourceUrlScheme::File => {
-                    return Err(ExtensionError::String(format!(
-                        "Credentials incorrectly provided when accessing local iceberg table",
-                    )))
+                    return Err(ExtensionError::String(
+                        "Credentials incorrectly provided when accessing local iceberg table"
+                            .to_string(),
+                    ))
                 }
                 DatasourceUrlScheme::Http => {
-                    return Err(ExtensionError::String(format!(
-                        "Accessing iceberg tables over http not supported",
-                    )))
+                    return Err(ExtensionError::String(
+                        "Accessing iceberg tables over http not supported".to_string(),
+                    ))
                 }
             }
         }

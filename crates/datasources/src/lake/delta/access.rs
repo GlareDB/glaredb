@@ -3,9 +3,8 @@ use crate::lake::delta::errors::Result;
 use crate::lake::LakeStorageOptions;
 use deltalake::DeltaTable;
 use metastore_client::types::options::{
-    CredentialsOptionsAws, CredentialsOptionsGcp, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    CredentialsOptionsAws, DeltaLakeCatalog, DeltaLakeUnityCatalog,
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
