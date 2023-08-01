@@ -12,9 +12,9 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlScheme};
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
-use datasources::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -1019,12 +1019,12 @@ impl<'a> SessionPlanner<'a> {
         ) {
             (dest.as_str(), None)
         } else {
-            let u = DatasourceUrl::new(&dest)?;
-            let d = match u.scheme() {
-                DatasourceUrlScheme::File => CopyToDestinationOptions::LOCAL,
-                DatasourceUrlScheme::Gcs => CopyToDestinationOptions::GCS,
-                DatasourceUrlScheme::S3 => CopyToDestinationOptions::S3_STORAGE,
-                DatasourceUrlScheme::Http => return Err(internal!("invalid URL scheme")),
+            let u = DatasourceUrl::try_new(&dest)?;
+            let d = match u.datasource_url_type() {
+                DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
+                DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
+                DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
+                DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
             (d, Some(u))
         };

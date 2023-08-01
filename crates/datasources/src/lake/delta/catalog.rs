@@ -2,7 +2,7 @@
 //!
 //! Most of this was copied in from the `deltalake` crate to make some
 //! modifications with how we construct clients, and what errors get returned.
-use crate::delta::errors::{DeltaError, Result};
+use crate::lake::delta::errors::{DeltaError, Result};
 use async_trait::async_trait;
 use reqwest::header;
 use serde::Deserialize;

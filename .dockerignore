@@ -14,3 +14,8 @@ flamegraph.svg
 benchmarks/artifacts/
 # Deps downloaded from external sources
 /deps
+
+.vscode/
+
+# Spark jar for iceberg data generation
+*.jar
