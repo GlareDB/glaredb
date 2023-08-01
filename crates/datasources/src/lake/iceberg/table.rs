@@ -340,8 +340,10 @@ impl TableProvider for IcebergTableReader {
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        // Get only data files with "data" content. TODO: Handle "delete"
-        // content and also pull out partition information.
+        // Get only data files with "data" content.
+        //
+        // TODO: Handle "delete" content and also pull out partition
+        // information.
         let data_files: Vec<_> = manifests
             .into_iter()
             .filter(|m| matches!(m.metadata.content, ManifestContent::Data))

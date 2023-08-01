@@ -4,7 +4,10 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use datasources::native::access::NativeTableStorage;
-use metastore_client::types::service::{Mutation, UpdateDeploymentStorage};
+use metastore_client::types::{
+    catalog::TableEntry,
+    service::{Mutation, UpdateDeploymentStorage},
+};
 use tokio::time::Instant;
 
 use crate::{errors::Result, metastore::SupervisorClient};
@@ -53,6 +56,42 @@ impl BgJob for BackgroundJobStorageTracker {
             )
             .await?;
 
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct BackgroundJobDeleteTable {
+    native_store: NativeTableStorage,
+    table_entry: TableEntry,
+}
+
+impl BackgroundJobDeleteTable {
+    pub fn new(native_store: NativeTableStorage, table_entry: TableEntry) -> Arc<Self> {
+        Arc::new(Self {
+            native_store,
+            table_entry,
+        })
+    }
+}
+
+#[async_trait]
+impl BgJob for BackgroundJobDeleteTable {
+    fn name(&self) -> String {
+        format!(
+            "delete_table_{}_{}",
+            self.native_store.db_id(),
+            self.table_entry.meta.name
+        )
+    }
+
+    fn start_at(&self) -> Instant {
+        // schedule the delete task to run immediately
+        Instant::now()
+    }
+
+    async fn start(&self) -> Result<()> {
+        self.native_store.delete_table(&self.table_entry).await?;
         Ok(())
     }
 }

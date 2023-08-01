@@ -11,12 +11,6 @@ use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
 
-#[derive(Debug, Clone)]
-pub enum DatasourceUrl {
-    File(PathBuf),
-    Url(Url),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatasourceUrlScheme {
     File,
@@ -34,6 +28,12 @@ impl Display for DatasourceUrlScheme {
             Self::S3 => write!(f, "s3"),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum DatasourceUrl {
+    File(PathBuf),
+    Url(Url),
 }
 
 impl Display for DatasourceUrl {
@@ -121,7 +121,7 @@ impl DatasourceUrl {
     pub fn path(&self) -> Cow<str> {
         match self {
             Self::File(p) => p.to_string_lossy(),
-            Self::Url(u) => u.path().into(),
+            Self::Url(u) => u.path().trim_start_matches('/').into(),
         }
     }
 
@@ -129,6 +129,18 @@ impl DatasourceUrl {
         match self {
             Self::File(_) => None,
             Self::Url(u) => u.host_str(),
+        }
+    }
+
+    pub fn as_url(&self) -> Result<Url> {
+        match self {
+            Self::File(p) if p.is_absolute() => {
+                Ok(format!("file:{}", p.to_string_lossy()).parse()?)
+            }
+            Self::Url(u) => Ok(u.clone()),
+            _ => Err(DatasourceCommonError::InvalidUrl(
+                "cannot convert datasource URL to a generic URL".to_string(),
+            )),
         }
     }
 }
@@ -141,12 +153,12 @@ mod tests {
     fn test_url_parse() {
         let u = DatasourceUrl::try_new("gs://my_bucket/my_obj").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
-        assert_eq!("/my_obj", u.path());
+        assert_eq!("my_obj", u.path());
         assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
 
         let u = DatasourceUrl::try_new("gs://my_bucket/my_obj.parquet").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
-        assert_eq!("/my_obj.parquet", u.path());
+        assert_eq!("my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::Gcs, u.scheme());
 
         let u = DatasourceUrl::try_new("./my_bucket/my_obj.parquet").unwrap();
@@ -163,7 +175,6 @@ mod tests {
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::File, u.scheme());
 
-        // TODO: Maybe we don't want this...
         let u = DatasourceUrl::try_new("file:my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlScheme::File, u.scheme());

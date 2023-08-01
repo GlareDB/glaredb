@@ -1,4 +1,4 @@
-use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobStorageTracker};
 use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
@@ -25,7 +25,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
-use datasources::object_store::registry::GlareDBRegistry;
+use datasources::object_store::init_session_registry;
 use futures::{future::BoxFuture, StreamExt};
 use metastore_client::errors::ResolveErrorStrategy;
 use metastore_client::session::SessionCatalog;
@@ -102,7 +102,7 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-    ) -> SessionContext {
+    ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
         let mut catalog_opts = CatalogOptions::default();
@@ -117,13 +117,7 @@ impl SessionContext {
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
-        let entries = catalog
-            .iter_entries()
-            .filter(|e| e.entry_type() == EntryType::Table && !e.builtin);
-
         let mut conf = RuntimeConfig::default();
-        conf =
-            conf.with_object_store_registry(Arc::new(GlareDBRegistry::try_new(entries).unwrap()));
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
@@ -133,9 +127,24 @@ impl SessionContext {
                 conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
             }
         }
-        let runtime = Arc::new(RuntimeEnv::new(conf).unwrap());
 
-        let state = SessionState::with_config_rt(config, runtime);
+        let runtime = RuntimeEnv::new(conf)?;
+
+        // Register the object store in the registry for all the tables.
+        let entries = catalog.iter_entries().filter_map(|e| {
+            if !e.builtin {
+                if let CatalogEntry::Table(entry) = e.entry {
+                    Some(&entry.options)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+        init_session_registry(&runtime, entries)?;
+
+        let state = SessionState::with_config_rt(config, Arc::new(runtime));
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
@@ -143,7 +152,7 @@ impl SessionContext {
         // Ideally we can reduce the need to rely on datafusion's session state
         // as much as possible. It makes way too many assumptions.
 
-        SessionContext {
+        Ok(SessionContext {
             metastore_catalog: catalog,
             metastore,
             current_session_tables: HashMap::new(),
@@ -155,7 +164,7 @@ impl SessionContext {
             df_state: state,
             env_reader: None,
             background_jobs,
-        }
+        })
     }
 
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
@@ -490,16 +499,24 @@ impl SessionContext {
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         for r in plan.names {
-            let (_, schema, name) = self.resolve_table_ref(r)?;
+            let (database, schema, name) = self.resolve_table_ref(r)?;
+
+            if let Some(table_entry) = self
+                .metastore_catalog
+                .resolve_native_table(&database, &schema, &name)
+            {
+                let tracker =
+                    BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
+                self.background_jobs.add(tracker)?;
+            }
+
             drops.push(Mutation::DropObject(service::DropObject {
                 schema,
                 name,
                 if_exists: plan.if_exists,
             }));
         }
-
         self.mutate_catalog(drops).await?;
-
         Ok(())
     }
 

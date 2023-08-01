@@ -1,7 +1,8 @@
 use crate::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
-    SchemaEntry, TunnelEntry,
+    SchemaEntry, TableEntry, TunnelEntry,
 };
+use crate::types::options::TableOptions;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -53,6 +54,27 @@ impl SessionCatalog {
     /// Returns the deployment metadata.
     pub fn deployment_metadata(&self) -> DeploymentMetadata {
         self.state.deployment.clone()
+    }
+
+    pub fn resolve_native_table(
+        &self,
+        _database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Option<&TableEntry> {
+        let schema_id = self.schema_names.get(schema)?;
+        let obj = self.schema_objects.get(schema_id)?;
+        let obj_id = obj.objects.get(name)?;
+
+        let ent = self.state.entries.get(obj_id)?;
+
+        match ent {
+            CatalogEntry::Table(table) => match &table.options {
+                TableOptions::Internal(_) => Some(table),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// Resolve a database by name.
@@ -126,11 +148,6 @@ impl SessionCatalog {
                 ent.entry_type(),
             ),
         }
-    }
-
-    // Check if a schema exists in the metastore.
-    pub fn schema_exists(&self, schema_name: &str) -> bool {
-        self.schema_names.contains_key(schema_name)
     }
 
     /// Resolve a schema by name.

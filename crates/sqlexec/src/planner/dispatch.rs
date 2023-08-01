@@ -13,10 +13,15 @@ use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::gcs::{GcsAccessor, GcsTableAccess};
-use datasources::object_store::local::{LocalAccessor, LocalTableAccess};
-use datasources::object_store::s3::{S3Accessor, S3TableAccess};
-use datasources::object_store::TableAccessor;
+use datasources::object_store::csv::CsvFileAccess;
+use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::json::JsonFileAccess;
+use datasources::object_store::local::LocalStoreAccess;
+use datasources::object_store::parquet::ParquetFileAccess;
+use datasources::object_store::s3::S3StoreAccess;
+use datasources::object_store::{
+    file_type_from_path, FileType, FileTypeAccess, ObjStoreAccess, ObjStoreAccessor,
+};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore_client::session::SessionCatalog;
@@ -407,37 +412,19 @@ impl<'a> SessionDispatcher<'a> {
                         "Local file access is not supported in cloud mode",
                     ));
                 }
-                let table_access = LocalTableAccess {
-                    location: location.clone(),
-                    file_type: None,
-                };
-                let accessor = LocalAccessor::new(table_access).await?;
-                let provider = accessor.into_table_provider(true).await?;
-                Ok(provider)
+                let access = Arc::new(LocalStoreAccess);
+                create_obj_store_table_provider(access, location).await
             }
             TableOptions::Gcs(TableOptionsGcs {
                 service_account_key,
                 bucket,
                 location,
             }) => {
-                let table_access = GcsTableAccess {
-                    service_account_key_json: service_account_key.clone(),
-                    bucket_name: bucket.clone(),
-                    location: location.clone(),
-                    file_type: None,
-                };
-                let accessor = GcsAccessor::new(table_access).await?;
-                let store = accessor.store();
-                let url = accessor.base_path();
-                let url = url::Url::parse(&url).unwrap();
-
-                self.ctx
-                    .get_df_state()
-                    .runtime_env()
-                    .register_object_store(&url, store.clone());
-
-                let provider = accessor.into_table_provider(true).await?;
-                Ok(provider)
+                let access = Arc::new(GcsStoreAccess {
+                    service_account_key: service_account_key.clone(),
+                    bucket: bucket.clone(),
+                });
+                create_obj_store_table_provider(access, location).await
             }
             TableOptions::S3(TableOptionsS3 {
                 access_key_id,
@@ -446,26 +433,13 @@ impl<'a> SessionDispatcher<'a> {
                 bucket,
                 location,
             }) => {
-                let table_access = S3TableAccess {
+                let access = Arc::new(S3StoreAccess {
                     region: region.clone(),
-                    bucket_name: bucket.clone(),
-                    location: location.clone(),
+                    bucket: bucket.clone(),
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
-                    file_type: None,
-                };
-                let accessor = S3Accessor::new(table_access).await?;
-                let store = accessor.store();
-                let url = accessor.base_path();
-                let url = url::Url::parse(&url).unwrap();
-
-                self.ctx
-                    .get_df_state()
-                    .runtime_env()
-                    .register_object_store(&url, store.clone());
-
-                let provider = accessor.into_table_provider(true).await?;
-                Ok(provider)
+                });
+                create_obj_store_table_provider(access, location).await
             }
         }
     }
@@ -497,6 +471,25 @@ impl<'a> SessionDispatcher<'a> {
         };
         Ok(tunnel_options)
     }
+}
+
+async fn create_obj_store_table_provider(
+    access: Arc<dyn ObjStoreAccess>,
+    location: &str,
+) -> Result<Arc<dyn TableProvider>> {
+    let ft = file_type_from_path(&access.path(location)?)?;
+    let ft: Arc<dyn FileTypeAccess> = match ft {
+        FileType::Csv => Arc::new(CsvFileAccess::default()),
+        FileType::Parquet => Arc::new(ParquetFileAccess),
+        FileType::Json => Arc::new(JsonFileAccess),
+    };
+
+    let accessor = ObjStoreAccessor::new(access)?;
+    let objects = accessor.list([location].into_iter()).await?;
+    let provider = accessor
+        .into_table_provider(ft, objects, /* predicate_pushdown = */ true)
+        .await?;
+    Ok(provider)
 }
 
 /// Dispatch to builtin system tables.

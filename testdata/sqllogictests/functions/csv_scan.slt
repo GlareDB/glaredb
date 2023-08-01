@@ -30,3 +30,11 @@ select count(*) from csv_scan([
 
 statement error at least one url expected
 select * from csv_scan([]);
+
+# Glob patterns not supported on HTTP
+# Should just directly try and get the object
+
+statement error 404: Not Found
+select * from csv_scan(
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.csv'
+);

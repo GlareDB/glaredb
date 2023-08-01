@@ -201,11 +201,7 @@ impl LocalSession {
                 },
                 Ok(Signal::CtrlD) => break,
                 Ok(Signal::CtrlC) => {
-                    if scratch.is_empty() {
-                        break;
-                    } else {
-                        scratch.clear();
-                    }
+                    scratch.clear();
                 }
                 Err(e) => {
                     return Err(anyhow!("Unable to read from prompt: {e}"));
