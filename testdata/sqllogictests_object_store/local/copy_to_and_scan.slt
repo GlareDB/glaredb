@@ -133,3 +133,18 @@ SELECT * FROM parquet_scan('${TMP}/*_glob_*');
 2
 3
 4
+
+# Multiple glob patterns
+
+query I rowsort
+SELECT * FROM parquet_scan([
+	'${TMP}/*_glob_*.parquet',
+	'${TMP}/*_glob_*'
+]);
+----
+1
+1
+2
+2
+3
+4

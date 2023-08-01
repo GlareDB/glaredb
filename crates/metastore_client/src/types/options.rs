@@ -669,6 +669,7 @@ impl From<TableOptionsMysql> for options::TableOptionsMysql {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct TableOptionsLocal {
     pub location: String,
+    pub file_type: String,
 }
 
 impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
@@ -676,6 +677,7 @@ impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
     fn try_from(value: options::TableOptionsLocal) -> Result<Self, Self::Error> {
         Ok(TableOptionsLocal {
             location: value.location,
+            file_type: value.file_type,
         })
     }
 }
@@ -684,6 +686,7 @@ impl From<TableOptionsLocal> for options::TableOptionsLocal {
     fn from(value: TableOptionsLocal) -> Self {
         options::TableOptionsLocal {
             location: value.location,
+            file_type: value.file_type,
         }
     }
 }
@@ -693,6 +696,7 @@ pub struct TableOptionsGcs {
     pub service_account_key: Option<String>,
     pub bucket: String,
     pub location: String,
+    pub file_type: String,
 }
 
 impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
@@ -702,6 +706,7 @@ impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
             service_account_key: value.service_account_key,
             bucket: value.bucket,
             location: value.location,
+            file_type: value.file_type,
         })
     }
 }
@@ -712,6 +717,7 @@ impl From<TableOptionsGcs> for options::TableOptionsGcs {
             service_account_key: value.service_account_key,
             bucket: value.bucket,
             location: value.location,
+            file_type: value.file_type,
         }
     }
 }
@@ -723,6 +729,7 @@ pub struct TableOptionsS3 {
     pub region: String,
     pub bucket: String,
     pub location: String,
+    pub file_type: String,
 }
 
 impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
@@ -734,6 +741,7 @@ impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
             region: value.region,
             bucket: value.bucket,
             location: value.location,
+            file_type: value.file_type,
         })
     }
 }
@@ -746,6 +754,7 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
             region: value.region,
             bucket: value.bucket,
             location: value.location,
+            file_type: value.file_type,
         }
     }
 }

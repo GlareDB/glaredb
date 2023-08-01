@@ -132,12 +132,16 @@ message TableOptionsMysql {
   string table = 3;
 }
 
-message TableOptionsLocal { string location = 1; }
+message TableOptionsLocal {
+  string location = 1;
+  string file_type = 2;
+}
 
 message TableOptionsGcs {
   optional string service_account_key = 1;
   string bucket = 2;
   string location = 3;
+  string file_type = 4;
 }
 
 message TableOptionsS3 {
@@ -146,6 +150,7 @@ message TableOptionsS3 {
   string region = 3;
   string bucket = 4;
   string location = 5;
+  string file_type = 6;
 }
 
 message TableOptionsMongo {
