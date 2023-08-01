@@ -79,6 +79,8 @@ impl LocalClientOpts {
                 "\\mode MODE",
                 "Set the output mode [table, json, ndjson, csv]",
             ),
+            ("\\max-rows NUM", "Max number of rows to display"),
+            ("\\max-columns NUM", "Max number of columns to display"),
             ("\\open PATH", "Open a database at the given path"),
             ("\\quit", "Quit this session"),
         ];
@@ -282,6 +284,8 @@ impl LocalSession {
                 self.opts.mode = OutputMode::from_str(val, true)
                     .map_err(|s| anyhow!("Unable to set output mode: {s}"))?;
             }
+            ("\\max-rows", Some(val)) => self.opts.max_rows = Some(val.parse()?),
+            ("\\max-columns", Some(val)) => self.opts.max_rows = Some(val.parse()?),
             ("\\open", Some(path)) => {
                 let new_opts = LocalClientOpts {
                     data_dir: Some(PathBuf::from(path)),
