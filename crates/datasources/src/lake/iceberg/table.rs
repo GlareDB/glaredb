@@ -206,44 +206,7 @@ impl TableState {
         let bs = self.store.get(&path).await?.bytes().await?;
 
         let mut cursor = Cursor::new(bs);
-
-        // HACK: Avro reader will panic since it thinks there's a null in
-        // the partitions list during array validation. I'm not sure why yet
-        // though.
-        // TODO: Try not converting to record batch
-        let schema = avro::read_avro_schema_from_reader(&mut cursor)?;
-        let fields: Vec<_> = schema
-            .fields
-            .iter()
-            .map(|f| {
-                if f.name() == "partitions" {
-                    let struct_field = Field::new_struct(
-                        "struct",
-                        vec![
-                            Field::new("r508.contains_null", DataType::Boolean, false),
-                            Field::new("r508.contains_nan", DataType::Boolean, true),
-                            Field::new("r508.lower_bound", DataType::Binary, true),
-                            Field::new("r508.upper_bound", DataType::Binary, true),
-                        ],
-                        true, // This is the difference. It get inferred as 'false' by the reader.
-                    );
-                    Field::new_list("partitions", struct_field, true)
-                } else {
-                    Field::new(f.name(), f.data_type().clone(), f.is_nullable())
-                }
-            })
-            .collect();
-        let schema = ArrowSchema::new(fields);
-
-        let mut reader = avro::ReaderBuilder::new()
-            .with_schema(Arc::new(schema))
-            .build(cursor)?;
-
-        let batch = reader.next().transpose()?.ok_or_else(|| {
-            IcebergError::DataInvalid("No data found in manifest list".to_string())
-        })?;
-
-        let list = ManifestList::try_from_batch(batch)?;
+        let list = ManifestList::from_raw_avro(cursor)?;
 
         Ok(list)
     }

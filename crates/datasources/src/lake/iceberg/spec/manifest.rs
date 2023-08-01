@@ -11,7 +11,10 @@ use serde_with::{serde_as, Bytes};
 use std::fmt;
 use std::{collections::HashMap, str::FromStr};
 
-#[derive(Debug, Clone)]
+/// Manifest lists include summary medata for the table alongside the path the
+/// actual manifest.
+#[serde_as]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ManifestListEntry {
     pub manifest_path: String,
     pub manifest_length: i64,
@@ -20,14 +23,23 @@ pub struct ManifestListEntry {
     pub sequence_number: i64,
     pub min_sequence_number: i64,
     pub added_snapshot_id: i64,
-    pub added_files_count: i32,
-    pub existing_files_count: i32,
-    pub deleted_files_count: i32,
-    pub added_rows_count: i64,
-    pub existing_rows_count: i64,
+    /// > Number of entries in the manifest that have status ADDED (1), when
+    /// > null this is assumed to be non-zero
+    pub added_files_count: Option<i32>,
+    /// > Number of entries in the manifest that have status EXISTING (0), when
+    /// > null this is assumed to be non-zero
+    pub existing_files_count: Option<i32>,
+    /// > Number of entries in the manifest that have status DELETED (2), when
+    /// > null this is assumed to be non-zero
+    pub deleted_files_count: Option<i32>,
+    /// > Number of rows in all of files in the manifest that have status ADDED,
+    /// > when null this is assumed to be non-zero
+    pub added_rows_count: Option<i32>,
+    pub existing_rows_count: Option<i32>,
     pub deleted_rows_count: i64,
     pub partitions: Vec<FieldSummary>,
-    pub key_metadata: Vec<u8>,
+    #[serde_as(as = "Option<Bytes>")]
+    pub key_metadata: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -35,61 +47,31 @@ pub struct ManifestList {
     pub entries: Vec<ManifestListEntry>,
 }
 
-/// Utility macro for getting a value at some column/row in a record batch.
-macro_rules! get_value {
-    ($array_type:ty, $batch:expr, $col:expr, $row:expr) => {{
-        let col: usize = $col;
-        let row: usize = $row;
-        let batch: &RecordBatch = $batch;
-        batch
-            .column(col)
-            .as_any()
-            .downcast_ref::<$array_type>()
-            .ok_or_else(|| {
-                IcebergError::DataInvalid(format!(
-                    "Invalid column value for column {col}, row {row}"
-                ))
-            })?
-            .value(row)
-    }};
-}
-
 impl ManifestList {
-    /// Try to convert a record batch to a manifest list.
-    pub fn try_from_batch(batch: RecordBatch) -> Result<ManifestList> {
-        let mut entries = Vec::with_capacity(batch.num_rows());
+    /// Read a manifest list from a reader over an Avro file.
+    pub fn from_raw_avro(reader: impl std::io::Read) -> Result<ManifestList> {
+        let reader = Reader::new(reader)?;
 
-        for row in 0..batch.num_rows() {
-            let ent = ManifestListEntry {
-                manifest_path: get_value!(StringArray, &batch, 0, row).to_string(),
-                manifest_length: get_value!(Int64Array, &batch, 1, row),
-                partition_spec_id: get_value!(Int32Array, &batch, 2, row),
-                content: get_value!(Int32Array, &batch, 3, row),
-                sequence_number: get_value!(Int64Array, &batch, 4, row),
-                min_sequence_number: get_value!(Int64Array, &batch, 5, row),
-                added_snapshot_id: get_value!(Int64Array, &batch, 6, row),
-                added_files_count: get_value!(Int32Array, &batch, 7, row),
-                existing_files_count: get_value!(Int32Array, &batch, 8, row),
-                deleted_files_count: get_value!(Int32Array, &batch, 9, row),
-                added_rows_count: get_value!(Int64Array, &batch, 10, row),
-                existing_rows_count: get_value!(Int64Array, &batch, 11, row),
-                deleted_rows_count: get_value!(Int64Array, &batch, 12, row),
-                partitions: Vec::new(),   // TODO
-                key_metadata: Vec::new(), // TODO
-            };
-            entries.push(ent);
+        let mut entries = Vec::new();
+        for value in reader {
+            let value = value?;
+            let entry: ManifestListEntry = from_value(&value)?;
+            entries.push(entry);
         }
 
         Ok(ManifestList { entries })
     }
 }
 
-#[derive(Debug, Clone)]
+#[serde_as]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FieldSummary {
     pub contains_null: bool,
     pub contains_nan: bool,
-    pub lower_bound: Vec<u8>,
-    pub upper_count: Vec<u8>,
+    #[serde_as(as = "Option<Bytes>")]
+    pub lower_bound: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Bytes>")]
+    pub upper_bound: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -239,29 +221,4 @@ pub struct BinaryEntry {
 pub struct I64Entry {
     key: i32,
     value: i64,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_value() -> Result<()> {
-        use datafusion::arrow::{
-            array::Int64Builder,
-            datatypes::{DataType, Field, Schema},
-        };
-        use std::sync::Arc;
-
-        let mut builder = Int64Builder::new();
-        builder.append_value(1);
-
-        let schema = Arc::new(Schema::new(vec![Field::new("num", DataType::Int64, false)]));
-
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(builder.finish())]).unwrap();
-
-        let v: i64 = get_value!(Int64Array, &batch, 0, 0);
-        assert_eq!(1, v);
-        Ok(())
-    }
 }

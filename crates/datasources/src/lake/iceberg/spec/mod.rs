@@ -13,6 +13,8 @@
 //! - Data files: The actual files containing the data for a table. These can be
 //!   Parquet, ORC, or Avro. We only currently support Avro. Data files can
 //!   either store data contents, or provide delete information for a table.
+//!
+//! Relevants text copied from the spec are prefixed with "> " (markdown quotes).
 
 mod schema;
 pub use schema::*;
