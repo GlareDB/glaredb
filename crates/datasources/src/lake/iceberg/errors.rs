@@ -19,9 +19,6 @@ pub enum IcebergError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
-    Avro(#[from] apache_avro::Error),
-
-    #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
 
     #[error("{0}")]

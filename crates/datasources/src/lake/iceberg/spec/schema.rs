@@ -4,7 +4,7 @@ use datafusion::arrow::datatypes::{
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{de, Deserialize, Deserializer};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -39,7 +39,7 @@ impl TryFrom<PrimitiveType> for DataType {
             PrimitiveType::Double => DataType::Float64,
             PrimitiveType::Decimal { p, s } => DataType::Decimal128(p, s as i8),
             PrimitiveType::Date => DataType::Date32,
-            PrimitiveType::Time => unimplemented!(),
+            PrimitiveType::Time => DataType::Timestamp(TimeUnit::Microsecond, None), // TODO: Possibly `Time32` instead?
             PrimitiveType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond, None),
             PrimitiveType::Timestamptz => DataType::Timestamp(TimeUnit::Microsecond, None),
             PrimitiveType::String => DataType::Utf8,

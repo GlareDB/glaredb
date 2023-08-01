@@ -92,6 +92,14 @@ impl LocalClientOpts {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ClientCommandResult {
+    /// Exit the program.
+    Exit,
+    /// Continue on.
+    Continue,
+}
+
 pub struct LocalSession {
     sess: TrackedSession,
     engine: Engine,
@@ -179,9 +187,13 @@ impl LocalSession {
             let sig = line_editor.read_line(&prompt);
             match sig {
                 Ok(Signal::Success(buffer)) => match buffer.as_str() {
-                    cmd if is_client_cmd(cmd) => {
-                        self.handle_client_cmd(cmd).await?;
-                    }
+                    cmd if is_client_cmd(cmd) => match self.handle_client_cmd(cmd).await {
+                        Ok(ClientCommandResult::Continue) => (),
+                        Ok(ClientCommandResult::Exit) => return Ok(()),
+                        Err(e) => {
+                            println!("Error: {e}")
+                        }
+                    },
                     _ => {
                         let mut parts = buffer.splitn(2, ';');
                         let first = parts.next().unwrap();
@@ -257,7 +269,7 @@ impl LocalSession {
         Ok(())
     }
 
-    async fn handle_client_cmd(&mut self, text: &str) -> Result<()> {
+    async fn handle_client_cmd(&mut self, text: &str) -> Result<ClientCommandResult> {
         let mut ss = text.split_whitespace();
         let cmd = ss.next().unwrap();
         let val = ss.next();
@@ -280,11 +292,11 @@ impl LocalSession {
                 println!("Created new session. New database path: {path}");
                 *self = new_sess;
             }
-            ("\\quit", None) => std::process::exit(0),
+            ("\\quit", None) => return Ok(ClientCommandResult::Exit),
             (cmd, _) => return Err(anyhow!("Unable to handle client command: {cmd}")),
         }
 
-        Ok(())
+        Ok(ClientCommandResult::Continue)
     }
 }
 

@@ -1,0 +1,217 @@
+{
+  "format-version" : 2,
+  "table-uuid" : "9ce639d0-7bd8-4299-9a42-8c930202457b",
+  "location" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned",
+  "last-sequence-number" : 4,
+  "last-updated-ms" : 1690861759326,
+  "last-column-id" : 16,
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "l_orderkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 2,
+      "name" : "l_partkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 3,
+      "name" : "l_suppkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 4,
+      "name" : "l_linenumber",
+      "required" : false,
+      "type" : "int"
+    }, {
+      "id" : 5,
+      "name" : "l_quantity",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 6,
+      "name" : "l_extendedprice",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 7,
+      "name" : "l_discount",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 8,
+      "name" : "l_tax",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 9,
+      "name" : "l_returnflag",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 10,
+      "name" : "l_linestatus",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 11,
+      "name" : "l_shipdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 12,
+      "name" : "l_commitdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 13,
+      "name" : "l_receiptdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 14,
+      "name" : "l_shipinstruct",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 15,
+      "name" : "l_shipmode",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 16,
+      "name" : "l_comment",
+      "required" : false,
+      "type" : "string"
+    } ]
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ ]
+  } ],
+  "last-partition-id" : 999,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "owner" : "sean",
+    "write.update.mode" : "merge-on-read"
+  },
+  "current-snapshot-id" : 2951997292162583218,
+  "refs" : {
+    "main" : {
+      "snapshot-id" : 2951997292162583218,
+      "type" : "branch"
+    }
+  },
+  "snapshots" : [ {
+    "sequence-number" : 1,
+    "snapshot-id" : 2591356646088336681,
+    "timestamp-ms" : 1690861703722,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1690861700060",
+      "added-data-files" : "1",
+      "added-records" : "4000",
+      "added-files-size" : "130930",
+      "changed-partition-count" : "1",
+      "total-records" : "4000",
+      "total-files-size" : "130930",
+      "total-data-files" : "1",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-2591356646088336681-1-481f5867-e369-4c1c-a9ba-6c9e04030958.avro",
+    "schema-id" : 0
+  }, {
+    "sequence-number" : 2,
+    "snapshot-id" : 811617685892558872,
+    "parent-snapshot-id" : 2591356646088336681,
+    "timestamp-ms" : 1690861704201,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1690861700060",
+      "added-data-files" : "1",
+      "added-records" : "4000",
+      "added-files-size" : "130930",
+      "changed-partition-count" : "1",
+      "total-records" : "8000",
+      "total-files-size" : "261860",
+      "total-data-files" : "2",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-811617685892558872-1-42f6dfe0-4e9d-446b-8ef9-9b3a0fcdc883.avro",
+    "schema-id" : 0
+  }, {
+    "sequence-number" : 3,
+    "snapshot-id" : 88131049724879047,
+    "timestamp-ms" : 1690861759164,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1690861755845",
+      "added-data-files" : "1",
+      "added-records" : "1000",
+      "added-files-size" : "37204",
+      "changed-partition-count" : "1",
+      "total-records" : "1000",
+      "total-files-size" : "37204",
+      "total-data-files" : "1",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-88131049724879047-1-d37e7367-18c0-4a7e-b8aa-1a24a59a53ce.avro",
+    "schema-id" : 0
+  }, {
+    "sequence-number" : 4,
+    "snapshot-id" : 2951997292162583218,
+    "parent-snapshot-id" : 88131049724879047,
+    "timestamp-ms" : 1690861759326,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1690861755845",
+      "added-data-files" : "1",
+      "added-records" : "1000",
+      "added-files-size" : "37204",
+      "changed-partition-count" : "1",
+      "total-records" : "2000",
+      "total-files-size" : "74408",
+      "total-data-files" : "2",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/snap-2951997292162583218-1-2bb32ee4-6711-4e7c-8a70-84d4914ce99c.avro",
+    "schema-id" : 0
+  } ],
+  "statistics" : [ ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1690861759164,
+    "snapshot-id" : 88131049724879047
+  }, {
+    "timestamp-ms" : 1690861759326,
+    "snapshot-id" : 2951997292162583218
+  } ],
+  "metadata-log" : [ {
+    "timestamp-ms" : 1690861703722,
+    "metadata-file" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/v1.metadata.json"
+  }, {
+    "timestamp-ms" : 1690861704201,
+    "metadata-file" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/v2.metadata.json"
+  }, {
+    "timestamp-ms" : 1690861759164,
+    "metadata-file" : "/Users/sean/Code/github.com/glaredb/glaredb/testdata/iceberg/tables/lineitem_versioned/metadata/v3.metadata.json"
+  } ]
+}

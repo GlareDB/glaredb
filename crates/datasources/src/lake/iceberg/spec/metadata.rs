@@ -3,7 +3,7 @@ use super::Schema;
 use crate::lake::iceberg::errors::{IcebergError, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{de, Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
 
 /// On disk table metadata.
@@ -29,6 +29,7 @@ pub struct TableMetadata {
     pub metadata_log: Vec<MetadataLog>,
     pub sort_orders: Vec<SortOrder>,
     pub default_sort_order_id: i32,
+    // TODO: Figure out what this field is for.
     // refs: Option<HashMap<String, SnapshotReference>>,
 }
 

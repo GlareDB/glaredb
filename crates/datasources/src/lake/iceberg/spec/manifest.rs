@@ -1,12 +1,8 @@
-use super::{PartitionField, PartitionSpec, Schema};
+use super::{PartitionField, Schema};
 
 use crate::lake::iceberg::errors::{IcebergError, Result};
 use apache_avro::{from_value, Reader};
-use datafusion::arrow::{
-    array::{Array, Int32Array, Int64Array, StringArray},
-    record_batch::RecordBatch,
-};
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use std::fmt;
 use std::{collections::HashMap, str::FromStr};
@@ -19,23 +15,36 @@ pub struct ManifestListEntry {
     pub manifest_path: String,
     pub manifest_length: i64,
     pub partition_spec_id: i32,
-    pub content: i32, // 0: data, 1: deletes
+    /// > The type of files tracked by the manifest, either data or delete
+    /// > files; 0 for all v1 manifests
+    ///
+    /// `0`: data
+    /// `1`: deletes
+    pub content: i32,
     pub sequence_number: i64,
     pub min_sequence_number: i64,
     pub added_snapshot_id: i64,
     /// > Number of entries in the manifest that have status ADDED (1), when
     /// > null this is assumed to be non-zero
-    pub added_files_count: Option<i32>,
+    // TODO: Remove default and deserialize into something more meaningful.
+    #[serde(default)]
+    pub added_files_count: i32,
     /// > Number of entries in the manifest that have status EXISTING (0), when
     /// > null this is assumed to be non-zero
-    pub existing_files_count: Option<i32>,
+    #[serde(default)]
+    pub existing_files_count: i32,
     /// > Number of entries in the manifest that have status DELETED (2), when
     /// > null this is assumed to be non-zero
-    pub deleted_files_count: Option<i32>,
+    #[serde(default)]
+    pub deleted_files_count: i32,
     /// > Number of rows in all of files in the manifest that have status ADDED,
     /// > when null this is assumed to be non-zero
-    pub added_rows_count: Option<i32>,
-    pub existing_rows_count: Option<i32>,
+    #[serde(default)]
+    pub added_rows_count: i32,
+    /// > Number of rows in all of files in the manifest that have status
+    /// > EXISTING, when null this is assumed to be non-zero
+    #[serde(default)]
+    pub existing_rows_count: i32,
     pub deleted_rows_count: i64,
     pub partitions: Vec<FieldSummary>,
     #[serde_as(as = "Option<Bytes>")]
@@ -50,12 +59,25 @@ pub struct ManifestList {
 impl ManifestList {
     /// Read a manifest list from a reader over an Avro file.
     pub fn from_raw_avro(reader: impl std::io::Read) -> Result<ManifestList> {
-        let reader = Reader::new(reader)?;
+        let reader = Reader::new(reader).map_err(|e| {
+            IcebergError::DataInvalid(format!(
+                "failed to create avro reader for manifest list: {e}"
+            ))
+        })?;
 
         let mut entries = Vec::new();
         for value in reader {
-            let value = value?;
-            let entry: ManifestListEntry = from_value(&value)?;
+            let value = value.map_err(|e| {
+                IcebergError::DataInvalid(format!(
+                    "failed to get value for manifest list entry: {e}"
+                ))
+            })?;
+            let entry: ManifestListEntry = from_value(&value).map_err(|e| {
+                IcebergError::DataInvalid(format!(
+                    "failed to deserialize value for manifest list entry: {e}"
+                ))
+            })?;
+
             entries.push(entry);
         }
 
@@ -122,7 +144,9 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn from_raw_avro(reader: impl std::io::Read) -> Result<Manifest> {
-        let reader = Reader::new(reader)?;
+        let reader = Reader::new(reader).map_err(|e| {
+            IcebergError::DataInvalid(format!("failed to create avro reader for manifest: {e}"))
+        })?;
 
         let m = reader.user_metadata();
 
@@ -166,8 +190,14 @@ impl Manifest {
 
         let mut entries = Vec::new();
         for value in reader {
-            let value = value?;
-            let entry: ManifestEntry = from_value(&value)?;
+            let value = value.map_err(|e| {
+                IcebergError::DataInvalid(format!("failed to get value for manifest entry: {e}"))
+            })?;
+            let entry: ManifestEntry = from_value(&value).map_err(|e| {
+                IcebergError::DataInvalid(format!(
+                    "failed to deserialize value for manifest entry: {e}"
+                ))
+            })?;
             entries.push(entry);
         }
 
