@@ -1,5 +1,6 @@
 import sys
 import os
+import glob
 import pyspark
 import pyspark.sql
 from pyspark import SparkContext
@@ -9,6 +10,13 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 OUTPUT_DIR = f"./iceberg/tables"
 LINEITEM_SRC = f"{SCRIPT_DIR}/iceberg/source_data/lineitem.parquet"
 
+# Find iceberg jars
+jars = glob.glob("./iceberg-spark-runtime-*.jar")
+if len(jars) != 1:
+    print("Expected one spark jar in current directory")
+    exit(1)
+spark_jar = jars[0]
+
 # Configure spark
 conf = pyspark.SparkConf()
 conf.setMaster("local[*]")
@@ -17,7 +25,7 @@ conf.set("spark.sql.catalog.iceberg_catalog.type", "hadoop")
 conf.set("spark.sql.catalog.iceberg_catalog.warehouse", OUTPUT_DIR)
 conf.set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
 conf.set("spark.driver.memory", "10g")
-conf.set("spark.jars", f"{SCRIPT_DIR}/iceberg-spark-runtime-3.4_2.12-1.3.0.jar")
+conf.set("spark.jars", f"{SCRIPT_DIR}/{spark_jar}")
 conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
 spark = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
 sc = spark.sparkContext
