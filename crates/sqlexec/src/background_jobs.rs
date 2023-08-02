@@ -112,9 +112,13 @@ impl JobRunner {
                         let _ = sleep_receiver.await;
 
                         let res = job.start().await;
-                        sender
-                            .send(RequestMessage::JobComplete(job_name, res))
-                            .unwrap();
+                        if sender
+                            .send(RequestMessage::JobComplete(job_name.clone(), res))
+                            .is_err()
+                        {
+                            // The job is complete (after close is called).
+                            info!(%job_name, "background job exited");
+                        }
                     });
 
                     // Insert the job in the collection.

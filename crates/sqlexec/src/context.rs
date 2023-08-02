@@ -499,8 +499,15 @@ impl SessionContext {
     pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
         let mut drops = Vec::with_capacity(plan.names.len());
         let mut jobs = Vec::with_capacity(plan.names.len());
+        let mut temp_table_drops = Vec::with_capacity(plan.names.len());
 
         for r in plan.names {
+            if let Ok(table) = self.resolve_temp_table_ref(r.clone()) {
+                // This is a temp table.
+                temp_table_drops.push(table);
+                continue;
+            }
+
             let (database, schema, name) = self.resolve_table_ref(r)?;
 
             if let Some(table_entry) = self
@@ -519,6 +526,14 @@ impl SessionContext {
             }));
         }
         self.mutate_catalog(drops).await?;
+
+        // Drop the session (temp) tables after catalog has mutated successfully
+        // since this step is not going to error. Ideally, we should have transactions
+        // here, but this works beautifully for now.
+        for temp_table in temp_table_drops {
+            let drop = self.current_session_tables.remove(&temp_table);
+            debug_assert!(drop.is_some());
+        }
 
         // Run background jobs _after_ tables get removed from the catalog.
         //
@@ -873,6 +888,44 @@ impl SessionContext {
             ),
         };
         Ok(r)
+    }
+
+    /// Resolve temp table reference for objects that live in the session.
+    fn resolve_temp_table_ref(&self, r: TableReference<'_>) -> Result<String> {
+        let table = match r {
+            TableReference::Bare { table } => table,
+            TableReference::Partial { schema, table } => {
+                if schema.as_ref() == CURRENT_SESSION_SCHEMA {
+                    table
+                } else {
+                    return Err(ExecError::InvalidTempTable {
+                        reason: format!("can only have '{CURRENT_SESSION_SCHEMA}' schema"),
+                    });
+                }
+            }
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => {
+                if catalog.as_ref() == DEFAULT_CATALOG && schema.as_ref() == CURRENT_SESSION_SCHEMA
+                {
+                    table
+                } else {
+                    return Err(ExecError::InvalidTempTable {
+                        reason: format!("can only have '{DEFAULT_CATALOG}' catalog and '{CURRENT_SESSION_SCHEMA}' schema")
+                    });
+                }
+            }
+        };
+
+        if self.current_session_tables.contains_key(table.as_ref()) {
+            Ok(table.into_owned())
+        } else {
+            Err(ExecError::InvalidTempTable {
+                reason: format!("does not exist: {table}"),
+            })
+        }
     }
 
     /// Iterate over all values in the search path.
