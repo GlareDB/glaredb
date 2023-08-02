@@ -243,7 +243,8 @@ impl LeaseRenewer {
             if expires_at > now {
                 return Err(StorageError::LeaseHeldByOtherProcess {
                     db_id: self.db_id,
-                    process_id: held_by,
+                    other_process_id: held_by,
+                    current_process_id: self.process_id,
                 });
             }
 
