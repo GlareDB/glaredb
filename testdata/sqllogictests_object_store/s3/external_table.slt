@@ -1,0 +1,89 @@
+# Tests for local external tables.
+
+# Credentials
+statement ok
+CREATE CREDENTIALS aws_creds PROVIDER aws
+	OPTIONS (
+		access_key_id = '${AWS_ACCESS_KEY_ID}',
+		secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+	);
+
+statement ok
+copy ( values (1, 2) ) to 's3://${AWS_S3_BUCKET_NAME}/ext-table.csv'
+	credentials aws_creds
+	( region '${AWS_S3_REGION}' );
+
+statement ok
+create external table ext_table from s3 (
+	access_key_id '${AWS_ACCESS_KEY_ID}',
+	secret_access_key '${AWS_SECRET_ACCESS_KEY}',
+	region '${AWS_S3_REGION}',
+	bucket '${AWS_S3_BUCKET_NAME}',
+	location 'ext-table.csv'
+);
+
+query II
+select * from ext_table;
+----
+1	2
+
+# Test "globs"
+
+statement ok
+copy ( values (3, 4) ) to 's3://${AWS_S3_BUCKET_NAME}/ext-table-1.csv'
+	credentials aws_creds
+	( region '${AWS_S3_REGION}' );
+
+# Create table using credentials
+
+statement ok
+create external table ext_table_1 from s3
+	credentials aws_creds
+	(
+		region '${AWS_S3_REGION}',
+		bucket '${AWS_S3_BUCKET_NAME}',
+		location 'ext-table*'
+	);
+
+query II rowsort
+select * from ext_table_1;
+----
+1	2
+3	4
+
+# Test `file_type` option
+
+statement ok
+copy ( values (5, 6) ) to 's3://${AWS_S3_BUCKET_NAME}/pq-table-1'
+	format parquet credentials aws_creds
+	( region '${AWS_S3_REGION}' );
+
+statement ok
+copy ( values (7, 8) ) to 's3://${AWS_S3_BUCKET_NAME}/pq-table-2'
+	format parquet credentials aws_creds
+	( region '${AWS_S3_REGION}' );
+
+statement error unable to resolve file type from the objects
+create external table ext_table_2 from s3
+	credentials aws_creds
+	(
+		region '${AWS_S3_REGION}',
+		bucket '${AWS_S3_BUCKET_NAME}',
+		location 'pq-table*'
+	);
+
+statement ok
+create external table ext_table_2 from s3
+	credentials aws_creds
+	(
+		region '${AWS_S3_REGION}',
+		bucket '${AWS_S3_BUCKET_NAME}',
+		location 'pq-table*',
+		file_type parquet
+	);
+
+query II rowsort
+select * from ext_table_2;
+----
+5	6
+7	8
