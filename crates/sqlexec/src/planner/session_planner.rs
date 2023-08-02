@@ -4,12 +4,14 @@ use std::sync::Arc;
 use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
-use datafusion::common::{OwnedSchemaReference, OwnedTableReference};
-use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer};
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
+use datafusion::datasource::DefaultTableSource;
+use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
+use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -592,13 +594,13 @@ impl<'a> SessionPlanner<'a> {
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let mut context_provider = PartialContextProvider::new(self.ctx)?;
-        let mut planner = SqlQueryPlanner::new(&mut context_provider);
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
             ast::Statement::Rollback { .. } => Ok(TransactionPlan::Abort.into()),
 
             ast::Statement::Query(q) => {
+                let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let plan = planner.query_to_plan(*q).await?;
                 Ok(LogicalPlan::Query(plan))
             }
@@ -609,6 +611,7 @@ impl<'a> SessionPlanner<'a> {
                 analyze,
                 ..
             } => {
+                let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let plan = planner
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
@@ -662,6 +665,7 @@ impl<'a> SessionPlanner<'a> {
                 let table_name = object_name_to_table_ref(name)?;
 
                 let (source, arrow_cols) = if let Some(q) = query {
+                    let mut planner = SqlQueryPlanner::new(&mut context_provider);
                     let source = planner.query_to_plan(*q).await?;
                     let fields = source.schema().fields();
                     let fields: Vec<_> =
@@ -736,6 +740,7 @@ impl<'a> SessionPlanner<'a> {
 
                 // Check that this is a valid body.
                 // TODO: Avoid cloning.
+                let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let input = planner.query_to_plan(*query).await?;
 
                 let columns: Vec<_> = columns.into_iter().map(normalize_ident).collect();
@@ -781,6 +786,7 @@ impl<'a> SessionPlanner<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
+                let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let source = planner
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
@@ -913,6 +919,59 @@ impl<'a> SessionPlanner<'a> {
                 };
 
                 Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
+            }
+
+            ast::Statement::Delete {
+                tables,
+                from,
+                using: None,
+                selection,
+                returning: None,
+            } if tables.is_empty() => {
+                let table_provider = match from.len() {
+                    0 => {
+                        return Err(PlanError::InvalidDeleteStatement {
+                            msg: "DELETE FROM should have atleast one table name",
+                        })
+                    }
+                    1 => {
+                        let table_factor = from[0].relation.clone();
+                        let table_name = match table_factor {
+                            ast::TableFactor::Table { name, .. } => name,
+                            _ => {
+                                return Err(PlanError::UnsupportedFeature(
+                                    "DELETE from TableWithJoins",
+                                ))
+                            }
+                        };
+                        validate_object_name(&table_name)?;
+                        let table_name = object_name_to_table_ref(table_name)?;
+
+                        let table_source = context_provider.get_table_provider(table_name).await?;
+                        let table_source: &DefaultTableSource =
+                            table_source.as_any().downcast_ref().unwrap();
+                        table_source.table_provider.clone()
+                    }
+                    _ => return Err(PlanError::UnsupportedFeature("DELETE from multiple tables")),
+                };
+
+                let schema = table_provider.schema().to_dfschema()?;
+                let expr = if let Some(expr) = selection {
+                    let mut planner = SqlQueryPlanner::new(&mut context_provider);
+                    Some(
+                        planner
+                            .sql_to_expr(expr, &schema, &mut PlannerContext::new())
+                            .await?,
+                    )
+                } else {
+                    None
+                };
+
+                Ok(WritePlan::Delete(Delete {
+                    table_provider,
+                    expr,
+                })
+                .into())
             }
 
             stmt => Err(PlanError::UnsupportedSQLStatement(stmt.to_string())),
