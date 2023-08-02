@@ -18,6 +18,13 @@ $ python generate_iceberg.py
 This will generate various iceberg tables in `./iceberg/tables` using source
 data from parquet files in `./iceberg/source_data`.
 
+Test data has also been uploaded to GCS and S3 with the following commands:
+
+```
+$ gsutil cp -r iceberg/ gs://glaredb-test/iceberg
+$ aws s3 cp --recursive iceberg/ s3://glaredb-test/iceberg
+```
+
 ### Source data
 
 Source data was generated with sql queries like the following:
@@ -37,3 +44,4 @@ The following command can be used to test local iceberg tables:
 ```
 $ cargo test --test sqllogictests -- 'sqllogictests_iceberg/local'
 ```
+

@@ -1,0 +1,55 @@
+# Tests for local external tables.
+
+statement ok
+copy ( values (1, 2) ) to '${TMP}/ext-table.csv';
+
+statement ok
+create external table ext_table from local (
+	location '${TMP}/ext-table.csv'
+);
+
+query II
+select * from ext_table;
+----
+1	2
+
+# Test "globs"
+
+statement ok
+copy ( values (3, 4) ) to '${TMP}/ext-table-1.csv';
+
+statement ok
+create external table ext_table_1 from local (
+	location '${TMP}/ext-table*'
+);
+
+query II rowsort
+select * from ext_table_1;
+----
+1	2
+3	4
+
+# Test `file_type` option
+
+statement ok
+copy ( values (5, 6) ) to '${TMP}/pq-table-1' format parquet;
+
+statement ok
+copy ( values (7, 8) ) to '${TMP}/pq-table-2' format parquet;
+
+statement error unable to resolve file type from the objects
+create external table ext_table_2 from local (
+	location '${TMP}/pq-table*'
+);
+
+statement ok
+create external table ext_table_2 from local (
+	location '${TMP}/pq-table*',
+	file_type parquet
+);
+
+query II rowsort
+select * from ext_table_2;
+----
+5	6
+7	8
