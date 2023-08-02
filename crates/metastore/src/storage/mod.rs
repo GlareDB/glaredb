@@ -10,8 +10,12 @@ use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
-    #[error("Lease for database '{db_id}' held by other process; process_id: {process_id}")]
-    LeaseHeldByOtherProcess { db_id: Uuid, process_id: Uuid },
+    #[error("Lease for database '{db_id}' held by other process; other_process_id: {other_process_id}, current_process_id: {current_process_id}")]
+    LeaseHeldByOtherProcess {
+        db_id: Uuid,
+        other_process_id: Uuid,
+        current_process_id: Uuid,
+    },
 
     #[error("Missing field on lease for database; db_id: {db_id}, field: {field}")]
     MissingLeaseField { db_id: Uuid, field: &'static str },

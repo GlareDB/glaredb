@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
-use tracing::info;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Metastore GRPC service.
@@ -52,6 +52,8 @@ impl MetastoreService for Service {
         request: Request<InitializeCatalogRequest>,
     ) -> Result<Response<InitializeCatalogResponse>, Status> {
         let req = request.into_inner();
+        debug!(?req, "initializing catalog");
+
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
 
@@ -85,6 +87,8 @@ impl MetastoreService for Service {
         request: Request<FetchCatalogRequest>,
     ) -> Result<Response<FetchCatalogResponse>, Status> {
         let req = request.into_inner();
+        debug!(?req, "fetch catalog");
+
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
         let catalogs = self.catalogs.read().await;
@@ -105,6 +109,8 @@ impl MetastoreService for Service {
         request: Request<MutateRequest>,
     ) -> Result<Response<MutateResponse>, Status> {
         let req = request.into_inner();
+        debug!(?req, "mutate catalog");
+
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
 
