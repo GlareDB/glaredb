@@ -409,8 +409,8 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn delete_from(&mut self, _plan: Delete) -> Result<()> {
-        //self.ctx.insert(plan).await?;
+    pub(crate) async fn delete_from(&mut self, plan: Delete) -> Result<()> {
+        self.ctx.delete(plan).await?;
         Ok(())
     }
 

@@ -928,7 +928,7 @@ impl<'a> SessionPlanner<'a> {
                 selection,
                 returning: None,
             } if tables.is_empty() => {
-                let table_provider = match from.len() {
+                let (table_name, schema) = match from.len() {
                     0 => {
                         return Err(PlanError::InvalidDeleteStatement {
                             msg: "DELETE FROM should have atleast one table name",
@@ -947,15 +947,17 @@ impl<'a> SessionPlanner<'a> {
                         validate_object_name(&table_name)?;
                         let table_name = object_name_to_table_ref(table_name)?;
 
-                        let table_source = context_provider.get_table_provider(table_name).await?;
+                        let table_source = context_provider
+                            .get_table_provider(table_name.clone())
+                            .await?;
                         let table_source: &DefaultTableSource =
                             table_source.as_any().downcast_ref().unwrap();
-                        table_source.table_provider.clone()
+                        let schema = table_source.table_provider.schema().to_dfschema()?;
+                        (table_name, schema)
                     }
                     _ => return Err(PlanError::UnsupportedFeature("DELETE from multiple tables")),
                 };
 
-                let schema = table_provider.schema().to_dfschema()?;
                 let expr = if let Some(expr) = selection {
                     let mut planner = SqlQueryPlanner::new(&mut context_provider);
                     Some(
@@ -967,11 +969,7 @@ impl<'a> SessionPlanner<'a> {
                     None
                 };
 
-                Ok(WritePlan::Delete(Delete {
-                    table_provider,
-                    expr,
-                })
-                .into())
+                Ok(WritePlan::Delete(Delete { table_name, expr }).into())
             }
 
             stmt => Err(PlanError::UnsupportedSQLStatement(stmt.to_string())),

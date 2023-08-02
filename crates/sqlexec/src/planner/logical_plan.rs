@@ -147,14 +147,14 @@ impl std::fmt::Debug for CopyTo {
 
 #[derive(Clone)]
 pub struct Delete {
-    pub table_provider: Arc<dyn TableProvider>,
+    pub table_name: OwnedTableReference,
     pub expr: Option<Expr>,
 }
 
 impl std::fmt::Debug for Delete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Delete")
-            .field("table_provider", &self.table_provider.schema())
+            .field("table_name", &self.table_name.schema())
             .field("expr", &self.expr)
             .finish()
     }

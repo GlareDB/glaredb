@@ -167,6 +167,10 @@ impl NativeTableStorage {
         let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
         Ok(Arc::new(delta_store))
     }
+
+    pub async fn delete_rows_where(&self, _table: &TableEntry, _expr: Option<Expr>) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
