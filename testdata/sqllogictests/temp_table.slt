@@ -73,3 +73,27 @@ select * from t1;
 1
 3
 5
+
+# Dropping temp tables
+
+statement error Missing database object
+drop table t1, t2;
+
+# t1 shouldn't be dropped
+query I
+select * from t1
+----
+1
+3
+5
+
+statement ok
+drop table t1, current_session.abc;
+
+# Both t1 and abc shouldn't exist.
+
+statement error Unable to fetch table provider
+select * from abc;
+
+statement error Unable to fetch table provider
+select * from t1;

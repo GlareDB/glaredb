@@ -132,6 +132,9 @@ pub enum ExecError {
     #[error("Unable to send message over channel: {0}")]
     ChannelSendError(Box<dyn std::error::Error + Send + Sync>),
 
+    #[error("Invalid temporary table: {reason}")]
+    InvalidTempTable { reason: String },
+
     #[error("internal error: {0}")]
     Internal(String),
 
