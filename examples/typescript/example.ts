@@ -1,8 +1,18 @@
 import { Client } from "pg";
 
 async function main() {
-  const localHostStr =
-    "postgresql://user:pass@my_org.proxy.glaredb.com:6543/my_db"; // Replace with your connection string
+  // localHostStr will work for locally running glaredb in 'server' mode. If
+  // you want to connect to a remote Cloud-hosted instance, use the connection
+  // string generated for you in the web client.
+  //
+  // For more information on connection strings for our Cloud offering, see:
+  //
+  //     <https://docs.glaredb.com/cloud/access/connection-details/>
+  //
+  // An example connection string might look like:
+  //
+  //     postgresql://user:pass@my_org.proxy.glaredb.com:6543/my_db
+  const localHostStr = "postgresql://glaredb:glaredb@localhost:6543/glaredb";
 
   const client = new Client({
     connectionString: localHostStr,
