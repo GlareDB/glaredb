@@ -68,11 +68,7 @@ impl EngineStorageConfig {
             // In-memory storage.
             (EngineStorageConfig::Memory, None) => StorageConfig::Memory,
             // Bucket provided on session, but engine not configured to use it.
-            (_, Some(_)) => {
-                return Err(ExecError::InvalidStorageConfig(
-                    "Engine not configured for GCS table storage",
-                ))
-            }
+            (_, Some(_)) => StorageConfig::Memory,
         })
     }
 
