@@ -13,7 +13,7 @@ async function main() {
     const result = await client.query("SELECT 'Connected to GlareDB!'");
 
     if (result.rows.length > 0) {
-      console.log(result.rows[0].column1); // Assuming the column name is 'column1'
+      console.log(result.rows[0]);
     } else {
       console.log("No data found.");
     }
