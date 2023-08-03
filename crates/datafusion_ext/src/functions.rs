@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
+use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::datasource::TableProvider;
-use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
@@ -145,7 +145,6 @@ impl FromFuncParamValue for ListingTableUrl {
         matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
     }
 }
-
 
 impl<T> FromFuncParamValue for Vec<T>
 where

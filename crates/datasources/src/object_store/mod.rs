@@ -1,15 +1,12 @@
 use std::any::Any;
-use std::env::consts::DLL_PREFIX;
 use std::fmt::{Debug, Display};
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::file_type::FileCompressionType;
-use datafusion::datasource::file_format::json::JsonFormat;
-use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::csv::{CsvFormat, DEFAULT_CSV_EXTENSION};
+use datafusion::datasource::file_format::json::{JsonFormat, DEFAULT_JSON_EXTENSION};
+use datafusion::datasource::file_format::parquet::{ParquetFormat, DEFAULT_PARQUET_EXTENSION};
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::FileScanConfig;
@@ -17,93 +14,37 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use errors::ObjectStoreSourceError;
 use futures::{StreamExt, TryStreamExt};
 use glob::{MatchOptions, Pattern};
-use metastore_client::types::options::TableOptions;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use serde::{Deserialize, Serialize};
 
-use datafusion::datasource::file_format::file_type::FileType as DataFusionFileType;
+use datafusion::datasource::file_format::file_type::FileType;
 use errors::Result;
 
-use crate::object_store::gcs::GcsStoreAccess;
-use crate::object_store::local::LocalStoreAccess;
-use crate::object_store::s3::S3StoreAccess;
+use crate::common::exprs_to_phys_exprs;
 
-pub mod csv;
 pub mod errors;
 pub mod gcs;
 pub mod http;
-pub mod json;
 pub mod local;
-pub mod parquet;
+pub mod registry;
 pub mod s3;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum FileType {
-    Csv,
-    Parquet,
-    Json,
-}
-
-impl FileType {
-    const CSV: &str = "csv";
-    const PARQUET: &str = "parquet";
-    const JSON: &str = "json";
-}
-
-impl FromStr for FileType {
-    type Err = ObjectStoreSourceError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let typ = if s.eq_ignore_ascii_case(Self::PARQUET) {
-            Self::Parquet
-        } else if s.eq_ignore_ascii_case(Self::CSV) {
-            Self::Csv
-        } else if s.eq_ignore_ascii_case(Self::JSON) {
-            Self::Json
-        } else {
-            return Err(Self::Err::NotSupportFileType(s.to_owned()));
-        };
-        Ok(typ)
+pub fn filetype_as_file_format_and_ext(ft: &FileType) -> (Arc<dyn FileFormat>, &'static str) {
+    match ft {
+        FileType::PARQUET => (
+            Arc::new(ParquetFormat::default()),
+            DEFAULT_PARQUET_EXTENSION,
+        ),
+        FileType::CSV => (Arc::new(CsvFormat::default()), DEFAULT_CSV_EXTENSION),
+        FileType::JSON => (Arc::new(JsonFormat::default()), DEFAULT_JSON_EXTENSION),
+        _ => todo!(),
     }
-}
-
-impl Display for FileType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Csv => Self::CSV,
-            Self::Parquet => Self::PARQUET,
-            Self::Json => Self::JSON,
-        };
-        f.write_str(s)
-    }
-}
-
-#[async_trait]
-pub trait FileTypeAccess: Debug + Send + Sync {
-    /// Gets the schema using objects.
-    async fn get_schema(
-        &self,
-        store: Arc<dyn ObjectStore>,
-        objects: &[ObjectMeta],
-    ) -> Result<SchemaRef>;
-
-    /// Transform into an execution plan.
-    async fn get_exec_plan(
-        &self,
-        ctx: &SessionState,
-        store: Arc<dyn ObjectStore>,
-        conf: FileScanConfig,
-        filters: &[Expr],
-        predicate_pushdown: bool,
-    ) -> Result<Arc<dyn ExecutionPlan>>;
 }
 
 #[async_trait]
@@ -134,20 +75,16 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     {
         // If the prefix is a file, use a head request, otherwise list
         let pattern = listing_url.as_str();
-        let prefix = listing_url.prefix();
-        let object_store = listing_url.object_store();
 
         let is_dir = pattern.ends_with('/');
         let is_glob = pattern.contains(['*', '?', '[', ']', '!']);
-        if is_glob {
-            todo!()
-        }
+
         if is_dir || is_glob {
-            let list = futures::stream::once(store.list(Some(&listing_url.prefix())))
+            let list = futures::stream::once(store.list(Some(listing_url.prefix())))
                 .try_flatten()
                 .boxed();
             let list = list
-                .map_err(|e| ObjectStoreSourceError::ObjectStore(e))
+                .map_err(ObjectStoreSourceError::ObjectStore)
                 .try_filter(move |meta| {
                     let path = &meta.location;
                     let extension_match = path.as_ref().ends_with(file_extension);
@@ -161,7 +98,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .boxed();
             list.try_collect().await
         } else {
-            let meta = store.head(&listing_url.prefix()).await?;
+            let meta = store.head(listing_url.prefix()).await?;
             Ok(vec![meta])
         }
     }
@@ -173,7 +110,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         pattern: &str,
     ) -> Result<Vec<ObjectMeta>> {
         if let Some((prefix, _)) = pattern.split_once(['*', '?', '!', '[', ']']) {
-            println!("list_globbed prefix: {:?}", prefix);
             // This pattern might actually be a "glob" pattern.
             //
             // NOTE: Break the path at "/" (delimeter) since `object_store` will
@@ -183,7 +119,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .rsplit_once(object_store::path::DELIMITER)
                 .map(|(new_prefix, _)| self.path(new_prefix))
                 .transpose()?;
-            println!("list_globbed prefix: {:?}", prefix);
 
             let objects = {
                 let mut object_futs = store.list(prefix.as_ref()).await?;
@@ -207,11 +142,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
 
             Ok(objects)
         } else {
-            println!("list_globbed els: {}", pattern);
-            let is_dir = pattern.ends_with('/');
-            if is_dir {
-                unimplemented!("directory listing not implemented")
-            }
             // Definitely not a "glob" pattern.
             let location = self.path(pattern)?;
             let meta = store.head(&location).await?;
@@ -226,47 +156,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         location: &ObjectStorePath,
     ) -> Result<ObjectMeta> {
         Ok(store.head(location).await?)
-    }
-
-    fn infer_file_format(&self, files: &[ObjectMeta]) -> Result<(Arc<dyn FileFormat>, String)> {
-        println!("infer_file_format: {:?}", files);
-        use std::str::FromStr;
-        let path = files[0].location.as_ref();
-
-        let err_msg = format!("Unable to infer file type from path: {path}");
-
-        let mut exts = path.rsplit('.');
-
-        let mut splitted = exts.next().unwrap_or("");
-
-        let file_compression_type =
-            FileCompressionType::from_str(splitted).unwrap_or(FileCompressionType::UNCOMPRESSED);
-
-        if file_compression_type.is_compressed() {
-            splitted = exts.next().unwrap_or("");
-        }
-
-        let file_type = DataFusionFileType::from_str(splitted)
-            .map_err(|_| DataFusionError::Internal(err_msg.to_owned()))?;
-
-        let ext = file_type
-            .get_ext_with_compression(file_compression_type.to_owned())
-            .map_err(|_| DataFusionError::Internal(err_msg))?;
-
-        let file_format: Arc<dyn FileFormat> = match file_type {
-            DataFusionFileType::CSV => {
-                Arc::new(CsvFormat::default().with_file_compression_type(file_compression_type))
-            }
-            DataFusionFileType::JSON => {
-                Arc::new(JsonFormat::default().with_file_compression_type(file_compression_type))
-            }
-            DataFusionFileType::PARQUET => Arc::new(ParquetFormat::default()),
-            _ => {
-                todo!()
-            }
-        };
-
-        Ok((file_format, ext))
     }
 }
 
@@ -301,12 +190,13 @@ impl ObjStoreAccessor {
     /// Takes all the objects and creates the table provider from the accesor.
     pub async fn into_table_provider(
         self,
-        file_access: Arc<dyn FileTypeAccess>,
+        state: &SessionState,
+        file_format: Arc<dyn FileFormat>,
         objects: Vec<ObjectMeta>,
         predicate_pushdown: bool,
     ) -> Result<Arc<dyn TableProvider>> {
         let store = self.store;
-        let arrow_schema = file_access.get_schema(store.clone(), &objects).await?;
+        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
         let base_url = self.access.base_url()?;
 
         Ok(Arc::new(ObjStoreTableProvider {
@@ -314,7 +204,7 @@ impl ObjStoreAccessor {
             arrow_schema,
             base_url,
             objects,
-            file_access,
+            file_format,
             predicate_pushdown,
         }))
     }
@@ -325,7 +215,7 @@ pub struct ObjStoreTableProvider {
     arrow_schema: SchemaRef,
     base_url: ObjectStoreUrl,
     objects: Vec<ObjectMeta>,
-    file_access: Arc<dyn FileTypeAccess>,
+    file_format: Arc<dyn FileFormat>,
     predicate_pushdown: bool,
 }
 
@@ -362,19 +252,15 @@ impl TableProvider for ObjStoreTableProvider {
             infinite_source: false,
         };
 
+        let filters = exprs_to_phys_exprs(filters, ctx, &self.arrow_schema)?;
+
         // We register the store at scan time so that it can be used by the
         // exec plan.
         ctx.runtime_env()
             .register_object_store(self.base_url.as_ref(), self.store.clone());
 
-        self.file_access
-            .get_exec_plan(
-                ctx,
-                self.store.clone(),
-                config,
-                filters,
-                self.predicate_pushdown,
-            )
+        self.file_format
+            .create_physical_plan(ctx, config, filters.as_ref())
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
@@ -384,41 +270,5 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
     path.extension()
         .ok_or(ObjectStoreSourceError::NoFileExtension)?
         .parse()
-}
-
-pub fn init_session_registry<'a>(
-    runtime: &RuntimeEnv,
-    entries: impl Iterator<Item = &'a TableOptions>,
-) -> Result<()> {
-    for opts in entries {
-        let access: Arc<dyn ObjStoreAccess> = match opts {
-            TableOptions::Local(_) => Arc::new(LocalStoreAccess),
-            TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
-                bucket: opts.bucket.clone(),
-                service_account_key: opts.service_account_key.clone(),
-            }),
-            TableOptions::S3(opts) => Arc::new(S3StoreAccess {
-                region: opts.region.clone(),
-                bucket: opts.bucket.clone(),
-                access_key_id: opts.access_key_id.clone(),
-                secret_access_key: opts.secret_access_key.clone(),
-            }),
-            // Continue on all others. Explicityly mentioning all the left
-            // over options so we don't forget adding object stores that are
-            // supported in the furure (like azure).
-            TableOptions::Internal(_)
-            | TableOptions::Debug(_)
-            | TableOptions::Postgres(_)
-            | TableOptions::BigQuery(_)
-            | TableOptions::Mysql(_)
-            | TableOptions::Mongo(_)
-            | TableOptions::Snowflake(_) => continue,
-        };
-
-        let base_url = access.base_url()?;
-        let store = access.create_store()?;
-        runtime.register_object_store(base_url.as_ref(), store);
-    }
-
-    Ok(())
+        .map_err(|e| ObjectStoreSourceError::DataFusion(e))
 }

@@ -4,22 +4,25 @@ use datafusion::arrow::array::{
     BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
 };
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::file_format::csv::CsvFormat;
+use datafusion::datasource::file_format::file_type::FileType;
+use datafusion::datasource::file_format::json::JsonFormat;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
+use datafusion::execution::context::SessionState;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnectionParameters};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::DeltaLakeAccessor;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::csv::CsvFileAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::json::JsonFileAccess;
 use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::parquet::ParquetFileAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{FileType, FileTypeAccess, ObjStoreAccess, ObjStoreAccessor};
+use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore_client::session::SessionCatalog;
@@ -303,6 +306,7 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+        let state = self.ctx.get_df_state();
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
 
         match &table.options {
@@ -414,7 +418,7 @@ impl<'a> SessionDispatcher<'a> {
                     ));
                 }
                 let access = Arc::new(LocalStoreAccess);
-                create_obj_store_table_provider(access, location, file_type).await
+                create_obj_store_table_provider(state, access, location, file_type).await
             }
             TableOptions::Gcs(TableOptionsGcs {
                 service_account_key,
@@ -426,7 +430,7 @@ impl<'a> SessionDispatcher<'a> {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
                 });
-                create_obj_store_table_provider(access, location, file_type).await
+                create_obj_store_table_provider(state, access, location, file_type).await
             }
             TableOptions::S3(TableOptionsS3 {
                 access_key_id,
@@ -442,7 +446,7 @@ impl<'a> SessionDispatcher<'a> {
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
                 });
-                create_obj_store_table_provider(access, location, file_type).await
+                create_obj_store_table_provider(state, access, location, file_type).await
             }
         }
     }
@@ -477,21 +481,23 @@ impl<'a> SessionDispatcher<'a> {
 }
 
 async fn create_obj_store_table_provider(
+    state: &SessionState,
     access: Arc<dyn ObjStoreAccess>,
     location: &str,
     file_type: &str,
 ) -> Result<Arc<dyn TableProvider>> {
     let ft: FileType = file_type.parse()?;
-    let ft: Arc<dyn FileTypeAccess> = match ft {
-        FileType::Csv => Arc::new(CsvFileAccess::default()),
-        FileType::Parquet => Arc::new(ParquetFileAccess),
-        FileType::Json => Arc::new(JsonFileAccess),
+    let ft: Arc<dyn FileFormat> = match ft {
+        FileType::CSV => Arc::new(CsvFormat::default()),
+        FileType::PARQUET => Arc::new(ParquetFormat::default()),
+        FileType::JSON => Arc::new(JsonFormat::default()),
+        _ => todo!(),
     };
 
     let accessor = ObjStoreAccessor::new(access)?;
     let objects = accessor.list_globbed(location).await?;
     let provider = accessor
-        .into_table_provider(ft, objects, /* predicate_pushdown = */ true)
+        .into_table_provider(state, ft, objects, /* predicate_pushdown = */ true)
         .await?;
     Ok(provider)
 }

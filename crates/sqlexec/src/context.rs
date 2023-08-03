@@ -25,7 +25,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
-use datasources::object_store::init_session_registry;
+use datasources::object_store::registry::GlareDBRegistry;
 use futures::{future::BoxFuture, StreamExt};
 use metastore_client::errors::ResolveErrorStrategy;
 use metastore_client::session::SessionCatalog;
@@ -128,8 +128,6 @@ impl SessionContext {
             }
         }
 
-        let runtime = RuntimeEnv::new(conf)?;
-
         // Register the object store in the registry for all the tables.
         let entries = catalog.iter_entries().filter_map(|e| {
             if !e.builtin {
@@ -142,7 +140,9 @@ impl SessionContext {
                 None
             }
         });
-        init_session_registry(&runtime, entries)?;
+        let registry = GlareDBRegistry::try_new(entries)?;
+        conf = conf.with_object_store_registry(Arc::new(registry));
+        let runtime = RuntimeEnv::new(conf)?;
 
         let state = SessionState::with_config_rt(config, Arc::new(runtime));
 

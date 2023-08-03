@@ -64,11 +64,11 @@ impl FromFuncParamValue for DatasourceUrl {
 }
 
 impl DatasourceUrl {
-    const FILE_SCHEME: &str = "file";
-    const HTTP_SCHEME: &str = "http";
-    const HTTPS_SCHEME: &str = "https";
-    const GS_SCHEME: &str = "gs";
-    const S3_SCHEME: &str = "s3";
+    pub const FILE_SCHEME: &str = "file";
+    pub const HTTP_SCHEME: &str = "http";
+    pub const HTTPS_SCHEME: &str = "https";
+    pub const GS_SCHEME: &str = "gs";
+    pub const S3_SCHEME: &str = "s3";
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();

@@ -222,13 +222,11 @@ impl LocalSession {
                         println!("(To exit, press ^C again)");
                     } else if exit_countdown == 0 {
                         break;
+                    } else if scratch.is_empty() {
+                        exit_countdown -= 1;
                     } else {
-                        if scratch.is_empty() {
-                            exit_countdown -= 1;
-                        } else {
-                            scratch.clear();
-                            exit_countdown = 1;
-                        }
+                        scratch.clear();
+                        exit_countdown = 1;
                     }
                 }
                 Err(e) => {

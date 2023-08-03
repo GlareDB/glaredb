@@ -2,8 +2,10 @@ use std::any::Any;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use crate::object_store::errors::ObjectStoreSourceError;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::datasource::file_format::file_type::FileType;
 use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
@@ -16,9 +18,8 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
 use url::Url;
 
-use crate::object_store::errors::ObjectStoreSourceError;
-
 use super::errors::Result;
+use super::filetype_as_file_format_and_ext;
 use super::ObjStoreAccess;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 
@@ -30,7 +31,7 @@ pub struct GcsProvider {
 
 impl Display for GcsProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GCS(bucket: {})", "")
+        write!(f, "GCS(bucket: )")
     }
 }
 
@@ -65,31 +66,41 @@ impl GcsProvider {
         Ok(Arc::new(store))
     }
 
-    pub async fn infer(&self, ctx: &SessionState) -> Result<Self> {
-        let cfg = self.config.clone();
-        let table_paths = cfg.clone().table_paths;
+    pub async fn infer(&self, ctx: &SessionState, filetype: &FileType) -> Result<Self> {
+        let mut config = self.config.clone();
+        let table_paths = config.clone().table_paths;
         let listing_url = table_paths.get(0).unwrap();
-        let url: &url::Url = listing_url.as_ref();
+
+        let (file_fmt, file_ext) = filetype_as_file_format_and_ext(filetype);
+
+        let listing_options = ListingOptions::new(file_fmt).with_file_extension(file_ext);
 
         // create a store with valid credentials,
         // then let ListingTable handle the rest.
         let store = self
             .store()
             .map_err(|e| DataFusionError::External(e.into()))?;
-        ctx.runtime_env().register_object_store(url, store.clone());
-        let files = self.list_all_files(listing_url, &store, ".csv").await?;
+        ctx.runtime_env()
+            .register_object_store(listing_url.as_ref(), store.clone());
+        ctx.runtime_env()
+            .register_object_store(listing_url.object_store().as_ref(), store.clone());
 
-        let (file_fmt, ext) = self.infer_file_format(&files)?;
-        let listing_options = ListingOptions::new(file_fmt).with_file_extension(ext);
-        let schema = listing_options
+        let files = self.list_all_files(listing_url, &store, file_ext).await?;
+
+        config = config.with_listing_options(listing_options);
+
+        let schema = config
+            .options
+            .as_ref()
+            .unwrap()
             .format
             .infer_schema(ctx, &store, &files)
             .await?;
-        let cfg = cfg.with_listing_options(listing_options);
-        let cfg = cfg.with_schema(schema);
+
+        config = config.with_schema(schema);
 
         Ok(Self {
-            config: cfg,
+            config,
             service_account_key_json: self.service_account_key_json.clone(),
         })
     }
@@ -165,15 +176,18 @@ impl ObjStoreAccess for GcsStoreAccess {
 
 impl ObjStoreAccess for GcsProvider {
     fn base_url(&self) -> Result<ObjectStoreUrl> {
+        println!("BASE URL CALLED");
         let url = &self.config.table_paths.get(0).unwrap().object_store();
         Ok(url.clone())
     }
 
     fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
+        println!("CREATE STORE CALLED");
         self.store()
     }
 
     fn path(&self, location: &str) -> Result<ObjectStorePath> {
+        println!("PATH CALLED");
         Ok(ObjectStorePath::from_url_path(location)?)
     }
 }
