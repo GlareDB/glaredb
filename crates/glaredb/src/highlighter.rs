@@ -92,7 +92,10 @@ fn colorize_sql(query: &str, st: &mut StyledText) -> std::io::Result<()> {
                 | Keyword::NULL
                 | Keyword::NOT
                 | Keyword::IN
-                | Keyword::WITH => {
+                | Keyword::WITH
+                | Keyword::INSERT
+                | Keyword::INTO
+                | Keyword::VALUES => {
                     st.push((Style::new().fg(Color::LightGreen), format!("{w}")));
                 }
                 // TODO: add more keywords
