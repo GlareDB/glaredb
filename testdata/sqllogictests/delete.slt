@@ -28,7 +28,7 @@ statement error
 delete from t1,t2 where x > 5;
 
 statement ok
-create table t2(a long, b long);
+create table t2(a bigint, b bigint);
 
 statement ok
 insert into t2 values (1, 3), (4, 4), (2, 6), (3,8);
