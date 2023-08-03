@@ -122,3 +122,12 @@ this repository.
 [Snowflake]: https://docs.glaredb.com/docs/data-sources/supported/snowflake.html
 [Postgres]: https://docs.glaredb.com/docs/data-sources/supported/postgres.html
 [Supported data sources]: https://docs.glaredb.com/docs/data-sources/supported/
+
+## Acknowledgements
+
+![https://arrow.apache.org/datafusion/](https://arrow.apache.org/datafusion/_images/DataFusion-Logo-Background-White.png)
+
+
+![https://arrow.apache.org/](https://arrow.apache.org/img/arrow-inverse.png)
+
+GlareDB is proudly powered by [Apache Datafusion](https://arrow.apache.org/datafusion/) and [Apache Arrow](https://arrow.apache.org/). We are grateful for the work of the Apache Software Foundation and the community around these projects.
