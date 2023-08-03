@@ -347,7 +347,10 @@ impl SessionContext {
                 .delete_rows_where(table_entry, plan.expr)
                 .await?
         } else {
-            return Err(ExecError::Internal("Table does not exist".to_string()));
+            return Err(ExecError::MissingObject {
+                typ: "table",
+                name: plan.table_name,
+            });
         };
         Ok(())
     }
