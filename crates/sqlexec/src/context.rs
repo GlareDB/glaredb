@@ -347,10 +347,7 @@ impl SessionContext {
                 .delete_rows_where(table_entry, plan.expr)
                 .await?
         } else {
-            return Err(ExecError::MissingObject {
-                typ: "table",
-                name: plan.table_name,
-            });
+            return Err(ExecError::MissingObject { typ: "table", name });
         };
         Ok(())
     }

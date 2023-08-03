@@ -20,3 +20,9 @@ delete from t1;
 query I
 select * from t1
 ----
+
+statement error
+delete from where a > 5
+
+statement error
+delete from t1,t2 where x > 5
