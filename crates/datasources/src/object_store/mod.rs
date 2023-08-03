@@ -10,6 +10,7 @@ use datafusion::datasource::file_format::file_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
+use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -20,7 +21,7 @@ use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use errors::ObjectStoreSourceError;
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use glob::{MatchOptions, Pattern};
 use metastore_client::types::options::TableOptions;
 use object_store::path::Path as ObjectStorePath;
@@ -121,6 +122,46 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     /// Gets the object store path.
     fn path(&self, location: &str) -> Result<ObjectStorePath>;
 
+    async fn list_all_files(
+        &self,
+        listing_url: &ListingTableUrl,
+        store: &Arc<dyn ObjectStore>,
+        file_extension: &str,
+    ) -> Result<Vec<ObjectMeta>>
+    where
+        Self: Sized,
+    {
+        // If the prefix is a file, use a head request, otherwise list
+        let pattern = listing_url.as_str();
+        let is_dir = pattern.ends_with('/');
+        let is_glob = pattern.contains(['*', '?', '[', ']', '!']);
+
+        if is_glob {
+            self.list_globbed(store.clone(), pattern).await
+        } else if is_dir {
+            let list = futures::stream::once(store.list(Some(&listing_url.prefix())))
+                .try_flatten()
+                .boxed();
+            let list = list
+                .map_err(|e| ObjectStoreSourceError::ObjectStore(e))
+                .try_filter(move |meta| {
+                    let path = &meta.location;
+                    let extension_match = path.as_ref().ends_with(file_extension);
+                    let glob_match = listing_url.contains(path);
+                    println!(
+                        "path: {}, extension_match: {}, glob_match: {}",
+                        path, extension_match, glob_match
+                    );
+                    futures::future::ready(extension_match && glob_match)
+                })
+                .boxed();
+            list.try_collect().await
+        } else {
+            let meta = store.head(&listing_url.prefix()).await?;
+            Ok(vec![meta])
+        }
+    }
+
     /// Gets a list of objects that match the glob pattern.
     async fn list_globbed(
         &self,
@@ -181,6 +222,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     }
 
     fn infer_file_format(&self, files: &[ObjectMeta]) -> Result<(Arc<dyn FileFormat>, String)> {
+        println!("infer_file_format: {:?}", files);
         use std::str::FromStr;
         let path = files[0].location.as_ref();
 

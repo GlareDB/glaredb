@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef as ArrowSchemaRef;
-use datafusion::datasource::listing::{ListingTable, ListingTableConfig};
+use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
@@ -52,7 +52,6 @@ impl GcsProvider {
                 .ok_or(ObjectStoreSourceError::Static(
                     "expected bucket name in URL",
                 ))?;
-        println!("bucket_name: {}", bucket_name);
         let builder = GoogleCloudStorageBuilder::new().with_bucket_name(bucket_name);
         let store = match &self.service_account_key_json {
             Some(key) => builder.with_service_account_key(key),
@@ -79,14 +78,18 @@ impl GcsProvider {
             .map_err(|e| DataFusionError::External(e.into()))?;
         ctx.runtime_env().register_object_store(url, store.clone());
 
-        let files = self
-            .list_globbed(store.clone(), listing_url.as_ref())
-            .await?;
+        let files = self.list_all_files(listing_url, &store, ".csv").await?;
         println!("glob files: {:?}", files);
 
-        let (file_fmt, _) = self.infer_file_format(&files)?;
-
-        let schema = file_fmt.infer_schema(ctx, &store, &files).await?;
+        let (file_fmt, ext) = self.infer_file_format(&files)?;
+        println!("file format: {:?}", file_fmt);
+        let listing_options = ListingOptions::new(file_fmt).with_file_extension(ext);
+        // .with_target_partitions(ctx)
+        let schema = listing_options
+            .format
+            .infer_schema(ctx, &store, &files)
+            .await?;
+        let cfg = cfg.with_listing_options(listing_options);
         let cfg = cfg.with_schema(schema);
 
         Ok(Self {
