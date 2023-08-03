@@ -29,3 +29,35 @@ select * from t1;
 1
 3
 5
+
+# Cast and alias in "CREATE TABLE .. AS .."
+
+statement ok
+create table t2 as values (1, 2);
+
+query II
+select column1, column2 from t2;
+----
+1	2
+
+statement ok
+create table t3 (a int) as values (3, 4);
+
+query II
+select a, column2 from t3;
+----
+3	4
+
+statement error No field named column1
+select column1 from t3;
+
+statement ok
+create table t4 (a int, b text) as values (5, 6);
+
+query IT
+select a, b from t4;
+----
+5	6
+
+statement error No field named column2
+select column2 from t4;

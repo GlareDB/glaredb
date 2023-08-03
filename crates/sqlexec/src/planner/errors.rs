@@ -43,6 +43,9 @@ pub enum PlanError {
     #[error("Invalid view statement: {msg}")]
     InvalidViewStatement { msg: &'static str },
 
+    #[error("Invalid delete statement: {msg}")]
+    InvalidDeleteStatement { msg: &'static str },
+
     #[error("Invalid number of column aliases for view body; sql: {sql}, aliases: {aliases:?}")]
     InvalidNumberOfAliasesForView { sql: String, aliases: Vec<String> },
 

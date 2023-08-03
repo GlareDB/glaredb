@@ -336,6 +336,22 @@ impl SessionContext {
         Ok(())
     }
 
+    pub async fn delete(&mut self, plan: Delete) -> Result<()> {
+        let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
+
+        if let Some(table_entry) = self
+            .metastore_catalog
+            .resolve_native_table(&database, &schema, &name)
+        {
+            self.tables
+                .delete_rows_where(table_entry, plan.expr)
+                .await?
+        } else {
+            return Err(ExecError::MissingObject { typ: "table", name });
+        };
+        Ok(())
+    }
+
     /// List temporary tables.
     pub fn list_temp_tables(&self) -> impl Iterator<Item = &str> {
         self.current_session_tables.keys().map(|k| k.as_str())
