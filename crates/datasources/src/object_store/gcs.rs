@@ -77,14 +77,10 @@ impl GcsProvider {
             .store()
             .map_err(|e| DataFusionError::External(e.into()))?;
         ctx.runtime_env().register_object_store(url, store.clone());
-
         let files = self.list_all_files(listing_url, &store, ".csv").await?;
-        println!("glob files: {:?}", files);
 
         let (file_fmt, ext) = self.infer_file_format(&files)?;
-        println!("file format: {:?}", file_fmt);
         let listing_options = ListingOptions::new(file_fmt).with_file_extension(ext);
-        // .with_target_partitions(ctx)
         let schema = listing_options
             .format
             .infer_schema(ctx, &store, &files)

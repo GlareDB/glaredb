@@ -313,6 +313,7 @@ async fn create_http_provider(
     listing_config: ListingTableConfig,
     state: &SessionState,
 ) -> Result<Arc<dyn TableProvider>> {
+    println!("create_http_provider");
     let url = listing_config.table_paths.get(0).unwrap();
     let store = state.runtime_env().object_store(url)?;
     let base_url = url.to_string();

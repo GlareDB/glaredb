@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::env::consts::DLL_PREFIX;
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -133,12 +134,15 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     {
         // If the prefix is a file, use a head request, otherwise list
         let pattern = listing_url.as_str();
+        let prefix = listing_url.prefix();
+        let object_store = listing_url.object_store();
+
         let is_dir = pattern.ends_with('/');
         let is_glob = pattern.contains(['*', '?', '[', ']', '!']);
-
         if is_glob {
-            self.list_globbed(store.clone(), pattern).await
-        } else if is_dir {
+            todo!()
+        }
+        if is_dir || is_glob {
             let list = futures::stream::once(store.list(Some(&listing_url.prefix())))
                 .try_flatten()
                 .boxed();
@@ -169,6 +173,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         pattern: &str,
     ) -> Result<Vec<ObjectMeta>> {
         if let Some((prefix, _)) = pattern.split_once(['*', '?', '!', '[', ']']) {
+            println!("list_globbed prefix: {:?}", prefix);
             // This pattern might actually be a "glob" pattern.
             //
             // NOTE: Break the path at "/" (delimeter) since `object_store` will
@@ -178,6 +183,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .rsplit_once(object_store::path::DELIMITER)
                 .map(|(new_prefix, _)| self.path(new_prefix))
                 .transpose()?;
+            println!("list_globbed prefix: {:?}", prefix);
 
             let objects = {
                 let mut object_futs = store.list(prefix.as_ref()).await?;
@@ -201,6 +207,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
 
             Ok(objects)
         } else {
+            println!("list_globbed els: {}", pattern);
             let is_dir = pattern.ends_with('/');
             if is_dir {
                 unimplemented!("directory listing not implemented")
