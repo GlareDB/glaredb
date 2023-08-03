@@ -176,13 +176,11 @@ impl ObjStoreAccess for GcsStoreAccess {
 
 impl ObjStoreAccess for GcsProvider {
     fn base_url(&self) -> Result<ObjectStoreUrl> {
-        println!("BASE URL CALLED");
         let url = &self.config.table_paths.get(0).unwrap().object_store();
         Ok(url.clone())
     }
 
     fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
-        println!("CREATE STORE CALLED");
         self.store()
     }
 
