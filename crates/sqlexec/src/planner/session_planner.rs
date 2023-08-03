@@ -1005,6 +1005,47 @@ impl<'a> SessionPlanner<'a> {
                 Ok(WritePlan::Delete(Delete { table_name, expr }).into())
             }
 
+            ast::Statement::Update {
+                table,
+                assignments: _,
+                from: None,
+                selection,
+                returning: None,
+            } => {
+                let table_factor = table.relation.clone();
+                let table_name = match table_factor {
+                    ast::TableFactor::Table { name, .. } => name,
+                    _ => return Err(PlanError::UnsupportedFeature("UPDATE from TableWithJoins")),
+                };
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+
+                let table_source = context_provider
+                    .get_table_provider(table_name.clone())
+                    .await?;
+                let schema = table_source.schema().to_dfschema()?;
+
+                let mut planner = SqlQueryPlanner::new(&mut context_provider);
+                let expr = if let Some(expr) = selection {
+                    Some(
+                        planner
+                            .sql_to_expr(expr, &schema, &mut PlannerContext::new())
+                            .await?,
+                    )
+                } else {
+                    None
+                };
+
+                let updates = Vec::new();
+
+                Ok(WritePlan::Update(Update {
+                    table_name,
+                    updates,
+                    expr,
+                })
+                .into())
+            }
+
             stmt => Err(PlanError::UnsupportedSQLStatement(stmt.to_string())),
         }
     }

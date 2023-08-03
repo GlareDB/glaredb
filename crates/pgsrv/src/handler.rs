@@ -699,6 +699,7 @@ where
             ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
             ExecutionResult::CopySuccess => Self::command_complete(conn, "COPY").await?,
             ExecutionResult::DeleteSuccess => Self::command_complete(conn, "DELETE").await?,
+            ExecutionResult::UpdateSuccess => Self::command_complete(conn, "UPDATE").await?,
             ExecutionResult::CreateTable => Self::command_complete(conn, "CREATE TABLE").await?,
             ExecutionResult::CreateDatabase => {
                 Self::command_complete(conn, "CREATE DATABASE").await?

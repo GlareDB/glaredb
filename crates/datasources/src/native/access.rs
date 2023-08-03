@@ -11,6 +11,7 @@ use datafusion::prelude::Expr;
 use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
+use deltalake::operations::update::UpdateBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
@@ -178,6 +179,24 @@ impl NativeTableStorage {
         } else {
             DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
         }
+        Ok(())
+    }
+
+    pub async fn update_rows_where(
+        &self,
+        table: &TableEntry,
+        set: Vec<(String, Expr)>,
+        expr: Option<Expr>,
+    ) -> Result<()> {
+        let table = self.load_table(table).await?;
+        let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
+        if let Some(expr) = expr {
+            builder = builder.with_predicate(expr);
+        }
+        for t in set.iter() {
+            builder = builder.with_update(t.0.clone(), t.1.clone());
+        }
+        builder.await?;
         Ok(())
     }
 }

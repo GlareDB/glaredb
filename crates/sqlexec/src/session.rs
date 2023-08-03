@@ -59,6 +59,8 @@ pub enum ExecutionResult {
     Rollback,
     /// Data successfully deleted.
     DeleteSuccess,
+    /// Data successfully updated.
+    UpdateSuccess,
     /// Data successfully written.
     WriteSuccess,
     /// Data successfully copied.
@@ -111,6 +113,7 @@ impl ExecutionResult {
             ExecutionResult::WriteSuccess => "write_success",
             ExecutionResult::CopySuccess => "copy_success",
             ExecutionResult::DeleteSuccess => "delete_success",
+            ExecutionResult::UpdateSuccess => "update success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -148,6 +151,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CopySuccess => write!(f, "copy success"),
             ExecutionResult::DeleteSuccess => write!(f, "delete success"),
+            ExecutionResult::UpdateSuccess => write!(f, "update success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
@@ -409,8 +413,13 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn delete_from(&mut self, plan: Delete) -> Result<()> {
+    pub(crate) async fn delete(&mut self, plan: Delete) -> Result<()> {
         self.ctx.delete(plan).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn update(&mut self, plan: Update) -> Result<()> {
+        self.ctx.update(plan).await?;
         Ok(())
     }
 
@@ -570,8 +579,12 @@ impl Session {
                 ExecutionResult::CopySuccess
             }
             LogicalPlan::Write(WritePlan::Delete(plan)) => {
-                self.delete_from(plan).await?;
+                self.delete(plan).await?;
                 ExecutionResult::DeleteSuccess
+            }
+            LogicalPlan::Write(WritePlan::Update(plan)) => {
+                self.update(plan).await?;
+                ExecutionResult::UpdateSuccess
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
