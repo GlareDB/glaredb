@@ -52,6 +52,8 @@ impl TableProvider for HttpProvider {
         let url = url::Url::parse(&self.base_url).unwrap();
         let base_url = format!("{}://{}", url.scheme(), url.authority());
 
+        // if there are multiple urls, we just try to perform a union
+        // as there isn't a way to push this down to the object store
         if self.config.table_paths.len() > 1 {
             let mut execs = Vec::with_capacity(self.config.table_paths.len());
             for p in self.config.table_paths.clone() {
