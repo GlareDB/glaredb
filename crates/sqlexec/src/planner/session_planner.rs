@@ -5,7 +5,6 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
-use datafusion::datasource::DefaultTableSource;
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
@@ -986,9 +985,7 @@ impl<'a> SessionPlanner<'a> {
                         let table_source = context_provider
                             .get_table_provider(table_name.clone())
                             .await?;
-                        let table_source: &DefaultTableSource =
-                            table_source.as_any().downcast_ref().unwrap();
-                        let schema = table_source.table_provider.schema().to_dfschema()?;
+                        let schema = table_source.schema().to_dfschema()?;
                         (table_name, schema)
                     }
                     _ => return Err(PlanError::UnsupportedFeature("DELETE from multiple tables")),
