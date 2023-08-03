@@ -14,7 +14,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use reedline::{FileBackedHistory, Reedline, Signal, Validator};
+use reedline::{FileBackedHistory, Reedline, Signal};
 
 use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
@@ -35,18 +35,6 @@ pub enum OutputMode {
     Json,
     Ndjson,
     Csv,
-}
-
-struct SqlValidator {}
-
-impl Validator for SqlValidator {
-    fn validate(&self, line: &str) -> reedline::ValidationResult {
-        if line.trim_end().ends_with(';') || is_client_cmd(line) {
-            reedline::ValidationResult::Complete
-        } else {
-            reedline::ValidationResult::Incomplete
-        }
-    }
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -91,6 +79,8 @@ impl LocalClientOpts {
                 "\\mode MODE",
                 "Set the output mode [table, json, ndjson, csv]",
             ),
+            ("\\max-rows NUM", "Max number of rows to display"),
+            ("\\max-columns NUM", "Max number of columns to display"),
             ("\\open PATH", "Open a database at the given path"),
             ("\\quit", "Quit this session"),
         ];
@@ -102,6 +92,14 @@ impl LocalClientOpts {
 
         Ok(buf)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ClientCommandResult {
+    /// Exit the program.
+    Exit,
+    /// Continue on.
+    Continue,
 }
 
 pub struct LocalSession {
@@ -170,9 +168,9 @@ impl LocalSession {
         );
 
         let mut line_editor = Reedline::create().with_history(history);
+
         let sql_highlighter = SQLHighlighter {};
         line_editor = line_editor.with_highlighter(Box::new(sql_highlighter));
-        line_editor = line_editor.with_validator(Box::new(SqlValidator {}));
 
         println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
         println!("Type \\help for help.");
@@ -184,21 +182,21 @@ impl LocalSession {
             _ => unreachable!(),
         };
         println!("{}", info.bold());
-        let mut exit_countdown = 2;
         let prompt = SQLPrompt {};
-
         let mut scratch = String::with_capacity(1024);
 
         loop {
             let sig = line_editor.read_line(&prompt);
             match sig {
                 Ok(Signal::Success(buffer)) => match buffer.as_str() {
-                    cmd if is_client_cmd(cmd) => {
-                        exit_countdown = 2;
-                        self.handle_client_cmd(cmd).await?;
-                    }
+                    cmd if is_client_cmd(cmd) => match self.handle_client_cmd(cmd).await {
+                        Ok(ClientCommandResult::Continue) => (),
+                        Ok(ClientCommandResult::Exit) => return Ok(()),
+                        Err(e) => {
+                            println!("Error: {e}")
+                        }
+                    },
                     _ => {
-                        exit_countdown = 2;
                         let mut parts = buffer.splitn(2, ';');
                         let first = parts.next().unwrap();
                         scratch.push_str(first);
@@ -217,17 +215,7 @@ impl LocalSession {
                 },
                 Ok(Signal::CtrlD) => break,
                 Ok(Signal::CtrlC) => {
-                    if exit_countdown == 1 {
-                        exit_countdown -= 1;
-                        println!("(To exit, press ^C again)");
-                    } else if exit_countdown == 0 {
-                        break;
-                    } else if scratch.is_empty() {
-                        exit_countdown -= 1;
-                    } else {
-                        scratch.clear();
-                        exit_countdown = 1;
-                    }
+                    scratch.clear();
                 }
                 Err(e) => {
                     return Err(anyhow!("Unable to read from prompt: {e}"));
@@ -283,7 +271,7 @@ impl LocalSession {
         Ok(())
     }
 
-    async fn handle_client_cmd(&mut self, text: &str) -> Result<()> {
+    async fn handle_client_cmd(&mut self, text: &str) -> Result<ClientCommandResult> {
         let mut ss = text.split_whitespace();
         let cmd = ss.next().unwrap();
         let val = ss.next();
@@ -296,6 +284,8 @@ impl LocalSession {
                 self.opts.mode = OutputMode::from_str(val, true)
                     .map_err(|s| anyhow!("Unable to set output mode: {s}"))?;
             }
+            ("\\max-rows", Some(val)) => self.opts.max_rows = Some(val.parse()?),
+            ("\\max-columns", Some(val)) => self.opts.max_rows = Some(val.parse()?),
             ("\\open", Some(path)) => {
                 let new_opts = LocalClientOpts {
                     data_dir: Some(PathBuf::from(path)),
@@ -306,11 +296,11 @@ impl LocalSession {
                 println!("Created new session. New database path: {path}");
                 *self = new_sess;
             }
-            ("\\quit", None) => std::process::exit(0),
+            ("\\quit", None) => return Ok(ClientCommandResult::Exit),
             (cmd, _) => return Err(anyhow!("Unable to handle client command: {cmd}")),
         }
 
-        Ok(())
+        Ok(ClientCommandResult::Continue)
     }
 }
 
