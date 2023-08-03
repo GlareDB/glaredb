@@ -1,6 +1,6 @@
 ---
-name: Planned Feature
-about: A planned feature for the project
+name: Feature
+about: A feature for glaredb
 title: ""
 labels: "feat :sparkler:"
 assignees: ""
@@ -8,12 +8,3 @@ assignees: ""
 
 ## Description
 
-<!-- Mandatory - Answer "What" most importantly, possibly "How" -->
-
-## Rationale
-
-<!-- Mandatory - why are we doing this? -->
-
-## Breaking effects
-
-<!-- OPTIONAL - only if affects other systems/people etc -->
