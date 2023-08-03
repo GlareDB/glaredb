@@ -10,6 +10,7 @@ use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
+use deltalake::operations::delete::DeleteBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
@@ -166,6 +167,18 @@ impl NativeTableStorage {
 
         let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
         Ok(Arc::new(delta_store))
+    }
+
+    pub async fn delete_rows_where(&self, table: &TableEntry, expr: Option<Expr>) -> Result<()> {
+        let table = self.load_table(table).await?;
+        if let Some(expr) = expr {
+            DeleteBuilder::new(table.delta.object_store(), table.delta.state)
+                .with_predicate(expr)
+                .await?;
+        } else {
+            DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
+        }
+        Ok(())
     }
 }
 

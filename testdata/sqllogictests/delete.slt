@@ -1,0 +1,56 @@
+# Tests for deleting rows from a table
+
+statement ok
+create table t1 as select * from generate_series(1, 15, 2);
+
+statement ok
+delete from t1 where generate_series > 7;
+
+query I
+select * from t1;
+----
+1
+3
+5
+7
+
+statement ok
+delete from t1;
+
+query I
+select * from t1
+----
+
+statement error Expected identifier
+delete from;
+
+statement error Failed to find table
+delete from t3;
+
+statement error Unsupported feature: 'DELETE from multiple tables'
+delete from t1,t2 where x > 5;
+
+statement ok
+create table t2(a bigint, b bigint);
+
+statement ok
+insert into t2 values (1, 3), (4, 4), (2, 6), (3,8);
+
+statement ok
+delete from t2 where a < 2 and b > 2;
+
+query II
+select * from t2;
+----
+4 4
+2 6
+3 8
+
+statement ok
+delete from t2 where a = b;
+
+query II
+select * from t2;
+----
+2 6
+3 8

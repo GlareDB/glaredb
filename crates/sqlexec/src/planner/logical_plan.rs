@@ -2,7 +2,7 @@ use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference};
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::{Explain, LogicalPlan as DfLogicalPlan};
+use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use metastore_client::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
@@ -104,6 +104,7 @@ impl From<DfLogicalPlan> for LogicalPlan {
 pub enum WritePlan {
     Insert(Insert),
     CopyTo(CopyTo),
+    Delete(Delete),
 }
 
 impl From<WritePlan> for LogicalPlan {
@@ -140,6 +141,21 @@ impl std::fmt::Debug for CopyTo {
             .field("source", &self.source.schema())
             .field("dest", &self.dest)
             .field("format", &self.format)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct Delete {
+    pub table_name: OwnedTableReference,
+    pub expr: Option<Expr>,
+}
+
+impl std::fmt::Debug for Delete {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Delete")
+            .field("table_name", &self.table_name.schema())
+            .field("expr", &self.expr)
             .finish()
     }
 }

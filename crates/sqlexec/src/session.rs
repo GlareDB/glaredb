@@ -57,6 +57,8 @@ pub enum ExecutionResult {
     Commit,
     /// Transaction rolled abck.
     Rollback,
+    /// Data successfully deleted.
+    DeleteSuccess,
     /// Data successfully written.
     WriteSuccess,
     /// Data successfully copied.
@@ -108,6 +110,7 @@ impl ExecutionResult {
             ExecutionResult::Rollback => "rollback",
             ExecutionResult::WriteSuccess => "write_success",
             ExecutionResult::CopySuccess => "copy_success",
+            ExecutionResult::DeleteSuccess => "delete_success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -144,6 +147,7 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Rollback => write!(f, "rollback"),
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CopySuccess => write!(f, "copy success"),
+            ExecutionResult::DeleteSuccess => write!(f, "delete success"),
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
@@ -405,6 +409,11 @@ impl Session {
         Ok(())
     }
 
+    pub(crate) async fn delete_from(&mut self, plan: Delete) -> Result<()> {
+        self.ctx.delete(plan).await?;
+        Ok(())
+    }
+
     pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
         let var = self.ctx.get_session_vars().get(&plan.variable)?;
         let batch = var.record_batch();
@@ -559,6 +568,10 @@ impl Session {
             LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
                 self.plan_copy_to(plan).await?;
                 ExecutionResult::CopySuccess
+            }
+            LogicalPlan::Write(WritePlan::Delete(plan)) => {
+                self.delete_from(plan).await?;
+                ExecutionResult::DeleteSuccess
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
