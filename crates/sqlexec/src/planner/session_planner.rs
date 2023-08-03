@@ -6,6 +6,7 @@ use datafusion::arrow::datatypes::{
 };
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::datasource::DefaultTableSource;
+use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -667,15 +668,46 @@ impl<'a> SessionPlanner<'a> {
                 let (source, arrow_cols) = if let Some(q) = query {
                     let mut planner = SqlQueryPlanner::new(&mut context_provider);
                     let source = planner.query_to_plan(*q).await?;
-                    let fields = source.schema().fields();
-                    let fields: Vec<_> =
-                        fields.iter().map(|f| f.field().as_ref().clone()).collect();
+                    let df_fields = source.schema().fields();
+
+                    let mut columns = columns.into_iter();
+                    let mut fields = Vec::with_capacity(df_fields.len());
+                    for df_field in df_fields {
+                        let field = df_field.field().as_ref().clone();
+                        let field = if let Some(column) = columns.next() {
+                            // If we have a cast for the column, we can update the schema.
+                            validate_ident(&column.name)?;
+                            let name = normalize_ident(column.name);
+                            let data_type = convert_data_type(&column.data_type)?;
+                            field.with_name(name).with_data_type(data_type)
+                        } else {
+                            field
+                        };
+                        fields.push(field);
+                    }
+
+                    // Update the source plan with the new schema casts and alias.
+                    let project_exprs: Vec<_> = fields
+                        .iter()
+                        .zip(df_fields.iter())
+                        .map(|(field, df_field)| {
+                            cast(col(df_field.name()), field.data_type().clone())
+                                .alias(field.name())
+                        })
+                        .collect();
+
+                    let source = LogicalPlanBuilder::from(source)
+                        .project(project_exprs)?
+                        .build()?;
+
                     (Some(source), fields)
                 } else {
                     let mut arrow_cols = Vec::with_capacity(columns.len());
                     for column in columns.into_iter() {
-                        let dt = convert_data_type(&column.data_type)?;
-                        let field = Field::new(&column.name.value, dt, /* nullable = */ true);
+                        validate_ident(&column.name)?;
+                        let name = normalize_ident(column.name);
+                        let data_type = convert_data_type(&column.data_type)?;
+                        let field = Field::new(name, data_type, /* nullable = */ true);
                         arrow_cols.push(field);
                     }
                     (None, arrow_cols)
