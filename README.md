@@ -125,5 +125,4 @@ this repository.
 
 ## Acknowledgements
 
-
 GlareDB is proudly powered by [Apache Datafusion](https://arrow.apache.org/datafusion/) and [Apache Arrow](https://arrow.apache.org/). We are grateful for the work of the Apache Software Foundation and the community around these projects.
