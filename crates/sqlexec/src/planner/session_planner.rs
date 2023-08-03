@@ -921,6 +921,10 @@ impl<'a> SessionPlanner<'a> {
                 Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
             }
 
+            // "DELETE FROM <table> WHERE <expression>"
+            //
+            // deletes rows from a table that matches the expression.
+            // or all the rows if no expression is provided.
             ast::Statement::Delete {
                 tables,
                 from,
