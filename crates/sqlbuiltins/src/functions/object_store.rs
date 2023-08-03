@@ -3,23 +3,33 @@ use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
+use datafusion::datasource::file_format::csv::CsvFormat;
+use datafusion::datasource::file_format::file_type::FileCompressionType;
+use datafusion::datasource::file_format::file_type::FileType as DataFusionFileType;
+use datafusion::datasource::file_format::json::JsonFormat;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::FileFormat as DataFusionFileFormat;
+use datafusion::datasource::listing::{
+    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+};
 use datafusion::datasource::{DefaultTableSource, TableProvider};
-use datafusion::execution::object_store::ObjectStoreUrl;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
 };
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::object_store::csv::CsvFileAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
-use datasources::object_store::json::JsonFileAccess;
 use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::parquet::ParquetFileAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{FileType, FileTypeAccess, ObjStoreAccess, ObjStoreAccessor};
 use metastore_client::types::options::CredentialsOptions;
+
+use datasources::object_store::gcs::GcsProvider;
+use datasources::object_store::http::{object_meta_from_head, HttpProvider};
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Parquet, "parquet_scan");
 
@@ -29,6 +39,44 @@ pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Json, "ndjson
 
 #[derive(Debug, Clone, Copy)]
 pub struct ObjScanTableFunc(FileType, &'static str);
+
+impl ObjScanTableFunc {
+    async fn create_provider_from_config(
+        &self,
+        config: ListingTableConfig,
+        ctx: &dyn TableFuncContextProvider,
+        args: vec::IntoIter<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let state = ctx.get_session_state();
+
+        let location = config.table_paths.get(0).unwrap().as_str();
+        let scheme = DatasourceUrl::try_new(location)
+            .unwrap()
+            .datasource_url_type();
+
+        Ok(match scheme {
+            DatasourceUrlType::Http => create_http_provider(config, state).await?,
+            DatasourceUrlType::Gcs => {
+                let service_account_key = extract_gcs_creds(ctx, args, opts)?;
+
+                Arc::new(
+                    GcsProvider::new(config, service_account_key)
+                        .infer(state)
+                        .await
+                        .map_err(|e| {
+                            ExtensionError::String(format!("Unable to infer schema: {}", e))
+                        })?,
+                )
+            }
+            _ => Arc::new(
+                ListingTable::try_new(config.infer_schema(state).await.unwrap())
+                    .ok()
+                    .unwrap(),
+            ),
+        })
+    }
+}
 
 #[async_trait]
 impl TableFunc for ObjScanTableFunc {
@@ -59,66 +107,22 @@ impl TableFunc for ObjScanTableFunc {
 
         let mut args = args.into_iter();
         let url_arg = args.next().unwrap();
-
-        let Self(ft, _) = self;
-        let ft: Arc<dyn FileTypeAccess> = match ft {
-            FileType::Csv => Arc::new(CsvFileAccess::default()),
-            FileType::Parquet => Arc::new(ParquetFileAccess),
-            FileType::Json => Arc::new(JsonFileAccess),
-        };
-
-        let urls = if DatasourceUrl::is_param_valid(&url_arg) {
-            vec![url_arg.param_into()?]
+        let config = if ListingTableUrl::is_param_valid(&url_arg) {
+            let url = url_arg.param_into()?;
+            ListingTableConfig::new(url)
         } else {
-            url_arg.param_into::<Vec<DatasourceUrl>>()?
+            let urls = url_arg.param_into::<Vec<ListingTableUrl>>()?;
+            ListingTableConfig::new_with_multi_paths(urls)
         };
 
-        if urls.is_empty() {
-            return Err(ExtensionError::String(
-                "at least one url expected".to_owned(),
-            ));
-        }
+        let provider = self
+            .create_provider_from_config(config, ctx, args, opts)
+            .await?;
 
-        // Optimize creating a table provider for objects by clubbing the same
-        // store together.
-        let mut fn_registry: HashMap<
-            ObjectStoreUrl,
-            (Arc<dyn ObjStoreAccess>, Vec<DatasourceUrl>),
-        > = HashMap::new();
-        for source_url in urls {
-            let access = get_store_access(ctx, &source_url, args.clone(), opts.clone())?;
-            let base_url = access
-                .base_url()
-                .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+        let source = Arc::new(DefaultTableSource::new(provider));
+        let plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
 
-            if let Some((_, locations)) = fn_registry.get_mut(&base_url) {
-                locations.push(source_url);
-            } else {
-                fn_registry.insert(base_url, (access, vec![source_url]));
-            }
-        }
-
-        // Now that we have all urls (grouped by their access), we try and get
-        // all the objects and turn this into a table provider.
-        let mut fn_registry = fn_registry.into_values();
-
-        let (access, locations) = fn_registry.next().ok_or(ExtensionError::String(
-            "internal: no urls found, at least one expected".to_string(),
-        ))?;
-        let first_provider = get_table_provider(ft.clone(), access, locations.into_iter()).await?;
-        let source = Arc::new(DefaultTableSource::new(first_provider));
-        let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
-
-        for (access, locations) in fn_registry {
-            let provider = get_table_provider(ft.clone(), access, locations.into_iter()).await?;
-            let source = Arc::new(DefaultTableSource::new(provider));
-            let plan = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?.build()?;
-
-            plan_builder = plan_builder.union(plan)?;
-        }
-
-        let plan = plan_builder.build()?;
-        Ok(plan)
+        Ok(plan_builder.build()?)
     }
 }
 
@@ -303,4 +307,63 @@ fn create_s3_store_access(
         access_key_id,
         secret_access_key,
     }))
+}
+
+async fn create_http_provider(
+    listing_config: ListingTableConfig,
+    state: &SessionState,
+) -> Result<Arc<dyn TableProvider>> {
+    let url = listing_config.table_paths.get(0).unwrap();
+    let store = state.runtime_env().object_store(url)?;
+    let base_url = url.to_string();
+    let url = url::Url::parse(&url.to_string()).unwrap();
+    let meta = object_meta_from_head(&url).await.unwrap();
+    let object_metas = vec![meta];
+
+    let file_type = listing_config.options.clone().unwrap().format;
+    let schema = file_type
+        .infer_schema(state, &store, &object_metas)
+        .await
+        .unwrap();
+
+    let listing_config = listing_config.with_schema(schema);
+
+    let prov = HttpProvider {
+        base_url,
+        config: listing_config,
+        paths: object_metas,
+    };
+
+    Ok(Arc::new(prov))
+}
+
+fn extract_gcs_creds(
+    ctx: &dyn TableFuncContextProvider,
+    mut args: vec::IntoIter<FuncParamValue>,
+    mut opts: HashMap<String, FuncParamValue>,
+) -> Result<Option<String>> {
+    Ok(match args.len() {
+        0 => opts
+            .remove("service_account_key")
+            .map(FuncParamValue::param_into)
+            .transpose()?,
+        1 => {
+            let creds: IdentValue = args.next().unwrap().param_into()?;
+            let creds = ctx
+                .get_credentials_entry(creds.as_str())
+                .ok_or(ExtensionError::String(format!(
+                    "missing credentials object: {creds}"
+                )))?;
+            Some(match &creds.options {
+                CredentialsOptions::Gcp(o) => o.service_account_key.to_owned(),
+                other => {
+                    return Err(ExtensionError::String(format!(
+                        "invalid credentials for GCS, got {}",
+                        other.as_str()
+                    )))
+                }
+            })
+        }
+        _ => None,
+    })
 }

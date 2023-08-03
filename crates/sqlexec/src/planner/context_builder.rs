@@ -246,4 +246,8 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
     fn get_session_vars(&self) -> &SessionVars {
         self.ctx.get_session_vars()
     }
+
+    fn get_session_state(&self) -> &datafusion::execution::context::SessionState {
+        self.ctx.get_df_state()
+    }
 }

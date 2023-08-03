@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::datasource::TableProvider;
+use datafusion::datasource::listing::ListingTableUrl;
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
 
@@ -47,6 +49,7 @@ pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
     fn get_session_vars(&self) -> &SessionVars;
+    fn get_session_state(&self) -> &SessionState;
 }
 
 use std::fmt;
@@ -123,6 +126,26 @@ impl FromFuncParamValue for String {
         matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
     }
 }
+impl FromFuncParamValue for ListingTableUrl {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => ListingTableUrl::parse(s)
+                .map_err(|e| ExtensionError::InvalidParamValue {
+                    param: e.to_string(),
+                    expected: "listing table url",
+                }),
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "string",
+            }),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
+    }
+}
+
 
 impl<T> FromFuncParamValue for Vec<T>
 where

@@ -5,6 +5,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::datasource::file_format::csv::CsvFormat;
+use datafusion::datasource::file_format::file_type::FileCompressionType;
+use datafusion::datasource::file_format::json::JsonFormat;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -22,6 +27,7 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use serde::{Deserialize, Serialize};
 
+use datafusion::datasource::file_format::file_type::FileType as DataFusionFileType;
 use errors::Result;
 
 use crate::object_store::gcs::GcsStoreAccess;
@@ -154,6 +160,10 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
 
             Ok(objects)
         } else {
+            let is_dir = pattern.ends_with('/');
+            if is_dir {
+                unimplemented!("directory listing not implemented")
+            }
             // Definitely not a "glob" pattern.
             let location = self.path(pattern)?;
             let meta = store.head(&location).await?;
@@ -168,6 +178,46 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         location: &ObjectStorePath,
     ) -> Result<ObjectMeta> {
         Ok(store.head(location).await?)
+    }
+
+    fn infer_file_format(&self, files: &[ObjectMeta]) -> Result<(Arc<dyn FileFormat>, String)> {
+        use std::str::FromStr;
+        let path = files[0].location.as_ref();
+
+        let err_msg = format!("Unable to infer file type from path: {path}");
+
+        let mut exts = path.rsplit('.');
+
+        let mut splitted = exts.next().unwrap_or("");
+
+        let file_compression_type =
+            FileCompressionType::from_str(splitted).unwrap_or(FileCompressionType::UNCOMPRESSED);
+
+        if file_compression_type.is_compressed() {
+            splitted = exts.next().unwrap_or("");
+        }
+
+        let file_type = DataFusionFileType::from_str(splitted)
+            .map_err(|_| DataFusionError::Internal(err_msg.to_owned()))?;
+
+        let ext = file_type
+            .get_ext_with_compression(file_compression_type.to_owned())
+            .map_err(|_| DataFusionError::Internal(err_msg))?;
+
+        let file_format: Arc<dyn FileFormat> = match file_type {
+            DataFusionFileType::CSV => {
+                Arc::new(CsvFormat::default().with_file_compression_type(file_compression_type))
+            }
+            DataFusionFileType::JSON => {
+                Arc::new(JsonFormat::default().with_file_compression_type(file_compression_type))
+            }
+            DataFusionFileType::PARQUET => Arc::new(ParquetFormat::default()),
+            _ => {
+                todo!()
+            }
+        };
+
+        Ok((file_format, ext))
     }
 }
 
