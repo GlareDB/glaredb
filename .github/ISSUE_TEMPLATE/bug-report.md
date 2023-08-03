@@ -6,10 +6,4 @@ labels: "bug :bug:"
 assignees: ""
 ---
 
-## Context
-
-## Expected
-
-## Actual
-
-## Impact
+## Description
