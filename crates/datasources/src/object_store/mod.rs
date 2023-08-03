@@ -205,7 +205,7 @@ impl ObjStoreAccessor {
             base_url,
             objects,
             file_format,
-            predicate_pushdown,
+            _predicate_pushdown: predicate_pushdown,
         }))
     }
 }
@@ -216,7 +216,7 @@ pub struct ObjStoreTableProvider {
     base_url: ObjectStoreUrl,
     objects: Vec<ObjectMeta>,
     file_format: Arc<dyn FileFormat>,
-    predicate_pushdown: bool,
+    _predicate_pushdown: bool,
 }
 
 #[async_trait]
@@ -270,5 +270,5 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
     path.extension()
         .ok_or(ObjectStoreSourceError::NoFileExtension)?
         .parse()
-        .map_err(|e| ObjectStoreSourceError::DataFusion(e))
+        .map_err(ObjectStoreSourceError::DataFusion)
 }
