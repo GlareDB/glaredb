@@ -116,6 +116,11 @@ impl TableFunc for ObjScanTableFunc {
             ListingTableConfig::new(url)
         } else {
             let urls = url_arg.param_into::<Vec<ListingTableUrl>>()?;
+            if urls.is_empty() {
+                return Err(ExtensionError::String(
+                    "at least one url expected".to_owned(),
+                ));
+            }
             ListingTableConfig::new_with_multi_paths(urls)
         };
 
