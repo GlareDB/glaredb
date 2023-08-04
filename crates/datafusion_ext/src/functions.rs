@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use decimal::Decimal128;
 use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
@@ -47,6 +48,7 @@ pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
     fn get_session_vars(&self) -> &SessionVars;
+    fn get_session_state(&self) -> &SessionState;
 }
 
 use std::fmt;

@@ -5,6 +5,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
+use datafusion::datasource::file_format::file_type::FileType;
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
@@ -22,7 +23,7 @@ use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{file_type_from_path, FileType, ObjStoreAccess, ObjStoreAccessor};
+use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use metastore_client::types::options::{
@@ -425,7 +426,7 @@ impl<'a> SessionPlanner<'a> {
 
                 TableOptions::Local(TableOptionsLocal {
                     location,
-                    file_type: file_type.to_string(),
+                    file_type: format!("{file_type:?}").to_lowercase(),
                 })
             }
             TableOptions::GCS => {
@@ -450,7 +451,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: file_type.to_string(),
+                    file_type: format!("{file_type:?}").to_lowercase(),
                 })
             }
             TableOptions::S3_STORAGE => {
@@ -489,7 +490,7 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id,
                     secret_access_key,
                     location,
-                    file_type: file_type.to_string(),
+                    file_type: format!("{file_type:?}").to_lowercase(),
                 })
             }
             TableOptions::DEBUG => {
