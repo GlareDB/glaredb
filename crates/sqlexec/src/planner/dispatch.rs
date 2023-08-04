@@ -306,7 +306,6 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
-        
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
 
         match &table.options {

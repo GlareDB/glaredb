@@ -62,8 +62,6 @@ impl TableFunc for ObjScanTableFunc {
         let mut args = args.into_iter();
         let url_arg = args.next().unwrap();
 
-
-
         let urls = if DatasourceUrl::is_param_valid(&url_arg) {
             vec![url_arg.param_into()?]
         } else {
@@ -76,16 +74,19 @@ impl TableFunc for ObjScanTableFunc {
             ));
         }
         let file_compression = urls[0].get_file_compression();
-        
+
         let Self(ft, _) = self;
         let ft: Arc<dyn FileFormat> = match ft {
-            FileType::CSV => Arc::new(CsvFormat::default().with_file_compression_type(file_compression)),
+            FileType::CSV => {
+                Arc::new(CsvFormat::default().with_file_compression_type(file_compression))
+            }
             FileType::PARQUET => Arc::new(ParquetFormat::default()),
-            FileType::JSON => Arc::new(JsonFormat::default().with_file_compression_type(file_compression)),
+            FileType::JSON => {
+                Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
+            }
             _ => todo!(),
         };
-        
-        
+
         // Optimize creating a table provider for objects by clubbing the same
         // store together.
         let mut fn_registry: HashMap<

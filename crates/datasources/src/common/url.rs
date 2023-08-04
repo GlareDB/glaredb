@@ -156,18 +156,16 @@ impl DatasourceUrl {
         match self {
             DatasourceUrl::File(f) => f
                 .extension()
-                .map(|s| s.to_str().map(|s| s.parse()))
-                .flatten()
+                .and_then(|s| s.to_str().map(|s| s.parse()))
                 .transpose()
-                .unwrap_or_else(|_| Some(FileCompressionType::UNCOMPRESSED))
+                .unwrap_or(Some(FileCompressionType::UNCOMPRESSED))
                 .unwrap(),
             DatasourceUrl::Url(u) => u
                 .path()
                 .rsplit_once('.')
-                .map(|(_, ext)| ext.parse())
-                .transpose()
-                .unwrap_or_else(|_| Some(FileCompressionType::UNCOMPRESSED))
-                .unwrap(),
+                .map(|(_, ext)| ext.parse().ok())
+                .flatten()
+                .unwrap_or(FileCompressionType::UNCOMPRESSED),
         }
     }
 }
