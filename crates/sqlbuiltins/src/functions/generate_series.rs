@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use datafusion::arrow::array::{Array, Float64Array, Int64Array};
+use datafusion::arrow::array::{Array, Decimal128Array, Int64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result as DataFusionResult;
@@ -18,6 +19,7 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, TableFunc, TableFuncContextProvider,
 };
+use decimal::Decimal128;
 use futures::Stream;
 use num_traits::Zero;
 
@@ -44,15 +46,21 @@ impl TableFunc for GenerateSeries {
 
                 if i64::is_param_valid(&start) && i64::is_param_valid(&stop) {
                     create_straming_table::<GenerateSeriesTypeInt>(
+                        GenerateSeriesTypeInt,
                         start.param_into()?,
                         stop.param_into()?,
                         1,
                     )
-                } else if f64::is_param_valid(&start) && f64::is_param_valid(&stop) {
-                    create_straming_table::<GenerateSeriesTypeFloat>(
-                        start.param_into()?,
-                        stop.param_into()?,
-                        1.0_f64,
+                } else if Decimal128::is_param_valid(&start) && Decimal128::is_param_valid(&stop) {
+                    let start: Decimal128 = start.param_into()?;
+                    let stop: Decimal128 = stop.param_into()?;
+                    let step = Decimal128::new(1, 0)?;
+                    let scale = [start, stop, step].iter().map(|s| s.scale()).max().unwrap();
+                    create_straming_table::<GenerateSeriesTypeDecimal128>(
+                        GenerateSeriesTypeDecimal128 { scale },
+                        start,
+                        stop,
+                        step,
                     )
                 } else {
                     return Err(ExtensionError::InvalidParamValue {
@@ -72,18 +80,24 @@ impl TableFunc for GenerateSeries {
                     && i64::is_param_valid(&step)
                 {
                     create_straming_table::<GenerateSeriesTypeInt>(
+                        GenerateSeriesTypeInt,
                         start.param_into()?,
                         stop.param_into()?,
                         step.param_into()?,
                     )
-                } else if f64::is_param_valid(&start)
-                    && f64::is_param_valid(&stop)
-                    && f64::is_param_valid(&step)
+                } else if Decimal128::is_param_valid(&start)
+                    && Decimal128::is_param_valid(&stop)
+                    && Decimal128::is_param_valid(&step)
                 {
-                    create_straming_table::<GenerateSeriesTypeFloat>(
-                        start.param_into()?,
-                        stop.param_into()?,
-                        step.param_into()?,
+                    let start: Decimal128 = start.param_into()?;
+                    let stop: Decimal128 = stop.param_into()?;
+                    let step: Decimal128 = step.param_into()?;
+                    let scale = [start, stop, step].iter().map(|s| s.scale()).max().unwrap();
+                    create_straming_table::<GenerateSeriesTypeDecimal128>(
+                        GenerateSeriesTypeDecimal128 { scale },
+                        start,
+                        stop,
+                        step,
                     )
                 } else {
                     return Err(ExtensionError::InvalidParamValue {
@@ -98,6 +112,7 @@ impl TableFunc for GenerateSeries {
 }
 
 fn create_straming_table<T: GenerateSeriesType>(
+    gen_series_type: T,
     start: T::PrimType,
     stop: T::PrimType,
     step: T::PrimType,
@@ -106,7 +121,8 @@ fn create_straming_table<T: GenerateSeriesType>(
         return Err(ExtensionError::String("'step' may not be zero".to_string()));
     }
 
-    let partition: GenerateSeriesPartition<T> = GenerateSeriesPartition::new(start, stop, step);
+    let partition: GenerateSeriesPartition<T> =
+        GenerateSeriesPartition::new(gen_series_type, start, stop, step);
     let table = StreamingTable::try_new(partition.schema().clone(), vec![Arc::new(partition)])?;
 
     Ok(Arc::new(table))
@@ -114,36 +130,49 @@ fn create_straming_table<T: GenerateSeriesType>(
 
 trait GenerateSeriesType: Send + Sync + 'static {
     type PrimType: Send + Sync + PartialOrd + AddAssign + Add + Zero + Copy + Unpin;
-    const ARROW_TYPE: DataType;
 
-    fn collect_array(batch: Vec<Self::PrimType>) -> Arc<dyn Array>;
+    fn arrow_type(&self) -> DataType;
+    fn collect_array(&self, series: Vec<Self::PrimType>) -> Arc<dyn Array>;
 }
 
 struct GenerateSeriesTypeInt;
 
 impl GenerateSeriesType for GenerateSeriesTypeInt {
     type PrimType = i64;
-    const ARROW_TYPE: DataType = DataType::Int64;
 
-    fn collect_array(series: Vec<i64>) -> Arc<dyn Array> {
+    fn arrow_type(&self) -> DataType {
+        DataType::Int64
+    }
+
+    fn collect_array(&self, series: Vec<Self::PrimType>) -> Arc<dyn Array> {
         let arr = Int64Array::from_iter_values(series);
         Arc::new(arr)
     }
 }
 
-struct GenerateSeriesTypeFloat;
+struct GenerateSeriesTypeDecimal128 {
+    scale: i8,
+}
 
-impl GenerateSeriesType for GenerateSeriesTypeFloat {
-    type PrimType = f64;
-    const ARROW_TYPE: DataType = DataType::Float64;
+impl GenerateSeriesType for GenerateSeriesTypeDecimal128 {
+    type PrimType = Decimal128;
 
-    fn collect_array(series: Vec<f64>) -> Arc<dyn Array> {
-        let arr = Float64Array::from_iter_values(series);
+    fn arrow_type(&self) -> DataType {
+        DataType::Decimal128(38, self.scale)
+    }
+
+    fn collect_array(&self, series: Vec<Self::PrimType>) -> Arc<dyn Array> {
+        let series = series.into_iter().map(|mut d| {
+            d.rescale(self.scale);
+            d.mantissa()
+        });
+        let arr = Decimal128Array::from_iter_values(series).with_data_type(self.arrow_type());
         Arc::new(arr)
     }
 }
 
 struct GenerateSeriesPartition<T: GenerateSeriesType> {
+    gen_series_type: Arc<T>,
     schema: Arc<Schema>,
     start: T::PrimType,
     stop: T::PrimType,
@@ -151,16 +180,17 @@ struct GenerateSeriesPartition<T: GenerateSeriesType> {
 }
 
 impl<T: GenerateSeriesType> GenerateSeriesPartition<T> {
-    fn new(start: T::PrimType, stop: T::PrimType, step: T::PrimType) -> Self {
+    fn new(gen_series_type: T, start: T::PrimType, stop: T::PrimType, step: T::PrimType) -> Self {
         GenerateSeriesPartition {
             schema: Arc::new(Schema::new([Arc::new(Field::new(
                 "generate_series",
-                T::ARROW_TYPE,
+                gen_series_type.arrow_type(),
                 false,
             ))])),
             start,
             stop,
             step,
+            gen_series_type: Arc::new(gen_series_type),
         }
     }
 }
@@ -172,6 +202,7 @@ impl<T: GenerateSeriesType> PartitionStream for GenerateSeriesPartition<T> {
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
         Box::pin(GenerateSeriesStream::<T> {
+            gen_series_type: Arc::clone(&self.gen_series_type),
             schema: self.schema.clone(),
             exhausted: false,
             curr: self.start,
@@ -182,6 +213,7 @@ impl<T: GenerateSeriesType> PartitionStream for GenerateSeriesPartition<T> {
 }
 
 struct GenerateSeriesStream<T: GenerateSeriesType> {
+    gen_series_type: Arc<T>,
     schema: Arc<Schema>,
     exhausted: bool,
     curr: T::PrimType,
@@ -225,8 +257,9 @@ impl<T: GenerateSeriesType> GenerateSeriesStream<T> {
             self.curr = *last + self.step;
         }
 
-        let arr = T::collect_array(series);
-        assert_eq!(arr.data_type(), &T::ARROW_TYPE);
+        let arrow_dt = self.gen_series_type.arrow_type();
+        let arr = self.gen_series_type.collect_array(series);
+        assert_eq!(arr.data_type(), &arrow_dt);
         let batch = RecordBatch::try_new(self.schema.clone(), vec![arr]).unwrap();
         Some(batch)
     }

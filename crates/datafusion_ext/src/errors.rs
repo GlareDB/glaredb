@@ -27,6 +27,12 @@ pub enum ExtensionError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
+    #[error(transparent)]
+    DecimalError(#[from] decimal::DecimalError),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
     #[error("Unimplemented: {0}")]
     Unimplemented(&'static str),
 }

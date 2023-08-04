@@ -12,6 +12,7 @@ metastore_client = { path = "../metastore_client" }
 datafusion_ext = { path = "../datafusion_ext" }
 telemetry = {path = "../telemetry"}
 datasources = {path = "../datasources"}
+decimal = {path = "../decimal"}
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
