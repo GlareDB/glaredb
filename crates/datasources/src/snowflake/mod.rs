@@ -13,7 +13,9 @@ use async_trait::async_trait;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::{DisplayFormatType, Partitioning, RecordBatchStream, Statistics};
+use datafusion::physical_plan::{
+    DisplayAs, DisplayFormatType, Partitioning, RecordBatchStream, Statistics,
+};
 use datafusion::scalar::ScalarValue;
 use datafusion::{
     arrow::datatypes::{Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
@@ -408,6 +410,12 @@ impl ExecutionPlan for SnowflakeExec {
         Ok(Box::pin(ChunkStream::new(self.schema(), chunk)))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for SnowflakeExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -418,10 +426,6 @@ impl ExecutionPlan for SnowflakeExec {
                 self.predicate.as_str()
             }
         )
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

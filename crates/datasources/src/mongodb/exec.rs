@@ -8,7 +8,7 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
-    display::DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
@@ -87,12 +87,14 @@ impl ExecutionPlan for MongoBsonExec {
         )))
     }
 
-    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MongoBsonExec")
-    }
-
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+}
+
+impl DisplayAs for MongoBsonExec {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MongoBsonExec")
     }
 }
 
