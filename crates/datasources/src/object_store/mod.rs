@@ -1,10 +1,11 @@
 use std::any::Any;
 use std::fmt::{Debug, Display};
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::datasource::file_format::file_type::FileType;
+use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -20,83 +21,19 @@ use glob::{MatchOptions, Pattern};
 use metastore_client::types::options::TableOptions;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use serde::{Deserialize, Serialize};
 
 use errors::Result;
 
+use crate::common::exprs_to_phys_exprs;
 use crate::object_store::gcs::GcsStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
-pub mod csv;
 pub mod errors;
 pub mod gcs;
 pub mod http;
-pub mod json;
 pub mod local;
-pub mod parquet;
 pub mod s3;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum FileType {
-    Csv,
-    Parquet,
-    Json,
-}
-
-impl FileType {
-    const CSV: &str = "csv";
-    const PARQUET: &str = "parquet";
-    const JSON: &str = "json";
-}
-
-impl FromStr for FileType {
-    type Err = ObjectStoreSourceError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let typ = if s.eq_ignore_ascii_case(Self::PARQUET) {
-            Self::Parquet
-        } else if s.eq_ignore_ascii_case(Self::CSV) {
-            Self::Csv
-        } else if s.eq_ignore_ascii_case(Self::JSON) {
-            Self::Json
-        } else {
-            return Err(Self::Err::NotSupportFileType(s.to_owned()));
-        };
-        Ok(typ)
-    }
-}
-
-impl Display for FileType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Csv => Self::CSV,
-            Self::Parquet => Self::PARQUET,
-            Self::Json => Self::JSON,
-        };
-        f.write_str(s)
-    }
-}
-
-#[async_trait]
-pub trait FileTypeAccess: Debug + Send + Sync {
-    /// Gets the schema using objects.
-    async fn get_schema(
-        &self,
-        store: Arc<dyn ObjectStore>,
-        objects: &[ObjectMeta],
-    ) -> Result<SchemaRef>;
-
-    /// Transform into an execution plan.
-    async fn get_exec_plan(
-        &self,
-        ctx: &SessionState,
-        store: Arc<dyn ObjectStore>,
-        conf: FileScanConfig,
-        filters: &[Expr],
-        predicate_pushdown: bool,
-    ) -> Result<Arc<dyn ExecutionPlan>>;
-}
 
 #[async_trait]
 pub trait ObjStoreAccess: Debug + Display + Send + Sync {
@@ -202,12 +139,13 @@ impl ObjStoreAccessor {
     /// Takes all the objects and creates the table provider from the accesor.
     pub async fn into_table_provider(
         self,
-        file_access: Arc<dyn FileTypeAccess>,
+        state: &SessionState,
+        file_format: Arc<dyn FileFormat>,
         objects: Vec<ObjectMeta>,
-        predicate_pushdown: bool,
+        _predicate_pushdown: bool,
     ) -> Result<Arc<dyn TableProvider>> {
         let store = self.store;
-        let arrow_schema = file_access.get_schema(store.clone(), &objects).await?;
+        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
         let base_url = self.access.base_url()?;
 
         Ok(Arc::new(ObjStoreTableProvider {
@@ -215,8 +153,8 @@ impl ObjStoreAccessor {
             arrow_schema,
             base_url,
             objects,
-            file_access,
-            predicate_pushdown,
+            file_format,
+            _predicate_pushdown,
         }))
     }
 }
@@ -226,8 +164,9 @@ pub struct ObjStoreTableProvider {
     arrow_schema: SchemaRef,
     base_url: ObjectStoreUrl,
     objects: Vec<ObjectMeta>,
-    file_access: Arc<dyn FileTypeAccess>,
-    predicate_pushdown: bool,
+    file_format: Arc<dyn FileFormat>,
+
+    _predicate_pushdown: bool,
 }
 
 #[async_trait]
@@ -262,20 +201,15 @@ impl TableProvider for ObjStoreTableProvider {
             output_ordering: Vec::new(),
             infinite_source: false,
         };
+        let filters = exprs_to_phys_exprs(filters, ctx, &self.arrow_schema)?;
 
         // We register the store at scan time so that it can be used by the
         // exec plan.
         ctx.runtime_env()
             .register_object_store(self.base_url.as_ref(), self.store.clone());
 
-        self.file_access
-            .get_exec_plan(
-                ctx,
-                self.store.clone(),
-                config,
-                filters,
-                self.predicate_pushdown,
-            )
+        self.file_format
+            .create_physical_plan(ctx, config, filters.as_ref())
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
@@ -285,6 +219,7 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
     path.extension()
         .ok_or(ObjectStoreSourceError::NoFileExtension)?
         .parse()
+        .map_err(ObjectStoreSourceError::DataFusion)
 }
 
 pub fn init_session_registry<'a>(

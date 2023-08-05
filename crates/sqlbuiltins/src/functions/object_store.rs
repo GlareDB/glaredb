@@ -3,6 +3,11 @@ use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
+use datafusion::datasource::file_format::csv::CsvFormat;
+use datafusion::datasource::file_format::file_type::FileType;
+use datafusion::datasource::file_format::json::JsonFormat;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::{DefaultTableSource, TableProvider};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
@@ -11,23 +16,20 @@ use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
 };
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::object_store::csv::CsvFileAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
-use datasources::object_store::json::JsonFileAccess;
 use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::parquet::ParquetFileAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{FileType, FileTypeAccess, ObjStoreAccess, ObjStoreAccessor};
+use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use metastore_client::types::options::CredentialsOptions;
 
-pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Parquet, "parquet_scan");
+pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 
-pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Csv, "csv_scan");
+pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
 
-pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::Json, "ndjson_scan");
+pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
 
 #[async_trait]
@@ -60,13 +62,6 @@ impl TableFunc for ObjScanTableFunc {
         let mut args = args.into_iter();
         let url_arg = args.next().unwrap();
 
-        let Self(ft, _) = self;
-        let ft: Arc<dyn FileTypeAccess> = match ft {
-            FileType::Csv => Arc::new(CsvFileAccess::default()),
-            FileType::Parquet => Arc::new(ParquetFileAccess),
-            FileType::Json => Arc::new(JsonFileAccess),
-        };
-
         let urls = if DatasourceUrl::is_param_valid(&url_arg) {
             vec![url_arg.param_into()?]
         } else {
@@ -78,6 +73,19 @@ impl TableFunc for ObjScanTableFunc {
                 "at least one url expected".to_owned(),
             ));
         }
+        let file_compression = urls[0].get_file_compression();
+
+        let Self(ft, _) = self;
+        let ft: Arc<dyn FileFormat> = match ft {
+            FileType::CSV => {
+                Arc::new(CsvFormat::default().with_file_compression_type(file_compression))
+            }
+            FileType::PARQUET => Arc::new(ParquetFormat::default()),
+            FileType::JSON => {
+                Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
+            }
+            _ => todo!(),
+        };
 
         // Optimize creating a table provider for objects by clubbing the same
         // store together.
@@ -105,12 +113,14 @@ impl TableFunc for ObjScanTableFunc {
         let (access, locations) = fn_registry.next().ok_or(ExtensionError::String(
             "internal: no urls found, at least one expected".to_string(),
         ))?;
-        let first_provider = get_table_provider(ft.clone(), access, locations.into_iter()).await?;
+        let first_provider =
+            get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;
         let source = Arc::new(DefaultTableSource::new(first_provider));
         let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
 
         for (access, locations) in fn_registry {
-            let provider = get_table_provider(ft.clone(), access, locations.into_iter()).await?;
+            let provider =
+                get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;
             let source = Arc::new(DefaultTableSource::new(provider));
             let plan = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?.build()?;
 
@@ -123,10 +133,12 @@ impl TableFunc for ObjScanTableFunc {
 }
 
 async fn get_table_provider(
-    ft: Arc<dyn FileTypeAccess>,
+    ctx: &dyn TableFuncContextProvider,
+    ft: Arc<dyn FileFormat>,
     access: Arc<dyn ObjStoreAccess>,
     locations: impl Iterator<Item = DatasourceUrl>,
 ) -> Result<Arc<dyn TableProvider>> {
+    let state = ctx.get_session_state();
     let accessor =
         ObjStoreAccessor::new(access).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
@@ -141,6 +153,7 @@ async fn get_table_provider(
 
     accessor
         .into_table_provider(
+            state,
             ft,
             objects.into_iter().flatten().collect(),
             /* predicate_pushdown */ true,
