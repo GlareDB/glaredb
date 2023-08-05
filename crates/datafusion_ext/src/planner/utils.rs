@@ -26,7 +26,7 @@ use datafusion::logical_expr::expr::{
 };
 use datafusion::logical_expr::expr::{Cast, Sort};
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_column_exprs};
-use datafusion::logical_expr::{Expr, LogicalPlan, TryCast};
+use datafusion::logical_expr::{expr::Alias, Expr, LogicalPlan, TryCast};
 use std::collections::HashMap;
 
 /// Make a best-effort attempt at resolving all columns in the expression tree
@@ -204,10 +204,10 @@ where
                     filter.clone(),
                     order_by.clone(),
                 ))),
-                Expr::Alias(nested_expr, alias_name) => Ok(Expr::Alias(
-                    Box::new(clone_with_replacement(nested_expr, replacement_fn)?),
-                    alias_name.clone(),
-                )),
+                Expr::Alias(Alias { expr, name, .. }) => Ok(Expr::Alias(Alias::new(
+                    clone_with_replacement(expr, replacement_fn)?,
+                    name.clone(),
+                ))),
                 Expr::Between(Between {
                     expr,
                     negated,
@@ -242,33 +242,26 @@ where
                     expr,
                     pattern,
                     escape_char,
+                    case_insensitive,
                 }) => Ok(Expr::Like(Like::new(
                     *negated,
                     Box::new(clone_with_replacement(expr, replacement_fn)?),
                     Box::new(clone_with_replacement(pattern, replacement_fn)?),
                     *escape_char,
-                ))),
-                Expr::ILike(Like {
-                    negated,
-                    expr,
-                    pattern,
-                    escape_char,
-                }) => Ok(Expr::ILike(Like::new(
-                    *negated,
-                    Box::new(clone_with_replacement(expr, replacement_fn)?),
-                    Box::new(clone_with_replacement(pattern, replacement_fn)?),
-                    *escape_char,
+                    *case_insensitive,
                 ))),
                 Expr::SimilarTo(Like {
                     negated,
                     expr,
                     pattern,
                     escape_char,
+                    case_insensitive,
                 }) => Ok(Expr::SimilarTo(Like::new(
                     *negated,
                     Box::new(clone_with_replacement(expr, replacement_fn)?),
                     Box::new(clone_with_replacement(pattern, replacement_fn)?),
                     *escape_char,
+                    *case_insensitive,
                 ))),
                 Expr::Case(case) => Ok(Expr::Case(Case::new(
                     match &case.expr {
@@ -426,9 +419,7 @@ pub(crate) fn extract_aliases(exprs: &[Expr]) -> HashMap<String, Expr> {
     exprs
         .iter()
         .filter_map(|expr| match expr {
-            Expr::Alias(nested_expr, alias_name) => {
-                Some((alias_name.clone(), *nested_expr.clone()))
-            }
+            Expr::Alias(Alias { expr, name, .. }) => Some((name.clone(), *expr.clone())),
             _ => None,
         })
         .collect::<HashMap<String, Expr>>()
@@ -447,7 +438,7 @@ pub(crate) fn resolve_positions_to_exprs(expr: &Expr, select_exprs: &[Expr]) -> 
             let index = (position - 1) as usize;
             let select_expr = &select_exprs[index];
             Some(match select_expr {
-                Expr::Alias(nested_expr, _alias_name) => *nested_expr.clone(),
+                Expr::Alias(Alias { expr, .. }) => *expr.clone(),
                 _ => select_expr.clone(),
             })
         }
@@ -480,15 +471,12 @@ pub fn window_expr_common_partition_keys(window_exprs: &[Expr]) -> Result<&[Expr
         .iter()
         .map(|expr| match expr {
             Expr::WindowFunction(WindowFunction { partition_by, .. }) => Ok(partition_by),
-            Expr::Alias(expr, _) => {
-                // convert &Box<T> to &T
-                match &**expr {
-                    Expr::WindowFunction(WindowFunction { partition_by, .. }) => Ok(partition_by),
-                    expr => Err(DataFusionError::Execution(format!(
-                        "Impossibly got non-window expr {expr:?}"
-                    ))),
-                }
-            }
+            Expr::Alias(Alias { expr, .. }) => match expr.as_ref() {
+                Expr::WindowFunction(WindowFunction { partition_by, .. }) => Ok(partition_by),
+                expr => Err(DataFusionError::Execution(format!(
+                    "Impossibly got non-window expr {expr:?}"
+                ))),
+            },
             expr => Err(DataFusionError::Execution(format!(
                 "Impossibly got non-window expr {expr:?}"
             ))),

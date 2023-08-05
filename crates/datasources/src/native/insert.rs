@@ -6,8 +6,8 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
+    DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
+    SendableRecordBatchStream, Statistics,
 };
 use deltalake::action::SaveMode;
 use deltalake::operations::write::WriteBuilder;
@@ -129,6 +129,12 @@ impl ExecutionPlan for NativeTableInsertExec {
         )))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for NativeTableInsertExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match t {
             DisplayFormatType::Default => {
@@ -138,9 +144,5 @@ impl ExecutionPlan for NativeTableInsertExec {
                 write!(f, "NativeTableInsertExec")
             }
         }
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
