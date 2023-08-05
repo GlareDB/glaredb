@@ -21,7 +21,7 @@ use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
-use metastore_client::types::options::CredentialsOptions;
+use protogen::metastore::types::options::CredentialsOptions;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 

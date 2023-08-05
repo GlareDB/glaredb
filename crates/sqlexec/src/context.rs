@@ -2,7 +2,8 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::SupervisorClient;
+use crate::metastore::client::WorkerError;
+use crate::metastore::{catalog::SessionCatalog, client::SupervisorClient};
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
@@ -27,13 +28,12 @@ use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::init_session_registry;
 use futures::{future::BoxFuture, StreamExt};
-use metastore_client::errors::ResolveErrorStrategy;
-use metastore_client::session::SessionCatalog;
-use metastore_client::types::catalog::{CatalogEntry, EntryType};
-use metastore_client::types::options::TableOptions;
-use metastore_client::types::service::{self, Mutation};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
+use protogen::metastore::strategy::ResolveErrorStrategy;
+use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
+use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::service::{self, Mutation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG, POSTGRES_SCHEMA};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -842,7 +842,7 @@ impl SessionContext {
             .await
         {
             Ok(state) => state,
-            Err(ExecError::MetastoreTonic {
+            Err(WorkerError::MetastoreTonic {
                 strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
                 message,
             }) => {
@@ -861,7 +861,7 @@ impl SessionContext {
 
                 self.metastore.try_mutate(version, mutations).await?
             }
-            Err(e) => return Err(e),
+            Err(e) => return Err(e.into()),
         };
         self.metastore_catalog.swap_state(state);
         Ok(())

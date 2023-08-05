@@ -9,7 +9,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use decimal::Decimal128;
-use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
+use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry};
 
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;

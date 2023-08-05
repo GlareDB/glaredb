@@ -62,7 +62,7 @@ syntax = "proto3";
 package metastore.storage;
 
 import "google/protobuf/timestamp.proto";
-import "catalog.proto";
+import "metastore/catalog.proto";
 
 message LeaseInformation {
   enum State {

@@ -26,8 +26,8 @@ pub enum ExecError {
 
     #[error("Unexpected entry type; got: {got}, want: {want}")]
     UnexpectedEntryType {
-        got: metastore_client::types::catalog::EntryType,
-        want: metastore_client::types::catalog::EntryType,
+        got: protogen::metastore::types::catalog::EntryType,
+        want: protogen::metastore::types::catalog::EntryType,
     },
 
     #[error("Missing connection by name; schema: {schema}, name: {name}")]
@@ -45,46 +45,11 @@ pub enum ExecError {
     #[error("An ssh connection is not supported datasource for CREATE EXTERNAL TABLE. An ssh connection must be provided as an optional ssh_tunnel with another connection type")]
     ExternalTableWithSsh,
 
-    // TODO: Need to be more granular about errors from Metastore.
-    #[error("Failed Metastore request: {message}")]
-    MetastoreTonic {
-        strategy: metastore_client::errors::ResolveErrorStrategy,
-        message: String,
-    },
-
-    #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
-    MetastoreDatabaseWorkerOverload {
-        request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
-    },
-
-    #[error(
-        "Metastore request channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
-    )]
-    MetastoreRequestChannelClosed {
-        request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
-    },
-
-    #[error(
-        "Metastore response channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
-    )]
-    MetastoreResponseChannelClosed {
-        request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
-    },
-
     #[error("Duplicate object name: '{0}' already exists")]
     DuplicateObjectName(String),
 
     #[error("Missing {typ}: '{name}' not found")]
     MissingObject { typ: &'static str, name: String },
-
-    #[error(transparent)]
-    MetastoreClient(#[from] metastore_client::errors::MetastoreClientError),
-
-    #[error(transparent)]
-    ProtoConvError(#[from] metastore_client::types::ProtoConvError),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
@@ -152,21 +117,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
-}
 
-impl From<tonic::Status> for ExecError {
-    fn from(value: tonic::Status) -> Self {
-        let strat = value
-            .metadata()
-            .get(metastore_client::errors::RESOLVE_ERROR_STRATEGY_META)
-            .map(|val| ResolveErrorStrategy::from_bytes(val.as_ref()))
-            .unwrap_or(ResolveErrorStrategy::Unknown);
-
-        Self::MetastoreTonic {
-            strategy: strat,
-            message: value.message().to_string(),
-        }
-    }
+    #[error(transparent)]
+    MetastoreWorker(#[from] crate::metastore::client::WorkerError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
@@ -178,4 +131,3 @@ macro_rules! internal {
     };
 }
 pub(crate) use internal;
-use metastore_client::errors::ResolveErrorStrategy;
