@@ -1,43 +1,6 @@
 use tonic::metadata::AsciiMetadataValue;
 use tracing::warn;
 
-#[derive(thiserror::Error, Debug)]
-pub enum MetastoreClientError {
-    #[error("Invalid object name length: {length}, max: {max}")]
-    InvalidNameLength { length: usize, max: usize },
-
-    #[error("Tunnel '{tunnel}' not supported by datasource '{datasource}'")]
-    TunnelNotSupportedByDatasource { tunnel: String, datasource: String },
-
-    #[error("Credentials '{credentials}' not supported by datasource '{datasource}'")]
-    CredentialsNotSupportedByDatasource {
-        credentials: String,
-        datasource: String,
-    },
-
-    #[error("Format '{format}' not supported by datasource '{datasource}'")]
-    FormatNotSupportedByDatasource { format: String, datasource: String },
-
-    #[error("Catalog version mismatch; have: {have}, need: {need}")]
-    VersionMismtatch { have: u64, need: u64 },
-
-    #[error(transparent)]
-    ProtoConv(#[from] crate::types::ProtoConvError),
-}
-
-pub type Result<T, E = MetastoreClientError> = std::result::Result<T, E>;
-
-impl From<MetastoreClientError> for tonic::Status {
-    fn from(value: MetastoreClientError) -> Self {
-        let strat = value.resolve_error_strategy();
-        let mut status = tonic::Status::from_error(Box::new(value));
-        status
-            .metadata_mut()
-            .insert(RESOLVE_ERROR_STRATEGY_META, strat.to_metadata_value());
-        status
-    }
-}
-
 pub const RESOLVE_ERROR_STRATEGY_META: &str = "resolve-error-strategy";
 
 /// Additional metadata to provide a hint to the client on what it can do to
@@ -76,15 +39,6 @@ impl ResolveErrorStrategy {
     fn parse_err(bs: &[u8]) -> ResolveErrorStrategy {
         warn!(?bs, "failed getting resolve strategy from bytes");
         ResolveErrorStrategy::Unknown
-    }
-}
-
-impl MetastoreClientError {
-    pub fn resolve_error_strategy(&self) -> ResolveErrorStrategy {
-        match self {
-            Self::VersionMismtatch { .. } => ResolveErrorStrategy::FetchCatalogAndRetry,
-            _ => ResolveErrorStrategy::Unknown,
-        }
     }
 }
 

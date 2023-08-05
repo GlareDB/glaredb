@@ -21,7 +21,7 @@ deltalake = { workspace = true }
 futures = "0.3.28"
 gcp-bigquery-client = "0.17.0"
 logutil = {path = "../logutil"}
-metastore_client = { path = "../metastore_client" }
+protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
 mongodb = "2.6.0"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }

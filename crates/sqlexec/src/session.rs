@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::metastore::{catalog::SessionCatalog, client::SupervisorClient};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -17,16 +18,14 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::ObjStoreAccess;
-use metastore_client::session::SessionCatalog;
-use metastore_client::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use pgrepr::format::Format;
+use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
 
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
 use crate::errors::Result;
-use crate::metastore::SupervisorClient;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;

@@ -28,12 +28,12 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt, TryStreamExt};
-use metastore_client::types::options::TunnelOptions;
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
 use mysql_async::{
     Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
 };
+use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, trace};

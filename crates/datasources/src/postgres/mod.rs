@@ -27,7 +27,7 @@ use datafusion::physical_plan::{
 };
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use metastore_client::types::options::TunnelOptions;
+use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};

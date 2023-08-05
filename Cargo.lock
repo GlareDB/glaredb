@@ -1760,9 +1760,9 @@ dependencies = [
  "datafusion",
  "decimal",
  "env_logger",
- "metastore_client",
  "once_cell",
  "paste",
+ "protogen",
  "regex",
  "rstest",
  "thiserror",
@@ -1792,7 +1792,6 @@ dependencies = [
  "gcp-bigquery-client",
  "glob",
  "logutil",
- "metastore_client",
  "mongodb",
  "mysql_async",
  "mysql_common",
@@ -1801,6 +1800,7 @@ dependencies = [
  "once_cell",
  "openssh",
  "parking_lot",
+ "protogen",
  "rand 0.8.5",
  "regex",
  "repr",
@@ -2525,13 +2525,13 @@ dependencies = [
  "futures",
  "logutil",
  "metastore",
- "metastore_client",
  "nu-ansi-term 0.49.0",
  "object_store",
  "object_store_util",
  "once_cell",
  "pgrepr",
  "pgsrv",
+ "protogen",
  "reedline",
  "sqlexec",
  "telemetry",
@@ -3311,7 +3311,6 @@ dependencies = [
  "datafusion",
  "futures",
  "logutil",
- "metastore_client",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -3320,30 +3319,8 @@ dependencies = [
  "proptest-derive",
  "prost",
  "prost-types",
+ "protogen",
  "sqlbuiltins",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-build",
- "tower",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "metastore_client"
-version = "0.3.0"
-dependencies = [
- "async-trait",
- "bytes",
- "datafusion",
- "futures",
- "object_store",
- "once_cell",
- "proptest",
- "proptest-derive",
- "prost",
- "prost-types",
  "thiserror",
  "tokio",
  "tonic",
@@ -4367,6 +4344,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213622a1460818959ac1181aaeb2dc9c7f63df720db7d788b3e24eacd1983e13"
 dependencies = [
  "prost",
+]
+
+[[package]]
+name = "protogen"
+version = "0.3.0"
+dependencies = [
+ "datafusion",
+ "proptest",
+ "proptest-derive",
+ "prost",
+ "prost-types",
+ "thiserror",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -5719,11 +5712,11 @@ dependencies = [
  "decimal",
  "futures",
  "logutil",
- "metastore_client",
  "num-traits",
  "object_store",
  "once_cell",
  "pgrepr",
+ "protogen",
  "regex",
  "serde",
  "serde_json",
@@ -5748,12 +5741,12 @@ dependencies = [
  "futures",
  "logutil",
  "metastore",
- "metastore_client",
  "object_store",
  "object_store_util",
  "once_cell",
  "parking_lot",
  "pgrepr",
+ "protogen",
  "regex",
  "serde_json",
  "sqlbuiltins",

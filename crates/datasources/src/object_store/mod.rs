@@ -18,9 +18,9 @@ use datafusion::prelude::Expr;
 use errors::ObjectStoreSourceError;
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
-use metastore_client::types::options::TableOptions;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
+use protogen::metastore::types::options::TableOptions;
 
 use errors::Result;
 

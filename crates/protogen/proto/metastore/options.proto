@@ -12,7 +12,7 @@ syntax = "proto3";
 
 package metastore.options;
 
-import "arrow.proto";
+import "metastore/arrow.proto";
 
 // Some options allow us to know the columns in tables upfront (particularly the
 // internal table options).
@@ -199,13 +199,9 @@ message CredentialsOptions {
   }
 }
 
-message CredentialsOptionsDebug {
-  string table_type = 1;
-}
+message CredentialsOptionsDebug { string table_type = 1; }
 
-message CredentialsOptionsGcp {
-  string service_account_key = 1;
-}
+message CredentialsOptionsGcp { string service_account_key = 1; }
 
 message CredentialsOptionsAws {
   string access_key_id = 1;

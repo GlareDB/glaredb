@@ -26,22 +26,19 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore_client::types::options::{
+use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
-    CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
+    CopyToFormatOptionsJson, CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws,
+    CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
+    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    InternalColumnDefinition, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
+    TunnelOptionsInternal, TunnelOptionsSsh,
 };
-use metastore_client::types::options::{
-    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsDebug, CredentialsOptionsGcp,
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
-    DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    DeltaLakeCatalog, DeltaLakeUnityCatalog, InternalColumnDefinition, TableOptions,
-    TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
-    TunnelOptionsSsh,
-};
-use metastore_client::validation::{
+use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
     validate_database_creds_support, validate_database_tunnel_support,
     validate_table_creds_support, validate_table_tunnel_support,

@@ -49,7 +49,7 @@ pub enum StorageError {
     LeaseRenewerExited,
 
     #[error(transparent)]
-    ProtoConv(#[from] metastore_client::types::ProtoConvError),
+    ProtoConv(#[from] protogen::metastore::types::ProtoConvError),
 
     #[error("Failed to encode protobuf for storage: {0}")]
     ProstEncode(#[from] prost::EncodeError),

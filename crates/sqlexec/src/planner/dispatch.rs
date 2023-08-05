@@ -1,5 +1,6 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
+use crate::metastore::catalog::SessionCatalog;
 use datafusion::arrow::array::{
     BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
 };
@@ -25,11 +26,10 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use metastore_client::session::SessionCatalog;
-use metastore_client::types::catalog::{
+use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
 };
-use metastore_client::types::options::{
+use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
     TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,

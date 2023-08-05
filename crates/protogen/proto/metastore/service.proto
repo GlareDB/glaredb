@@ -4,8 +4,8 @@ syntax = "proto3";
 
 package metastore.service;
 
-import "catalog.proto";
-import "options.proto";
+import "metastore/catalog.proto";
+import "metastore/options.proto";
 
 message InitializeCatalogRequest {
   // ID of the catalog to initialize.
@@ -150,9 +150,7 @@ message DropCredentials {
   bool if_exists = 2;
 }
 
-message UpdateDeploymentStorage {
-  uint64 new_storage_size = 1;
-}
+message UpdateDeploymentStorage { uint64 new_storage_size = 1; }
 
 message MutateRequest {
   // Mutate the catalog for this database.

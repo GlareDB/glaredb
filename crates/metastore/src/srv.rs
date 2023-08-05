@@ -2,13 +2,13 @@ use crate::database::DatabaseCatalog;
 use crate::errors::MetastoreError;
 use crate::storage::persist::Storage;
 use async_trait::async_trait;
-use metastore_client::proto::service::metastore_service_server::MetastoreService;
-use metastore_client::proto::service::{
+use object_store::ObjectStore;
+use protogen::metastore::gen::service::metastore_service_server::MetastoreService;
+use protogen::metastore::gen::service::{
     self, FetchCatalogRequest, FetchCatalogResponse, InitializeCatalogRequest,
     InitializeCatalogResponse, MutateRequest, MutateResponse,
 };
-use metastore_client::types::service::Mutation;
-use object_store::ObjectStore;
+use protogen::metastore::types::service::Mutation;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -139,9 +139,9 @@ impl MetastoreService for Service {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use metastore_client::types::catalog::{CatalogEntry, CatalogState};
-    use metastore_client::types::service::{CreateSchema, Mutation};
     use object_store::memory::InMemory;
+    use protogen::metastore::types::catalog::{CatalogEntry, CatalogState};
+    use protogen::metastore::types::service::{CreateSchema, Mutation};
 
     fn new_service() -> Service {
         let store = Arc::new(InMemory::new());
