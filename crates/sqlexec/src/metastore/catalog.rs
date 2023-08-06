@@ -30,6 +30,8 @@ pub struct SessionCatalog {
     /// The client to the remote metastore.
     ///
     /// If `None`, certain operations cannot be done.
+    ///
+    /// This will eventually allow other catalog sources too (like rpcsrv).
     metastore_client: Option<SupervisorClient>,
 
     /// The state retrieved from a remote Metastore.
@@ -62,6 +64,14 @@ impl SessionCatalog {
         catalog
     }
 
+    /// Create a session with an initial state along with the client to
+    /// metastore.
+    pub fn new_with_client(state: Arc<CatalogState>, client: SupervisorClient) -> SessionCatalog {
+        let mut catalog = Self::new(state);
+        catalog.metastore_client = Some(client);
+        catalog
+    }
+
     pub fn get_metastore_client(&self) -> Option<&SupervisorClient> {
         self.metastore_client.as_ref()
     }
@@ -74,6 +84,10 @@ impl SessionCatalog {
     /// Returns the deployment metadata.
     pub fn deployment_metadata(&self) -> DeploymentMetadata {
         self.state.deployment.clone()
+    }
+
+    pub fn get_state(&self) -> &Arc<CatalogState> {
+        &self.state
     }
 
     pub fn resolve_native_table(

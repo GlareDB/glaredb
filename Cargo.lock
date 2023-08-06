@@ -4865,6 +4865,8 @@ dependencies = [
  "async-trait",
  "bytes",
  "dashmap",
+ "datafusion",
+ "datafusion-proto",
  "datafusion_ext",
  "futures",
  "logutil",

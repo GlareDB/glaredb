@@ -149,6 +149,7 @@ async fn execute_logical_remote(
 }
 
 /// Converts a response stream from the service into a record batch stream.
+// TODO: StreamReader
 struct ExecutionResponseBatchStream {
     /// Stream we're reading from.
     stream: Streaming<ExecuteResponse>,
@@ -168,8 +169,6 @@ impl Stream for ExecutionResponseBatchStream {
 
         // Pull from stream.
         match self.stream.poll_next_unpin(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(None) => Poll::Ready(None),
             Poll::Ready(Some(resp)) => match resp {
                 Ok(resp) => {
                     let cursor = Cursor::new(resp.arrow_ipc);
@@ -199,6 +198,8 @@ impl Stream for ExecutionResponseBatchStream {
                     "failed to pull next batch from stream: {e}"
                 ))))),
             },
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => Poll::Ready(None),
         }
     }
 }

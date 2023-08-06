@@ -144,12 +144,11 @@ impl Engine {
             .new_native_tables_storage(database_id, &storage)?;
 
         let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new(state);
+        let catalog = SessionCatalog::new_with_client(state, metastore);
 
         let session = Session::new(
             vars,
             catalog,
-            metastore,
             native,
             self.tracker.clone(),
             self.spill_path.clone(),

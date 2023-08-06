@@ -96,7 +96,6 @@ impl SessionContext {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
-        metastore: SupervisorClient,
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,

@@ -185,7 +185,6 @@ impl Session {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
-        metastore: SupervisorClient,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
@@ -201,7 +200,6 @@ impl Session {
         let ctx = SessionContext::new(
             vars,
             catalog,
-            metastore,
             native_tables,
             metrics,
             spill_path,
@@ -209,6 +207,10 @@ impl Session {
         )?;
 
         Ok(Session { ctx })
+    }
+
+    pub fn get_session_catalog(&self) -> &SessionCatalog {
+        &self.ctx.get_session_catalog()
     }
 
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
