@@ -48,9 +48,13 @@ enum Commands {
 
     /// Starts the sql server portion of GlareDB.
     Server {
-        /// TCP address to bind to.
+        /// TCP address to bind to for the Postgres interface.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
         bind: String,
+
+        /// TCP address to bind to for the RPC interface.
+        #[clap(long, hide = true, value_parser, default_value_t = String::from("0.0.0.0:6540"))]
+        rpc_bind: String,
 
         /// Address to the Metastore.
         ///
@@ -179,6 +183,7 @@ fn main() -> Result<()> {
             mut segment_key,
             spill_path,
             ignore_auth,
+            ..
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });

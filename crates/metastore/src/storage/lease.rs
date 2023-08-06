@@ -19,7 +19,7 @@ use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject
 use bytes::BytesMut;
 use object_store::{path::Path as ObjectPath, Error as ObjectStoreError, ObjectStore};
 use prost::Message;
-use protogen::metastore::gen::storage;
+use protogen::gen::metastore::storage;
 use protogen::metastore::types::storage::{LeaseInformation, LeaseState};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

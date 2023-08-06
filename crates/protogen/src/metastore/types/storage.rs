@@ -1,6 +1,6 @@
 use super::catalog::CatalogState;
 use super::{FromOptionalField, ProtoConvError};
-use crate::metastore::gen::storage;
+use crate::gen::metastore::storage;
 use std::time::SystemTime;
 use uuid::Uuid;
 

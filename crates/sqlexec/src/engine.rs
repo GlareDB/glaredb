@@ -14,7 +14,7 @@ use std::sync::Arc;
 use crate::metastore::catalog::SessionCatalog;
 use datasources::native::access::NativeTableStorage;
 use object_store_util::conf::StorageConfig;
-use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
+use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};

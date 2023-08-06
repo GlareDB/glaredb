@@ -2533,6 +2533,7 @@ dependencies = [
  "pgsrv",
  "protogen",
  "reedline",
+ "rpcsrv",
  "sqlexec",
  "telemetry",
  "tokio",
@@ -4856,6 +4857,29 @@ name = "rle-decode-fast"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
+
+[[package]]
+name = "rpcsrv"
+version = "0.3.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "dashmap",
+ "datafusion_ext",
+ "futures",
+ "logutil",
+ "once_cell",
+ "prost",
+ "prost-types",
+ "protogen",
+ "serde",
+ "sqlexec",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "rsa"

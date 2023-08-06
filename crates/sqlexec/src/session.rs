@@ -225,7 +225,7 @@ impl Session {
     }
 
     /// Execute a datafusion physical plan.
-    pub(crate) fn execute_physical(
+    pub fn execute_physical(
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {

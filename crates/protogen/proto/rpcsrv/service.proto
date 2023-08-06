@@ -1,0 +1,43 @@
+// Service definition for rpcsrv.
+
+syntax = "proto3";
+
+package rpcsrv.service;
+
+import "metastore/catalog.proto";
+
+message InitializeSessionRequest {
+  // ID of database we're initializing a session for.
+  bytes db_id = 1;
+}
+
+message InitializeSessionResponse {
+  // ID of session that was created. This ID needs to be provided on all future
+  // requests.
+  bytes session_id = 1;
+
+  // // The initial catalog for the database.
+  metastore.catalog.CatalogState catalog = 2;
+}
+
+message ExecuteRequest {
+  // Which session to execute this on.
+  bytes session_id = 1;
+
+  // The plan to execute
+  // TODO: Logical or physical?
+  bytes plan = 2;
+}
+
+message ExecuteResponse {
+  // Results of the execution.
+  bytes arrow_ipc = 1;
+}
+
+service ExecutionService {
+  // Initializes a remote session.
+  rpc InitializeSession(InitializeSessionRequest)
+      returns (InitializeSessionResponse);
+
+  rpc Execute(ExecuteRequest) returns (stream ExecuteResponse);
+}
