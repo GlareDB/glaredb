@@ -8,6 +8,7 @@ use anyhow::{anyhow, Result};
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
+use rpcsrv::handler::RpcHandler;
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
@@ -114,17 +115,18 @@ impl ComputeServer {
 
         // Shutdown handler.
         let (tx, mut rx) = oneshot::channel();
+        let engine = self.engine.clone();
         tokio::spawn(async move {
             match signal::ctrl_c().await {
                 Ok(()) => {
                     info!("shutdown triggered");
-                    let engine_shutdown = self.engine.shutdown();
+                    let engine_shutdown = engine.shutdown();
 
                     // Don't wait for active-sessions if integration testing is
                     // not set. This helps when doing "CTRL-C" during testing.
                     if !self.integration_testing {
                         loop {
-                            let sess_count = self.engine.session_count();
+                            let sess_count = engine.session_count();
                             if sess_count == 0 {
                                 break;
                             }
@@ -154,14 +156,15 @@ impl ComputeServer {
         });
 
         // Start rpc service.
-        // if let Some(addr) = conf.rpc_addr {
-        //     info!("Starting rpc service");
-        //     Server::builder()
-        //         .trace_fn(|_| debug_span!("rpc_service_request"))
-        //         // .add_service(ExecutionServiceServer::new(inner))
-        //         .serve(addr)
-        //         .await?;
-        // }
+        if let Some(addr) = conf.rpc_addr {
+            let handler = RpcHandler::new(self.engine.clone());
+            info!("Starting rpc service");
+            Server::builder()
+                .trace_fn(|_| debug_span!("rpc_service_request"))
+                .add_service(ExecutionServiceServer::new(handler))
+                .serve(addr)
+                .await?;
+        }
 
         // Postgres handler loop.
         loop {

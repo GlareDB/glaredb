@@ -14,6 +14,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
 use datafusion_ext::vars::SessionVars;
@@ -137,9 +138,11 @@ impl LocalSession {
         )
         .await?;
 
+        let exec_client = ExecutionServiceClient::connect("http://localhost:6500").await?;
+
         Ok(LocalSession {
             sess: engine
-                .new_session(SessionVars::default(), SessionStorageConfig::default())
+                .new_remote_session(SessionVars::default(), exec_client)
                 .await?,
             engine,
             opts,

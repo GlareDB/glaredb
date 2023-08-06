@@ -2,7 +2,11 @@ use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::vars::{SessionVars, VarSetter};
+use protogen::gen::metastore::service::InitializeCatalogRequest;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::gen::rpcsrv::service::InitializeSessionRequest;
+use protogen::metastore::types::catalog::CatalogState;
 
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -153,6 +157,55 @@ impl Engine {
             self.tracker.clone(),
             self.spill_path.clone(),
             self.background_jobs.clone(),
+            None,
+        )?;
+
+        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
+        debug!(session_count = prev + 1, "new session opened");
+
+        Ok(TrackedSession {
+            inner: session,
+            session_counter: self.session_counter.clone(),
+        })
+    }
+
+    pub async fn new_remote_session(
+        &self,
+        mut vars: SessionVars,
+        mut exec_client: ExecutionServiceClient<Channel>,
+    ) -> Result<TrackedSession> {
+        let database_id = *vars.database_id.value();
+
+        // TODO: Figure out storage.
+        let native = self
+            .storage
+            .new_native_tables_storage(database_id, &SessionStorageConfig::default())?;
+
+        // Set up remote session.
+        let resp = exec_client
+            .initialize_session(InitializeSessionRequest {
+                db_id: database_id.into_bytes().to_vec(),
+            })
+            .await
+            .unwrap(); // TODO
+        let resp = resp.into_inner();
+
+        let remote_id =
+            Uuid::from_slice(&resp.session_id).map_err(|e| ExecError::InvalidRemoteSessionId(e))?;
+        let state: CatalogState = resp.catalog.unwrap().try_into().unwrap(); // TODO
+        let catalog = SessionCatalog::new(Arc::new(state));
+
+        vars.remote_session_id
+            .set_raw(Some(remote_id), VarSetter::System)?;
+
+        let session = Session::new(
+            vars,
+            catalog,
+            native,
+            self.tracker.clone(),
+            self.spill_path.clone(),
+            self.background_jobs.clone(),
+            Some(exec_client),
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);

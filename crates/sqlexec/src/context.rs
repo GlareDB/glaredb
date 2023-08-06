@@ -9,6 +9,7 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+use crate::remote::planner::TestPlannerPleaseIgnore;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -30,6 +31,7 @@ use datasources::object_store::init_session_registry;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
@@ -40,6 +42,7 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
+use tonic::transport::Channel;
 use tracing::{debug, info};
 
 /// Implicity schemas that are consulted during object resolution.
@@ -59,6 +62,7 @@ const IMPLICIT_SCHEMAS: [&str; 2] = [
 // TODO: Need to make session context less pervasive. Pretty much everything in
 // this crate relies on it, make test setup a pain.
 pub struct SessionContext {
+    exec_client: Option<ExecutionServiceClient<Channel>>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -100,6 +104,7 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
+        exec_client: Option<ExecutionServiceClient<Channel>>,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -142,7 +147,13 @@ impl SessionContext {
         });
         init_session_registry(&runtime, entries)?;
 
-        let state = SessionState::with_config_rt(config, Arc::new(runtime));
+        let mut state = SessionState::with_config_rt(config, Arc::new(runtime));
+
+        if let Some(id) = vars.remote_session_id.value() {
+            let client = exec_client.clone().unwrap();
+            let planner = TestPlannerPleaseIgnore::new(*id, client);
+            state = state.with_query_planner(Arc::new(planner));
+        }
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
@@ -161,6 +172,7 @@ impl SessionContext {
             df_state: state,
             env_reader: None,
             background_jobs,
+            exec_client,
         })
     }
 
