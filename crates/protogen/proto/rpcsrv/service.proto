@@ -24,9 +24,10 @@ message ExecuteRequest {
   // Which session to execute this on.
   bytes session_id = 1;
 
-  // The plan to execute
-  // TODO: Logical or physical?
-  bytes plan = 2;
+  oneof plan {
+    bytes logical_plan = 2;
+    bytes physical_plan = 3;
+  }
 }
 
 message ExecuteResponse {

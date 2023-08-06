@@ -67,9 +67,10 @@ impl ExecutionService for RpcHandler {
         let sess = RemoteSession::new(sess);
         self.sessions.insert(conn_id, sess);
 
-        Ok(Response::new(InitializeSessionResponse {
-            session_id: conn_id.into_bytes().to_vec(),
-        }))
+        unimplemented!()
+        // Ok(Response::new(InitializeSessionResponse {
+        //     session_id: conn_id.into_bytes().to_vec(),
+        // }))
     }
 
     async fn execute(

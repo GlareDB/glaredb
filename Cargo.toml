@@ -11,6 +11,7 @@ lto = "thin"
 
 [workspace.dependencies]
 datafusion = { version = "28.0", features = ["avro"] }
+datafusion-proto = { version = "28.0" }
 object_store = { version = "0.6.1" }
 tokio = { version = "1", features = ["full"] }
 url = "2.4.0"

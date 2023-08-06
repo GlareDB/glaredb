@@ -5759,7 +5759,9 @@ name = "sqlexec"
 version = "0.3.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "datafusion",
+ "datafusion-proto",
  "datafusion_ext",
  "datasources",
  "futures",
