@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use glaredb::local::{LocalClientOpts, LocalSession};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
-use glaredb::server::{Server, ServerConfig};
+use glaredb::server::{ComputeServer, ServerConfig};
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::fs;
@@ -284,8 +284,11 @@ fn begin_server(
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
-        let conf = ServerConfig { pg_listener };
-        let server = Server::connect(
+        let conf = ServerConfig {
+            pg_listener,
+            rpc_addr: None,
+        };
+        let server = ComputeServer::connect(
             metastore_addr,
             segment_key,
             authenticator,

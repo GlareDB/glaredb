@@ -120,6 +120,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     MetastoreWorker(#[from] crate::metastore::client::WorkerError),
+
+    #[error(transparent)]
+    SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
@@ -6,24 +7,32 @@ use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
+use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
+use tonic::transport::Server;
 use tracing::{debug, debug_span, error, info, Instrument};
 use uuid::Uuid;
 
 pub struct ServerConfig {
+    /// Listener to use for pg handler.
     pub pg_listener: TcpListener,
+
+    /// Address to use for the rpc handler. If not provided, an rpc handler will
+    /// not be started.
+    pub rpc_addr: Option<SocketAddr>,
 }
 
-pub struct Server {
+pub struct ComputeServer {
     integration_testing: bool,
     pg_handler: Arc<ProtocolHandler>,
+    engine: Arc<Engine>,
 }
 
-impl Server {
+impl ComputeServer {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
     pub async fn connect(
@@ -75,13 +84,15 @@ impl Server {
             }
         };
 
-        let engine = Engine::new(
-            metastore_client,
-            storage_conf,
-            Arc::new(tracker),
-            spill_path,
-        )
-        .await?;
+        let engine = Arc::new(
+            Engine::new(
+                metastore_client,
+                storage_conf,
+                Arc::new(tracker),
+                spill_path,
+            )
+            .await?,
+        );
         let handler_conf = ProtocolHandlerConfig {
             authenticator,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
@@ -90,9 +101,10 @@ impl Server {
             ssl_conf: None,
             integration_testing,
         };
-        Ok(Server {
+        Ok(ComputeServer {
             integration_testing,
-            pg_handler: Arc::new(ProtocolHandler::new(engine, handler_conf)),
+            pg_handler: Arc::new(ProtocolHandler::new(engine.clone(), handler_conf)),
+            engine,
         })
     }
 
@@ -102,18 +114,17 @@ impl Server {
 
         // Shutdown handler.
         let (tx, mut rx) = oneshot::channel();
-        let pg_handler = self.pg_handler.clone();
         tokio::spawn(async move {
             match signal::ctrl_c().await {
                 Ok(()) => {
                     info!("shutdown triggered");
-                    let engine_shutdown = pg_handler.engine.shutdown();
+                    let engine_shutdown = self.engine.shutdown();
 
                     // Don't wait for active-sessions if integration testing is
                     // not set. This helps when doing "CTRL-C" during testing.
                     if !self.integration_testing {
                         loop {
-                            let sess_count = pg_handler.engine.session_count();
+                            let sess_count = self.engine.session_count();
                             if sess_count == 0 {
                                 break;
                             }
@@ -142,6 +153,17 @@ impl Server {
             }
         });
 
+        // Start rpc service.
+        // if let Some(addr) = conf.rpc_addr {
+        //     info!("Starting rpc service");
+        //     Server::builder()
+        //         .trace_fn(|_| debug_span!("rpc_service_request"))
+        //         // .add_service(ExecutionServiceServer::new(inner))
+        //         .serve(addr)
+        //         .await?;
+        // }
+
+        // Postgres handler loop.
         loop {
             tokio::select! {
                 _ = &mut rx => {
