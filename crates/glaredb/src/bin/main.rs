@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use glaredb::local::{LocalClientOpts, LocalSession};
 use glaredb::metastore::Metastore;
 use glaredb::proxy::Proxy;
-use glaredb::server::{Server, ServerConfig};
+use glaredb::server::{ComputeServer, ServerConfig};
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::fs;
@@ -48,9 +48,13 @@ enum Commands {
 
     /// Starts the sql server portion of GlareDB.
     Server {
-        /// TCP address to bind to.
+        /// TCP address to bind to for the Postgres interface.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
         bind: String,
+
+        /// TCP address to bind to for the RPC interface.
+        #[clap(long, hide = true, value_parser)]
+        rpc_bind: Option<String>,
 
         /// Address to the Metastore.
         ///
@@ -179,6 +183,7 @@ fn main() -> Result<()> {
             mut segment_key,
             spill_path,
             ignore_auth,
+            rpc_bind,
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
             segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
@@ -197,6 +202,7 @@ fn main() -> Result<()> {
 
             begin_server(
                 &bind,
+                rpc_bind,
                 metastore_addr,
                 segment_key,
                 auth,
@@ -267,8 +273,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn begin_server(
     pg_bind: &str,
+    rpc_bind: Option<String>,
     metastore_addr: Option<String>,
     segment_key: Option<String>,
     authenticator: Box<dyn LocalAuthenticator>,
@@ -279,8 +287,11 @@ fn begin_server(
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
         let pg_listener = TcpListener::bind(pg_bind).await?;
-        let conf = ServerConfig { pg_listener };
-        let server = Server::connect(
+        let conf = ServerConfig {
+            pg_listener,
+            rpc_addr: rpc_bind.map(|s| s.parse()).transpose()?,
+        };
+        let server = ComputeServer::connect(
             metastore_addr,
             segment_key,
             authenticator,

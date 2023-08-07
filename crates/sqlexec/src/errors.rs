@@ -6,6 +6,9 @@ pub enum ExecError {
     #[error("Unsupported feature: '{0}'. Check back soon!")]
     UnsupportedFeature(&'static str),
 
+    #[error("Invalid remote session id: {0}")]
+    InvalidRemoteSessionId(uuid::Error),
+
     #[error("Invalid value for session variable: Variable name: {name}, Value: {val}")]
     InvalidSessionVarValue { name: String, val: String },
 
@@ -120,6 +123,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     MetastoreWorker(#[from] crate::metastore::client::WorkerError),
+
+    #[error(transparent)]
+    SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

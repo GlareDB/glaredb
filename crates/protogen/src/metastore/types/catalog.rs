@@ -3,7 +3,7 @@ use super::options::{
 };
 use super::options::{DatabaseOptions, TableOptions};
 use super::{FromOptionalField, ProtoConvError};
-use crate::metastore::gen::catalog;
+use crate::gen::metastore::catalog;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;

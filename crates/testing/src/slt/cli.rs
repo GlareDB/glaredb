@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use glaredb::server::{Server, ServerConfig};
+use glaredb::server::{ComputeServer, ServerConfig};
 use tokio::{
     net::TcpListener,
     runtime::Builder,
@@ -192,9 +192,12 @@ impl Cli {
                 )
                 .await?;
                 let pg_addr = pg_listener.local_addr()?;
-                let server_conf = ServerConfig { pg_listener };
+                let server_conf = ServerConfig {
+                    pg_listener,
+                    rpc_addr: None,
+                };
 
-                let server = Server::connect(
+                let server = ComputeServer::connect(
                     self.metastore_addr.clone(),
                     None,
                     Box::new(SingleUserAuthenticator {

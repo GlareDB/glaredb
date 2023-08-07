@@ -2,13 +2,13 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::client::WorkerError;
-use crate::metastore::{catalog::SessionCatalog, client::SupervisorClient};
+use crate::metastore::catalog::SessionCatalog;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+use crate::remote::planner::RemotePlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -30,7 +30,7 @@ use datasources::object_store::init_session_registry;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::metastore::strategy::ResolveErrorStrategy;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
@@ -40,7 +40,8 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tracing::{debug, info};
+use tonic::transport::Channel;
+use tracing::info;
 
 /// Implicity schemas that are consulted during object resolution.
 ///
@@ -59,9 +60,12 @@ const IMPLICIT_SCHEMAS: [&str; 2] = [
 // TODO: Need to make session context less pervasive. Pretty much everything in
 // this crate relies on it, make test setup a pain.
 pub struct SessionContext {
+    /// The execution client for remote sessions.
+    // TODO: This is currently unused, but we'll likely need it for running some
+    // of our custom plans on a remote service.
+    _exec_client: Option<ExecutionServiceClient<Channel>>,
     /// Database catalog.
-    metastore_catalog: SessionCatalog,
-    metastore: SupervisorClient,
+    catalog: SessionCatalog,
     /// In-memory (temporary) tables.
     current_session_tables: HashMap<String, Arc<MemTable>>,
     /// Native tables.
@@ -97,11 +101,11 @@ impl SessionContext {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
-        metastore: SupervisorClient,
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
+        exec_client: Option<ExecutionServiceClient<Channel>>,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -144,7 +148,13 @@ impl SessionContext {
         });
         init_session_registry(&runtime, entries)?;
 
-        let state = SessionState::with_config_rt(config, Arc::new(runtime));
+        let mut state = SessionState::with_config_rt(config, Arc::new(runtime));
+
+        if let Some(id) = vars.remote_session_id.value() {
+            let client = exec_client.clone().unwrap();
+            let planner = RemotePlanner::new(*id, client);
+            state = state.with_query_planner(Arc::new(planner));
+        }
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
@@ -153,8 +163,8 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         Ok(SessionContext {
-            metastore_catalog: catalog,
-            metastore,
+            _exec_client: exec_client,
+            catalog,
             current_session_tables: HashMap::new(),
             tables: native_tables,
             vars,
@@ -188,7 +198,7 @@ impl SessionContext {
     }
 
     pub fn get_datasource_count(&mut self) -> usize {
-        self.metastore_catalog
+        self.catalog
             .iter_entries()
             .filter(|ent| {
                 ent.entry.get_meta().external
@@ -199,14 +209,14 @@ impl SessionContext {
     }
 
     pub fn get_tunnel_count(&mut self) -> usize {
-        self.metastore_catalog
+        self.catalog
             .iter_entries()
             .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Tunnel)
             .count()
     }
 
     pub fn get_credentials_count(&mut self) -> usize {
-        self.metastore_catalog
+        self.catalog
             .iter_entries()
             .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Credentials)
             .count()
@@ -248,20 +258,18 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
         // Insert into catalog.
-        self.mutate_catalog([Mutation::CreateTable(service::CreateTable {
-            schema: schema.clone(),
-            name: name.clone(),
-            options: plan.table_options,
-            if_not_exists: plan.if_not_exists,
-        })])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateTable(service::CreateTable {
+                schema: schema.clone(),
+                name: name.clone(),
+                options: plan.table_options,
+                if_not_exists: plan.if_not_exists,
+            })])
+            .await?;
 
         // Mutations should update the local catalog state, so resolve the
         // entry.
-        let ent = match self
-            .metastore_catalog
-            .resolve_entry(DEFAULT_CATALOG, &schema, &name)
-        {
+        let ent = match self.catalog.resolve_entry(DEFAULT_CATALOG, &schema, &name) {
             Some(CatalogEntry::Table(table)) => match &table.options {
                 TableOptions::Internal(_) => table,
                 other => {
@@ -330,8 +338,10 @@ impl SessionContext {
         }
 
         // Add the storage tracker job once data is inserted.
-        let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), self.metastore.clone());
-        self.background_jobs.add(tracker)?;
+        if let Some(client) = self.catalog.get_metastore_client() {
+            let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), client.clone());
+            self.background_jobs.add(tracker)?;
+        }
 
         Ok(())
     }
@@ -339,10 +349,7 @@ impl SessionContext {
     pub async fn delete(&mut self, plan: Delete) -> Result<()> {
         let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
-        if let Some(table_entry) = self
-            .metastore_catalog
-            .resolve_native_table(&database, &schema, &name)
-        {
+        if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
             self.tables
                 .delete_rows_where(table_entry, plan.expr)
                 .await?
@@ -371,27 +378,29 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
         // TODO: Check if catalog is valid
 
-        self.mutate_catalog([Mutation::CreateExternalTable(
-            service::CreateExternalTable {
-                schema,
-                name,
-                options: plan.table_options,
-                if_not_exists: plan.if_not_exists,
-                tunnel: plan.tunnel,
-            },
-        )])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateExternalTable(
+                service::CreateExternalTable {
+                    schema,
+                    name,
+                    options: plan.table_options,
+                    if_not_exists: plan.if_not_exists,
+                    tunnel: plan.tunnel,
+                },
+            )])
+            .await?;
         Ok(())
     }
 
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        self.mutate_catalog([Mutation::CreateSchema(service::CreateSchema {
-            name,
-            if_not_exists: plan.if_not_exists,
-        })])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateSchema(service::CreateSchema {
+                name,
+                if_not_exists: plan.if_not_exists,
+            })])
+            .await?;
         Ok(())
     }
 
@@ -406,15 +415,16 @@ impl SessionContext {
             }
         }
 
-        self.mutate_catalog([Mutation::CreateExternalDatabase(
-            service::CreateExternalDatabase {
-                name: plan.database_name,
-                if_not_exists: plan.if_not_exists,
-                options: plan.options,
-                tunnel: plan.tunnel,
-            },
-        )])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateExternalDatabase(
+                service::CreateExternalDatabase {
+                    name: plan.database_name,
+                    if_not_exists: plan.if_not_exists,
+                    options: plan.options,
+                    tunnel: plan.tunnel,
+                },
+            )])
+            .await?;
         Ok(())
     }
 
@@ -429,12 +439,13 @@ impl SessionContext {
             }
         }
 
-        self.mutate_catalog([Mutation::CreateTunnel(service::CreateTunnel {
-            name: plan.name,
-            if_not_exists: plan.if_not_exists,
-            options: plan.options,
-        })])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateTunnel(service::CreateTunnel {
+                name: plan.name,
+                if_not_exists: plan.if_not_exists,
+                options: plan.options,
+            })])
+            .await?;
         Ok(())
     }
 
@@ -449,25 +460,27 @@ impl SessionContext {
             }
         }
 
-        self.mutate_catalog([Mutation::CreateCredentials(service::CreateCredentials {
-            name: plan.name,
-            options: plan.options,
-            comment: plan.comment,
-        })])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateCredentials(service::CreateCredentials {
+                name: plan.name,
+                options: plan.options,
+                comment: plan.comment,
+            })])
+            .await?;
         Ok(())
     }
 
     pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
         let (_, schema, name) = self.resolve_table_ref(plan.view_name)?;
-        self.mutate_catalog([Mutation::CreateView(service::CreateView {
-            schema,
-            name,
-            sql: plan.sql,
-            or_replace: plan.or_replace,
-            columns: plan.columns,
-        })])
-        .await?;
+        self.catalog
+            .mutate([Mutation::CreateView(service::CreateView {
+                schema,
+                name,
+                sql: plan.sql,
+                or_replace: plan.or_replace,
+                columns: plan.columns,
+            })])
+            .await?;
 
         Ok(())
     }
@@ -476,37 +489,40 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.name)?;
         let (_, _, new_name) = self.resolve_table_ref(plan.new_name)?;
         // TODO: Check that the schema and catalog names are same.
-        self.mutate_catalog([Mutation::AlterTableRename(service::AlterTableRename {
-            schema,
-            name,
-            new_name,
-        })])
-        .await?;
+        self.catalog
+            .mutate([Mutation::AlterTableRename(service::AlterTableRename {
+                schema,
+                name,
+                new_name,
+            })])
+            .await?;
 
         Ok(())
     }
 
     pub async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        self.mutate_catalog([Mutation::AlterDatabaseRename(
-            service::AlterDatabaseRename {
-                name: plan.name,
-                new_name: plan.new_name,
-            },
-        )])
-        .await?;
+        self.catalog
+            .mutate([Mutation::AlterDatabaseRename(
+                service::AlterDatabaseRename {
+                    name: plan.name,
+                    new_name: plan.new_name,
+                },
+            )])
+            .await?;
 
         Ok(())
     }
 
     pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
-        self.mutate_catalog([Mutation::AlterTunnelRotateKeys(
-            service::AlterTunnelRotateKeys {
-                name: plan.name,
-                if_exists: plan.if_exists,
-                new_ssh_key: plan.new_ssh_key,
-            },
-        )])
-        .await?;
+        self.catalog
+            .mutate([Mutation::AlterTunnelRotateKeys(
+                service::AlterTunnelRotateKeys {
+                    name: plan.name,
+                    if_exists: plan.if_exists,
+                    new_ssh_key: plan.new_ssh_key,
+                },
+            )])
+            .await?;
 
         Ok(())
     }
@@ -526,9 +542,7 @@ impl SessionContext {
 
             let (database, schema, name) = self.resolve_table_ref(r)?;
 
-            if let Some(table_entry) = self
-                .metastore_catalog
-                .resolve_native_table(&database, &schema, &name)
+            if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name)
             {
                 let job: Arc<dyn BgJob> =
                     BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
@@ -541,7 +555,7 @@ impl SessionContext {
                 if_exists: plan.if_exists,
             }));
         }
-        self.mutate_catalog(drops).await?;
+        self.catalog.mutate(drops).await?;
 
         // Drop the session (temp) tables after catalog has mutated successfully
         // since this step is not going to error. Ideally, we should have transactions
@@ -572,7 +586,7 @@ impl SessionContext {
             }));
         }
 
-        self.mutate_catalog(drops).await?;
+        self.catalog.mutate(drops).await?;
 
         Ok(())
     }
@@ -592,7 +606,7 @@ impl SessionContext {
             })
             .collect();
 
-        self.mutate_catalog(drops).await?;
+        self.catalog.mutate(drops).await?;
 
         Ok(())
     }
@@ -610,7 +624,7 @@ impl SessionContext {
             })
             .collect();
 
-        self.mutate_catalog(drops).await?;
+        self.catalog.mutate(drops).await?;
 
         Ok(())
     }
@@ -628,7 +642,7 @@ impl SessionContext {
             })
             .collect();
 
-        self.mutate_catalog(drops).await?;
+        self.catalog.mutate(drops).await?;
 
         Ok(())
     }
@@ -646,7 +660,7 @@ impl SessionContext {
             })
             .collect();
 
-        self.mutate_catalog(drops).await?;
+        self.catalog.mutate(drops).await?;
 
         Ok(())
     }
@@ -663,7 +677,7 @@ impl SessionContext {
 
     /// Get a reference to the session catalog.
     pub fn get_session_catalog(&self) -> &SessionCatalog {
-        &self.metastore_catalog
+        &self.catalog
     }
 
     /// Create a prepared statement.
@@ -674,20 +688,9 @@ impl SessionContext {
         _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
-        if *self.get_session_vars().force_catalog_refresh.value() {
-            debug!("refreshed cached catalog state as per force_catalog_refresh");
-            self.metastore.refresh_cached_state().await?;
-        }
-
-        // Swap out cached catalog if a newer one was fetched.
-        //
-        // Note that when we have transactions, we should move this to only
-        // swapping states between transactions.
-        if self.metastore.version_hint() != self.metastore_catalog.version() {
-            debug!(version = %self.metastore_catalog.version(), "swapping catalog state for session");
-            let new_state = self.metastore.get_cached_state().await?;
-            self.metastore_catalog.swap_state(new_state);
-        }
+        self.catalog
+            .maybe_refresh_state(*self.vars.force_catalog_refresh.value())
+            .await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
         // whenever. Named prepared statements must be explicitly removed before
@@ -822,49 +825,6 @@ impl SessionContext {
 
             Ok(df_plan)
         })
-    }
-
-    /// Attempt to apply mutations to the catalog.
-    ///
-    /// This will retry mutations if we were working with an out of date
-    /// catalog.
-    async fn mutate_catalog(
-        &mut self,
-        mutations: impl IntoIterator<Item = Mutation>,
-    ) -> Result<()> {
-        // Note that when we have transactions, these shouldn't be sent until
-        // commit.
-        let mutations: Vec<_> = mutations.into_iter().collect();
-
-        let state = match self
-            .metastore
-            .try_mutate(self.metastore_catalog.version(), mutations.clone())
-            .await
-        {
-            Ok(state) => state,
-            Err(WorkerError::MetastoreTonic {
-                strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
-                message,
-            }) => {
-                // Go ahead and refetch the catalog and retry the mutation.
-                //
-                // Note that this relies on metastore _always_ being stricter
-                // when validating mutations. What this means is that retrying
-                // here should be semantically equivalent to manually refreshing
-                // the catalog and rerunning and replanning the query.
-                debug!(error_message = message, "retrying mutations");
-
-                self.metastore.refresh_cached_state().await?;
-                let state = self.metastore.get_cached_state().await?;
-                let version = state.version;
-                self.metastore_catalog.swap_state(state);
-
-                self.metastore.try_mutate(version, mutations).await?
-            }
-            Err(e) => return Err(e.into()),
-        };
-        self.metastore_catalog.swap_state(state);
-        Ok(())
     }
 
     /// Resolve schema reference.

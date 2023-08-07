@@ -6,7 +6,7 @@ use bytes::BytesMut;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use prost::Message;
-use protogen::metastore::gen::storage;
+use protogen::gen::metastore::storage;
 use protogen::metastore::types::catalog::{CatalogState, DeploymentMetadata};
 use protogen::metastore::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use std::collections::HashMap;
