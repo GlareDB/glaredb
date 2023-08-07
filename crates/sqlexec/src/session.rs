@@ -59,9 +59,9 @@ pub enum ExecutionResult {
     /// Transaction rolled abck.
     Rollback,
     /// Data successfully deleted.
-    DeleteSuccess,
+    DeleteSuccess { deleted_rows: usize },
     /// Data successfully updated.
-    UpdateSuccess,
+    UpdateSuccess { updated_rows: usize },
     /// Data successfully written.
     WriteSuccess,
     /// Data successfully copied.
@@ -113,8 +113,8 @@ impl ExecutionResult {
             ExecutionResult::Rollback => "rollback",
             ExecutionResult::WriteSuccess => "write_success",
             ExecutionResult::CopySuccess => "copy_success",
-            ExecutionResult::DeleteSuccess => "delete_success",
-            ExecutionResult::UpdateSuccess => "update success",
+            ExecutionResult::DeleteSuccess { .. } => "delete_success",
+            ExecutionResult::UpdateSuccess { .. } => "update success",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -151,8 +151,12 @@ impl fmt::Debug for ExecutionResult {
             ExecutionResult::Rollback => write!(f, "rollback"),
             ExecutionResult::WriteSuccess => write!(f, "write success"),
             ExecutionResult::CopySuccess => write!(f, "copy success"),
-            ExecutionResult::DeleteSuccess => write!(f, "delete success"),
-            ExecutionResult::UpdateSuccess => write!(f, "update success"),
+            ExecutionResult::DeleteSuccess { deleted_rows } => {
+                write!(f, "deleted {} rows", deleted_rows)
+            }
+            ExecutionResult::UpdateSuccess { updated_rows } => {
+                write!(f, "updated {} rows", updated_rows)
+            }
             ExecutionResult::CreateTable => write!(f, "create table"),
             ExecutionResult::CreateDatabase => write!(f, "create database"),
             ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
@@ -418,14 +422,12 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn delete(&mut self, plan: Delete) -> Result<()> {
-        self.ctx.delete(plan).await?;
-        Ok(())
+    pub(crate) async fn delete(&mut self, plan: Delete) -> Result<usize> {
+        self.ctx.delete(plan).await
     }
 
-    pub(crate) async fn update(&mut self, plan: Update) -> Result<()> {
-        self.ctx.update(plan).await?;
-        Ok(())
+    pub(crate) async fn update(&mut self, plan: Update) -> Result<usize> {
+        self.ctx.update(plan).await
     }
 
     pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
@@ -584,12 +586,12 @@ impl Session {
                 ExecutionResult::CopySuccess
             }
             LogicalPlan::Write(WritePlan::Delete(plan)) => {
-                self.delete(plan).await?;
-                ExecutionResult::DeleteSuccess
+                let deleted_rows = self.delete(plan).await?;
+                ExecutionResult::DeleteSuccess { deleted_rows }
             }
             LogicalPlan::Write(WritePlan::Update(plan)) => {
-                self.update(plan).await?;
-                ExecutionResult::UpdateSuccess
+                let updated_rows = self.update(plan).await?;
+                ExecutionResult::UpdateSuccess { updated_rows }
             }
             LogicalPlan::Query(plan) => {
                 let physical = self.create_physical_plan(plan).await?;

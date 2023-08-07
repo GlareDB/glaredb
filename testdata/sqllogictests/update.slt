@@ -26,7 +26,7 @@ select * from t1;
 3
 
 statement error Update statement with table reference in column name
-update t1 set t1.generate_series = 1
+update t1 set t1.generate_series = 1;
 
 statement ok
 create external table t3 from debug options (table_type = 'never_ending');

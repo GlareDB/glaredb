@@ -346,34 +346,34 @@ impl SessionContext {
         Ok(())
     }
 
-    pub async fn delete(&mut self, plan: Delete) -> Result<()> {
+    pub async fn delete(&mut self, plan: Delete) -> Result<usize> {
         let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
         if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
-            self.tables
+            Ok(self
+                .tables
                 .delete_rows_where(table_entry, plan.where_expr)
-                .await?
+                .await?)
         } else {
-            return Err(ExecError::UnsupportedSQLStatement(
+            Err(ExecError::UnsupportedSQLStatement(
                 "Delete for external tables".to_string(),
-            ));
-        };
-        Ok(())
+            ))
+        }
     }
 
-    pub async fn update(&mut self, plan: Update) -> Result<()> {
+    pub async fn update(&mut self, plan: Update) -> Result<usize> {
         let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
         if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
-            self.tables
+            Ok(self
+                .tables
                 .update_rows_where(table_entry, plan.updates, plan.where_expr)
-                .await?
+                .await?)
         } else {
-            return Err(ExecError::UnsupportedSQLStatement(
+            Err(ExecError::UnsupportedSQLStatement(
                 "Update for external tables".to_string(),
-            ));
-        };
-        Ok(())
+            ))
+        }
     }
 
     /// List temporary tables.

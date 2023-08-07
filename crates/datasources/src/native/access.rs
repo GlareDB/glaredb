@@ -174,16 +174,20 @@ impl NativeTableStorage {
         &self,
         table: &TableEntry,
         where_expr: Option<Expr>,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         let table = self.load_table(table).await?;
-        if let Some(where_expr) = where_expr {
+        let builder = if let Some(where_expr) = where_expr {
             DeleteBuilder::new(table.delta.object_store(), table.delta.state)
                 .with_predicate(where_expr)
-                .await?;
         } else {
-            DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
+            DeleteBuilder::new(table.delta.object_store(), table.delta.state)
+        };
+        let deleted_rows = builder.await?.1.num_deleted_rows;
+        if let Some(rows) = deleted_rows {
+            Ok(rows)
+        } else {
+            Ok(0_usize)
         }
-        Ok(())
     }
 
     pub async fn update_rows_where(
@@ -191,7 +195,7 @@ impl NativeTableStorage {
         table: &TableEntry,
         updates: Vec<(String, Expr)>,
         where_expr: Option<Expr>,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         let table = self.load_table(table).await?;
         let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
         for update in updates.iter() {
@@ -200,8 +204,8 @@ impl NativeTableStorage {
         if let Some(where_expr) = where_expr {
             builder = builder.with_predicate(where_expr);
         }
-        builder.await?;
-        Ok(())
+        let updated_rows = builder.await?.1.num_updated_rows;
+        Ok(updated_rows)
     }
 }
 
