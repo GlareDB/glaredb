@@ -1,7 +1,9 @@
 use std::{collections::BTreeMap, fmt};
 
-use datafusion::sql::sqlparser::parser::ParserError;
-use datasources::{debug::DebugTableType, mongodb::MongoProtocol, object_store::FileType};
+use datafusion::{
+    datasource::file_format::file_type::FileType, sql::sqlparser::parser::ParserError,
+};
+use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
 
 /// Contains the value parsed from Options(...).
 ///

@@ -1,9 +1,9 @@
 use super::options::{
     CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
 };
+use super::options::{DatabaseOptions, TableOptions};
 use super::{FromOptionalField, ProtoConvError};
-use crate::proto::catalog;
-use crate::types::options::{DatabaseOptions, TableOptions};
+use crate::metastore::gen::catalog;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;

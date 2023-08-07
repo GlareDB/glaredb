@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
-use datafusion::scalar::ScalarValue;
+use datafusion::{datasource::file_format::file_type::FileCompressionType, scalar::ScalarValue};
 use datafusion_ext::{
     errors::ExtensionError,
     functions::{FromFuncParamValue, FuncParamValue},
@@ -149,6 +149,21 @@ impl DatasourceUrl {
             _ => Err(DatasourceCommonError::InvalidUrl(
                 "cannot convert datasource URL to a generic URL".to_string(),
             )),
+        }
+    }
+
+    pub fn get_file_compression(&self) -> FileCompressionType {
+        match self {
+            DatasourceUrl::File(f) => f
+                .extension()
+                .and_then(|s| s.to_str())
+                .and_then(|ext| ext.parse().ok())
+                .unwrap_or(FileCompressionType::UNCOMPRESSED),
+            DatasourceUrl::Url(u) => u
+                .path()
+                .rsplit_once('.')
+                .and_then(|(_, ext)| ext.parse().ok())
+                .unwrap_or(FileCompressionType::UNCOMPRESSED),
         }
     }
 }

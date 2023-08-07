@@ -10,7 +10,7 @@ edition = "2021"
 lto = "thin"
 
 [workspace.dependencies]
-datafusion = { version = "27.0", features = ["avro"] }
+datafusion = { version = "28.0", features = ["avro"] }
 object_store = { version = "0.6.1" }
 tokio = { version = "1", features = ["full"] }
 url = "2.4.0"

@@ -1,12 +1,11 @@
 //! Module for facilitating interaction with the Metastore.
-use crate::errors::{ExecError, Result};
-use metastore_client::errors::MetastoreClientError;
-use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
-use metastore_client::proto::service::{
+
+use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
+use protogen::metastore::gen::service::{
     FetchCatalogRequest, InitializeCatalogRequest, MutateRequest,
 };
-use metastore_client::types::catalog::CatalogState;
-use metastore_client::types::service::Mutation;
+use protogen::metastore::strategy::ResolveErrorStrategy;
+use protogen::metastore::types::{catalog::CatalogState, service::Mutation};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -17,6 +16,63 @@ use tokio::task::JoinHandle;
 use tonic::transport::Channel;
 use tracing::{debug_span, error, info, warn, Instrument};
 use uuid::Uuid;
+
+#[derive(Debug, thiserror::Error)]
+pub enum WorkerError {
+    #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
+    MetastoreDatabaseWorkerOverload {
+        request_type_tag: &'static str,
+        conn_id: uuid::Uuid,
+    },
+
+    #[error(
+        "Metastore request channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
+    )]
+    MetastoreRequestChannelClosed {
+        request_type_tag: &'static str,
+        conn_id: uuid::Uuid,
+    },
+
+    #[error(
+        "Metastore response channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
+    )]
+    MetastoreResponseChannelClosed {
+        request_type_tag: &'static str,
+        conn_id: uuid::Uuid,
+    },
+
+    #[error(transparent)]
+    ProtoConvError(#[from] protogen::metastore::types::ProtoConvError),
+
+    // TODO: Need to be more granular about errors from Metastore.
+    #[error("Failed Metastore request: {message}")]
+    MetastoreTonic {
+        strategy: ResolveErrorStrategy,
+        message: String,
+    },
+
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+impl From<tonic::Status> for WorkerError {
+    fn from(value: tonic::Status) -> Self {
+        // Try to get the strategy from the response from metastore. This can be
+        // used to try to resolve the error automatically.
+        let strat = value
+            .metadata()
+            .get(protogen::metastore::strategy::RESOLVE_ERROR_STRATEGY_META)
+            .map(|val| ResolveErrorStrategy::from_bytes(val.as_ref()))
+            .unwrap_or(ResolveErrorStrategy::Unknown);
+
+        Self::MetastoreTonic {
+            strategy: strat,
+            message: value.message().to_string(),
+        }
+    }
+}
+
+type Result<T, E = WorkerError> = std::result::Result<T, E>;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
@@ -127,19 +183,19 @@ impl SupervisorClient {
         let result = match self.send.try_send(req) {
             Ok(_) => match rx.await {
                 Ok(result) => Ok(result),
-                Err(_) => Err(ExecError::MetastoreResponseChannelClosed {
+                Err(_) => Err(WorkerError::MetastoreResponseChannelClosed {
                     request_type_tag: tag,
                     conn_id: self.conn_id,
                 }),
             },
             Err(mpsc::error::TrySendError::Full(_)) => {
-                Err(ExecError::MetastoreDatabaseWorkerOverload {
+                Err(WorkerError::MetastoreDatabaseWorkerOverload {
                     request_type_tag: tag,
                     conn_id: self.conn_id,
                 })
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
-                Err(ExecError::MetastoreRequestChannelClosed {
+                Err(WorkerError::MetastoreRequestChannelClosed {
                     request_type_tag: tag,
                     conn_id: self.conn_id,
                 })
@@ -393,7 +449,11 @@ impl DatabaseWorker {
 
         let catalog: CatalogState = match resp.catalog {
             Some(c) => c.try_into()?,
-            None => return Err(ExecError::Internal("missing field: 'catalog'".to_string())),
+            None => {
+                return Err(WorkerError::Internal(
+                    "missing field: 'catalog'".to_string(),
+                ))
+            }
         };
 
         let (send, recv) = mpsc::channel(PER_DATABASE_BUFFER);
@@ -485,16 +545,16 @@ impl DatabaseWorker {
                     .collect::<Result<_, _>>();
 
                 let result = match result {
-                    Ok(mutations) => {
-                        self.client
-                            .mutate_catalog(tonic::Request::new(MutateRequest {
-                                db_id: self.db_id.into_bytes().to_vec(),
-                                catalog_version: version,
-                                mutations,
-                            }))
-                            .await
-                    }
-                    Err(e) => Err(MetastoreClientError::from(e).into()),
+                    Ok(mutations) => self
+                        .client
+                        .mutate_catalog(tonic::Request::new(MutateRequest {
+                            db_id: self.db_id.into_bytes().to_vec(),
+                            catalog_version: version,
+                            mutations,
+                        }))
+                        .await
+                        .map_err(WorkerError::from),
+                    Err(e) => Err(WorkerError::from(e)),
                 };
 
                 let result = match result {
@@ -511,7 +571,7 @@ impl DatabaseWorker {
                         }
                         Ok(self.cached_state.clone())
                     }
-                    Err(e) => Err(e.into()),
+                    Err(e) => Err(e),
                 };
 
                 if response.send(result).is_err() {
@@ -569,9 +629,9 @@ impl DatabaseWorker {
 mod tests {
     use super::*;
     use metastore::local::start_inprocess;
-    use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
-    use metastore_client::types::service::{CreateSchema, CreateView, Mutation};
     use object_store::memory::InMemory;
+    use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
+    use protogen::metastore::types::service::{CreateSchema, CreateView, Mutation};
     use tonic::transport::Channel;
 
     /// Creates a new local Metastore, returning a client connected to that

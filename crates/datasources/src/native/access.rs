@@ -15,12 +15,12 @@ use deltalake::operations::update::UpdateBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
-use metastore_client::types::catalog::TableEntry;
-use metastore_client::types::options::{TableOptions, TableOptionsInternal};
 use object_store::path::Path as ObjectStorePath;
 use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
+use protogen::metastore::types::catalog::TableEntry;
+use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
 use std::any::Any;
 use std::sync::Arc;
 use tokio::fs;
@@ -278,11 +278,11 @@ impl TableProvider for NativeTable {
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::datatypes::DataType;
-    use metastore_client::types::{
+    use object_store_util::conf::StorageConfig;
+    use protogen::metastore::types::{
         catalog::{EntryMeta, EntryType, TableEntry},
         options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
     };
-    use object_store_util::conf::StorageConfig;
     use tempfile::tempdir;
     use uuid::Uuid;
 

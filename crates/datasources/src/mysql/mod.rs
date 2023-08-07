@@ -23,17 +23,17 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::display::DisplayFormatType;
 use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt, TryStreamExt};
-use metastore_client::types::options::TunnelOptions;
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
 use mysql_async::{
     Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
 };
+use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, trace};
@@ -412,6 +412,12 @@ impl ExecutionPlan for MysqlExec {
         Ok(Box::pin(stream))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for MysqlExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -424,10 +430,6 @@ impl ExecutionPlan for MysqlExec {
                 self.predicate.as_str()
             }
         )
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

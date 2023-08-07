@@ -2,7 +2,7 @@ use crate::lake::delta::catalog::{DataCatalog, UnityCatalog};
 use crate::lake::delta::errors::Result;
 use crate::lake::LakeStorageOptions;
 use deltalake::DeltaTable;
-use metastore_client::types::options::{
+use protogen::metastore::types::options::{
     CredentialsOptionsAws, DeltaLakeCatalog, DeltaLakeUnityCatalog,
 };
 use std::sync::Arc;

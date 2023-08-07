@@ -21,7 +21,7 @@ deltalake = { workspace = true }
 futures = "0.3.28"
 gcp-bigquery-client = "0.17.0"
 logutil = {path = "../logutil"}
-metastore_client = { path = "../metastore_client" }
+protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
 mongodb = "2.6.0"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
@@ -36,8 +36,8 @@ regex = "1.9.1"
 repr = { path = "../repr" }
 reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls"] }
 ring = "0.16.20"
-rustls = "0.21.5"
-rust_decimal = { version = "1.30.0", features = ["db-tokio-postgres"] }
+rustls = "0.21.6"
+rust_decimal = { version = "1.31.0", features = ["db-tokio-postgres"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11.12"
 serde_with = "3.1.0"

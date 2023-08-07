@@ -21,6 +21,7 @@ use crate::utils::{
     resolve_columns, resolve_positions_to_exprs,
 };
 use datafusion::common::{DataFusionError, Result};
+use datafusion::logical_expr::expr::Alias;
 use datafusion::logical_expr::expr_rewriter::{
     normalize_col, normalize_col_with_schemas_and_ambiguity_check,
 };
@@ -29,7 +30,6 @@ use datafusion::logical_expr::utils::{
     expand_qualified_wildcard, expand_wildcard, expr_as_column_expr, expr_to_columns,
     find_aggregate_exprs, find_window_exprs,
 };
-use datafusion::logical_expr::Expr::Alias;
 use datafusion::logical_expr::{
     Expr, Filter, GroupingSet, LogicalPlan, LogicalPlanBuilder, Partitioning,
 };
@@ -349,7 +349,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     &[&[plan.schema()]],
                     &plan.using_columns()?,
                 )?;
-                let expr = Alias(Box::new(col), self.normalizer.normalize(alias));
+                let expr = Expr::Alias(Alias::new(col, self.normalizer.normalize(alias)));
                 Ok(vec![expr])
             }
             SelectItem::Wildcard(options) => {

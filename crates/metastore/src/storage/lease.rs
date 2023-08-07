@@ -17,10 +17,10 @@
 
 use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
 use bytes::BytesMut;
-use metastore_client::proto::storage;
-use metastore_client::types::storage::{LeaseInformation, LeaseState};
 use object_store::{path::Path as ObjectPath, Error as ObjectStoreError, ObjectStore};
 use prost::Message;
+use protogen::metastore::gen::storage;
+use protogen::metastore::types::storage::{LeaseInformation, LeaseState};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;

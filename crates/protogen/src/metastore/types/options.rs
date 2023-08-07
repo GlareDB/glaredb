@@ -1,6 +1,5 @@
 use super::{FromOptionalField, ProtoConvError};
-use crate::proto::arrow;
-use crate::proto::options;
+use crate::metastore::gen::{arrow, options};
 use datafusion::arrow::datatypes::{DataType, Field};
 use proptest_derive::Arbitrary;
 use std::fmt;

@@ -21,14 +21,13 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::display::DisplayFormatType;
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::physical_plan::Partitioning;
-use datafusion::physical_plan::Statistics;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::{
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    SendableRecordBatchStream, Statistics,
+};
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use metastore_client::types::options::TunnelOptions;
+use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -613,6 +612,12 @@ impl ExecutionPlan for BinaryCopyExec {
         Ok(Box::pin(stream))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for BinaryCopyExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -625,10 +630,6 @@ impl ExecutionPlan for BinaryCopyExec {
                 self.predicate.as_str()
             }
         )
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

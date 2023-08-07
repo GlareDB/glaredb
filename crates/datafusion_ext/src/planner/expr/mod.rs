@@ -361,6 +361,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     escape_char,
                     schema,
                     planner_context,
+                    false,
                 )
                 .await
             }
@@ -371,13 +372,14 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 pattern,
                 escape_char,
             } => {
-                self.sql_ilike_to_expr(
+                self.sql_like_to_expr(
                     negated,
                     *expr,
                     *pattern,
                     escape_char,
                     schema,
                     planner_context,
+                    true,
                 )
                 .await
             }
@@ -586,6 +588,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         )))
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn sql_like_to_expr(
         &mut self,
         negated: bool,
@@ -594,6 +597,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         escape_char: Option<char>,
         schema: &DFSchema,
         planner_context: &mut PlannerContext,
+        case_insensitive: bool,
     ) -> Result<Expr> {
         let pattern = self
             .sql_expr_to_logical_expr(pattern, schema, planner_context)
@@ -612,35 +616,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             ),
             Box::new(pattern),
             escape_char,
-        )))
-    }
-
-    async fn sql_ilike_to_expr(
-        &mut self,
-        negated: bool,
-        expr: SQLExpr,
-        pattern: SQLExpr,
-        escape_char: Option<char>,
-        schema: &DFSchema,
-        planner_context: &mut PlannerContext,
-    ) -> Result<Expr> {
-        let pattern = self
-            .sql_expr_to_logical_expr(pattern, schema, planner_context)
-            .await?;
-        let pattern_type = pattern.get_type(schema)?;
-        if pattern_type != DataType::Utf8 && pattern_type != DataType::Null {
-            return Err(DataFusionError::Plan(
-                "Invalid pattern in ILIKE expression".to_string(),
-            ));
-        }
-        Ok(Expr::ILike(Like::new(
-            negated,
-            Box::new(
-                self.sql_expr_to_logical_expr(expr, schema, planner_context)
-                    .await?,
-            ),
-            Box::new(pattern),
-            escape_char,
+            case_insensitive,
         )))
     }
 
@@ -670,6 +646,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             ),
             Box::new(pattern),
             escape_char,
+            false,
         )))
     }
 

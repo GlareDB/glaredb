@@ -8,7 +8,7 @@ use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFunc
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::delta::access::load_table_direct;
 use datasources::lake::LakeStorageOptions;
-use metastore_client::types::options::CredentialsOptions;
+use protogen::metastore::types::options::CredentialsOptions;
 
 /// Function for scanning delta tables.
 ///

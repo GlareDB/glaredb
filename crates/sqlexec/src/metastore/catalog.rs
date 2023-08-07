@@ -1,8 +1,8 @@
-use crate::types::catalog::{
+use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
     SchemaEntry, TableEntry, TunnelEntry,
 };
-use crate::types::options::TableOptions;
+use protogen::metastore::types::options::TableOptions;
 use std::collections::HashMap;
 use std::sync::Arc;
 

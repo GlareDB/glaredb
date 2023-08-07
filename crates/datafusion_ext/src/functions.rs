@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
-use metastore_client::types::catalog::{CredentialsEntry, DatabaseEntry};
+use decimal::Decimal128;
+use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry};
 
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
@@ -47,6 +48,7 @@ pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
     fn get_session_vars(&self) -> &SessionVars;
+    fn get_session_state(&self) -> &SessionState;
 }
 
 use std::fmt;
@@ -77,6 +79,8 @@ impl fmt::Display for FuncParamValue {
 impl FuncParamValue {
     /// Print multiple function parameter values.
     fn multiple_to_string<T: AsRef<[Self]>>(vals: T) -> String {
+        use std::fmt::Write;
+
         let mut s = String::new();
         write!(&mut s, "(").unwrap();
         let mut sep = "";
@@ -268,5 +272,41 @@ impl FromFuncParamValue for f64 {
             FuncParamValue::Scalar(ScalarValue::Float32(Some(_)))
                 | FuncParamValue::Scalar(ScalarValue::Float64(Some(_)))
         ) || i64::is_param_valid(value)
+    }
+}
+
+impl FromFuncParamValue for Decimal128 {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Int8(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::Int16(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::Int32(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::Int64(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::UInt8(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::UInt16(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::UInt32(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::UInt64(Some(v)) => Ok(Decimal128::try_from_int(v)?),
+                ScalarValue::Float32(Some(v)) => Ok(Decimal128::try_from_float(v)?),
+                ScalarValue::Float64(Some(v)) => Ok(Decimal128::try_from_float(v)?),
+                ScalarValue::Decimal128(Some(v), _, s) => Ok(Decimal128::new(v, s)?),
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "decimal",
+                }),
+            },
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "decimal",
+            }),
+        }
+    }
+
+    fn is_param_valid(value: &FuncParamValue) -> bool {
+        matches!(
+            value,
+            FuncParamValue::Scalar(ScalarValue::Decimal128(Some(_), _, _))
+        ) || f64::is_param_valid(value)
+            || i64::is_param_valid(value)
     }
 }

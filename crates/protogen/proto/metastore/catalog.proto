@@ -31,7 +31,7 @@ syntax = "proto3";
 
 package metastore.catalog;
 
-import "options.proto";
+import "metastore/options.proto";
 
 // The state of the catalog at some version.
 message CatalogState {
@@ -45,7 +45,7 @@ message CatalogState {
 
   // Metadata for the deployment.
   DeploymentMetadata deployment = 3;
-  
+
   // next: 4
 }
 

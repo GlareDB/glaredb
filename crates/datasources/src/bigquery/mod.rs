@@ -19,7 +19,7 @@ use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::Expr;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::display::DisplayFormatType;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
@@ -391,6 +391,12 @@ impl ExecutionPlan for BigQueryExec {
         )))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for BigQueryExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -401,10 +407,6 @@ impl ExecutionPlan for BigQueryExec {
                 self.predicate.as_str()
             }
         )
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

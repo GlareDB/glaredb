@@ -4,13 +4,13 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use datasources::native::access::NativeTableStorage;
-use metastore_client::types::{
+use protogen::metastore::types::{
     catalog::TableEntry,
     service::{Mutation, UpdateDeploymentStorage},
 };
 use tokio::time::Instant;
 
-use crate::{errors::Result, metastore::SupervisorClient};
+use crate::{errors::Result, metastore::client::SupervisorClient};
 
 use super::BgJob;
 
@@ -101,17 +101,17 @@ mod tests {
     use datafusion::arrow::datatypes::DataType;
     use datasources::native::access::NativeTableStorage;
     use metastore::local::start_inprocess_inmemory;
-    use metastore_client::types::{
+    use object_store_util::conf::StorageConfig;
+    use protogen::metastore::types::{
         catalog::{EntryMeta, EntryType, TableEntry},
         options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
     };
-    use object_store_util::conf::StorageConfig;
     use tempfile::tempdir;
     use uuid::Uuid;
 
     use crate::{
         background_jobs::JobRunner,
-        metastore::{Supervisor, DEFAULT_WORKER_CONFIG},
+        metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG},
     };
 
     use super::BackgroundJobStorageTracker;

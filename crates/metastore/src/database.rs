@@ -1,25 +1,25 @@
 //! Module for handling the catalog for a single database.
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
-use metastore_client::types::catalog::{
+use once_cell::sync::Lazy;
+use pgrepr::oid::FIRST_AVAILABLE_ID;
+use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
     EntryType, FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
-use metastore_client::types::options::{
+use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
 };
-use metastore_client::types::service::Mutation;
-use metastore_client::types::storage::{ExtraState, PersistedCatalog};
-use metastore_client::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
-};
-use once_cell::sync::Lazy;
-use pgrepr::oid::FIRST_AVAILABLE_ID;
+use protogen::metastore::types::service::Mutation;
+use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
     FIRST_NON_SCHEMA_ID,
 };
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+use sqlbuiltins::validation::{
+    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -95,7 +95,7 @@ impl DatabaseCatalog {
 
         let mut state = self.cached.lock().await;
         if state.version != version {
-            return Err(MetastoreError::VersionMismtatch {
+            return Err(MetastoreError::VersionMismatch {
                 have: version,
                 need: state.version,
             });
@@ -1180,14 +1180,14 @@ impl BuiltinCatalog {
 mod tests {
     use super::*;
     use crate::storage::persist::Storage;
-    use metastore_client::types::options::DatabaseOptionsDebug;
-    use metastore_client::types::options::TableOptionsDebug;
-    use metastore_client::types::service::AlterDatabaseRename;
-    use metastore_client::types::service::DropDatabase;
-    use metastore_client::types::service::{
+    use object_store::memory::InMemory;
+    use protogen::metastore::types::options::DatabaseOptionsDebug;
+    use protogen::metastore::types::options::TableOptionsDebug;
+    use protogen::metastore::types::service::AlterDatabaseRename;
+    use protogen::metastore::types::service::DropDatabase;
+    use protogen::metastore::types::service::{
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
     };
-    use object_store::memory::InMemory;
     use sqlbuiltins::builtins::DEFAULT_CATALOG;
     use std::collections::HashSet;
 
