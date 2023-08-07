@@ -30,7 +30,6 @@ object_store = { workspace = true, features = ["gcp", "aws", "http"] }
 object_store_util = { path = "../object_store_util" }
 glob = "0.3.1"
 once_cell = "1.18.0"
-parking_lot = "0.12.1"
 rand = "0.8.5"
 regex = "1.9.1"
 repr = { path = "../repr" }

@@ -1799,7 +1799,6 @@ dependencies = [
  "object_store_util",
  "once_cell",
  "openssh",
- "parking_lot",
  "protogen",
  "rand 0.8.5",
  "regex",
