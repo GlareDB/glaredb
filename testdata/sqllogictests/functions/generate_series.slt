@@ -87,3 +87,14 @@ select * from generate_series(4.1, 1.0, -1.0);
 
 statement error Invalid parameter value
 select * from generate_series('hi', 1.0, -1.0);
+
+# In subquery
+
+query I
+select i * 2 from (select * from generate_series(1, 5)) as t(i);
+----
+2
+4
+6
+8
+10
