@@ -34,6 +34,39 @@ pub struct DatabaseDetails {
     pub memory_limit_bytes: usize,
 }
 
+#[derive(Debug, Clone)]
+pub enum ServiceProtocol {
+    PgSrv,
+    RpcSrv,
+}
+
+impl ServiceProtocol {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::PgSrv => "pgsrv",
+            Self::RpcSrv => "rpcsrv",
+        }
+    }
+}
+
+/// Params used for cloud authentication.
+#[derive(Debug, Clone)]
+pub struct AuthParams<'a> {
+    pub user: &'a str,
+    pub password: &'a str,
+    pub db_name: &'a str,
+    /// May be either the org name or org id.
+    // TODO: We should really do one or the other.
+    pub org: &'a str,
+    /// If not provided, Cloud will return details for a default engine.
+    pub compute_engine: Option<&'a str>,
+    /// Which service we're authenticating for.
+    ///
+    /// Cloud will use this parameter to direct us to the right port that's
+    /// handling this service.
+    pub service: ServiceProtocol,
+}
+
 /// Authenticate connections that go through the proxy.
 ///
 /// It's expected that authentication happens remotely, and a set of database
@@ -42,14 +75,7 @@ pub struct DatabaseDetails {
 #[async_trait]
 pub trait ProxyAuthenticator: Sync + Send {
     /// Authenticate a database connection.
-    async fn authenticate(
-        &self,
-        user: &str,
-        password: &str,
-        db_name: &str,
-        org: &str,
-        compute_engine: &str,
-    ) -> Result<DatabaseDetails>;
+    async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails>;
 }
 
 /// Authentice connections using the Cloud service.
@@ -76,29 +102,24 @@ impl CloudAuthenticator {
 
 #[async_trait]
 impl ProxyAuthenticator for CloudAuthenticator {
-    async fn authenticate(
-        &self,
-        user: &str,
-        password: &str,
-        db_name: &str,
-        org: &str,
-        compute_engine: &str,
-    ) -> Result<DatabaseDetails> {
-        let query = if Uuid::try_parse(org).is_ok() {
+    async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails> {
+        let query = if Uuid::try_parse(params.org).is_ok() {
             [
-                ("user", user),
-                ("password", password),
-                ("name", db_name),
-                ("org", org),
-                ("compute_engine", compute_engine),
+                ("user", params.user),
+                ("password", params.password),
+                ("name", params.db_name),
+                ("org", params.org),
+                ("compute_engine", params.compute_engine.unwrap_or("")),
+                ("service", params.service.as_str()),
             ]
         } else {
             [
-                ("user", user),
-                ("password", password),
-                ("name", db_name),
-                ("orgname", org),
-                ("compute_engine", compute_engine),
+                ("user", params.user),
+                ("password", params.password),
+                ("name", params.db_name),
+                ("orgname", params.org),
+                ("compute_engine", params.compute_engine.unwrap_or("")),
+                ("service", params.service.as_str()),
             ]
         };
 

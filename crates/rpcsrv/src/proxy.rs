@@ -5,7 +5,7 @@ use protogen::gen::rpcsrv::service::{
     execution_service_client::ExecutionServiceClient, execution_service_server::ExecutionService,
     ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
 };
-use proxyutil::cloudauth::ProxyAuthenticator;
+use proxyutil::cloudauth::{AuthParams, ProxyAuthenticator, ServiceProtocol};
 use std::{hash::Hash, time::Duration};
 use tonic::{
     metadata::MetadataMap,
@@ -43,22 +43,13 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
     /// deployment info from Cloud, then return a connection to the requested
     /// deployment+compute engine.
     async fn connect(&self, meta: &MetadataMap) -> Result<ExecutionServiceClient<Channel>> {
-        let params = AuthParams::from_metadata(meta)?;
+        let params = Self::auth_params_from_metadata(meta)?;
 
         // TODO: We'll want to figure out long-lived auth sessions to avoid
         // needing to hit Cloud for every request (e.g. JWT). This isn't a
         // problem for pgsrv since a connections map one-to-one with sessions,
         // and we only need to authenticate at the beginning of the connection.
-        let details = self
-            .authenticator
-            .authenticate(
-                params.user,
-                params.password,
-                params.db_name,
-                params.org,
-                params.compute_engine.unwrap_or(""),
-            )
-            .await?;
+        let details = self.authenticator.authenticate(params).await?;
 
         let key = ConnKey {
             ip: details.ip,
@@ -88,6 +79,32 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
 
         Ok(client)
     }
+
+    fn auth_params_from_metadata<'a>(meta: &'a MetadataMap) -> Result<AuthParams> {
+        fn get_val<'b>(key: &'static str, meta: &'b MetadataMap) -> Result<&'b str> {
+            let val = meta
+                .get(key)
+                .ok_or(RpcsrvError::MissingAuthKey(key))?
+                .to_str()?;
+            Ok(val)
+        }
+
+        let user = get_val("user", meta)?;
+        let password = get_val("password", meta)?;
+        let db_name = get_val("db_name", meta)?;
+        let org = get_val("org", meta)?;
+
+        let compute_engine = meta.get("compute_engine").map(|s| s.to_str()).transpose()?;
+
+        Ok(AuthParams {
+            user,
+            password,
+            db_name,
+            org,
+            compute_engine,
+            service: ServiceProtocol::RpcSrv,
+        })
+    }
 }
 
 #[async_trait]
@@ -110,41 +127,5 @@ impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
         info!("execute (proxy)");
         let mut client = self.connect(request.metadata()).await?;
         client.execute(request).await
-    }
-}
-
-/// Params used for cloud authentication.
-struct AuthParams<'a> {
-    user: &'a str,
-    password: &'a str,
-    db_name: &'a str,
-    org: &'a str,
-    compute_engine: Option<&'a str>,
-}
-
-impl<'a> AuthParams<'a> {
-    fn from_metadata<'b: 'a>(meta: &'b MetadataMap) -> Result<Self> {
-        let user = Self::get_val("user", meta)?;
-        let password = Self::get_val("password", meta)?;
-        let db_name = Self::get_val("db_name", meta)?;
-        let org = Self::get_val("org", meta)?;
-
-        let compute_engine = meta.get("compute_engine").map(|s| s.to_str()).transpose()?;
-
-        Ok(AuthParams {
-            user,
-            password,
-            db_name,
-            org,
-            compute_engine,
-        })
-    }
-
-    fn get_val<'b>(key: &'static str, meta: &'b MetadataMap) -> Result<&'b str> {
-        let val = meta
-            .get(key)
-            .ok_or(RpcsrvError::MissingAuthKey(key))?
-            .to_str()?;
-        Ok(val)
     }
 }
