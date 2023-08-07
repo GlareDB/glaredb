@@ -13,27 +13,27 @@ select count(*) from ndjson_scan('file://${PWD}/testdata/sqllogictests_datasourc
 102
 
 # # Relative path
-# query I
-# select count(*) from ndjson_scan('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
-# ----
-# 102
+query I
+select count(*) from ndjson_scan('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
+----
+102
 
-# # Remote path
-# query I
-# select count(*) from ndjson_scan('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson');
-# ----
-# 102
-# 
-# 
-# # Multiple URLs
-# 
-# query I
-# select count(*) from ndjson_scan([
-#   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson',
-#   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson'
-# ]);
-# ----
-# 204
+# Remote path
+query I
+select count(*) from ndjson_scan('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson');
+----
+102
+
+
+# Multiple URLs
+
+query I
+select count(*) from ndjson_scan([
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson',
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson'
+]);
+----
+204
 
 statement error at least one url expected
 select * from ndjson_scan([]);
