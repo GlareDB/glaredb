@@ -15,7 +15,7 @@ use datasources::mongodb::MongoAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccessor;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
-use metastore_client::types::options::{
+use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };

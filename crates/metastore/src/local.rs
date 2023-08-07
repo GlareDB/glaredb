@@ -1,9 +1,9 @@
 use crate::errors::{MetastoreError, Result};
 use crate::srv::Service;
-use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
-use metastore_client::proto::service::metastore_service_server::MetastoreServiceServer;
 use object_store::local::LocalFileSystem;
 use object_store::{memory::InMemory, ObjectStore};
+use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
+use protogen::metastore::gen::service::metastore_service_server::MetastoreServiceServer;
 use std::path::Path;
 use std::sync::Arc;
 use tonic::transport::{Channel, Endpoint, Server, Uri};

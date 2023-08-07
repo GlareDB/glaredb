@@ -19,7 +19,7 @@ use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::Expr;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::display::DisplayFormatType;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
@@ -38,7 +38,6 @@ use gcp_bigquery_client::{
     project::GetOptions,
     table,
 };
-use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::{self, Write};
@@ -312,9 +311,9 @@ impl TableProvider for BigQueryTableProvider {
                 if let Some(stream) = stream_opt {
                     match send.send(stream).await {
                         Ok(_) => {}
-                        Err(_e /* : closed or full channel error */) => {
+                        Err(error /* : closed or full channel error */) => {
                             tracing::error!(
-                                "cannot send stream over the buffered channel [programming error]"
+                                %error, "cannot send stream over the buffered channel [programming error]"
                             );
                             break;
                         }
@@ -331,7 +330,7 @@ impl TableProvider for BigQueryTableProvider {
         Ok(Arc::new(BigQueryExec {
             predicate,
             arrow_schema: projected_schema,
-            receiver: RwLock::new(recv),
+            receiver: recv,
             num_partitions,
         }))
     }
@@ -340,7 +339,7 @@ impl TableProvider for BigQueryTableProvider {
 struct BigQueryExec {
     predicate: String,
     arrow_schema: ArrowSchemaRef,
-    receiver: RwLock<Receiver<BufferedArrowIpcReader>>,
+    receiver: Receiver<BufferedArrowIpcReader>,
     num_partitions: usize,
 }
 
@@ -379,18 +378,19 @@ impl ExecutionPlan for BigQueryExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let recv = {
-            let guard = self.receiver.read();
-            Receiver::clone(&guard)
-        };
-
         Ok(Box::pin(BufferedIpcStream::new(
             self.schema(),
-            recv,
+            self.receiver.clone(),
             partition,
         )))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for BigQueryExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -401,10 +401,6 @@ impl ExecutionPlan for BigQueryExec {
                 self.predicate.as_str()
             }
         )
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

@@ -11,6 +11,7 @@ use datafusion::config::ConfigOptions;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::AggregateUDF;
 use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
@@ -19,9 +20,7 @@ use datafusion_ext::functions::TableFunc;
 use datafusion_ext::functions::TableFuncContextProvider;
 use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::vars::SessionVars;
-use metastore_client::types::catalog::CatalogEntry;
-use metastore_client::types::catalog::CredentialsEntry;
-use metastore_client::types::catalog::DatabaseEntry;
+use protogen::metastore::types::catalog::{CatalogEntry, CredentialsEntry, DatabaseEntry};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
@@ -245,5 +244,9 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
 
     fn get_session_vars(&self) -> &SessionVars {
         self.ctx.get_session_vars()
+    }
+
+    fn get_session_state(&self) -> &SessionState {
+        self.ctx.get_df_state()
     }
 }

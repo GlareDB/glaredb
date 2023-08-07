@@ -1,6 +1,6 @@
 use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
-use crate::metastore::{Supervisor, DEFAULT_WORKER_CONFIG};
+use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
 use datafusion_ext::vars::SessionVars;
 
@@ -11,10 +11,10 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use crate::metastore::catalog::SessionCatalog;
 use datasources::native::access::NativeTableStorage;
-use metastore_client::proto::service::metastore_service_client::MetastoreServiceClient;
-use metastore_client::session::SessionCatalog;
 use object_store_util::conf::StorageConfig;
+use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};

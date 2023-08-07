@@ -14,11 +14,11 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    Statistics,
 };
 use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
 use std::any::Any;
@@ -410,6 +410,14 @@ impl ExecutionPlan for IcebergTableScan {
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+}
+
+impl DisplayAs for IcebergTableScan {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "IcebergTableScan(")?;
+        self.parquet_scan.fmt_as(t, f)?;
+        write!(f, ")")
     }
 }
 

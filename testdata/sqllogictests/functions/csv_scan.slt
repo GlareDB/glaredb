@@ -6,6 +6,12 @@ select count(*) from csv_scan('file://${PWD}/testdata/sqllogictests_datasources_
 ----
 102
 
+# Absolute path (compressed)
+query I
+select count(*) from csv_scan('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz')
+----
+102
+
 # Relative path
 query I
 select count(*) from csv_scan('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')

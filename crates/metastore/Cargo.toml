@@ -7,7 +7,7 @@ edition = {workspace = true}
 
 [dependencies]
 logutil = {path = "../logutil"}
-metastore_client = { path = "../metastore_client" }
+protogen = {path = "../protogen"}
 sqlbuiltins = { path = "../sqlbuiltins" }
 object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}

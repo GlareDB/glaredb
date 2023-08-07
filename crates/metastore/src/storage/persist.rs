@@ -3,12 +3,12 @@ use crate::storage::{
     Result, SingletonStorageObject, StorageError, StorageObject, VersionedStorageObject,
 };
 use bytes::BytesMut;
-use metastore_client::proto::storage;
-use metastore_client::types::catalog::{CatalogState, DeploymentMetadata};
-use metastore_client::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use prost::Message;
+use protogen::metastore::gen::storage;
+use protogen::metastore::types::catalog::{CatalogState, DeploymentMetadata};
+use protogen::metastore::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info};

@@ -11,7 +11,7 @@ use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFunc
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::LakeStorageOptions;
-use metastore_client::types::options::CredentialsOptions;
+use protogen::metastore::types::options::CredentialsOptions;
 
 /// Scan an iceberg table.
 #[derive(Debug, Clone, Copy)]

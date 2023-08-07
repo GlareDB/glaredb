@@ -1,14 +1,33 @@
-use crate::errors::{MetastoreClientError, Result};
-use crate::types::options::{
+use protogen::metastore::types::options::{
     CopyToDestinationOptions, CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
+
+#[derive(thiserror::Error, Debug)]
+pub enum ValidationError {
+    #[error("Invalid object name length: {length}, max: {max}")]
+    InvalidNameLength { length: usize, max: usize },
+
+    #[error("Tunnel '{tunnel}' not supported by datasource '{datasource}'")]
+    TunnelNotSupportedByDatasource { tunnel: String, datasource: String },
+
+    #[error("Credentials '{credentials}' not supported by datasource '{datasource}'")]
+    CredentialsNotSupportedByDatasource {
+        credentials: String,
+        datasource: String,
+    },
+
+    #[error("Format '{format}' not supported by datasource '{datasource}'")]
+    FormatNotSupportedByDatasource { format: String, datasource: String },
+}
+
+type Result<T> = std::result::Result<T, ValidationError>;
 
 /// Validate idents as per postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
 pub fn validate_object_name(name: &str) -> Result<()> {
     const POSTGRES_IDENT_MAX_LENGTH: usize = 63;
     if name.len() > POSTGRES_IDENT_MAX_LENGTH {
-        return Err(MetastoreClientError::InvalidNameLength {
+        return Err(ValidationError::InvalidNameLength {
             length: name.len(),
             max: POSTGRES_IDENT_MAX_LENGTH,
         });
@@ -30,7 +49,7 @@ pub fn validate_database_tunnel_support(database: &str, tunnel: &str) -> Result<
     ) {
         Ok(())
     } else {
-        Err(MetastoreClientError::TunnelNotSupportedByDatasource {
+        Err(ValidationError::TunnelNotSupportedByDatasource {
             tunnel: tunnel.to_owned(),
             datasource: database.to_owned(),
         })
@@ -50,7 +69,7 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
     ) {
         Ok(())
     } else {
-        Err(MetastoreClientError::TunnelNotSupportedByDatasource {
+        Err(ValidationError::TunnelNotSupportedByDatasource {
             tunnel: tunnel.to_owned(),
             datasource: table.to_owned(),
         })
@@ -66,7 +85,7 @@ pub fn validate_database_creds_support(database: &str, creds: &str) -> Result<()
     ) {
         Ok(())
     } else {
-        Err(MetastoreClientError::CredentialsNotSupportedByDatasource {
+        Err(ValidationError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: database.to_owned(),
         })
@@ -87,7 +106,7 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
     ) {
         Ok(())
     } else {
-        Err(MetastoreClientError::CredentialsNotSupportedByDatasource {
+        Err(ValidationError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: table.to_owned(),
         })
@@ -106,7 +125,7 @@ pub fn validate_copyto_dest_creds_support(dest: &str, creds: &str) -> Result<()>
     ) {
         Ok(())
     } else {
-        Err(MetastoreClientError::CredentialsNotSupportedByDatasource {
+        Err(ValidationError::CredentialsNotSupportedByDatasource {
             credentials: creds.to_owned(),
             datasource: dest.to_owned(),
         })
@@ -126,7 +145,7 @@ pub fn validate_copyto_dest_format_support(dest: &str, format: &str) -> Result<(
     ) {
         Ok(())
     } else {
-        Err(MetastoreClientError::FormatNotSupportedByDatasource {
+        Err(ValidationError::FormatNotSupportedByDatasource {
             format: format.to_owned(),
             datasource: dest.to_owned(),
         })

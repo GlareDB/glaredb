@@ -1,9 +1,9 @@
-use metastore_client::errors::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
+use protogen::metastore::strategy::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
 
 #[derive(thiserror::Error, Debug)]
 pub enum MetastoreError {
     #[error("Catalog version mismatch; have: {have}, need: {need}")]
-    VersionMismtatch { have: u64, need: u64 },
+    VersionMismatch { have: u64, need: u64 },
 
     #[error("Duplicate name: {0}")]
     DuplicateName(String),
@@ -21,7 +21,7 @@ pub enum MetastoreError {
     },
 
     #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
-    BuiltinObjectPersisted(metastore_client::types::catalog::EntryMeta),
+    BuiltinObjectPersisted(protogen::metastore::types::catalog::EntryMeta),
 
     #[error("Missing database catalog: {0}")]
     MissingCatalog(uuid::Uuid),
@@ -74,7 +74,7 @@ pub enum MetastoreError {
     FailedInProcessStartup(String),
 
     #[error("Cannot modify builtin object: {0:?}")]
-    CannotModifyBuiltin(metastore_client::types::catalog::CatalogEntry),
+    CannotModifyBuiltin(protogen::metastore::types::catalog::CatalogEntry),
 
     #[error("Cannot exceed {max} objects in a database")]
     MaxNumberOfObjects { max: usize },
@@ -83,33 +83,30 @@ pub enum MetastoreError {
     Storage(#[from] crate::storage::StorageError),
 
     #[error(transparent)]
-    ProtoConv(#[from] metastore_client::types::ProtoConvError),
+    ProtoConv(#[from] protogen::metastore::types::ProtoConvError),
 
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]
-    MetastoreClient(#[from] metastore_client::errors::MetastoreClientError),
+    Validation(#[from] sqlbuiltins::validation::ValidationError),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;
 
 impl From<MetastoreError> for tonic::Status {
     fn from(value: MetastoreError) -> Self {
-        let strat = value.resolve_error_strategy();
+        // Send a strategy to the client, possibly allowing it to resolve the
+        // error itself without the user being notified.
+        let strat = match &value {
+            MetastoreError::VersionMismatch { .. } => ResolveErrorStrategy::FetchCatalogAndRetry,
+            _ => ResolveErrorStrategy::Unknown,
+        };
+
         let mut status = tonic::Status::from_error(Box::new(value));
         status
             .metadata_mut()
             .insert(RESOLVE_ERROR_STRATEGY_META, strat.to_metadata_value());
         status
-    }
-}
-
-impl MetastoreError {
-    pub fn resolve_error_strategy(&self) -> ResolveErrorStrategy {
-        match self {
-            Self::VersionMismtatch { .. } => ResolveErrorStrategy::FetchCatalogAndRetry,
-            _ => ResolveErrorStrategy::Unknown,
-        }
     }
 }

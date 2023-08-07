@@ -14,9 +14,9 @@
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
-use metastore_client::types::options::InternalColumnDefinition;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
+use protogen::metastore::types::options::InternalColumnDefinition;
 use std::sync::Arc;
 
 /// The default catalog that exists in all GlareDB databases.

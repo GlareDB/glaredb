@@ -21,7 +21,7 @@ deltalake = { workspace = true }
 futures = "0.3.28"
 gcp-bigquery-client = "0.17.0"
 logutil = {path = "../logutil"}
-metastore_client = { path = "../metastore_client" }
+protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
 mongodb = "2.6.0"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
@@ -30,7 +30,6 @@ object_store = { workspace = true, features = ["gcp", "aws", "http"] }
 object_store_util = { path = "../object_store_util" }
 glob = "0.3.1"
 once_cell = "1.18.0"
-parking_lot = "0.12.1"
 rand = "0.8.5"
 regex = "1.9.1"
 repr = { path = "../repr" }

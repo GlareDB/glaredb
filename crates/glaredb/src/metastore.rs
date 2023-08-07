@@ -1,7 +1,7 @@
 use anyhow::Result;
 use metastore::srv::Service;
-use metastore_client::proto::service::metastore_service_server::MetastoreServiceServer;
 use object_store::ObjectStore;
+use protogen::metastore::gen::service::metastore_service_server::MetastoreServiceServer;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tonic::transport::Server;

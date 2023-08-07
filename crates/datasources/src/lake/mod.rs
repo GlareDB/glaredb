@@ -3,11 +3,11 @@
 pub mod delta;
 pub mod iceberg;
 
-use metastore_client::types::options::{CredentialsOptionsAws, CredentialsOptionsGcp};
 use object_store::aws::AmazonS3Builder;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
+use protogen::metastore::types::options::{CredentialsOptionsAws, CredentialsOptionsGcp};
 use std::collections::HashMap;
 use std::sync::Arc;
 
