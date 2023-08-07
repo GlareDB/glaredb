@@ -36,13 +36,15 @@ use tracing::error;
 /// this adapter uses.
 pub struct PartialContextProvider<'a> {
     providers: HashMap<OwnedTableReference, Arc<dyn TableProvider>>,
+    state: &'a SessionState,
     ctx: &'a SessionContext,
 }
 
 impl<'a> PartialContextProvider<'a> {
-    pub fn new(ctx: &'a SessionContext) -> Result<Self, PlanError> {
+    pub fn new(ctx: &'a SessionContext, state: &'a SessionState) -> Result<Self, PlanError> {
         Ok(Self {
             providers: HashMap::new(),
+            state,
             ctx,
         })
     }
@@ -221,16 +223,20 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
     }
 
     fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider {
-        Self::TableFuncContextProvider { ctx: self.ctx }
+        Self::TableFuncContextProvider {
+            ctx: self.ctx,
+            state: self.state,
+        }
     }
 
     fn options(&self) -> &ConfigOptions {
-        self.ctx.get_df_state().config_options()
+        self.state.config_options()
     }
 }
 
 pub struct TableFnCtxProvider<'a> {
     ctx: &'a SessionContext,
+    state: &'a SessionState,
 }
 
 impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
@@ -247,6 +253,6 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
     }
 
     fn get_session_state(&self) -> &SessionState {
-        self.ctx.get_df_state()
+        self.state
     }
 }
