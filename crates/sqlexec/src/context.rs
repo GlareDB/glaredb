@@ -364,10 +364,7 @@ impl SessionContext {
     pub async fn update(&mut self, plan: Update) -> Result<()> {
         let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
-        if let Some(table_entry) = self
-            .metastore_catalog
-            .resolve_native_table(&database, &schema, &name)
-        {
+        if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
             self.tables
                 .update_rows_where(table_entry, plan.updates, plan.where_expr)
                 .await?
