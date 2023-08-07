@@ -78,11 +78,8 @@ pub enum PgSrvError {
     #[error(transparent)]
     PgRepr(#[from] pgrepr::error::PgReprError),
 
-    #[error(transparent)]
-    Reqwest(#[from] reqwest::Error),
-
-    #[error(transparent)]
-    ReqwestHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
+    #[error("Failed to authenticate with GlareDB Cloud: {0}")]
+    CloudAuth(#[from] proxyutil::cloudauth::CloudAuthError),
 
     #[error(transparent)]
     Rustls(#[from] rustls::Error),

@@ -1,4 +1,3 @@
-use crate::auth::{DatabaseDetails, ProxyAuthenticator};
 use crate::codec::{
     client::FramedClientConn,
     server::{FramedConn, PgCodec},
@@ -7,6 +6,7 @@ use crate::errors::{PgSrvError, Result};
 use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMessage, VERSION_V3};
 use crate::ssl::Connection;
 use crate::ssl::SslConfig;
+use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -350,7 +350,14 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
 
                 let details = self
                     .authenticator
-                    .authenticate(user, &password, db_name, org_id, compute_engine)
+                    .authenticate(AuthParams {
+                        user,
+                        password: &password,
+                        db_name,
+                        org: org_id,
+                        compute_engine: Some(compute_engine),
+                        service: ServiceProtocol::PgSrv,
+                    })
                     .await?;
                 Ok(details)
             }
