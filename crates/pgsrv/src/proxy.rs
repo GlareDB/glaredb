@@ -354,7 +354,7 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
                         user,
                         password: &password,
                         db_name,
-                        org: &org_id,
+                        org: org_id,
                         compute_engine: Some(compute_engine),
                         service: ServiceProtocol::PgSrv,
                     })

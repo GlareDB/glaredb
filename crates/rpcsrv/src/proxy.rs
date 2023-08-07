@@ -80,7 +80,7 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
         Ok(client)
     }
 
-    fn auth_params_from_metadata<'a>(meta: &'a MetadataMap) -> Result<AuthParams> {
+    fn auth_params_from_metadata(meta: &MetadataMap) -> Result<AuthParams> {
         fn get_val<'b>(key: &'static str, meta: &'b MetadataMap) -> Result<&'b str> {
             let val = meta
                 .get(key)
