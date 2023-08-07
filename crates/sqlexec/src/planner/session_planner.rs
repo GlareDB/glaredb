@@ -591,7 +591,9 @@ impl<'a> SessionPlanner<'a> {
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
-        let mut context_provider = PartialContextProvider::new(self.ctx)?;
+        let state = self.ctx.init_exec();
+        let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
+
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
@@ -1159,7 +1161,8 @@ impl<'a> SessionPlanner<'a> {
             CopyToSource::Query(query) => query,
         };
 
-        let mut context_provider = PartialContextProvider::new(self.ctx)?;
+        let state = self.ctx.init_exec();
+        let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
         let mut planner = SqlQueryPlanner::new(&mut context_provider);
         let source = planner.query_to_plan(query).await?;
 

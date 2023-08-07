@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
-use pgsrv::auth::CloudAuthenticator;
 use pgsrv::proxy::ProxyHandler;
 use pgsrv::ssl::SslConfig;
+use proxyutil::cloudauth::CloudAuthenticator;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -9,13 +9,11 @@ use tokio::signal;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info};
 
-pub struct ProxyConfig {}
-
-pub struct Proxy {
+pub struct PgProxy {
     handler: Arc<ProxyHandler<CloudAuthenticator>>,
 }
 
-impl Proxy {
+impl PgProxy {
     pub async fn new(
         api_addr: String,
         auth_code: String,
@@ -33,7 +31,7 @@ impl Proxy {
         };
 
         let auth = CloudAuthenticator::new(api_addr, auth_code)?;
-        Ok(Proxy {
+        Ok(PgProxy {
             handler: Arc::new(ProxyHandler::new(auth, ssl_conf)),
         })
     }

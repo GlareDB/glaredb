@@ -2,7 +2,8 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use glaredb::local::{LocalClientOpts, LocalSession};
 use glaredb::metastore::Metastore;
-use glaredb::proxy::Proxy;
+use glaredb::pg_proxy::PgProxy;
+use glaredb::rpc_proxy::RpcProxy;
 use glaredb::server::{ComputeServer, ServerConfig};
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
@@ -60,7 +61,7 @@ enum Commands {
         ///
         /// If not provided and `local` is set to a true, an in-process
         /// metastore will be started.
-        #[clap(short, long, value_parser)]
+        #[clap(short, long, hide = true, value_parser)]
         metastore_addr: Option<String>,
 
         /// Set the user used for authentication.
@@ -86,7 +87,7 @@ enum Commands {
         ///
         /// Sessions must be proxied through pgsrv, otherwise attempting to
         /// create a session will fail.
-        #[clap(short, long, value_parser)]
+        #[clap(short, long, hide = true, value_parser)]
         service_account_path: Option<String>,
 
         /// Path to spill temporary files to.
@@ -99,18 +100,19 @@ enum Commands {
         ///
         /// This is only relevant for internal development. The postgres
         /// protocol proxy will drop all authentication related messages.
-        #[clap(long, value_parser)]
+        #[clap(long, hide = true, value_parser)]
         ignore_auth: bool,
 
         /// API key for segment.
         ///
         /// (Internal)
-        #[clap(long, value_parser)]
+        #[clap(long, hide = true, value_parser)]
         segment_key: Option<String>,
     },
 
     /// Starts an instance of the pgsrv proxy.
-    Proxy {
+    #[clap(hide = true)]
+    PgProxy {
         /// TCP address to bind to.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6544"))]
         bind: String,
@@ -132,7 +134,24 @@ enum Commands {
         cloud_auth_code: String,
     },
 
+    /// Starts an instance of the rpcsrv proxy.
+    #[clap(hide = true)]
+    RpcProxy {
+        /// TCP address to bind to.
+        #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6444"))]
+        bind: String,
+
+        /// Address of the GlareDB cloud server.
+        #[clap(long)]
+        cloud_api_addr: String,
+
+        /// Authorization code for communicating with Cloud.
+        #[clap(long)]
+        cloud_auth_code: String,
+    },
+
     /// Starts an instance of the Metastore.
+    #[clap(hide = true)]
     Metastore {
         /// TCP address to bind do.
         #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6545"))]
@@ -211,7 +230,7 @@ fn main() -> Result<()> {
                 spill_path,
             )?;
         }
-        Commands::Proxy {
+        Commands::PgProxy {
             bind,
             ssl_server_cert,
             ssl_server_key,
@@ -221,7 +240,7 @@ fn main() -> Result<()> {
             let runtime = build_runtime("pgsrv")?;
             runtime.block_on(async move {
                 let pg_listener = TcpListener::bind(bind).await?;
-                let proxy = Proxy::new(
+                let proxy = PgProxy::new(
                     cloud_api_addr,
                     cloud_auth_code,
                     ssl_server_cert,
@@ -229,6 +248,18 @@ fn main() -> Result<()> {
                 )
                 .await?;
                 proxy.serve(pg_listener).await
+            })?;
+        }
+        Commands::RpcProxy {
+            bind,
+            cloud_api_addr,
+            cloud_auth_code,
+        } => {
+            let runtime = build_runtime("rpcsrv")?;
+            runtime.block_on(async move {
+                let addr = bind.parse()?;
+                let proxy = RpcProxy::new(cloud_api_addr, cloud_auth_code).await?;
+                proxy.serve(addr).await
             })?;
         }
         Commands::Metastore {

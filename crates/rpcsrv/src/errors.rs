@@ -9,17 +9,29 @@ pub enum RpcsrvError {
     #[error("Executing physical plans is not currently supported")]
     PhysicalPlansNotSupported,
 
+    #[error("Missing key: {0}")]
+    MissingAuthKey(&'static str),
+
+    #[error(transparent)]
+    TonicMetadataToStr(#[from] tonic::metadata::errors::ToStrError),
+
     #[error(transparent)]
     ProtoConvError(#[from] protogen::metastore::types::ProtoConvError),
 
     #[error(transparent)]
     ExecError(#[from] sqlexec::errors::ExecError),
 
+    #[error("Failed to authenticate with GlareDB Cloud: {0}")]
+    CloudAuth(#[from] proxyutil::cloudauth::CloudAuthError),
+
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    TonicTransport(#[from] tonic::transport::Error),
 
     #[error("{0}")]
     Internal(String),
