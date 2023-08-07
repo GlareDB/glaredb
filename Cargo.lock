@@ -2531,6 +2531,7 @@ dependencies = [
  "pgrepr",
  "pgsrv",
  "protogen",
+ "proxyutil",
  "reedline",
  "rpcsrv",
  "sqlexec",
@@ -3993,6 +3994,7 @@ dependencies = [
  "datafusion_ext",
  "futures",
  "pgrepr",
+ "proxyutil",
  "reqwest",
  "rustls 0.21.6",
  "rustls-pemfile",
@@ -4358,6 +4360,20 @@ dependencies = [
  "thiserror",
  "tonic",
  "tonic-build",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "proxyutil"
+version = "0.3.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
  "tracing",
  "uuid",
 ]

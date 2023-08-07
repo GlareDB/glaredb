@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
-use pgsrv::auth::CloudAuthenticator;
 use pgsrv::proxy::ProxyHandler;
 use pgsrv::ssl::SslConfig;
+use proxyutil::cloudauth::CloudAuthenticator;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::net::TcpListener;

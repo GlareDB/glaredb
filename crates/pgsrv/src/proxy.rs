@@ -1,4 +1,3 @@
-use crate::auth::{DatabaseDetails, ProxyAuthenticator};
 use crate::codec::{
     client::FramedClientConn,
     server::{FramedConn, PgCodec},
@@ -7,6 +6,7 @@ use crate::errors::{PgSrvError, Result};
 use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMessage, VERSION_V3};
 use crate::ssl::Connection;
 use crate::ssl::SslConfig;
+use proxyutil::cloudauth::{DatabaseDetails, ProxyAuthenticator};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
