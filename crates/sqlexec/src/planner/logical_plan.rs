@@ -149,14 +149,14 @@ impl std::fmt::Debug for CopyTo {
 #[derive(Clone)]
 pub struct Delete {
     pub table_name: OwnedTableReference,
-    pub expr: Option<Expr>,
+    pub where_expr: Option<Expr>,
 }
 
 impl std::fmt::Debug for Delete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Delete")
             .field("table_name", &self.table_name.schema())
-            .field("expr", &self.expr)
+            .field("where_expr", &self.where_expr)
             .finish()
     }
 }
@@ -165,7 +165,7 @@ impl std::fmt::Debug for Delete {
 pub struct Update {
     pub table_name: OwnedTableReference,
     pub updates: Vec<(String, Expr)>,
-    pub expr: Option<Expr>,
+    pub where_expr: Option<Expr>,
 }
 
 impl std::fmt::Debug for Update {
@@ -176,7 +176,7 @@ impl std::fmt::Debug for Update {
                 "updates",
                 &self.updates.iter().map(|(k, v)| (k, v.to_string())),
             )
-            .field("expr", &self.expr)
+            .field("where_expr", &self.where_expr)
             .finish()
     }
 }

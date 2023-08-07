@@ -170,11 +170,15 @@ impl NativeTableStorage {
         Ok(Arc::new(delta_store))
     }
 
-    pub async fn delete_rows_where(&self, table: &TableEntry, expr: Option<Expr>) -> Result<()> {
+    pub async fn delete_rows_where(
+        &self,
+        table: &TableEntry,
+        where_expr: Option<Expr>,
+    ) -> Result<()> {
         let table = self.load_table(table).await?;
-        if let Some(expr) = expr {
+        if let Some(where_expr) = where_expr {
             DeleteBuilder::new(table.delta.object_store(), table.delta.state)
-                .with_predicate(expr)
+                .with_predicate(where_expr)
                 .await?;
         } else {
             DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
@@ -185,16 +189,16 @@ impl NativeTableStorage {
     pub async fn update_rows_where(
         &self,
         table: &TableEntry,
-        set: Vec<(String, Expr)>,
-        expr: Option<Expr>,
+        updates: Vec<(String, Expr)>,
+        where_expr: Option<Expr>,
     ) -> Result<()> {
         let table = self.load_table(table).await?;
         let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
-        if let Some(expr) = expr {
-            builder = builder.with_predicate(expr);
+        for update in updates.iter() {
+            builder = builder.with_update(update.0.clone(), update.1.clone());
         }
-        for t in set.iter() {
-            builder = builder.with_update(t.0.clone(), t.1.clone());
+        if let Some(where_expr) = where_expr {
+            builder = builder.with_predicate(where_expr);
         }
         builder.await?;
         Ok(())

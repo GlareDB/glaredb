@@ -344,7 +344,7 @@ impl SessionContext {
             .resolve_native_table(&database, &schema, &name)
         {
             self.tables
-                .delete_rows_where(table_entry, plan.expr)
+                .delete_rows_where(table_entry, plan.where_expr)
                 .await?
         } else {
             return Err(ExecError::MissingObject { typ: "table", name });
@@ -360,7 +360,7 @@ impl SessionContext {
             .resolve_native_table(&database, &schema, &name)
         {
             self.tables
-                .update_rows_where(table_entry, plan.updates, plan.expr)
+                .update_rows_where(table_entry, plan.updates, plan.where_expr)
                 .await?
         } else {
             return Err(ExecError::MissingObject { typ: "table", name });

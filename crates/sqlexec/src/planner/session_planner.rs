@@ -989,23 +989,27 @@ impl<'a> SessionPlanner<'a> {
                     _ => return Err(PlanError::UnsupportedFeature("DELETE from multiple tables")),
                 };
 
-                let expr = if let Some(expr) = selection {
+                let where_expr = if let Some(where_expr) = selection {
                     let mut planner = SqlQueryPlanner::new(&mut context_provider);
                     Some(
                         planner
-                            .sql_to_expr(expr, &schema, &mut PlannerContext::new())
+                            .sql_to_expr(where_expr, &schema, &mut PlannerContext::new())
                             .await?,
                     )
                 } else {
                     None
                 };
 
-                Ok(WritePlan::Delete(Delete { table_name, expr }).into())
+                Ok(WritePlan::Delete(Delete {
+                    table_name,
+                    where_expr,
+                })
+                .into())
             }
 
             ast::Statement::Update {
                 table,
-                assignments: _,
+                assignments,
                 from: None,
                 selection,
                 returning: None,
@@ -1024,22 +1028,34 @@ impl<'a> SessionPlanner<'a> {
                 let schema = table_source.schema().to_dfschema()?;
 
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
-                let expr = if let Some(expr) = selection {
+                let mut updates = Vec::new();
+
+                for assignment in assignments {
+                    if assignment.id.len() == 1 {
+                        let column = assignment.id.last().unwrap().value.clone();
+                        let update_value = planner
+                            .sql_to_expr(assignment.value, &schema, &mut PlannerContext::new())
+                            .await?;
+                        updates.push((column, update_value));
+                    } else {
+                        return Err(PlanError::UnsupportedSQLStatement("Do not include the table's name in the specification of a target column — for example, UPDATE table_name SET table_name.col = 1 is invalid.".to_string()));
+                    }
+                }
+
+                let where_expr = if let Some(where_expr) = selection {
                     Some(
                         planner
-                            .sql_to_expr(expr, &schema, &mut PlannerContext::new())
+                            .sql_to_expr(where_expr, &schema, &mut PlannerContext::new())
                             .await?,
                     )
                 } else {
                     None
                 };
 
-                let updates = Vec::new();
-
                 Ok(WritePlan::Update(Update {
                     table_name,
                     updates,
-                    expr,
+                    where_expr,
                 })
                 .into())
             }
