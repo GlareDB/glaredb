@@ -1,6 +1,7 @@
 pub mod local;
 pub mod metastore;
-pub mod proxy;
+pub mod pg_proxy;
+pub mod rpc_proxy;
 pub mod server;
 
 mod highlighter;

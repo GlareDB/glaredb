@@ -1,37 +1,18 @@
-use crate::{
-    errors::{Result, RpcsrvError},
-    session::RemoteSession,
-};
+use crate::errors::{Result, RpcsrvError};
 use async_trait::async_trait;
 use dashmap::DashMap;
-use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion_ext::vars::{SessionVars, VarSetter};
-use futures::{Stream, StreamExt};
-use protogen::gen::{
-    metastore::catalog::CatalogState,
-    rpcsrv::service::{
-        execution_service_client::ExecutionServiceClient,
-        execution_service_server::ExecutionService, ExecuteRequest, ExecuteResponse,
-        InitializeSessionRequest, InitializeSessionResponse,
-    },
+use protogen::gen::rpcsrv::service::{
+    execution_service_client::ExecutionServiceClient, execution_service_server::ExecutionService,
+    ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
 };
-use proxyutil::cloudauth::{CloudAuthenticator, ProxyAuthenticator};
-use sqlexec::engine::{Engine, SessionStorageConfig};
+use proxyutil::cloudauth::ProxyAuthenticator;
 use std::{hash::Hash, time::Duration};
-use std::{
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
     Request, Response, Status, Streaming,
 };
 use tracing::info;
-use uuid::Uuid;
 
 /// Key used for the connections map.
 // TODO: Possibly per user connections?
@@ -42,15 +23,15 @@ struct ConnKey {
 }
 
 /// Proxies rpc requests to compute nodes.
-pub struct RpcProxy<A> {
+pub struct RpcProxyHandler<A> {
     authenticator: A,
     /// Connections to compute nodes.
     conns: DashMap<ConnKey, ExecutionServiceClient<Channel>>,
 }
 
-impl<A: ProxyAuthenticator> RpcProxy<A> {
+impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
     pub fn new(authenticator: A) -> Self {
-        RpcProxy {
+        RpcProxyHandler {
             authenticator,
             conns: DashMap::new(),
         }
@@ -64,6 +45,10 @@ impl<A: ProxyAuthenticator> RpcProxy<A> {
     async fn connect(&self, meta: &MetadataMap) -> Result<ExecutionServiceClient<Channel>> {
         let params = AuthParams::from_metadata(meta)?;
 
+        // TODO: We'll want to figure out long-lived auth sessions to avoid
+        // needing to hit Cloud for every request (e.g. JWT). This isn't a
+        // problem for pgsrv since a connections map one-to-one with sessions,
+        // and we only need to authenticate at the beginning of the connection.
         let details = self
             .authenticator
             .authenticate(
@@ -106,13 +91,14 @@ impl<A: ProxyAuthenticator> RpcProxy<A> {
 }
 
 #[async_trait]
-impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxy<A> {
+impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
     type ExecuteStream = Streaming<ExecuteResponse>;
 
     async fn initialize_session(
         &self,
         request: Request<InitializeSessionRequest>,
     ) -> Result<Response<InitializeSessionResponse>, Status> {
+        info!("initialize session (proxy)");
         let mut client = self.connect(request.metadata()).await?;
         client.initialize_session(request).await
     }
@@ -121,6 +107,7 @@ impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxy<A> {
         &self,
         request: Request<ExecuteRequest>,
     ) -> Result<Response<Self::ExecuteStream>, Status> {
+        info!("execute (proxy)");
         let mut client = self.connect(request.metadata()).await?;
         client.execute(request).await
     }
