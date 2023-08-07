@@ -198,8 +198,8 @@ impl NativeTableStorage {
     ) -> Result<usize> {
         let table = self.load_table(table).await?;
         let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
-        for update in updates.iter() {
-            builder = builder.with_update(update.0.clone(), update.1.clone());
+        for update in updates.into_iter() {
+            builder = builder.with_update(update.0, update.1);
         }
         if let Some(where_expr) = where_expr {
             builder = builder.with_predicate(where_expr);
