@@ -1,7 +1,4 @@
 use crate::errors::{PgSrvError, Result};
-use async_trait::async_trait;
-use serde::Deserialize;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PasswordMode {
