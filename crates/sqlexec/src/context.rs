@@ -14,7 +14,9 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
 use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
 use datafusion::datasource::MemTable;
-use datafusion::execution::context::{SessionConfig, SessionState, TaskContext};
+use datafusion::execution::context::{
+    SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
+};
 use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::GreedyMemoryPool;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
@@ -78,11 +80,8 @@ pub struct SessionContext {
     portals: HashMap<String, Portal>,
     /// Track query metrics for this session.
     metrics: SessionMetrics,
-    /// Datafusion session state used for planning and execution.
-    ///
-    /// This session state makes a ton of assumptions, try to keep usage of it
-    /// to a minimum and ensure interactions with this are well-defined.
-    df_state: SessionState,
+    /// Datafusion session context used for planning and execution.
+    df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Job runner for background jobs.
@@ -156,6 +155,8 @@ impl SessionContext {
             state = state.with_query_planner(Arc::new(planner));
         }
 
+        let df_ctx = DfSessionContext::with_state(state);
+
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
         //
@@ -171,7 +172,7 @@ impl SessionContext {
             prepared: HashMap::new(),
             portals: HashMap::new(),
             metrics,
-            df_state: state,
+            df_ctx,
             env_reader: None,
             background_jobs,
         })
@@ -225,6 +226,11 @@ impl SessionContext {
     /// Resolve temp table.
     pub fn resolve_temp_table(&self, table_name: &str) -> Option<Arc<MemTable>> {
         self.current_session_tables.get(table_name).cloned()
+    }
+
+    /// Initialize execution and return the [`SessionState`].
+    pub fn init_exec(&self) -> SessionState {
+        self.df_ctx.state()
     }
 
     /// Create a temp table.
@@ -309,10 +315,9 @@ impl SessionContext {
     }
 
     pub async fn insert(&mut self, plan: Insert) -> Result<()> {
-        let physical = self
-            .get_df_state()
-            .create_physical_plan(&plan.source)
-            .await?;
+        let state = self.init_exec();
+
+        let physical = state.create_physical_plan(&plan.source).await?;
 
         // Ensure physical plan has one output partition.
         let physical: Arc<dyn ExecutionPlan> =
@@ -324,10 +329,7 @@ impl SessionContext {
                 }
             };
 
-        let physical = plan
-            .table_provider
-            .insert_into(self.get_df_state(), physical)
-            .await?;
+        let physical = plan.table_provider.insert_into(&state, physical).await?;
 
         let context = self.task_context();
         let mut stream = execute_stream(physical, context)?;
@@ -781,12 +783,7 @@ impl SessionContext {
 
     /// Get a datafusion task context to use for physical plan execution.
     pub(crate) fn task_context(&self) -> Arc<TaskContext> {
-        Arc::new(TaskContext::from(&self.df_state))
-    }
-
-    /// Get a datafusion session state.
-    pub(crate) fn get_df_state(&self) -> &SessionState {
-        &self.df_state
+        self.df_ctx.task_ctx()
     }
 
     /// Plan the body of a view.

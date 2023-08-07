@@ -13,7 +13,6 @@ use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::MemTable;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::ViewTable;
-use datafusion::execution::context::SessionState;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnectionParameters};
 use datasources::debug::DebugTableType;
@@ -417,8 +416,8 @@ impl<'a> SessionDispatcher<'a> {
                     ));
                 }
                 let access = Arc::new(LocalStoreAccess);
-                let state = self.ctx.get_df_state();
-                create_obj_store_table_provider(state, access, location, file_type).await
+                self.create_obj_store_table_provider(access, location, file_type)
+                    .await
             }
             TableOptions::Gcs(TableOptionsGcs {
                 service_account_key,
@@ -430,8 +429,8 @@ impl<'a> SessionDispatcher<'a> {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
                 });
-                let state = self.ctx.get_df_state();
-                create_obj_store_table_provider(state, access, location, file_type).await
+                self.create_obj_store_table_provider(access, location, file_type)
+                    .await
             }
             TableOptions::S3(TableOptionsS3 {
                 access_key_id,
@@ -447,10 +446,35 @@ impl<'a> SessionDispatcher<'a> {
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
                 });
-                let state = self.ctx.get_df_state();
-                create_obj_store_table_provider(state, access, location, file_type).await
+                self.create_obj_store_table_provider(access, location, file_type)
+                    .await
             }
         }
+    }
+
+    async fn create_obj_store_table_provider(
+        &self,
+        access: Arc<dyn ObjStoreAccess>,
+        location: &str,
+        file_type: &str,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let ft: FileType = file_type.parse()?;
+        let ft: Arc<dyn FileFormat> = match ft {
+            FileType::CSV => Arc::new(CsvFormat::default()),
+            FileType::PARQUET => Arc::new(ParquetFormat::default()),
+            FileType::JSON => Arc::new(JsonFormat::default()),
+            _ => return Err(DispatchError::InvalidDispatch("Unsupported file type")),
+        };
+
+        let accessor = ObjStoreAccessor::new(access)?;
+        let objects = accessor.list_globbed(location).await?;
+
+        let state = self.ctx.init_exec();
+        let provider = accessor
+            .into_table_provider(&state, ft, objects, /* predicate_pushdown = */ true)
+            .await?;
+
+        Ok(provider)
     }
 
     async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
@@ -480,28 +504,6 @@ impl<'a> SessionDispatcher<'a> {
         };
         Ok(tunnel_options)
     }
-}
-
-async fn create_obj_store_table_provider(
-    state: &SessionState,
-    access: Arc<dyn ObjStoreAccess>,
-    location: &str,
-    file_type: &str,
-) -> Result<Arc<dyn TableProvider>> {
-    let ft: FileType = file_type.parse()?;
-    let ft: Arc<dyn FileFormat> = match ft {
-        FileType::CSV => Arc::new(CsvFormat::default()),
-        FileType::PARQUET => Arc::new(ParquetFormat::default()),
-        FileType::JSON => Arc::new(JsonFormat::default()),
-        _ => return Err(DispatchError::InvalidDispatch("Unsupported file type")),
-    };
-
-    let accessor = ObjStoreAccessor::new(access)?;
-    let objects = accessor.list_globbed(location).await?;
-    let provider = accessor
-        .into_table_provider(state, ft, objects, /* predicate_pushdown = */ true)
-        .await?;
-    Ok(provider)
 }
 
 /// Dispatch to builtin system tables.
