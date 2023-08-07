@@ -991,18 +991,81 @@ impl<'a> SessionPlanner<'a> {
                     _ => return Err(PlanError::UnsupportedFeature("DELETE from multiple tables")),
                 };
 
-                let expr = if let Some(expr) = selection {
+                let where_expr = if let Some(where_expr) = selection {
                     let mut planner = SqlQueryPlanner::new(&mut context_provider);
                     Some(
                         planner
-                            .sql_to_expr(expr, &schema, &mut PlannerContext::new())
+                            .sql_to_expr(where_expr, &schema, &mut PlannerContext::new())
                             .await?,
                     )
                 } else {
                     None
                 };
 
-                Ok(WritePlan::Delete(Delete { table_name, expr }).into())
+                Ok(WritePlan::Delete(Delete {
+                    table_name,
+                    where_expr,
+                })
+                .into())
+            }
+
+            // "UPDATE <table_name> SET <col1> = <value_expression> WHERE <expression>"
+            //
+            // update column values of a table for rows that match the expression.
+            // or all the rows if no expression is provided.
+            ast::Statement::Update {
+                table,
+                assignments,
+                from: None,
+                selection,
+                returning: None,
+            } => {
+                let table_factor = table.relation.clone();
+                let table_name = match table_factor {
+                    ast::TableFactor::Table { name, .. } => name,
+                    _ => return Err(PlanError::UnsupportedFeature("UPDATE from TableWithJoins")),
+                };
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+
+                let table_source = context_provider
+                    .get_table_provider(table_name.clone())
+                    .await?;
+                let schema = table_source.schema().to_dfschema()?;
+
+                let mut planner = SqlQueryPlanner::new(&mut context_provider);
+                let mut updates = Vec::new();
+
+                for assignment in assignments {
+                    if assignment.id.len() == 1 {
+                        let column = assignment.id.last().unwrap().value.clone();
+                        let update_value = planner
+                            .sql_to_expr(assignment.value, &schema, &mut PlannerContext::new())
+                            .await?;
+                        updates.push((column, update_value));
+                    } else {
+                        return Err(PlanError::UnsupportedSQLStatement(
+                            "Update statement with table reference in column name".to_string(),
+                        ));
+                    }
+                }
+
+                let where_expr = if let Some(where_expr) = selection {
+                    Some(
+                        planner
+                            .sql_to_expr(where_expr, &schema, &mut PlannerContext::new())
+                            .await?,
+                    )
+                } else {
+                    None
+                };
+
+                Ok(WritePlan::Update(Update {
+                    table_name,
+                    updates,
+                    where_expr,
+                })
+                .into())
             }
 
             stmt => Err(PlanError::UnsupportedSQLStatement(stmt.to_string())),

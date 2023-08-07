@@ -11,6 +11,7 @@ use datafusion::prelude::Expr;
 use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
+use deltalake::operations::update::UpdateBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
@@ -169,16 +170,42 @@ impl NativeTableStorage {
         Ok(Arc::new(delta_store))
     }
 
-    pub async fn delete_rows_where(&self, table: &TableEntry, expr: Option<Expr>) -> Result<()> {
+    pub async fn delete_rows_where(
+        &self,
+        table: &TableEntry,
+        where_expr: Option<Expr>,
+    ) -> Result<usize> {
         let table = self.load_table(table).await?;
-        if let Some(expr) = expr {
+        let builder = if let Some(where_expr) = where_expr {
             DeleteBuilder::new(table.delta.object_store(), table.delta.state)
-                .with_predicate(expr)
-                .await?;
+                .with_predicate(where_expr)
         } else {
-            DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
+            DeleteBuilder::new(table.delta.object_store(), table.delta.state)
+        };
+        let deleted_rows = builder.await?.1.num_deleted_rows;
+        if let Some(rows) = deleted_rows {
+            Ok(rows)
+        } else {
+            Ok(0_usize)
         }
-        Ok(())
+    }
+
+    pub async fn update_rows_where(
+        &self,
+        table: &TableEntry,
+        updates: Vec<(String, Expr)>,
+        where_expr: Option<Expr>,
+    ) -> Result<usize> {
+        let table = self.load_table(table).await?;
+        let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
+        for update in updates.into_iter() {
+            builder = builder.with_update(update.0, update.1);
+        }
+        if let Some(where_expr) = where_expr {
+            builder = builder.with_predicate(where_expr);
+        }
+        let updated_rows = builder.await?.1.num_updated_rows;
+        Ok(updated_rows)
     }
 }
 

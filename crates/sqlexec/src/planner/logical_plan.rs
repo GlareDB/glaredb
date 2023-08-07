@@ -105,6 +105,7 @@ pub enum WritePlan {
     Insert(Insert),
     CopyTo(CopyTo),
     Delete(Delete),
+    Update(Update),
 }
 
 impl From<WritePlan> for LogicalPlan {
@@ -148,14 +149,34 @@ impl std::fmt::Debug for CopyTo {
 #[derive(Clone)]
 pub struct Delete {
     pub table_name: OwnedTableReference,
-    pub expr: Option<Expr>,
+    pub where_expr: Option<Expr>,
 }
 
 impl std::fmt::Debug for Delete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Delete")
             .field("table_name", &self.table_name.schema())
-            .field("expr", &self.expr)
+            .field("where_expr", &self.where_expr)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct Update {
+    pub table_name: OwnedTableReference,
+    pub updates: Vec<(String, Expr)>,
+    pub where_expr: Option<Expr>,
+}
+
+impl std::fmt::Debug for Update {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Update")
+            .field("table_name", &self.table_name.schema())
+            .field(
+                "updates",
+                &self.updates.iter().map(|(k, v)| (k, v.to_string())),
+            )
+            .field("where_expr", &self.where_expr)
             .finish()
     }
 }
