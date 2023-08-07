@@ -2,7 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::metastore::{catalog::SessionCatalog, client::SupervisorClient};
+use crate::metastore::catalog::SessionCatalog;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -214,7 +214,7 @@ impl Session {
     }
 
     pub fn get_session_catalog(&self) -> &SessionCatalog {
-        &self.ctx.get_session_catalog()
+        self.ctx.get_session_catalog()
     }
 
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {

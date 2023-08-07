@@ -273,6 +273,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn begin_server(
     pg_bind: &str,
     rpc_bind: Option<String>,

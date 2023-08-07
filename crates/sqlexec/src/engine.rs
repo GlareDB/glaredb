@@ -3,7 +3,6 @@ use crate::errors::{ExecError, Result};
 use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
 use crate::session::Session;
 use datafusion_ext::vars::{SessionVars, VarSetter};
-use protogen::gen::metastore::service::InitializeCatalogRequest;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::gen::rpcsrv::service::InitializeSessionRequest;
 use protogen::metastore::types::catalog::CatalogState;
@@ -169,6 +168,9 @@ impl Engine {
         })
     }
 
+    /// Create a new session that attached to remote session.
+    ///
+    /// The provided exec client will be used to create the remote session.
     pub async fn new_remote_session(
         &self,
         mut vars: SessionVars,
@@ -191,7 +193,7 @@ impl Engine {
         let resp = resp.into_inner();
 
         let remote_id =
-            Uuid::from_slice(&resp.session_id).map_err(|e| ExecError::InvalidRemoteSessionId(e))?;
+            Uuid::from_slice(&resp.session_id).map_err(ExecError::InvalidRemoteSessionId)?;
         let state: CatalogState = resp.catalog.unwrap().try_into().unwrap(); // TODO
         let catalog = SessionCatalog::new(Arc::new(state));
 

@@ -6,31 +6,24 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
-};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::{SessionVars, VarSetter};
-use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
-use datafusion_proto::protobuf::LogicalPlanNode;
 use futures::{Stream, StreamExt};
 use protogen::gen::{
     metastore::catalog::CatalogState,
     rpcsrv::service::{
-        execute_request::Plan, execution_service_server::ExecutionService, ExecuteRequest,
-        ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
+        execution_service_server::ExecutionService, ExecuteRequest, ExecuteResponse,
+        InitializeSessionRequest, InitializeSessionResponse,
     },
 };
-use sqlexec::{
-    engine::{Engine, SessionStorageConfig, TrackedSession},
-    parser::{self, StatementWithExtensions},
-    session::{ExecutionResult, Session},
+use sqlexec::engine::{Engine, SessionStorageConfig};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
 };
-use std::io::Cursor;
-use std::task::{Context, Poll};
-use std::{pin::Pin, sync::Arc};
 use tonic::{Request, Response, Status};
-use tracing::{debug, info};
+use tracing::info;
 use uuid::Uuid;
 
 pub struct RpcHandler {
@@ -63,6 +56,7 @@ impl RpcHandler {
         vars.database_id.set_and_log(db_id, VarSetter::System);
         vars.connection_id.set_and_log(conn_id, VarSetter::System);
 
+        // TODO: Appropriate storage config.
         let sess = self
             .engine
             .new_session(vars, SessionStorageConfig::default())
@@ -139,7 +133,7 @@ impl ExecutionResponseBatchStream {
 
         let schema = batch.schema();
         let mut writer = IpcFileWriter::try_new(&mut self.buf, &schema)?;
-        writer.write(&batch)?;
+        writer.write(batch)?;
         writer.finish()?;
 
         let _ = writer.into_inner()?;

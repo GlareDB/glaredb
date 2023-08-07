@@ -2,14 +2,13 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::client::WorkerError;
-use crate::metastore::{catalog::SessionCatalog, client::SupervisorClient};
+use crate::metastore::catalog::SessionCatalog;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
-use crate::remote::planner::TestPlannerPleaseIgnore;
+use crate::remote::planner::RemotePlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -32,7 +31,6 @@ use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
-use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
@@ -43,7 +41,7 @@ use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 use tonic::transport::Channel;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Implicity schemas that are consulted during object resolution.
 ///
@@ -62,7 +60,10 @@ const IMPLICIT_SCHEMAS: [&str; 2] = [
 // TODO: Need to make session context less pervasive. Pretty much everything in
 // this crate relies on it, make test setup a pain.
 pub struct SessionContext {
-    exec_client: Option<ExecutionServiceClient<Channel>>,
+    /// The execution client for remote sessions.
+    // TODO: This is currently unused, but we'll likely need it for running some
+    // of our custom plans on a remote service.
+    _exec_client: Option<ExecutionServiceClient<Channel>>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -151,7 +152,7 @@ impl SessionContext {
 
         if let Some(id) = vars.remote_session_id.value() {
             let client = exec_client.clone().unwrap();
-            let planner = TestPlannerPleaseIgnore::new(*id, client);
+            let planner = RemotePlanner::new(*id, client);
             state = state.with_query_planner(Arc::new(planner));
         }
 
@@ -162,6 +163,7 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         Ok(SessionContext {
+            _exec_client: exec_client,
             catalog,
             current_session_tables: HashMap::new(),
             tables: native_tables,
@@ -172,7 +174,6 @@ impl SessionContext {
             df_state: state,
             env_reader: None,
             background_jobs,
-            exec_client,
         })
     }
 

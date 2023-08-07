@@ -1,6 +1,5 @@
 use crate::errors::{Result, RpcsrvError};
-use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
 use datafusion_proto::protobuf::LogicalPlanNode;
@@ -52,8 +51,8 @@ impl RemoteSession {
 
                 Ok(stream)
             }
-            Some(Plan::PhysicalPlan(_)) => return Err(RpcsrvError::PhysicalPlansNotSupported),
-            None => return Err(RpcsrvError::Internal("missing plan on request".to_string())),
+            Some(Plan::PhysicalPlan(_)) => Err(RpcsrvError::PhysicalPlansNotSupported),
+            None => Err(RpcsrvError::Internal("missing plan on request".to_string())),
         }
     }
 }

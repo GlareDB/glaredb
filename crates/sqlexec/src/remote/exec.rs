@@ -1,14 +1,14 @@
-use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
-use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
 use datafusion_proto::protobuf::LogicalPlanNode;
@@ -117,7 +117,7 @@ impl ExecutionPlan for RemoteLogicalExec {
 }
 
 impl DisplayAs for RemoteLogicalExec {
-    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "RemoteLogicalExec")
     }
 }
