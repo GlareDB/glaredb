@@ -138,15 +138,19 @@ impl LocalSession {
         )
         .await?;
 
-        let exec_client = ExecutionServiceClient::connect("http://localhost:6500").await?;
-
-        Ok(LocalSession {
-            sess: engine
+        // TODO: Make this configurable through client commands.
+        let sess = if let Ok(url) = std::env::var("RPC_HOST_URL") {
+            let exec_client = ExecutionServiceClient::connect(url).await?;
+            engine
                 .new_remote_session(SessionVars::default(), exec_client)
-                .await?,
-            engine,
-            opts,
-        })
+                .await?
+        } else {
+            engine
+                .new_session(SessionVars::default(), SessionStorageConfig::default())
+                .await?
+        };
+
+        Ok(LocalSession { sess, engine, opts })
     }
 
     pub async fn run(mut self, query: Option<String>) -> Result<()> {
