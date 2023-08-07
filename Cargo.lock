@@ -4889,6 +4889,7 @@ dependencies = [
  "prost",
  "prost-types",
  "protogen",
+ "proxyutil",
  "serde",
  "sqlexec",
  "thiserror",
