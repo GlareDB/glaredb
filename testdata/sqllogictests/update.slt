@@ -4,6 +4,17 @@ statement ok
 create table t1 as select * from generate_series(1, 7, 2);
 
 statement ok
+update t1 set generate_series = 3 where generate_series > 6;
+
+query I
+select * from t1;
+----
+1
+3
+5
+3
+
+statement ok
 update t1 set generate_series = 3;
 
 query I
@@ -13,3 +24,12 @@ select * from t1;
 3
 3
 3
+
+statement error Update statement with table reference in column name
+update t1 set t1.generate_series = 1
+
+statement ok
+create external table t3 from debug options (table_type = 'never_ending');
+
+statement error Update for external tables
+update t3 set a = 10;

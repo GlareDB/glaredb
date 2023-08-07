@@ -347,7 +347,9 @@ impl SessionContext {
                 .delete_rows_where(table_entry, plan.where_expr)
                 .await?
         } else {
-            return Err(ExecError::MissingObject { typ: "table", name });
+            return Err(ExecError::UnsupportedSQLStatement(
+                "Delete for external tables".to_string(),
+            ));
         };
         Ok(())
     }
@@ -363,7 +365,9 @@ impl SessionContext {
                 .update_rows_where(table_entry, plan.updates, plan.where_expr)
                 .await?
         } else {
-            return Err(ExecError::MissingObject { typ: "table", name });
+            return Err(ExecError::UnsupportedSQLStatement(
+                "Update for external tables".to_string(),
+            ));
         };
         Ok(())
     }

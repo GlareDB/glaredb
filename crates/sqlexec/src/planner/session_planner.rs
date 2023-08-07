@@ -1007,6 +1007,10 @@ impl<'a> SessionPlanner<'a> {
                 .into())
             }
 
+            // "UPDATE <table_name> SET <col1> = <value_expression> WHERE <expression>"
+            //
+            // update column values of a table for rows that match the expression.
+            // or all the rows if no expression is provided.
             ast::Statement::Update {
                 table,
                 assignments,
@@ -1038,7 +1042,9 @@ impl<'a> SessionPlanner<'a> {
                             .await?;
                         updates.push((column, update_value));
                     } else {
-                        return Err(PlanError::UnsupportedSQLStatement("Do not include the table's name in the specification of a target column — for example, UPDATE table_name SET table_name.col = 1 is invalid.".to_string()));
+                        return Err(PlanError::UnsupportedSQLStatement(
+                            "Update statement with table reference in column name".to_string(),
+                        ));
                     }
                 }
 
