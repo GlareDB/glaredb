@@ -146,6 +146,14 @@ const CONNECTION_ID: ServerVar<Uuid> = ServerVar {
     description: "Connection ID",
 };
 
+const REMOTE_SESSION_ID: ServerVar<Option<Uuid>> = ServerVar {
+    name: "remote_session_id",
+    value: &None,
+    group: "glaredb",
+    user_configurable: false,
+    description: "Session ID on remote service.",
+};
+
 const USER_ID: ServerVar<Uuid> = ServerVar {
     name: "user_id",
     value: &Uuid::nil(),
@@ -227,6 +235,7 @@ pub struct SessionVars {
     pub glaredb_version: SessionVar<str>,
     pub database_id: SessionVar<Uuid>,
     pub connection_id: SessionVar<Uuid>,
+    pub remote_session_id: SessionVar<Option<Uuid>>,
     pub user_id: SessionVar<Uuid>,
     pub user_name: SessionVar<str>,
     pub database_name: SessionVar<str>,
@@ -281,6 +290,8 @@ impl SessionVars {
             Ok(&self.user_id)
         } else if name.eq_ignore_ascii_case(CONNECTION_ID.name) {
             Ok(&self.connection_id)
+        } else if name.eq_ignore_ascii_case(REMOTE_SESSION_ID.name) {
+            Ok(&self.remote_session_id)
         } else if name.eq_ignore_ascii_case(USER_NAME.name) {
             Ok(&self.user_name)
         } else if name.eq_ignore_ascii_case(DATABASE_NAME.name) {
@@ -332,6 +343,8 @@ impl SessionVars {
             self.user_id.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(CONNECTION_ID.name) {
             self.connection_id.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(REMOTE_SESSION_ID.name) {
+            self.remote_session_id.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(USER_NAME.name) {
             self.user_name.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(DATABASE_NAME.name) {
@@ -368,6 +381,7 @@ impl Default for SessionVars {
             database_id: SessionVar::new(&DATABASE_ID),
             user_id: SessionVar::new(&USER_ID),
             connection_id: SessionVar::new(&CONNECTION_ID),
+            remote_session_id: SessionVar::new(&REMOTE_SESSION_ID),
             user_name: SessionVar::new(&USER_NAME),
             database_name: SessionVar::new(&DATABASE_NAME),
             max_datasource_count: SessionVar::new(&MAX_DATASOURCE_COUNT),

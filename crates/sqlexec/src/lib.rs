@@ -11,6 +11,7 @@ mod background_jobs;
 mod functions;
 mod metrics;
 mod planner;
+mod remote;
 pub use planner::logical_plan::LogicalPlan;
 
 pub mod export {

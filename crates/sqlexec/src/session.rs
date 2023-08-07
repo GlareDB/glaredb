@@ -2,7 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::metastore::{catalog::SessionCatalog, client::SupervisorClient};
+use crate::metastore::catalog::SessionCatalog;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -19,8 +19,10 @@ use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::ObjStoreAccess;
 use pgrepr::format::Format;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
+use tonic::transport::Channel;
 
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
@@ -189,11 +191,11 @@ impl Session {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
-        metastore: SupervisorClient,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
+        exec_client: Option<ExecutionServiceClient<Channel>>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
@@ -205,14 +207,18 @@ impl Session {
         let ctx = SessionContext::new(
             vars,
             catalog,
-            metastore,
             native_tables,
             metrics,
             spill_path,
             background_jobs,
+            exec_client,
         )?;
 
         Ok(Session { ctx })
+    }
+
+    pub fn get_session_catalog(&self) -> &SessionCatalog {
+        self.ctx.get_session_catalog()
     }
 
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
@@ -229,7 +235,7 @@ impl Session {
     }
 
     /// Execute a datafusion physical plan.
-    pub(crate) fn execute_physical(
+    pub fn execute_physical(
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {

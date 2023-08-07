@@ -1,7 +1,7 @@
 //! Module for facilitating interaction with the Metastore.
 
-use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
-use protogen::metastore::gen::service::{
+use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
+use protogen::gen::metastore::service::{
     FetchCatalogRequest, InitializeCatalogRequest, MutateRequest,
 };
 use protogen::metastore::strategy::ResolveErrorStrategy;
@@ -630,7 +630,7 @@ mod tests {
     use super::*;
     use metastore::local::start_inprocess;
     use object_store::memory::InMemory;
-    use protogen::metastore::gen::service::metastore_service_client::MetastoreServiceClient;
+    use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
     use protogen::metastore::types::service::{CreateSchema, CreateView, Mutation};
     use tonic::transport::Channel;
 

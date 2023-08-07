@@ -1,11 +1,11 @@
 use anyhow::Result;
 use metastore::srv::Service;
 use object_store::ObjectStore;
-use protogen::metastore::gen::service::metastore_service_server::MetastoreServiceServer;
+use protogen::gen::metastore::service::metastore_service_server::MetastoreServiceServer;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tonic::transport::Server;
-use tracing::{debug, debug_span};
+use tracing::{debug_span, info};
 
 pub struct Metastore {
     service: Service,
@@ -19,7 +19,7 @@ impl Metastore {
     }
 
     pub async fn serve(self, addr: SocketAddr) -> Result<()> {
-        debug!(%addr, "starting metastore service");
+        info!(%addr, "starting metastore service");
         Server::builder()
             .trace_fn(|_| debug_span!("metastore_service_request"))
             .add_service(MetastoreServiceServer::new(self.service))

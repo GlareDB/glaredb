@@ -14,6 +14,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
 use datafusion_ext::vars::SessionVars;
@@ -137,13 +138,19 @@ impl LocalSession {
         )
         .await?;
 
-        Ok(LocalSession {
-            sess: engine
+        // TODO: Make this configurable through client commands.
+        let sess = if let Ok(url) = std::env::var("RPC_HOST_URL") {
+            let exec_client = ExecutionServiceClient::connect(url).await?;
+            engine
+                .new_remote_session(SessionVars::default(), exec_client)
+                .await?
+        } else {
+            engine
                 .new_session(SessionVars::default(), SessionStorageConfig::default())
-                .await?,
-            engine,
-            opts,
-        })
+                .await?
+        };
+
+        Ok(LocalSession { sess, engine, opts })
     }
 
     pub async fn run(mut self, query: Option<String>) -> Result<()> {

@@ -2,7 +2,7 @@
 //!
 //! Note this uses the re-exported Arrow types from Datafusion.
 use super::{FromOptionalField, ProtoConvError};
-use crate::metastore::gen::arrow;
+use crate::gen::metastore::arrow;
 use datafusion::arrow::datatypes::{
     DataType, Field, IntervalUnit, TimeUnit, UnionFields, UnionMode,
 };

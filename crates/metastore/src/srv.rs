@@ -3,8 +3,8 @@ use crate::errors::MetastoreError;
 use crate::storage::persist::Storage;
 use async_trait::async_trait;
 use object_store::ObjectStore;
-use protogen::metastore::gen::service::metastore_service_server::MetastoreService;
-use protogen::metastore::gen::service::{
+use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
+use protogen::gen::metastore::service::{
     self, FetchCatalogRequest, FetchCatalogResponse, InitializeCatalogRequest,
     InitializeCatalogResponse, MutateRequest, MutateResponse,
 };
