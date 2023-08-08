@@ -33,6 +33,9 @@ pub enum RpcsrvError {
     #[error(transparent)]
     TonicTransport(#[from] tonic::transport::Error),
 
+    #[error(transparent)]
+    InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
+
     #[error("{0}")]
     Internal(String),
 }

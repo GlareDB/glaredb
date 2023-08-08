@@ -21,6 +21,7 @@ use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
+use sqlexec::remote::client::AuthenticatedExecutionServiceClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::fmt::Write as _;
@@ -141,7 +142,7 @@ impl LocalSession {
 
         // TODO: Make this configurable through client commands.
         let sess = if let Ok(url) = std::env::var("RPC_HOST_URL") {
-            let exec_client = ExecutionServiceClient::connect(url).await?;
+            let exec_client = AuthenticatedExecutionServiceClient::connect(url).await?;
             engine
                 .new_remote_session(SessionVars::default(), exec_client)
                 .await?

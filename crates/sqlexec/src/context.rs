@@ -8,6 +8,7 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+use crate::remote::client::AuthenticatedExecutionServiceClient;
 use crate::remote::planner::RemotePlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -65,7 +66,7 @@ pub struct SessionContext {
     /// The execution client for remote sessions.
     // TODO: This is currently unused, but we'll likely need it for running some
     // of our custom plans on a remote service.
-    _exec_client: Option<ExecutionServiceClient<Channel>>,
+    _exec_client: Option<AuthenticatedExecutionServiceClient>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -104,7 +105,7 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<ExecutionServiceClient<Channel>>,
+        exec_client: Option<AuthenticatedExecutionServiceClient>,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.

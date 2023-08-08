@@ -6,6 +6,9 @@ use protogen::gen::rpcsrv::service::{
     ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
 };
 use proxyutil::cloudauth::{AuthParams, ProxyAuthenticator, ServiceProtocol};
+use proxyutil::metada_constants::{
+    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
+};
 use std::{hash::Hash, time::Duration};
 use tonic::{
     metadata::MetadataMap,
@@ -89,12 +92,15 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
             Ok(val)
         }
 
-        let user = get_val("user", meta)?;
-        let password = get_val("password", meta)?;
-        let db_name = get_val("db_name", meta)?;
-        let org = get_val("org", meta)?;
+        let user = get_val(USER_KEY, meta)?;
+        let password = get_val(PASSWORD_KEY, meta)?;
+        let db_name = get_val(DB_NAME_KEY, meta)?;
+        let org = get_val(ORG_KEY, meta)?;
 
-        let compute_engine = meta.get("compute_engine").map(|s| s.to_str()).transpose()?;
+        let compute_engine = meta
+            .get(COMPUTE_ENGINE_KEY)
+            .map(|s| s.to_str())
+            .transpose()?;
 
         Ok(AuthParams {
             user,

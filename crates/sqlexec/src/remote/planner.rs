@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tonic::transport::Channel;
 use uuid::Uuid;
 
+use super::client::AuthenticatedExecutionServiceClient;
 use super::exec::RemoteLogicalExec;
 
 /// A planner that executes everything on a remote service.
@@ -15,11 +16,11 @@ use super::exec::RemoteLogicalExec;
 pub struct RemotePlanner {
     session_id: Uuid,
     /// Client to remote services.
-    client: ExecutionServiceClient<Channel>,
+    client: AuthenticatedExecutionServiceClient,
 }
 
 impl RemotePlanner {
-    pub fn new(session_id: Uuid, client: ExecutionServiceClient<Channel>) -> RemotePlanner {
+    pub fn new(session_id: Uuid, client: AuthenticatedExecutionServiceClient) -> RemotePlanner {
         RemotePlanner { session_id, client }
     }
 }

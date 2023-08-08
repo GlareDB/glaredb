@@ -26,12 +26,14 @@ use tonic::transport::Channel;
 use tonic::Streaming;
 use uuid::Uuid;
 
+use super::client::AuthenticatedExecutionServiceClient;
+
 /// Execute a logical plan on a remote service.
 #[derive(Debug, Clone)]
 pub struct RemoteLogicalExec {
     session_id: Uuid,
     /// Client to remote services.
-    client: ExecutionServiceClient<Channel>,
+    client: AuthenticatedExecutionServiceClient,
     /// The logical plan to execute remotely.
     plan: DfLogicalPlan,
 }
@@ -39,7 +41,7 @@ pub struct RemoteLogicalExec {
 impl RemoteLogicalExec {
     pub fn new(
         session_id: Uuid,
-        client: ExecutionServiceClient<Channel>,
+        client: AuthenticatedExecutionServiceClient,
         plan: DfLogicalPlan,
     ) -> Self {
         RemoteLogicalExec {
@@ -125,7 +127,7 @@ impl DisplayAs for RemoteLogicalExec {
 /// Execute the encoded logical plan on the remote service.
 async fn execute_logical_remote(
     session_id: Uuid,
-    mut client: ExecutionServiceClient<Channel>,
+    mut client: AuthenticatedExecutionServiceClient,
     logical: Vec<u8>,
 ) -> DataFusionResult<ExecutionResponseBatchStream> {
     let resp = client

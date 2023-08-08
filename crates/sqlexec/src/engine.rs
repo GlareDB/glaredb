@@ -1,6 +1,7 @@
 use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
+use crate::remote::client::AuthenticatedExecutionServiceClient;
 use crate::session::Session;
 use datafusion_ext::vars::{SessionVars, VarSetter};
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
@@ -174,7 +175,7 @@ impl Engine {
     pub async fn new_remote_session(
         &self,
         mut vars: SessionVars,
-        mut exec_client: ExecutionServiceClient<Channel>,
+        mut exec_client: AuthenticatedExecutionServiceClient,
     ) -> Result<TrackedSession> {
         let database_id = *vars.database_id.value();
 

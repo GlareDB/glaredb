@@ -126,6 +126,12 @@ pub enum ExecError {
 
     #[error(transparent)]
     SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
+
+    #[error(transparent)]
+    TonicTransport(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

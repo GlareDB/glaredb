@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
+use crate::remote::client::AuthenticatedExecutionServiceClient;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -199,7 +200,7 @@ impl Session {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<ExecutionServiceClient<Channel>>,
+        exec_client: Option<AuthenticatedExecutionServiceClient>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
