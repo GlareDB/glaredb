@@ -159,11 +159,18 @@ impl ComputeServer {
         if let Some(addr) = conf.rpc_addr {
             let handler = RpcHandler::new(self.engine.clone());
             info!("Starting rpc service");
-            Server::builder()
-                .trace_fn(|_| debug_span!("rpc_service_request"))
-                .add_service(ExecutionServiceServer::new(handler))
-                .serve(addr)
-                .await?;
+            tokio::spawn(async move {
+                if let Err(e) = Server::builder()
+                    .trace_fn(|_| debug_span!("rpc_service_request"))
+                    .add_service(ExecutionServiceServer::new(handler))
+                    .serve(addr)
+                    .await
+                {
+                    // TODO: Maybe panic instead? Revisit once we have
+                    // everything working.
+                    error!(%e, "rpc serviced died");
+                }
+            });
         }
 
         // Postgres handler loop.
@@ -194,5 +201,63 @@ impl ComputeServer {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use pgsrv::auth::SingleUserAuthenticator;
+    use tokio_postgres::{Config as ClientConfig, NoTls};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn no_hang_on_rpc_service_start() {
+        let pg_listener = TcpListener::bind("localhost:0").await.unwrap();
+        let pg_addr = pg_listener.local_addr().unwrap();
+        let server_conf = ServerConfig {
+            pg_listener,
+            rpc_addr: Some("0.0.0.0:0".parse().unwrap()),
+        };
+
+        let server = ComputeServer::connect(
+            None,
+            None,
+            Box::new(SingleUserAuthenticator {
+                user: "glaredb".to_string(),
+                password: "glaredb".to_string(),
+            }),
+            None,
+            None,
+            None,
+            false,
+        )
+        .await
+        .unwrap();
+        tokio::spawn(server.serve(server_conf));
+
+        let (client, conn) = tokio::time::timeout(
+            Duration::from_secs(5),
+            ClientConfig::new()
+                .user("glaredb")
+                .password("glaredb")
+                .dbname("glaredb")
+                .host("localhost")
+                .port(pg_addr.port())
+                .connect(NoTls),
+        )
+        .await
+        .unwrap() // Timeout error
+        .unwrap(); // Connect error
+
+        let (conn_err_tx, _conn_err_rx) = oneshot::channel();
+        tokio::spawn(async move { conn_err_tx.send(conn.await) });
+
+        tokio::time::timeout(Duration::from_secs(5), client.simple_query("select 1"))
+            .await
+            .unwrap() // Timeout error
+            .unwrap(); // Query error
     }
 }
