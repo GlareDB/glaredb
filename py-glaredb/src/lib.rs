@@ -3,6 +3,8 @@ mod error;
 mod logical_plan;
 mod runtime;
 mod session;
+mod util;
+
 use environment::PyEnvironmentReader;
 use error::PyGlareDbError;
 use futures::lock::Mutex;
