@@ -26,6 +26,8 @@ more without moving data around.
 
 ## Install
 
+GlareDB can be installed in the **current working directory** with:
+
 ```shell
 curl https://glaredb.com/install.sh | sh
 ```
@@ -36,10 +38,16 @@ If you prefer manual installation, download, extract and run the GlareDB binary 
 
 ## Getting started
 
-Start GlareDB with the `local` subcommand to start a local SQL session:
+To start a local session, run:
 
 ```shell
-./glaredb local
+./glaredb
+```
+
+To see all options use `--help`:
+
+```sh
+./glaredb --help
 ```
 
 Alternatively, the `server` subcommand can be used to launch a server process
@@ -49,9 +57,15 @@ for GlareDB:
 ./glaredb server
 ```
 
+To see all options for running in server mode, use `--help`:
+
+```sh
+./glaredb server --help
+```
+
 When launched as a server process, GlareDB can be reached on port 6543 using a
-Postgres client. For example, connected to a local instance of GlareDB using
-`psql`:
+Postgres client. The following example uses `psql` to connect to a locally
+running server:
 
 ```shell
 psql "host=localhost user=glaredb dbname=glaredb port=6543"
