@@ -44,11 +44,10 @@ To start a local session, run:
 ./glaredb
 ```
 
-If you need to pass options, you must specify `local`. To see all options for
-running locally, use `--help`:
+To see all options use `--help`:
 
 ```sh
-./glaredb local --help
+./glaredb --help
 ```
 
 Alternatively, the `server` subcommand can be used to launch a server process
