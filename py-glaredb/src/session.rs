@@ -5,6 +5,7 @@ use datafusion::arrow::{datatypes::Schema, pyarrow::ToPyArrow};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use pyo3::types::PyDict;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::{
     engine::{Engine, TrackedSession},
@@ -143,7 +144,10 @@ fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
 
             let disp = pretty_format_batches(&batches, None, None, None)
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            println!("{disp}");
+
+            let locals = PyDict::new(py);
+            locals.set_item("batch_str", disp.to_string())?;
+            py.run("print(batch_str)", None, Some(locals))?;
             Ok(())
         }
         _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
