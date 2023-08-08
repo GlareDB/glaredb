@@ -2537,6 +2537,7 @@ dependencies = [
  "sqlexec",
  "telemetry",
  "tokio",
+ "tokio-postgres",
  "tonic",
  "tracing",
  "uuid",
