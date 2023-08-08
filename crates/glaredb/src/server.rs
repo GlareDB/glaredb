@@ -168,7 +168,7 @@ impl ComputeServer {
                 {
                     // TODO: Maybe panic instead? Revisit once we have
                     // everything working.
-                    error!(%e, "rpc serviced died");
+                    error!(%e, "rpc service died");
                 }
             });
         }
