@@ -29,22 +29,31 @@ struct Cli {
     json_logging: bool,
 
     #[clap(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+
+    #[clap(flatten)]
+    local_args: LocalArgs,
+}
+
+#[derive(Parser)]
+struct LocalArgs {
+    /// Execute a query, exiting upon completion.
+    ///
+    /// Multiple statements may be provided, and results will be printed out
+    /// one after another.
+    #[clap(short, long, value_parser)]
+    query: Option<String>,
+
+    #[clap(flatten)]
+    opts: LocalClientOpts,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Starts a local version of GlareDB.
+    /// Starts a local version of GlareDB (default).
     Local {
-        /// Execute a query, exiting upon completion.
-        ///
-        /// Multiple statements may be provided, and results will be printed out
-        /// one after another.
-        #[clap(short, long, value_parser)]
-        query: Option<String>,
-
         #[clap(flatten)]
-        opts: LocalClientOpts,
+        args: LocalArgs,
     },
 
     /// Starts the sql server portion of GlareDB.
@@ -175,17 +184,29 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // If some one runs "glaredb", we want them to default to running the local
+    // version. This pulls out the args and places them in a local command to
+    // keep all the below logic.
+    let command = match cli.command {
+        Some(command) => command,
+        None => Commands::Local {
+            args: cli.local_args,
+        },
+    };
+
     // Disable logging when running locally since it'll clobber the repl
     // _unless_ the user specified a logging related option.
-    match (&cli.command, cli.json_logging, cli.verbose) {
+    match (&command, cli.json_logging, cli.verbose) {
         (Commands::Local { .. }, false, 0) => (),
         _ => logutil::init(cli.verbose, cli.json_logging),
     }
 
     info!(version = env!("CARGO_PKG_VERSION"), "starting...");
 
-    match cli.command {
-        Commands::Local { query, opts } => {
+    match command {
+        Commands::Local {
+            args: LocalArgs { query, opts },
+        } => {
             let runtime = build_runtime("local")?;
             runtime.block_on(async move {
                 let local = LocalSession::connect(opts).await?;
