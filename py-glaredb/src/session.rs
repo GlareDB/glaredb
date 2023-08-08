@@ -1,3 +1,4 @@
+use crate::util::pyprint;
 use anyhow::Result;
 use arrow_util::pretty::pretty_format_batches;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -143,8 +144,8 @@ fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
 
             let disp = pretty_format_batches(&batches, None, None, None)
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            println!("{disp}");
-            Ok(())
+
+            pyprint(disp, py)
         }
         _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
     }
