@@ -26,7 +26,7 @@ more without moving data around.
 
 ## Install
 
-GlareDB can be installed in the **current working directory** with
+GlareDB can be installed in the **current working directory** with:
 
 ```shell
 curl https://glaredb.com/install.sh | sh
