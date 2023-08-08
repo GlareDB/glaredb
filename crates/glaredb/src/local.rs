@@ -61,6 +61,7 @@ pub struct LocalClientOpts {
     pub mode: OutputMode,
 
     /// Max width for tables to display.
+    #[clap(long)]
     pub width: Option<usize>,
 
     /// Max number of rows to display.
