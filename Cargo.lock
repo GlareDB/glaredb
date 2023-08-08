@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "arrow_util"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "comfy-table",
  "datafusion",
@@ -648,7 +648,7 @@ checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
 name = "bench_runner"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -922,7 +922,7 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "bytesutil"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytes",
 ]
@@ -1752,7 +1752,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_ext"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "datasources"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "apache-avro 0.15.0",
  "async-channel",
@@ -1826,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "decimal"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "num-traits",
  "regex",
@@ -2512,7 +2512,7 @@ checksum = "b6c80984affa11d98d1b88b66ac8853f143217b399d3c74116778ff8fdb4ed2e"
 
 [[package]]
 name = "glaredb"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arrow_util",
@@ -2888,7 +2888,7 @@ dependencies = [
 
 [[package]]
 name = "ioutil"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytes",
 ]
@@ -3162,7 +3162,7 @@ checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 
 [[package]]
 name = "logutil"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "tracing",
  "tracing-log",
@@ -3306,7 +3306,7 @@ dependencies = [
 
 [[package]]
 name = "metastore"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3719,7 +3719,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_util"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3955,7 +3955,7 @@ dependencies = [
 
 [[package]]
 name = "pgprototest"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3969,7 +3969,7 @@ dependencies = [
 
 [[package]]
 name = "pgrepr"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytes",
  "chrono",
@@ -3986,7 +3986,7 @@ dependencies = [
 
 [[package]]
 name = "pgsrv"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4351,7 +4351,7 @@ dependencies = [
 
 [[package]]
 name = "protogen"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "datafusion",
  "proptest",
@@ -4367,7 +4367,7 @@ dependencies = [
 
 [[package]]
 name = "proxyutil"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "futures",
@@ -4412,7 +4412,7 @@ dependencies = [
 
 [[package]]
 name = "py-glaredb"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arrow_util",
@@ -4754,7 +4754,7 @@ dependencies = [
 
 [[package]]
 name = "repr"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "decimal",
@@ -4876,7 +4876,7 @@ checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
 name = "rpcsrv"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5689,7 +5689,7 @@ checksum = "5e9f0ab6ef7eb7353d9119c170a436d1bf248eea575ac42d19d12f4e34130831"
 
 [[package]]
 name = "snowflake_connector"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.21.2",
  "bytes",
@@ -5746,7 +5746,7 @@ dependencies = [
 
 [[package]]
 name = "sqlbuiltins"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -5775,7 +5775,7 @@ dependencies = [
 
 [[package]]
 name = "sqlexec"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6045,7 +6045,7 @@ checksum = "1b1c7f239eb94671427157bd93b3694320f3668d4e1eff08c7285366fd777fac"
 
 [[package]]
 name = "telemetry"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "segment",
  "serde_json",
@@ -6078,7 +6078,7 @@ dependencies = [
 
 [[package]]
 name = "testing"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
