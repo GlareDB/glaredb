@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::errors::{ExecError, Result};
 use protogen::gen::rpcsrv::service::{
     execution_service_client::ExecutionServiceClient, ExecuteRequest, ExecuteResponse,
     InitializeSessionRequest, InitializeSessionResponse,
@@ -12,19 +12,88 @@ use tonic::{
     transport::{Channel, Endpoint},
     IntoRequest, Response, Status, Streaming,
 };
+use url::Url;
 
 /// Params that need to be set on grpc connections when going through the proxy.
-pub struct ProxyAuthParams<'a> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProxyAuthParams {
     /// User (generated Cloud credentials)
-    pub user: &'a str,
+    pub user: String,
     /// Password (generated Cloud credentials)
-    pub password: &'a str,
+    pub password: String,
     /// DB name
-    pub db_name: &'a str,
+    pub db_name: String,
     /// Org name.
-    pub org: &'a str,
+    pub org: String,
     /// Compute engine name.
-    pub compute_engine: Option<&'a str>,
+    pub compute_engine: Option<String>,
+}
+
+/// Auth params and destination to use when connecting the client.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProxyAuthParamsAndDst {
+    pub params: ProxyAuthParams,
+    pub dst: Url,
+}
+
+impl ProxyAuthParamsAndDst {
+    /// Try to parse authentication parameters and destinaton from a url.
+    pub fn try_from_url(url: Url) -> Result<Self> {
+        if url.scheme() != "glaredb" {
+            return Err(ExecError::InvalidRemoteExecUrl(
+                "URL must start with 'glaredb://'".to_string(),
+            ));
+        }
+
+        let user = url.username();
+        let password = url
+            .password()
+            .ok_or_else(|| ExecError::InvalidRemoteExecUrl("Missing password".to_string()))?;
+
+        let host = url
+            .host_str()
+            .ok_or_else(|| ExecError::InvalidRemoteExecUrl("URL is missing a host".to_string()))?;
+
+        // Host should be in the form "orgname.remote.glaredb.com"
+        let (org, host) = host
+            .split_once('.')
+            .ok_or_else(|| ExecError::InvalidRemoteExecUrl("Invalid host".to_string()))?;
+
+        // Remove leading slash from path, use that as database name.
+        let db_name = url.path().trim_start_matches('/');
+        if db_name.len() == 0 {
+            return Err(ExecError::InvalidRemoteExecUrl(
+                "Missing db name".to_string(),
+            ));
+        }
+
+        // Database name could be just the name itself, or may be in the form of
+        // "engine.dbname".
+        let (compute_engine, db_name) =
+            if let Some((compute_engine, db_name)) = db_name.split_once('.') {
+                (Some(compute_engine), db_name)
+            } else {
+                (None, db_name)
+            };
+
+        // Rebuild url that we should actually connect to.
+        let dst =
+            Url::parse(&format!("http://{host}:{}", url.port().unwrap_or(6443))).map_err(|e| {
+                ExecError::Internal(format!("fail to parse reconstructed host and port: {e}"))
+            })?;
+
+        let params = ProxyAuthParams {
+            user: user.to_string(),
+            password: password.to_string(),
+            db_name: db_name.to_string(),
+            org: org.to_string(),
+            compute_engine: compute_engine.map(String::from),
+        };
+
+        println!("{params:+?}");
+
+        Ok(ProxyAuthParamsAndDst { params, dst })
+    }
 }
 
 /// An execution service client that has additonal metadata attached to each
@@ -40,6 +109,9 @@ pub struct AuthenticatedExecutionServiceClient {
 
 impl AuthenticatedExecutionServiceClient {
     /// Connect to destination without any additional authentication metadata.
+    ///
+    /// This can be used for testing (and possibly for inter-node
+    /// communication?).
     pub async fn connect(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
     ) -> Result<Self> {
@@ -53,7 +125,7 @@ impl AuthenticatedExecutionServiceClient {
     /// Connect to a destination with the provided authentication params.
     pub async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
-        params: ProxyAuthParams<'a>,
+        params: ProxyAuthParams,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);

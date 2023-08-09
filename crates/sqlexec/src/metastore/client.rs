@@ -206,7 +206,7 @@ impl SupervisorClient {
         // errors indicate our logic for dropping workers is incorrect, or
         // messages are getting stuck somewhere.
         if let Err(e) = &result {
-            error!(%e, "failed to make metastore worker request");
+            error!(?e, "failed to make metastore worker request");
         }
 
         result
@@ -613,7 +613,7 @@ impl DatabaseWorker {
                 };
                 self.set_cached_state(catalog);
             }
-            Err(e) => error!(%e, "failed to fetch catalog"),
+            Err(e) => error!(?e, "failed to fetch catalog"),
         }
     }
 

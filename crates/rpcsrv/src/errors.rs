@@ -30,7 +30,7 @@ pub enum RpcsrvError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
-    #[error(transparent)]
+    #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
 
     #[error(transparent)]

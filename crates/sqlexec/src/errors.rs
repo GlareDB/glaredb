@@ -106,6 +106,12 @@ pub enum ExecError {
     #[error("internal error: {0}")]
     Internal(String),
 
+    #[error("Remote session error: {0}")]
+    RemoteSession(String),
+
+    #[error("Invalid URL for remote execution: {0}")]
+    InvalidRemoteExecUrl(String),
+
     #[error(transparent)]
     DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
@@ -127,7 +133,7 @@ pub enum ExecError {
     #[error(transparent)]
     SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
 
-    #[error(transparent)]
+    #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
 
     #[error(transparent)]

@@ -190,7 +190,9 @@ impl Engine {
                 db_id: database_id.into_bytes().to_vec(),
             })
             .await
-            .unwrap(); // TODO
+            .map_err(|e| {
+                ExecError::RemoteSession(format!("failed to initialize remote session: {e}"))
+            })?;
         let resp = resp.into_inner();
 
         let remote_id =
