@@ -11,7 +11,7 @@ proxyutil = {path = "../proxyutil"}
 datafusion_ext = {path = "../datafusion_ext"}
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 logutil = {path = "../logutil"}
 protogen = {path = "../protogen"}
 once_cell = "1.18.0"
@@ -19,7 +19,7 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 async-trait = "0.1.72"
 tracing = "0.1"
-thiserror.workspace = true
+thiserror = { workspace = true }
 prost = "0.11"
 prost-types = "0.11"
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
