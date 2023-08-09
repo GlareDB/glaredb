@@ -1,7 +1,7 @@
 use crate::errors::{ExecError, Result};
 use protogen::gen::rpcsrv::service::{
-    execution_service_client::ExecutionServiceClient, ExecuteRequest, ExecuteResponse,
-    InitializeSessionRequest, InitializeSessionResponse,
+    execution_service_client::ExecutionServiceClient, CloseSessionRequest, CloseSessionResponse,
+    ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
 };
 use proxyutil::metada_constants::{
     COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
@@ -160,6 +160,15 @@ impl AuthenticatedExecutionServiceClient {
         let mut request = request.into_request();
         self.append_auth_metadata(request.metadata_mut());
         self.client.execute(request).await
+    }
+
+    pub async fn close_session(
+        &mut self,
+        request: impl IntoRequest<CloseSessionRequest>,
+    ) -> Result<Response<CloseSessionResponse>, Status> {
+        let mut request = request.into_request();
+        self.append_auth_metadata(request.metadata_mut());
+        self.client.close_session(request).await
     }
 
     fn append_auth_metadata(&self, metadata: &mut MetadataMap) {

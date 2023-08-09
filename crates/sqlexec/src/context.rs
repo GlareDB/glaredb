@@ -30,10 +30,12 @@ use datafusion::sql::TableReference;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::init_session_registry;
+use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::gen::rpcsrv::service::CloseSessionRequest;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
@@ -66,7 +68,7 @@ pub struct SessionContext {
     /// The execution client for remote sessions.
     // TODO: This is currently unused, but we'll likely need it for running some
     // of our custom plans on a remote service.
-    _exec_client: Option<AuthenticatedExecutionServiceClient>,
+    exec_client: Option<AuthenticatedExecutionServiceClient>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -165,7 +167,7 @@ impl SessionContext {
         // as much as possible. It makes way too many assumptions.
 
         Ok(SessionContext {
-            _exec_client: exec_client,
+            exec_client,
             catalog,
             current_session_tables: HashMap::new(),
             tables: native_tables,
@@ -939,6 +941,19 @@ impl SessionContext {
         self.search_path_iter()
             .next()
             .ok_or(ExecError::EmptySearchPath)
+    }
+}
+
+impl Drop for SessionContext {
+    fn drop(&mut self) {
+        if let (Some(mut client), Some(remote_session_id)) = (
+            self.exec_client.clone(),
+            self.vars.remote_session_id.value(),
+        ) {
+            let _ = executor::block_on(client.close_session(CloseSessionRequest {
+                session_id: (*remote_session_id).as_bytes().to_vec(),
+            }));
+        }
     }
 }
 

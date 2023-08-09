@@ -12,8 +12,8 @@ use futures::{Stream, StreamExt};
 use protogen::gen::{
     metastore::catalog::CatalogState,
     rpcsrv::service::{
-        execution_service_server::ExecutionService, ExecuteRequest, ExecuteResponse,
-        InitializeSessionRequest, InitializeSessionResponse,
+        execution_service_server::ExecutionService, CloseSessionRequest, CloseSessionResponse,
+        ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
     },
 };
 use sqlexec::engine::{Engine, SessionStorageConfig};
@@ -93,6 +93,13 @@ impl RpcHandler {
             buf: Vec::new(),
         })
     }
+
+    async fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
+        let session_id =
+            Uuid::from_slice(&req.session_id).map_err(|e| RpcsrvError::InvalidId("session", e))?;
+        self.sessions.remove(&session_id);
+        Ok(CloseSessionResponse {})
+    }
 }
 
 #[async_trait]
@@ -115,6 +122,15 @@ impl ExecutionService for RpcHandler {
         info!("executing");
         let stream = self.execute_inner(request.into_inner()).await?;
         Ok(Response::new(Box::pin(stream)))
+    }
+
+    async fn close_session(
+        &self,
+        request: Request<CloseSessionRequest>,
+    ) -> Result<Response<CloseSessionResponse>, Status> {
+        info!("closing session");
+        let resp = self.close_session_inner(request.into_inner()).await?;
+        Ok(Response::new(resp))
     }
 }
 

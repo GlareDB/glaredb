@@ -3,7 +3,8 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use protogen::gen::rpcsrv::service::{
     execution_service_client::ExecutionServiceClient, execution_service_server::ExecutionService,
-    ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
+    CloseSessionRequest, CloseSessionResponse, ExecuteRequest, ExecuteResponse,
+    InitializeSessionRequest, InitializeSessionResponse,
 };
 use proxyutil::cloudauth::{AuthParams, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metada_constants::{
@@ -133,5 +134,14 @@ impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
         info!("execute (proxy)");
         let mut client = self.connect(request.metadata()).await?;
         client.execute(request).await
+    }
+
+    async fn close_session(
+        &self,
+        request: Request<CloseSessionRequest>,
+    ) -> Result<Response<CloseSessionResponse>, Status> {
+        info!("close session (proxy)");
+        let mut client = self.connect(request.metadata()).await?;
+        client.close_session(request).await
     }
 }
