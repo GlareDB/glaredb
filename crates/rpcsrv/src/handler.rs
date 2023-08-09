@@ -12,8 +12,9 @@ use futures::{Stream, StreamExt};
 use protogen::gen::{
     metastore::catalog::CatalogState,
     rpcsrv::service::{
-        execution_service_server::ExecutionService, CloseSessionRequest, CloseSessionResponse,
-        ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
+        execution_service_server::ExecutionService, initialize_session_request,
+        CloseSessionRequest, CloseSessionResponse, ExecuteRequest, ExecuteResponse,
+        InitializeSessionRequest, InitializeSessionResponse,
     },
 };
 use sqlexec::engine::{Engine, SessionStorageConfig};
@@ -46,8 +47,33 @@ impl RpcHandler {
         &self,
         req: InitializeSessionRequest,
     ) -> Result<InitializeSessionResponse> {
-        let db_id =
-            Uuid::from_slice(&req.db_id).map_err(|e| RpcsrvError::InvalidId("database", e))?;
+        // Get db id and storage config from the request.
+        //
+        // This will check that we actually received a proxy request, and not a
+        // request from the client.
+        let (db_id, storage_conf) = match req.request.ok_or_else(|| {
+            RpcsrvError::SessionInitalizeError("missing initialize request".to_string())
+        })? {
+            initialize_session_request::Request::Proxy(req) => {
+                let db_id = Uuid::from_slice(&req.db_id)
+                    .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+                let storage_conf = SessionStorageConfig {
+                    gcs_bucket: req
+                        .storage_conf
+                        .ok_or_else(|| {
+                            RpcsrvError::SessionInitalizeError("missing storage config".to_string())
+                        })?
+                        .gcs_bucket,
+                };
+                (db_id, storage_conf)
+            }
+            _ => {
+                return Err(RpcsrvError::SessionInitalizeError(
+                    "unexpectedly received client request, expected a request from the proxy"
+                        .to_string(),
+                ))
+            }
+        };
 
         let conn_id = Uuid::new_v4();
 
@@ -56,11 +82,7 @@ impl RpcHandler {
         vars.database_id.set_and_log(db_id, VarSetter::System);
         vars.connection_id.set_and_log(conn_id, VarSetter::System);
 
-        // TODO: Appropriate storage config.
-        let sess = self
-            .engine
-            .new_session(vars, SessionStorageConfig::default())
-            .await?;
+        let sess = self.engine.new_session(vars, storage_conf).await?;
 
         let sess = RemoteSession::new(sess);
         let initial_state: CatalogState = sess.get_catalog_state().await.try_into()?;

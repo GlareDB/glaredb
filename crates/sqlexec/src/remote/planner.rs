@@ -3,9 +3,7 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::context::{QueryPlanner, SessionState};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::ExecutionPlan;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use std::sync::Arc;
-use tonic::transport::Channel;
 use uuid::Uuid;
 
 use super::client::AuthenticatedExecutionServiceClient;

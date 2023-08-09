@@ -13,7 +13,6 @@ use datafusion::physical_plan::{
 use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
 use datafusion_proto::protobuf::LogicalPlanNode;
 use futures::{stream, Stream, StreamExt, TryStreamExt};
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::gen::rpcsrv::service::{execute_request::Plan, ExecuteRequest, ExecuteResponse};
 use std::any::Any;
 use std::collections::VecDeque;
@@ -22,7 +21,6 @@ use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tonic::transport::Channel;
 use tonic::Streaming;
 use uuid::Uuid;
 

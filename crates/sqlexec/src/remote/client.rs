@@ -3,7 +3,7 @@ use protogen::gen::rpcsrv::service::{
     execution_service_client::ExecutionServiceClient, CloseSessionRequest, CloseSessionResponse,
     ExecuteRequest, ExecuteResponse, InitializeSessionRequest, InitializeSessionResponse,
 };
-use proxyutil::metada_constants::{
+use proxyutil::metadata_constants::{
     COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
 use std::sync::Arc;
@@ -13,6 +13,8 @@ use tonic::{
     IntoRequest, Response, Status, Streaming,
 };
 use url::Url;
+
+const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 
 /// Params that need to be set on grpc connections when going through the proxy.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +63,7 @@ impl ProxyAuthParamsAndDst {
 
         // Remove leading slash from path, use that as database name.
         let db_name = url.path().trim_start_matches('/');
-        if db_name.len() == 0 {
+        if db_name.is_empty() {
             return Err(ExecError::InvalidRemoteExecUrl(
                 "Missing db name".to_string(),
             ));
@@ -77,10 +79,13 @@ impl ProxyAuthParamsAndDst {
             };
 
         // Rebuild url that we should actually connect to.
-        let dst =
-            Url::parse(&format!("http://{host}:{}", url.port().unwrap_or(6443))).map_err(|e| {
-                ExecError::Internal(format!("fail to parse reconstructed host and port: {e}"))
-            })?;
+        let dst = Url::parse(&format!(
+            "http://{host}:{}",
+            url.port().unwrap_or(DEFAULT_RPC_PROXY_PORT)
+        ))
+        .map_err(|e| {
+            ExecError::Internal(format!("fail to parse reconstructed host and port: {e}"))
+        })?;
 
         let params = ProxyAuthParams {
             user: user.to_string(),
@@ -182,5 +187,73 @@ impl AuthenticatedExecutionServiceClient {
                 }
             };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn params_from_url_valid_default_port() {
+        let out = ProxyAuthParamsAndDst::try_from_url(
+            Url::parse("glaredb://user:password@org.remote.glaredb.com/db").unwrap(),
+        )
+        .unwrap();
+
+        let expected = ProxyAuthParamsAndDst {
+            params: ProxyAuthParams {
+                user: "user".to_string(),
+                password: "password".to_string(),
+                db_name: "db".to_string(),
+                org: "org".to_string(),
+                compute_engine: None,
+            },
+            dst: Url::parse("http://remote.glaredb.com:6443").unwrap(),
+        };
+
+        assert_eq!(expected, out);
+    }
+
+    #[test]
+    fn params_from_url_valid_port_and_engine() {
+        let out = ProxyAuthParamsAndDst::try_from_url(
+            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/engine.db").unwrap(),
+        )
+        .unwrap();
+
+        let expected = ProxyAuthParamsAndDst {
+            params: ProxyAuthParams {
+                user: "user".to_string(),
+                password: "password".to_string(),
+                db_name: "db".to_string(),
+                org: "org".to_string(),
+                compute_engine: Some("engine".to_string()),
+            },
+            dst: Url::parse("http://remote.glaredb.com:4444").unwrap(),
+        };
+
+        assert_eq!(expected, out);
+    }
+
+    #[test]
+    fn params_from_url_invalid() {
+        // Invalid scheme
+        ProxyAuthParamsAndDst::try_from_url(
+            Url::parse("http://user:password@org.remote.glaredb.com:4444/engine.db").unwrap(),
+        )
+        .unwrap_err();
+
+        // Missing password
+        ProxyAuthParamsAndDst::try_from_url(
+            Url::parse("glaredb://user@org.remote.glaredb.com:4444/engine.db").unwrap(),
+        )
+        .unwrap_err();
+
+        // Missing db name
+        ProxyAuthParamsAndDst::try_from_url(
+            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/").unwrap(),
+        )
+        .unwrap_err();
     }
 }

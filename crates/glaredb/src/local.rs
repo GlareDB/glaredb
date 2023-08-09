@@ -152,7 +152,7 @@ impl LocalSession {
             )
             .await?;
             engine
-                .new_remote_session(SessionVars::default(), exec_client)
+                .new_session_with_remote_connection(SessionVars::default(), exec_client)
                 .await?
         } else {
             engine

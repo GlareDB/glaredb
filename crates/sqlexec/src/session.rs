@@ -20,10 +20,8 @@ use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::ObjStoreAccess;
 use pgrepr::format::Format;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
-use tonic::transport::Channel;
 
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};

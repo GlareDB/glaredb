@@ -7,7 +7,7 @@ use protogen::gen::rpcsrv::service::{
     InitializeSessionRequest, InitializeSessionResponse,
 };
 use proxyutil::cloudauth::{AuthParams, ProxyAuthenticator, ServiceProtocol};
-use proxyutil::metada_constants::{
+use proxyutil::metadata_constants::{
     COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
 use std::{hash::Hash, time::Duration};

@@ -34,7 +34,6 @@ use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::gen::rpcsrv::service::CloseSessionRequest;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
@@ -45,7 +44,6 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tonic::transport::Channel;
 use tracing::info;
 
 /// Implicity schemas that are consulted during object resolution.
