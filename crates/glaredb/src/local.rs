@@ -304,7 +304,9 @@ impl LocalSession {
                 println!("Created new session. New database path: {path}");
                 *self = new_sess;
             }
-            ("\\quit", None) => return Ok(ClientCommandResult::Exit),
+            ("\\quit", None) | ("\\q", None) | ("exit", None) => {
+                return Ok(ClientCommandResult::Exit)
+            }
             (cmd, _) => return Err(anyhow!("Unable to handle client command: {cmd}")),
         }
 
@@ -367,7 +369,7 @@ async fn print_stream(
 }
 
 fn is_client_cmd(s: &str) -> bool {
-    s.starts_with('\\')
+    s.starts_with('\\') || s == "exit"
 }
 
 /// Produces JSON output as a single JSON array with new lines between objects.
