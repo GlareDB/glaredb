@@ -2540,6 +2540,7 @@ dependencies = [
  "tokio-postgres",
  "tonic",
  "tracing",
+ "url",
  "uuid",
 ]
 
@@ -5792,6 +5793,7 @@ dependencies = [
  "parking_lot",
  "pgrepr",
  "protogen",
+ "proxyutil",
  "regex",
  "serde_json",
  "sqlbuiltins",

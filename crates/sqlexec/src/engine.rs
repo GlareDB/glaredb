@@ -1,10 +1,12 @@
 use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
+use crate::remote::client::AuthenticatedExecutionServiceClient;
 use crate::session::Session;
 use datafusion_ext::vars::{SessionVars, VarSetter};
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::gen::rpcsrv::service::initialize_session_request::Request;
 use protogen::gen::rpcsrv::service::InitializeSessionRequest;
+use protogen::gen::rpcsrv::service::InitializeSessionRequestFromClient;
 use protogen::metastore::types::catalog::CatalogState;
 
 use std::fs;
@@ -171,25 +173,26 @@ impl Engine {
     /// Create a new session that attached to remote session.
     ///
     /// The provided exec client will be used to create the remote session.
-    pub async fn new_remote_session(
+    pub async fn new_session_with_remote_connection(
         &self,
         mut vars: SessionVars,
-        mut exec_client: ExecutionServiceClient<Channel>,
+        mut exec_client: AuthenticatedExecutionServiceClient,
     ) -> Result<TrackedSession> {
-        let database_id = *vars.database_id.value();
-
-        // TODO: Figure out storage.
+        // TODO: Figure out storage. The nil ID doesn't matter here (yet) since
+        // native table writes should happen on the remote engine.
         let native = self
             .storage
-            .new_native_tables_storage(database_id, &SessionStorageConfig::default())?;
+            .new_native_tables_storage(Uuid::nil(), &SessionStorageConfig::default())?;
 
         // Set up remote session.
         let resp = exec_client
             .initialize_session(InitializeSessionRequest {
-                db_id: database_id.into_bytes().to_vec(),
+                request: Some(Request::Client(InitializeSessionRequestFromClient {})),
             })
             .await
-            .unwrap(); // TODO
+            .map_err(|e| {
+                ExecError::RemoteSession(format!("failed to initialize remote session: {e}"))
+            })?;
         let resp = resp.into_inner();
 
         let remote_id =
@@ -211,7 +214,10 @@ impl Engine {
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
-        debug!(session_count = prev + 1, "new session opened");
+        debug!(
+            session_count = prev + 1,
+            "new session opened with remote connection"
+        );
 
         Ok(TrackedSession {
             inner: session,

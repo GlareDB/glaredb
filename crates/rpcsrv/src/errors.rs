@@ -12,6 +12,9 @@ pub enum RpcsrvError {
     #[error("Missing key: {0}")]
     MissingAuthKey(&'static str),
 
+    #[error("Session initialize error: {0}")]
+    SessionInitalizeError(String),
+
     #[error(transparent)]
     TonicMetadataToStr(#[from] tonic::metadata::errors::ToStrError),
 
@@ -30,8 +33,11 @@ pub enum RpcsrvError {
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
-    #[error(transparent)]
+    #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
 
     #[error("{0}")]
     Internal(String),

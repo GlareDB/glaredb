@@ -8,6 +8,7 @@ edition = { workspace = true }
 [dependencies]
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
+proxyutil = { path = "../proxyutil" }
 pgrepr = { path = "../pgrepr" }
 telemetry = { path = "../telemetry" }
 sqlbuiltins = { path = "../sqlbuiltins" }

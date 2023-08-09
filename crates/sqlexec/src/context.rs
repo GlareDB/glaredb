@@ -8,6 +8,7 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+use crate::remote::client::AuthenticatedExecutionServiceClient;
 use crate::remote::planner::RemotePlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -33,7 +34,6 @@ use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::gen::rpcsrv::service::CloseSessionRequest;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
@@ -44,7 +44,6 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tonic::transport::Channel;
 use tracing::info;
 
 /// Implicity schemas that are consulted during object resolution.
@@ -67,7 +66,7 @@ pub struct SessionContext {
     /// The execution client for remote sessions.
     // TODO: This is currently unused, but we'll likely need it for running some
     // of our custom plans on a remote service.
-    exec_client: Option<ExecutionServiceClient<Channel>>,
+    exec_client: Option<AuthenticatedExecutionServiceClient>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -106,7 +105,7 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<ExecutionServiceClient<Channel>>,
+        exec_client: Option<AuthenticatedExecutionServiceClient>,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
