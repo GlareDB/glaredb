@@ -53,7 +53,9 @@ pub struct LocalClientOpts {
 
     /// Optional file path for persisting data.
     ///
-    /// Catalog data and user data will be stored in this directory.
+    /// Catalog data and user data will be stored in this directory. If the
+    /// `--cloud-url` option is provided, nothing will be persisted in this
+    /// directory.
     #[clap(short = 'f', long, value_parser)]
     pub data_dir: Option<PathBuf>,
 
