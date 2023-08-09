@@ -35,10 +35,19 @@ message ExecuteResponse {
   bytes arrow_ipc = 1;
 }
 
+message CloseSessionRequest {
+  // ID of session that we are closing.
+  bytes session_id = 1;
+}
+
+message CloseSessionResponse {}
+
 service ExecutionService {
   // Initializes a remote session.
   rpc InitializeSession(InitializeSessionRequest)
       returns (InitializeSessionResponse);
 
   rpc Execute(ExecuteRequest) returns (stream ExecuteResponse);
+
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
 }
