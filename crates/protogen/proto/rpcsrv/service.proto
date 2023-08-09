@@ -85,11 +85,11 @@ message InitializeSessionResponse {
 
 message ExecuteRequest {
   // Which session to execute this on.
-  bytes session_id = 2;
+  bytes session_id = 1;
 
   oneof plan {
-    bytes logical_plan = 3;
-    bytes physical_plan = 4;
+    bytes logical_plan = 2;
+    bytes physical_plan = 3;
   }
 }
 

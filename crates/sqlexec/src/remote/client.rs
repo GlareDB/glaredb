@@ -95,8 +95,6 @@ impl ProxyAuthParamsAndDst {
             compute_engine: compute_engine.map(String::from),
         };
 
-        println!("{params:+?}");
-
         Ok(ProxyAuthParamsAndDst { params, dst })
     }
 }
