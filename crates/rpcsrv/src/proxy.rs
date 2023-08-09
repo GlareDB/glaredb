@@ -6,7 +6,10 @@ use protogen::gen::rpcsrv::service::{
     CloseSessionRequest, CloseSessionResponse, ExecuteRequest, ExecuteResponse,
     InitializeSessionRequest, InitializeSessionResponse,
 };
-use proxyutil::cloudauth::{AuthParams, ProxyAuthenticator, ServiceProtocol};
+use protogen::gen::rpcsrv::service::{
+    initialize_session_request, InitializeSessionRequestFromProxy, SessionStorageConfig,
+};
+use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{
     COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
@@ -17,6 +20,7 @@ use tonic::{
     Request, Response, Status, Streaming,
 };
 use tracing::info;
+use uuid::Uuid;
 
 /// Key used for the connections map.
 // TODO: Possibly per user connections?
@@ -46,7 +50,12 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
     /// This will read authentication params from the metadata map, get
     /// deployment info from Cloud, then return a connection to the requested
     /// deployment+compute engine.
-    async fn connect(&self, meta: &MetadataMap) -> Result<ExecutionServiceClient<Channel>> {
+    ///
+    /// Database details will be returned alongside the client.
+    async fn connect(
+        &self,
+        meta: &MetadataMap,
+    ) -> Result<(DatabaseDetails, ExecutionServiceClient<Channel>)> {
         let params = Self::auth_params_from_metadata(meta)?;
 
         // TODO: We'll want to figure out long-lived auth sessions to avoid
@@ -56,14 +65,14 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
         let details = self.authenticator.authenticate(params).await?;
 
         let key = ConnKey {
-            ip: details.ip,
-            port: details.port,
+            ip: details.ip.clone(),
+            port: details.port.clone(),
         };
 
         // Already have a grpc connection,
         if let Some(conn) = self.conns.get(&key) {
             let conn = conn.clone();
-            return Ok(conn);
+            return Ok((details, conn));
         }
 
         // Otherwise need to create it.
@@ -81,7 +90,52 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
         // May have raced, but that's not a concern here.
         self.conns.insert(key, client.clone());
 
-        Ok(client)
+        Ok((details, client))
+    }
+
+    /// Inner implementation for initialize session.
+    ///
+    /// This takes care of translating the "client" request into the "proxy"
+    /// request based on details from Cloud.
+    async fn initialize_session_inner(
+        &self,
+        request: Request<InitializeSessionRequest>,
+    ) -> Result<Response<InitializeSessionResponse>, Status> {
+        let (details, mut client) = self.connect(request.metadata()).await?;
+
+        let req = request.into_inner();
+        let req = req.request.ok_or_else(|| {
+            RpcsrvError::SessionInitalizeError("missing initialize session request".to_string())
+        })?;
+
+        match req {
+            initialize_session_request::Request::Client(_req) => {
+                // Create our "proxy" request based off the database details we
+                // got back from Cloud.
+                let db_id = Uuid::parse_str(&details.database_id)
+                    .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+                let new_req =
+                    initialize_session_request::Request::Proxy(InitializeSessionRequestFromProxy {
+                        storage_conf: Some(SessionStorageConfig {
+                            gcs_bucket: Some(details.gcs_storage_bucket),
+                        }),
+                        db_id: db_id.into_bytes().to_vec(),
+                    });
+
+                // And proxy it forward.
+                client
+                    .initialize_session(Request::new(InitializeSessionRequest {
+                        request: Some(new_req),
+                    }))
+                    .await
+            }
+            initialize_session_request::Request::Proxy(_) => {
+                Err(RpcsrvError::SessionInitalizeError(
+                    "unexpectedly got proxy request from client".to_string(),
+                )
+                .into())
+            }
+        }
     }
 
     fn auth_params_from_metadata(meta: &MetadataMap) -> Result<AuthParams> {
@@ -123,8 +177,7 @@ impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
         request: Request<InitializeSessionRequest>,
     ) -> Result<Response<InitializeSessionResponse>, Status> {
         info!("initialize session (proxy)");
-        let mut client = self.connect(request.metadata()).await?;
-        client.initialize_session(request).await
+        self.initialize_session_inner(request).await
     }
 
     async fn execute(
@@ -132,7 +185,7 @@ impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
         request: Request<ExecuteRequest>,
     ) -> Result<Response<Self::ExecuteStream>, Status> {
         info!("execute (proxy)");
-        let mut client = self.connect(request.metadata()).await?;
+        let (_, mut client) = self.connect(request.metadata()).await?;
         client.execute(request).await
     }
 
@@ -141,7 +194,7 @@ impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
         request: Request<CloseSessionRequest>,
     ) -> Result<Response<CloseSessionResponse>, Status> {
         info!("close session (proxy)");
-        let mut client = self.connect(request.metadata()).await?;
+        let (_, mut client) = self.connect(request.metadata()).await?;
         client.close_session(request).await
     }
 }
