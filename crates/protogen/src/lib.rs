@@ -5,6 +5,9 @@
 //! project. There should be a minimal amount of logic in this crate.
 
 pub mod metastore;
+pub mod export {
+    pub use prost;
+}
 
 /// Generated code.
 pub mod gen {

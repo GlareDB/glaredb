@@ -114,6 +114,7 @@ impl SessionContext {
         let mut optimizer_opts = OptimizerOptions::default();
         optimizer_opts.prefer_hash_join = true;
         let mut config_opts = ConfigOptions::new();
+
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
         let config: SessionConfig = config_opts.into();
@@ -121,6 +122,7 @@ impl SessionContext {
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
         let mut conf = RuntimeConfig::default();
+
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
@@ -268,7 +270,7 @@ impl SessionContext {
             .mutate([Mutation::CreateTable(service::CreateTable {
                 schema: schema.clone(),
                 name: name.clone(),
-                options: plan.table_options,
+                options: plan.schema.into(),
                 if_not_exists: plan.if_not_exists,
             })])
             .await?;

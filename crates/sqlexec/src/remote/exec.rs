@@ -26,6 +26,8 @@ use tonic::transport::Channel;
 use tonic::Streaming;
 use uuid::Uuid;
 
+use super::GlareDBExtensionCodec;
+
 /// Execute a logical plan on a remote service.
 #[derive(Debug, Clone)]
 pub struct RemoteLogicalExec {
@@ -93,8 +95,7 @@ impl ExecutionPlan for RemoteLogicalExec {
 
         // Encode logical plan into protobuf.
         let mut buf = Vec::new();
-        let node =
-            LogicalPlanNode::try_from_logical_plan(&self.plan, &DefaultLogicalExtensionCodec {})?;
+        let node = LogicalPlanNode::try_from_logical_plan(&self.plan, &GlareDBExtensionCodec {})?;
         node.try_encode(&mut buf)?;
 
         // And try to execute.

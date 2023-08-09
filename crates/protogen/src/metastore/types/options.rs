@@ -1,10 +1,13 @@
 use super::{FromOptionalField, ProtoConvError};
 use crate::gen::metastore::{arrow, options};
-use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::{
+    arrow::datatypes::{DataType, Field},
+    common::DFSchemaRef,
+};
 use proptest_derive::Arbitrary;
 use std::fmt;
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct InternalColumnDefinition {
     pub name: String,
     pub nullable: bool,
@@ -525,9 +528,25 @@ impl TryFrom<TableOptions> for options::TableOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TableOptionsInternal {
     pub columns: Vec<InternalColumnDefinition>,
+}
+
+impl From<DFSchemaRef> for TableOptionsInternal {
+    fn from(value: DFSchemaRef) -> Self {
+        TableOptionsInternal {
+            columns: value
+                .fields()
+                .into_iter()
+                .map(|col| InternalColumnDefinition {
+                    name: col.name().clone(),
+                    nullable: col.is_nullable(),
+                    arrow_type: col.data_type().clone(),
+                })
+                .collect::<Vec<_>>(),
+        }
+    }
 }
 
 impl TryFrom<options::TableOptionsInternal> for TableOptionsInternal {

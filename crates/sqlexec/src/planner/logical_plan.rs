@@ -1,6 +1,6 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{OwnedSchemaReference, OwnedTableReference};
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference, DFSchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
@@ -240,11 +240,11 @@ pub struct CreateSchema {
     pub if_not_exists: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateTable {
     pub table_name: OwnedTableReference,
     pub if_not_exists: bool,
-    pub table_options: TableOptionsInternal,
+    pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
 }
 
