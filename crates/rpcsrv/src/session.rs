@@ -1,12 +1,13 @@
 use crate::errors::{Result, RpcsrvError};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::SessionContext;
-use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
+use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use protogen::gen::rpcsrv::service::execute_request::Plan;
 use protogen::gen::rpcsrv::service::ExecuteRequest;
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::engine::TrackedSession;
+use sqlexec::extension_codec::GlareDBExtensionCodec;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -43,9 +44,9 @@ impl RemoteSession {
                 // TODO: Use a context that actually matters.
                 let fake_ctx = SessionContext::new();
                 let plan = LogicalPlanNode::try_decode(&buf)?
-                    .try_into_logical_plan(&fake_ctx, &DefaultLogicalExtensionCodec {})?;
+                    .try_into_logical_plan(&fake_ctx, &GlareDBExtensionCodec)?;
 
-                let session = self.session.lock().await;
+                let mut session = self.session.lock().await;
                 let physical = session.create_physical_plan(plan).await?;
                 let stream = session.execute_physical(physical)?;
 

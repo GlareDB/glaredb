@@ -169,7 +169,7 @@ mod tests {
             }
             "#;
 
-        let out: DatabaseDetails = serde_json::from_str(&resp).unwrap();
+        let out: DatabaseDetails = serde_json::from_str(resp).unwrap();
         let expected = DatabaseDetails {
             user_id: "b3e5b1ff-6c92-470b-b96d-103dd18a85db".to_string(),
             database_id: "6df36b37-21f1-45b1-aadb-4d65c1a50c32".to_string(),

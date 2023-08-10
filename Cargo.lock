@@ -5795,6 +5795,7 @@ dependencies = [
  "protogen",
  "proxyutil",
  "regex",
+ "serde",
  "serde_json",
  "sqlbuiltins",
  "telemetry",

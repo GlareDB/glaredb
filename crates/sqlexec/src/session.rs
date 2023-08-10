@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::metastore::catalog::SessionCatalog;
 use crate::remote::client::AuthenticatedExecutionServiceClient;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
@@ -230,10 +231,21 @@ impl Session {
 
     /// Create a physical plan for a given datafusion logical plan.
     pub async fn create_physical_plan(
-        &self,
+        &mut self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.init_exec();
+        if let DfLogicalPlan::Extension(extension) = &plan {
+            #[allow(clippy::single_match)]
+            match extension.node.name() {
+                "CreateTable" => {
+                    let create_table = extension.node.as_any().downcast_ref::<CreateTable>();
+                    return self.create_table(create_table.unwrap().clone()).await;
+                }
+                _ => {}
+            }
+        }
+
         let plan = state.create_physical_plan(&plan).await?;
         Ok(plan)
     }
@@ -248,9 +260,15 @@ impl Session {
         Ok(stream)
     }
 
-    pub(crate) async fn create_table(&mut self, plan: CreateTable) -> Result<()> {
+    pub(crate) async fn create_table(
+        &mut self,
+        plan: CreateTable,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let schema = plan.schema.as_ref().clone();
+
         self.ctx.create_table(plan).await?;
-        Ok(())
+
+        Ok(Arc::new(EmptyExec::new(false, schema.into())))
     }
 
     pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
@@ -350,7 +368,7 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn plan_copy_to(&self, plan: CopyTo) -> Result<()> {
+    pub(crate) async fn plan_copy_to(&mut self, plan: CopyTo) -> Result<()> {
         fn get_sink_for_obj(
             format: CopyToFormatOptions,
             access: &dyn ObjStoreAccess,

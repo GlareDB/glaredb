@@ -10,7 +10,7 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
-use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
+use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use futures::{stream, Stream, StreamExt, TryStreamExt};
 use protogen::gen::rpcsrv::service::{execute_request::Plan, ExecuteRequest, ExecuteResponse};
@@ -25,6 +25,7 @@ use tonic::Streaming;
 use uuid::Uuid;
 
 use super::client::AuthenticatedExecutionServiceClient;
+use crate::extension_codec::GlareDBExtensionCodec;
 
 /// Execute a logical plan on a remote service.
 #[derive(Debug, Clone)]
@@ -93,8 +94,7 @@ impl ExecutionPlan for RemoteLogicalExec {
 
         // Encode logical plan into protobuf.
         let mut buf = Vec::new();
-        let node =
-            LogicalPlanNode::try_from_logical_plan(&self.plan, &DefaultLogicalExtensionCodec {})?;
+        let node = LogicalPlanNode::try_from_logical_plan(&self.plan, &GlareDBExtensionCodec {})?;
         node.try_encode(&mut buf)?;
 
         // And try to execute.

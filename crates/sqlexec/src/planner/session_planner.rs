@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{
-    DataType, Field, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
+    DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::datasource::file_format::file_type::FileType;
@@ -33,10 +33,10 @@ use protogen::metastore::types::options::{
     CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    InternalColumnDefinition, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
-    TunnelOptionsInternal, TunnelOptionsSsh,
+    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
@@ -58,6 +58,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 
 use super::context_builder::PartialContextProvider;
+use super::extension::ExtensionConversion;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -725,16 +726,19 @@ impl<'a> SessionPlanner<'a> {
                     })
                     .into())
                 } else {
-                    let opts = TableOptionsInternal {
-                        columns: InternalColumnDefinition::from_arrow_fields(arrow_cols),
-                    };
-                    Ok(DdlPlan::CreateTable(CreateTable {
+                    let df_schema = Schema::new(arrow_cols.clone());
+                    let df_schema = df_schema.to_dfschema_ref()?;
+                    let create_table = CreateTable {
                         table_name: table_name.to_owned_reference(),
-                        table_options: opts,
+                        schema: df_schema,
                         if_not_exists,
                         source,
-                    })
-                    .into())
+                    };
+                    let ext = create_table.into_extension();
+
+                    Ok(LogicalPlan::Query(
+                        datafusion::logical_expr::LogicalPlan::Extension(ext),
+                    ))
                 }
             }
 
