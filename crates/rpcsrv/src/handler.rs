@@ -12,7 +12,8 @@ use futures::{Stream, StreamExt};
 use protogen::gen::{
     metastore::catalog::CatalogState,
     rpcsrv::service::{
-        execution_service_server::ExecutionService, ExecuteRequest, ExecuteResponse,
+        execution_service_server::ExecutionService, initialize_session_request,
+        CloseSessionRequest, CloseSessionResponse, ExecuteRequest, ExecuteResponse,
         InitializeSessionRequest, InitializeSessionResponse,
     },
 };
@@ -32,13 +33,19 @@ pub struct RpcHandler {
 
     /// Open sessions.
     sessions: DashMap<Uuid, RemoteSession>,
+
+    /// Allow initialize session messages from client.
+    ///
+    /// By default only messages from proxy are accepted.
+    allow_client_init: bool,
 }
 
 impl RpcHandler {
-    pub fn new(engine: Arc<Engine>) -> Self {
+    pub fn new(engine: Arc<Engine>, allow_client_init: bool) -> Self {
         RpcHandler {
             engine,
             sessions: DashMap::new(),
+            allow_client_init,
         }
     }
 
@@ -46,8 +53,36 @@ impl RpcHandler {
         &self,
         req: InitializeSessionRequest,
     ) -> Result<InitializeSessionResponse> {
-        let db_id =
-            Uuid::from_slice(&req.db_id).map_err(|e| RpcsrvError::InvalidId("database", e))?;
+        // Get db id and storage config from the request.
+        //
+        // This will check that we actually received a proxy request, and not a
+        // request from the client.
+        let (db_id, storage_conf) = match req.request.ok_or_else(|| {
+            RpcsrvError::SessionInitalizeError("missing initialize request".to_string())
+        })? {
+            initialize_session_request::Request::Proxy(req) => {
+                let db_id = Uuid::from_slice(&req.db_id)
+                    .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+                let storage_conf = SessionStorageConfig {
+                    gcs_bucket: req
+                        .storage_conf
+                        .ok_or_else(|| {
+                            RpcsrvError::SessionInitalizeError("missing storage config".to_string())
+                        })?
+                        .gcs_bucket,
+                };
+                (db_id, storage_conf)
+            }
+            initialize_session_request::Request::Client(_req) if self.allow_client_init => {
+                (Uuid::nil(), SessionStorageConfig::default())
+            }
+            _ => {
+                return Err(RpcsrvError::SessionInitalizeError(
+                    "unexpectedly received client request, expected a request from the proxy"
+                        .to_string(),
+                ))
+            }
+        };
 
         let conn_id = Uuid::new_v4();
 
@@ -56,11 +91,7 @@ impl RpcHandler {
         vars.database_id.set_and_log(db_id, VarSetter::System);
         vars.connection_id.set_and_log(conn_id, VarSetter::System);
 
-        // TODO: Appropriate storage config.
-        let sess = self
-            .engine
-            .new_session(vars, SessionStorageConfig::default())
-            .await?;
+        let sess = self.engine.new_session(vars, storage_conf).await?;
 
         let sess = RemoteSession::new(sess);
         let initial_state: CatalogState = sess.get_catalog_state().await.try_into()?;
@@ -93,6 +124,13 @@ impl RpcHandler {
             buf: Vec::new(),
         })
     }
+
+    async fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
+        let session_id =
+            Uuid::from_slice(&req.session_id).map_err(|e| RpcsrvError::InvalidId("session", e))?;
+        self.sessions.remove(&session_id);
+        Ok(CloseSessionResponse {})
+    }
 }
 
 #[async_trait]
@@ -115,6 +153,15 @@ impl ExecutionService for RpcHandler {
         info!("executing");
         let stream = self.execute_inner(request.into_inner()).await?;
         Ok(Response::new(Box::pin(stream)))
+    }
+
+    async fn close_session(
+        &self,
+        request: Request<CloseSessionRequest>,
+    ) -> Result<Response<CloseSessionResponse>, Status> {
+        info!("closing session");
+        let resp = self.close_session_inner(request.into_inner()).await?;
+        Ok(Response::new(resp))
     }
 }
 

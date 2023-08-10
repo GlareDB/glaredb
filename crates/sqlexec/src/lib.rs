@@ -5,13 +5,15 @@ pub mod environment;
 pub mod errors;
 pub mod metastore;
 pub mod parser;
+pub mod remote;
 pub mod session;
+pub mod extension_codec;
 
 mod background_jobs;
 mod functions;
 mod metrics;
 mod planner;
-pub mod remote;
+
 pub use planner::logical_plan::LogicalPlan;
 
 pub mod export {

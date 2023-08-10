@@ -1,4 +1,40 @@
 // Service definition for rpcsrv.
+//
+// # Request routing
+//
+// ```
+//                1.                 2.
+//    client    ----->  rpcproxy   <---->   cloud
+// (cli/python)           |
+//                        | 3.
+//                        ▼
+//                 compute engine
+//
+// ```
+//
+// 1. Client makes request
+//   - The client will place auth related metadata on the request
+// 2. Proxy handles request
+//   - The proxy pulls auth related metadata off the request and makes a request
+//     to Cloud. Cloud returns back info on the database we're making a request
+//     for, and where we should route the request.
+// 3. Proxy sends authenticated request to compute engine.
+//
+// # Authentication
+//
+// When making a request from the client to the proxy, certain authentication
+// parameters need to be provided on the request metadata:
+//
+// - "user"
+// - "password"
+// - "db_name"
+// - "org"
+// - "compute_engine" (optional)
+//
+// These parameters are then used by the proxy to make a request to Cloud for
+// connection authentication. The response from Cloud indicates if the
+// connection is authenticated. Cloud also returns additional data about how to
+// connect to the remote compute engine.
 
 syntax = "proto3";
 
@@ -6,9 +42,36 @@ package rpcsrv.service;
 
 import "metastore/catalog.proto";
 
-message InitializeSessionRequest {
+// Storage config for the session.
+message SessionStorageConfig { optional string gcs_bucket = 1; }
+
+// Request for initializing a remote session from the client.
+message InitializeSessionRequestFromClient {
+  // Where's the auth? Auth params are always set in the request metadata. This
+  // goes for all requests, not just for initializing a session. See comment at
+  // top.
+}
+
+// Request for initializing a session from the proxy.
+//
+// Fields in this request are generated based on what we receive back from
+// Cloud.
+message InitializeSessionRequestFromProxy {
+  // Session storage config.
+  SessionStorageConfig storage_conf = 2;
+
   // ID of database we're initializing a session for.
-  bytes db_id = 1;
+  bytes db_id = 3;
+}
+
+// Request for initializing a session.
+message InitializeSessionRequest {
+  oneof request {
+    // Request if sent by the client.
+    InitializeSessionRequestFromClient client = 1;
+    // Request if sent by the proxy.
+    InitializeSessionRequestFromProxy proxy = 2;
+  }
 }
 
 message InitializeSessionResponse {
@@ -35,10 +98,21 @@ message ExecuteResponse {
   bytes arrow_ipc = 1;
 }
 
+message CloseSessionRequest {
+  // ID of session that we are closing.
+  bytes session_id = 1;
+}
+
+message CloseSessionResponse {}
+
 service ExecutionService {
   // Initializes a remote session.
   rpc InitializeSession(InitializeSessionRequest)
       returns (InitializeSessionResponse);
 
+  // Execute a query plan, returning a stream of IPC encoded batches.
   rpc Execute(ExecuteRequest) returns (stream ExecuteResponse);
+
+  // Close the remote session.
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
 }

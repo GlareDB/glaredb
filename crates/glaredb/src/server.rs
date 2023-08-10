@@ -29,6 +29,7 @@ pub struct ServerConfig {
 
 pub struct ComputeServer {
     integration_testing: bool,
+    ignore_auth: bool,
     pg_handler: Arc<ProtocolHandler>,
     engine: Arc<Engine>,
 }
@@ -36,6 +37,7 @@ pub struct ComputeServer {
 impl ComputeServer {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect(
         metastore_addr: Option<String>,
         segment_key: Option<String>,
@@ -44,6 +46,7 @@ impl ComputeServer {
         service_account_key: Option<String>,
         spill_path: Option<PathBuf>,
         integration_testing: bool,
+        ignore_auth: bool,
     ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
@@ -104,6 +107,7 @@ impl ComputeServer {
         };
         Ok(ComputeServer {
             integration_testing,
+            ignore_auth,
             pg_handler: Arc::new(ProtocolHandler::new(engine.clone(), handler_conf)),
             engine,
         })
@@ -157,7 +161,7 @@ impl ComputeServer {
 
         // Start rpc service.
         if let Some(addr) = conf.rpc_addr {
-            let handler = RpcHandler::new(self.engine.clone());
+            let handler = RpcHandler::new(self.engine.clone(), self.ignore_auth);
             info!("Starting rpc service");
             tokio::spawn(async move {
                 if let Err(e) = Server::builder()
@@ -232,6 +236,7 @@ mod tests {
             None,
             None,
             None,
+            false,
             false,
         )
         .await

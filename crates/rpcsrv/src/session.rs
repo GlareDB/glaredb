@@ -7,7 +7,7 @@ use protogen::gen::rpcsrv::service::execute_request::Plan;
 use protogen::gen::rpcsrv::service::ExecuteRequest;
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::engine::TrackedSession;
-use sqlexec::remote::GlareDBExtensionCodec;
+use sqlexec::extension_codec::GlareDBExtensionCodec;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

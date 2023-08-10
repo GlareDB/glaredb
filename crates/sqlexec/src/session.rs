@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
+use crate::remote::client::AuthenticatedExecutionServiceClient;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::insert::DataSink;
@@ -20,10 +21,8 @@ use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::ObjStoreAccess;
 use pgrepr::format::Format;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
-use tonic::transport::Channel;
 
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
@@ -200,7 +199,7 @@ impl Session {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<ExecutionServiceClient<Channel>>,
+        exec_client: Option<AuthenticatedExecutionServiceClient>,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),

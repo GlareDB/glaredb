@@ -14,13 +14,13 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
 use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
+use sqlexec::remote::client::{AuthenticatedExecutionServiceClient, ProxyAuthParamsAndDst};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::fmt::Write as _;
@@ -29,6 +29,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use telemetry::Tracker;
 use tracing::error;
+use url::Url;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputMode {
@@ -52,9 +53,24 @@ pub struct LocalClientOpts {
 
     /// Optional file path for persisting data.
     ///
-    /// Catalog data and user data will be stored in this directory.
+    /// Catalog data and user data will be stored in this directory. If the
+    /// `--cloud-url` option is provided, nothing will be persisted in this
+    /// directory.
     #[clap(short = 'f', long, value_parser)]
     pub data_dir: Option<PathBuf>,
+
+    /// URL for connecting to a GlareDB Cloud deployment.
+    #[clap(short = 'c', long, value_parser)]
+    pub cloud_url: Option<Url>,
+
+    /// Ignores the proxy and directly goes to the server for remote execution.
+    ///
+    /// Note that:
+    /// * `cloud_url` in this case should be a valid HTTP RPC URL (`--rpc-bind`
+    ///   for the server).
+    /// * Server should be started with `--ignore-auth` arg as well.
+    #[clap(long, hide = true)]
+    pub ignore_auth: bool,
 
     /// Display output mode.
     #[arg(long, value_enum, default_value_t=OutputMode::Table)]
@@ -139,11 +155,19 @@ impl LocalSession {
         )
         .await?;
 
-        // TODO: Make this configurable through client commands.
-        let sess = if let Ok(url) = std::env::var("RPC_HOST_URL") {
-            let exec_client = ExecutionServiceClient::connect(url).await?;
+        let sess = if let Some(url) = opts.cloud_url.clone() {
+            let exec_client = if opts.ignore_auth {
+                AuthenticatedExecutionServiceClient::connect(url.to_string()).await?
+            } else {
+                let params_and_dst = ProxyAuthParamsAndDst::try_from_url(url)?;
+                AuthenticatedExecutionServiceClient::connect_with_proxy_auth_params(
+                    params_and_dst.dst.to_string(),
+                    params_and_dst.params,
+                )
+                .await?
+            };
             engine
-                .new_remote_session(SessionVars::default(), exec_client)
+                .new_session_with_remote_connection(SessionVars::default(), exec_client)
                 .await?
         } else {
             engine
@@ -295,16 +319,29 @@ impl LocalSession {
             ("\\max-rows", Some(val)) => self.opts.max_rows = Some(val.parse()?),
             ("\\max-columns", Some(val)) => self.opts.max_rows = Some(val.parse()?),
             ("\\open", Some(path)) => {
-                let new_opts = LocalClientOpts {
-                    data_dir: Some(PathBuf::from(path)),
-                    metastore_addr: None,
-                    ..self.opts.clone()
-                };
-                let new_sess = LocalSession::connect(new_opts).await?;
-                println!("Created new session. New database path: {path}");
-                *self = new_sess;
+                if let Ok(url) = Url::parse(path) {
+                    let new_opts = LocalClientOpts {
+                        data_dir: None,
+                        metastore_addr: None,
+                        cloud_url: Some(url),
+                        ..self.opts.clone()
+                    };
+                    let new_sess = LocalSession::connect(new_opts).await?;
+                    *self = new_sess;
+                } else {
+                    let new_opts = LocalClientOpts {
+                        data_dir: Some(PathBuf::from(path)),
+                        metastore_addr: None,
+                        cloud_url: None,
+                        ..self.opts.clone()
+                    };
+                    let new_sess = LocalSession::connect(new_opts).await?;
+                    *self = new_sess;
+                }
             }
-            ("\\quit", None) => return Ok(ClientCommandResult::Exit),
+            ("\\quit", None) | ("\\q", None) | ("exit", None) => {
+                return Ok(ClientCommandResult::Exit)
+            }
             (cmd, _) => return Err(anyhow!("Unable to handle client command: {cmd}")),
         }
 
@@ -367,7 +404,7 @@ async fn print_stream(
 }
 
 fn is_client_cmd(s: &str) -> bool {
-    s.starts_with('\\')
+    s.starts_with('\\') || s == "exit"
 }
 
 /// Produces JSON output as a single JSON array with new lines between objects.
