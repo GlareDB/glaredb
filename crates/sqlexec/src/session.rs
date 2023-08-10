@@ -236,6 +236,7 @@ impl Session {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.init_exec();
         if let DfLogicalPlan::Extension(extension) = &plan {
+            #[allow(clippy::single_match)]
             match extension.node.name() {
                 "CreateTable" => {
                     let create_table = extension.node.as_any().downcast_ref::<CreateTable>();

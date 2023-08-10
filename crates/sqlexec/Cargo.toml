@@ -34,9 +34,6 @@ url.workspace = true
 parking_lot = "0.12.1"
 serde = { workspace = true }
 
-[dependencies.sqlparser]
-features = ["serde"]
-
 [dev-dependencies]
 tempfile = "3"
 tower = "0.4"
