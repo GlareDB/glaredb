@@ -1,13 +1,13 @@
 use crate::errors::{internal, Result};
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{OwnedSchemaReference, OwnedTableReference, DFSchemaRef};
+use datafusion::common::{DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use protogen::metastore::types::options::{
-    CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
+    CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
 use std::collections::HashMap;
 use std::sync::Arc;

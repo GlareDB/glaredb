@@ -33,10 +33,10 @@ use protogen::metastore::types::options::{
     CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    InternalColumnDefinition, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
-    TunnelOptionsInternal, TunnelOptionsSsh,
+    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
@@ -58,7 +58,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 
 use super::context_builder::PartialContextProvider;
-use super::extension::IntoExtension;
+use super::extension::ExtensionConversion;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {

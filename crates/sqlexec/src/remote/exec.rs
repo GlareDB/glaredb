@@ -10,7 +10,7 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
-use datafusion_proto::logical_plan::{AsLogicalPlan, DefaultLogicalExtensionCodec};
+use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use futures::{stream, Stream, StreamExt, TryStreamExt};
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;

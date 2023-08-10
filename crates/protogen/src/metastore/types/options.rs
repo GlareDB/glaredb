@@ -538,7 +538,7 @@ impl From<DFSchemaRef> for TableOptionsInternal {
         TableOptionsInternal {
             columns: value
                 .fields()
-                .into_iter()
+                .iter()
                 .map(|col| InternalColumnDefinition {
                     name: col.name().clone(),
                     nullable: col.is_nullable(),

@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use datafusion::{logical_expr::Extension, prelude::SessionContext};
+use datafusion::error::DataFusionError;
+use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 
-use crate::planner::extension::DatafusionExtension;
+use crate::planner::extension::ExtensionConversion;
+use crate::planner::logical_plan::CreateTable;
 
 pub mod exec;
 pub mod planner;
@@ -14,13 +16,12 @@ pub struct GlareDBExtensionCodec;
 impl LogicalExtensionCodec for GlareDBExtensionCodec {
     fn try_decode(
         &self,
-        buf: &[u8],
-        inputs: &[datafusion::logical_expr::LogicalPlan],
-        ctx: &SessionContext,
+        _buf: &[u8],
+        _inputs: &[datafusion::logical_expr::LogicalPlan],
+        _ctx: &SessionContext,
     ) -> datafusion::error::Result<datafusion::logical_expr::Extension> {
-        let e = DatafusionExtension::try_decode(buf).unwrap();
-        println!("e: {:?}", e);
-        Ok(Extension { node: Arc::new(e) })
+        // TODO: try decoding all known extensions
+        todo!("try decoding all known extensions")
     }
 
     fn try_encode(
@@ -28,24 +29,31 @@ impl LogicalExtensionCodec for GlareDBExtensionCodec {
         node: &datafusion::logical_expr::Extension,
         buf: &mut Vec<u8>,
     ) -> datafusion::error::Result<()> {
-        let e = DatafusionExtension::from_extension(node).unwrap();
-        e.encode(buf).unwrap();
+        match node.node.name() {
+            "CreateTable" => {
+                let e = CreateTable::try_from_extension(node)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                e.encode(buf)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            }
+            _ => todo!("encode all known extensions"),
+        }
         Ok(())
     }
 
     fn try_decode_table_provider(
         &self,
-        buf: &[u8],
-        schema: datafusion::arrow::datatypes::SchemaRef,
-        ctx: &SessionContext,
+        _buf: &[u8],
+        _schema: datafusion::arrow::datatypes::SchemaRef,
+        _ctx: &SessionContext,
     ) -> datafusion::error::Result<Arc<dyn datafusion::datasource::TableProvider>> {
         todo!()
     }
 
     fn try_encode_table_provider(
         &self,
-        node: Arc<dyn datafusion::datasource::TableProvider>,
-        buf: &mut Vec<u8>,
+        _node: Arc<dyn datafusion::datasource::TableProvider>,
+        _buf: &mut Vec<u8>,
     ) -> datafusion::error::Result<()> {
         todo!()
     }

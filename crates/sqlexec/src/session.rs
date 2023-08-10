@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
-use crate::planner::extension::DatafusionExtension;
-use datafusion::logical_expr::{DdlStatement, LogicalPlan as DfLogicalPlan};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
