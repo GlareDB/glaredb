@@ -236,14 +236,15 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.init_exec();
-        // if let DfLogicalPlan::Extension(extension) = &plan {
-        //     let e = DatafusionExtension::from_extension(extension).unwrap();
-        //     match e {
-        //         DatafusionExtension::CreateTable(create_table) => {
-        //             return self.create_table(create_table).await;
-        //         }
-        //     }
-        // }
+        if let DfLogicalPlan::Extension(extension) = &plan {
+            match extension.node.name() {
+                "CreateTable" => {
+                    let create_table = extension.node.as_any().downcast_ref::<CreateTable>();
+                    return self.create_table(create_table.unwrap().clone()).await;
+                }
+                _ => {}
+            }
+        }
 
         let plan = state.create_physical_plan(&plan).await?;
         Ok(plan)
