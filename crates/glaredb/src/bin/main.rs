@@ -249,6 +249,7 @@ fn main() -> Result<()> {
                 data_dir,
                 service_account_key,
                 spill_path,
+                ignore_auth,
             )?;
         }
         Commands::PgProxy {
@@ -335,6 +336,7 @@ fn begin_server(
     data_dir: Option<PathBuf>,
     service_account_key: Option<String>,
     spill_path: Option<PathBuf>,
+    ignore_auth: bool,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
@@ -351,6 +353,7 @@ fn begin_server(
             service_account_key,
             spill_path,
             /* integration_testing = */ false,
+            ignore_auth,
         )
         .await?;
         server.serve(conf).await

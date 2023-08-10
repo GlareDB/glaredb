@@ -63,6 +63,15 @@ pub struct LocalClientOpts {
     #[clap(short = 'c', long, value_parser)]
     pub cloud_url: Option<Url>,
 
+    /// Ignores the proxy and directly goes to the server for remote execution.
+    ///
+    /// Note that:
+    /// * `cloud_url` in this case should be a valid HTTP RPC URL (`--rpc-bind`
+    ///   for the server).
+    /// * Server should be started with `--ignore-auth` arg as well.
+    #[clap(long, hide = true)]
+    pub ignore_auth: bool,
+
     /// Display output mode.
     #[arg(long, value_enum, default_value_t=OutputMode::Table)]
     pub mode: OutputMode,
@@ -147,12 +156,16 @@ impl LocalSession {
         .await?;
 
         let sess = if let Some(url) = opts.cloud_url.clone() {
-            let params_and_dst = ProxyAuthParamsAndDst::try_from_url(url)?;
-            let exec_client = AuthenticatedExecutionServiceClient::connect_with_proxy_auth_params(
-                params_and_dst.dst.to_string(),
-                params_and_dst.params,
-            )
-            .await?;
+            let exec_client = if opts.ignore_auth {
+                AuthenticatedExecutionServiceClient::connect(url.to_string()).await?
+            } else {
+                let params_and_dst = ProxyAuthParamsAndDst::try_from_url(url)?;
+                AuthenticatedExecutionServiceClient::connect_with_proxy_auth_params(
+                    params_and_dst.dst.to_string(),
+                    params_and_dst.params,
+                )
+                .await?
+            };
             engine
                 .new_session_with_remote_connection(SessionVars::default(), exec_client)
                 .await?

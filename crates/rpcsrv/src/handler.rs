@@ -33,13 +33,19 @@ pub struct RpcHandler {
 
     /// Open sessions.
     sessions: DashMap<Uuid, RemoteSession>,
+
+    /// Allow initialize session messages from client.
+    ///
+    /// By default only messages from proxy are accepted.
+    allow_client_init: bool,
 }
 
 impl RpcHandler {
-    pub fn new(engine: Arc<Engine>) -> Self {
+    pub fn new(engine: Arc<Engine>, allow_client_init: bool) -> Self {
         RpcHandler {
             engine,
             sessions: DashMap::new(),
+            allow_client_init,
         }
     }
 
@@ -66,6 +72,9 @@ impl RpcHandler {
                         .gcs_bucket,
                 };
                 (db_id, storage_conf)
+            }
+            initialize_session_request::Request::Client(_req) if self.allow_client_init => {
+                (Uuid::nil(), SessionStorageConfig::default())
             }
             _ => {
                 return Err(RpcsrvError::SessionInitalizeError(

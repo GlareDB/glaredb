@@ -208,6 +208,7 @@ impl Cli {
                     None,
                     None,
                     /* integration_testing = */ true,
+                    /* ignore_auth = */ false,
                 )
                 .await?;
                 tokio::spawn(server.serve(server_conf));
