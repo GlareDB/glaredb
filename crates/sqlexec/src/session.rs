@@ -78,8 +78,6 @@ pub enum ExecutionResult {
     CreateSchema,
     /// A view was created.
     CreateView,
-    /// A connection was created.
-    CreateConnection,
     /// A table was renamed.
     AlterTableRename,
     /// A database was renamed.
@@ -121,7 +119,6 @@ impl ExecutionResult {
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
-            ExecutionResult::CreateConnection => "create_connection",
             ExecutionResult::AlterTableRename => "alter_table_rename",
             ExecutionResult::AlterDatabaseRename => "alter_database_rename",
             ExecutionResult::AlterTunnelRotateKeys => "alter_tunnel_rotate_keys",
@@ -136,44 +133,57 @@ impl ExecutionResult {
     }
 }
 
-impl fmt::Debug for ExecutionResult {
+impl fmt::Display for ExecutionResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExecutionResult::Query { stream, .. } => {
-                write!(f, "query (schema: {:?})", stream.schema())
+                let fields: Vec<_> = stream
+                    .schema()
+                    .fields()
+                    .iter()
+                    .map(|f| f.name().clone())
+                    .collect();
+                write!(f, "Query ({})", fields.join(", "))
             }
-            ExecutionResult::ShowVariable { stream } => {
-                write!(f, "show variable (schema: {:?})", stream.schema())
+            ExecutionResult::ShowVariable { .. } => {
+                write!(f, "Show")
             }
-            ExecutionResult::EmptyQuery => write!(f, "empty query"),
-            ExecutionResult::Begin => write!(f, "begin"),
-            ExecutionResult::Commit => write!(f, "commit"),
-            ExecutionResult::Rollback => write!(f, "rollback"),
-            ExecutionResult::WriteSuccess => write!(f, "write success"),
-            ExecutionResult::CopySuccess => write!(f, "copy success"),
+            ExecutionResult::EmptyQuery => write!(f, "No results"),
+            ExecutionResult::Begin => write!(f, "Begin"),
+            ExecutionResult::Commit => write!(f, "Commit"),
+            ExecutionResult::Rollback => write!(f, "Rollback"),
+            ExecutionResult::WriteSuccess => write!(f, "Write success"),
+            ExecutionResult::CopySuccess => write!(f, "Copy success"),
             ExecutionResult::DeleteSuccess { deleted_rows } => {
-                write!(f, "deleted {} rows", deleted_rows)
+                if *deleted_rows == 1 {
+                    write!(f, "Deleted 1 row")
+                } else {
+                    write!(f, "Deleted {} rows", deleted_rows)
+                }
             }
             ExecutionResult::UpdateSuccess { updated_rows } => {
-                write!(f, "updated {} rows", updated_rows)
+                if *updated_rows == 1 {
+                    write!(f, "Updated 1 row")
+                } else {
+                    write!(f, "Updated {} rows", updated_rows)
+                }
             }
-            ExecutionResult::CreateTable => write!(f, "create table"),
-            ExecutionResult::CreateDatabase => write!(f, "create database"),
-            ExecutionResult::CreateTunnel => write!(f, "create tunnel"),
-            ExecutionResult::CreateCredentials => write!(f, "create credentials"),
-            ExecutionResult::CreateSchema => write!(f, "create schema"),
-            ExecutionResult::CreateView => write!(f, "create view"),
-            ExecutionResult::CreateConnection => write!(f, "create connection"),
-            ExecutionResult::AlterTableRename => write!(f, "alter table rename"),
-            ExecutionResult::AlterDatabaseRename => write!(f, "alter database rename"),
-            ExecutionResult::AlterTunnelRotateKeys => write!(f, "alter tunnel rotate keys"),
-            ExecutionResult::SetLocal => write!(f, "set local"),
-            ExecutionResult::DropTables => write!(f, "drop tables"),
-            ExecutionResult::DropViews => write!(f, "drop views"),
-            ExecutionResult::DropSchemas => write!(f, "drop schemas"),
-            ExecutionResult::DropDatabase => write!(f, "drop database"),
-            ExecutionResult::DropTunnel => write!(f, "drop tunnel"),
-            ExecutionResult::DropCredentials => write!(f, "drop credentials"),
+            ExecutionResult::CreateTable => write!(f, "Table created"),
+            ExecutionResult::CreateDatabase => write!(f, "Database created"),
+            ExecutionResult::CreateTunnel => write!(f, "Tunnel created"),
+            ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
+            ExecutionResult::CreateSchema => write!(f, "Schema create"),
+            ExecutionResult::CreateView => write!(f, "View created"),
+            ExecutionResult::AlterTableRename => write!(f, "Table renamed"),
+            ExecutionResult::AlterDatabaseRename => write!(f, "Database renamed"),
+            ExecutionResult::AlterTunnelRotateKeys => write!(f, "Keys rotated"),
+            ExecutionResult::SetLocal => write!(f, "Local variable set"),
+            ExecutionResult::DropTables => write!(f, "Table(s) dropped"),
+            ExecutionResult::DropViews => write!(f, "View(s) dropped"),
+            ExecutionResult::DropSchemas => write!(f, "Schema(s) dropped"),
+            ExecutionResult::DropDatabase => write!(f, "Database(s) dropped"),
+            ExecutionResult::DropTunnel => write!(f, "Tunnel(s) dropped"),
+            ExecutionResult::DropCredentials => write!(f, "Credentials dropped"),
         }
     }
 }

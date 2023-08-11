@@ -297,7 +297,7 @@ impl LocalSession {
                     )
                     .await?
                 }
-                other => println!("{:?}", other),
+                other => println!("{}", other),
             }
         }
         Ok(())
