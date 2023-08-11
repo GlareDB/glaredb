@@ -4355,6 +4355,7 @@ name = "protogen"
 version = "0.4.0"
 dependencies = [
  "datafusion",
+ "datafusion-proto",
  "proptest",
  "proptest-derive",
  "prost",

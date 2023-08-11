@@ -2,8 +2,8 @@ use super::options::{
     CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
 };
 use super::options::{DatabaseOptions, TableOptions};
-use super::{FromOptionalField, ProtoConvError};
 use crate::gen::metastore::catalog;
+use crate::{FromOptionalField, ProtoConvError};
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;

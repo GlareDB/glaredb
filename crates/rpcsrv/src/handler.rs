@@ -150,7 +150,7 @@ impl ExecutionService for RpcHandler {
         &self,
         request: Request<ExecuteRequest>,
     ) -> Result<Response<Self::ExecuteStream>, Status> {
-        info!("executing");
+        info!("executing: {:?}", request);
         let stream = self.execute_inner(request.into_inner()).await?;
         Ok(Response::new(Box::pin(stream)))
     }

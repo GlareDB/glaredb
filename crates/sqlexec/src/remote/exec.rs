@@ -95,6 +95,7 @@ impl ExecutionPlan for RemoteLogicalExec {
         // Encode logical plan into protobuf.
         let mut buf = Vec::new();
         let node = LogicalPlanNode::try_from_logical_plan(&self.plan, &GlareDBExtensionCodec {})?;
+
         node.try_encode(&mut buf)?;
 
         // And try to execute.
@@ -128,6 +129,8 @@ async fn execute_logical_remote(
     mut client: AuthenticatedExecutionServiceClient,
     logical: Vec<u8>,
 ) -> DataFusionResult<ExecutionResponseBatchStream> {
+    println!("execute_logical_remote");
+
     let resp = client
         .execute(ExecuteRequest {
             session_id: session_id.into_bytes().to_vec(),

@@ -5,10 +5,13 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
+use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
+use datafusion_proto::protobuf::LogicalPlanNode;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use protogen::metastore::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
+use protogen::ProtoConvError;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -246,6 +249,55 @@ pub struct CreateTable {
     pub if_not_exists: bool,
     pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
+}
+
+impl CreateTable {
+    pub fn try_to_proto(
+        &self,
+        extension_codec: &dyn LogicalExtensionCodec,
+    ) -> protogen::sqlexec::logical_plan::LogicalPlanExtension {
+        use protogen::sqlexec::logical_plan as protogen;
+        let schema = &self.schema;
+        let schema: datafusion_proto::protobuf::DfSchema = schema.try_into().unwrap();
+        let source = self
+            .source
+            .as_ref()
+            .map(|src| LogicalPlanNode::try_from_logical_plan(&src, extension_codec).unwrap());
+
+        let create_table = protogen::CreateTable {
+            table_name: Some(self.table_name.clone().try_into().unwrap()),
+            if_not_exists: self.if_not_exists,
+            schema: Some(schema),
+            source,
+        };
+        let ddl = protogen::DdlPlanType::CreateTable(create_table);
+        let ddl = protogen::DdlPlanNode { ddl: Some(ddl) };
+
+        let plan_type = protogen::LogicalPlanExtensionType::DdlPlan(ddl);
+
+        let lp_extension = protogen::LogicalPlanExtension {
+            inner: Some(plan_type),
+        };
+
+        lp_extension
+    }
+}
+impl TryFrom<protogen::sqlexec::logical_plan::CreateTable> for CreateTable {
+    type Error = ProtoConvError;
+
+    fn try_from(proto: protogen::sqlexec::logical_plan::CreateTable) -> Result<Self, Self::Error> {
+        let table_name = proto.table_name.unwrap().try_into().unwrap();
+        let schema = proto.schema.unwrap().try_into().unwrap();
+        if proto.source.is_some() {
+            todo!("source is not yet supported")
+        }
+        Ok(Self {
+            table_name,
+            if_not_exists: proto.if_not_exists,
+            schema,
+            source: None,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]

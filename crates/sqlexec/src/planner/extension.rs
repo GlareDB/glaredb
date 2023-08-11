@@ -1,3 +1,4 @@
+use datafusion_proto::logical_plan::LogicalExtensionCodec;
 /// extension implementations for converting our logical plan into datafusion logical plan
 use protogen::metastore::types::service;
 use std::sync::Arc;
@@ -22,7 +23,7 @@ pub trait ExtensionConversion {
     fn try_from_extension(extension: &LogicalPlanExtension) -> Result<Self>
     where
         Self: Sized;
-    fn encode(&self, buf: &mut Vec<u8>) -> Result<()>;
+    fn encode(&self, buf: &mut Vec<u8>, codec: &dyn LogicalExtensionCodec) -> Result<()>;
 }
 
 impl UserDefinedLogicalNodeCore for CreateTable {
@@ -64,26 +65,9 @@ impl ExtensionConversion for CreateTable {
         }
     }
 
-    fn encode(&self, buf: &mut Vec<u8>) -> Result<()> {
-        let create_table_wrapper = service::CreateTable {
-            schema: self.table_name.to_string(),
-            name: self.table_name.to_string(),
-            options: self.schema.clone().into(),
-            if_not_exists: self.if_not_exists,
-        };
-        let create_table_proto: proto::CreateTable =
-            create_table_wrapper.try_into().map_err(|e| {
-                internal!(
-                    "CreateTable::encode: failed to convert CreateTable to proto: {}",
-                    e
-                )
-            })?;
-        create_table_proto.encode(buf).map_err(|e| {
-            internal!(
-                "CreateTable::encode: failed to encode CreateTable proto: {}",
-                e
-            )
-        })?;
+    fn encode(&self, buf: &mut Vec<u8>, codec: &dyn LogicalExtensionCodec) -> Result<()> {
+        let extension = self.try_to_proto(codec);
+        extension.encode(buf);
         Ok(())
     }
 }

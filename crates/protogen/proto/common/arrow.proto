@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package metastore.arrow;
+package common.arrow;
 
 message Schema { repeated Field columns = 1; }
 

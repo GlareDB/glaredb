@@ -3,14 +3,27 @@
 //! All protobufs and types shared across service boundaries should be placed in
 //! this crate. This crate should be able to imported by any other crate in the
 //! project. There should be a minimal amount of logic in this crate.
-
+pub mod common;
 pub mod metastore;
+pub mod sqlexec;
+
 pub mod export {
     pub use prost;
 }
 
 /// Generated code.
 pub mod gen {
+    pub mod datafusion {
+        pub use datafusion_proto::generated::datafusion::*;
+    }
+    pub mod common {
+        pub mod arrow {
+            tonic::include_proto!("common.arrow");
+        }
+
+    }
+    
+
     pub mod rpcsrv {
         pub mod service {
             tonic::include_proto!("rpcsrv.service");
@@ -18,10 +31,6 @@ pub mod gen {
     }
 
     pub mod metastore {
-        pub mod arrow {
-            tonic::include_proto!("metastore.arrow");
-        }
-
         pub mod catalog {
             tonic::include_proto!("metastore.catalog");
         }
@@ -36,6 +45,58 @@ pub mod gen {
 
         pub mod options {
             tonic::include_proto!("metastore.options");
+        }
+    }
+}
+
+/// Errors related to converting to/from protobuf types.
+#[derive(thiserror::Error, Debug)]
+pub enum ProtoConvError {
+    #[error("Field required: {0}")]
+    RequiredField(String),
+
+    #[error("Unknown enum variant for '{0}': {1}")]
+    UnknownEnumVariant(&'static str, i32),
+
+    #[error("Received zero-value enum variant for '{0}'")]
+    ZeroValueEnumVariant(&'static str),
+
+    #[error("Unsupported serialization: {0}")]
+    UnsupportedSerialization(&'static str),
+
+    #[error(transparent)]
+    TimestampError(#[from] prost_types::TimestampError),
+
+    #[error(transparent)]
+    Uuid(#[from] uuid::Error),
+
+    #[error(transparent)]
+    TryFromIntError(#[from] std::num::TryFromIntError),
+}
+
+/// An extension trait that adds the methods `optional` and `required` to any
+/// Option containing a type implementing `TryInto<U, Error = ProtoConvError>`
+pub trait FromOptionalField<T> {
+    /// Converts an optional protobuf field to an option of a different type
+    fn optional(self) -> Result<Option<T>, ProtoConvError>;
+
+    /// Converts an optional protobuf field to a different type, returning an
+    /// error if None.
+    fn required(self, field: impl Into<String>) -> Result<T, ProtoConvError>;
+}
+
+impl<T, U> FromOptionalField<U> for Option<T>
+where
+    T: TryInto<U, Error = ProtoConvError>,
+{
+    fn optional(self) -> Result<Option<U>, ProtoConvError> {
+        self.map(|t| t.try_into()).transpose()
+    }
+
+    fn required(self, field: impl Into<String>) -> Result<U, ProtoConvError> {
+        match self {
+            None => Err(ProtoConvError::RequiredField(field.into())),
+            Some(t) => t.try_into(),
         }
     }
 }

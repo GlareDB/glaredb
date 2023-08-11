@@ -45,7 +45,7 @@ impl RemoteSession {
                 let fake_ctx = SessionContext::new();
                 let plan = LogicalPlanNode::try_decode(&buf)?
                     .try_into_logical_plan(&fake_ctx, &GlareDBExtensionCodec)?;
-
+                println!("SERVER---\nplan: {:?}", plan);
                 let mut session = self.session.lock().await;
                 let physical = session.create_physical_plan(plan).await?;
                 let stream = session.execute_physical(physical)?;

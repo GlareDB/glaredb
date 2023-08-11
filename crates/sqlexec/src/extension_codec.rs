@@ -6,6 +6,7 @@ use datafusion_proto::logical_plan::LogicalExtensionCodec;
 
 use crate::planner::extension::ExtensionConversion;
 use crate::planner::logical_plan::CreateTable;
+use protogen::export::prost::Message;
 
 #[derive(Debug)]
 pub struct GlareDBExtensionCodec;
@@ -13,12 +14,24 @@ pub struct GlareDBExtensionCodec;
 impl LogicalExtensionCodec for GlareDBExtensionCodec {
     fn try_decode(
         &self,
-        _buf: &[u8],
+        buf: &[u8],
         _inputs: &[datafusion::logical_expr::LogicalPlan],
         _ctx: &SessionContext,
     ) -> datafusion::error::Result<datafusion::logical_expr::Extension> {
-        // TODO: try decoding all known extensions
-        todo!("try decoding all known extensions")
+        let lp_extension = protogen::sqlexec::logical_plan::LogicalPlanExtension::decode(buf)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        match lp_extension.inner.unwrap() {
+            protogen::sqlexec::logical_plan::LogicalPlanExtensionType::DdlPlan(node) => {
+                match node.ddl.unwrap() {
+                    protogen::sqlexec::logical_plan::DdlPlanType::CreateTable(create_table) => {
+                        let e = CreateTable::try_from(create_table)
+                            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                        Ok(e.into_extension())
+                    }
+                    _ => todo!("try decoding all known ddl plans"),
+                }
+            }
+        }
     }
 
     fn try_encode(
@@ -28,9 +41,10 @@ impl LogicalExtensionCodec for GlareDBExtensionCodec {
     ) -> datafusion::error::Result<()> {
         match node.node.name() {
             "CreateTable" => {
+                println!("encoding CreateTable");
                 let e = CreateTable::try_from_extension(node)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                e.encode(buf)
+                e.encode(buf, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
             }
             _ => todo!("encode all known extensions"),
