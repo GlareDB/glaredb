@@ -715,9 +715,6 @@ where
             }
             ExecutionResult::CreateSchema => Self::command_complete(conn, "CREATE SCHEMA").await?,
             ExecutionResult::CreateView => Self::command_complete(conn, "CREATE VIEW").await?,
-            ExecutionResult::CreateConnection => {
-                Self::command_complete(conn, "CREATE CONNECTION").await?
-            }
             ExecutionResult::AlterTableRename => {
                 Self::command_complete(conn, "ALTER TABLE").await?
             }
