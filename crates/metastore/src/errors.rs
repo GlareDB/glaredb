@@ -83,7 +83,7 @@ pub enum MetastoreError {
     Storage(#[from] crate::storage::StorageError),
 
     #[error(transparent)]
-    ProtoConv(#[from] protogen::metastore::types::ProtoConvError),
+    ProtoConv(#[from] protogen::errors::ProtoConvError),
 
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),

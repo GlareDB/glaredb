@@ -6,6 +6,12 @@ pub enum RpcsrvError {
     #[error("Missing session for id {0}")]
     MissingSession(uuid::Uuid),
 
+    #[error("Missing table provider for id: {0}")]
+    MissingTableProvider(uuid::Uuid),
+
+    #[error("Missing physical plan for id: {0}")]
+    MissingPhysicalPlan(uuid::Uuid),
+
     #[error("Executing physical plans is not currently supported")]
     PhysicalPlansNotSupported,
 
@@ -19,7 +25,7 @@ pub enum RpcsrvError {
     TonicMetadataToStr(#[from] tonic::metadata::errors::ToStrError),
 
     #[error(transparent)]
-    ProtoConvError(#[from] protogen::metastore::types::ProtoConvError),
+    ProtoConvError(#[from] protogen::errors::ProtoConvError),
 
     #[error(transparent)]
     ExecError(#[from] sqlexec::errors::ExecError),
@@ -38,6 +44,9 @@ pub enum RpcsrvError {
 
     #[error(transparent)]
     InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
+
+    #[error(transparent)]
+    TonicStatus(#[from] tonic::Status),
 
     #[error("{0}")]
     Internal(String),
