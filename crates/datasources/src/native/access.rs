@@ -182,11 +182,7 @@ impl NativeTableStorage {
                 .await?
                 .1
                 .num_deleted_rows;
-            if let Some(rows) = deleted_rows {
-                Ok(rows)
-            } else {
-                Ok(0_usize)
-            }
+            Ok(deleted_rows.unwrap_or_default())
         } else {
             let mut records: usize = 0;
             let stats = table.statistics();
