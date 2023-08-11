@@ -172,21 +172,32 @@ impl NativeTableStorage {
 
     pub async fn delete_rows_where(
         &self,
-        table: &TableEntry,
+        table_entry: &TableEntry,
         where_expr: Option<Expr>,
     ) -> Result<usize> {
-        let table = self.load_table(table).await?;
-        let builder = if let Some(where_expr) = where_expr {
-            DeleteBuilder::new(table.delta.object_store(), table.delta.state)
+        let table = self.load_table(table_entry).await?;
+        if let Some(where_expr) = where_expr {
+            let deleted_rows = DeleteBuilder::new(table.delta.object_store(), table.delta.state)
                 .with_predicate(where_expr)
+                .await?
+                .1
+                .num_deleted_rows;
+            if let Some(rows) = deleted_rows {
+                Ok(rows)
+            } else {
+                Ok(0_usize)
+            }
         } else {
-            DeleteBuilder::new(table.delta.object_store(), table.delta.state)
-        };
-        let deleted_rows = builder.await?.1.num_deleted_rows;
-        if let Some(rows) = deleted_rows {
-            Ok(rows)
-        } else {
-            Ok(0_usize)
+            let mut records: usize = 0;
+            let stats = table.statistics();
+            if let Some(stats) = stats {
+                let num_rows = stats.num_rows;
+                if let Some(num_rows) = num_rows {
+                    records = num_rows;
+                }
+            }
+            DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
+            Ok(records)
         }
     }
 
