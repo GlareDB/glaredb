@@ -1,19 +1,16 @@
-use datafusion::arrow::datatypes::Schema as ArrowSchema;
+use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef};
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
-use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
-use datafusion_proto::logical_plan::AsLogicalPlan;
-use datafusion_proto::protobuf::LogicalPlanNode;
 use futures::{stream, Stream, StreamExt, TryStreamExt};
-use protogen::gen::rpcsrv::service::{execute_request::Plan, ExecuteRequest, ExecuteResponse};
+use protogen::gen::rpcsrv::service::RecordBatchResponse;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::fmt;
@@ -24,40 +21,35 @@ use std::task::{Context, Poll};
 use tonic::Streaming;
 use uuid::Uuid;
 
-use super::client::AuthenticatedExecutionServiceClient;
-use crate::extension_codec::GlareDBExtensionCodec;
+use super::client::RemoteSessionClient;
 
 /// Execute a logical plan on a remote service.
 #[derive(Debug, Clone)]
-pub struct RemoteLogicalExec {
-    session_id: Uuid,
-    /// Client to remote services.
-    client: AuthenticatedExecutionServiceClient,
+pub struct RemoteExecutionPlan {
+    client: RemoteSessionClient,
     /// The logical plan to execute remotely.
-    plan: DfLogicalPlan,
+    exec_id: Uuid,
+    /// Schema for the execution plan.
+    schema: SchemaRef,
 }
 
-impl RemoteLogicalExec {
-    pub fn new(
-        session_id: Uuid,
-        client: AuthenticatedExecutionServiceClient,
-        plan: DfLogicalPlan,
-    ) -> Self {
-        RemoteLogicalExec {
-            session_id,
+impl RemoteExecutionPlan {
+    pub fn new(client: RemoteSessionClient, exec_id: Uuid, schema: SchemaRef) -> Self {
+        RemoteExecutionPlan {
             client,
-            plan,
+            exec_id,
+            schema,
         }
     }
 }
 
-impl ExecutionPlan for RemoteLogicalExec {
+impl ExecutionPlan for RemoteExecutionPlan {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> Arc<ArrowSchema> {
-        Arc::new(ArrowSchema::from(self.plan.schema().as_ref()))
+        self.schema.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -92,19 +84,7 @@ impl ExecutionPlan for RemoteLogicalExec {
             ));
         }
 
-        // Encode logical plan into protobuf.
-        let mut buf = Vec::new();
-        let node = LogicalPlanNode::try_from_logical_plan(&self.plan, &GlareDBExtensionCodec {})?;
-        node.try_encode(&mut buf)?;
-
-        // And try to execute.
-        let stream = stream::once(execute_logical_remote(
-            self.session_id,
-            self.client.clone(),
-            buf,
-        ))
-        .try_flatten();
-
+        let stream = stream::once(execute_remote(self.client.clone(), self.exec_id)).try_flatten();
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
             stream,
@@ -116,31 +96,22 @@ impl ExecutionPlan for RemoteLogicalExec {
     }
 }
 
-impl DisplayAs for RemoteLogicalExec {
+impl DisplayAs for RemoteExecutionPlan {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RemoteLogicalExec")
+        write!(f, "RemoteExecutionPlan")
     }
 }
 
 /// Execute the encoded logical plan on the remote service.
-async fn execute_logical_remote(
-    session_id: Uuid,
-    mut client: AuthenticatedExecutionServiceClient,
-    logical: Vec<u8>,
+async fn execute_remote(
+    mut client: RemoteSessionClient,
+    exec_id: Uuid,
 ) -> DataFusionResult<ExecutionResponseBatchStream> {
-    let resp = client
-        .execute(ExecuteRequest {
-            session_id: session_id.into_bytes().to_vec(),
-            plan: Some(Plan::LogicalPlan(logical)),
-        })
-        .await
-        .map_err(|e| {
-            DataFusionError::Execution(format!(
-                "failed to execute logical plan on remote service: {e}"
-            ))
-        })?;
-
-    let stream = resp.into_inner();
+    let stream = client.physical_plan_execute(exec_id).await.map_err(|e| {
+        DataFusionError::Execution(format!(
+            "failed to execute logical plan on remote service: {e}"
+        ))
+    })?;
 
     Ok(ExecutionResponseBatchStream {
         stream,
@@ -152,7 +123,7 @@ async fn execute_logical_remote(
 // TODO: StreamReader
 struct ExecutionResponseBatchStream {
     /// Stream we're reading from.
-    stream: Streaming<ExecuteResponse>,
+    stream: Streaming<RecordBatchResponse>,
 
     /// Buffer in case the ipc message contains more than one batch.
     buf: VecDeque<DataFusionResult<RecordBatch>>,

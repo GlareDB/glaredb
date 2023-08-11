@@ -75,6 +75,9 @@ pub enum DispatchError {
     InvalidDispatch(&'static str),
 
     #[error(transparent)]
+    RemoteDispatch(Box<dyn std::error::Error + Send + Sync>),
+
+    #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
     #[error(transparent)]
     DebugDatasource(#[from] datasources::debug::errors::DebugError),

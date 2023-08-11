@@ -42,7 +42,7 @@ pub enum WorkerError {
     },
 
     #[error(transparent)]
-    ProtoConvError(#[from] protogen::metastore::types::ProtoConvError),
+    ProtoConvError(#[from] protogen::errors::ProtoConvError),
 
     // TODO: Need to be more granular about errors from Metastore.
     #[error("Failed Metastore request: {message}")]

@@ -2,19 +2,20 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
+use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::AuthenticatedExecutionServiceClient;
+use crate::remote::client::RemoteSessionClient;
 use crate::remote::planner::RemotePlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
 use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
-use datafusion::datasource::MemTable;
+use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
@@ -34,7 +35,6 @@ use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::gen::rpcsrv::service::CloseSessionRequest;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
@@ -56,6 +56,14 @@ const IMPLICIT_SCHEMAS: [&str; 2] = [
     CURRENT_SESSION_SCHEMA,
 ];
 
+/// Context for a remote session.
+struct RemoteSessionContext {
+    /// Session's table providers.
+    table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
+    /// Session's physical plans.
+    physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
+}
+
 /// Context for a session used during execution.
 ///
 /// The context generally does not have to worry about anything external to the
@@ -66,7 +74,7 @@ pub struct SessionContext {
     /// The execution client for remote sessions.
     // TODO: This is currently unused, but we'll likely need it for running some
     // of our custom plans on a remote service.
-    exec_client: Option<AuthenticatedExecutionServiceClient>,
+    exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -87,6 +95,8 @@ pub struct SessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Job runner for background jobs.
     background_jobs: JobRunner,
+    /// Specific stuff for remote session.
+    remote_ctx: Option<RemoteSessionContext>,
 }
 
 impl SessionContext {
@@ -105,7 +115,8 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<AuthenticatedExecutionServiceClient>,
+        exec_client: Option<RemoteSessionClient>,
+        remote_ctx: bool,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -152,13 +163,21 @@ impl SessionContext {
 
         let mut state = SessionState::with_config_rt(config, Arc::new(runtime));
 
-        if let Some(id) = vars.remote_session_id.value() {
-            let client = exec_client.clone().unwrap();
-            let planner = RemotePlanner::new(*id, client);
+        if let Some(client) = exec_client.clone() {
+            let planner = RemotePlanner::new(client);
             state = state.with_query_planner(Arc::new(planner));
         }
 
         let df_ctx = DfSessionContext::with_state(state);
+
+        let remote_ctx = if remote_ctx {
+            Some(RemoteSessionContext {
+                table_providers: HashMap::new(),
+                physical_plans: HashMap::new(),
+            })
+        } else {
+            None
+        };
 
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
@@ -178,6 +197,7 @@ impl SessionContext {
             df_ctx,
             env_reader: None,
             background_jobs,
+            remote_ctx,
         })
     }
 
@@ -234,6 +254,78 @@ impl SessionContext {
     /// Initialize execution and return the [`SessionState`].
     pub fn init_exec(&self) -> SessionState {
         self.df_ctx.state()
+    }
+
+    /// Returns the underlaying exec client for remote session.
+    pub fn exec_client(&self) -> Option<RemoteSessionClient> {
+        self.exec_client.clone()
+    }
+
+    /// Get a table provider from session.
+    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
+        if let Some(ctx) = self.remote_ctx.as_ref() {
+            ctx.table_providers
+                .get(provider_id)
+                .cloned()
+                .ok_or(ExecError::MissingRemoteId("provider", *provider_id))
+        } else {
+            Err(ExecError::Internal(
+                "cannot get table provider from non-remote session".to_string(),
+            ))
+        }
+    }
+
+    /// Add a table provider to the session. Returns the ID of the provider.
+    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
+        if let Some(ctx) = self.remote_ctx.as_mut() {
+            let provider_id = uuid::Uuid::new_v4();
+            ctx.table_providers.insert(provider_id, provider);
+            Ok(provider_id)
+        } else {
+            Err(ExecError::Internal(
+                "cannot add table provider to non-remote session".to_string(),
+            ))
+        }
+    }
+
+    /// Get a physical plan from session.
+    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
+        if let Some(ctx) = self.remote_ctx.as_ref() {
+            ctx.physical_plans
+                .get(exec_id)
+                .cloned()
+                .ok_or(ExecError::MissingRemoteId("exec", *exec_id))
+        } else {
+            Err(ExecError::Internal(
+                "cannot get physical plans from non-remote session".to_string(),
+            ))
+        }
+    }
+
+    /// Add a physical plan to the session. Returns the ID of the plan.
+    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
+        if let Some(ctx) = self.remote_ctx.as_mut() {
+            let exec_id = uuid::Uuid::new_v4();
+            ctx.physical_plans.insert(exec_id, plan);
+            Ok(exec_id)
+        } else {
+            Err(ExecError::Internal(
+                "cannot add physical plans to non-remote session".to_string(),
+            ))
+        }
+    }
+
+    /// Returns the extension codec used for serializing and deserializing data
+    /// over RPCs.
+    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
+        self.remote_ctx
+            .as_ref()
+            .map(|ctx| GlareDBExtensionCodec::new_decoder(&ctx.table_providers))
+            .ok_or_else(|| {
+                ExecError::Internal(
+                    "cannot create extension codec for non-remote session".to_string(),
+                )
+            })
     }
 
     /// Create a temp table.
@@ -946,13 +1038,8 @@ impl SessionContext {
 
 impl Drop for SessionContext {
     fn drop(&mut self) {
-        if let (Some(mut client), Some(remote_session_id)) = (
-            self.exec_client.clone(),
-            self.vars.remote_session_id.value(),
-        ) {
-            let _ = executor::block_on(client.close_session(CloseSessionRequest {
-                session_id: (*remote_session_id).as_bytes().to_vec(),
-            }));
+        if let Some(mut client) = self.exec_client.clone() {
+            let _ = executor::block_on(client.close_session());
         }
     }
 }

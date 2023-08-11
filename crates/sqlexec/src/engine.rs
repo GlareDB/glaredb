@@ -1,13 +1,8 @@
 use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
-use crate::remote::client::AuthenticatedExecutionServiceClient;
+use crate::remote::client::RemoteClient;
 use crate::session::Session;
-use datafusion_ext::vars::{SessionVars, VarSetter};
-use protogen::gen::rpcsrv::service::initialize_session_request::Request;
-use protogen::gen::rpcsrv::service::InitializeSessionRequest;
-use protogen::gen::rpcsrv::service::InitializeSessionRequestFromClient;
-use protogen::metastore::types::catalog::CatalogState;
 
 use std::fs;
 use std::ops::{Deref, DerefMut};
@@ -17,9 +12,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
+use datafusion_ext::vars::{SessionVars, VarSetter};
 use datasources::native::access::NativeTableStorage;
 use object_store_util::conf::StorageConfig;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
+use protogen::rpcsrv::types::service::{
+    InitializeSessionRequest, InitializeSessionRequestFromClient,
+};
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
@@ -140,6 +139,7 @@ impl Engine {
         &self,
         vars: SessionVars,
         storage: SessionStorageConfig,
+        remote_ctx: bool,
     ) -> Result<TrackedSession> {
         let conn_id = *vars.connection_id.value();
         let database_id = *vars.database_id.value();
@@ -159,6 +159,7 @@ impl Engine {
             self.spill_path.clone(),
             self.background_jobs.clone(),
             None,
+            remote_ctx,
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
@@ -176,7 +177,7 @@ impl Engine {
     pub async fn new_session_with_remote_connection(
         &self,
         mut vars: SessionVars,
-        mut exec_client: AuthenticatedExecutionServiceClient,
+        mut exec_client: RemoteClient,
     ) -> Result<TrackedSession> {
         // TODO: Figure out storage. The nil ID doesn't matter here (yet) since
         // native table writes should happen on the remote engine.
@@ -185,23 +186,14 @@ impl Engine {
             .new_native_tables_storage(Uuid::nil(), &SessionStorageConfig::default())?;
 
         // Set up remote session.
-        let resp = exec_client
-            .initialize_session(InitializeSessionRequest {
-                request: Some(Request::Client(InitializeSessionRequestFromClient {})),
-            })
-            .await
-            .map_err(|e| {
-                ExecError::RemoteSession(format!("failed to initialize remote session: {e}"))
-            })?;
-        let resp = resp.into_inner();
-
-        let remote_id =
-            Uuid::from_slice(&resp.session_id).map_err(ExecError::InvalidRemoteSessionId)?;
-        let state: CatalogState = resp.catalog.unwrap().try_into().unwrap(); // TODO
-        let catalog = SessionCatalog::new(Arc::new(state));
+        let (remote_sess_client, catalog) = exec_client
+            .initialize_session(InitializeSessionRequest::Client(
+                InitializeSessionRequestFromClient {},
+            ))
+            .await?;
 
         vars.remote_session_id
-            .set_raw(Some(remote_id), VarSetter::System)?;
+            .set_raw(Some(remote_sess_client.session_id()), VarSetter::System)?;
 
         let session = Session::new(
             vars,
@@ -210,7 +202,8 @@ impl Engine {
             self.tracker.clone(),
             self.spill_path.clone(),
             self.background_jobs.clone(),
-            Some(exec_client),
+            Some(remote_sess_client),
+            /* remote_ctx = */ false,
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);

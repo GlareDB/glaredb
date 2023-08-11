@@ -2,8 +2,12 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
-use crate::remote::client::AuthenticatedExecutionServiceClient;
+use crate::planner::context_builder::PartialContextProvider;
+use crate::remote::client::RemoteSessionClient;
+use datafusion::common::OwnedTableReference;
+use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::insert::DataSink;
@@ -209,7 +213,8 @@ impl Session {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<AuthenticatedExecutionServiceClient>,
+        exec_client: Option<RemoteSessionClient>,
+        remote_ctx: bool,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
@@ -226,6 +231,7 @@ impl Session {
             spill_path,
             background_jobs,
             exec_client,
+            remote_ctx,
         )?;
 
         Ok(Session { ctx })
@@ -270,14 +276,48 @@ impl Session {
         Ok(stream)
     }
 
+    /// Get a table provider from session.
+    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
+        self.ctx.get_table_provider(provider_id)
+    }
+
+    /// Add a table provider to the session. Returns the ID of the provider.
+    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
+        self.ctx.add_table_provider(provider)
+    }
+
+    /// Get a physical plan from session.
+    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
+        self.ctx.get_physical_plan(exec_id)
+    }
+
+    /// Add a physical plan to the session. Returns the ID of the plan.
+    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
+        self.ctx.add_physical_plan(plan)
+    }
+
+    /// Returns the extension codec used for serializing and deserializing data
+    /// over RPCs.
+    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
+        self.ctx.extension_codec()
+    }
+
+    /// Get the session dispatcher.
+    pub async fn dispatch_access(
+        &self,
+        table_ref: OwnedTableReference,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let state = self.ctx.init_exec();
+        let mut ctx_provider = PartialContextProvider::new(&self.ctx, &state)?;
+        Ok(ctx_provider.table_provider(table_ref).await?)
+    }
+
     pub(crate) async fn create_table(
         &mut self,
         plan: CreateTable,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let schema = plan.schema.as_ref().clone();
-
         self.ctx.create_table(plan).await?;
-
         Ok(Arc::new(EmptyExec::new(false, schema.into())))
     }
 
