@@ -19,7 +19,7 @@ pub enum RpcsrvError {
     TonicMetadataToStr(#[from] tonic::metadata::errors::ToStrError),
 
     #[error(transparent)]
-    ProtoConvError(#[from] protogen::metastore::types::ProtoConvError),
+    ProtoConvError(#[from] protogen::errors::ProtoConvError),
 
     #[error(transparent)]
     ExecError(#[from] sqlexec::errors::ExecError),
@@ -38,6 +38,9 @@ pub enum RpcsrvError {
 
     #[error(transparent)]
     InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
+
+    #[error(transparent)]
+    TonicStatus(#[from] tonic::Status),
 
     #[error("{0}")]
     Internal(String),

@@ -101,7 +101,11 @@ fn connect(
             .map_err(PyGlareDbError::from)?;
 
         let mut session = engine
-            .new_session(SessionVars::default(), SessionStorageConfig::default())
+            .new_session(
+                SessionVars::default(),
+                SessionStorageConfig::default(),
+                /* remote_ctx = */ false,
+            )
             .await
             .map_err(PyGlareDbError::from)?;
 

@@ -276,6 +276,7 @@ impl ProtocolHandler {
                 SessionStorageConfig {
                     gcs_bucket: storage_bucket,
                 },
+                /* remote_ctx = */ false,
             )
             .await
         {

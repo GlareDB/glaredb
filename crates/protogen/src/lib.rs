@@ -5,8 +5,54 @@
 //! project. There should be a minimal amount of logic in this crate.
 
 pub mod metastore;
+pub mod rpcsrv;
 pub mod export {
     pub use prost;
+}
+
+pub mod errors {
+    /// Errors related to converting to/from protobuf types.
+    #[derive(thiserror::Error, Debug)]
+    pub enum ProtoConvError {
+        #[error("Field required: {0}")]
+        RequiredField(String),
+
+        #[error("Unknown enum variant for '{0}': {1}")]
+        UnknownEnumVariant(&'static str, i32),
+
+        #[error("Received zero-value enum variant for '{0}'")]
+        ZeroValueEnumVariant(&'static str),
+
+        #[error("Unsupported serialization: {0}")]
+        UnsupportedSerialization(&'static str),
+
+        #[error("Invalid table reference: {0:?}.{1:?}.{2:?}")]
+        InvalidTableReference(String, String, String),
+
+        #[error(transparent)]
+        TimestampError(#[from] prost_types::TimestampError),
+
+        #[error(transparent)]
+        Uuid(#[from] uuid::Error),
+
+        #[error(transparent)]
+        TryFromIntError(#[from] std::num::TryFromIntError),
+
+        #[error(transparent)]
+        DecodeError(#[from] prost::DecodeError),
+
+        #[error(transparent)]
+        DfLogicalFromProto(#[from] datafusion_proto::logical_plan::from_proto::Error),
+
+        #[error(transparent)]
+        DfLogicalToProto(#[from] datafusion_proto::logical_plan::to_proto::Error),
+    }
+
+    impl From<ProtoConvError> for tonic::Status {
+        fn from(value: ProtoConvError) -> Self {
+            Self::from_error(Box::new(value))
+        }
+    }
 }
 
 /// Generated code.

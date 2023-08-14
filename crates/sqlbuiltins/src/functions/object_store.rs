@@ -84,7 +84,11 @@ impl TableFunc for ObjScanTableFunc {
             FileType::JSON => {
                 Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
             }
-            _ => todo!(),
+            ft => {
+                return Err(ExtensionError::String(format!(
+                    "Unsuppored file type: {ft:?}"
+                )))
+            }
         };
 
         // Optimize creating a table provider for objects by clubbing the same
