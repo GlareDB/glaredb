@@ -4,7 +4,9 @@ use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
+use datafusion::physical_planner::PhysicalPlanner;
+use datafusion::prelude::Expr;
 
 use std::sync::Arc;
 
@@ -12,14 +14,14 @@ use super::client::RemoteSessionClient;
 
 /// A planner that executes everything on a remote service.
 #[derive(Debug, Clone)]
-pub struct RemotePlanner {
+pub struct RemoteLogicalPlanner {
     /// Client to remote services.
     client: RemoteSessionClient,
 }
 
-impl RemotePlanner {
-    pub fn new(client: RemoteSessionClient) -> RemotePlanner {
-        RemotePlanner { client }
+impl RemoteLogicalPlanner {
+    pub fn new(client: RemoteSessionClient) -> RemoteLogicalPlanner {
+        RemoteLogicalPlanner { client }
     }
 }
 
@@ -40,15 +42,13 @@ impl QueryPlanner for RemoteLogicalPlanner {
 
 #[derive(Debug, Clone)]
 pub struct RemotePhysicalPlanner {
-    session_id: Uuid,
     /// Client to remote services.
-    client: AuthenticatedExecutionServiceClient,
+    client: RemoteSessionClient,
 }
 
 impl From<&RemoteLogicalPlanner> for RemotePhysicalPlanner {
     fn from(planner: &RemoteLogicalPlanner) -> Self {
         Self {
-            session_id: planner.session_id,
             client: planner.client.clone(),
         }
     }

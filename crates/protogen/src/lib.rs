@@ -11,6 +11,7 @@ pub mod rpcsrv;
 pub mod export {
     pub use prost;
 }
+pub use errors::ProtoConvError;
 
 pub mod errors {
     /// Errors related to converting to/from protobuf types.
@@ -93,31 +94,6 @@ pub mod gen {
             tonic::include_proto!("metastore.options");
         }
     }
-}
-
-/// Errors related to converting to/from protobuf types.
-#[derive(thiserror::Error, Debug)]
-pub enum ProtoConvError {
-    #[error("Field required: {0}")]
-    RequiredField(String),
-
-    #[error("Unknown enum variant for '{0}': {1}")]
-    UnknownEnumVariant(&'static str, i32),
-
-    #[error("Received zero-value enum variant for '{0}'")]
-    ZeroValueEnumVariant(&'static str),
-
-    #[error("Unsupported serialization: {0}")]
-    UnsupportedSerialization(&'static str),
-
-    #[error(transparent)]
-    TimestampError(#[from] prost_types::TimestampError),
-
-    #[error(transparent)]
-    Uuid(#[from] uuid::Error),
-
-    #[error(transparent)]
-    TryFromIntError(#[from] std::num::TryFromIntError),
 }
 
 /// An extension trait that adds the methods `optional` and `required` to any

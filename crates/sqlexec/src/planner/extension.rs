@@ -1,6 +1,5 @@
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 /// extension implementations for converting our logical plan into datafusion logical plan
-use protogen::metastore::types::service;
 use std::sync::Arc;
 
 use super::logical_plan::CreateTable;
@@ -9,7 +8,6 @@ use datafusion::logical_expr::{
     Extension as LogicalPlanExtension, LogicalPlan, UserDefinedLogicalNodeCore,
 };
 use protogen::export::prost::Message;
-use protogen::gen::metastore::service as proto;
 
 pub trait ExtensionConversion {
     fn into_extension(self) -> LogicalPlanExtension

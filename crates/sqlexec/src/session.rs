@@ -267,14 +267,11 @@ impl Session {
                     }
                     _ => {}
                 };
-
-            } 
-            todo!()
-        } else {
-            println!("create_physical_plan: local");
-            let plan = state.create_physical_plan(&plan).await?;
-            Ok(plan)
+            };
         }
+        println!("create_physical_plan: local");
+        let plan = state.create_physical_plan(&plan).await?;
+        Ok(plan)
     }
 
     /// Execute a datafusion physical plan.
