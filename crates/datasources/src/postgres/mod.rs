@@ -322,8 +322,8 @@ impl PostgresAccessor {
         // don't have to guess.
 
         // Get oid of table, and approx number of pages for the relation.
-        let row = client
-            .query_one(
+        let mut rows = client
+            .query(
                 "
 SELECT
     pg_class.oid,
@@ -334,7 +334,20 @@ WHERE nspname=$1 AND relname=$2;
                 &[&schema, &name],
             )
             .await?;
+        // Should only return 0 or 1 row. If 0 rows, then table/schema doesn't
+        // exist.
+        let row = match rows.pop() {
+            Some(row) => row,
+            None => {
+                return Err(PostgresError::QueryError(format!(
+                    "failed to find table: '{schema}.{name}'"
+                )))
+            }
+        };
         let oid: u32 = row.try_get(0)?;
+
+        // TODO: Get approx pages to allow us to calculate number of pages to
+        // scan per thread once we do parallel scanning.
         // let approx_pages: i64 = row.try_get(1)?;
 
         // Get table schema.
