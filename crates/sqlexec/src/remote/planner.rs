@@ -16,12 +16,14 @@ use super::client::RemoteSessionClient;
 #[derive(Debug, Clone)]
 pub struct RemoteLogicalPlanner {
     /// Client to remote services.
-    client: RemoteSessionClient,
+    remote_client: RemoteSessionClient,
 }
 
 impl RemoteLogicalPlanner {
     pub fn new(client: RemoteSessionClient) -> RemoteLogicalPlanner {
-        RemoteLogicalPlanner { client }
+        RemoteLogicalPlanner {
+            remote_client: client,
+        }
     }
 }
 
@@ -43,13 +45,13 @@ impl QueryPlanner for RemoteLogicalPlanner {
 #[derive(Debug, Clone)]
 pub struct RemotePhysicalPlanner {
     /// Client to remote services.
-    client: RemoteSessionClient,
+    remote_client: RemoteSessionClient,
 }
 
 impl From<&RemoteLogicalPlanner> for RemotePhysicalPlanner {
     fn from(planner: &RemoteLogicalPlanner) -> Self {
         Self {
-            client: planner.client.clone(),
+            remote_client: planner.remote_client.clone(),
         }
     }
 }
@@ -61,8 +63,8 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         logical_plan: &DfLogicalPlan,
         _session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let mut client = self.client.clone();
-        let physical_plan = client
+        let mut remote_client = self.remote_client.clone();
+        let physical_plan = remote_client
             .create_physical_plan(logical_plan)
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;

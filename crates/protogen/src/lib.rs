@@ -3,6 +3,8 @@
 //! All protobufs and types shared across service boundaries should be placed in
 //! this crate. This crate should be able to imported by any other crate in the
 //! project. There should be a minimal amount of logic in this crate.
+#![allow(non_snake_case)]
+
 pub mod common;
 pub mod metastore;
 pub mod sqlexec;
@@ -67,9 +69,7 @@ pub mod gen {
         pub mod arrow {
             tonic::include_proto!("common.arrow");
         }
-
     }
-    
 
     pub mod rpcsrv {
         pub mod service {

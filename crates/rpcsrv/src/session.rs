@@ -46,7 +46,6 @@ impl RemoteSession {
         let fake_ctx = SessionContext::new();
         let plan = LogicalPlanNode::try_decode(logical_plan.as_ref())?
             .try_into_logical_plan(&fake_ctx, &session.extension_codec())?;
-
         let physical = session.create_physical_plan(plan).await?;
         let schema = physical.schema();
         let exec_id = session.add_physical_plan(physical);
@@ -77,8 +76,9 @@ impl RemoteSession {
         let plan = session
             .get_physical_plan(&exec_id)
             .ok_or_else(|| RpcsrvError::MissingPhysicalPlan(exec_id))?;
-        // TODO: Use a context that actually matters.
+
         let stream = session.execute_physical(plan)?;
+
         Ok(stream)
     }
 }

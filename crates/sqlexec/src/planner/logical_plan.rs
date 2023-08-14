@@ -1,12 +1,35 @@
+mod alter_database_rename;
+mod alter_table_rename;
+mod alter_tunnel_rotate_keys;
+mod create_credentials;
+mod create_external_database;
+mod create_external_table;
+mod create_schema;
+mod create_table;
+mod create_temp_table;
+mod create_tunnel;
+mod create_view;
+mod drop_credentials;
+mod drop_database;
+mod drop_schemas;
+mod drop_tables;
+mod drop_tunnel;
+mod drop_views;
+
 use crate::errors::{internal, Result};
+use crate::planner::extension::ExtensionType;
+
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
+use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
+use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
 use datafusion_proto::protobuf::LogicalPlanNode;
+use once_cell::sync::Lazy;
+use protogen::export::prost::Message;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use protogen::metastore::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
@@ -14,6 +37,26 @@ use protogen::metastore::types::options::{
 use protogen::ProtoConvError;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+pub use alter_database_rename::*;
+pub use alter_table_rename::*;
+pub use alter_tunnel_rotate_keys::*;
+pub use create_credentials::*;
+pub use create_external_database::*;
+pub use create_external_table::*;
+pub use create_schema::*;
+pub use create_table::*;
+pub use create_temp_table::*;
+pub use create_tunnel::*;
+pub use create_view::*;
+pub use drop_credentials::*;
+pub use drop_database::*;
+pub use drop_schemas::*;
+pub use drop_tables::*;
+pub use drop_tunnel::*;
+pub use drop_views::*;
+
+static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
@@ -23,7 +66,7 @@ pub enum LogicalPlan {
     Write(WritePlan),
     /// Plans related to querying the underlying data store. This will run
     /// through datafusion.
-    Query(DfLogicalPlan),
+    Datafusion(DfLogicalPlan),
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
     /// Plans related to altering the state or runtime of the session.
@@ -34,7 +77,7 @@ impl LogicalPlan {
     /// Try to get the data fusion logical plan from this logical plan.
     pub fn try_into_datafusion_plan(self) -> Result<DfLogicalPlan> {
         match self {
-            LogicalPlan::Query(plan) => Ok(plan),
+            LogicalPlan::Datafusion(plan) => Ok(plan),
             other => Err(internal!("expected datafusion plan, got: {:?}", other)),
         }
     }
@@ -43,7 +86,7 @@ impl LogicalPlan {
     /// one.
     pub fn output_schema(&self) -> Option<ArrowSchema> {
         match self {
-            LogicalPlan::Query(plan) => {
+            LogicalPlan::Datafusion(plan) => {
                 let schema: ArrowSchema = plan.schema().as_ref().into();
                 Some(schema)
             }
@@ -61,7 +104,7 @@ impl LogicalPlan {
     /// later.
     pub fn get_parameter_types(&self) -> Result<HashMap<String, Option<DataType>>> {
         Ok(match self {
-            LogicalPlan::Query(plan) => plan.get_parameter_types()?,
+            LogicalPlan::Datafusion(plan) => plan.get_parameter_types()?,
             _ => HashMap::new(),
         })
     }
@@ -70,7 +113,7 @@ impl LogicalPlan {
     ///
     /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
-        if let LogicalPlan::Query(plan) = self {
+        if let LogicalPlan::Datafusion(plan) = self {
             // Replace placeholders in the inner plan if the wrapped in an
             // EXPLAIN.
             //
@@ -99,7 +142,7 @@ impl LogicalPlan {
 
 impl From<DfLogicalPlan> for LogicalPlan {
     fn from(plan: DfLogicalPlan) -> Self {
-        LogicalPlan::Query(plan)
+        LogicalPlan::Datafusion(plan)
     }
 }
 
@@ -213,171 +256,6 @@ impl From<DdlPlan> for LogicalPlan {
     fn from(plan: DdlPlan) -> Self {
         LogicalPlan::Ddl(plan)
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateExternalDatabase {
-    pub database_name: String,
-    pub if_not_exists: bool,
-    pub options: DatabaseOptions,
-    pub tunnel: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateTunnel {
-    pub name: String,
-    pub if_not_exists: bool,
-    pub options: TunnelOptions,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateCredentials {
-    pub name: String,
-    pub options: CredentialsOptions,
-    pub comment: String,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateSchema {
-    pub schema_name: OwnedSchemaReference,
-    pub if_not_exists: bool,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct CreateTable {
-    pub table_name: OwnedTableReference,
-    pub if_not_exists: bool,
-    pub schema: DFSchemaRef,
-    pub source: Option<DfLogicalPlan>,
-}
-
-impl CreateTable {
-    pub fn try_to_proto(
-        &self,
-        extension_codec: &dyn LogicalExtensionCodec,
-    ) -> protogen::sqlexec::logical_plan::LogicalPlanExtension {
-        use protogen::sqlexec::logical_plan as protogen;
-        let schema = &self.schema;
-        let schema: datafusion_proto::protobuf::DfSchema = schema.try_into().unwrap();
-        let source = self
-            .source
-            .as_ref()
-            .map(|src| LogicalPlanNode::try_from_logical_plan(&src, extension_codec).unwrap());
-
-        let create_table = protogen::CreateTable {
-            table_name: Some(self.table_name.clone().try_into().unwrap()),
-            if_not_exists: self.if_not_exists,
-            schema: Some(schema),
-            source,
-        };
-        let ddl = protogen::DdlPlanType::CreateTable(create_table);
-        let ddl = protogen::DdlPlanNode { ddl: Some(ddl) };
-
-        let plan_type = protogen::LogicalPlanExtensionType::DdlPlan(ddl);
-
-        let lp_extension = protogen::LogicalPlanExtension {
-            inner: Some(plan_type),
-        };
-
-        lp_extension
-    }
-}
-impl TryFrom<protogen::sqlexec::logical_plan::CreateTable> for CreateTable {
-    type Error = ProtoConvError;
-
-    fn try_from(proto: protogen::sqlexec::logical_plan::CreateTable) -> Result<Self, Self::Error> {
-        let table_name = proto.table_name.unwrap().try_into().unwrap();
-        let schema = proto.schema.unwrap().try_into().unwrap();
-        if proto.source.is_some() {
-            todo!("source is not yet supported")
-        }
-        Ok(Self {
-            table_name,
-            if_not_exists: proto.if_not_exists,
-            schema,
-            source: None,
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateTempTable {
-    pub table_name: String,
-    pub if_not_exists: bool,
-    pub columns: Vec<Field>,
-    pub source: Option<DfLogicalPlan>,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateExternalTable {
-    pub table_name: OwnedTableReference,
-    pub if_not_exists: bool,
-    pub table_options: TableOptions,
-    pub tunnel: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateView {
-    pub view_name: OwnedTableReference,
-    pub sql: String,
-    pub columns: Vec<String>,
-    pub or_replace: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct AlterTableRename {
-    pub name: OwnedTableReference,
-    pub new_name: OwnedTableReference,
-}
-
-#[derive(Clone, Debug)]
-pub struct DropTables {
-    pub names: Vec<OwnedTableReference>,
-    pub if_exists: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct DropViews {
-    pub names: Vec<OwnedTableReference>,
-    pub if_exists: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct DropSchemas {
-    pub names: Vec<OwnedSchemaReference>,
-    pub if_exists: bool,
-    pub cascade: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct DropDatabase {
-    pub names: Vec<String>,
-    pub if_exists: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct DropTunnel {
-    pub names: Vec<String>,
-    pub if_exists: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct DropCredentials {
-    pub names: Vec<String>,
-    pub if_exists: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct AlterTunnelRotateKeys {
-    pub name: String,
-    pub if_exists: bool,
-    pub new_ssh_key: Vec<u8>,
-}
-
-#[derive(Clone, Debug)]
-pub struct AlterDatabaseRename {
-    pub name: String,
-    pub new_name: String,
 }
 
 #[derive(Clone, Debug)]

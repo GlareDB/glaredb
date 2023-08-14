@@ -58,7 +58,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 
 use super::context_builder::PartialContextProvider;
-use super::extension::ExtensionConversion;
+use super::extension::ExtensionType;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -603,7 +603,7 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::Query(q) => {
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let plan = planner.query_to_plan(*q).await?;
-                Ok(LogicalPlan::Query(plan))
+                Ok(LogicalPlan::Datafusion(plan))
             }
 
             ast::Statement::Explain {
@@ -616,7 +616,7 @@ impl<'a> SessionPlanner<'a> {
                 let plan = planner
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
-                Ok(LogicalPlan::Query(plan))
+                Ok(LogicalPlan::Datafusion(plan))
             }
 
             ast::Statement::CreateSchema {
@@ -642,11 +642,14 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
-                Ok(DdlPlan::CreateSchema(CreateSchema {
+                let stmt = CreateSchema {
                     schema_name,
                     if_not_exists,
-                })
-                .into())
+                };
+
+                Ok(LogicalPlan::Datafusion(
+                    datafusion::logical_expr::LogicalPlan::Extension(stmt.into_extension()),
+                ))
             }
 
             // Normal tables OR Tables generated from a source query.
@@ -736,7 +739,7 @@ impl<'a> SessionPlanner<'a> {
                     };
                     let ext = create_table.into_extension();
 
-                    Ok(LogicalPlan::Query(
+                    Ok(LogicalPlan::Datafusion(
                         datafusion::logical_expr::LogicalPlan::Extension(ext),
                     ))
                 }
@@ -861,11 +864,15 @@ impl<'a> SessionPlanner<'a> {
                     let r = object_name_to_table_ref(name)?;
                     refs.push(r);
                 }
-                Ok(DdlPlan::DropTables(DropTables {
+
+                let plan = DropTables {
                     if_exists,
                     names: refs,
-                })
-                .into())
+                };
+
+                Ok(LogicalPlan::Datafusion(
+                    datafusion::logical_expr::LogicalPlan::Extension(plan.into_extension()),
+                ))
             }
 
             // Drop views
