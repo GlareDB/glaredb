@@ -206,6 +206,7 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,

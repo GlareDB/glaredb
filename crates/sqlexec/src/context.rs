@@ -108,6 +108,7 @@ impl SessionContext {
     ///
     /// If `info.memory_limit_bytes` is non-zero, a new memory pool will be
     /// created with the max set to this value.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
