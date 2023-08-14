@@ -39,6 +39,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         relation: ast::TableFactor,
         planner_context: &mut PlannerContext,
     ) -> Result<LogicalPlan> {
+        println!("create_relation: {:?}", relation);
         let (plan, alias) = match relation {
             ast::TableFactor::Table {
                 name, alias, args, ..

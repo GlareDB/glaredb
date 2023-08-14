@@ -48,6 +48,7 @@ impl RemoteSession {
                 println!("SERVER---\nplan: {:?}", plan);
                 let mut session = self.session.lock().await;
                 let physical = session.create_physical_plan(plan).await?;
+                println!("SERVER---\nphysical: {:?}", physical);
                 let stream = session.execute_physical(physical)?;
 
                 Ok(stream)

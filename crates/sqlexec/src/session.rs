@@ -245,22 +245,32 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.init_exec();
-        
-        // TODO! if its connected to a remote instance, we want them to execute the plan.
-        // currently they both try to execute the plan.
-        // if let DfLogicalPlan::Extension(extension) = &plan {
-        //     #[allow(clippy::single_match)]
-        //     match extension.node.name() {
-        //         "CreateTable" => {
-        //             let create_table = extension.node.as_any().downcast_ref::<CreateTable>();
-        //             return self.create_table(create_table.unwrap().clone()).await;
-        //         }
-        //         _ => {}
-        //     }
-        // }
 
-        let plan = state.create_physical_plan(&plan).await?;
-        Ok(plan)
+        if self
+            .ctx
+            .get_session_vars()
+            .remote_session_id
+            .value()
+            .is_none()
+        {
+            println!("create_physical_plan: remote");
+            if let DfLogicalPlan::Extension(extension) = &plan {
+                #[allow(clippy::single_match)]
+                match extension.node.name() {
+                    "CreateTable" => {
+                        let create_table = extension.node.as_any().downcast_ref::<CreateTable>();
+                        return self.create_table(create_table.unwrap().clone()).await;
+                    }
+                    _ => {}
+                };
+
+            } 
+            todo!()
+        } else {
+            println!("create_physical_plan: local");
+            let plan = state.create_physical_plan(&plan).await?;
+            Ok(plan)
+        }
     }
 
     /// Execute a datafusion physical plan.
