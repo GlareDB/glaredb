@@ -9,12 +9,13 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::{SessionVars, VarSetter};
 use futures::{Stream, StreamExt};
-use protogen::gen::{
-    metastore::catalog::CatalogState,
-    rpcsrv::service::{
-        execution_service_server::ExecutionService, initialize_session_request,
-        CloseSessionRequest, CloseSessionResponse, ExecuteRequest, ExecuteResponse,
-        InitializeSessionRequest, InitializeSessionResponse,
+use protogen::{
+    gen::rpcsrv::service,
+    metastore::types::catalog::CatalogState,
+    rpcsrv::types::service::{
+        CloseSessionRequest, CloseSessionResponse, CreatePhysicalPlanRequest,
+        DispatchAccessRequest, InitializeSessionRequest, InitializeSessionResponse,
+        PhysicalPlanExecuteRequest, PhysicalPlanResponse, TableProviderResponse,
     },
 };
 use sqlexec::engine::{Engine, SessionStorageConfig};
@@ -57,23 +58,14 @@ impl RpcHandler {
         //
         // This will check that we actually received a proxy request, and not a
         // request from the client.
-        let (db_id, storage_conf) = match req.request.ok_or_else(|| {
-            RpcsrvError::SessionInitalizeError("missing initialize request".to_string())
-        })? {
-            initialize_session_request::Request::Proxy(req) => {
-                let db_id = Uuid::from_slice(&req.db_id)
-                    .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+        let (db_id, storage_conf) = match req {
+            InitializeSessionRequest::Proxy(req) => {
                 let storage_conf = SessionStorageConfig {
-                    gcs_bucket: req
-                        .storage_conf
-                        .ok_or_else(|| {
-                            RpcsrvError::SessionInitalizeError("missing storage config".to_string())
-                        })?
-                        .gcs_bucket,
+                    gcs_bucket: req.storage_conf.gcs_bucket,
                 };
-                (db_id, storage_conf)
+                (req.db_id, storage_conf)
             }
-            initialize_session_request::Request::Client(_req) if self.allow_client_init => {
+            InitializeSessionRequest::Client(_req) if self.allow_client_init => {
                 (Uuid::nil(), SessionStorageConfig::default())
             }
             _ => {
@@ -85,6 +77,7 @@ impl RpcHandler {
         };
 
         let conn_id = Uuid::new_v4();
+        info!(session_id=%conn_id, "initializing remote session");
 
         let mut vars = SessionVars::default();
         // TODO: handle error instead
@@ -94,74 +87,131 @@ impl RpcHandler {
         let sess = self.engine.new_session(vars, storage_conf).await?;
 
         let sess = RemoteSession::new(sess);
-        let initial_state: CatalogState = sess.get_catalog_state().await.try_into()?;
+        let initial_state: CatalogState = sess.get_catalog_state().await;
 
         self.sessions.insert(conn_id, sess);
 
         Ok(InitializeSessionResponse {
-            session_id: conn_id.into_bytes().to_vec(),
-            catalog: Some(initial_state),
+            session_id: conn_id,
+            catalog: initial_state,
         })
     }
 
-    async fn execute_inner(&self, req: ExecuteRequest) -> Result<ExecutionResponseBatchStream> {
-        let session_id =
-            Uuid::from_slice(&req.session_id).map_err(|e| RpcsrvError::InvalidId("session", e))?;
-
+    async fn create_physical_plan_inner(
+        &self,
+        req: CreatePhysicalPlanRequest,
+    ) -> Result<PhysicalPlanResponse> {
         // TODO(perf): This actually ends being two/three locks that we need to acquire.
         // 1. The hashmap
         // 2. The session itself
         // 3. (soon) Datafusion's context once we start using that
 
-        let sess = self
-            .sessions
-            .get(&session_id)
-            .ok_or_else(|| RpcsrvError::MissingSession(session_id))?;
+        let session = self.get_session(req.session_id)?;
+        info!(session_id=%req.session_id, "creating physical plan");
+        session.create_physical_plan(req.logical_plan).await
+    }
 
-        let batches = sess.execute_serialized_plan(req).await?;
+    async fn dispatch_access_inner(
+        &self,
+        req: DispatchAccessRequest,
+    ) -> Result<TableProviderResponse> {
+        let session = self.get_session(req.session_id)?;
+        info!(session_id=%req.session_id, table_ref=%req.table_ref, "dispatching table access");
+        session.dispatch_access(req.table_ref).await
+    }
+
+    async fn physical_plan_execute_inner(
+        &self,
+        req: PhysicalPlanExecuteRequest,
+    ) -> Result<ExecutionResponseBatchStream> {
+        let session = self.get_session(req.session_id)?;
+        info!(session_id=%req.session_id, exec_id=%req.exec_id, "executing physical plan");
+        let batches = session.physical_plan_execute(req.exec_id).await?;
         Ok(ExecutionResponseBatchStream {
             batches,
             buf: Vec::new(),
         })
     }
 
-    async fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
-        let session_id =
-            Uuid::from_slice(&req.session_id).map_err(|e| RpcsrvError::InvalidId("session", e))?;
-        self.sessions.remove(&session_id);
+    fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
+        info!(session_id=%req.session_id, "closing session");
+        self.sessions.remove(&req.session_id);
         Ok(CloseSessionResponse {})
+    }
+
+    fn get_session(&self, session_id: Uuid) -> Result<RemoteSession> {
+        self.sessions
+            .get(&session_id)
+            .ok_or_else(|| RpcsrvError::MissingSession(session_id))
+            .map(|s| s.value().clone())
     }
 }
 
 #[async_trait]
-impl ExecutionService for RpcHandler {
-    type ExecuteStream = Pin<Box<dyn Stream<Item = Result<ExecuteResponse, Status>> + Send>>;
+impl service::execution_service_server::ExecutionService for RpcHandler {
+    type PhysicalPlanExecuteStream =
+        Pin<Box<dyn Stream<Item = Result<service::RecordBatchResponse, Status>> + Send>>;
 
     async fn initialize_session(
         &self,
-        request: Request<InitializeSessionRequest>,
-    ) -> Result<Response<InitializeSessionResponse>, Status> {
-        info!("initializing session");
-        let resp = self.initialize_session_inner(request.into_inner()).await?;
-        Ok(Response::new(resp))
+        request: Request<service::InitializeSessionRequest>,
+    ) -> Result<Response<service::InitializeSessionResponse>, Status> {
+        let resp = self
+            .initialize_session_inner(request.into_inner().try_into()?)
+            .await?;
+        Ok(Response::new(resp.try_into()?))
     }
 
-    async fn execute(
+    async fn create_physical_plan(
         &self,
-        request: Request<ExecuteRequest>,
-    ) -> Result<Response<Self::ExecuteStream>, Status> {
-        info!("executing: {:?}", request);
-        let stream = self.execute_inner(request.into_inner()).await?;
-        Ok(Response::new(Box::pin(stream)))
+        request: Request<service::CreatePhysicalPlanRequest>,
+    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
+        let resp = self
+            .create_physical_plan_inner(request.into_inner().try_into()?)
+            .await?;
+        Ok(Response::new(resp.try_into()?))
+    }
+
+    async fn dispatch_access(
+        &self,
+        request: Request<service::DispatchAccessRequest>,
+    ) -> Result<Response<service::TableProviderResponse>, Status> {
+        let resp = self
+            .dispatch_access_inner(request.into_inner().try_into()?)
+            .await?;
+        Ok(Response::new(resp.try_into()?))
+    }
+
+    async fn table_provider_scan(
+        &self,
+        _request: Request<service::TableProviderScanRequest>,
+    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
+        todo!()
+    }
+
+    async fn table_provider_insert_into(
+        &self,
+        _request: Request<service::TableProviderInsertIntoRequest>,
+    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
+        todo!()
+    }
+
+    async fn physical_plan_execute(
+        &self,
+        request: Request<service::PhysicalPlanExecuteRequest>,
+    ) -> Result<Response<Self::PhysicalPlanExecuteStream>, Status> {
+        let resp = self
+            .physical_plan_execute_inner(request.into_inner().try_into()?)
+            .await?;
+        Ok(Response::new(Box::pin(resp)))
     }
 
     async fn close_session(
         &self,
-        request: Request<CloseSessionRequest>,
-    ) -> Result<Response<CloseSessionResponse>, Status> {
-        info!("closing session");
-        let resp = self.close_session_inner(request.into_inner()).await?;
-        Ok(Response::new(resp))
+        request: Request<service::CloseSessionRequest>,
+    ) -> Result<Response<service::CloseSessionResponse>, Status> {
+        let resp = self.close_session_inner(request.into_inner().try_into()?)?;
+        Ok(Response::new(resp.into()))
     }
 }
 
@@ -175,7 +225,7 @@ struct ExecutionResponseBatchStream {
 }
 
 impl ExecutionResponseBatchStream {
-    fn write_batch(&mut self, batch: &RecordBatch) -> Result<ExecuteResponse> {
+    fn write_batch(&mut self, batch: &RecordBatch) -> Result<service::RecordBatchResponse> {
         self.buf.clear();
 
         let schema = batch.schema();
@@ -185,14 +235,14 @@ impl ExecutionResponseBatchStream {
 
         let _ = writer.into_inner()?;
 
-        Ok(ExecuteResponse {
+        Ok(service::RecordBatchResponse {
             arrow_ipc: self.buf.clone(),
         })
     }
 }
 
 impl Stream for ExecutionResponseBatchStream {
-    type Item = Result<ExecuteResponse, Status>;
+    type Item = Result<service::RecordBatchResponse, Status>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.batches.poll_next_unpin(cx) {

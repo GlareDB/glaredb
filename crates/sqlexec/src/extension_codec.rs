@@ -1,17 +1,44 @@
+use core::fmt;
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use uuid::Uuid;
 
+use crate::errors::ExecError;
 use crate::planner::extension::ExtensionConversion;
 use crate::planner::logical_plan::CreateTable;
 use protogen::export::prost::Message;
+use crate::remote::table::RemoteTableProvider;
 
-#[derive(Debug)]
-pub struct GlareDBExtensionCodec;
+pub struct GlareDBExtensionCodec<'a> {
+    table_providers: Option<&'a HashMap<Uuid, Arc<dyn TableProvider>>>,
+}
 
-impl LogicalExtensionCodec for GlareDBExtensionCodec {
+impl<'a> GlareDBExtensionCodec<'a> {
+    pub fn new_decoder(table_providers: &'a HashMap<Uuid, Arc<dyn TableProvider>>) -> Self {
+        Self {
+            table_providers: Some(table_providers),
+        }
+    }
+
+    pub fn new_encoder() -> Self {
+        Self {
+            table_providers: None,
+        }
+    }
+}
+
+impl<'a> fmt::Debug for GlareDBExtensionCodec<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GlareDBExtensionCodec").finish()
+    }
+}
+
+impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
     fn try_decode(
         &self,
         buf: &[u8],
@@ -54,18 +81,39 @@ impl LogicalExtensionCodec for GlareDBExtensionCodec {
 
     fn try_decode_table_provider(
         &self,
-        _buf: &[u8],
+        buf: &[u8],
         _schema: datafusion::arrow::datatypes::SchemaRef,
         _ctx: &SessionContext,
     ) -> datafusion::error::Result<Arc<dyn datafusion::datasource::TableProvider>> {
-        todo!()
+        let provider_id = Uuid::from_slice(buf).map_err(|e| {
+            DataFusionError::External(Box::new(ExecError::InvalidRemoteId("provider", e)))
+        })?;
+
+        let provider = self
+            .table_providers
+            .and_then(|table_providers| table_providers.get(&provider_id))
+            .ok_or_else(|| {
+                DataFusionError::External(Box::new(ExecError::Internal(format!(
+                    "cannot decode the table provider for id: {provider_id}"
+                ))))
+            })?;
+
+        Ok(Arc::clone(provider))
     }
 
     fn try_encode_table_provider(
         &self,
-        _node: Arc<dyn datafusion::datasource::TableProvider>,
-        _buf: &mut Vec<u8>,
+        node: Arc<dyn datafusion::datasource::TableProvider>,
+        buf: &mut Vec<u8>,
     ) -> datafusion::error::Result<()> {
-        todo!()
+        if let Some(remote_provider) = node.as_any().downcast_ref::<RemoteTableProvider>() {
+            remote_provider
+                .encode(buf)
+                .map_err(|e| DataFusionError::External(Box::new(e)))
+        } else {
+            Err(DataFusionError::External(Box::new(ExecError::Internal(
+                "can only encode `RemoteTableProvider`".to_string(),
+            ))))
+        }
     }
 }

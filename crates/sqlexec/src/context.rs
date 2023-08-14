@@ -2,19 +2,25 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
+use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+<<<<<<< HEAD
 use crate::remote::client::AuthenticatedExecutionServiceClient;
 use crate::remote::planner::RemoteLogicalPlanner;
+=======
+use crate::remote::client::RemoteSessionClient;
+use crate::remote::planner::RemotePlanner;
+>>>>>>> 33a20c73f29e4fa6f310cadb163465c4e52bb0be
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
 use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
-use datafusion::datasource::MemTable;
+use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
@@ -34,7 +40,6 @@ use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::gen::rpcsrv::service::CloseSessionRequest;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
@@ -66,7 +71,7 @@ pub struct SessionContext {
     /// The execution client for remote sessions.
     // TODO: This is currently unused, but we'll likely need it for running some
     // of our custom plans on a remote service.
-    exec_client: Option<AuthenticatedExecutionServiceClient>,
+    exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
     /// In-memory (temporary) tables.
@@ -87,6 +92,10 @@ pub struct SessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Job runner for background jobs.
     background_jobs: JobRunner,
+    /// Session's table providers.
+    table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
+    /// Session's physical plans.
+    physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
 }
 
 impl SessionContext {
@@ -105,7 +114,7 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<AuthenticatedExecutionServiceClient>,
+        exec_client: Option<RemoteSessionClient>,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -152,9 +161,8 @@ impl SessionContext {
 
         let mut state = SessionState::with_config_rt(config, Arc::new(runtime));
 
-        if let Some(id) = vars.remote_session_id.value() {
-            let client = exec_client.clone().unwrap();
-            let planner = RemoteLogicalPlanner::new(*id, client);
+        if let Some(client) = exec_client.clone() {
+            let planner = RemotePlanner::new(client);
             state = state.with_query_planner(Arc::new(planner));
         }
 
@@ -178,6 +186,8 @@ impl SessionContext {
             df_ctx,
             env_reader: None,
             background_jobs,
+            table_providers: HashMap::new(),
+            physical_plans: HashMap::new(),
         })
     }
 
@@ -234,6 +244,41 @@ impl SessionContext {
     /// Initialize execution and return the [`SessionState`].
     pub fn init_exec(&self) -> SessionState {
         self.df_ctx.state()
+    }
+
+    /// Returns the underlaying exec client for remote session.
+    pub fn exec_client(&self) -> Option<RemoteSessionClient> {
+        self.exec_client.clone()
+    }
+
+    /// Get a table provider from session.
+    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Option<Arc<dyn TableProvider>> {
+        self.table_providers.get(provider_id).cloned()
+    }
+
+    /// Add a table provider to the session. Returns the ID of the provider.
+    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> uuid::Uuid {
+        let provider_id = uuid::Uuid::new_v4();
+        self.table_providers.insert(provider_id, provider);
+        provider_id
+    }
+
+    /// Get a physical plan from session.
+    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Option<Arc<dyn ExecutionPlan>> {
+        self.physical_plans.get(exec_id).cloned()
+    }
+
+    /// Add a physical plan to the session. Returns the ID of the plan.
+    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> uuid::Uuid {
+        let exec_id = uuid::Uuid::new_v4();
+        self.physical_plans.insert(exec_id, plan);
+        exec_id
+    }
+
+    /// Returns the extension codec used for serializing and deserializing data
+    /// over RPCs.
+    pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
+        GlareDBExtensionCodec::new_decoder(&self.table_providers)
     }
 
     /// Create a temp table.
@@ -946,13 +991,8 @@ impl SessionContext {
 
 impl Drop for SessionContext {
     fn drop(&mut self) {
-        if let (Some(mut client), Some(remote_session_id)) = (
-            self.exec_client.clone(),
-            self.vars.remote_session_id.value(),
-        ) {
-            let _ = executor::block_on(client.close_session(CloseSessionRequest {
-                session_id: (*remote_session_id).as_bytes().to_vec(),
-            }));
+        if let Some(mut client) = self.exec_client.clone() {
+            let _ = executor::block_on(client.close_session());
         }
     }
 }

@@ -826,14 +826,7 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
-                // This provider should be available in the context provider
-                // cache since we have successfully generated the insert plan.
-                //
-                // TODO: Get rid of context_provider when moving DF code into
-                // sqlexec. Will get rid of a lot of weirdness.
-                let table_provider = context_provider
-                    .table_provider(table_name)
-                    .ok_or(internal!("unable to get table provider to insert into"))?;
+                let table_provider = context_provider.table_provider(table_name).await?;
 
                 Ok(WritePlan::Insert(Insert {
                     table_provider,

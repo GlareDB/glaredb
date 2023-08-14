@@ -1,13 +1,11 @@
 use crate::errors::{Result, RpcsrvError};
 use async_trait::async_trait;
 use dashmap::DashMap;
-use protogen::gen::rpcsrv::service::{
-    execution_service_client::ExecutionServiceClient, execution_service_server::ExecutionService,
-    CloseSessionRequest, CloseSessionResponse, ExecuteRequest, ExecuteResponse,
-    InitializeSessionRequest, InitializeSessionResponse,
-};
-use protogen::gen::rpcsrv::service::{
-    initialize_session_request, InitializeSessionRequestFromProxy, SessionStorageConfig,
+use protogen::gen::rpcsrv::service;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::rpcsrv::types::service::{
+    InitializeSessionRequest, InitializeSessionRequestFromProxy, InitializeSessionResponse,
+    SessionStorageConfig,
 };
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{
@@ -99,42 +97,33 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
     /// request based on details from Cloud.
     async fn initialize_session_inner(
         &self,
-        request: Request<InitializeSessionRequest>,
-    ) -> Result<Response<InitializeSessionResponse>, Status> {
-        let (details, mut client) = self.connect(request.metadata()).await?;
-
-        let req = request.into_inner();
-        let req = req.request.ok_or_else(|| {
-            RpcsrvError::SessionInitalizeError("missing initialize session request".to_string())
-        })?;
-
-        match req {
-            initialize_session_request::Request::Client(_req) => {
+        request: InitializeSessionRequest,
+        details: DatabaseDetails,
+        mut client: ExecutionServiceClient<Channel>,
+    ) -> Result<InitializeSessionResponse> {
+        match request {
+            InitializeSessionRequest::Client(_req) => {
                 // Create our "proxy" request based off the database details we
                 // got back from Cloud.
                 let db_id = Uuid::parse_str(&details.database_id)
                     .map_err(|e| RpcsrvError::InvalidId("database", e))?;
-                let new_req =
-                    initialize_session_request::Request::Proxy(InitializeSessionRequestFromProxy {
-                        storage_conf: Some(SessionStorageConfig {
-                            gcs_bucket: Some(details.gcs_storage_bucket),
-                        }),
-                        db_id: db_id.into_bytes().to_vec(),
-                    });
+                let new_req = InitializeSessionRequest::Proxy(InitializeSessionRequestFromProxy {
+                    storage_conf: SessionStorageConfig {
+                        gcs_bucket: Some(details.gcs_storage_bucket),
+                    },
+                    db_id,
+                });
 
                 // And proxy it forward.
-                client
-                    .initialize_session(Request::new(InitializeSessionRequest {
-                        request: Some(new_req),
-                    }))
-                    .await
+                Ok(client
+                    .initialize_session(Request::new(new_req.into()))
+                    .await?
+                    .into_inner()
+                    .try_into()?)
             }
-            initialize_session_request::Request::Proxy(_) => {
-                Err(RpcsrvError::SessionInitalizeError(
-                    "unexpectedly got proxy request from client".to_string(),
-                )
-                .into())
-            }
+            InitializeSessionRequest::Proxy(_) => Err(RpcsrvError::SessionInitalizeError(
+                "unexpectedly got proxy request from client".to_string(),
+            )),
         }
     }
 
@@ -169,30 +158,72 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
 }
 
 #[async_trait]
-impl<A: ProxyAuthenticator + 'static> ExecutionService for RpcProxyHandler<A> {
-    type ExecuteStream = Streaming<ExecuteResponse>;
+impl<A: ProxyAuthenticator + 'static> service::execution_service_server::ExecutionService
+    for RpcProxyHandler<A>
+{
+    type PhysicalPlanExecuteStream = Streaming<service::RecordBatchResponse>;
 
     async fn initialize_session(
         &self,
-        request: Request<InitializeSessionRequest>,
-    ) -> Result<Response<InitializeSessionResponse>, Status> {
+        request: Request<service::InitializeSessionRequest>,
+    ) -> Result<Response<service::InitializeSessionResponse>, Status> {
         info!("initialize session (proxy)");
-        self.initialize_session_inner(request).await
+        let (details, client) = self.connect(request.metadata()).await?;
+        let resp = self
+            .initialize_session_inner(request.into_inner().try_into()?, details, client)
+            .await?;
+        Ok(Response::new(resp.try_into()?))
     }
 
-    async fn execute(
+    async fn create_physical_plan(
         &self,
-        request: Request<ExecuteRequest>,
-    ) -> Result<Response<Self::ExecuteStream>, Status> {
-        info!("execute (proxy)");
+        request: Request<service::CreatePhysicalPlanRequest>,
+    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
+        info!("create physical plan (proxy)");
         let (_, mut client) = self.connect(request.metadata()).await?;
-        client.execute(request).await
+        client.create_physical_plan(request).await
+    }
+
+    async fn dispatch_access(
+        &self,
+        request: Request<service::DispatchAccessRequest>,
+    ) -> Result<Response<service::TableProviderResponse>, Status> {
+        info!("dispatch access (proxy)");
+        let (_, mut client) = self.connect(request.metadata()).await?;
+        client.dispatch_access(request).await
+    }
+
+    async fn table_provider_scan(
+        &self,
+        request: Request<service::TableProviderScanRequest>,
+    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
+        info!("table provider scan (proxy)");
+        let (_, mut client) = self.connect(request.metadata()).await?;
+        client.table_provider_scan(request).await
+    }
+
+    async fn table_provider_insert_into(
+        &self,
+        request: Request<service::TableProviderInsertIntoRequest>,
+    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
+        info!("table provider insert into (proxy)");
+        let (_, mut client) = self.connect(request.metadata()).await?;
+        client.table_provider_insert_into(request).await
+    }
+
+    async fn physical_plan_execute(
+        &self,
+        request: Request<service::PhysicalPlanExecuteRequest>,
+    ) -> Result<Response<Self::PhysicalPlanExecuteStream>, Status> {
+        info!("physical plan execute (proxy)");
+        let (_, mut client) = self.connect(request.metadata()).await?;
+        client.physical_plan_execute(request).await
     }
 
     async fn close_session(
         &self,
-        request: Request<CloseSessionRequest>,
-    ) -> Result<Response<CloseSessionResponse>, Status> {
+        request: Request<service::CloseSessionRequest>,
+    ) -> Result<Response<service::CloseSessionResponse>, Status> {
         info!("close session (proxy)");
         let (_, mut client) = self.connect(request.metadata()).await?;
         client.close_session(request).await

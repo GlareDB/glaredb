@@ -45,7 +45,7 @@ fn create_table(
         return Ok(default_table());
     }
     let num_columns = batches[0].num_columns();
-    let num_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+    let total_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
     let str_truncate = 32;
     let mut max_cols = max_columns.unwrap_or_else(|| {
         if let Some(width) = width {
@@ -67,10 +67,10 @@ fn create_table(
     if max_cols == 0 || max_cols > num_columns {
         max_cols = num_columns;
     }
-    let mut max_rows = max_rows.unwrap_or_else(|| std::cmp::min(num_rows, DEFAULT_MAX_ROWS));
+    let mut max_rows = max_rows.unwrap_or_else(|| std::cmp::min(total_rows, DEFAULT_MAX_ROWS));
 
-    if max_rows == 0 || max_rows > num_rows {
-        max_rows = num_rows;
+    if max_rows == 0 || max_rows > total_rows {
+        max_rows = total_rows;
     }
     // todo: make this configurable
 
@@ -101,17 +101,16 @@ fn create_table(
     let n_tbl_cols = n_first + n_last + reduce_columns as usize;
 
     let column_ranges = (0..n_first, (num_columns - n_last)..num_columns);
+
     let mut needs_split = false;
-    let row_split = if max_rows == num_rows {
-        max_rows
+    let mut add_dots = false;
+    let row_split = if max_rows >= total_rows {
+        total_rows
     } else {
         let split = max_rows / 2;
-        if split == 1 {
-            2
-        } else {
-            needs_split = true;
-            split
-        }
+        needs_split = true;
+        add_dots = true;
+        split
     };
 
     process_header(
@@ -121,9 +120,10 @@ fn create_table(
         reduce_columns,
         str_truncate,
     )?;
-    let n_last_rows = num_rows - row_split;
+    let n_last_rows = total_rows - row_split;
 
     let mut tbl_rows = 0;
+
     for batch in batches {
         let num_rows = batch.num_rows();
         // if the batch is smaller than the row split upper bound, we can just process it in one go
@@ -143,19 +143,24 @@ fn create_table(
             tbl_rows += rows_to_take;
         }
 
-        if tbl_rows == row_split && needs_split {
+        if tbl_rows >= row_split && add_dots {
             // Add continuation
             let dots: Vec<_> = (0..max_cols).map(|_| Cell::new("…")).collect();
             table.add_row(dots);
-            needs_split = false;
+            add_dots = false;
         }
 
-        processed_rows += num_rows;
+        // if we have reached the second split to be printed, find the correct index to start from
+        if processed_rows + num_rows > n_last_rows && needs_split {
+            // if it's the first batch, start index is at total_rows - processed_rows - remaining_rows
+            let (row_range, rows_to_take) = if processed_rows < n_last_rows {
+                let remaining_rows = max_rows - tbl_rows;
+                let start = total_rows - processed_rows - remaining_rows;
+                (start..num_rows, num_rows - start)
+            } else {
+                (0..num_rows, num_rows)
+            };
 
-        if processed_rows >= n_last_rows {
-            let remaining_rows = max_rows - tbl_rows;
-            let rows_to_take = remaining_rows.min(num_rows);
-            let row_range = (batch.num_rows() - rows_to_take)..batch.num_rows();
             process_batch(
                 &mut table,
                 opts,
@@ -164,10 +169,12 @@ fn create_table(
                 column_ranges.clone(),
                 reduce_columns,
             )?;
-            processed_rows += rows_to_take;
+            tbl_rows += rows_to_take;
         }
+
+        processed_rows += num_rows;
     }
-    process_footer(&mut table, num_rows, max_rows, n_tbl_cols)?;
+    process_footer(&mut table, total_rows, max_rows, n_tbl_cols)?;
     Ok(table)
 }
 

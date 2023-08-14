@@ -55,6 +55,13 @@ impl<'a> PartialContextProvider<'a> {
         &self,
         reference: TableReference<'_>,
     ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        if let Some(mut client) = self.ctx.exec_client() {
+            let provider = client
+                .dispatch_access(reference.to_owned_reference())
+                .await?;
+            return Ok(Arc::new(provider));
+        }
+
         let dispatcher = SessionDispatcher::new(self.ctx);
         match &reference {
             TableReference::Bare { table } => {
@@ -165,9 +172,24 @@ impl<'a> PartialContextProvider<'a> {
             }
         }
     }
-    /// Get the table provider if available in the cache.
-    pub fn table_provider(&self, name: TableReference<'_>) -> Option<Arc<dyn TableProvider>> {
-        self.providers.get(&name).cloned()
+
+    /// Get the table provider from the table reference.
+    pub async fn table_provider(
+        &mut self,
+        name: OwnedTableReference,
+    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        let provider = match self.providers.get(&name) {
+            Some(provider) => provider.clone(),
+            None => {
+                let provider = self
+                    .table_for_reference(TableReference::from(&name))
+                    .await?;
+                self.providers.insert(name, provider.clone());
+                provider
+            }
+        };
+
+        Ok(provider)
     }
 }
 
@@ -179,24 +201,12 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         &mut self,
         name: TableReference<'_>,
     ) -> DataFusionResult<Arc<dyn TableSource>> {
-        let name = name.to_owned_reference();
-
-        let provider = match self.providers.get(&name) {
-            Some(provider) => provider.clone(),
-            None => {
-                let provider = self
-                    .table_for_reference(TableReference::from(&name))
-                    .await
-                    .map_err(|e| {
-                        DataFusionError::Plan(format!(
-                            "Unable to fetch table provider for '{name}': {e}"
-                        ))
-                    })?;
-                self.providers.insert(name, provider.clone());
-                provider
-            }
-        };
-
+        let provider = self
+            .table_provider(name.to_owned_reference())
+            .await
+            .map_err(|e| {
+                DataFusionError::Plan(format!("Unable to fetch table provider for '{name}': {e}"))
+            })?;
         Ok(Arc::new(DefaultTableSource::new(provider)))
     }
 

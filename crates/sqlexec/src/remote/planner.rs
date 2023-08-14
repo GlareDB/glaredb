@@ -4,29 +4,22 @@ use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
-use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
-use datafusion::physical_planner::PhysicalPlanner;
-use datafusion::prelude::Expr;
-use std::sync::Arc;
-use uuid::Uuid;
+use datafusion::physical_plan::ExecutionPlan;
 
-use super::client::AuthenticatedExecutionServiceClient;
-use super::exec::RemoteLogicalExec;
+use std::sync::Arc;
+
+use super::client::RemoteSessionClient;
 
 /// A planner that executes everything on a remote service.
 #[derive(Debug, Clone)]
-pub struct RemoteLogicalPlanner {
-    session_id: Uuid,
+pub struct RemotePlanner {
     /// Client to remote services.
-    client: AuthenticatedExecutionServiceClient,
+    client: RemoteSessionClient,
 }
 
-impl RemoteLogicalPlanner {
-    pub fn new(
-        session_id: Uuid,
-        client: AuthenticatedExecutionServiceClient,
-    ) -> RemoteLogicalPlanner {
-        RemoteLogicalPlanner { session_id, client }
+impl RemotePlanner {
+    pub fn new(client: RemoteSessionClient) -> RemotePlanner {
+        RemotePlanner { client }
     }
 }
 
@@ -67,12 +60,13 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         &self,
         logical_plan: &DfLogicalPlan,
         _session_state: &SessionState,
-    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Ok(Arc::new(RemoteLogicalExec::new(
-            self.session_id,
-            self.client.clone(),
-            logical_plan.clone(),
-        )))
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let mut client = self.client.clone();
+        let physical_plan = client
+            .create_physical_plan(logical_plan)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        Ok(Arc::new(physical_plan))
     }
     fn create_physical_expr(
         &self,

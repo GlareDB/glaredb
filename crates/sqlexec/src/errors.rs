@@ -6,8 +6,11 @@ pub enum ExecError {
     #[error("Unsupported feature: '{0}'. Check back soon!")]
     UnsupportedFeature(&'static str),
 
-    #[error("Invalid remote session id: {0}")]
-    InvalidRemoteSessionId(uuid::Error),
+    #[error("Invalid remote {0} id: {1}")]
+    InvalidRemoteId(&'static str, uuid::Error),
+
+    #[error("Cannot convert proto to {0}: {1}")]
+    ProtoConvCustom(&'static str, Box<dyn std::error::Error + Send + Sync>),
 
     #[error("Invalid value for session variable: Variable name: {name}, Value: {val}")]
     InvalidSessionVarValue { name: String, val: String },
@@ -78,6 +81,9 @@ pub enum ExecError {
     #[error(transparent)]
     VarError(#[from] std::env::VarError),
 
+    #[error(transparent)]
+    ProtoConvError(#[from] protogen::errors::ProtoConvError),
+
     #[error("Unable to retrieve ssh tunnel connection: {0}")]
     MissingSshTunnel(Box<crate::errors::ExecError>),
 
@@ -126,6 +132,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
+
+    #[error(transparent)]
+    DispatchError(#[from] crate::planner::dispatch::DispatchError),
 
     #[error(transparent)]
     MetastoreWorker(#[from] crate::metastore::client::WorkerError),

@@ -20,7 +20,7 @@ use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
-use sqlexec::remote::client::{AuthenticatedExecutionServiceClient, ProxyAuthParamsAndDst};
+use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::fmt::Write as _;
@@ -65,12 +65,14 @@ pub struct LocalClientOpts {
 
     /// Ignores the proxy and directly goes to the server for remote execution.
     ///
+    /// (Internal)
+    ///
     /// Note that:
     /// * `cloud_url` in this case should be a valid HTTP RPC URL (`--rpc-bind`
     ///   for the server).
-    /// * Server should be started with `--ignore-auth` arg as well.
+    /// * Server should be started with `--allow-client-rpc-init` arg as well.
     #[clap(long, hide = true)]
-    pub ignore_auth: bool,
+    pub ignore_rpc_auth: bool,
 
     /// Display output mode.
     #[arg(long, value_enum, default_value_t=OutputMode::Table)]
@@ -156,15 +158,10 @@ impl LocalSession {
         .await?;
 
         let sess = if let Some(url) = opts.cloud_url.clone() {
-            let exec_client = if opts.ignore_auth {
-                AuthenticatedExecutionServiceClient::connect(url.to_string()).await?
+            let exec_client = if opts.ignore_rpc_auth {
+                RemoteClient::connect(url).await?
             } else {
-                let params_and_dst = ProxyAuthParamsAndDst::try_from_url(url)?;
-                AuthenticatedExecutionServiceClient::connect_with_proxy_auth_params(
-                    params_and_dst.dst.to_string(),
-                    params_and_dst.params,
-                )
-                .await?
+                RemoteClient::connect_with_proxy_destination(url.try_into()?).await?
             };
             engine
                 .new_session_with_remote_connection(SessionVars::default(), exec_client)

@@ -1,5 +1,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum PostgresError {
+    #[error("Failed to query Postgres: {0}")]
+    QueryError(String),
+
     #[error("Unsupported Postgres type: {0}")]
     UnsupportedPostgresType(String),
 
