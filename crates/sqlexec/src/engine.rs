@@ -139,6 +139,7 @@ impl Engine {
         &self,
         vars: SessionVars,
         storage: SessionStorageConfig,
+        remote_ctx: bool,
     ) -> Result<TrackedSession> {
         let conn_id = *vars.connection_id.value();
         let database_id = *vars.database_id.value();
@@ -158,6 +159,7 @@ impl Engine {
             self.spill_path.clone(),
             self.background_jobs.clone(),
             None,
+            remote_ctx,
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
@@ -201,6 +203,7 @@ impl Engine {
             self.spill_path.clone(),
             self.background_jobs.clone(),
             Some(remote_sess_client),
+            /* remote_ctx = */ false,
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);

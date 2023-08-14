@@ -78,7 +78,7 @@ impl ExtensionType for CreateTable {
         let source = self
             .source
             .as_ref()
-            .map(|src| LogicalPlanNode::try_from_logical_plan(&src, codec).unwrap());
+            .map(|src| LogicalPlanNode::try_from_logical_plan(src, codec).unwrap());
 
         let create_table = protogen::CreateTable {
             table_name: Some(self.table_name.clone().try_into().unwrap()),

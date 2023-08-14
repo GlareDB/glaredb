@@ -33,7 +33,7 @@ use telemetry::Tracker;
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::{Result, internal};
+use crate::errors::{internal, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -208,6 +208,7 @@ impl Session {
     ///
     /// All system schemas (including `information_schema`) should already be in
     /// the provided catalog.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
@@ -216,6 +217,7 @@ impl Session {
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
         exec_client: Option<RemoteSessionClient>,
+        remote_ctx: bool,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             *vars.user_id.value(),
@@ -232,6 +234,7 @@ impl Session {
             spill_path,
             background_jobs,
             exec_client,
+            remote_ctx,
         )?;
 
         Ok(Session { ctx })
@@ -273,12 +276,12 @@ impl Session {
         #[allow(clippy::single_match)]
         match extension.node.name() {
             CreateTable::EXTENSION_NAME => {
-                let create_table = CreateTable::try_decode_extension(&extension)?;
+                let create_table = CreateTable::try_decode_extension(extension)?;
                 self.create_table(create_table).await
             }
             CreateSchema::EXTENSION_NAME => {
                 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
-                let create_schema = CreateSchema::try_decode_extension(&extension)?;
+                let create_schema = CreateSchema::try_decode_extension(extension)?;
                 let schema = create_schema.schema().as_ref().clone();
 
                 self.create_schema(create_schema).await?;
@@ -286,14 +289,11 @@ impl Session {
                 Ok(Arc::new(EmptyExec::new(false, schema.into())))
             }
             DropTables::EXTENSION_NAME => {
-                let drop_tables = DropTables::try_decode_extension(&extension)?;
+                let drop_tables = DropTables::try_decode_extension(extension)?;
                 self.drop_tables(drop_tables).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            name => Err(internal!(
-                "Unknown extension name: {}",
-                name.to_string()
-            )),
+            name => Err(internal!("Unknown extension name: {}", name.to_string())),
         }
     }
 
@@ -308,28 +308,28 @@ impl Session {
     }
 
     /// Get a table provider from session.
-    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Option<Arc<dyn TableProvider>> {
+    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
         self.ctx.get_table_provider(provider_id)
     }
 
     /// Add a table provider to the session. Returns the ID of the provider.
-    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> uuid::Uuid {
+    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
         self.ctx.add_table_provider(provider)
     }
 
     /// Get a physical plan from session.
-    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Option<Arc<dyn ExecutionPlan>> {
+    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
         self.ctx.get_physical_plan(exec_id)
     }
 
     /// Add a physical plan to the session. Returns the ID of the plan.
-    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> uuid::Uuid {
+    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
         self.ctx.add_physical_plan(plan)
     }
 
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
-    pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
+    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
         self.ctx.extension_codec()
     }
 

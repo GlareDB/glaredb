@@ -116,11 +116,11 @@ enum Commands {
         ///
         /// (Internal)
         ///
-        /// This is onlu relevant for internal development. The RPC proxy will
+        /// This is only relevant for internal development. The RPC proxy will
         /// allow `Client` messages directly. Need to use `--ignore-rpc-auth`
         /// with the `local` command to access this.
         #[clap(long, hide = true, value_parser)]
-        allow_client_rpc_init: bool,
+        disable_rpc_auth: bool,
 
         /// API key for segment.
         ///
@@ -233,7 +233,7 @@ fn main() -> Result<()> {
             mut segment_key,
             spill_path,
             ignore_pg_auth,
-            allow_client_rpc_init,
+            disable_rpc_auth,
             rpc_bind,
         } => {
             // Map an empty string to None. Makes writing the terraform easier.
@@ -260,7 +260,7 @@ fn main() -> Result<()> {
                 data_dir,
                 service_account_key,
                 spill_path,
-                allow_client_rpc_init,
+                disable_rpc_auth,
             )?;
         }
         Commands::PgProxy {
@@ -347,7 +347,7 @@ fn begin_server(
     data_dir: Option<PathBuf>,
     service_account_key: Option<String>,
     spill_path: Option<PathBuf>,
-    allow_client_rpc_init: bool,
+    disable_rpc_auth: bool,
 ) -> Result<()> {
     let runtime = build_runtime("server")?;
     runtime.block_on(async move {
@@ -364,7 +364,7 @@ fn begin_server(
             service_account_key,
             spill_path,
             /* integration_testing = */ false,
-            allow_client_rpc_init,
+            disable_rpc_auth,
         )
         .await?;
         server.serve(conf).await

@@ -1,6 +1,6 @@
-use crate::{FromOptionalField, ProtoConvError};
 use crate::gen::common::arrow;
 use crate::gen::metastore::options;
+use crate::{FromOptionalField, ProtoConvError};
 use datafusion::{
     arrow::datatypes::{DataType, Field},
     common::DFSchemaRef,

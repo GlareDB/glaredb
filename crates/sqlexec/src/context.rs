@@ -56,6 +56,14 @@ const IMPLICIT_SCHEMAS: [&str; 2] = [
     CURRENT_SESSION_SCHEMA,
 ];
 
+/// Context for a remote session.
+struct RemoteSessionContext {
+    /// Session's table providers.
+    table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
+    /// Session's physical plans.
+    physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
+}
+
 /// Context for a session used during execution.
 ///
 /// The context generally does not have to worry about anything external to the
@@ -87,10 +95,8 @@ pub struct SessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Job runner for background jobs.
     background_jobs: JobRunner,
-    /// Session's table providers.
-    table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
-    /// Session's physical plans.
-    physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
+    /// Specific stuff for remote session.
+    remote_ctx: Option<RemoteSessionContext>,
 }
 
 impl SessionContext {
@@ -102,6 +108,7 @@ impl SessionContext {
     ///
     /// If `info.memory_limit_bytes` is non-zero, a new memory pool will be
     /// created with the max set to this value.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
@@ -110,6 +117,7 @@ impl SessionContext {
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
         exec_client: Option<RemoteSessionClient>,
+        remote_ctx: bool,
     ) -> Result<SessionContext> {
         // NOTE: We handle catalog/schema defaults and information schemas
         // ourselves.
@@ -163,6 +171,15 @@ impl SessionContext {
 
         let df_ctx = DfSessionContext::with_state(state);
 
+        let remote_ctx = if remote_ctx {
+            Some(RemoteSessionContext {
+                table_providers: HashMap::new(),
+                physical_plans: HashMap::new(),
+            })
+        } else {
+            None
+        };
+
         // Note that we do not replace the default catalog list on the state. We
         // should never be referencing it during planning or execution.
         //
@@ -181,8 +198,7 @@ impl SessionContext {
             df_ctx,
             env_reader: None,
             background_jobs,
-            table_providers: HashMap::new(),
-            physical_plans: HashMap::new(),
+            remote_ctx,
         })
     }
 
@@ -247,33 +263,70 @@ impl SessionContext {
     }
 
     /// Get a table provider from session.
-    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Option<Arc<dyn TableProvider>> {
-        self.table_providers.get(provider_id).cloned()
+    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
+        if let Some(ctx) = self.remote_ctx.as_ref() {
+            ctx.table_providers
+                .get(provider_id)
+                .cloned()
+                .ok_or(ExecError::MissingRemoteId("provider", *provider_id))
+        } else {
+            Err(ExecError::Internal(
+                "cannot get table provider from non-remote session".to_string(),
+            ))
+        }
     }
 
     /// Add a table provider to the session. Returns the ID of the provider.
-    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> uuid::Uuid {
-        let provider_id = uuid::Uuid::new_v4();
-        self.table_providers.insert(provider_id, provider);
-        provider_id
+    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
+        if let Some(ctx) = self.remote_ctx.as_mut() {
+            let provider_id = uuid::Uuid::new_v4();
+            ctx.table_providers.insert(provider_id, provider);
+            Ok(provider_id)
+        } else {
+            Err(ExecError::Internal(
+                "cannot add table provider to non-remote session".to_string(),
+            ))
+        }
     }
 
     /// Get a physical plan from session.
-    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Option<Arc<dyn ExecutionPlan>> {
-        self.physical_plans.get(exec_id).cloned()
+    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
+        if let Some(ctx) = self.remote_ctx.as_ref() {
+            ctx.physical_plans
+                .get(exec_id)
+                .cloned()
+                .ok_or(ExecError::MissingRemoteId("exec", *exec_id))
+        } else {
+            Err(ExecError::Internal(
+                "cannot get physical plans from non-remote session".to_string(),
+            ))
+        }
     }
 
     /// Add a physical plan to the session. Returns the ID of the plan.
-    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> uuid::Uuid {
-        let exec_id = uuid::Uuid::new_v4();
-        self.physical_plans.insert(exec_id, plan);
-        exec_id
+    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
+        if let Some(ctx) = self.remote_ctx.as_mut() {
+            let exec_id = uuid::Uuid::new_v4();
+            ctx.physical_plans.insert(exec_id, plan);
+            Ok(exec_id)
+        } else {
+            Err(ExecError::Internal(
+                "cannot add physical plans to non-remote session".to_string(),
+            ))
+        }
     }
 
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
-    pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
-        GlareDBExtensionCodec::new_decoder(&self.table_providers)
+    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
+        self.remote_ctx
+            .as_ref()
+            .map(|ctx| GlareDBExtensionCodec::new_decoder(&ctx.table_providers))
+            .ok_or_else(|| {
+                ExecError::Internal(
+                    "cannot create extension codec for non-remote session".to_string(),
+                )
+            })
     }
 
     /// Create a temp table.

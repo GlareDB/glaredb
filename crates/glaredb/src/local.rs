@@ -168,7 +168,11 @@ impl LocalSession {
                 .await?
         } else {
             engine
-                .new_session(SessionVars::default(), SessionStorageConfig::default())
+                .new_session(
+                    SessionVars::default(),
+                    SessionStorageConfig::default(),
+                    /* remote_ctx = */ false,
+                )
                 .await?
         };
 

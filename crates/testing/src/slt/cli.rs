@@ -208,7 +208,7 @@ impl Cli {
                     None,
                     None,
                     /* integration_testing = */ true,
-                    /* allow_client_rpc_init = */ false,
+                    /* disable_rpc_auth = */ false,
                 )
                 .await?;
                 tokio::spawn(server.serve(server_conf));

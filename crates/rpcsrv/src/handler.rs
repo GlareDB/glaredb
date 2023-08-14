@@ -84,7 +84,10 @@ impl RpcHandler {
         vars.database_id.set_and_log(db_id, VarSetter::System);
         vars.connection_id.set_and_log(conn_id, VarSetter::System);
 
-        let sess = self.engine.new_session(vars, storage_conf).await?;
+        let sess = self
+            .engine
+            .new_session(vars, storage_conf, /* remote_ctx = */ true)
+            .await?;
 
         let sess = RemoteSession::new(sess);
         let initial_state: CatalogState = sess.get_catalog_state().await;

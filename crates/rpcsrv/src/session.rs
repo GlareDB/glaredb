@@ -1,4 +1,4 @@
-use crate::errors::{Result, RpcsrvError};
+use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -44,11 +44,13 @@ impl RemoteSession {
 
         // TODO: Use a context that actually matters.
         let fake_ctx = SessionContext::new();
+        let codec = session.extension_codec()?;
         let plan = LogicalPlanNode::try_decode(logical_plan.as_ref())?
-            .try_into_logical_plan(&fake_ctx, &session.extension_codec())?;
+            .try_into_logical_plan(&fake_ctx, &codec)?;
+
         let physical = session.create_physical_plan(plan).await?;
         let schema = physical.schema();
-        let exec_id = session.add_physical_plan(physical);
+        let exec_id = session.add_physical_plan(physical)?;
 
         Ok(PhysicalPlanResponse {
             id: exec_id,
@@ -63,7 +65,7 @@ impl RemoteSession {
         let mut session = self.session.lock().await;
         let provider = session.dispatch_access(table_ref).await?;
         let schema = provider.schema();
-        let provider_id = session.add_table_provider(provider);
+        let provider_id = session.add_table_provider(provider)?;
 
         Ok(TableProviderResponse {
             id: provider_id,
@@ -73,12 +75,9 @@ impl RemoteSession {
 
     pub async fn physical_plan_execute(&self, exec_id: Uuid) -> Result<SendableRecordBatchStream> {
         let session = self.session.lock().await;
-        let plan = session
-            .get_physical_plan(&exec_id)
-            .ok_or_else(|| RpcsrvError::MissingPhysicalPlan(exec_id))?;
-
+        let plan = session.get_physical_plan(&exec_id)?;
+        // TODO: Use a context that actually matters.
         let stream = session.execute_physical(plan)?;
-
         Ok(stream)
     }
 }

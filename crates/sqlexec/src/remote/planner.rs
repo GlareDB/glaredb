@@ -63,8 +63,8 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         logical_plan: &DfLogicalPlan,
         _session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let mut remote_client = self.remote_client.clone();
-        let physical_plan = remote_client
+        let mut client = self.remote_client.clone();
+        let physical_plan = client
             .create_physical_plan(logical_plan)
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;

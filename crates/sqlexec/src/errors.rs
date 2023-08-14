@@ -42,6 +42,9 @@ pub enum ExecError {
     #[error("Missing connection by oid: {oid}")]
     MissingConnectionByOid { oid: u32 },
 
+    #[error("Invalid {0} id: {1} not found")]
+    MissingRemoteId(&'static str, uuid::Uuid),
+
     #[error("Invalid connection type; expected: {expected}, got: {got}")]
     InvalidConnectionType {
         expected: &'static str,

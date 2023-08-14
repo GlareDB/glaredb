@@ -72,7 +72,6 @@ impl TableProvider for RemoteTableProvider {
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        // Ok(input)
         let _input = input
             .as_any()
             .downcast_ref::<RemoteExecutionPlan>()
