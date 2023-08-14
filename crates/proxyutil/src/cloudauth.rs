@@ -16,6 +16,12 @@ pub enum CloudAuthError {
 
 type Result<T, E = CloudAuthError> = std::result::Result<T, E>;
 
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct Node {
+    pub ip: String,
+    pub port: String,
+}
+
 /// Connection details for a database. Returned by the connection authenticator.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseDetails {
@@ -24,6 +30,11 @@ pub struct DatabaseDetails {
     pub ip: String,
     /// Port to connect to.
     pub port: String,
+    /// A list of nodes to use for broadcasting a message if necessary (e.g.
+    /// query cancellation).
+    ///
+    /// Includes the host indicated by `ip` in this struct.
+    pub nodes: Option<Vec<Node>>,
     /// ID of the database we're connecting to (UUID).
     pub database_id: String,
     /// ID of the user initiating the connection (UUID).
@@ -176,6 +187,41 @@ mod tests {
             gcs_storage_bucket: String::new(),
             ip: "1.2.3.4".to_string(),
             port: "5432".to_string(),
+            nodes: None,
+            memory_limit_bytes: 268435456,
+        };
+
+        assert_eq!(expected, out)
+    }
+
+    #[test]
+    fn deserialize_response_with_nodes() {
+        let resp = r#"
+            {
+              "user_id": "b3e5b1ff-6c92-470b-b96d-103dd18a85db",
+              "database_id": "6df36b37-21f1-45b1-aadb-4d65c1a50c32",
+              "credential_type": "system",
+              "ip": "1.2.3.4",
+              "port": "5432",
+              "nodes":[{"ip":"1.2.3.4","port":"5432"}],
+              "memory_limit_bytes": 268435456,
+              "gcs_storage_bucket": "",
+              "storage_size_bytes": 0,
+              "max_storage_bytes": 0
+            }
+            "#;
+
+        let out: DatabaseDetails = serde_json::from_str(resp).unwrap();
+        let expected = DatabaseDetails {
+            user_id: "b3e5b1ff-6c92-470b-b96d-103dd18a85db".to_string(),
+            database_id: "6df36b37-21f1-45b1-aadb-4d65c1a50c32".to_string(),
+            gcs_storage_bucket: String::new(),
+            ip: "1.2.3.4".to_string(),
+            port: "5432".to_string(),
+            nodes: Some(vec![Node {
+                ip: "1.2.3.4".to_string(),
+                port: "5432".to_string(),
+            }]),
             memory_limit_bytes: 268435456,
         };
 
