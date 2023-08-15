@@ -254,14 +254,13 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.init_exec();
-        let is_remote = self
+        let is_main_instance = self
             .ctx
             .get_session_vars()
             .remote_session_id
             .value()
             .is_none();
-
-        if is_remote {
+        if is_main_instance {
             if let DfLogicalPlan::Extension(extension) = &plan {
                 return self.execute_extension(extension).await;
             };
@@ -269,6 +268,7 @@ impl Session {
         let plan = state.create_physical_plan(&plan).await?;
         Ok(plan)
     }
+
     pub async fn execute_extension(
         &mut self,
         extension: &Extension,
@@ -287,7 +287,6 @@ impl Session {
                 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
                 let create_schema = CreateSchema::try_decode_extension(extension)?;
                 let schema = create_schema.schema().as_ref().clone();
-
                 self.create_schema(create_schema).await?;
 
                 Ok(Arc::new(EmptyExec::new(false, schema.into())))
@@ -295,6 +294,23 @@ impl Session {
             DropTables::EXTENSION_NAME => {
                 let drop_tables = DropTables::try_decode_extension(extension)?;
                 self.drop_tables(drop_tables).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            AlterTableRename::EXTENSION_NAME => {
+                let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
+                self.alter_table_rename(alter_table_rename).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            AlterDatabaseRename::EXTENSION_NAME => {
+                let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
+                self.alter_database_rename(alter_database_rename).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            AlterTunnelRotateKeys::EXTENSION_NAME => {
+                let alter_tunnel_rotate_keys =
+                    AlterTunnelRotateKeys::try_decode_extension(extension)?;
+                self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
+                    .await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             name => Err(internal!("Unknown extension name: {}", name.to_string())),
