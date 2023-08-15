@@ -146,9 +146,9 @@ message BroadcastExchangeRequest {
   // Session id.
   bytes session_id = 1;
   // Input id;
-  bytes broadcast_input_id = 2
-      // Input batches.
-      bytes arrow_ipc = 3;
+  bytes broadcast_input_id = 2;
+  // Input batches.
+  bytes arrow_ipc = 3;
 }
 
 message BroadcastExchangeResponse {}
