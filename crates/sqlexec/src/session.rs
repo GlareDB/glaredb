@@ -254,14 +254,13 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.init_exec();
-        let is_remote = self
+        let is_main_instance = self
             .ctx
             .get_session_vars()
             .remote_session_id
             .value()
             .is_none();
-
-        if is_remote {
+        if is_main_instance {
             if let DfLogicalPlan::Extension(extension) = &plan {
                 return self.execute_extension(extension).await;
             };
@@ -269,10 +268,12 @@ impl Session {
         let plan = state.create_physical_plan(&plan).await?;
         Ok(plan)
     }
+
     pub async fn execute_extension(
         &mut self,
         extension: &Extension,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        println!("executing extension: {:?}", extension.node.name());
         match extension.node.name() {
             CreateTable::EXTENSION_NAME => {
                 let create_table = CreateTable::try_decode_extension(extension)?;
@@ -295,6 +296,11 @@ impl Session {
             DropTables::EXTENSION_NAME => {
                 let drop_tables = DropTables::try_decode_extension(extension)?;
                 self.drop_tables(drop_tables).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            AlterTableRename::EXTENSION_NAME => {
+                let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
+                self.alter_table_rename(alter_table_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             name => Err(internal!("Unknown extension name: {}", name.to_string())),
@@ -362,6 +368,8 @@ impl Session {
     }
 
     pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
+        println!("creating external table: {:?}", plan);
+
         self.ctx.create_external_table(plan).await?;
         Ok(())
     }

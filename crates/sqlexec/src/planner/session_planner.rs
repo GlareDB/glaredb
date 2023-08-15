@@ -517,9 +517,7 @@ impl<'a> SessionPlanner<'a> {
             tunnel,
         };
 
-        Ok(LogicalPlan::Datafusion(
-            datafusion::logical_expr::LogicalPlan::Extension(plan.into_extension()),
-        ))
+        Ok(plan.into_logical_plan())
     }
 
     fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
@@ -644,14 +642,11 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
-                let stmt = CreateSchema {
+                Ok(CreateSchema {
                     schema_name,
                     if_not_exists,
-                };
-
-                Ok(LogicalPlan::Datafusion(
-                    datafusion::logical_expr::LogicalPlan::Extension(stmt.into_extension()),
-                ))
+                }
+                .into_logical_plan())
             }
 
             // Normal tables OR Tables generated from a source query.
@@ -739,11 +734,7 @@ impl<'a> SessionPlanner<'a> {
                         if_not_exists,
                         source,
                     };
-                    let ext = create_table.into_extension();
-
-                    Ok(LogicalPlan::Datafusion(
-                        datafusion::logical_expr::LogicalPlan::Extension(ext),
-                    ))
+                    Ok(create_table.into_logical_plan())
                 }
             }
 
@@ -849,8 +840,7 @@ impl<'a> SessionPlanner<'a> {
 
                 validate_object_name(&table_name)?;
                 let new_name = object_name_to_table_ref(table_name)?;
-
-                Ok(DdlPlan::AlterTableRaname(AlterTableRename { name, new_name }).into())
+                Ok(AlterTableRename { name, new_name }.into_logical_plan())
             }
 
             // Drop tables
@@ -871,10 +861,7 @@ impl<'a> SessionPlanner<'a> {
                     if_exists,
                     names: refs,
                 };
-
-                Ok(LogicalPlan::Datafusion(
-                    datafusion::logical_expr::LogicalPlan::Extension(plan.into_extension()),
-                ))
+                Ok(plan.into_logical_plan())
             }
 
             // Drop views

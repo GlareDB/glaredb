@@ -86,6 +86,13 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_external_table.into_extension()
             }
+            PlanType::AlterTableRename(alter_table_rename) => {
+                let alter_table_rename: plan::AlterTableRename = alter_table_rename
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                alter_table_rename.into_extension()
+            }
         })
     }
 
@@ -106,6 +113,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             plan::DropTables::EXTENSION_NAME => {
                 plan::DropTables::try_encode_extension(node, buf, self)
+            }
+            plan::AlterTableRename::EXTENSION_NAME => {
+                plan::AlterTableRename::try_encode_extension(node, buf, self)
             }
             _ => todo!("encode all known extensions"),
         }

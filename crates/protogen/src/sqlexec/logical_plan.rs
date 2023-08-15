@@ -44,6 +44,15 @@ pub struct DropTables {
     pub if_exists: bool,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct AlterTableRename {
+    #[prost(message, tag = "1")]
+    pub name: Option<OwnedTableReference>,
+    #[prost(message, tag = "2")]
+    pub new_name: Option<OwnedTableReference>,
+}
+
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
@@ -62,6 +71,8 @@ pub enum LogicalPlanExtensionType {
     CreateExternalTable(CreateExternalTable),
     #[prost(message, tag = "4")]
     DropTables(DropTables),
+    #[prost(message, tag = "5")]
+    AlterTableRename(AlterTableRename),
 }
 
 // -----
