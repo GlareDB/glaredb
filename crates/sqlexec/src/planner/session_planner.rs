@@ -252,7 +252,7 @@ impl<'a> SessionPlanner<'a> {
             tunnel,
         };
 
-        Ok(LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)))
+        Ok(plan.into_logical_plan())
     }
 
     async fn plan_create_external_table(
@@ -548,7 +548,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
         };
 
-        Ok(DdlPlan::CreateTunnel(plan).into())
+        Ok(plan.into_logical_plan())
     }
 
     fn plan_create_credentials(&self, mut stmt: CreateCredentialsStmt) -> Result<LogicalPlan> {
@@ -588,7 +588,7 @@ impl<'a> SessionPlanner<'a> {
             comment: stmt.comment,
         };
 
-        Ok(DdlPlan::CreateCredentials(plan).into())
+        Ok(plan.into_logical_plan())
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {

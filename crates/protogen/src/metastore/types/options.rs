@@ -79,7 +79,7 @@ impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
 
 // Database options
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub enum DatabaseOptions {
     Internal(DatabaseOptionsInternal),
     Debug(DatabaseOptionsDebug),
@@ -177,7 +177,7 @@ impl From<DatabaseOptions> for options::DatabaseOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsInternal {}
 
 impl TryFrom<options::DatabaseOptionsInternal> for DatabaseOptionsInternal {
@@ -193,7 +193,7 @@ impl From<DatabaseOptionsInternal> for options::DatabaseOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsDebug {}
 
 impl TryFrom<options::DatabaseOptionsDebug> for DatabaseOptionsDebug {
@@ -209,7 +209,7 @@ impl From<DatabaseOptionsDebug> for options::DatabaseOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsPostgres {
     pub connection_string: String,
 }
@@ -231,7 +231,7 @@ impl From<DatabaseOptionsPostgres> for options::DatabaseOptionsPostgres {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsBigQuery {
     pub service_account_key: String,
     pub project_id: String,
@@ -256,7 +256,7 @@ impl From<DatabaseOptionsBigQuery> for options::DatabaseOptionsBigQuery {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsMysql {
     pub connection_string: String,
 }
@@ -278,7 +278,7 @@ impl From<DatabaseOptionsMysql> for options::DatabaseOptionsMysql {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsMongo {
     pub connection_string: String,
 }
@@ -300,7 +300,7 @@ impl From<DatabaseOptionsMongo> for options::DatabaseOptionsMongo {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -337,7 +337,7 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsDeltaLake {
     pub catalog: DeltaLakeCatalog,
     pub access_key_id: String,
@@ -369,7 +369,7 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub enum DeltaLakeCatalog {
     Unity(DeltaLakeUnityCatalog),
 }
@@ -395,7 +395,7 @@ impl From<DeltaLakeCatalog> for options::database_options_delta_lake::Catalog {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DeltaLakeUnityCatalog {
     pub catalog_id: String,
     pub databricks_access_token: String,
@@ -849,7 +849,7 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub enum TunnelOptions {
     Internal(TunnelOptionsInternal),
     Debug(TunnelOptionsDebug),
@@ -912,7 +912,7 @@ impl From<TunnelOptions> for options::TunnelOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TunnelOptionsInternal {}
 
 impl TryFrom<options::TunnelOptionsInternal> for TunnelOptionsInternal {
@@ -928,7 +928,7 @@ impl From<TunnelOptionsInternal> for options::TunnelOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TunnelOptionsDebug {}
 
 impl TryFrom<options::TunnelOptionsDebug> for TunnelOptionsDebug {
@@ -944,7 +944,7 @@ impl From<TunnelOptionsDebug> for options::TunnelOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TunnelOptionsSsh {
     pub connection_string: String,
     pub ssh_key: Vec<u8>,
@@ -994,7 +994,7 @@ mod tests {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub enum CredentialsOptions {
     Debug(CredentialsOptionsDebug),
     Gcp(CredentialsOptionsGcp),
@@ -1057,7 +1057,7 @@ impl From<CredentialsOptions> for options::CredentialsOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsDebug {
     pub table_type: String,
 }
@@ -1079,7 +1079,7 @@ impl From<CredentialsOptionsDebug> for options::CredentialsOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsGcp {
     pub service_account_key: String,
 }
@@ -1101,7 +1101,7 @@ impl From<CredentialsOptionsGcp> for options::CredentialsOptionsGcp {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsAws {
     pub access_key_id: String,
     pub secret_access_key: String,
