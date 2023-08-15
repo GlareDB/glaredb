@@ -472,7 +472,7 @@ impl<'a> SessionDispatcher<'a> {
         let accessor = ObjStoreAccessor::new(access)?;
         let objects = accessor.list_globbed(location).await?;
 
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let provider = accessor
             .into_table_provider(&state, ft, objects, /* predicate_pushdown = */ true)
             .await?;
