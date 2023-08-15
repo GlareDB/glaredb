@@ -1,8 +1,8 @@
 use super::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
-use super::{FromOptionalField, ProtoConvError};
 use crate::gen::metastore::service;
+use crate::{FromOptionalField, ProtoConvError};
 use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]

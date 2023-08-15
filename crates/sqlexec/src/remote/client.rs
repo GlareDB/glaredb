@@ -219,6 +219,7 @@ impl RemoteSessionClient {
         &mut self,
         logical_plan: &LogicalPlan,
     ) -> Result<RemoteExecutionPlan> {
+        // Encode the logical plan into a protobuf message.
         let logical_plan = {
             let node = LogicalPlanNode::try_from_logical_plan(
                 logical_plan,
@@ -235,7 +236,7 @@ impl RemoteSessionClient {
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());
-
+        // send the request
         let resp: PhysicalPlanResponse = self
             .inner
             .client

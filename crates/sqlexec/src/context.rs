@@ -10,7 +10,7 @@ use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::RemoteSessionClient;
-use crate::remote::planner::RemotePlanner;
+use crate::remote::planner::RemoteLogicalPlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -165,7 +165,7 @@ impl SessionContext {
         let mut state = SessionState::with_config_rt(config, Arc::new(runtime));
 
         if let Some(client) = exec_client.clone() {
-            let planner = RemotePlanner::new(client);
+            let planner = RemoteLogicalPlanner::new(client);
             state = state.with_query_planner(Arc::new(planner));
         }
 

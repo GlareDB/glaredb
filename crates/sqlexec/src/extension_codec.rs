@@ -9,9 +9,10 @@ use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
-use crate::planner::extension::ExtensionConversion;
-use crate::planner::logical_plan::CreateTable;
+use crate::planner::extension::ExtensionType;
+use crate::planner::logical_plan::{self as plan};
 use crate::remote::table::RemoteTableProvider;
+use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a HashMap<Uuid, Arc<dyn TableProvider>>>,
@@ -40,12 +41,45 @@ impl<'a> fmt::Debug for GlareDBExtensionCodec<'a> {
 impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
     fn try_decode(
         &self,
-        _buf: &[u8],
+        buf: &[u8],
         _inputs: &[datafusion::logical_expr::LogicalPlan],
         _ctx: &SessionContext,
     ) -> datafusion::error::Result<datafusion::logical_expr::Extension> {
-        // TODO: try decoding all known extensions
-        todo!("try decoding all known extensions")
+        use protogen::sqlexec::logical_plan::{
+            self as proto_plan, LogicalPlanExtensionType as PlanType,
+        };
+        let lp_extension = proto_plan::LogicalPlanExtension::decode(buf)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        if lp_extension.inner.is_none() {
+            return Err(DataFusionError::External(Box::new(ExecError::Internal(
+                "missing extension type".to_string(),
+            ))));
+        }
+
+        Ok(match lp_extension.inner.unwrap() {
+            PlanType::CreateTable(create_table) => {
+                let create_table: plan::CreateTable = create_table
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_table.into_extension()
+            }
+            PlanType::CreateSchema(create_schema) => {
+                let create_schema: plan::CreateSchema = create_schema
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_schema.into_extension()
+            }
+            PlanType::DropTables(drop_tables) => {
+                let drop_tables: plan::DropTables = drop_tables
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_tables.into_extension()
+            }
+        })
     }
 
     fn try_encode(
@@ -54,14 +88,18 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
         buf: &mut Vec<u8>,
     ) -> datafusion::error::Result<()> {
         match node.node.name() {
-            "CreateTable" => {
-                let e = CreateTable::try_from_extension(node)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                e.encode(buf)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            plan::CreateTable::EXTENSION_NAME => {
+                plan::CreateTable::try_encode_extension(node, buf, self)
+            }
+            plan::CreateSchema::EXTENSION_NAME => {
+                plan::CreateSchema::try_encode_extension(node, buf, self)
+            }
+            plan::DropTables::EXTENSION_NAME => {
+                plan::DropTables::try_encode_extension(node, buf, self)
             }
             _ => todo!("encode all known extensions"),
         }
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())
     }
 

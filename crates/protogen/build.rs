@@ -4,8 +4,9 @@ fn main() {
         .build_client(true)
         .compile(
             &[
+                // Common
+                "proto/common/arrow.proto",
                 // Metastore
-                "proto/metastore/arrow.proto",
                 "proto/metastore/catalog.proto",
                 "proto/metastore/service.proto",
                 "proto/metastore/storage.proto",
