@@ -1,11 +1,51 @@
 /// extension implementations for converting our logical plan into datafusion logical plan
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
-use crate::{errors::Result, LogicalPlan};
+use crate::{
+    errors::{internal, ExecError, Result},
+    LogicalPlan,
+};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
-pub trait ExtensionType: Sized + UserDefinedLogicalNodeCore {
+use super::logical_plan::{
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
+    DropTables,
+};
+pub enum ExtensionType {
+    CreateTable,
+    CreateExternalTable,
+    CreateSchema,
+    DropTables,
+    AlterTableRename,
+    AlterDatabaseRename,
+    AlterTunnelRotateKeys,
+    CreateCredentials,
+    CreateExternalDatabase,
+    CreateTunnel,
+}
+
+impl FromStr for ExtensionType {
+    type Err = ExecError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            CreateTable::EXTENSION_NAME => Self::CreateTable,
+            CreateExternalTable::EXTENSION_NAME => Self::CreateExternalTable,
+            CreateSchema::EXTENSION_NAME => Self::CreateSchema,
+            DropTables::EXTENSION_NAME => Self::DropTables,
+            AlterTableRename::EXTENSION_NAME => Self::AlterTableRename,
+            AlterDatabaseRename::EXTENSION_NAME => Self::AlterDatabaseRename,
+            AlterTunnelRotateKeys::EXTENSION_NAME => Self::AlterTunnelRotateKeys,
+            CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
+            CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
+            CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
+            _ => return Err(internal!("unknown extension type: {}", s)),
+        })
+    }
+}
+
+pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
     const EXTENSION_NAME: &'static str;
     fn into_extension(self) -> LogicalPlanExtension {
         LogicalPlanExtension {

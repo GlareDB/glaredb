@@ -54,7 +54,7 @@ impl UserDefinedLogicalNodeCore for CreateSchema {
     }
 }
 
-impl ExtensionType for CreateSchema {
+impl ExtensionNode for CreateSchema {
     const EXTENSION_NAME: &'static str = "CreateSchema";
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {

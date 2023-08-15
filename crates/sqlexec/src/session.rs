@@ -2,10 +2,10 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::extension_codec::{ExtensionNode, GlareDBExtensionCodec};
+use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
-use crate::planner::extension::ExtensionType;
+use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteSessionClient;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
@@ -273,19 +273,19 @@ impl Session {
         &mut self,
         extension: &Extension,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let node = extension.node.name().parse::<ExtensionNode>()?;
+        let node = extension.node.name().parse::<ExtensionType>()?;
 
         match node {
-            ExtensionNode::CreateTable => {
+            ExtensionType::CreateTable => {
                 let create_table = CreateTable::try_decode_extension(extension)?;
                 self.create_table(create_table).await
             }
-            ExtensionNode::CreateExternalTable => {
+            ExtensionType::CreateExternalTable => {
                 let create_table = CreateExternalTable::try_decode_extension(extension)?;
                 self.create_external_table(create_table).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::CreateSchema => {
+            ExtensionType::CreateSchema => {
                 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
                 let create_schema = CreateSchema::try_decode_extension(extension)?;
                 let schema = create_schema.schema().as_ref().clone();
@@ -293,39 +293,39 @@ impl Session {
 
                 Ok(Arc::new(EmptyExec::new(false, schema.into())))
             }
-            ExtensionNode::DropTables => {
+            ExtensionType::DropTables => {
                 let drop_tables = DropTables::try_decode_extension(extension)?;
                 self.drop_tables(drop_tables).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::AlterTableRename => {
+            ExtensionType::AlterTableRename => {
                 let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
                 self.alter_table_rename(alter_table_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::AlterDatabaseRename => {
+            ExtensionType::AlterDatabaseRename => {
                 let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
                 self.alter_database_rename(alter_database_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::AlterTunnelRotateKeys => {
+            ExtensionType::AlterTunnelRotateKeys => {
                 let alter_tunnel_rotate_keys =
                     AlterTunnelRotateKeys::try_decode_extension(extension)?;
                 self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
                     .await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::CreateCredentials => {
+            ExtensionType::CreateCredentials => {
                 let create_credentials = CreateCredentials::try_decode_extension(extension)?;
                 self.create_credentials(create_credentials).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::CreateExternalDatabase => {
+            ExtensionType::CreateExternalDatabase => {
                 let create_database = CreateExternalDatabase::try_decode_extension(extension)?;
                 self.create_database(create_database).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            ExtensionNode::CreateTunnel => {
+            ExtensionType::CreateTunnel => {
                 let create_tunnel = CreateTunnel::try_decode_extension(extension)?;
                 self.create_tunnel(create_tunnel).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))

@@ -53,7 +53,7 @@ impl UserDefinedLogicalNodeCore for CreateCredentials {
     }
 }
 
-impl ExtensionType for CreateCredentials {
+impl ExtensionNode for CreateCredentials {
     const EXTENSION_NAME: &'static str = "CreateCredentials";
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {

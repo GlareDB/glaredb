@@ -64,7 +64,7 @@ impl UserDefinedLogicalNodeCore for CreateExternalTable {
     }
 }
 
-impl ExtensionType for CreateExternalTable {
+impl ExtensionNode for CreateExternalTable {
     const EXTENSION_NAME: &'static str = "CreateExternalTable";
 
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {

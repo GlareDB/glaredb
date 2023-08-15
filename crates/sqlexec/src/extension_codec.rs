@@ -1,6 +1,5 @@
 use core::fmt;
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
@@ -9,8 +8,8 @@ use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use uuid::Uuid;
 
-use crate::errors::{internal, ExecError};
-use crate::planner::extension::ExtensionType;
+use crate::errors::ExecError;
+use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan::{self as plan};
 use crate::remote::table::RemoteTableProvider;
 use protogen::export::prost::Message;
@@ -20,37 +19,6 @@ pub struct GlareDBExtensionCodec<'a> {
 }
 
 // This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
-pub enum ExtensionNode {
-    CreateTable,
-    CreateExternalTable,
-    CreateSchema,
-    DropTables,
-    AlterTableRename,
-    AlterDatabaseRename,
-    AlterTunnelRotateKeys,
-    CreateCredentials,
-    CreateExternalDatabase,
-    CreateTunnel,
-}
-
-impl FromStr for ExtensionNode {
-    type Err = ExecError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            plan::CreateTable::EXTENSION_NAME => Self::CreateTable,
-            plan::CreateExternalTable::EXTENSION_NAME => Self::CreateExternalTable,
-            plan::CreateSchema::EXTENSION_NAME => Self::CreateSchema,
-            plan::DropTables::EXTENSION_NAME => Self::DropTables,
-            plan::AlterTableRename::EXTENSION_NAME => Self::AlterTableRename,
-            plan::AlterDatabaseRename::EXTENSION_NAME => Self::AlterDatabaseRename,
-            plan::AlterTunnelRotateKeys::EXTENSION_NAME => Self::AlterTunnelRotateKeys,
-            plan::CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
-            plan::CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
-            plan::CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
-            _ => return Err(internal!("unknown extension type: {}", s)),
-        })
-    }
-}
 
 impl<'a> GlareDBExtensionCodec<'a> {
     pub fn new_decoder(table_providers: &'a HashMap<Uuid, Arc<dyn TableProvider>>) -> Self {
@@ -174,34 +142,34 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
         let extension = node
             .node
             .name()
-            .parse::<ExtensionNode>()
+            .parse::<ExtensionType>()
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         match extension {
-            ExtensionNode::CreateTable => plan::CreateTable::try_encode_extension(node, buf, self),
-            ExtensionNode::CreateExternalTable => {
+            ExtensionType::CreateTable => plan::CreateTable::try_encode_extension(node, buf, self),
+            ExtensionType::CreateExternalTable => {
                 plan::CreateExternalTable::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::CreateSchema => {
+            ExtensionType::CreateSchema => {
                 plan::CreateSchema::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::DropTables => plan::DropTables::try_encode_extension(node, buf, self),
-            ExtensionNode::AlterTableRename => {
+            ExtensionType::DropTables => plan::DropTables::try_encode_extension(node, buf, self),
+            ExtensionType::AlterTableRename => {
                 plan::AlterTableRename::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::AlterDatabaseRename => {
+            ExtensionType::AlterDatabaseRename => {
                 plan::AlterDatabaseRename::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::AlterTunnelRotateKeys => {
+            ExtensionType::AlterTunnelRotateKeys => {
                 plan::AlterTunnelRotateKeys::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::CreateCredentials => {
+            ExtensionType::CreateCredentials => {
                 plan::CreateCredentials::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::CreateExternalDatabase => {
+            ExtensionType::CreateExternalDatabase => {
                 plan::CreateExternalDatabase::try_encode_extension(node, buf, self)
             }
-            ExtensionNode::CreateTunnel => {
+            ExtensionType::CreateTunnel => {
                 plan::CreateTunnel::try_encode_extension(node, buf, self)
             }
         }

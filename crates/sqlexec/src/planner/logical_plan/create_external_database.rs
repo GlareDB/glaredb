@@ -59,7 +59,7 @@ impl UserDefinedLogicalNodeCore for CreateExternalDatabase {
     }
 }
 
-impl ExtensionType for CreateExternalDatabase {
+impl ExtensionNode for CreateExternalDatabase {
     const EXTENSION_NAME: &'static str = "CreateExternalDatabase";
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {

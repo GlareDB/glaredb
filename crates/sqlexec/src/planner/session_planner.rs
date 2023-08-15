@@ -58,7 +58,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 
 use super::context_builder::PartialContextProvider;
-use super::extension::ExtensionType;
+use super::extension::ExtensionNode;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {

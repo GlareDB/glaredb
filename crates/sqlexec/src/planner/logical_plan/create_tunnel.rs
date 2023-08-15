@@ -54,7 +54,7 @@ impl UserDefinedLogicalNodeCore for CreateTunnel {
     }
 }
 
-impl ExtensionType for CreateTunnel {
+impl ExtensionNode for CreateTunnel {
     const EXTENSION_NAME: &'static str = "CreateTunnel";
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
