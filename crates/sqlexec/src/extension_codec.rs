@@ -129,6 +129,20 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_tunnel.into_extension()
             }
+            PlanType::CreateTempTable(create_temp_table) => {
+                let create_temp_table: plan::CreateTempTable = create_temp_table
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_temp_table.into_extension()
+            }
+            PlanType::CreateView(create_view) => {
+                let create_view: plan::CreateView = create_view
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_view.into_extension()
+            }
         })
     }
 
@@ -170,6 +184,10 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::CreateTunnel => {
                 plan::CreateTunnel::try_encode_extension(node, buf, self)
             }
+            ExtensionType::CreateTempTable => {
+                plan::CreateTempTable::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::CreateView => plan::CreateView::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())

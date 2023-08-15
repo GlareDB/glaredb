@@ -24,6 +24,17 @@ pub struct CreateTable {
     #[prost(message, optional, tag = "4")]
     pub source: Option<LogicalPlanNode>,
 }
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateTempTable {
+    #[prost(string, tag = "1")]
+    pub table_name: String,
+    #[prost(bool, tag = "2")]
+    pub if_not_exists: bool,
+    #[prost(message, tag = "3")]
+    pub schema: Option<DfSchema>,
+    #[prost(message, optional, tag = "4")]
+    pub source: Option<LogicalPlanNode>,
+}
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateExternalTable {
@@ -35,6 +46,18 @@ pub struct CreateExternalTable {
     pub table_options: Option<TableOptions>,
     #[prost(message, optional, tag = "4")]
     pub tunnel: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateView {
+    #[prost(message, tag = "1")]
+    pub view_name: Option<OwnedTableReference>,
+    #[prost(string, tag = "2")]
+    pub sql: String,
+    #[prost(message, repeated, tag = "3")]
+    pub columns: Vec<String>,
+    #[prost(bool, tag = "4")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -66,7 +89,7 @@ pub struct AlterTableRename {
 pub struct LogicalPlanExtension {
     #[prost(
         oneof = "LogicalPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
     )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
@@ -94,6 +117,10 @@ pub enum LogicalPlanExtensionType {
     CreateExternalDatabase(CreateExternalDatabase),
     #[prost(message, tag = "10")]
     CreateTunnel(CreateTunnel),
+    #[prost(message, tag = "11")]
+    CreateTempTable(CreateTempTable),
+    #[prost(message, tag = "12")]
+    CreateView(CreateView),
 }
 
 // -----

@@ -10,40 +10,44 @@ use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLog
 
 use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
-    DropTables,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
+    CreateTunnel, CreateView, DropTables,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
 ///
 /// This should match all of the variants expressed in `protogen::sqlexec::logical_plan::LogicalPlanExtension`
 pub enum ExtensionType {
-    CreateTable,
-    CreateExternalTable,
-    CreateSchema,
-    DropTables,
-    AlterTableRename,
     AlterDatabaseRename,
+    AlterTableRename,
     AlterTunnelRotateKeys,
     CreateCredentials,
     CreateExternalDatabase,
+    CreateExternalTable,
+    CreateSchema,
+    CreateTable,
+    CreateTempTable,
     CreateTunnel,
+    CreateView,
+    DropTables,
 }
 
 impl FromStr for ExtensionType {
     type Err = ExecError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            CreateTable::EXTENSION_NAME => Self::CreateTable,
-            CreateExternalTable::EXTENSION_NAME => Self::CreateExternalTable,
-            CreateSchema::EXTENSION_NAME => Self::CreateSchema,
-            DropTables::EXTENSION_NAME => Self::DropTables,
-            AlterTableRename::EXTENSION_NAME => Self::AlterTableRename,
             AlterDatabaseRename::EXTENSION_NAME => Self::AlterDatabaseRename,
+            AlterTableRename::EXTENSION_NAME => Self::AlterTableRename,
             AlterTunnelRotateKeys::EXTENSION_NAME => Self::AlterTunnelRotateKeys,
             CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
             CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
+            CreateExternalTable::EXTENSION_NAME => Self::CreateExternalTable,
+            CreateSchema::EXTENSION_NAME => Self::CreateSchema,
+            CreateTable::EXTENSION_NAME => Self::CreateTable,
+            CreateTempTable::EXTENSION_NAME => Self::CreateTempTable,
             CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
+            CreateView::EXTENSION_NAME => Self::CreateView,
+            DropTables::EXTENSION_NAME => Self::DropTables,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }
