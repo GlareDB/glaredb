@@ -278,6 +278,11 @@ impl Session {
                 let create_table = CreateTable::try_decode_extension(extension)?;
                 self.create_table(create_table).await
             }
+            CreateExternalTable::EXTENSION_NAME => {
+                let create_table = CreateExternalTable::try_decode_extension(extension)?;
+                self.create_external_table(create_table).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
             CreateSchema::EXTENSION_NAME => {
                 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
                 let create_schema = CreateSchema::try_decode_extension(extension)?;
