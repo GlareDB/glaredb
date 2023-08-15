@@ -2,7 +2,7 @@ use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::prelude::{Expr, SessionContext};
+use datafusion::prelude::Expr;
 use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
@@ -41,11 +41,9 @@ impl RemoteSession {
     ) -> Result<(Uuid, Schema)> {
         let mut session = self.session.lock().await;
 
-        // TODO: Use a context that actually matters.
-        let fake_ctx = SessionContext::new();
         let codec = session.extension_codec()?;
         let plan = LogicalPlanNode::try_decode(logical_plan.as_ref())?
-            .try_into_logical_plan(&fake_ctx, &codec)?;
+            .try_into_logical_plan(session.df_ctx(), &codec)?;
 
         let physical = session.create_physical_plan(plan).await?;
         let schema = physical.schema();
@@ -70,10 +68,8 @@ impl RemoteSession {
     ) -> Result<(Uuid, Schema)> {
         let mut session = self.session.lock().await;
         let provider = session.get_table_provider(&provider_id)?;
-        // TODO: Use a context that actually matters.
-        let fake_ctx = SessionContext::new();
         let physical = provider
-            .scan(&fake_ctx.state(), projection, filters, limit)
+            .scan(&session.df_ctx().state(), projection, filters, limit)
             .await?;
         let schema = physical.schema();
         let exec_id = session.add_physical_plan(physical)?;
@@ -88,9 +84,9 @@ impl RemoteSession {
         let mut session = self.session.lock().await;
         let provider = session.get_table_provider(&provider_id)?;
         let input = session.get_physical_plan(&input_exec_id)?;
-        // TODO: Use a context that actually matters.
-        let fake_ctx = SessionContext::new();
-        let physical = provider.insert_into(&fake_ctx.state(), input).await?;
+        let physical = provider
+            .insert_into(&session.df_ctx().state(), input)
+            .await?;
         let schema = physical.schema();
         let exec_id = session.add_physical_plan(physical)?;
         Ok((exec_id, Schema::clone(&schema)))
@@ -99,7 +95,6 @@ impl RemoteSession {
     pub async fn physical_plan_execute(&self, exec_id: Uuid) -> Result<SendableRecordBatchStream> {
         let session = self.session.lock().await;
         let plan = session.get_physical_plan(&exec_id)?;
-        // TODO: Use a context that actually matters.
         let stream = session.execute_physical(plan)?;
         Ok(stream)
     }

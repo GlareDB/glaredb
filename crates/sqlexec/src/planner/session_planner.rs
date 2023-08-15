@@ -592,7 +592,7 @@ impl<'a> SessionPlanner<'a> {
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
 
         match statement {
@@ -1154,7 +1154,7 @@ impl<'a> SessionPlanner<'a> {
             CopyToSource::Query(query) => query,
         };
 
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
         let mut planner = SqlQueryPlanner::new(&mut context_provider);
         let source = planner.query_to_plan(query).await?;

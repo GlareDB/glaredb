@@ -252,9 +252,9 @@ impl SessionContext {
         self.current_session_tables.get(table_name).cloned()
     }
 
-    /// Initialize execution and return the [`SessionState`].
-    pub fn init_exec(&self) -> SessionState {
-        self.df_ctx.state()
+    /// Return the DF session context.
+    pub fn df_ctx(&self) -> &DfSessionContext {
+        &self.df_ctx
     }
 
     /// Returns the underlaying exec client for remote session.
@@ -411,7 +411,7 @@ impl SessionContext {
     }
 
     pub async fn insert(&mut self, plan: Insert) -> Result<()> {
-        let state = self.init_exec();
+        let state = self.df_ctx.state();
 
         let physical = state.create_physical_plan(&plan.source).await?;
 
