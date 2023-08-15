@@ -13,6 +13,8 @@ use super::logical_plan::{
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
     DropTables,
 };
+
+// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension 
 pub enum ExtensionType {
     CreateTable,
     CreateExternalTable,

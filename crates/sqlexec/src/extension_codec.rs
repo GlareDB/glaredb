@@ -18,8 +18,6 @@ pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a HashMap<Uuid, Arc<dyn TableProvider>>>,
 }
 
-// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
-
 impl<'a> GlareDBExtensionCodec<'a> {
     pub fn new_decoder(table_providers: &'a HashMap<Uuid, Arc<dyn TableProvider>>) -> Self {
         Self {
