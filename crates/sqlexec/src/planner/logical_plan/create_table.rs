@@ -100,7 +100,7 @@ impl ExtensionType for CreateTable {
         let create_table = protogen::CreateTable {
             table_name: self.table_name.clone().try_into().ok(),
             if_not_exists: self.if_not_exists,
-            schema: schema,
+            schema,
             source,
         };
 
