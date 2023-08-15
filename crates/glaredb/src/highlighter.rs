@@ -13,7 +13,7 @@ pub(crate) struct SQLHighlighter;
 pub(crate) struct SQLValidator;
 impl Validator for SQLValidator {
     fn validate(&self, line: &str) -> reedline::ValidationResult {
-        if line.trim_end().ends_with(';') || is_client_cmd(line) {
+        if line.trim().is_empty() || line.trim_end().ends_with(';') || is_client_cmd(line) {
             reedline::ValidationResult::Complete
         } else {
             reedline::ValidationResult::Incomplete
