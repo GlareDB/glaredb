@@ -1,4 +1,10 @@
-use crate::{gen::metastore::{options::TableOptions, service::{AlterDatabaseRename, AlterTunnelRotateKeys}}, ProtoConvError};
+use crate::{
+    gen::metastore::{
+        options::TableOptions,
+        service::{AlterDatabaseRename, AlterTunnelRotateKeys},
+    },
+    ProtoConvError,
+};
 use std::borrow::Cow;
 
 use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};

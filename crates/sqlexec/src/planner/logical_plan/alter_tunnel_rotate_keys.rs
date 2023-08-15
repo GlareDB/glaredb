@@ -21,7 +21,6 @@ impl TryFrom<protogen::gen::metastore::service::AlterTunnelRotateKeys> for Alter
     }
 }
 
-
 impl UserDefinedLogicalNodeCore for AlterTunnelRotateKeys {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -58,20 +57,26 @@ impl ExtensionType for AlterTunnelRotateKeys {
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
-            None => Err(internal!(
-                "AlterTunnelRotateKeys decode failed",
-            )),
+            None => Err(internal!("AlterTunnelRotateKeys decode failed",)),
         }
     }
 
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
-        let Self { name, if_exists, new_ssh_key } = self.clone();
+        let Self {
+            name,
+            if_exists,
+            new_ssh_key,
+        } = self.clone();
 
-        let alter_tunnel_rotate_keys =
-            ::protogen::gen::metastore::service::AlterTunnelRotateKeys { name, if_exists, new_ssh_key };
+        let alter_tunnel_rotate_keys = ::protogen::gen::metastore::service::AlterTunnelRotateKeys {
+            name,
+            if_exists,
+            new_ssh_key,
+        };
 
-        let extension = protogen::LogicalPlanExtensionType::AlterTunnelRotateKeys(alter_tunnel_rotate_keys);
+        let extension =
+            protogen::LogicalPlanExtensionType::AlterTunnelRotateKeys(alter_tunnel_rotate_keys);
 
         let lp_extension = protogen::LogicalPlanExtension {
             inner: Some(extension),
