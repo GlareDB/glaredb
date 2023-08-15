@@ -517,7 +517,9 @@ impl<'a> SessionPlanner<'a> {
             tunnel,
         };
 
-        Ok(DdlPlan::CreateExternalTable(plan).into())
+        Ok(LogicalPlan::Datafusion(
+            datafusion::logical_expr::LogicalPlan::Extension(plan.into_extension()),
+        ))
     }
 
     fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
