@@ -220,6 +220,17 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         client.physical_plan_execute(request).await
     }
 
+    async fn broadcast_exchange(
+        &self,
+        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+    ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
+        unimplemented!()
+        // let resp = self
+        //     .physical_plan_execute_inner(request.into_inner().try_into()?)
+        //     .await?;
+        // Ok(Response::new(Box::pin(resp)))
+    }
+
     async fn close_session(
         &self,
         request: Request<service::CloseSessionRequest>,

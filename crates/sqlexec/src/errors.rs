@@ -148,6 +148,9 @@ pub enum ExecError {
     #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
 
+    #[error("{0:?}")]
+    TonicStatus(#[from] tonic::Status),
+
     #[error(transparent)]
     InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
 }

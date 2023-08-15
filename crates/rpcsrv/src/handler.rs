@@ -24,7 +24,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, Streaming};
 use tracing::info;
 use uuid::Uuid;
 
@@ -207,6 +207,18 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
             .physical_plan_execute_inner(request.into_inner().try_into()?)
             .await?;
         Ok(Response::new(Box::pin(resp)))
+    }
+
+    async fn broadcast_exchange(
+        &self,
+        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+    ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
+        let stream = request.into_inner();
+        unimplemented!()
+        // let resp = self
+        //     .physical_plan_execute_inner(request.into_inner().try_into()?)
+        //     .await?;
+        // Ok(Response::new(Box::pin(resp)))
     }
 
     async fn close_session(
