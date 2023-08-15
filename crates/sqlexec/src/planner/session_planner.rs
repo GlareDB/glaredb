@@ -1118,15 +1118,15 @@ impl<'a> SessionPlanner<'a> {
             AlterTunnelAction::RotateKeys => {
                 let new_ssh_key = SshKey::generate_random()?;
                 let new_ssh_key = new_ssh_key.to_bytes()?;
-                DdlPlan::AlterTunnelRotateKeys(AlterTunnelRotateKeys {
+                AlterTunnelRotateKeys {
                     name,
                     if_exists: stmt.if_exists,
                     new_ssh_key,
-                })
+                }
             }
         };
 
-        Ok(plan.into())
+        Ok(plan.into_logical_plan())
     }
 
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {

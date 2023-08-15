@@ -100,6 +100,14 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 alter_database_rename.into_extension()
             }
+            PlanType::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
+                let alter_tunnel_rotate_keys: plan::AlterTunnelRotateKeys =
+                    alter_tunnel_rotate_keys
+                        .try_into()
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                alter_tunnel_rotate_keys.into_extension()
+            }
         })
     }
 
@@ -126,6 +134,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             plan::AlterDatabaseRename::EXTENSION_NAME => {
                 plan::AlterDatabaseRename::try_encode_extension(node, buf, self)
+            }
+            plan::AlterTunnelRotateKeys::EXTENSION_NAME => {
+                plan::AlterTunnelRotateKeys::try_encode_extension(node, buf, self)
             }
             _ => {
                 return Err(DataFusionError::External(Box::new(internal!(

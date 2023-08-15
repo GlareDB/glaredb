@@ -306,6 +306,13 @@ impl Session {
                 self.alter_database_rename(alter_database_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
+            AlterTunnelRotateKeys::EXTENSION_NAME => {
+                let alter_tunnel_rotate_keys =
+                    AlterTunnelRotateKeys::try_decode_extension(extension)?;
+                self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
+                    .await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
             name => Err(internal!("Unknown extension name: {}", name.to_string())),
         }
     }
