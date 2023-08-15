@@ -2,12 +2,24 @@ use std::io::{self};
 
 use nu_ansi_term::{Color, Style};
 
-use reedline::{Highlighter, StyledText};
+use reedline::{Highlighter, StyledText, Validator};
 use sqlexec::export::sqlparser::dialect::GenericDialect;
 use sqlexec::export::sqlparser::keywords::Keyword;
 use sqlexec::export::sqlparser::tokenizer::{Token, Tokenizer};
 
-pub(crate) struct SQLHighlighter {}
+use crate::local::is_client_cmd;
+
+pub(crate) struct SQLHighlighter;
+pub(crate) struct SQLValidator;
+impl Validator for SQLValidator {
+    fn validate(&self, line: &str) -> reedline::ValidationResult {
+        if line.trim_end().ends_with(';') || is_client_cmd(line) {
+            reedline::ValidationResult::Complete
+        } else {
+            reedline::ValidationResult::Incomplete
+        }
+    }
+}
 
 fn colorize_sql(query: &str, st: &mut StyledText) -> std::io::Result<()> {
     let dialect = GenericDialect;
