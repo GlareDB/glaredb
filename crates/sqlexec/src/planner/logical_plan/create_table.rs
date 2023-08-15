@@ -73,7 +73,7 @@ impl UserDefinedLogicalNodeCore for CreateTable {
     }
 }
 
-impl ExtensionType for CreateTable {
+impl ExtensionNode for CreateTable {
     const EXTENSION_NAME: &'static str = "CreateTable";
 
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {

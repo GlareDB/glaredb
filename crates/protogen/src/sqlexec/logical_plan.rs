@@ -1,7 +1,10 @@
 use crate::{
     gen::metastore::{
         options::TableOptions,
-        service::{AlterDatabaseRename, AlterTunnelRotateKeys},
+        service::{
+            AlterDatabaseRename, AlterTunnelRotateKeys, CreateCredentials, CreateExternalDatabase,
+            CreateTunnel,
+        },
     },
     ProtoConvError,
 };
@@ -61,7 +64,10 @@ pub struct AlterTableRename {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
-    #[prost(oneof = "LogicalPlanExtensionType", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(
+        oneof = "LogicalPlanExtensionType",
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+    )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
 
@@ -82,6 +88,12 @@ pub enum LogicalPlanExtensionType {
     AlterDatabaseRename(AlterDatabaseRename),
     #[prost(message, tag = "7")]
     AlterTunnelRotateKeys(AlterTunnelRotateKeys),
+    #[prost(message, tag = "8")]
+    CreateCredentials(CreateCredentials),
+    #[prost(message, tag = "9")]
+    CreateExternalDatabase(CreateExternalDatabase),
+    #[prost(message, tag = "10")]
+    CreateTunnel(CreateTunnel),
 }
 
 // -----

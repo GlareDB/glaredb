@@ -52,7 +52,7 @@ impl UserDefinedLogicalNodeCore for DropTables {
     }
 }
 
-impl ExtensionType for DropTables {
+impl ExtensionNode for DropTables {
     const EXTENSION_NAME: &'static str = "DropTables";
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {

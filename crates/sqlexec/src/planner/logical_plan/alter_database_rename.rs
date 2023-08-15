@@ -49,7 +49,7 @@ impl UserDefinedLogicalNodeCore for AlterDatabaseRename {
     }
 }
 
-impl ExtensionType for AlterDatabaseRename {
+impl ExtensionNode for AlterDatabaseRename {
     const EXTENSION_NAME: &'static str = "AlterDatabaseRename";
 
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {

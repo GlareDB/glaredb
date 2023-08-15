@@ -17,7 +17,7 @@ mod drop_tunnel;
 mod drop_views;
 
 use crate::errors::{internal, Result};
-use crate::planner::extension::ExtensionType;
+use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTableReference};

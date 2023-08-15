@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
-use crate::planner::extension::ExtensionType;
+use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteSessionClient;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
@@ -33,7 +33,7 @@ use telemetry::Tracker;
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::{internal, Result};
+use crate::errors::Result;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -278,17 +278,19 @@ impl Session {
         &mut self,
         extension: &Extension,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        match extension.node.name() {
-            CreateTable::EXTENSION_NAME => {
+        let node = extension.node.name().parse::<ExtensionType>()?;
+
+        match node {
+            ExtensionType::CreateTable => {
                 let create_table = CreateTable::try_decode_extension(extension)?;
                 self.create_table(create_table).await
             }
-            CreateExternalTable::EXTENSION_NAME => {
+            ExtensionType::CreateExternalTable => {
                 let create_table = CreateExternalTable::try_decode_extension(extension)?;
                 self.create_external_table(create_table).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            CreateSchema::EXTENSION_NAME => {
+            ExtensionType::CreateSchema => {
                 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
                 let create_schema = CreateSchema::try_decode_extension(extension)?;
                 let schema = create_schema.schema().as_ref().clone();
@@ -296,29 +298,43 @@ impl Session {
 
                 Ok(Arc::new(EmptyExec::new(false, schema.into())))
             }
-            DropTables::EXTENSION_NAME => {
+            ExtensionType::DropTables => {
                 let drop_tables = DropTables::try_decode_extension(extension)?;
                 self.drop_tables(drop_tables).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            AlterTableRename::EXTENSION_NAME => {
+            ExtensionType::AlterTableRename => {
                 let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
                 self.alter_table_rename(alter_table_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            AlterDatabaseRename::EXTENSION_NAME => {
+            ExtensionType::AlterDatabaseRename => {
                 let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
                 self.alter_database_rename(alter_database_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            AlterTunnelRotateKeys::EXTENSION_NAME => {
+            ExtensionType::AlterTunnelRotateKeys => {
                 let alter_tunnel_rotate_keys =
                     AlterTunnelRotateKeys::try_decode_extension(extension)?;
                 self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
                     .await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
-            name => Err(internal!("Unknown extension name: {}", name.to_string())),
+            ExtensionType::CreateCredentials => {
+                let create_credentials = CreateCredentials::try_decode_extension(extension)?;
+                self.create_credentials(create_credentials).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateExternalDatabase => {
+                let create_database = CreateExternalDatabase::try_decode_extension(extension)?;
+                self.create_database(create_database).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateTunnel => {
+                let create_tunnel = CreateTunnel::try_decode_extension(extension)?;
+                self.create_tunnel(create_tunnel).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
         }
     }
 

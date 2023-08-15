@@ -107,9 +107,14 @@ fn colorize_sql(query: &str, st: &mut StyledText) -> std::io::Result<()> {
                 | Keyword::WITH
                 | Keyword::INSERT
                 | Keyword::INTO
+                | Keyword::DATABASE
                 | Keyword::VALUES => {
                     st.push((Style::new().fg(Color::LightGreen), format!("{w}")));
                 }
+                Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
+                    "TUNNEL" => st.push((Style::new().fg(Color::LightGreen), format!("{w}"))),
+                    _ => st.push((Style::new(), format!("{w}"))),
+                },
                 // TODO: add more keywords
                 _ => st.push((Style::new(), format!("{w}"))),
             },

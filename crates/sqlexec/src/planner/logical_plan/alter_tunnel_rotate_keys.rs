@@ -51,7 +51,7 @@ impl UserDefinedLogicalNodeCore for AlterTunnelRotateKeys {
     }
 }
 
-impl ExtensionType for AlterTunnelRotateKeys {
+impl ExtensionNode for AlterTunnelRotateKeys {
     const EXTENSION_NAME: &'static str = "AlterTunnelRotateKeys";
 
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
