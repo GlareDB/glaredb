@@ -19,8 +19,9 @@ mod drop_views;
 use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
+use super::EMPTY_DFSCHEMA;
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
+use datafusion::common::{DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
@@ -28,7 +29,6 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
 use datafusion_proto::protobuf::LogicalPlanNode;
-use once_cell::sync::Lazy;
 use protogen::export::prost::Message;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use protogen::metastore::types::options::{
@@ -55,8 +55,6 @@ pub use drop_schemas::*;
 pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
-
-static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {

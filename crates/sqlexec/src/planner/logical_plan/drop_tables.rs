@@ -32,7 +32,7 @@ impl UserDefinedLogicalNodeCore for DropTables {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &EMPTY_DFSCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

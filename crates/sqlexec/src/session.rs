@@ -7,6 +7,7 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteSessionClient;
+use crate::remote::planner::CustomPhysicalPlanner;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
@@ -265,12 +266,16 @@ impl Session {
             .remote_session_id
             .value()
             .is_none();
-        if is_main_instance {
-            if let DfLogicalPlan::Extension(extension) = &plan {
-                return self.execute_extension(extension).await;
-            };
-        }
-        let plan = state.create_physical_plan(&plan).await?;
+        // if is_main_instance {
+        //     if let DfLogicalPlan::Extension(extension) = &plan {
+        //         return self.execute_extension(extension).await;
+        //     };
+        // }
+        use datafusion::physical_planner::PhysicalPlanner;
+
+        let plan = CustomPhysicalPlanner::new(&self.ctx)
+            .create_physical_plan(&plan, &state)
+            .await?;
         Ok(plan)
     }
 
