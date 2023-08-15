@@ -273,7 +273,6 @@ impl Session {
         &mut self,
         extension: &Extension,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        #[allow(clippy::single_match)]
         match extension.node.name() {
             CreateTable::EXTENSION_NAME => {
                 let create_table = CreateTable::try_decode_extension(extension)?;
