@@ -8,7 +8,7 @@ use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use uuid::Uuid;
 
-use crate::errors::ExecError;
+use crate::errors::{internal, ExecError};
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{self as plan};
 use crate::remote::table::RemoteTableProvider;
@@ -86,6 +86,28 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_external_table.into_extension()
             }
+            PlanType::AlterTableRename(alter_table_rename) => {
+                let alter_table_rename: plan::AlterTableRename = alter_table_rename
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                alter_table_rename.into_extension()
+            }
+            PlanType::AlterDatabaseRename(alter_database_rename) => {
+                let alter_database_rename: plan::AlterDatabaseRename = alter_database_rename
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                alter_database_rename.into_extension()
+            }
+            PlanType::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
+                let alter_tunnel_rotate_keys: plan::AlterTunnelRotateKeys =
+                    alter_tunnel_rotate_keys
+                        .try_into()
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                alter_tunnel_rotate_keys.into_extension()
+            }
         })
     }
 
@@ -107,7 +129,21 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             plan::DropTables::EXTENSION_NAME => {
                 plan::DropTables::try_encode_extension(node, buf, self)
             }
-            _ => todo!("encode all known extensions"),
+            plan::AlterTableRename::EXTENSION_NAME => {
+                plan::AlterTableRename::try_encode_extension(node, buf, self)
+            }
+            plan::AlterDatabaseRename::EXTENSION_NAME => {
+                plan::AlterDatabaseRename::try_encode_extension(node, buf, self)
+            }
+            plan::AlterTunnelRotateKeys::EXTENSION_NAME => {
+                plan::AlterTunnelRotateKeys::try_encode_extension(node, buf, self)
+            }
+            _ => {
+                return Err(DataFusionError::External(Box::new(internal!(
+                    "cannot encode the extension type {:?}",
+                    node.node.name()
+                ))))
+            }
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())
