@@ -5,7 +5,7 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
-use datafusion::physical_planner::PhysicalPlanner;
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
 
 use std::sync::Arc;
@@ -70,13 +70,19 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(Arc::new(physical_plan))
     }
+
     fn create_physical_expr(
         &self,
-        _expr: &Expr,
-        _input_dfschema: &DFSchema,
-        _input_schema: &Schema,
-        _session_state: &SessionState,
+        expr: &Expr,
+        input_dfschema: &DFSchema,
+        input_schema: &Schema,
+        session_state: &SessionState,
     ) -> DataFusionResult<Arc<dyn PhysicalExpr>> {
-        todo!("create_physical_expr")
+        DefaultPhysicalPlanner::default().create_physical_expr(
+            expr,
+            input_dfschema,
+            input_schema,
+            session_state,
+        )
     }
 }

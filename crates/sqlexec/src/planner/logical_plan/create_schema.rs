@@ -10,7 +10,12 @@ impl TryFrom<protogen::sqlexec::logical_plan::CreateSchema> for CreateSchema {
     type Error = ProtoConvError;
 
     fn try_from(proto: protogen::sqlexec::logical_plan::CreateSchema) -> Result<Self, Self::Error> {
-        let schema_name = proto.schema_name.unwrap().try_into().unwrap();
+        let schema_name = proto
+            .schema_name
+            .ok_or(ProtoConvError::RequiredField(
+                "schema name is required".to_string(),
+            ))?
+            .try_into()?;
 
         Ok(Self {
             schema_name,
@@ -54,9 +59,7 @@ impl ExtensionType for CreateSchema {
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
-            None => Err(internal!(
-                "CreateSchema::try_decode_extension: unsupported extension",
-            )),
+            None => Err(internal!("CreateSchema::try_decode_extension failed",)),
         }
     }
 
@@ -64,7 +67,7 @@ impl ExtensionType for CreateSchema {
         use protogen::sqlexec::logical_plan as protogen;
 
         let create_schema = protogen::CreateSchema {
-            schema_name: Some(self.schema_name.clone().try_into().unwrap()),
+            schema_name: Some(self.schema_name.clone().try_into()?),
             if_not_exists: self.if_not_exists,
         };
         let plan_type = protogen::LogicalPlanExtensionType::CreateSchema(create_schema);

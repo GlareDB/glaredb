@@ -12,11 +12,25 @@ impl TryFrom<protogen::sqlexec::logical_plan::CreateTable> for CreateTable {
     type Error = ProtoConvError;
 
     fn try_from(proto: protogen::sqlexec::logical_plan::CreateTable) -> Result<Self, Self::Error> {
-        let table_name = proto.table_name.unwrap().try_into().unwrap();
-        let schema = proto.schema.unwrap().try_into().unwrap();
+        let table_name = proto
+            .table_name
+            .ok_or(ProtoConvError::RequiredField(
+                "table_name is required".to_string(),
+            ))?
+            .try_into()?;
+        let schema = proto
+            .schema
+            .ok_or(ProtoConvError::RequiredField(
+                "schema name is required".to_string(),
+            ))?
+            .try_into()?;
+
         if proto.source.is_some() {
-            todo!("source is not yet supported")
+            return Err(ProtoConvError::UnsupportedSerialization(
+                "source is in create table not yet supported",
+            ));
         }
+
         Ok(Self {
             table_name,
             if_not_exists: proto.if_not_exists,
@@ -74,16 +88,19 @@ impl ExtensionType for CreateTable {
     fn try_encode(&self, buf: &mut Vec<u8>, codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
         let schema = &self.schema;
-        let schema: datafusion_proto::protobuf::DfSchema = schema.try_into().unwrap();
-        let source = self
-            .source
-            .as_ref()
-            .map(|src| LogicalPlanNode::try_from_logical_plan(src, codec).unwrap());
+
+        let schema: Option<datafusion_proto::protobuf::DfSchema> = schema.try_into().ok();
+
+        let source = self.source.as_ref().map(|src| {
+            LogicalPlanNode::try_from_logical_plan(src, codec)
+                .map_err(|e| internal!("unable to encode source: {}", e.to_string()))
+                .unwrap()
+        });
 
         let create_table = protogen::CreateTable {
-            table_name: Some(self.table_name.clone().try_into().unwrap()),
+            table_name: self.table_name.clone().try_into().ok(),
             if_not_exists: self.if_not_exists,
-            schema: Some(schema),
+            schema: schema,
             source,
         };
 

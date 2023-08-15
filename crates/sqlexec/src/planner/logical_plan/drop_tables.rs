@@ -4,6 +4,7 @@ pub struct DropTables {
     pub names: Vec<OwnedTableReference>,
     pub if_exists: bool,
 }
+
 impl TryFrom<protogen::sqlexec::logical_plan::DropTables> for DropTables {
     type Error = ProtoConvError;
 
