@@ -51,6 +51,9 @@ pub mod errors {
 
         #[error(transparent)]
         DfLogicalToProto(#[from] datafusion_proto::logical_plan::to_proto::Error),
+
+        #[error(transparent)]
+        DataFusionError(#[from] datafusion::common::DataFusionError),
     }
 
     impl From<ProtoConvError> for tonic::Status {
