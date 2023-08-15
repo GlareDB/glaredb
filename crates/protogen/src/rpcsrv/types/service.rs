@@ -1,4 +1,8 @@
-use datafusion::{arrow::datatypes::Schema, common::OwnedTableReference, sql::TableReference};
+use datafusion::{
+    arrow::datatypes::Schema, common::OwnedTableReference, error::DataFusionError, prelude::Expr,
+    sql::TableReference,
+};
+use datafusion_proto::bytes::Serializeable;
 use prost::Message;
 use uuid::Uuid;
 
@@ -183,7 +187,85 @@ impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
     }
 }
 
-// TODO: More types...
+pub struct TableProviderScanRequest {
+    pub session_id: Uuid,
+    pub provider_id: Uuid,
+    pub projection: Option<Vec<usize>>,
+    pub filters: Vec<Expr>,
+    pub limit: Option<usize>,
+}
+
+impl TryFrom<service::TableProviderScanRequest> for TableProviderScanRequest {
+    type Error = ProtoConvError;
+    fn try_from(value: service::TableProviderScanRequest) -> Result<Self, Self::Error> {
+        Ok(Self {
+            session_id: Uuid::from_slice(&value.session_id)?,
+            provider_id: Uuid::from_slice(&value.provider_id)?,
+            projection: if value.projection.is_empty() {
+                None
+            } else {
+                Some(value.projection.into_iter().map(|p| p as usize).collect())
+            },
+            filters: {
+                value
+                    .filters
+                    .into_iter()
+                    .map(|bytes| Expr::from_bytes(&bytes))
+                    .collect::<Result<Vec<_>, DataFusionError>>()?
+            },
+            limit: value.limit.map(|l| l as usize),
+        })
+    }
+}
+
+impl TryFrom<TableProviderScanRequest> for service::TableProviderScanRequest {
+    type Error = ProtoConvError;
+    fn try_from(value: TableProviderScanRequest) -> Result<Self, Self::Error> {
+        Ok(Self {
+            session_id: value.session_id.into_bytes().into(),
+            provider_id: value.provider_id.into_bytes().into(),
+            projection: value
+                .projection
+                .map(|projection| projection.into_iter().map(|p| p as u64).collect())
+                .unwrap_or_default(),
+            filters: {
+                value
+                    .filters
+                    .into_iter()
+                    .map(|expr| expr.to_bytes().map(|bytes| bytes.to_vec()))
+                    .collect::<Result<Vec<_>, DataFusionError>>()?
+            },
+            limit: value.limit.map(|l| l as u64),
+        })
+    }
+}
+
+pub struct TableProviderInsertIntoRequest {
+    pub session_id: Uuid,
+    pub provider_id: Uuid,
+    pub input_exec_id: Uuid,
+}
+
+impl TryFrom<service::TableProviderInsertIntoRequest> for TableProviderInsertIntoRequest {
+    type Error = ProtoConvError;
+    fn try_from(value: service::TableProviderInsertIntoRequest) -> Result<Self, Self::Error> {
+        Ok(Self {
+            session_id: Uuid::from_slice(&value.session_id)?,
+            provider_id: Uuid::from_slice(&value.provider_id)?,
+            input_exec_id: Uuid::from_slice(&value.input_exec_id)?,
+        })
+    }
+}
+
+impl From<TableProviderInsertIntoRequest> for service::TableProviderInsertIntoRequest {
+    fn from(value: TableProviderInsertIntoRequest) -> Self {
+        Self {
+            session_id: value.session_id.into_bytes().into(),
+            provider_id: value.provider_id.into_bytes().into(),
+            input_exec_id: value.input_exec_id.into_bytes().into(),
+        }
+    }
+}
 
 pub struct PhysicalPlanExecuteRequest {
     pub session_id: Uuid,
