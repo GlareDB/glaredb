@@ -248,12 +248,17 @@ impl Session {
         self.ctx.register_env_reader(env_reader);
     }
 
+    /// Return the DF session context.
+    pub fn df_ctx(&self) -> &datafusion::prelude::SessionContext {
+        self.ctx.df_ctx()
+    }
+
     /// Create a physical plan for a given datafusion logical plan.
     pub async fn create_physical_plan(
         &mut self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let is_main_instance = self
             .ctx
             .get_session_vars()
@@ -358,7 +363,7 @@ impl Session {
         &self,
         table_ref: OwnedTableReference,
     ) -> Result<Arc<dyn TableProvider>> {
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let mut ctx_provider = PartialContextProvider::new(&self.ctx, &state)?;
         Ok(ctx_provider.table_provider(table_ref).await?)
     }
