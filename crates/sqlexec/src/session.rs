@@ -414,7 +414,6 @@ impl Session {
     }
 
     pub(crate) async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        println!("create_tunnel");
         self.ctx.create_tunnel(plan).await?;
         Ok(())
     }
