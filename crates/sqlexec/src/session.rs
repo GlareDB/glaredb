@@ -5,10 +5,12 @@ use std::sync::Arc;
 use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
+use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteSessionClient;
+use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
@@ -246,25 +248,94 @@ impl Session {
         self.ctx.register_env_reader(env_reader);
     }
 
+    /// Return the DF session context.
+    pub fn df_ctx(&self) -> &datafusion::prelude::SessionContext {
+        self.ctx.df_ctx()
+    }
+
     /// Create a physical plan for a given datafusion logical plan.
     pub async fn create_physical_plan(
         &mut self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let state = self.ctx.init_exec();
-        if let DfLogicalPlan::Extension(extension) = &plan {
-            #[allow(clippy::single_match)]
-            match extension.node.name() {
-                "CreateTable" => {
-                    let create_table = extension.node.as_any().downcast_ref::<CreateTable>();
-                    return self.create_table(create_table.unwrap().clone()).await;
-                }
-                _ => {}
-            }
+        let state = self.ctx.df_ctx().state();
+        let is_main_instance = self
+            .ctx
+            .get_session_vars()
+            .remote_session_id
+            .value()
+            .is_none();
+        if is_main_instance {
+            if let DfLogicalPlan::Extension(extension) = &plan {
+                return self.execute_extension(extension).await;
+            };
         }
-
         let plan = state.create_physical_plan(&plan).await?;
         Ok(plan)
+    }
+
+    pub async fn execute_extension(
+        &mut self,
+        extension: &Extension,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let node = extension.node.name().parse::<ExtensionType>()?;
+
+        match node {
+            ExtensionType::CreateTable => {
+                let create_table = CreateTable::try_decode_extension(extension)?;
+                self.create_table(create_table).await
+            }
+            ExtensionType::CreateExternalTable => {
+                let create_table = CreateExternalTable::try_decode_extension(extension)?;
+                self.create_external_table(create_table).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateSchema => {
+                use datafusion::logical_expr::UserDefinedLogicalNodeCore;
+                let create_schema = CreateSchema::try_decode_extension(extension)?;
+                let schema = create_schema.schema().as_ref().clone();
+                self.create_schema(create_schema).await?;
+
+                Ok(Arc::new(EmptyExec::new(false, schema.into())))
+            }
+            ExtensionType::DropTables => {
+                let drop_tables = DropTables::try_decode_extension(extension)?;
+                self.drop_tables(drop_tables).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::AlterTableRename => {
+                let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
+                self.alter_table_rename(alter_table_rename).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::AlterDatabaseRename => {
+                let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
+                self.alter_database_rename(alter_database_rename).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::AlterTunnelRotateKeys => {
+                let alter_tunnel_rotate_keys =
+                    AlterTunnelRotateKeys::try_decode_extension(extension)?;
+                self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
+                    .await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateCredentials => {
+                let create_credentials = CreateCredentials::try_decode_extension(extension)?;
+                self.create_credentials(create_credentials).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateExternalDatabase => {
+                let create_database = CreateExternalDatabase::try_decode_extension(extension)?;
+                self.create_database(create_database).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateTunnel => {
+                let create_tunnel = CreateTunnel::try_decode_extension(extension)?;
+                self.create_tunnel(create_tunnel).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+        }
     }
 
     /// Execute a datafusion physical plan.
@@ -308,7 +379,7 @@ impl Session {
         &self,
         table_ref: OwnedTableReference,
     ) -> Result<Arc<dyn TableProvider>> {
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let mut ctx_provider = PartialContextProvider::new(&self.ctx, &state)?;
         Ok(ctx_provider.table_provider(table_ref).await?)
     }
@@ -662,7 +733,7 @@ impl Session {
                 let updated_rows = self.update(plan).await?;
                 ExecutionResult::UpdateSuccess { updated_rows }
             }
-            LogicalPlan::Query(plan) => {
+            LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
                 let stream = self.execute_physical(physical.clone())?;
                 ExecutionResult::Query {

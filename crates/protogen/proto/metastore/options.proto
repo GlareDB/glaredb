@@ -12,7 +12,7 @@ syntax = "proto3";
 
 package metastore.options;
 
-import "metastore/arrow.proto";
+import "common/arrow.proto";
 
 // Some options allow us to know the columns in tables upfront (particularly the
 // internal table options).
@@ -26,7 +26,7 @@ message InternalColumnDefinition {
   // Arrow type for the field.
   //
   // Note this will likely need to be expanded for complex types.
-  arrow.ArrowType arrow_type = 3;
+  common.arrow.ArrowType arrow_type = 3;
 
   // next: 4
 }

@@ -41,6 +41,10 @@ impl RemoteExecutionPlan {
             schema,
         }
     }
+
+    pub fn id(&self) -> Uuid {
+        self.exec_id
+    }
 }
 
 impl ExecutionPlan for RemoteExecutionPlan {

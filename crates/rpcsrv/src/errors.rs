@@ -6,6 +6,12 @@ pub enum RpcsrvError {
     #[error("Missing session for id {0}")]
     MissingSession(uuid::Uuid),
 
+    #[error("Missing table provider for id: {0}")]
+    MissingTableProvider(uuid::Uuid),
+
+    #[error("Missing physical plan for id: {0}")]
+    MissingPhysicalPlan(uuid::Uuid),
+
     #[error("Executing physical plans is not currently supported")]
     PhysicalPlansNotSupported,
 

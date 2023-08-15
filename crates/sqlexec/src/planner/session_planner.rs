@@ -58,7 +58,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 
 use super::context_builder::PartialContextProvider;
-use super::extension::ExtensionConversion;
+use super::extension::ExtensionNode;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -252,7 +252,7 @@ impl<'a> SessionPlanner<'a> {
             tunnel,
         };
 
-        Ok(LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)))
+        Ok(plan.into_logical_plan())
     }
 
     async fn plan_create_external_table(
@@ -517,7 +517,7 @@ impl<'a> SessionPlanner<'a> {
             tunnel,
         };
 
-        Ok(DdlPlan::CreateExternalTable(plan).into())
+        Ok(plan.into_logical_plan())
     }
 
     fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
@@ -548,7 +548,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
         };
 
-        Ok(DdlPlan::CreateTunnel(plan).into())
+        Ok(plan.into_logical_plan())
     }
 
     fn plan_create_credentials(&self, mut stmt: CreateCredentialsStmt) -> Result<LogicalPlan> {
@@ -588,11 +588,11 @@ impl<'a> SessionPlanner<'a> {
             comment: stmt.comment,
         };
 
-        Ok(DdlPlan::CreateCredentials(plan).into())
+        Ok(plan.into_logical_plan())
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
 
         match statement {
@@ -603,7 +603,7 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::Query(q) => {
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let plan = planner.query_to_plan(*q).await?;
-                Ok(LogicalPlan::Query(plan))
+                Ok(LogicalPlan::Datafusion(plan))
             }
 
             ast::Statement::Explain {
@@ -616,7 +616,7 @@ impl<'a> SessionPlanner<'a> {
                 let plan = planner
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
-                Ok(LogicalPlan::Query(plan))
+                Ok(LogicalPlan::Datafusion(plan))
             }
 
             ast::Statement::CreateSchema {
@@ -642,11 +642,11 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
-                Ok(DdlPlan::CreateSchema(CreateSchema {
+                Ok(CreateSchema {
                     schema_name,
                     if_not_exists,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // Normal tables OR Tables generated from a source query.
@@ -734,11 +734,7 @@ impl<'a> SessionPlanner<'a> {
                         if_not_exists,
                         source,
                     };
-                    let ext = create_table.into_extension();
-
-                    Ok(LogicalPlan::Query(
-                        datafusion::logical_expr::LogicalPlan::Extension(ext),
-                    ))
+                    Ok(create_table.into_logical_plan())
                 }
             }
 
@@ -844,8 +840,7 @@ impl<'a> SessionPlanner<'a> {
 
                 validate_object_name(&table_name)?;
                 let new_name = object_name_to_table_ref(table_name)?;
-
-                Ok(DdlPlan::AlterTableRaname(AlterTableRename { name, new_name }).into())
+                Ok(AlterTableRename { name, new_name }.into_logical_plan())
             }
 
             // Drop tables
@@ -861,11 +856,12 @@ impl<'a> SessionPlanner<'a> {
                     let r = object_name_to_table_ref(name)?;
                     refs.push(r);
                 }
-                Ok(DdlPlan::DropTables(DropTables {
+
+                let plan = DropTables {
                     if_exists,
                     names: refs,
-                })
-                .into())
+                };
+                Ok(plan.into_logical_plan())
             }
 
             // Drop views
@@ -1122,15 +1118,15 @@ impl<'a> SessionPlanner<'a> {
             AlterTunnelAction::RotateKeys => {
                 let new_ssh_key = SshKey::generate_random()?;
                 let new_ssh_key = new_ssh_key.to_bytes()?;
-                DdlPlan::AlterTunnelRotateKeys(AlterTunnelRotateKeys {
+                AlterTunnelRotateKeys {
                     name,
                     if_exists: stmt.if_exists,
                     new_ssh_key,
-                })
+                }
             }
         };
 
-        Ok(plan.into())
+        Ok(plan.into_logical_plan())
     }
 
     fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
@@ -1158,7 +1154,7 @@ impl<'a> SessionPlanner<'a> {
             CopyToSource::Query(query) => query,
         };
 
-        let state = self.ctx.init_exec();
+        let state = self.ctx.df_ctx().state();
         let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
         let mut planner = SqlQueryPlanner::new(&mut context_provider);
         let source = planner.query_to_plan(query).await?;

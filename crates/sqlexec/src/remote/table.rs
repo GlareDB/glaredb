@@ -23,7 +23,7 @@ pub struct RemoteTableProvider {
     /// Schema for the table provider.
     schema: Arc<Schema>,
     /// Client for remote services.
-    _client: RemoteSessionClient,
+    client: RemoteSessionClient,
 }
 
 impl RemoteTableProvider {
@@ -31,7 +31,7 @@ impl RemoteTableProvider {
         Self {
             provider_id,
             schema,
-            _client: client,
+            client,
         }
     }
 
@@ -58,13 +58,17 @@ impl TableProvider for RemoteTableProvider {
     async fn scan(
         &self,
         _state: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::External(Box::new(
-            ExecError::UnsupportedFeature("Table scan over RPC"),
-        )))
+        let remote_plan = self
+            .client
+            .clone()
+            .table_provider_scan(self.provider_id, projection, filters, limit)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        Ok(Arc::new(remote_plan))
     }
 
     async fn insert_into(
@@ -72,7 +76,7 @@ impl TableProvider for RemoteTableProvider {
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        let _input = input
+        let input = input
             .as_any()
             .downcast_ref::<RemoteExecutionPlan>()
             .ok_or_else(|| {
@@ -82,8 +86,12 @@ impl TableProvider for RemoteTableProvider {
                 )))
             })?;
 
-        Err(DataFusionError::External(Box::new(
-            ExecError::UnsupportedFeature("INSERT INTO on RPC"),
-        )))
+        let remote_plan = self
+            .client
+            .clone()
+            .table_provider_insert_into(self.provider_id, input.id())
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        Ok(Arc::new(remote_plan))
     }
 }

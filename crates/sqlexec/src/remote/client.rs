@@ -3,14 +3,15 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::SessionCatalog,
 };
-use datafusion::{common::OwnedTableReference, logical_expr::LogicalPlan};
+use datafusion::{common::OwnedTableReference, logical_expr::LogicalPlan, prelude::Expr};
 use datafusion_proto::{logical_plan::AsLogicalPlan, protobuf::LogicalPlanNode};
 use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     rpcsrv::types::service::{
         CloseSessionRequest, CreatePhysicalPlanRequest, DispatchAccessRequest,
         InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
-        PhysicalPlanResponse, TableProviderResponse,
+        PhysicalPlanResponse, TableProviderInsertIntoRequest, TableProviderResponse,
+        TableProviderScanRequest,
     },
 };
 use proxyutil::metadata_constants::{
@@ -219,6 +220,7 @@ impl RemoteSessionClient {
         &mut self,
         logical_plan: &LogicalPlan,
     ) -> Result<RemoteExecutionPlan> {
+        // Encode the logical plan into a protobuf message.
         let logical_plan = {
             let node = LogicalPlanNode::try_from_logical_plan(
                 logical_plan,
@@ -235,7 +237,7 @@ impl RemoteSessionClient {
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());
-
+        // send the request
         let resp: PhysicalPlanResponse = self
             .inner
             .client
@@ -277,6 +279,71 @@ impl RemoteSessionClient {
             .try_into()?;
 
         Ok(RemoteTableProvider::new(
+            self.clone(),
+            resp.id,
+            Arc::new(resp.schema),
+        ))
+    }
+
+    pub async fn table_provider_scan(
+        &mut self,
+        provider_id: Uuid,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> Result<RemoteExecutionPlan> {
+        let mut request = service::TableProviderScanRequest::try_from(TableProviderScanRequest {
+            session_id: self.session_id(),
+            provider_id,
+            projection: projection.cloned(),
+            filters: filters.to_vec(),
+            limit,
+        })?
+        .into_request();
+        self.inner.append_auth_metadata(request.metadata_mut());
+
+        let resp: PhysicalPlanResponse = self
+            .inner
+            .client
+            .table_provider_scan(request)
+            .await
+            .map_err(|e| ExecError::RemoteSession(format!("unable to scan table provider: {e}")))?
+            .into_inner()
+            .try_into()?;
+
+        Ok(RemoteExecutionPlan::new(
+            self.clone(),
+            resp.id,
+            Arc::new(resp.schema),
+        ))
+    }
+
+    pub async fn table_provider_insert_into(
+        &mut self,
+        provider_id: Uuid,
+        input_exec_id: Uuid,
+    ) -> Result<RemoteExecutionPlan> {
+        let mut request =
+            service::TableProviderInsertIntoRequest::from(TableProviderInsertIntoRequest {
+                session_id: self.session_id(),
+                provider_id,
+                input_exec_id,
+            })
+            .into_request();
+        self.inner.append_auth_metadata(request.metadata_mut());
+
+        let resp: PhysicalPlanResponse = self
+            .inner
+            .client
+            .table_provider_insert_into(request)
+            .await
+            .map_err(|e| {
+                ExecError::RemoteSession(format!("unable to insert into table provider: {e}"))
+            })?
+            .into_inner()
+            .try_into()?;
+
+        Ok(RemoteExecutionPlan::new(
             self.clone(),
             resp.id,
             Arc::new(resp.schema),
