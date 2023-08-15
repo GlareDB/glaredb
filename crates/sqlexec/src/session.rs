@@ -273,7 +273,6 @@ impl Session {
         &mut self,
         extension: &Extension,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        println!("executing extension: {:?}", extension.node.name());
         match extension.node.name() {
             CreateTable::EXTENSION_NAME => {
                 let create_table = CreateTable::try_decode_extension(extension)?;
@@ -288,7 +287,6 @@ impl Session {
                 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
                 let create_schema = CreateSchema::try_decode_extension(extension)?;
                 let schema = create_schema.schema().as_ref().clone();
-
                 self.create_schema(create_schema).await?;
 
                 Ok(Arc::new(EmptyExec::new(false, schema.into())))
@@ -301,6 +299,11 @@ impl Session {
             AlterTableRename::EXTENSION_NAME => {
                 let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
                 self.alter_table_rename(alter_table_rename).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            AlterDatabaseRename::EXTENSION_NAME => {
+                let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
+                self.alter_database_rename(alter_database_rename).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             name => Err(internal!("Unknown extension name: {}", name.to_string())),
@@ -368,8 +371,6 @@ impl Session {
     }
 
     pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        println!("creating external table: {:?}", plan);
-
         self.ctx.create_external_table(plan).await?;
         Ok(())
     }

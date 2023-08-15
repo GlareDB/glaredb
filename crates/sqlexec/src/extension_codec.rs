@@ -8,7 +8,7 @@ use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use uuid::Uuid;
 
-use crate::errors::ExecError;
+use crate::errors::{internal, ExecError};
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{self as plan};
 use crate::remote::table::RemoteTableProvider;
@@ -93,6 +93,13 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 alter_table_rename.into_extension()
             }
+            PlanType::AlterDatabaseRename(alter_database_rename) => {
+                let alter_database_rename: plan::AlterDatabaseRename = alter_database_rename
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                alter_database_rename.into_extension()
+            }
         })
     }
 
@@ -117,7 +124,15 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             plan::AlterTableRename::EXTENSION_NAME => {
                 plan::AlterTableRename::try_encode_extension(node, buf, self)
             }
-            _ => todo!("encode all known extensions"),
+            plan::AlterDatabaseRename::EXTENSION_NAME => {
+                plan::AlterDatabaseRename::try_encode_extension(node, buf, self)
+            }
+            _ => {
+                return Err(DataFusionError::External(Box::new(internal!(
+                    "cannot encode the extension type {:?}",
+                    node.node.name()
+                ))))
+            }
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())

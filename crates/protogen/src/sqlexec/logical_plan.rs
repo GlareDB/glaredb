@@ -1,4 +1,4 @@
-use crate::{gen::metastore::options::TableOptions, ProtoConvError};
+use crate::{gen::metastore::{options::TableOptions, service::AlterDatabaseRename}, ProtoConvError};
 use std::borrow::Cow;
 
 use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};
@@ -52,11 +52,10 @@ pub struct AlterTableRename {
     pub new_name: Option<OwnedTableReference>,
 }
 
-
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
-    #[prost(oneof = "LogicalPlanExtensionType", tags = "1, 2, 3, 4")]
+    #[prost(oneof = "LogicalPlanExtensionType", tags = "1, 2, 3, 4, 5, 6")]
     pub inner: Option<LogicalPlanExtensionType>,
 }
 
@@ -73,6 +72,8 @@ pub enum LogicalPlanExtensionType {
     DropTables(DropTables),
     #[prost(message, tag = "5")]
     AlterTableRename(AlterTableRename),
+    #[prost(message, tag = "6")]
+    AlterDatabaseRename(AlterDatabaseRename),
 }
 
 // -----
