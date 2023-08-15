@@ -1,4 +1,4 @@
-use crate::highlighter::SQLHighlighter;
+use crate::highlighter::{SQLHighlighter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
@@ -202,8 +202,9 @@ impl LocalSession {
 
         let mut line_editor = Reedline::create().with_history(history);
 
-        let sql_highlighter = SQLHighlighter {};
-        line_editor = line_editor.with_highlighter(Box::new(sql_highlighter));
+        line_editor = line_editor
+            .with_highlighter(Box::new(SQLHighlighter))
+            .with_validator(Box::new(SQLValidator));
 
         println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
         println!("Type \\help for help.");
