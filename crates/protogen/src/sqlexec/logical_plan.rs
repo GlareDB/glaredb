@@ -1,4 +1,4 @@
-use crate::ProtoConvError;
+use crate::{gen::metastore::options::TableOptions, ProtoConvError};
 use std::borrow::Cow;
 
 use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};
@@ -6,7 +6,7 @@ use prost::{Message, Oneof};
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTable {
-    #[prost(message, optional, tag = "1")]
+    #[prost(message, tag = "1")]
     pub table_name: Option<OwnedTableReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
@@ -17,8 +17,20 @@ pub struct CreateTable {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct CreateExternalTable {
+    #[prost(message, tag = "1")]
+    pub table_name: Option<OwnedTableReference>,
+    #[prost(bool, tag = "2")]
+    pub if_not_exists: bool,
+    #[prost(message, tag = "3")]
+    pub table_options: Option<TableOptions>,
+    #[prost(message, optional, tag = "4")]
+    pub tunnel: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct CreateSchema {
-    #[prost(message, optional, tag = "1")]
+    #[prost(message, tag = "1")]
     pub schema_name: Option<OwnedSchemaReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
@@ -35,7 +47,7 @@ pub struct DropTables {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
-    #[prost(oneof = "LogicalPlanExtensionType", tags = "1, 2, 3")]
+    #[prost(oneof = "LogicalPlanExtensionType", tags = "1, 2, 3, 4")]
     pub inner: Option<LogicalPlanExtensionType>,
 }
 
@@ -47,6 +59,8 @@ pub enum LogicalPlanExtensionType {
     #[prost(message, tag = "2")]
     CreateSchema(CreateSchema),
     #[prost(message, tag = "3")]
+    CreateExternalTable(CreateExternalTable),
+    #[prost(message, tag = "4")]
     DropTables(DropTables),
 }
 
