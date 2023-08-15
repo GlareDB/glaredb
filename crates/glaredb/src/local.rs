@@ -405,7 +405,7 @@ async fn print_stream(
     Ok(())
 }
 
-fn is_client_cmd(s: &str) -> bool {
+pub(crate) fn is_client_cmd(s: &str) -> bool {
     s.starts_with('\\') || s == "exit"
 }
 
