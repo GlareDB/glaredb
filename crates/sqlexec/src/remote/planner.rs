@@ -11,7 +11,6 @@ use datafusion::prelude::Expr;
 use std::sync::Arc;
 
 use crate::planner::extension::ExtensionNode;
-use crate::planner::logical_plan::ClientExchangeSend;
 use crate::planner::physical_plan::client_send::ClientExchangeInputSendExec;
 
 use super::client::RemoteSessionClient;
@@ -103,17 +102,6 @@ impl ExtensionPlanner for RemotePhysicalPlanner {
         session_state: &SessionState,
     ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
         match node.name() {
-            ClientExchangeSend::EXTENSION_NAME => {
-                let node = node.as_any().downcast_ref::<ClientExchangeSend>().unwrap();
-                let input = planner
-                    .create_physical_plan(&node.input, session_state)
-                    .await?;
-
-                let client = self.remote_client.clone();
-                let plan = ClientExchangeInputSendExec::new(node.broadcast_id, client, input);
-
-                Ok(Some(Arc::new(plan)))
-            }
             _ => Ok(None),
         }
     }

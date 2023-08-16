@@ -7,7 +7,7 @@ use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::engine::TrackedSession;
-use sqlexec::remote::broadcast::exchange_exec::ClientExchangeRecvStream;
+use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;

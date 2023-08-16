@@ -21,7 +21,7 @@ use protogen::{
 };
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
-    remote::broadcast::exchange_exec::ClientExchangeRecvStream,
+    remote::exchange_stream::ClientExchangeRecvStream,
 };
 use std::{
     pin::Pin,

@@ -9,10 +9,10 @@ use crate::{
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, ClientExchangeRecv,
-    ClientExchangeSend, CreateCredentials, CreateExternalDatabase, CreateExternalTable,
-    CreateSchema, CreateTable, CreateTempTable, CreateTunnel, CreateView, DropCredentials,
-    DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
+    CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
+    DropViews,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -36,9 +36,6 @@ pub enum ExtensionType {
     DropSchemas,
     DropTunnel,
     DropViews,
-    // Broadcasts/exchange
-    ClientExchangeSend,
-    ClientExchangeRecv,
 }
 
 impl FromStr for ExtensionType {
@@ -62,8 +59,6 @@ impl FromStr for ExtensionType {
             DropSchemas::EXTENSION_NAME => Self::DropSchemas,
             DropTunnel::EXTENSION_NAME => Self::DropTunnel,
             DropViews::EXTENSION_NAME => Self::DropViews,
-            ClientExchangeSend::EXTENSION_NAME => Self::ClientExchangeSend,
-            ClientExchangeRecv::EXTENSION_NAME => Self::ClientExchangeRecv,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

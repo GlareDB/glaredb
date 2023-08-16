@@ -125,21 +125,6 @@ pub struct AlterTableRename {
     pub new_name: Option<OwnedTableReference>,
 }
 
-#[derive(Clone, PartialEq, Message)]
-pub struct ClientExchangeSend {
-    #[prost(bytes, tag = "1")]
-    pub broadcast_id: Vec<u8>, // UUID
-}
-
-#[derive(Clone, PartialEq, Message)]
-pub struct ClientExchangeRecv {
-    #[prost(bytes, tag = "1")]
-    pub broadcast_id: Vec<u8>, // UUID
-    /// Schema of the stream.
-    #[prost(message, optional, tag = "2")]
-    pub schema: Option<DfSchema>,
-}
-
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
@@ -188,11 +173,6 @@ pub enum LogicalPlanExtensionType {
     DropTunnel(DropTunnel),
     #[prost(message, tag = "17")]
     DropViews(DropViews),
-    // Broadcasts/exchange
-    #[prost(message, tag = "18")]
-    ClientExchangeRecv(ClientExchangeRecv),
-    #[prost(message, tag = "19")]
-    ClientExchangeSend(ClientExchangeSend),
 }
 
 // -----

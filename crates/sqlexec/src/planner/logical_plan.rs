@@ -1,7 +1,6 @@
 mod alter_database_rename;
 mod alter_table_rename;
 mod alter_tunnel_rotate_keys;
-mod client_exchange;
 mod create_credentials;
 mod create_external_database;
 mod create_external_table;
@@ -42,7 +41,6 @@ use std::sync::Arc;
 pub use alter_database_rename::*;
 pub use alter_table_rename::*;
 pub use alter_tunnel_rotate_keys::*;
-pub use client_exchange::*;
 pub use create_credentials::*;
 pub use create_external_database::*;
 pub use create_external_table::*;

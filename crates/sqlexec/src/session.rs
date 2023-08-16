@@ -370,16 +370,6 @@ impl Session {
                 self.drop_views(drop_views).await?;
                 Ok(ExecutionResult::DropViews)
             }
-            ExtensionType::ClientExchangeSend => {
-                return Err(internal!(
-                    "ClientExchangeSend is not a valid logical plan to deserialize"
-                ));
-            }
-            ExtensionType::ClientExchangeRecv => {
-                return Err(internal!(
-                    "ClientExchangeRecv is not a valid logical plan to deserialize"
-                ));
-            }
         }
     }
 
