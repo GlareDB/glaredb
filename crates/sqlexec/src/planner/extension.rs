@@ -1,23 +1,28 @@
 /// extension implementations for converting our logical plan into datafusion logical plan
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use protogen::ProtoConvError;
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
     errors::{internal, ExecError, Result},
     LogicalPlan,
 };
-use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
+use datafusion::{
+    logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore},
+    prelude::SessionContext,
+};
 
 use super::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
-    DropViews,
+    DropViews, SetVariable,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
 ///
 /// This should match all of the variants expressed in `protogen::sqlexec::logical_plan::LogicalPlanExtension`
+#[derive(Debug)]
 pub enum ExtensionType {
     AlterDatabaseRename,
     AlterTableRename,
@@ -36,6 +41,8 @@ pub enum ExtensionType {
     DropSchemas,
     DropTunnel,
     DropViews,
+    SetVariable,
+    CopyTo,
 }
 
 impl FromStr for ExtensionType {
@@ -59,12 +66,15 @@ impl FromStr for ExtensionType {
             DropSchemas::EXTENSION_NAME => Self::DropSchemas,
             DropTunnel::EXTENSION_NAME => Self::DropTunnel,
             DropViews::EXTENSION_NAME => Self::DropViews,
+            SetVariable::EXTENSION_NAME => Self::SetVariable,
+            CopyTo::EXTENSION_NAME => Self::CopyTo,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }
 }
 
 pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
+    type ProtoRepr;
     const EXTENSION_NAME: &'static str;
     fn into_extension(self) -> LogicalPlanExtension {
         LogicalPlanExtension {
@@ -78,6 +88,11 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
     }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self>;
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()>;
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError>;
     fn try_encode_extension(
         extension: &LogicalPlanExtension,
         buf: &mut Vec<u8>,

@@ -478,10 +478,17 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
 
     let mut arrow_fields = Vec::with_capacity(fields.len());
     for field in fields {
-        let resolved_field = table_field_schema_to_arrow_datatype(field);
-        if let Ok(resolved_field) = resolved_field {
-            arrow_fields.push(resolved_field);
-        }
+        let mode = field.mode.clone();
+        let resolved_field = if let Some(mode) = mode {
+            if mode == *"REPEATED" {
+                handle_repeatable_fields(field)?
+            } else {
+                table_field_schema_to_arrow_datatype(field)?
+            }
+        } else {
+            table_field_schema_to_arrow_datatype(field)?
+        };
+        arrow_fields.push(resolved_field);
     }
     Ok(ArrowSchema::new(arrow_fields))
 }
@@ -523,6 +530,11 @@ fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field>
         }
         other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
     };
+    Ok(Field::new(&field.name, arrow_typ, true))
+}
+
+fn handle_repeatable_fields(field: &BigQuerySchema) -> Result<Field> {
+    let arrow_typ = DataType::List(Arc::new(table_field_schema_to_arrow_datatype(field)?));
     Ok(Field::new(&field.name, arrow_typ, true))
 }
 

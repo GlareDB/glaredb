@@ -255,6 +255,7 @@ impl Session {
     }
 
     /// Create a physical plan for a given datafusion logical plan.
+
     pub async fn create_physical_plan(
         &mut self,
         plan: DfLogicalPlan,
@@ -370,6 +371,12 @@ impl Session {
                 self.drop_views(drop_views).await?;
                 Ok(ExecutionResult::DropViews)
             }
+            ExtensionType::SetVariable => {
+                let set_variable = SetVariable::try_decode_extension(extension)?;
+                self.set_variable(set_variable)?;
+                Ok(ExecutionResult::SetLocal)
+            }
+            other => Err(internal!("Unsupported extension node type: {:?}", other)),
         }
     }
 
@@ -512,11 +519,9 @@ impl Session {
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx.get_session_vars_mut().set(
-            &plan.variable,
-            plan.try_value_into_string()?.as_str(),
-            VarSetter::User,
-        )?;
+        self.ctx
+            .get_session_vars_mut()
+            .set(&plan.variable, &plan.values, VarSetter::User)?;
         Ok(())
     }
 
@@ -592,7 +597,6 @@ impl Session {
 
         let physical = self.create_physical_plan(plan.source).await?;
         let stream = self.execute_physical(physical)?;
-
         sink.write_all(stream, &self.ctx.task_context()).await?;
         Ok(())
     }
@@ -691,7 +695,6 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;
                 ExecutionResult::WriteSuccess

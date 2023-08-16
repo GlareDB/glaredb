@@ -1,3 +1,4 @@
+mod copy_to;
 use crate::{
     gen::metastore::{
         options::TableOptions,
@@ -10,6 +11,7 @@ use crate::{
 };
 use std::borrow::Cow;
 
+pub use copy_to::*;
 use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};
 use prost::{Message, Oneof};
 
@@ -125,6 +127,14 @@ pub struct AlterTableRename {
     pub new_name: Option<OwnedTableReference>,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct SetVariable {
+    #[prost(string, tag = "1")]
+    pub variable: String,
+    #[prost(string, tag = "2")]
+    pub values: String,
+}
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
@@ -173,6 +183,10 @@ pub enum LogicalPlanExtensionType {
     DropTunnel(DropTunnel),
     #[prost(message, tag = "17")]
     DropViews(DropViews),
+    #[prost(message, tag = "18")]
+    SetVariable(SetVariable),
+    #[prost(message, tag = "19")]
+    CopyTo(CopyTo),
 }
 
 // -----

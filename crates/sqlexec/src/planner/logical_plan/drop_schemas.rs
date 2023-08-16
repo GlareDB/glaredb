@@ -7,24 +7,6 @@ pub struct DropSchemas {
     pub cascade: bool,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::DropSchemas> for DropSchemas {
-    type Error = ProtoConvError;
-
-    fn try_from(proto: protogen::sqlexec::logical_plan::DropSchemas) -> Result<Self, Self::Error> {
-        let names = proto
-            .names
-            .into_iter()
-            .map(OwnedSchemaReference::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(Self {
-            names,
-            if_exists: proto.if_exists,
-            cascade: proto.cascade,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for DropSchemas {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -56,7 +38,25 @@ impl UserDefinedLogicalNodeCore for DropSchemas {
 }
 
 impl ExtensionNode for DropSchemas {
+    type ProtoRepr = protogen::sqlexec::logical_plan::DropSchemas;
     const EXTENSION_NAME: &'static str = "DropSchemas";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let names = proto
+            .names
+            .into_iter()
+            .map(OwnedSchemaReference::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self {
+            names,
+            if_exists: proto.if_exists,
+            cascade: proto.cascade,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

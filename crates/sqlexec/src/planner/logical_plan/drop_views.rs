@@ -6,23 +6,6 @@ pub struct DropViews {
     pub if_exists: bool,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::DropViews> for DropViews {
-    type Error = ProtoConvError;
-
-    fn try_from(proto: protogen::sqlexec::logical_plan::DropViews) -> Result<Self, Self::Error> {
-        let names = proto
-            .names
-            .into_iter()
-            .map(|name| name.try_into())
-            .collect::<Result<_, _>>()?;
-
-        Ok(Self {
-            names,
-            if_exists: proto.if_exists,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for DropViews {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -54,7 +37,24 @@ impl UserDefinedLogicalNodeCore for DropViews {
 }
 
 impl ExtensionNode for DropViews {
+    type ProtoRepr = protogen::sqlexec::logical_plan::DropViews;
     const EXTENSION_NAME: &'static str = "DropViews";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let names = proto
+            .names
+            .into_iter()
+            .map(|name| name.try_into())
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self {
+            names,
+            if_exists: proto.if_exists,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

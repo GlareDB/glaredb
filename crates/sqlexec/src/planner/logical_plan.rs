@@ -1,6 +1,7 @@
 mod alter_database_rename;
 mod alter_table_rename;
 mod alter_tunnel_rotate_keys;
+mod copy_to;
 mod create_credentials;
 mod create_external_database;
 mod create_external_table;
@@ -15,6 +16,8 @@ mod drop_schemas;
 mod drop_tables;
 mod drop_tunnel;
 mod drop_views;
+mod set_variable;
+mod show_variable;
 
 use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
@@ -24,6 +27,7 @@ use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTable
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
+use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
@@ -41,6 +45,7 @@ use std::sync::Arc;
 pub use alter_database_rename::*;
 pub use alter_table_rename::*;
 pub use alter_tunnel_rotate_keys::*;
+pub use copy_to::*;
 pub use create_credentials::*;
 pub use create_external_database::*;
 pub use create_external_table::*;
@@ -55,6 +60,8 @@ pub use drop_schemas::*;
 pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
+pub use set_variable::*;
+pub use show_variable::*;
 
 static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
 
@@ -174,23 +181,6 @@ impl std::fmt::Debug for Insert {
 }
 
 #[derive(Clone)]
-pub struct CopyTo {
-    pub source: DfLogicalPlan,
-    pub dest: CopyToDestinationOptions,
-    pub format: CopyToFormatOptions,
-}
-
-impl std::fmt::Debug for CopyTo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CopyTo")
-            .field("source", &self.source.schema())
-            .field("dest", &self.dest)
-            .field("format", &self.format)
-            .finish()
-    }
-}
-
-#[derive(Clone)]
 pub struct Delete {
     pub table_name: OwnedTableReference,
     pub where_expr: Option<Expr>,
@@ -248,39 +238,4 @@ impl From<VariablePlan> for LogicalPlan {
     fn from(plan: VariablePlan) -> Self {
         LogicalPlan::Variable(plan)
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct SetVariable {
-    pub variable: String,
-    pub values: Vec<ast::Expr>,
-}
-
-impl SetVariable {
-    /// Try to convert the value into a string.
-    pub fn try_value_into_string(&self) -> Result<String> {
-        let expr_to_string = |expr: &ast::Expr| {
-            Ok(match expr {
-                ast::Expr::Identifier(_) | ast::Expr::CompoundIdentifier(_) => expr.to_string(),
-                ast::Expr::Value(ast::Value::SingleQuotedString(s)) => s.clone(),
-                ast::Expr::Value(ast::Value::DoubleQuotedString(s)) => format!("\"{}\"", s),
-                ast::Expr::Value(ast::Value::UnQuotedString(s)) => s.clone(),
-                ast::Expr::Value(ast::Value::Number(s, _)) => s.clone(),
-                ast::Expr::Value(v) => v.to_string(),
-                other => return Err(internal!("invalid expression for SET var: {:}", other)),
-            })
-        };
-
-        Ok(self
-            .values
-            .iter()
-            .map(expr_to_string)
-            .collect::<Result<Vec<_>>>()?
-            .join(","))
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ShowVariable {
-    pub variable: String,
 }
