@@ -365,6 +365,11 @@ impl Session {
                 self.drop_views(drop_views).await?;
                 Ok(ExecutionResult::DropViews)
             }
+            ExtensionType::SetVariable => {
+                let set_variable = SetVariable::try_decode_extension(extension)?;
+                self.set_variable(set_variable)?;
+                Ok(ExecutionResult::SetLocal)
+            }
         }
     }
 
@@ -507,11 +512,9 @@ impl Session {
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx.get_session_vars_mut().set(
-            &plan.variable,
-            plan.try_value_into_string()?.as_str(),
-            VarSetter::User,
-        )?;
+        self.ctx
+            .get_session_vars_mut()
+            .set(&plan.variable, &plan.values, VarSetter::User)?;
         Ok(())
     }
 
@@ -686,7 +689,6 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;
                 ExecutionResult::WriteSuccess

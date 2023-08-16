@@ -928,11 +928,20 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(VariablePlan::SetVariable(SetVariable {
-                variable: variable.to_string(),
-                values: value,
-            })
-            .into()),
+            } => {
+                let plan = SetVariable::try_new(variable.to_string(), value)?;
+                Ok(plan.into_logical_plan())
+            }
+            ast::Statement::SetVariable {
+                local: true,
+                hivevar: false,
+                variable,
+                value,
+                ..
+            } => Ok(
+                VariablePlan::SetVariable(SetVariable::try_new(variable.to_string(), value)?)
+                    .into(),
+            ),
 
             // "SHOW ..."
             //
