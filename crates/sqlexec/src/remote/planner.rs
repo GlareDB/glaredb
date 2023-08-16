@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use crate::planner::extension::ExtensionNode;
 use crate::planner::logical_plan::ClientExchangeSend;
+use crate::planner::physical_plan::client_send::ClientExchangeInputSendExec;
 
-use super::broadcast::exchange_exec::ClientExchangeInputSendExec;
 use super::client::RemoteSessionClient;
 
 /// A planner that executes everything on a remote service.

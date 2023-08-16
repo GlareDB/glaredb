@@ -6,9 +6,8 @@ use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
-use crate::remote::broadcast::exchange_exec::ClientExchangeRecvExec;
-use crate::remote::broadcast::staged_stream::{StagedClientStreams, StagedStreams};
 use crate::remote::client::RemoteSessionClient;
+use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
@@ -276,7 +275,7 @@ impl Session {
         }
     }
 
-    pub fn staged_streams(&self) -> Result<&StagedClientStreams> {
+    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
         self.ctx.staged_streams()
     }
 

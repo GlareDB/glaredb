@@ -1,7 +1,6 @@
 use futures::{Future, FutureExt};
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::errors::{internal, Result};
@@ -9,22 +8,7 @@ use parking_lot::Mutex;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use super::exchange_exec::ClientExchangeRecvStream;
-
-/// State of the pending stream.
-///
-/// Since we need to coordinate between client and server, we have two states:
-/// - Client begins streaming first.
-/// - Server begins executing first.
-///
-/// Both states are correct since we have to "scheduler" triggering which
-/// happens first. And so while the client will always send the plan to the
-/// server first, the server may actually begin executing that plan prior to the
-/// client actually starting to stream.
-enum PendingStream<S> {
-    StreamArrivedFirst(S),
-    WaitingForStream(oneshot::Sender<S>),
-}
+use super::exchange_stream::ClientExchangeRecvStream;
 
 pub type StagedClientStreams = StagedStreams<ClientExchangeRecvStream>;
 
@@ -32,6 +16,21 @@ pub type StagedClientStreams = StagedStreams<ClientExchangeRecvStream>;
 pub struct StagedStreams<S> {
     /// Streams keyed by broadcast id.
     streams: Mutex<HashMap<Uuid, PendingStream<S>>>,
+}
+
+/// State of the pending stream.
+///
+/// Since we need to coordinate between client and server, we have two states:
+/// - Client begins streaming first.
+/// - Server begins executing first.
+///
+/// Both states are correct since we have no "scheduler" triggering which
+/// happens first. And so while the client will always send the plan to the
+/// server first, the server may actually begin executing that plan prior to the
+/// client actually starting to stream.
+enum PendingStream<S> {
+    StreamArrivedFirst(S),
+    WaitingForStream(oneshot::Sender<S>),
 }
 
 impl<S> StagedStreams<S> {
@@ -125,6 +124,7 @@ impl<S: Unpin> Future for ResolveStreamFut<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn client_puts_stream_first() {
