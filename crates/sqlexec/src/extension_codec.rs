@@ -178,6 +178,13 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 drop_views.into_extension()
             }
+            PlanType::SetVariable(set_variable) => {
+                let set_variable: plan::SetVariable = set_variable
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                set_variable.into_extension()
+            }
         })
     }
 
@@ -232,6 +239,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::DropSchemas => plan::DropSchemas::try_encode_extension(node, buf, self),
             ExtensionType::DropTunnel => plan::DropTunnel::try_encode_extension(node, buf, self),
             ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
+            ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())

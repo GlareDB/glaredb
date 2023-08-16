@@ -928,15 +928,24 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(VariablePlan::SetVariable(SetVariable {
-                variable: variable.to_string(),
-                values: value,
-            })
-            .into()),
+            } => {
+                let plan = SetVariable::try_new(variable.to_string(), value)?;
+                Ok(plan.into_logical_plan())
+            }
+            ast::Statement::SetVariable {
+                local: true,
+                hivevar: false,
+                variable,
+                value,
+                ..
+            } => Ok(
+                VariablePlan::SetVariable(SetVariable::try_new(variable.to_string(), value)?)
+                    .into(),
+            ),
 
             // "SHOW ..."
             //
-            // Show the value of a variable.
+            // Show the value of a variable.  i
             ast::Statement::ShowVariable { variable } => {
                 // Normalize variables
                 let mut variable: Vec<_> = variable.into_iter().map(normalize_ident).collect();

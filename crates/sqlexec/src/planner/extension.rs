@@ -12,7 +12,7 @@ use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
-    DropViews,
+    DropViews, SetVariable,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -36,6 +36,7 @@ pub enum ExtensionType {
     DropSchemas,
     DropTunnel,
     DropViews,
+    SetVariable,
 }
 
 impl FromStr for ExtensionType {
@@ -59,6 +60,7 @@ impl FromStr for ExtensionType {
             DropSchemas::EXTENSION_NAME => Self::DropSchemas,
             DropTunnel::EXTENSION_NAME => Self::DropTunnel,
             DropViews::EXTENSION_NAME => Self::DropViews,
+            SetVariable::EXTENSION_NAME => Self::SetVariable,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

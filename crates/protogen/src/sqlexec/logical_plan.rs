@@ -125,12 +125,20 @@ pub struct AlterTableRename {
     pub new_name: Option<OwnedTableReference>,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct SetVariable {
+    #[prost(string, tag = "1")]
+    pub variable: String,
+    #[prost(string, tag = "2")]
+    pub values: String,
+}
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
     #[prost(
         oneof = "LogicalPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18"
     )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
@@ -172,6 +180,8 @@ pub enum LogicalPlanExtensionType {
     DropTunnel(DropTunnel),
     #[prost(message, tag = "17")]
     DropViews(DropViews),
+    #[prost(message, tag = "18")]
+    SetVariable(SetVariable),
 }
 
 // -----

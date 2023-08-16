@@ -15,6 +15,8 @@ mod drop_schemas;
 mod drop_tables;
 mod drop_tunnel;
 mod drop_views;
+mod set_variable;
+mod show_variable;
 
 use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
@@ -55,6 +57,8 @@ pub use drop_schemas::*;
 pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
+pub use set_variable::*;
+pub use show_variable::*;
 
 static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
 
@@ -248,39 +252,4 @@ impl From<VariablePlan> for LogicalPlan {
     fn from(plan: VariablePlan) -> Self {
         LogicalPlan::Variable(plan)
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct SetVariable {
-    pub variable: String,
-    pub values: Vec<ast::Expr>,
-}
-
-impl SetVariable {
-    /// Try to convert the value into a string.
-    pub fn try_value_into_string(&self) -> Result<String> {
-        let expr_to_string = |expr: &ast::Expr| {
-            Ok(match expr {
-                ast::Expr::Identifier(_) | ast::Expr::CompoundIdentifier(_) => expr.to_string(),
-                ast::Expr::Value(ast::Value::SingleQuotedString(s)) => s.clone(),
-                ast::Expr::Value(ast::Value::DoubleQuotedString(s)) => format!("\"{}\"", s),
-                ast::Expr::Value(ast::Value::UnQuotedString(s)) => s.clone(),
-                ast::Expr::Value(ast::Value::Number(s, _)) => s.clone(),
-                ast::Expr::Value(v) => v.to_string(),
-                other => return Err(internal!("invalid expression for SET var: {:}", other)),
-            })
-        };
-
-        Ok(self
-            .values
-            .iter()
-            .map(expr_to_string)
-            .collect::<Result<Vec<_>>>()?
-            .join(","))
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ShowVariable {
-    pub variable: String,
 }
