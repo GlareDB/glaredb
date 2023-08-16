@@ -1,15 +1,19 @@
 use crate::errors::{ExecError, Result};
-use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
+use datafusion::arrow::array::UInt64Array;
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::ipc::{
+    reader::FileReader as IpcFileReader, writer::FileWriter as IpcFileWriter,
+};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
+    RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use protogen::gen::rpcsrv::service;
 use std::any::Any;
@@ -21,15 +25,18 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
-use tonic::Streaming;
+use tonic::{Request, Streaming};
+use tracing::warn;
 use uuid::Uuid;
+
+use super::client::{RemoteClient, RemoteSessionClient};
 
 /// A stream for reading record batches from a client.
 ///
 /// The first message is used to get the session id. It's assumed that the
 /// stream contains batches all with the same schema.
 #[derive(Debug)]
-pub struct ClientExchangeInputStream {
+pub struct ClientExchangeRecvStream {
     /// Session this stream is for.
     session_id: Uuid,
 
@@ -49,11 +56,11 @@ pub struct ClientExchangeInputStream {
     schema: Arc<Schema>,
 }
 
-impl ClientExchangeInputStream {
+impl ClientExchangeRecvStream {
     /// Try to create a new stream from a grpc stream.
     pub async fn try_new(
         mut input: Streaming<service::BroadcastExchangeRequest>,
-    ) -> Result<ClientExchangeInputStream> {
+    ) -> Result<ClientExchangeRecvStream> {
         let req = input
             .next()
             .await
@@ -82,7 +89,7 @@ impl ClientExchangeInputStream {
             }
         };
 
-        Ok(ClientExchangeInputStream {
+        Ok(ClientExchangeRecvStream {
             session_id,
             broadcast_id,
             stream: input,
@@ -112,7 +119,7 @@ impl ClientExchangeInputStream {
 }
 
 // TODO: StreamReader instead of FileReader.
-impl Stream for ClientExchangeInputStream {
+impl Stream for ClientExchangeRecvStream {
     type Item = DataFusionResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -149,7 +156,7 @@ impl Stream for ClientExchangeInputStream {
     }
 }
 
-impl RecordBatchStream for ClientExchangeInputStream {
+impl RecordBatchStream for ClientExchangeRecvStream {
     fn schema(&self) -> Arc<Schema> {
         self.schema.clone()
     }
@@ -157,22 +164,22 @@ impl RecordBatchStream for ClientExchangeInputStream {
 
 /// The actual execution plan for reading batches from the client.
 #[derive(Debug)]
-pub struct ClientExchangeInputReadExec {
+pub struct ClientExchangeRecvExec {
     schema: Arc<Schema>,
-    stream: Mutex<Option<ClientExchangeInputStream>>,
+    stream: Mutex<Option<ClientExchangeRecvStream>>,
 }
 
-impl ClientExchangeInputReadExec {
-    pub fn new(stream: ClientExchangeInputStream) -> Self {
+impl ClientExchangeRecvExec {
+    pub fn new(stream: ClientExchangeRecvStream) -> Self {
         let schema = stream.schema();
-        ClientExchangeInputReadExec {
+        ClientExchangeRecvExec {
             schema,
             stream: Mutex::new(Some(stream)),
         }
     }
 }
 
-impl ExecutionPlan for ClientExchangeInputReadExec {
+impl ExecutionPlan for ClientExchangeRecvExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -217,7 +224,7 @@ impl ExecutionPlan for ClientExchangeInputReadExec {
         let stream = match stream.take() {
             Some(stream) => stream,
             None => return Err(DataFusionError::Execution(
-                format!("ClientExchangeInputReadExec::execute called more than once for partition {partition}"),
+                format!("ClientExchangeInputRecvExec::execute called more than once for partition {partition}"),
             )),
         };
 
@@ -229,8 +236,246 @@ impl ExecutionPlan for ClientExchangeInputReadExec {
     }
 }
 
-impl DisplayAs for ClientExchangeInputReadExec {
+impl DisplayAs for ClientExchangeRecvExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ClientExchangeInputReadExec")
     }
+}
+
+/// Results for client exchange send.
+#[derive(Debug, Default)]
+struct ClientExchangeSendResult {
+    /// Numer of rows we sent.
+    pub row_count: usize,
+
+    /// Error if we encountered one.
+    pub error: Option<DataFusionError>,
+}
+
+/// Stream for sending record batches to a server.
+///
+/// Every poll to the underlying record batch stream will encode the batch and
+/// produce the request message with the correct fields set.
+// TODO: There's some overlap with `ExecutionResponseBatchStream`, not sure if
+// we want to try to unify.
+pub struct ClientExchangeSendStream {
+    /// Remote ID of the session this stream is for.
+    session_id: Uuid,
+
+    /// Unique identifier for this stream.
+    broadcast_id: Uuid,
+
+    /// The underlying batch stream.
+    stream: SendableRecordBatchStream,
+
+    /// IPC encoding buffer.
+    buf: Vec<u8>,
+
+    /// Track number of rows written.
+    row_count: usize,
+
+    /// Results of the stream. Only contains accurate data _after_ the stream
+    /// completes.
+    result: Arc<Mutex<ClientExchangeSendResult>>,
+}
+
+impl ClientExchangeSendStream {
+    pub fn new(session_id: Uuid, broadcast_id: Uuid, stream: SendableRecordBatchStream) -> Self {
+        ClientExchangeSendStream {
+            session_id,
+            broadcast_id,
+            stream,
+            buf: Vec::new(),
+            row_count: 0,
+            result: Arc::new(Mutex::new(ClientExchangeSendResult::default())),
+        }
+    }
+
+    /// Get a reference to the stream results.
+    ///
+    /// Should only be checked after the stream completes.
+    fn result_ref(&self) -> Arc<Mutex<ClientExchangeSendResult>> {
+        self.result.clone()
+    }
+
+    fn write_batch(&mut self, batch: &RecordBatch) -> Result<service::BroadcastExchangeRequest> {
+        self.buf.clear();
+
+        let schema = batch.schema();
+        let mut writer = IpcFileWriter::try_new(&mut self.buf, &schema)?;
+        writer.write(batch)?;
+        writer.finish()?;
+
+        let _ = writer.into_inner()?;
+
+        Ok(service::BroadcastExchangeRequest {
+            arrow_ipc: self.buf.clone(),
+            session_id: self.session_id.as_bytes().to_vec(),
+            broadcast_input_id: self.broadcast_id.as_bytes().to_vec(),
+        })
+    }
+}
+
+impl fmt::Debug for ClientExchangeSendStream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientExchangeSendStream")
+            .field("session_id", &self.session_id)
+            .field("broadcast_id", &self.broadcast_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Stream for ClientExchangeSendStream {
+    type Item = service::BroadcastExchangeRequest;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.stream.poll_next_unpin(cx) {
+            Poll::Ready(Some(Ok(batch))) => {
+                self.row_count += batch.num_rows();
+                let req = match self.write_batch(&batch) {
+                    Ok(req) => req,
+                    Err(e) => {
+                        let mut result = self.result.lock();
+                        result.error = Some(DataFusionError::Execution(format!(
+                            "failed to encode batch: {e}"
+                        )));
+                        return Poll::Ready(None);
+                    }
+                };
+
+                Poll::Ready(Some(req))
+            }
+            Poll::Ready(Some(Err(e))) => {
+                let mut result = self.result.lock();
+                result.error = Some(e);
+                Poll::Ready(None)
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+/// Execution plan for sending batches.
+#[derive(Debug)]
+pub struct ClientExchangeInputSendExec {
+    client: RemoteSessionClient,
+    stream: Mutex<Option<ClientExchangeSendStream>>,
+}
+
+impl ClientExchangeInputSendExec {
+    fn arrow_schema() -> Arc<Schema> {
+        Arc::new(Schema::new(vec![Field::new(
+            "send_count",
+            DataType::UInt64,
+            false,
+        )]))
+    }
+}
+
+impl ExecutionPlan for ClientExchangeInputSendExec {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        Self::arrow_schema()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        Vec::new()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        Err(DataFusionError::Plan(
+            "Cannot change children for ClientExchangeInputReadExec".to_string(),
+        ))
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        _context: Arc<TaskContext>,
+    ) -> DataFusionResult<SendableRecordBatchStream> {
+        // Supporting multiple partitions in the future should be easy enough,
+        // just make more streams.
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "ClientExchangeInputSendExec only supports 1 partition".to_string(),
+            ));
+        }
+
+        let mut stream = self.stream.lock();
+        let stream = match stream.take() {
+            Some(stream) => stream,
+            None => return Err(DataFusionError::Execution(
+                format!("ClientExchangeInputSendExec::execute called more than once for partition {partition}"),
+            )),
+        };
+
+        let fut = flush_stream(self.client.clone(), stream);
+        let stream = futures::stream::once(fut);
+
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            Self::arrow_schema(),
+            stream,
+        )))
+    }
+
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for ClientExchangeInputSendExec {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ClientExchangeInputSendExec")
+    }
+}
+
+/// Helper for flushing a stream to the remote client, only returning once all
+/// batches have been flushed, or an error occurs.
+///
+/// On success, the resulting record batch will contain a single return row with
+/// the count of rows that were sent.
+///
+/// Any errors encountered during flushing will be returned.
+async fn flush_stream(
+    mut client: RemoteSessionClient,
+    stream: ClientExchangeSendStream,
+) -> DataFusionResult<RecordBatch> {
+    let result_ref = stream.result_ref();
+    client.broadcast_exchange(stream).await.map_err(|e| {
+        DataFusionError::Execution(format!("failed to stream broadcast exchange: {e}"))
+    })?;
+
+    // Get error/row count from results.
+    let mut result = result_ref.lock();
+
+    // We errored during the stream, we want to bubble that up.
+    if let Some(e) = result.error.take() {
+        return Err(e);
+    }
+
+    // Create record batch with row count calculated by the stream.
+    let batch = RecordBatch::try_new(
+        ClientExchangeInputSendExec::arrow_schema(),
+        vec![Arc::new(UInt64Array::new(
+            vec![result.row_count as u64].into(),
+            None,
+        ))],
+    )?;
+
+    Ok(batch)
 }
