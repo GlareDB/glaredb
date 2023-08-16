@@ -725,13 +725,17 @@ impl<'a> SessionPlanner<'a> {
                         TableReference::Bare { table } => table.into_owned(),
                         _ => return Err(internal!("cannot specify schema with temporary tables")),
                     };
-                    Ok(DdlPlan::CreateTempTable(CreateTempTable {
+                    let df_schema = Schema::new(arrow_cols.clone());
+                    let df_schema = df_schema.to_dfschema_ref()?;
+
+                    let plan = CreateTempTable {
                         table_name,
-                        columns: arrow_cols,
+                        schema: df_schema,
                         if_not_exists,
                         source,
-                    })
-                    .into())
+                    };
+
+                    Ok(plan.into_logical_plan())
                 } else {
                     let df_schema = Schema::new(arrow_cols.clone());
                     let df_schema = df_schema.to_dfschema_ref()?;
@@ -790,13 +794,13 @@ impl<'a> SessionPlanner<'a> {
                         aliases: columns,
                     })
                 } else {
-                    Ok(DdlPlan::CreateView(CreateView {
+                    Ok(CreateView {
                         view_name: name,
                         sql: query_string,
                         columns,
                         or_replace,
-                    })
-                    .into())
+                    }
+                    .into_logical_plan())
                 }
             }
 
@@ -884,11 +888,11 @@ impl<'a> SessionPlanner<'a> {
                     let r = object_name_to_table_ref(name)?;
                     refs.push(r);
                 }
-                Ok(DdlPlan::DropViews(DropViews {
+                Ok(DropViews {
                     if_exists,
                     names: refs,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // Drop schemas
@@ -905,12 +909,12 @@ impl<'a> SessionPlanner<'a> {
                     let r = object_name_to_schema_ref(name)?;
                     refs.push(r);
                 }
-                Ok(DdlPlan::DropSchemas(DropSchemas {
+                Ok(DropSchemas {
                     if_exists,
                     names: refs,
                     cascade,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // "SET ...".
@@ -924,11 +928,20 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(VariablePlan::SetVariable(SetVariable {
-                variable: variable.to_string(),
-                values: value,
-            })
-            .into()),
+            } => {
+                let plan = SetVariable::try_new(variable.to_string(), value)?;
+                Ok(plan.into_logical_plan())
+            }
+            ast::Statement::SetVariable {
+                local: true,
+                hivevar: false,
+                variable,
+                value,
+                ..
+            } => Ok(
+                VariablePlan::SetVariable(SetVariable::try_new(variable.to_string(), value)?)
+                    .into(),
+            ),
 
             // "SHOW ..."
             //
@@ -1080,11 +1093,11 @@ impl<'a> SessionPlanner<'a> {
             names.push(name);
         }
 
-        Ok(DdlPlan::DropDatabase(DropDatabase {
+        Ok(DropDatabase {
             names,
             if_exists: stmt.if_exists,
-        })
-        .into())
+        }
+        .into_logical_plan())
     }
 
     fn plan_drop_tunnel(&self, stmt: DropTunnelStmt) -> Result<LogicalPlan> {
@@ -1095,11 +1108,11 @@ impl<'a> SessionPlanner<'a> {
             names.push(name);
         }
 
-        Ok(DdlPlan::DropTunnel(DropTunnel {
+        Ok(DropTunnel {
             names,
             if_exists: stmt.if_exists,
-        })
-        .into())
+        }
+        .into_logical_plan())
     }
 
     fn plan_drop_credentials(&self, stmt: DropCredentialsStmt) -> Result<LogicalPlan> {
@@ -1110,11 +1123,11 @@ impl<'a> SessionPlanner<'a> {
             names.push(name);
         }
 
-        Ok(DdlPlan::DropCredentials(DropCredentials {
+        Ok(DropCredentials {
             names,
             if_exists: stmt.if_exists,
-        })
-        .into())
+        }
+        .into_logical_plan())
     }
 
     fn plan_alter_tunnel(&self, stmt: AlterTunnelStmt) -> Result<LogicalPlan> {
@@ -1143,7 +1156,7 @@ impl<'a> SessionPlanner<'a> {
         validate_ident(&stmt.new_name)?;
         let new_name = normalize_ident(stmt.new_name);
 
-        Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename { name, new_name }).into())
+        Ok(AlterDatabaseRename { name, new_name }.into_logical_plan())
     }
 
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {

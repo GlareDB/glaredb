@@ -14,12 +14,56 @@ use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference}
 use prost::{Message, Oneof};
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DropCredentials {
+    #[prost(string, repeated, tag = "1")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
+}
+#[derive(Clone, PartialEq, Message)]
+pub struct DropDatabase {
+    #[prost(string, repeated, tag = "1")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropSchemas {
+    #[prost(message, repeated, tag = "1")]
+    pub names: Vec<OwnedSchemaReference>,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
+    #[prost(bool, tag = "3")]
+    pub cascade: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropTunnel {
+    #[prost(string, repeated, tag = "1")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct CreateTable {
     #[prost(message, tag = "1")]
     pub table_name: Option<OwnedTableReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
     #[prost(message, optional, tag = "3")]
+    pub schema: Option<DfSchema>,
+    #[prost(message, optional, tag = "4")]
+    pub source: Option<LogicalPlanNode>,
+}
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateTempTable {
+    #[prost(string, tag = "1")]
+    pub table_name: String,
+    #[prost(bool, tag = "2")]
+    pub if_not_exists: bool,
+    #[prost(message, tag = "3")]
     pub schema: Option<DfSchema>,
     #[prost(message, optional, tag = "4")]
     pub source: Option<LogicalPlanNode>,
@@ -35,6 +79,18 @@ pub struct CreateExternalTable {
     pub table_options: Option<TableOptions>,
     #[prost(message, optional, tag = "4")]
     pub tunnel: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateView {
+    #[prost(message, tag = "1")]
+    pub view_name: Option<OwnedTableReference>,
+    #[prost(string, tag = "2")]
+    pub sql: String,
+    #[prost(message, repeated, tag = "3")]
+    pub columns: Vec<String>,
+    #[prost(bool, tag = "4")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -54,6 +110,14 @@ pub struct DropTables {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DropViews {
+    #[prost(message, repeated, tag = "1")]
+    pub names: Vec<OwnedTableReference>,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct AlterTableRename {
     #[prost(message, tag = "1")]
     pub name: Option<OwnedTableReference>,
@@ -61,12 +125,20 @@ pub struct AlterTableRename {
     pub new_name: Option<OwnedTableReference>,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct SetVariable {
+    #[prost(string, tag = "1")]
+    pub variable: String,
+    #[prost(string, tag = "2")]
+    pub values: String,
+}
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
     #[prost(
         oneof = "LogicalPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18"
     )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
@@ -94,6 +166,22 @@ pub enum LogicalPlanExtensionType {
     CreateExternalDatabase(CreateExternalDatabase),
     #[prost(message, tag = "10")]
     CreateTunnel(CreateTunnel),
+    #[prost(message, tag = "11")]
+    CreateTempTable(CreateTempTable),
+    #[prost(message, tag = "12")]
+    CreateView(CreateView),
+    #[prost(message, tag = "13")]
+    DropCredentials(DropCredentials),
+    #[prost(message, tag = "14")]
+    DropDatabase(DropDatabase),
+    #[prost(message, tag = "15")]
+    DropSchemas(DropSchemas),
+    #[prost(message, tag = "16")]
+    DropTunnel(DropTunnel),
+    #[prost(message, tag = "17")]
+    DropViews(DropViews),
+    #[prost(message, tag = "18")]
+    SetVariable(SetVariable),
 }
 
 // -----
