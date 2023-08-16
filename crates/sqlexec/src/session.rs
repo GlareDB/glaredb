@@ -365,6 +365,11 @@ impl Session {
                 self.drop_views(drop_views).await?;
                 Ok(ExecutionResult::DropViews)
             }
+            ExtensionType::DropCredentials => {
+                let drop_credentials = DropCredentials::try_decode_extension(extension)?;
+                self.drop_credentials(drop_credentials).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
         }
     }
 
