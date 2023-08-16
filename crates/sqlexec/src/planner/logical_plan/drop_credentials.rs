@@ -5,18 +5,6 @@ pub struct DropCredentials {
     pub if_exists: bool,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::DropCredentials> for DropCredentials {
-    type Error = ProtoConvError;
-    fn try_from(
-        value: protogen::sqlexec::logical_plan::DropCredentials,
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            names: value.names,
-            if_exists: value.if_exists,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for DropCredentials {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -48,7 +36,18 @@ impl UserDefinedLogicalNodeCore for DropCredentials {
 }
 
 impl ExtensionNode for DropCredentials {
+    type ProtoRepr = protogen::sqlexec::logical_plan::DropCredentials;
     const EXTENSION_NAME: &'static str = "DropCredentials";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        Ok(Self {
+            names: proto.names,
+            if_exists: proto.if_exists,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

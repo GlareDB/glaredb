@@ -1,3 +1,4 @@
+mod copy_to;
 use crate::{
     gen::metastore::{
         options::TableOptions,
@@ -10,6 +11,7 @@ use crate::{
 };
 use std::borrow::Cow;
 
+pub use copy_to::*;
 use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};
 use prost::{Message, Oneof};
 

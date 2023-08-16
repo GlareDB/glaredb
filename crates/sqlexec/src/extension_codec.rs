@@ -43,7 +43,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
         &self,
         buf: &[u8],
         _inputs: &[datafusion::logical_expr::LogicalPlan],
-        _ctx: &SessionContext,
+        ctx: &SessionContext,
     ) -> datafusion::error::Result<datafusion::logical_expr::Extension> {
         use protogen::sqlexec::logical_plan::{
             self as proto_plan, LogicalPlanExtensionType as PlanType,
@@ -59,128 +59,117 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
         Ok(match lp_extension.inner.unwrap() {
             PlanType::CreateTable(create_table) => {
-                let create_table: plan::CreateTable = create_table
-                    .try_into()
+                let create_table = plan::CreateTable::try_decode(create_table, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_table.into_extension()
             }
             PlanType::CreateSchema(create_schema) => {
-                let create_schema: plan::CreateSchema = create_schema
-                    .try_into()
+                let create_schema = plan::CreateSchema::try_decode(create_schema, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_schema.into_extension()
             }
             PlanType::DropTables(drop_tables) => {
-                let drop_tables: plan::DropTables = drop_tables
-                    .try_into()
+                let drop_tables = plan::DropTables::try_decode(drop_tables, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 drop_tables.into_extension()
             }
             PlanType::CreateExternalTable(create_external_table) => {
-                let create_external_table: plan::CreateExternalTable = create_external_table
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let create_external_table =
+                    plan::CreateExternalTable::try_decode(create_external_table, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_external_table.into_extension()
             }
             PlanType::AlterTableRename(alter_table_rename) => {
-                let alter_table_rename: plan::AlterTableRename = alter_table_rename
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let alter_table_rename =
+                    plan::AlterTableRename::try_decode(alter_table_rename, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 alter_table_rename.into_extension()
             }
             PlanType::AlterDatabaseRename(alter_database_rename) => {
-                let alter_database_rename: plan::AlterDatabaseRename = alter_database_rename
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let alter_database_rename =
+                    plan::AlterDatabaseRename::try_decode(alter_database_rename, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 alter_database_rename.into_extension()
             }
             PlanType::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
-                let alter_tunnel_rotate_keys: plan::AlterTunnelRotateKeys =
-                    alter_tunnel_rotate_keys
-                        .try_into()
+                let alter_tunnel_rotate_keys =
+                    plan::AlterTunnelRotateKeys::try_decode(alter_tunnel_rotate_keys, ctx, self)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 alter_tunnel_rotate_keys.into_extension()
             }
             PlanType::CreateCredentials(create_credentials) => {
-                let create_credentials: plan::CreateCredentials = create_credentials
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let create_credentials =
+                    plan::CreateCredentials::try_decode(create_credentials, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_credentials.into_extension()
             }
             PlanType::CreateExternalDatabase(create_external_db) => {
-                let create_external_db: plan::CreateExternalDatabase = create_external_db
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let create_external_db =
+                    plan::CreateExternalDatabase::try_decode(create_external_db, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_external_db.into_extension()
             }
             PlanType::CreateTunnel(create_tunnel) => {
-                let create_tunnel: plan::CreateTunnel = create_tunnel
-                    .try_into()
+                let create_tunnel = plan::CreateTunnel::try_decode(create_tunnel, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_tunnel.into_extension()
             }
             PlanType::CreateTempTable(create_temp_table) => {
-                let create_temp_table: plan::CreateTempTable = create_temp_table
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let create_temp_table =
+                    plan::CreateTempTable::try_decode(create_temp_table, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_temp_table.into_extension()
             }
             PlanType::CreateView(create_view) => {
-                let create_view: plan::CreateView = create_view
-                    .try_into()
+                let create_view = plan::CreateView::try_decode(create_view, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 create_view.into_extension()
             }
             PlanType::DropCredentials(drop_credentials) => {
-                let drop_credentials: plan::DropCredentials = drop_credentials
-                    .try_into()
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let drop_credentials =
+                    plan::DropCredentials::try_decode(drop_credentials, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 drop_credentials.into_extension()
             }
             PlanType::DropDatabase(drop_database) => {
-                let drop_database: plan::DropDatabase = drop_database
-                    .try_into()
+                let drop_database = plan::DropDatabase::try_decode(drop_database, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 drop_database.into_extension()
             }
             PlanType::DropSchemas(drop_schemas) => {
-                let drop_schemas: plan::DropSchemas = drop_schemas
-                    .try_into()
+                let drop_schemas = plan::DropSchemas::try_decode(drop_schemas, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 drop_schemas.into_extension()
             }
             PlanType::DropTunnel(drop_tunnel) => {
-                let drop_tunnel: plan::DropTunnel = drop_tunnel
-                    .try_into()
+                let drop_tunnel = plan::DropTunnel::try_decode(drop_tunnel, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 drop_tunnel.into_extension()
             }
             PlanType::DropViews(drop_views) => {
-                let drop_views: plan::DropViews = drop_views
-                    .try_into()
+                let drop_views = plan::DropViews::try_decode(drop_views, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 drop_views.into_extension()
             }
             PlanType::SetVariable(set_variable) => {
-                let set_variable: plan::SetVariable = set_variable
-                    .try_into()
+                let set_variable = plan::SetVariable::try_decode(set_variable, ctx, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 set_variable.into_extension()

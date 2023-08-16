@@ -8,32 +8,6 @@ pub struct CreateExternalTable {
     pub tunnel: Option<String>,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::CreateExternalTable> for CreateExternalTable {
-    type Error = ProtoConvError;
-
-    fn try_from(
-        proto: protogen::sqlexec::logical_plan::CreateExternalTable,
-    ) -> std::result::Result<Self, Self::Error> {
-        let table_name = proto
-            .table_name
-            .ok_or(ProtoConvError::RequiredField(
-                "table_name is required".to_string(),
-            ))?
-            .try_into()?;
-
-        let tbl_options = proto.table_options.ok_or(ProtoConvError::RequiredField(
-            "table_options is required".to_string(),
-        ))?;
-
-        Ok(Self {
-            table_name,
-            if_not_exists: proto.if_not_exists,
-            table_options: tbl_options.try_into()?,
-            tunnel: proto.tunnel,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for CreateExternalTable {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -65,7 +39,31 @@ impl UserDefinedLogicalNodeCore for CreateExternalTable {
 }
 
 impl ExtensionNode for CreateExternalTable {
+    type ProtoRepr = protogen::sqlexec::logical_plan::CreateExternalTable;
     const EXTENSION_NAME: &'static str = "CreateExternalTable";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let table_name = proto
+            .table_name
+            .ok_or(ProtoConvError::RequiredField(
+                "table_name is required".to_string(),
+            ))?
+            .try_into()?;
+
+        let tbl_options = proto.table_options.ok_or(ProtoConvError::RequiredField(
+            "table_options is required".to_string(),
+        ))?;
+
+        Ok(Self {
+            table_name,
+            if_not_exists: proto.if_not_exists,
+            table_options: tbl_options.try_into()?,
+            tunnel: proto.tunnel,
+        })
+    }
 
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {

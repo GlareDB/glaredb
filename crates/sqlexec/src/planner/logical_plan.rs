@@ -1,6 +1,7 @@
 mod alter_database_rename;
 mod alter_table_rename;
 mod alter_tunnel_rotate_keys;
+mod copy_to;
 mod create_credentials;
 mod create_external_database;
 mod create_external_table;
@@ -26,6 +27,7 @@ use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTable
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
+use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
@@ -43,6 +45,7 @@ use std::sync::Arc;
 pub use alter_database_rename::*;
 pub use alter_table_rename::*;
 pub use alter_tunnel_rotate_keys::*;
+pub use copy_to::*;
 pub use create_credentials::*;
 pub use create_external_database::*;
 pub use create_external_table::*;
@@ -173,23 +176,6 @@ impl std::fmt::Debug for Insert {
         f.debug_struct("Insert")
             .field("source", &self.source)
             .field("table_provider", &self.table_provider.schema())
-            .finish()
-    }
-}
-
-#[derive(Clone)]
-pub struct CopyTo {
-    pub source: DfLogicalPlan,
-    pub dest: CopyToDestinationOptions,
-    pub format: CopyToFormatOptions,
-}
-
-impl std::fmt::Debug for CopyTo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CopyTo")
-            .field("source", &self.source.schema())
-            .field("dest", &self.dest)
-            .field("format", &self.format)
             .finish()
     }
 }
