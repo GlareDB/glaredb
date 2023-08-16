@@ -29,7 +29,7 @@ $BQ mk --force --dataset "$BQ_DATASET" 1>&2
 TABLES_TO_LOAD=(
 	"datatypes:testdata/sqllogictests_bigquery/data/datatypes-data.json:testdata/sqllogictests_bigquery/data/datatypes-schema.json:NEWLINE_DELIMITED_JSON"
 	"bikeshare_stations:testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv:testdata/sqllogictests_datasources_common/data/bikeshare_stations-bq-schema.json:CSV"
-	#"bikeshare_trips:testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv:testdata/sqllogictests_datasources_common/data/bikeshare_trips-bq-schema.json:CSV"
+	"bikeshare_trips:testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv:testdata/sqllogictests_datasources_common/data/bikeshare_trips-bq-schema.json:CSV"
 )
 for TABLE_INFO in "${TABLES_TO_LOAD[@]}"; do
 	# Create all the tables from their schema represented as JSON.
