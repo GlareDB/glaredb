@@ -254,6 +254,7 @@ impl Session {
     }
 
     /// Create a physical plan for a given datafusion logical plan.
+
     pub async fn create_physical_plan(
         &mut self,
         plan: DfLogicalPlan,
@@ -370,6 +371,7 @@ impl Session {
                 self.set_variable(set_variable)?;
                 Ok(ExecutionResult::SetLocal)
             }
+            other => todo!(),
         }
     }
 
@@ -590,7 +592,6 @@ impl Session {
 
         let physical = self.create_physical_plan(plan.source).await?;
         let stream = self.execute_physical(physical)?;
-
         sink.write_all(stream, &self.ctx.task_context()).await?;
         Ok(())
     }

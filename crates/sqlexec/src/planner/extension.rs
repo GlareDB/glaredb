@@ -13,7 +13,7 @@ use datafusion::{
 };
 
 use super::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
     DropViews, SetVariable,
@@ -41,6 +41,7 @@ pub enum ExtensionType {
     DropTunnel,
     DropViews,
     SetVariable,
+    CopyTo,
 }
 
 impl FromStr for ExtensionType {
@@ -65,6 +66,7 @@ impl FromStr for ExtensionType {
             DropTunnel::EXTENSION_NAME => Self::DropTunnel,
             DropViews::EXTENSION_NAME => Self::DropViews,
             SetVariable::EXTENSION_NAME => Self::SetVariable,
+            CopyTo::EXTENSION_NAME => Self::CopyTo,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

@@ -92,11 +92,14 @@ impl ExtensionNode for CreateTable {
 
         let schema: Option<datafusion_proto::protobuf::DfSchema> = schema.try_into().ok();
 
-        let source = self.source.as_ref().map(|src| {
-            LogicalPlanNode::try_from_logical_plan(src, codec)
-                .map_err(|e| internal!("unable to encode source: {}", e.to_string()))
-                .unwrap()
-        });
+        let source = self
+            .source
+            .as_ref()
+            .map(|src| {
+                LogicalPlanNode::try_from_logical_plan(src, codec)
+                    .map_err(|e| internal!("unable to encode source: {}", e.to_string()))
+            })
+            .transpose()?;
 
         let create_table = protogen::CreateTable {
             table_name: Some(self.table_name.clone().into()),
