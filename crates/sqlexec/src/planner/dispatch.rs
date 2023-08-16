@@ -6,7 +6,7 @@ use datafusion::arrow::array::{
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::file_type::FileType;
+use datafusion::datasource::file_format::file_type::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
@@ -412,6 +412,7 @@ impl<'a> SessionDispatcher<'a> {
             TableOptions::Local(TableOptionsLocal {
                 location,
                 file_type,
+                compression,
             }) => {
                 if *self.ctx.get_session_vars().is_cloud_instance.value() {
                     return Err(DispatchError::InvalidDispatch(
@@ -419,21 +420,32 @@ impl<'a> SessionDispatcher<'a> {
                     ));
                 }
                 let access = Arc::new(LocalStoreAccess);
-                self.create_obj_store_table_provider(access, location, file_type)
-                    .await
+                self.create_obj_store_table_provider(
+                    access,
+                    location,
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
             }
             TableOptions::Gcs(TableOptionsGcs {
                 service_account_key,
                 bucket,
                 location,
                 file_type,
+                compression,
             }) => {
                 let access = Arc::new(GcsStoreAccess {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
                 });
-                self.create_obj_store_table_provider(access, location, file_type)
-                    .await
+                self.create_obj_store_table_provider(
+                    access,
+                    location,
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
             }
             TableOptions::S3(TableOptionsS3 {
                 access_key_id,
@@ -442,6 +454,7 @@ impl<'a> SessionDispatcher<'a> {
                 bucket,
                 location,
                 file_type,
+                compression,
             }) => {
                 let access = Arc::new(S3StoreAccess {
                     region: region.clone(),
@@ -449,8 +462,13 @@ impl<'a> SessionDispatcher<'a> {
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
                 });
-                self.create_obj_store_table_provider(access, location, file_type)
-                    .await
+                self.create_obj_store_table_provider(
+                    access,
+                    location,
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
             }
         }
     }
@@ -460,12 +478,20 @@ impl<'a> SessionDispatcher<'a> {
         access: Arc<dyn ObjStoreAccess>,
         location: &str,
         file_type: &str,
+        compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
+        let compression = compression
+            .map(|c| c.parse::<FileCompressionType>())
+            .transpose()?
+            .unwrap_or(FileCompressionType::UNCOMPRESSED);
+
         let ft: FileType = file_type.parse()?;
         let ft: Arc<dyn FileFormat> = match ft {
-            FileType::CSV => Arc::new(CsvFormat::default()),
+            FileType::CSV => Arc::new(CsvFormat::default().with_file_compression_type(compression)),
             FileType::PARQUET => Arc::new(ParquetFormat::default()),
-            FileType::JSON => Arc::new(JsonFormat::default()),
+            FileType::JSON => {
+                Arc::new(JsonFormat::default().with_file_compression_type(compression))
+            }
             _ => return Err(DispatchError::InvalidDispatch("Unsupported file type")),
         };
 

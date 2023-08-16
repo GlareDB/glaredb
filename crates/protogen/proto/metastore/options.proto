@@ -135,6 +135,7 @@ message TableOptionsMysql {
 message TableOptionsLocal {
   string location = 1;
   string file_type = 2;
+  optional string compression = 3;
 }
 
 message TableOptionsGcs {
@@ -142,6 +143,7 @@ message TableOptionsGcs {
   string bucket = 2;
   string location = 3;
   string file_type = 4;
+  optional string compression = 5;
 }
 
 message TableOptionsS3 {
@@ -151,6 +153,7 @@ message TableOptionsS3 {
   string bucket = 4;
   string location = 5;
   string file_type = 6;
+  optional string compression = 7;
 }
 
 message TableOptionsMongo {

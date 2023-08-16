@@ -689,6 +689,7 @@ impl From<TableOptionsMysql> for options::TableOptionsMysql {
 pub struct TableOptionsLocal {
     pub location: String,
     pub file_type: String,
+    pub compression: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
@@ -697,6 +698,7 @@ impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
         Ok(TableOptionsLocal {
             location: value.location,
             file_type: value.file_type,
+            compression: value.compression,
         })
     }
 }
@@ -706,6 +708,7 @@ impl From<TableOptionsLocal> for options::TableOptionsLocal {
         options::TableOptionsLocal {
             location: value.location,
             file_type: value.file_type,
+            compression: value.compression,
         }
     }
 }
@@ -716,6 +719,7 @@ pub struct TableOptionsGcs {
     pub bucket: String,
     pub location: String,
     pub file_type: String,
+    pub compression: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
@@ -726,6 +730,7 @@ impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
             bucket: value.bucket,
             location: value.location,
             file_type: value.file_type,
+            compression: value.compression,
         })
     }
 }
@@ -737,6 +742,7 @@ impl From<TableOptionsGcs> for options::TableOptionsGcs {
             bucket: value.bucket,
             location: value.location,
             file_type: value.file_type,
+            compression: value.compression,
         }
     }
 }
@@ -749,6 +755,7 @@ pub struct TableOptionsS3 {
     pub bucket: String,
     pub location: String,
     pub file_type: String,
+    pub compression: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
@@ -761,6 +768,7 @@ impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
             bucket: value.bucket,
             location: value.location,
             file_type: value.file_type,
+            compression: value.compression,
         })
     }
 }
@@ -774,6 +782,7 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
             bucket: value.bucket,
             location: value.location,
             file_type: value.file_type,
+            compression: value.compression,
         }
     }
 }
