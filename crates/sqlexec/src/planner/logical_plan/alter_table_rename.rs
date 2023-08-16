@@ -4,31 +4,6 @@ pub struct AlterTableRename {
     pub name: OwnedTableReference,
     pub new_name: OwnedTableReference,
 }
-
-impl TryFrom<protogen::sqlexec::logical_plan::AlterTableRename> for AlterTableRename {
-    type Error = ProtoConvError;
-
-    fn try_from(
-        proto: protogen::sqlexec::logical_plan::AlterTableRename,
-    ) -> Result<Self, Self::Error> {
-        let name = proto
-            .name
-            .ok_or(ProtoConvError::RequiredField(
-                "name is required".to_string(),
-            ))?
-            .try_into()?;
-
-        let new_name = proto
-            .new_name
-            .ok_or(ProtoConvError::RequiredField(
-                "new_name is required".to_string(),
-            ))?
-            .try_into()?;
-
-        Ok(Self { name, new_name })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for AlterTableRename {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -60,8 +35,29 @@ impl UserDefinedLogicalNodeCore for AlterTableRename {
 }
 
 impl ExtensionNode for AlterTableRename {
+    type ProtoRepr = protogen::sqlexec::logical_plan::AlterTableRename;
     const EXTENSION_NAME: &'static str = "AlterTableRename";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let name = proto
+            .name
+            .ok_or(ProtoConvError::RequiredField(
+                "name is required".to_string(),
+            ))?
+            .try_into()?;
 
+        let new_name = proto
+            .new_name
+            .ok_or(ProtoConvError::RequiredField(
+                "new_name is required".to_string(),
+            ))?
+            .try_into()?;
+
+        Ok(Self { name, new_name })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

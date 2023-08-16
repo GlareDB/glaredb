@@ -32,19 +32,6 @@ impl SetVariable {
     }
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::SetVariable> for SetVariable {
-    type Error = ProtoConvError;
-
-    fn try_from(
-        value: protogen::sqlexec::logical_plan::SetVariable,
-    ) -> std::result::Result<Self, Self::Error> {
-        Ok(Self {
-            variable: value.variable,
-            values: value.values,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for SetVariable {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -76,7 +63,18 @@ impl UserDefinedLogicalNodeCore for SetVariable {
 }
 
 impl ExtensionNode for SetVariable {
+    type ProtoRepr = protogen::sqlexec::logical_plan::SetVariable;
     const EXTENSION_NAME: &'static str = "SetVariable";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        Ok(Self {
+            variable: proto.variable,
+            values: proto.values,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

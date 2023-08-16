@@ -1135,7 +1135,7 @@ impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CopyToDestinationOptions {
     Local(CopyToDestinationOptionsLocal),
     Gcs(CopyToDestinationOptionsGcs),
@@ -1164,19 +1164,19 @@ impl CopyToDestinationOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToDestinationOptionsLocal {
     pub location: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToDestinationOptionsGcs {
     pub service_account_key: Option<String>,
     pub bucket: String,
     pub location: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToDestinationOptionsS3 {
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -1185,7 +1185,7 @@ pub struct CopyToDestinationOptionsS3 {
     pub location: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CopyToFormatOptions {
     Csv(CopyToFormatOptionsCsv),
     Parquet(CopyToFormatOptionsParquet),
@@ -1215,18 +1215,18 @@ impl CopyToFormatOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsCsv {
     pub delim: u8,
     pub header: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsParquet {
     pub row_group_size: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsJson {
     pub array: bool,
 }
