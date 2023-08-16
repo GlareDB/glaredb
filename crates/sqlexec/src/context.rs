@@ -351,8 +351,10 @@ impl SessionContext {
             return Err(ExecError::DuplicateObjectName(plan.table_name));
         }
 
-        let schema = Arc::new(ArrowSchema::new(plan.columns));
-        let data = RecordBatch::new_empty(Arc::clone(&schema));
+        let schema = plan.schema.as_ref();
+        let schema: Arc<ArrowSchema> = Arc::new(schema.into());
+
+        let data = RecordBatch::new_empty(schema.clone());
         let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
         self.current_session_tables
             .insert(plan.table_name, Arc::clone(&table));

@@ -1,7 +1,8 @@
 use std::{collections::BTreeMap, fmt};
 
 use datafusion::{
-    datasource::file_format::file_type::FileType, sql::sqlparser::parser::ParserError,
+    common::parsers::CompressionTypeVariant, datasource::file_format::file_type::FileType,
+    sql::sqlparser::parser::ParserError,
 };
 use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
 
@@ -167,6 +168,18 @@ impl ParseOptionValue<FileType> for OptionValue {
                 s.parse().map_err(|e| parser_err!("{e}"))?
             }
             o => return Err(unexpected_type_err!("file type", o)),
+        };
+        Ok(opt)
+    }
+}
+
+impl ParseOptionValue<CompressionTypeVariant> for OptionValue {
+    fn parse_opt(self) -> Result<CompressionTypeVariant, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                s.parse().map_err(|e| parser_err!("{e}"))?
+            }
+            o => return Err(unexpected_type_err!("file compression type", o)),
         };
         Ok(opt)
     }

@@ -129,6 +129,55 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_tunnel.into_extension()
             }
+            PlanType::CreateTempTable(create_temp_table) => {
+                let create_temp_table: plan::CreateTempTable = create_temp_table
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_temp_table.into_extension()
+            }
+            PlanType::CreateView(create_view) => {
+                let create_view: plan::CreateView = create_view
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_view.into_extension()
+            }
+            PlanType::DropCredentials(drop_credentials) => {
+                let drop_credentials: plan::DropCredentials = drop_credentials
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_credentials.into_extension()
+            }
+            PlanType::DropDatabase(drop_database) => {
+                let drop_database: plan::DropDatabase = drop_database
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_database.into_extension()
+            }
+            PlanType::DropSchemas(drop_schemas) => {
+                let drop_schemas: plan::DropSchemas = drop_schemas
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_schemas.into_extension()
+            }
+            PlanType::DropTunnel(drop_tunnel) => {
+                let drop_tunnel: plan::DropTunnel = drop_tunnel
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_tunnel.into_extension()
+            }
+            PlanType::DropViews(drop_views) => {
+                let drop_views: plan::DropViews = drop_views
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_views.into_extension()
+            }
             PlanType::ClientExchangeSend(send) => {
                 let send: plan::ClientExchangeSend = send
                     .try_into()
@@ -184,6 +233,19 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::CreateTunnel => {
                 plan::CreateTunnel::try_encode_extension(node, buf, self)
             }
+            ExtensionType::CreateTempTable => {
+                plan::CreateTempTable::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::CreateView => plan::CreateView::try_encode_extension(node, buf, self),
+            ExtensionType::DropCredentials => {
+                plan::DropCredentials::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::DropDatabase => {
+                plan::DropDatabase::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::DropSchemas => plan::DropSchemas::try_encode_extension(node, buf, self),
+            ExtensionType::DropTunnel => plan::DropTunnel::try_encode_extension(node, buf, self),
+            ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
             ExtensionType::ClientExchangeSend => {
                 plan::ClientExchangeSend::try_encode_extension(node, buf, self)
             }

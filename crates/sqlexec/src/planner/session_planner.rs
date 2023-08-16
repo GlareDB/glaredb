@@ -4,6 +4,7 @@ use std::sync::Arc;
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
+use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::datasource::file_format::file_type::FileType;
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
@@ -420,11 +421,13 @@ impl<'a> SessionPlanner<'a> {
                 let location: String = m.remove_required("location")?;
 
                 let access = Arc::new(LocalStoreAccess);
-                let file_type = validate_obj_and_get_file_type(access, &location, m).await?;
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
 
                 TableOptions::Local(TableOptionsLocal {
                     location,
                     file_type: format!("{file_type:?}").to_lowercase(),
+                    compression: compression.map(|c| c.to_string()),
                 })
             }
             TableOptions::GCS => {
@@ -443,13 +446,15 @@ impl<'a> SessionPlanner<'a> {
                     bucket: bucket.clone(),
                     service_account_key: service_account_key.clone(),
                 });
-                let file_type = validate_obj_and_get_file_type(access, &location, m).await?;
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
 
                 TableOptions::Gcs(TableOptionsGcs {
                     bucket,
                     service_account_key,
                     location,
                     file_type: format!("{file_type:?}").to_lowercase(),
+                    compression: compression.map(|c| c.to_string()),
                 })
             }
             TableOptions::S3_STORAGE => {
@@ -480,7 +485,8 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
                 });
-                let file_type = validate_obj_and_get_file_type(access, &location, m).await?;
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
 
                 TableOptions::S3(TableOptionsS3 {
                     region,
@@ -489,6 +495,7 @@ impl<'a> SessionPlanner<'a> {
                     secret_access_key,
                     location,
                     file_type: format!("{file_type:?}").to_lowercase(),
+                    compression: compression.map(|c| c.to_string()),
                 })
             }
             TableOptions::DEBUG => {
@@ -718,13 +725,17 @@ impl<'a> SessionPlanner<'a> {
                         TableReference::Bare { table } => table.into_owned(),
                         _ => return Err(internal!("cannot specify schema with temporary tables")),
                     };
-                    Ok(DdlPlan::CreateTempTable(CreateTempTable {
+                    let df_schema = Schema::new(arrow_cols.clone());
+                    let df_schema = df_schema.to_dfschema_ref()?;
+
+                    let plan = CreateTempTable {
                         table_name,
-                        columns: arrow_cols,
+                        schema: df_schema,
                         if_not_exists,
                         source,
-                    })
-                    .into())
+                    };
+
+                    Ok(plan.into_logical_plan())
                 } else {
                     let df_schema = Schema::new(arrow_cols.clone());
                     let df_schema = df_schema.to_dfschema_ref()?;
@@ -783,13 +794,13 @@ impl<'a> SessionPlanner<'a> {
                         aliases: columns,
                     })
                 } else {
-                    Ok(DdlPlan::CreateView(CreateView {
+                    Ok(CreateView {
                         view_name: name,
                         sql: query_string,
                         columns,
                         or_replace,
-                    })
-                    .into())
+                    }
+                    .into_logical_plan())
                 }
             }
 
@@ -877,11 +888,11 @@ impl<'a> SessionPlanner<'a> {
                     let r = object_name_to_table_ref(name)?;
                     refs.push(r);
                 }
-                Ok(DdlPlan::DropViews(DropViews {
+                Ok(DropViews {
                     if_exists,
                     names: refs,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // Drop schemas
@@ -898,12 +909,12 @@ impl<'a> SessionPlanner<'a> {
                     let r = object_name_to_schema_ref(name)?;
                     refs.push(r);
                 }
-                Ok(DdlPlan::DropSchemas(DropSchemas {
+                Ok(DropSchemas {
                     if_exists,
                     names: refs,
                     cascade,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // "SET ...".
@@ -1073,11 +1084,11 @@ impl<'a> SessionPlanner<'a> {
             names.push(name);
         }
 
-        Ok(DdlPlan::DropDatabase(DropDatabase {
+        Ok(DropDatabase {
             names,
             if_exists: stmt.if_exists,
-        })
-        .into())
+        }
+        .into_logical_plan())
     }
 
     fn plan_drop_tunnel(&self, stmt: DropTunnelStmt) -> Result<LogicalPlan> {
@@ -1088,11 +1099,11 @@ impl<'a> SessionPlanner<'a> {
             names.push(name);
         }
 
-        Ok(DdlPlan::DropTunnel(DropTunnel {
+        Ok(DropTunnel {
             names,
             if_exists: stmt.if_exists,
-        })
-        .into())
+        }
+        .into_logical_plan())
     }
 
     fn plan_drop_credentials(&self, stmt: DropCredentialsStmt) -> Result<LogicalPlan> {
@@ -1103,11 +1114,11 @@ impl<'a> SessionPlanner<'a> {
             names.push(name);
         }
 
-        Ok(DdlPlan::DropCredentials(DropCredentials {
+        Ok(DropCredentials {
             names,
             if_exists: stmt.if_exists,
-        })
-        .into())
+        }
+        .into_logical_plan())
     }
 
     fn plan_alter_tunnel(&self, stmt: AlterTunnelStmt) -> Result<LogicalPlan> {
@@ -1136,7 +1147,7 @@ impl<'a> SessionPlanner<'a> {
         validate_ident(&stmt.new_name)?;
         let new_name = normalize_ident(stmt.new_name);
 
-        Ok(DdlPlan::AlterDatabaseRename(AlterDatabaseRename { name, new_name }).into())
+        Ok(AlterDatabaseRename { name, new_name }.into_logical_plan())
     }
 
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
@@ -1367,12 +1378,12 @@ impl<'a> SessionPlanner<'a> {
 
 /// Creates an accessor from object store external table and validates if the
 /// location returns any objects. If objects are returned, tries to get the
-/// file type of the object.
-async fn validate_obj_and_get_file_type(
+/// file type and compression of the object.
+async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
     location: &str,
     m: &mut StmtOptions,
-) -> Result<FileType> {
+) -> Result<(FileType, Option<CompressionTypeVariant>)> {
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
             source: Box::new(e),
@@ -1392,22 +1403,37 @@ async fn validate_obj_and_get_file_type(
         });
     }
 
-    match m.remove_optional("file_type")? {
-        Some(file_type) => Ok(file_type),
+    let compression = match m.remove_optional::<CompressionTypeVariant>("compression")? {
+        Some(compression) => Some(compression),
+        None => objects
+            .first()
+            .ok_or_else(|| PlanError::InvalidExternalTable {
+                source: Box::new(internal!("object '{location} not found'")),
+            })?
+            .location
+            .extension()
+            .and_then(|ext| ext.parse().ok()),
+    };
+
+    let file_type = match m.remove_optional::<FileType>("file_type")? {
+        Some(file_type) => file_type,
         None => {
+            let mut ft = None;
             for obj in objects {
-                match file_type_from_path(&obj.location) {
+                ft = match file_type_from_path(&obj.location) {
                     Err(_) => continue,
-                    Ok(file_type) => return Ok(file_type),
-                }
+                    Ok(file_type) => Some(file_type),
+                };
             }
-            Err(PlanError::InvalidExternalTable {
+            ft.ok_or_else(|| PlanError::InvalidExternalTable {
                 source: Box::new(internal!(
                     "unable to resolve file type from the objects, try passing `file_type` option"
                 )),
-            })
+            })?
         }
-    }
+    };
+
+    Ok((file_type, compression))
 }
 
 /// Resolves an ident (unquoted -> lowercase else case sensitive).
