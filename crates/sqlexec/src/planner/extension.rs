@@ -9,15 +9,16 @@ use crate::{
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
-    DropTables,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, ClientExchangeRecv,
+    ClientExchangeSend, CreateCredentials, CreateExternalDatabase, CreateExternalTable,
+    CreateSchema, CreateTable, CreateTunnel, DropTables,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
 ///
 /// This should match all of the variants expressed in `protogen::sqlexec::logical_plan::LogicalPlanExtension`
 pub enum ExtensionType {
+    // DDL
     CreateTable,
     CreateExternalTable,
     CreateSchema,
@@ -28,6 +29,9 @@ pub enum ExtensionType {
     CreateCredentials,
     CreateExternalDatabase,
     CreateTunnel,
+    // Broadcasts/exchange
+    ClientExchangeSend,
+    ClientExchangeRecv,
 }
 
 impl FromStr for ExtensionType {
@@ -44,6 +48,8 @@ impl FromStr for ExtensionType {
             CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
             CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
             CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
+            ClientExchangeSend::EXTENSION_NAME => Self::ClientExchangeSend,
+            ClientExchangeRecv::EXTENSION_NAME => Self::ClientExchangeRecv,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

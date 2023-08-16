@@ -129,6 +129,20 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_tunnel.into_extension()
             }
+            PlanType::ClientExchangeSend(send) => {
+                let send: plan::ClientExchangeSend = send
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                send.into_extension()
+            }
+            PlanType::ClientExchangeRecv(recv) => {
+                let recv: plan::ClientExchangeRecv = recv
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                recv.into_extension()
+            }
         })
     }
 
@@ -169,6 +183,12 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             ExtensionType::CreateTunnel => {
                 plan::CreateTunnel::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::ClientExchangeSend => {
+                plan::ClientExchangeSend::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::ClientExchangeRecv => {
+                plan::ClientExchangeRecv::try_encode_extension(node, buf, self)
             }
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;

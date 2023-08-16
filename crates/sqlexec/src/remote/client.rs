@@ -27,7 +27,7 @@ use url::Url;
 use uuid::Uuid;
 
 use super::{
-    broadcast_exchange::ClientExchangeSendStream, exec::RemoteExecutionPlan,
+    broadcast::exchange_exec::ClientExchangeSendStream, exec::RemoteExecutionPlan,
     table::RemoteTableProvider,
 };
 

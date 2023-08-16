@@ -61,12 +61,24 @@ pub struct AlterTableRename {
     pub new_name: Option<OwnedTableReference>,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct ClientExchangeSend {
+    #[prost(bytes, tag = "1")]
+    pub broadcast_id: Vec<u8>, // UUID
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct ClientExchangeRecv {
+    #[prost(bytes, tag = "1")]
+    pub broadcast_id: Vec<u8>, // UUID
+}
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {
     #[prost(
         oneof = "LogicalPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
     )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
@@ -74,6 +86,7 @@ pub struct LogicalPlanExtension {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Oneof)]
 pub enum LogicalPlanExtensionType {
+    // DDLs
     #[prost(message, tag = "1")]
     CreateTable(CreateTable),
     #[prost(message, tag = "2")]
@@ -94,6 +107,11 @@ pub enum LogicalPlanExtensionType {
     CreateExternalDatabase(CreateExternalDatabase),
     #[prost(message, tag = "10")]
     CreateTunnel(CreateTunnel),
+    // Broadcasts/exchange
+    #[prost(message, tag = "11")]
+    ClientExchangeSend(ClientExchangeSend),
+    #[prost(message, tag = "12")]
+    ClientExchangeRecv(ClientExchangeRecv),
 }
 
 // -----

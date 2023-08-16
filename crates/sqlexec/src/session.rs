@@ -335,6 +335,16 @@ impl Session {
                 self.create_tunnel(create_tunnel).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
+            ExtensionType::ClientExchangeSend => {
+                let send = ClientExchangeSend::try_decode_extension(extension)?;
+                // TODO
+                unimplemented!()
+            }
+            ExtensionType::ClientExchangeRecv => {
+                let recv = ClientExchangeRecv::try_decode_extension(extension)?;
+                // TODO
+                unimplemented!()
+            }
         }
     }
 

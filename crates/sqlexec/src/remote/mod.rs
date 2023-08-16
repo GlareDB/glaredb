@@ -1,5 +1,4 @@
-pub mod broadcast_exchange;
-pub mod broadcast_join;
+pub mod broadcast;
 pub mod client;
 pub mod exec;
 pub mod planner;

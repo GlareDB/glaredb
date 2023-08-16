@@ -1,4 +1,7 @@
+//! Execution plan implementations for exchanging of record batches between a
+//! client and server.
 use crate::errors::{ExecError, Result};
+use crate::remote::client::RemoteSessionClient;
 use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::ipc::{
@@ -13,7 +16,6 @@ use datafusion::physical_plan::{
     RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
-use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use protogen::gen::rpcsrv::service;
 use std::any::Any;
@@ -21,15 +23,9 @@ use std::fmt;
 use std::io::Cursor;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
-use tonic::{Request, Streaming};
-use tracing::warn;
+use std::{collections::VecDeque, sync::Arc};
+use tonic::Streaming;
 use uuid::Uuid;
-
-use super::client::{RemoteClient, RemoteSessionClient};
 
 /// A stream for reading record batches from a client.
 ///
@@ -276,6 +272,10 @@ pub struct ClientExchangeSendStream {
 
     /// Results of the stream. Only contains accurate data _after_ the stream
     /// completes.
+    ///
+    /// Is this jank? Yes, since we're reading from a stream of results (the
+    /// record batch stream), and producing a stream of ipc encoded data, we
+    /// don't really have a decent way forwarding errors through the stream.
     result: Arc<Mutex<ClientExchangeSendResult>>,
 }
 
