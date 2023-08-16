@@ -6,6 +6,7 @@ use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
+use crate::remote::broadcast::exchange_exec::ClientExchangeRecvExec;
 use crate::remote::client::RemoteSessionClient;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
@@ -337,13 +338,24 @@ impl Session {
             }
             ExtensionType::ClientExchangeSend => {
                 let send = ClientExchangeSend::try_decode_extension(extension)?;
+
+                // need execution stream
+
+                // let stream = ClieEx
+                // self.ctx.exec_client().unwrap().broadcast_exchange(stream)
                 // TODO
+
                 unimplemented!()
             }
             ExtensionType::ClientExchangeRecv => {
                 let recv = ClientExchangeRecv::try_decode_extension(extension)?;
-                // TODO
-                unimplemented!()
+                let stream = self
+                    .ctx
+                    .staged_streams()?
+                    .resolve_pending_stream(recv.broadcast_id)
+                    .await?;
+                let exec = ClientExchangeRecvExec::new(stream);
+                Ok(Arc::new(exec))
             }
         }
     }

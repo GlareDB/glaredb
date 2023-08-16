@@ -1,9 +1,13 @@
+use crate::remote::broadcast::exchange_exec::ClientExchangeInputSendExec;
+
 use super::*;
 use uuid::Uuid;
 
+// TODO: Probably should be treated as solely physical.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ClientExchangeSend {
     pub broadcast_id: Uuid,
+    pub input: DfLogicalPlan,
 }
 
 impl TryFrom<protogen::sqlexec::logical_plan::ClientExchangeSend> for ClientExchangeSend {
@@ -12,8 +16,7 @@ impl TryFrom<protogen::sqlexec::logical_plan::ClientExchangeSend> for ClientExch
     fn try_from(
         proto: protogen::sqlexec::logical_plan::ClientExchangeSend,
     ) -> Result<Self, Self::Error> {
-        let broadcast_id = Uuid::from_slice(&proto.broadcast_id)?;
-        Ok(Self { broadcast_id })
+        unimplemented!()
     }
 }
 
@@ -23,11 +26,12 @@ impl UserDefinedLogicalNodeCore for ClientExchangeSend {
     }
 
     fn inputs(&self) -> Vec<&DfLogicalPlan> {
-        vec![]
+        vec![&self.input]
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        // that's annoying
+        unimplemented!()
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

@@ -9,6 +9,7 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
+use crate::remote::broadcast::staged_stream::StagedClientStreams;
 use crate::remote::client::RemoteSessionClient;
 use crate::remote::planner::RemoteLogicalPlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
@@ -62,6 +63,8 @@ struct RemoteSessionContext {
     table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
     /// Session's physical plans.
     physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
+    /// Staged streams from the client.
+    streams: StagedClientStreams,
 }
 
 /// Context for a session used during execution.
@@ -175,6 +178,7 @@ impl SessionContext {
             Some(RemoteSessionContext {
                 table_providers: HashMap::new(),
                 physical_plans: HashMap::new(),
+                streams: StagedClientStreams::default(),
             })
         } else {
             None
@@ -327,6 +331,15 @@ impl SessionContext {
                     "cannot create extension codec for non-remote session".to_string(),
                 )
             })
+    }
+
+    pub fn staged_streams(&self) -> Result<&StagedClientStreams> {
+        match &self.remote_ctx {
+            Some(ctx) => Ok(&ctx.streams),
+            None => Err(internal!(
+                "cannot access client streams for a non-remote session"
+            )),
+        }
     }
 
     /// Create a temp table.

@@ -254,7 +254,7 @@ struct ClientExchangeSendResult {
 /// produce the request message with the correct fields set.
 // TODO: There's some overlap with `ExecutionResponseBatchStream`, not sure if
 // we want to try to unify.
-pub struct ClientExchangeSendStream {
+struct ClientExchangeSendStream {
     /// Remote ID of the session this stream is for.
     session_id: Uuid,
 
@@ -280,7 +280,7 @@ pub struct ClientExchangeSendStream {
 }
 
 impl ClientExchangeSendStream {
-    pub fn new(session_id: Uuid, broadcast_id: Uuid, stream: SendableRecordBatchStream) -> Self {
+    fn new(session_id: Uuid, broadcast_id: Uuid, stream: SendableRecordBatchStream) -> Self {
         ClientExchangeSendStream {
             session_id,
             broadcast_id,
@@ -359,12 +359,25 @@ impl Stream for ClientExchangeSendStream {
 /// Execution plan for sending batches.
 #[derive(Debug)]
 pub struct ClientExchangeInputSendExec {
+    broadcast_id: Uuid,
     client: RemoteSessionClient,
-    stream: Mutex<Option<ClientExchangeSendStream>>,
+    input: Arc<dyn ExecutionPlan>,
 }
 
 impl ClientExchangeInputSendExec {
-    fn arrow_schema() -> Arc<Schema> {
+    pub fn new(
+        broadcast_id: Uuid,
+        client: RemoteSessionClient,
+        input: Arc<dyn ExecutionPlan>,
+    ) -> Self {
+        Self {
+            broadcast_id,
+            client,
+            input,
+        }
+    }
+
+    pub fn arrow_schema() -> Arc<Schema> {
         Arc::new(Schema::new(vec![Field::new(
             "send_count",
             DataType::UInt64,
@@ -406,7 +419,7 @@ impl ExecutionPlan for ClientExchangeInputSendExec {
     fn execute(
         &self,
         partition: usize,
-        _context: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         // Supporting multiple partitions in the future should be easy enough,
         // just make more streams.
@@ -416,13 +429,9 @@ impl ExecutionPlan for ClientExchangeInputSendExec {
             ));
         }
 
-        let mut stream = self.stream.lock();
-        let stream = match stream.take() {
-            Some(stream) => stream,
-            None => return Err(DataFusionError::Execution(
-                format!("ClientExchangeInputSendExec::execute called more than once for partition {partition}"),
-            )),
-        };
+        let input = self.input.execute(0, context)?;
+        let stream =
+            ClientExchangeSendStream::new(self.client.session_id(), self.broadcast_id, input);
 
         let fut = flush_stream(self.client.clone(), stream);
         let stream = futures::stream::once(fut);

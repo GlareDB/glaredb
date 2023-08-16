@@ -1,44 +1,80 @@
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use datafusion::arrow::datatypes::Schema;
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::prelude::Expr;
+use crate::errors::{internal, Result};
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use super::exchange_exec::{ClientExchangeRecvExec, ClientExchangeRecvStream};
+use super::exchange_exec::ClientExchangeRecvStream;
 
 /// State of the pending stream.
+///
+/// Since we need to coordinate between client and server, we have two states:
+/// - Client begins streaming first.
+/// - Server begins executing first.
+///
+/// Both states are correct since we have to "scheduler" triggering which
+/// happens first. And so while the client will always send the plan to the
+/// server first, the server may actually begin executing that plan prior to the
+/// client actually starting to stream.
 enum PendingStream {
-    /// The stream arrived first. Store both the receiver and
-    WaitingForTableCreate,
+    StreamArrivedFirst(ClientExchangeRecvStream),
+    WaitingForStream(oneshot::Sender<ClientExchangeRecvStream>),
 }
 
-/// Holds streams that are awaiting scans.
-pub struct StagedTableStreams {
+/// Hold streams that pending for execution.
+#[derive(Clone, Default)]
+pub struct StagedClientStreams {
     /// Streams keyed by broadcast id.
-    streams: HashMap<Uuid, oneshot::Sender<ClientExchangeRecvStream>>,
+    streams: Arc<Mutex<HashMap<Uuid, PendingStream>>>,
 }
 
-impl StagedTableStreams {
-    pub fn put_stream(&mut self, id: Uuid, stream: ClientExchangeRecvStream) {
-        // If we have a "table" waiting, go ahead and trigger the oneshot with
-        // the stream. This will trigger scanning of the "table".
-        if let Some(channel) = self.streams.remove(&id) {
-            channel.send(stream);
-            return;
+impl StagedClientStreams {
+    /// Put a stream for later execution.
+    pub fn put_stream(&self, id: Uuid, stream: ClientExchangeRecvStream) {
+        let mut streams = self.streams.lock();
+
+        // Handle case where we began executing before the stream arrived.
+        if let Some(pending) = streams.remove(&id) {
+            match pending {
+                PendingStream::StreamArrivedFirst(_) => panic!("attempted to put stream twice"), // Programmer bug.
+                PendingStream::WaitingForStream(channel) => {
+                    // We don't care if the receiver dropped. Means it was
+                    // canceled on the "execution" side.
+                    let _ = channel.send(stream);
+                    return;
+                }
+            }
         }
 
-        // Otherwise stage it.
-        // let
-        // self.streams.insert(id, on)
+        // Handle case where stream arrived first.
+        streams.insert(id, PendingStream::StreamArrivedFirst(stream));
+    }
+
+    /// Resolve a pending stream by id.
+    ///
+    /// This will wait until we have the stream available.
+    pub async fn resolve_pending_stream(&self, id: Uuid) -> Result<ClientExchangeRecvStream> {
+        let mut streams = self.streams.lock();
+
+        // Handle case where we already have the stream.
+        if let Some(pending) = streams.remove(&id) {
+            match pending {
+                PendingStream::StreamArrivedFirst(stream) => return Ok(stream),
+                PendingStream::WaitingForStream(_) => panic!("attempted to resolve stream twice"), // Programmer bug.
+            }
+        }
+
+        // Handle case where we need to wait for the stream to arrive.
+        let (tx, rx) = oneshot::channel();
+        streams.insert(id, PendingStream::WaitingForStream(tx));
+
+        // Avoid deadlock.
+        std::mem::drop(streams);
+
+        let stream = rx.await.map_err(|_| internal!("stream sender dropped"))?;
+
+        Ok(stream)
     }
 }
