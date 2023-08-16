@@ -524,7 +524,6 @@ impl Session {
     }
 
     pub(crate) async fn plan_copy_to(&mut self, plan: CopyTo) -> Result<()> {
-        println!("session::plan_copy_to");
         fn get_sink_for_obj(
             format: CopyToFormatOptions,
             access: &dyn ObjStoreAccess,
