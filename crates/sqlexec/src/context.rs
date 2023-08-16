@@ -63,8 +63,6 @@ struct RemoteSessionContext {
     table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
     /// Session's physical plans.
     physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
-    /// Staged streams from the client.
-    streams: StagedClientStreams,
 }
 
 /// Context for a session used during execution.
@@ -181,7 +179,6 @@ impl SessionContext {
             Some(RemoteSessionContext {
                 table_providers: HashMap::new(),
                 physical_plans: HashMap::new(),
-                streams: StagedClientStreams::default(),
             })
         } else {
             None
@@ -336,9 +333,14 @@ impl SessionContext {
             })
     }
 
-    pub fn staged_streams(&self) -> Result<&StagedClientStreams> {
-        match &self.remote_ctx {
-            Some(ctx) => Ok(&ctx.streams),
+    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
+        match self
+            .df_ctx
+            .state()
+            .config()
+            .get_extension::<StagedClientStreams>()
+        {
+            Some(streams) => Ok(streams),
             None => Err(internal!(
                 "cannot access client streams for a non-remote session"
             )),

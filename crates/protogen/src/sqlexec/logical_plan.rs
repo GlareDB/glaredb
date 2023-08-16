@@ -135,6 +135,9 @@ pub struct ClientExchangeSend {
 pub struct ClientExchangeRecv {
     #[prost(bytes, tag = "1")]
     pub broadcast_id: Vec<u8>, // UUID
+    /// Schema of the stream.
+    #[prost(message, optional, tag = "2")]
+    pub schema: Option<DfSchema>,
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]

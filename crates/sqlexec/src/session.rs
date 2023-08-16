@@ -373,19 +373,13 @@ impl Session {
             }
             ExtensionType::ClientExchangeSend => {
                 return Err(internal!(
-                    "ClientExchangeSend is not a valid logical plan to deserialize" // yet
+                    "ClientExchangeSend is not a valid logical plan to deserialize"
                 ));
             }
             ExtensionType::ClientExchangeRecv => {
-                unimplemented!()
-                // let recv = ClientExchangeRecv::try_decode_extension(extension)?;
-                // let stream = self
-                //     .ctx
-                //     .staged_streams()?
-                //     .resolve_pending_stream(recv.broadcast_id)
-                //     .await?;
-                // let exec = ClientExchangeRecvExec::new(stream);
-                // Ok(Arc::new(exec))
+                return Err(internal!(
+                    "ClientExchangeRecv is not a valid logical plan to deserialize"
+                ));
             }
         }
     }

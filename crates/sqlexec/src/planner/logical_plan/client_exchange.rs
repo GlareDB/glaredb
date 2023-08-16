@@ -85,6 +85,7 @@ impl ExtensionNode for ClientExchangeSend {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ClientExchangeRecv {
     pub broadcast_id: Uuid,
+    pub schema: DFSchemaRef,
 }
 
 impl TryFrom<protogen::sqlexec::logical_plan::ClientExchangeRecv> for ClientExchangeRecv {
@@ -94,7 +95,17 @@ impl TryFrom<protogen::sqlexec::logical_plan::ClientExchangeRecv> for ClientExch
         proto: protogen::sqlexec::logical_plan::ClientExchangeRecv,
     ) -> Result<Self, Self::Error> {
         let broadcast_id = Uuid::from_slice(&proto.broadcast_id)?;
-        Ok(Self { broadcast_id })
+        let schema = proto
+            .schema
+            .ok_or(ProtoConvError::RequiredField(
+                "schema is required".to_string(),
+            ))?
+            .try_into()?;
+
+        Ok(Self {
+            broadcast_id,
+            schema,
+        })
     }
 }
 
@@ -108,7 +119,7 @@ impl UserDefinedLogicalNodeCore for ClientExchangeRecv {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &self.schema
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -143,8 +154,12 @@ impl ExtensionNode for ClientExchangeRecv {
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
 
+        let schema = &self.schema;
+        let schema: Option<datafusion_proto::protobuf::DfSchema> = schema.try_into().ok();
+
         let client_exchange = protogen::ClientExchangeRecv {
             broadcast_id: self.broadcast_id.into_bytes().to_vec(),
+            schema,
         };
 
         let extension = protogen::LogicalPlanExtensionType::ClientExchangeRecv(client_exchange);
