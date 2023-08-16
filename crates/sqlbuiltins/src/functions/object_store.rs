@@ -4,7 +4,7 @@ use std::{sync::Arc, vec};
 use async_trait::async_trait;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::file_type::FileType;
+use datafusion::datasource::file_format::file_type::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
@@ -53,7 +53,7 @@ impl TableFunc for ObjScanTableFunc {
         table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
+        mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
         if args.is_empty() {
             return Err(ExtensionError::InvalidNumArgs);
@@ -73,7 +73,23 @@ impl TableFunc for ObjScanTableFunc {
                 "at least one url expected".to_owned(),
             ));
         }
-        let file_compression = urls[0].get_file_compression();
+
+        let file_compression = match opts.remove("compression") {
+            Some(cmp) => {
+                let cmp: String = cmp.param_into()?;
+                cmp.parse()?
+            }
+            None => {
+                let path = urls
+                    .first()
+                    .ok_or_else(|| ExtensionError::String("at least one url expected".to_string()))?
+                    .path();
+                let path = std::path::Path::new(path.as_ref());
+                path.extension()
+                    .and_then(|ext| ext.to_string_lossy().as_ref().parse().ok())
+                    .unwrap_or(FileCompressionType::UNCOMPRESSED)
+            }
+        };
 
         let Self(ft, _) = self;
         let ft: Arc<dyn FileFormat> = match ft {
@@ -160,7 +176,7 @@ async fn get_table_provider(
             state,
             ft,
             objects.into_iter().flatten().collect(),
-            /* predicate_pushdown */ true,
+            /* predicate_pushdown = */ true,
         )
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))
