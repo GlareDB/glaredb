@@ -1,9 +1,8 @@
-use crate::remote::broadcast::exchange_exec::ClientExchangeInputSendExec;
-
 use super::*;
 use uuid::Uuid;
 
-// TODO: Probably should be treated as solely physical.
+// TODO: Probably should be treated as solely physical. Currently some things
+// are left unimplemented since this node won't be sent through rpc.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ClientExchangeSend {
     pub broadcast_id: Uuid,
@@ -14,9 +13,9 @@ impl TryFrom<protogen::sqlexec::logical_plan::ClientExchangeSend> for ClientExch
     type Error = ProtoConvError;
 
     fn try_from(
-        proto: protogen::sqlexec::logical_plan::ClientExchangeSend,
+        _proto: protogen::sqlexec::logical_plan::ClientExchangeSend,
     ) -> Result<Self, Self::Error> {
-        unimplemented!()
+        unimplemented!("unknown semantics for deserializing client send")
     }
 }
 
@@ -30,8 +29,7 @@ impl UserDefinedLogicalNodeCore for ClientExchangeSend {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        // that's annoying
-        unimplemented!()
+        unimplemented!("unknown semantics for deserializing client send")
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

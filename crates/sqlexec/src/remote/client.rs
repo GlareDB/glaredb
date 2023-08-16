@@ -26,10 +26,7 @@ use tonic::{
 use url::Url;
 use uuid::Uuid;
 
-use super::{
-    broadcast::exchange_exec::ClientExchangeSendStream, exec::RemoteExecutionPlan,
-    table::RemoteTableProvider,
-};
+use super::{exec::RemoteExecutionPlan, table::RemoteTableProvider};
 
 const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 
@@ -376,7 +373,10 @@ impl RemoteSessionClient {
         Ok(resp)
     }
 
-    pub async fn broadcast_exchange(&mut self, stream: ClientExchangeSendStream) -> Result<()> {
+    pub async fn broadcast_exchange(
+        &mut self,
+        stream: impl tonic::IntoStreamingRequest<Message = service::BroadcastExchangeRequest>,
+    ) -> Result<()> {
         let _req = self.inner.client.broadcast_exchange(stream).await?;
         Ok(())
     }

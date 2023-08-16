@@ -1,6 +1,7 @@
 use crate::errors::{Result, RpcsrvError};
 use async_trait::async_trait;
 use dashmap::DashMap;
+use futures::{Stream, StreamExt};
 use protogen::gen::rpcsrv::service;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
 use protogen::rpcsrv::types::service::{
@@ -11,13 +12,15 @@ use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, Serv
 use proxyutil::metadata_constants::{
     COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{hash::Hash, time::Duration};
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
     Request, Response, Status, Streaming,
 };
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// Key used for the connections map.
@@ -224,11 +227,13 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         &self,
         request: Request<Streaming<service::BroadcastExchangeRequest>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
-        unimplemented!()
-        // let resp = self
-        //     .physical_plan_execute_inner(request.into_inner().try_into()?)
-        //     .await?;
-        // Ok(Response::new(Box::pin(resp)))
+        info!("broadcast exchange (proxy)");
+        let metadata = request.metadata();
+        let (_, mut client) = self.connect(metadata).await?;
+        let request = request.into_inner();
+        client
+            .broadcast_exchange(ProxiedRequestStream::new(request))
+            .await
     }
 
     async fn close_session(
@@ -238,5 +243,33 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         info!("close session (proxy)");
         let (_, mut client) = self.connect(request.metadata()).await?;
         client.close_session(request).await
+    }
+}
+
+/// Adapater stream for proxying streaming requests.
+struct ProxiedRequestStream<M> {
+    inner: Streaming<M>,
+}
+
+impl<M> ProxiedRequestStream<M> {
+    fn new(request: Streaming<M>) -> Self {
+        Self { inner: request }
+    }
+}
+
+impl<M> Stream for ProxiedRequestStream<M> {
+    type Item = M;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.inner.poll_next_unpin(cx) {
+            Poll::Ready(Some(Ok(m))) => Poll::Ready(Some(m)),
+            Poll::Ready(Some(Err(e))) => {
+                // Don't know what we want to do yet, so just log and close down
+                // the stream.
+                warn!(%e, "received error when proxying request stream");
+                Poll::Ready(None)
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }

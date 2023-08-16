@@ -12,7 +12,6 @@ use std::sync::Arc;
 
 use crate::planner::extension::ExtensionNode;
 use crate::planner::logical_plan::ClientExchangeSend;
-use crate::remote::broadcast::exchange_exec::ClientExchangeSendStream;
 
 use super::broadcast::exchange_exec::ClientExchangeInputSendExec;
 use super::client::RemoteSessionClient;
@@ -99,8 +98,8 @@ impl ExtensionPlanner for RemotePhysicalPlanner {
         &self,
         planner: &dyn PhysicalPlanner,
         node: &dyn UserDefinedLogicalNode,
-        logical_inputs: &[&DfLogicalPlan],
-        physical_inputs: &[Arc<dyn ExecutionPlan>],
+        _logical_inputs: &[&DfLogicalPlan],
+        _physical_inputs: &[Arc<dyn ExecutionPlan>],
         session_state: &SessionState,
     ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
         match node.name() {

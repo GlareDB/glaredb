@@ -10,7 +10,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::{SessionVars, VarSetter};
 use futures::{Stream, StreamExt};
 use protogen::{
-    gen::rpcsrv::service,
+    gen::rpcsrv::service::{self, BroadcastExchangeResponse},
     metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
         CloseSessionRequest, CloseSessionResponse, CreatePhysicalPlanRequest,
@@ -19,7 +19,10 @@ use protogen::{
         TableProviderResponse, TableProviderScanRequest,
     },
 };
-use sqlexec::engine::{Engine, SessionStorageConfig};
+use sqlexec::{
+    engine::{Engine, SessionStorageConfig},
+    remote::broadcast::exchange_exec::ClientExchangeRecvStream,
+};
 use std::{
     pin::Pin,
     sync::Arc,
@@ -168,6 +171,22 @@ impl RpcHandler {
         })
     }
 
+    async fn broadcast_exchange_inner(
+        &self,
+        req: Streaming<service::BroadcastExchangeRequest>,
+    ) -> Result<BroadcastExchangeResponse> {
+        let stream = ClientExchangeRecvStream::try_new(req).await?;
+        let session_id = stream.session_id();
+        let session = self.get_session(session_id)?;
+        info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
+
+        session.register_broadcast_stream(stream).await?;
+
+        // TODO: We might need to await here for stream completion.
+
+        Ok(BroadcastExchangeResponse {})
+    }
+
     fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
         info!(session_id=%req.session_id, "closing session");
         self.sessions.remove(&req.session_id);
@@ -251,12 +270,8 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<Streaming<service::BroadcastExchangeRequest>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
-        let stream = request.into_inner();
-        unimplemented!()
-        // let resp = self
-        //     .physical_plan_execute_inner(request.into_inner().try_into()?)
-        //     .await?;
-        // Ok(Response::new(Box::pin(resp)))
+        let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
+        Ok(Response::new(resp))
     }
 
     async fn close_session(

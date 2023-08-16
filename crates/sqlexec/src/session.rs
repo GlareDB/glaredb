@@ -7,6 +7,7 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::broadcast::exchange_exec::ClientExchangeRecvExec;
+use crate::remote::broadcast::staged_stream::{StagedClientStreams, StagedStreams};
 use crate::remote::client::RemoteSessionClient;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
@@ -34,7 +35,7 @@ use telemetry::Tracker;
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::Result;
+use crate::errors::{internal, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -275,6 +276,10 @@ impl Session {
         Ok(plan)
     }
 
+    pub fn staged_streams(&self) -> Result<&StagedClientStreams> {
+        self.ctx.staged_streams()
+    }
+
     pub async fn execute_extension(
         &mut self,
         extension: &Extension,
@@ -337,15 +342,9 @@ impl Session {
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             ExtensionType::ClientExchangeSend => {
-                let send = ClientExchangeSend::try_decode_extension(extension)?;
-
-                // need execution stream
-
-                // let stream = ClieEx
-                // self.ctx.exec_client().unwrap().broadcast_exchange(stream)
-                // TODO
-
-                unimplemented!()
+                return Err(internal!(
+                    "ClientExchangeSend is not a valid logical plan to deserialize" // yet
+                ));
             }
             ExtensionType::ClientExchangeRecv => {
                 let recv = ClientExchangeRecv::try_decode_extension(extension)?;

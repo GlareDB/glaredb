@@ -7,6 +7,7 @@ use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::engine::TrackedSession;
+use sqlexec::remote::broadcast::exchange_exec::ClientExchangeRecvStream;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -97,5 +98,12 @@ impl RemoteSession {
         let plan = session.get_physical_plan(&exec_id)?;
         let stream = session.execute_physical(plan)?;
         Ok(stream)
+    }
+
+    pub async fn register_broadcast_stream(&self, stream: ClientExchangeRecvStream) -> Result<()> {
+        let session = self.session.lock().await;
+        let streams = session.staged_streams()?;
+        streams.put_stream(stream.broadcast_id(), stream);
+        Ok(())
     }
 }

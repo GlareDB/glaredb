@@ -24,6 +24,7 @@ use std::io::Cursor;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{collections::VecDeque, sync::Arc};
+use tokio::sync::oneshot;
 use tonic::Streaming;
 use uuid::Uuid;
 
@@ -54,6 +55,10 @@ pub struct ClientExchangeRecvStream {
 
 impl ClientExchangeRecvStream {
     /// Try to create a new stream from a grpc stream.
+    ///
+    /// A oneshot receiver is returned allowing the caller to await until the
+    /// stream is complete. This is useful in the grpc handler to await stream
+    /// completion before returning a response.
     pub async fn try_new(
         mut input: Streaming<service::BroadcastExchangeRequest>,
     ) -> Result<ClientExchangeRecvStream> {
@@ -124,13 +129,17 @@ impl Stream for ClientExchangeRecvStream {
             return Poll::Ready(Some(batch));
         }
 
-        // Pull from stream
+        // Pull from stream.
+        //
+        // Trigger oneshot on error or fi the stream completes.
         match self.stream.poll_next_unpin(cx) {
             Poll::Ready(Some(req)) => match req {
                 Ok(req) => {
                     let batches = match Self::read_arrow_ipc(req.arrow_ipc) {
                         Ok(iter) => iter,
-                        Err(e) => return Poll::Ready(Some(Err(e))),
+                        Err(e) => {
+                            return Poll::Ready(Some(Err(e)));
+                        }
                     };
 
                     // Extend out buffer with batches from the ipc reader.
