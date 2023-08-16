@@ -259,20 +259,19 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
-        let is_main_instance = self
-            .ctx
-            .get_session_vars()
-            .remote_session_id
-            .value()
-            .is_none();
-        if is_main_instance {
-            if let DfLogicalPlan::Extension(extension) = &plan {
-                self.execute_extension(extension).await?;
-                return Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())));
-            };
+
+        // TODO!: these should be pushed down to physical execs,
+        // currently we need to early exit on extension nodes as we don't have a physical exec for them.
+        match plan {
+            DfLogicalPlan::Extension(ref extension) if self.is_main_instance() => {
+                let _exec_res = self.execute_extension(extension).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            plan => {
+                let plan = state.create_physical_plan(&plan).await?;
+                Ok(plan)
+            }
         }
-        let plan = state.create_physical_plan(&plan).await?;
-        Ok(plan)
     }
 
     pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {
@@ -667,6 +666,13 @@ impl Session {
         self.ctx
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
+    pub fn is_main_instance(&self) -> bool {
+        self.ctx
+            .get_session_vars()
+            .remote_session_id
+            .value()
+            .is_none()
+    }
 
     pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
         // Note that transaction support is fake, in that we don't currently do
@@ -680,9 +686,6 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-            LogicalPlan::Datafusion(DfLogicalPlan::Extension(ref extension)) => {
-                self.execute_extension(extension).await?
-            }
 
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;
