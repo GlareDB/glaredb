@@ -133,7 +133,10 @@ impl SessionContext {
 
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
-        let config: SessionConfig = config_opts.into();
+        let mut config: SessionConfig = config_opts.into();
+
+        // Add in custom extensions. These will be accessible during execution.
+        config = config.with_extension(Arc::new(StagedClientStreams::default()));
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.

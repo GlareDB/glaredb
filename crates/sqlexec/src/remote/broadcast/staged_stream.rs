@@ -1,5 +1,8 @@
+use futures::{Future, FutureExt};
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use crate::errors::{internal, Result};
 use parking_lot::Mutex;
@@ -26,10 +29,9 @@ enum PendingStream<S> {
 pub type StagedClientStreams = StagedStreams<ClientExchangeRecvStream>;
 
 /// Hold streams that pending for execution.
-#[derive(Clone)]
 pub struct StagedStreams<S> {
     /// Streams keyed by broadcast id.
-    streams: Arc<Mutex<HashMap<Uuid, PendingStream<S>>>>,
+    streams: Mutex<HashMap<Uuid, PendingStream<S>>>,
 }
 
 impl<S> StagedStreams<S> {
@@ -57,7 +59,7 @@ impl<S> StagedStreams<S> {
     /// Resolve a pending stream by id.
     ///
     /// This will wait until we have the stream available.
-    pub async fn resolve_pending_stream(&self, id: Uuid) -> Result<S> {
+    pub fn resolve_pending_stream(&self, id: Uuid) -> ResolveStreamFut<S> {
         // Happens in a block to properly scope the lock guard to ensure this
         // struct is `Send`.
         //
@@ -68,7 +70,9 @@ impl<S> StagedStreams<S> {
             // Handle case where we already have the stream.
             if let Some(pending) = streams.remove(&id) {
                 match pending {
-                    PendingStream::StreamArrivedFirst(stream) => return Ok(stream),
+                    PendingStream::StreamArrivedFirst(stream) => {
+                        return ResolveStreamFut::Immediate(Some(stream))
+                    }
                     PendingStream::WaitingForStream(_) => {
                         // Programmer bug.
                         panic!("attempted to resolve stream twice")
@@ -83,16 +87,37 @@ impl<S> StagedStreams<S> {
             rx
         };
 
-        let stream = rx.await.map_err(|_| internal!("stream sender dropped"))?;
-
-        Ok(stream)
+        ResolveStreamFut::Await(rx)
     }
 }
 
 impl<S> Default for StagedStreams<S> {
     fn default() -> Self {
         StagedStreams {
-            streams: Arc::new(Mutex::new(HashMap::new())),
+            streams: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+pub type ResolveClientStreamFut = ResolveStreamFut<ClientExchangeRecvStream>;
+
+/// Future for resolving a pending stream.
+pub enum ResolveStreamFut<S> {
+    /// Immediately resolve to the stream.
+    Immediate(Option<S>),
+    /// Need to poll for the stream.
+    Await(oneshot::Receiver<S>),
+}
+
+impl<S: Unpin> Future for ResolveStreamFut<S> {
+    type Output = Result<S>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match &mut *self {
+            Self::Immediate(s @ Some(_)) => Poll::Ready(Ok(s.take().unwrap())),
+            Self::Immediate(None) => panic!("future polled twice"),
+            Self::Await(rx) => rx
+                .poll_unpin(cx)
+                .map_err(|_| internal!("stream sender dropped")),
         }
     }
 }
@@ -113,7 +138,7 @@ mod tests {
 
     #[tokio::test]
     async fn server_executes_first() {
-        let staged = StagedStreams::<usize>::default();
+        let staged = Arc::new(StagedStreams::<usize>::default());
         let id = Uuid::new_v4();
 
         let cloned = staged.clone();
