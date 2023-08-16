@@ -54,51 +54,6 @@ pub struct CopyToDestinationOptionsS3 {
     pub location: String,
 }
 
-impl TryFrom<crate::metastore::types::options::CopyToDestinationOptions>
-    for CopyToDestinationOptions
-{
-    type Error = crate::errors::ProtoConvError;
-    fn try_from(
-        value: crate::metastore::types::options::CopyToDestinationOptions,
-    ) -> Result<Self, Self::Error> {
-        match value {
-            crate::metastore::types::options::CopyToDestinationOptions::Local(local) => {
-                Ok(CopyToDestinationOptions {
-                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::Local(
-                        CopyToDestinationOptionsLocal {
-                            location: local.location,
-                        },
-                    )),
-                })
-            }
-            crate::metastore::types::options::CopyToDestinationOptions::Gcs(gcs) => {
-                Ok(CopyToDestinationOptions {
-                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::Gcs(
-                        CopyToDestinationOptionsGcs {
-                            service_account_key: gcs.service_account_key,
-                            bucket: gcs.bucket,
-                            location: gcs.location,
-                        },
-                    )),
-                })
-            }
-            crate::metastore::types::options::CopyToDestinationOptions::S3(s3) => {
-                Ok(CopyToDestinationOptions {
-                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::S3(
-                        CopyToDestinationOptionsS3 {
-                            access_key_id: s3.access_key_id,
-                            secret_access_key: s3.secret_access_key,
-                            region: s3.region,
-                            bucket: s3.bucket,
-                            location: s3.location,
-                        },
-                    )),
-                })
-            }
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToFormatOptions {
     #[prost(oneof = "CopyToFormatOptionsEnum", tags = "1, 2, 3")]
@@ -165,6 +120,131 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
                     )),
                 })
             }
+        }
+    }
+}
+
+impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFormatOptions {
+    type Error = ProtoConvError;
+
+    fn try_from(value: CopyToFormatOptions) -> Result<Self, Self::Error> {
+        let value = value
+            .copy_to_format_options_enum
+            .ok_or(ProtoConvError::RequiredField(
+                "copy_to_format_options_enum".to_string(),
+            ))?;
+
+        match value {
+            CopyToFormatOptionsEnum::Csv(csv) => {
+                Ok(crate::metastore::types::options::CopyToFormatOptions::Csv(
+                    crate::metastore::types::options::CopyToFormatOptionsCsv {
+                        delim: csv.delim as u8,
+                        header: csv.header,
+                    },
+                ))
+            }
+            CopyToFormatOptionsEnum::Json(json) => {
+                Ok(crate::metastore::types::options::CopyToFormatOptions::Json(
+                    crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },
+                ))
+            }
+
+            CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
+                crate::metastore::types::options::CopyToFormatOptions::Parquet(
+                    crate::metastore::types::options::CopyToFormatOptionsParquet {
+                        row_group_size: parquet.row_group_size as usize,
+                    },
+                ),
+            ),
+        }
+    }
+}
+
+impl TryFrom<crate::metastore::types::options::CopyToDestinationOptions>
+    for CopyToDestinationOptions
+{
+    type Error = crate::errors::ProtoConvError;
+    fn try_from(
+        value: crate::metastore::types::options::CopyToDestinationOptions,
+    ) -> Result<Self, Self::Error> {
+        match value {
+            crate::metastore::types::options::CopyToDestinationOptions::Local(local) => {
+                Ok(CopyToDestinationOptions {
+                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::Local(
+                        CopyToDestinationOptionsLocal {
+                            location: local.location,
+                        },
+                    )),
+                })
+            }
+            crate::metastore::types::options::CopyToDestinationOptions::Gcs(gcs) => {
+                Ok(CopyToDestinationOptions {
+                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::Gcs(
+                        CopyToDestinationOptionsGcs {
+                            service_account_key: gcs.service_account_key,
+                            bucket: gcs.bucket,
+                            location: gcs.location,
+                        },
+                    )),
+                })
+            }
+            crate::metastore::types::options::CopyToDestinationOptions::S3(s3) => {
+                Ok(CopyToDestinationOptions {
+                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::S3(
+                        CopyToDestinationOptionsS3 {
+                            access_key_id: s3.access_key_id,
+                            secret_access_key: s3.secret_access_key,
+                            region: s3.region,
+                            bucket: s3.bucket,
+                            location: s3.location,
+                        },
+                    )),
+                })
+            }
+        }
+    }
+}
+
+impl TryFrom<CopyToDestinationOptions>
+    for crate::metastore::types::options::CopyToDestinationOptions
+{
+    type Error = ProtoConvError;
+
+    fn try_from(value: CopyToDestinationOptions) -> Result<Self, Self::Error> {
+        let value = value
+            .copy_to_destination_options_enum
+            .ok_or(ProtoConvError::RequiredField(
+                "copy_to_destination_options_enum".to_string(),
+            ))?;
+        match value {
+            CopyToDestinationOptionsEnum::Local(local) => Ok(
+                crate::metastore::types::options::CopyToDestinationOptions::Local(
+                    crate::metastore::types::options::CopyToDestinationOptionsLocal {
+                        location: local.location,
+                    },
+                ),
+            ),
+            CopyToDestinationOptionsEnum::Gcs(gcs) => Ok(
+                crate::metastore::types::options::CopyToDestinationOptions::Gcs(
+                    crate::metastore::types::options::CopyToDestinationOptionsGcs {
+                        service_account_key: gcs.service_account_key,
+                        bucket: gcs.bucket,
+                        location: gcs.location,
+                    },
+                ),
+            ),
+
+            CopyToDestinationOptionsEnum::S3(s3) => Ok(
+                crate::metastore::types::options::CopyToDestinationOptions::S3(
+                    crate::metastore::types::options::CopyToDestinationOptionsS3 {
+                        access_key_id: s3.access_key_id,
+                        secret_access_key: s3.secret_access_key,
+                        region: s3.region,
+                        bucket: s3.bucket,
+                        location: s3.location,
+                    },
+                ),
+            ),
         }
     }
 }
