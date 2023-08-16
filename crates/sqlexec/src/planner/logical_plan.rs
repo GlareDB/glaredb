@@ -60,8 +60,6 @@ static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
-    /// DDL plans.
-    Ddl(DdlPlan),
     /// Write plans.
     Write(WritePlan),
     /// Plans related to querying the underlying data store. This will run
@@ -224,37 +222,6 @@ impl std::fmt::Debug for Update {
             )
             .field("where_expr", &self.where_expr)
             .finish()
-    }
-}
-
-/// Data defintion logical plans.
-///
-/// Note that while datafusion has some support for DDL, it's very much focused
-/// on working with "external" data that won't be modified like parquet files.
-#[derive(Clone, Debug)]
-pub enum DdlPlan {
-    CreateExternalDatabase(CreateExternalDatabase),
-    CreateTunnel(CreateTunnel),
-    CreateCredentials(CreateCredentials),
-    CreateSchema(CreateSchema),
-    CreateTempTable(CreateTempTable),
-    CreateExternalTable(CreateExternalTable),
-    CreateTable(CreateTable),
-    CreateView(CreateView),
-    AlterTableRaname(AlterTableRename),
-    AlterDatabaseRename(AlterDatabaseRename),
-    AlterTunnelRotateKeys(AlterTunnelRotateKeys),
-    DropTables(DropTables),
-    DropViews(DropViews),
-    DropSchemas(DropSchemas),
-    DropDatabase(DropDatabase),
-    DropTunnel(DropTunnel),
-    DropCredentials(DropCredentials),
-}
-
-impl From<DdlPlan> for LogicalPlan {
-    fn from(plan: DdlPlan) -> Self {
-        LogicalPlan::Ddl(plan)
     }
 }
 

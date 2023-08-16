@@ -150,6 +150,34 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 drop_credentials.into_extension()
             }
+            PlanType::DropDatabase(drop_database) => {
+                let drop_database: plan::DropDatabase = drop_database
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_database.into_extension()
+            }
+            PlanType::DropSchemas(drop_schemas) => {
+                let drop_schemas: plan::DropSchemas = drop_schemas
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_schemas.into_extension()
+            }
+            PlanType::DropTunnel(drop_tunnel) => {
+                let drop_tunnel: plan::DropTunnel = drop_tunnel
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_tunnel.into_extension()
+            }
+            PlanType::DropViews(drop_views) => {
+                let drop_views: plan::DropViews = drop_views
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_views.into_extension()
+            }
         })
     }
 
@@ -198,6 +226,12 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::DropCredentials => {
                 plan::DropCredentials::try_encode_extension(node, buf, self)
             }
+            ExtensionType::DropDatabase => {
+                plan::DropDatabase::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::DropSchemas => plan::DropSchemas::try_encode_extension(node, buf, self),
+            ExtensionType::DropTunnel => plan::DropTunnel::try_encode_extension(node, buf, self),
+            ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())
