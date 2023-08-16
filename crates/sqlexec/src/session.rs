@@ -259,91 +259,111 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
-        let is_main_instance = self
-            .ctx
-            .get_session_vars()
-            .remote_session_id
-            .value()
-            .is_none();
-        if is_main_instance {
-            if let DfLogicalPlan::Extension(extension) = &plan {
-                return self.execute_extension(extension).await;
-            };
+
+        // TODO!: these should be pushed down to physical execs,
+        // currently we need to early exit on extension nodes as we don't have a physical exec for them.
+        match plan {
+            DfLogicalPlan::Extension(ref extension) if self.is_main_instance() => {
+                let _exec_res = self.execute_extension(extension).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            plan => {
+                let plan = state.create_physical_plan(&plan).await?;
+                Ok(plan)
+            }
         }
-        let plan = state.create_physical_plan(&plan).await?;
-        Ok(plan)
     }
 
-    pub async fn execute_extension(
-        &mut self,
-        extension: &Extension,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {
         let node = extension.node.name().parse::<ExtensionType>()?;
 
         match node {
             ExtensionType::CreateTable => {
                 let create_table = CreateTable::try_decode_extension(extension)?;
-                self.create_table(create_table).await
+                self.create_table(create_table).await?;
+                Ok(ExecutionResult::CreateTable)
             }
             ExtensionType::CreateExternalTable => {
                 let create_table = CreateExternalTable::try_decode_extension(extension)?;
                 self.create_external_table(create_table).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::CreateTable)
             }
             ExtensionType::CreateSchema => {
-                use datafusion::logical_expr::UserDefinedLogicalNodeCore;
                 let create_schema = CreateSchema::try_decode_extension(extension)?;
-                let schema = create_schema.schema().as_ref().clone();
                 self.create_schema(create_schema).await?;
-
-                Ok(Arc::new(EmptyExec::new(false, schema.into())))
+                Ok(ExecutionResult::CreateSchema)
             }
             ExtensionType::DropTables => {
                 let drop_tables = DropTables::try_decode_extension(extension)?;
                 self.drop_tables(drop_tables).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::DropTables)
             }
             ExtensionType::AlterTableRename => {
                 let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
                 self.alter_table_rename(alter_table_rename).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::AlterTableRename)
             }
             ExtensionType::AlterDatabaseRename => {
                 let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
                 self.alter_database_rename(alter_database_rename).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::AlterDatabaseRename)
             }
             ExtensionType::AlterTunnelRotateKeys => {
                 let alter_tunnel_rotate_keys =
                     AlterTunnelRotateKeys::try_decode_extension(extension)?;
                 self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
                     .await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::AlterTunnelRotateKeys)
             }
             ExtensionType::CreateCredentials => {
                 let create_credentials = CreateCredentials::try_decode_extension(extension)?;
                 self.create_credentials(create_credentials).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::CreateCredentials)
             }
             ExtensionType::CreateExternalDatabase => {
                 let create_database = CreateExternalDatabase::try_decode_extension(extension)?;
                 self.create_database(create_database).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::CreateDatabase)
             }
             ExtensionType::CreateTunnel => {
                 let create_tunnel = CreateTunnel::try_decode_extension(extension)?;
                 self.create_tunnel(create_tunnel).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::CreateTunnel)
             }
             ExtensionType::CreateTempTable => {
                 let create_temp_table = CreateTempTable::try_decode_extension(extension)?;
                 self.create_temp_table(create_temp_table).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::CreateTable)
             }
             ExtensionType::CreateView => {
                 let create_view = CreateView::try_decode_extension(extension)?;
                 self.create_view(create_view).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::CreateView)
+            }
+            ExtensionType::DropCredentials => {
+                let drop_credentials = DropCredentials::try_decode_extension(extension)?;
+                self.drop_credentials(drop_credentials).await?;
+                Ok(ExecutionResult::DropCredentials)
+            }
+            ExtensionType::DropDatabase => {
+                let drop_database = DropDatabase::try_decode_extension(extension)?;
+                self.drop_database(drop_database).await?;
+                Ok(ExecutionResult::DropDatabase)
+            }
+            ExtensionType::DropSchemas => {
+                let drop_schemas = DropSchemas::try_decode_extension(extension)?;
+                self.drop_schemas(drop_schemas).await?;
+                Ok(ExecutionResult::DropSchemas)
+            }
+            ExtensionType::DropTunnel => {
+                let drop_tunnel = DropTunnel::try_decode_extension(extension)?;
+                self.drop_tunnel(drop_tunnel).await?;
+                Ok(ExecutionResult::DropTunnel)
+            }
+            ExtensionType::DropViews => {
+                let drop_views = DropViews::try_decode_extension(extension)?;
+                self.drop_views(drop_views).await?;
+                Ok(ExecutionResult::DropViews)
             }
         }
     }
@@ -646,6 +666,13 @@ impl Session {
         self.ctx
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
+    pub fn is_main_instance(&self) -> bool {
+        self.ctx
+            .get_session_vars()
+            .remote_session_id
+            .value()
+            .is_none()
+    }
 
     pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
         // Note that transaction support is fake, in that we don't currently do
@@ -659,74 +686,7 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-            LogicalPlan::Ddl(DdlPlan::CreateTable(plan)) => {
-                self.create_table(plan).await?;
-                ExecutionResult::CreateTable
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateTempTable(plan)) => {
-                self.create_temp_table(plan).await?;
-                ExecutionResult::CreateTable
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateExternalTable(plan)) => {
-                self.create_external_table(plan).await?;
-                ExecutionResult::CreateTable
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateExternalDatabase(plan)) => {
-                self.create_database(plan).await?;
-                ExecutionResult::CreateDatabase
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateTunnel(plan)) => {
-                self.create_tunnel(plan).await?;
-                ExecutionResult::CreateTunnel
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateCredentials(plan)) => {
-                self.create_credentials(plan).await?;
-                ExecutionResult::CreateCredentials
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateSchema(plan)) => {
-                self.create_schema(plan).await?;
-                ExecutionResult::CreateSchema
-            }
-            LogicalPlan::Ddl(DdlPlan::CreateView(plan)) => {
-                self.create_view(plan).await?;
-                ExecutionResult::CreateView
-            }
-            LogicalPlan::Ddl(DdlPlan::AlterTableRaname(plan)) => {
-                self.alter_table_rename(plan).await?;
-                ExecutionResult::AlterTableRename
-            }
-            LogicalPlan::Ddl(DdlPlan::AlterDatabaseRename(plan)) => {
-                self.alter_database_rename(plan).await?;
-                ExecutionResult::AlterDatabaseRename
-            }
-            LogicalPlan::Ddl(DdlPlan::AlterTunnelRotateKeys(plan)) => {
-                self.alter_tunnel_rotate_keys(plan).await?;
-                ExecutionResult::AlterTunnelRotateKeys
-            }
-            LogicalPlan::Ddl(DdlPlan::DropTables(plan)) => {
-                self.drop_tables(plan).await?;
-                ExecutionResult::DropTables
-            }
-            LogicalPlan::Ddl(DdlPlan::DropViews(plan)) => {
-                self.drop_views(plan).await?;
-                ExecutionResult::DropViews
-            }
-            LogicalPlan::Ddl(DdlPlan::DropSchemas(plan)) => {
-                self.drop_schemas(plan).await?;
-                ExecutionResult::DropSchemas
-            }
-            LogicalPlan::Ddl(DdlPlan::DropDatabase(plan)) => {
-                self.drop_database(plan).await?;
-                ExecutionResult::DropDatabase
-            }
-            LogicalPlan::Ddl(DdlPlan::DropTunnel(plan)) => {
-                self.drop_tunnel(plan).await?;
-                ExecutionResult::DropTunnel
-            }
-            LogicalPlan::Ddl(DdlPlan::DropCredentials(plan)) => {
-                self.drop_credentials(plan).await?;
-                ExecutionResult::DropCredentials
-            }
+
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;
                 ExecutionResult::WriteSuccess
