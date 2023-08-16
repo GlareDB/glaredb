@@ -365,31 +365,6 @@ impl Session {
                 self.drop_views(drop_views).await?;
                 Ok(ExecutionResult::DropViews)
             }
-            ExtensionType::DropCredentials => {
-                let drop_credentials = DropCredentials::try_decode_extension(extension)?;
-                self.drop_credentials(drop_credentials).await?;
-                Ok(ExecutionResult::DropCredentials)
-            }
-            ExtensionType::DropDatabase => {
-                let drop_database = DropDatabase::try_decode_extension(extension)?;
-                self.drop_database(drop_database).await?;
-                Ok(ExecutionResult::DropDatabase)
-            }
-            ExtensionType::DropSchemas => {
-                let drop_schemas = DropSchemas::try_decode_extension(extension)?;
-                self.drop_schemas(drop_schemas).await?;
-                Ok(ExecutionResult::DropSchemas)
-            }
-            ExtensionType::DropTunnel => {
-                let drop_tunnel = DropTunnel::try_decode_extension(extension)?;
-                self.drop_tunnel(drop_tunnel).await?;
-                Ok(ExecutionResult::DropTunnel)
-            }
-            ExtensionType::DropViews => {
-                let drop_views = DropViews::try_decode_extension(extension)?;
-                self.drop_views(drop_views).await?;
-                Ok(ExecutionResult::DropViews)
-            }
             ExtensionType::SetVariable => {
                 let set_variable = SetVariable::try_decode_extension(extension)?;
                 self.set_variable(set_variable)?;
