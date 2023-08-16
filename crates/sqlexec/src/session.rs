@@ -335,6 +335,16 @@ impl Session {
                 self.create_tunnel(create_tunnel).await?;
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
+            ExtensionType::CreateTempTable => {
+                let create_temp_table = CreateTempTable::try_decode_extension(extension)?;
+                self.create_temp_table(create_temp_table).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
+            ExtensionType::CreateView => {
+                let create_view = CreateView::try_decode_extension(extension)?;
+                self.create_view(create_view).await?;
+                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+            }
         }
     }
 

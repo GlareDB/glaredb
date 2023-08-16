@@ -1,12 +1,12 @@
 use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-
 pub struct CreateTunnel {
     pub name: String,
     pub if_not_exists: bool,
     pub options: TunnelOptions,
 }
+
 impl TryFrom<protogen::gen::metastore::service::CreateTunnel> for CreateTunnel {
     type Error = ProtoConvError;
     fn try_from(

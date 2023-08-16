@@ -725,13 +725,17 @@ impl<'a> SessionPlanner<'a> {
                         TableReference::Bare { table } => table.into_owned(),
                         _ => return Err(internal!("cannot specify schema with temporary tables")),
                     };
-                    Ok(DdlPlan::CreateTempTable(CreateTempTable {
+                    let df_schema = Schema::new(arrow_cols.clone());
+                    let df_schema = df_schema.to_dfschema_ref()?;
+
+                    let plan = CreateTempTable {
                         table_name,
-                        columns: arrow_cols,
+                        schema: df_schema,
                         if_not_exists,
                         source,
-                    })
-                    .into())
+                    };
+
+                    Ok(plan.into_logical_plan())
                 } else {
                     let df_schema = Schema::new(arrow_cols.clone());
                     let df_schema = df_schema.to_dfschema_ref()?;
