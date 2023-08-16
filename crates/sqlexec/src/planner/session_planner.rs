@@ -945,7 +945,7 @@ impl<'a> SessionPlanner<'a> {
 
             // "SHOW ..."
             //
-            // Show the value of a variable.  i
+            // Show the value of a variable.
             ast::Statement::ShowVariable { variable } => {
                 // Normalize variables
                 let mut variable: Vec<_> = variable.into_iter().map(normalize_ident).collect();
