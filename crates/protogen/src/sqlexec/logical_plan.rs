@@ -140,7 +140,7 @@ pub struct SetVariable {
 pub struct LogicalPlanExtension {
     #[prost(
         oneof = "LogicalPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19"
     )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
@@ -184,6 +184,8 @@ pub enum LogicalPlanExtensionType {
     DropViews(DropViews),
     #[prost(message, tag = "18")]
     SetVariable(SetVariable),
+    #[prost(message, tag = "19")]
+    CopyTo(CopyTo),
 }
 
 // -----
