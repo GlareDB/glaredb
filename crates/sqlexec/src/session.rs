@@ -33,7 +33,7 @@ use telemetry::Tracker;
 use crate::background_jobs::JobRunner;
 use crate::context::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
-use crate::errors::Result;
+use crate::errors::{internal, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -371,7 +371,7 @@ impl Session {
                 self.set_variable(set_variable)?;
                 Ok(ExecutionResult::SetLocal)
             }
-            other => todo!(),
+            other => Err(internal!("Unsupported extension node type: {:?}", other)),
         }
     }
 

@@ -22,6 +22,7 @@ use super::logical_plan::{
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
 ///
 /// This should match all of the variants expressed in `protogen::sqlexec::logical_plan::LogicalPlanExtension`
+#[derive(Debug)]
 pub enum ExtensionType {
     AlterDatabaseRename,
     AlterTableRename,
