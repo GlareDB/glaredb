@@ -506,7 +506,7 @@ fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field>
         FieldType::Timestamp => DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
         FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),
         FieldType::Numeric => DataType::Decimal128(38, 9),
-        FieldType::Bignumeric => DataType::Decimal256(76, 9),
+        FieldType::Bignumeric => DataType::Decimal256(76, 38),
         FieldType::Geography => DataType::Utf8,
         FieldType::Record | FieldType::Struct => {
             let mut record: Vec<Field> = Vec::new();
