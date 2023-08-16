@@ -1334,7 +1334,6 @@ impl<'a> SessionPlanner<'a> {
                 source: Box::new(e),
             }
         })?;
-
         Ok(WritePlan::CopyTo(CopyTo {
             source,
             dest,

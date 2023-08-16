@@ -7,26 +7,6 @@ pub struct CreateView {
     pub or_replace: bool,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::CreateView> for CreateView {
-    type Error = ProtoConvError;
-
-    fn try_from(value: protogen::sqlexec::logical_plan::CreateView) -> Result<Self, Self::Error> {
-        let view_name = value
-            .view_name
-            .ok_or(ProtoConvError::RequiredField(
-                "view_name is required".to_string(),
-            ))?
-            .try_into()?;
-
-        Ok(CreateView {
-            view_name,
-            sql: value.sql,
-            columns: value.columns,
-            or_replace: value.or_replace,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for CreateView {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -58,8 +38,28 @@ impl UserDefinedLogicalNodeCore for CreateView {
 }
 
 impl ExtensionNode for CreateView {
+    type ProtoRepr = protogen::sqlexec::logical_plan::CreateView;
     const EXTENSION_NAME: &'static str = "CreateView";
 
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let view_name = proto
+            .view_name
+            .ok_or(ProtoConvError::RequiredField(
+                "view_name is required".to_string(),
+            ))?
+            .try_into()?;
+
+        Ok(CreateView {
+            view_name,
+            sql: proto.sql,
+            columns: proto.columns,
+            or_replace: proto.or_replace,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

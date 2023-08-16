@@ -5,16 +5,6 @@ pub struct DropTunnel {
     pub if_exists: bool,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::DropTunnel> for DropTunnel {
-    type Error = ProtoConvError;
-    fn try_from(value: protogen::sqlexec::logical_plan::DropTunnel) -> Result<Self, Self::Error> {
-        Ok(Self {
-            names: value.names,
-            if_exists: value.if_exists,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for DropTunnel {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -46,7 +36,18 @@ impl UserDefinedLogicalNodeCore for DropTunnel {
 }
 
 impl ExtensionNode for DropTunnel {
+    type ProtoRepr = protogen::sqlexec::logical_plan::DropTunnel;
     const EXTENSION_NAME: &'static str = "DropTunnel";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        Ok(Self {
+            names: proto.names,
+            if_exists: proto.if_exists,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

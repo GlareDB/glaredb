@@ -1,3 +1,5 @@
+use datafusion::prelude::SessionContext;
+
 use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -6,38 +8,6 @@ pub struct CreateTable {
     pub if_not_exists: bool,
     pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
-}
-
-impl TryFrom<protogen::sqlexec::logical_plan::CreateTable> for CreateTable {
-    type Error = ProtoConvError;
-
-    fn try_from(proto: protogen::sqlexec::logical_plan::CreateTable) -> Result<Self, Self::Error> {
-        let table_name = proto
-            .table_name
-            .ok_or(ProtoConvError::RequiredField(
-                "table_name is required".to_string(),
-            ))?
-            .try_into()?;
-        let schema = proto
-            .schema
-            .ok_or(ProtoConvError::RequiredField(
-                "schema name is required".to_string(),
-            ))?
-            .try_into()?;
-
-        if proto.source.is_some() {
-            return Err(ProtoConvError::UnsupportedSerialization(
-                "source is in create table not yet supported",
-            ));
-        }
-
-        Ok(Self {
-            table_name,
-            if_not_exists: proto.if_not_exists,
-            schema,
-            source: None,
-        })
-    }
 }
 
 impl UserDefinedLogicalNodeCore for CreateTable {
@@ -74,8 +44,39 @@ impl UserDefinedLogicalNodeCore for CreateTable {
 }
 
 impl ExtensionNode for CreateTable {
+    type ProtoRepr = protogen::sqlexec::logical_plan::CreateTable;
     const EXTENSION_NAME: &'static str = "CreateTable";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        ctx: &SessionContext,
+        codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let table_name = proto
+            .table_name
+            .ok_or(ProtoConvError::RequiredField(
+                "table_name is required".to_string(),
+            ))?
+            .try_into()?;
+        let schema = proto
+            .schema
+            .ok_or(ProtoConvError::RequiredField(
+                "schema name is required".to_string(),
+            ))?
+            .try_into()?;
 
+        let source = proto
+            .source
+            .map(|src| src.try_into_logical_plan(ctx, codec))
+            .transpose()
+            .map_err(ProtoConvError::DataFusionError)?;
+
+        Ok(Self {
+            table_name,
+            if_not_exists: proto.if_not_exists,
+            schema,
+            source,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
