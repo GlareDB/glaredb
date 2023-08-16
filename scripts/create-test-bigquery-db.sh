@@ -27,9 +27,9 @@ $BQ mk --force --dataset "$BQ_DATASET" 1>&2
 # Entries of the format:
 #     <table name>:<csv file path>:<json schema path>
 TABLES_TO_LOAD=(
-	"datatypes:testdata/sqllogictests_bigquery/data/datatypes-data.csv:testdata/sqllogictests_bigquery/data/datatypes-schema.json"
-	"bikeshare_stations:testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv:testdata/sqllogictests_datasources_common/data/bikeshare_stations-bq-schema.json"
-	"bikeshare_trips:testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv:testdata/sqllogictests_datasources_common/data/bikeshare_trips-bq-schema.json"
+	"datatypes:testdata/sqllogictests_bigquery/data/datatypes-data.json:testdata/sqllogictests_bigquery/data/datatypes-schema.json:NEWLINE_DELIMITED_JSON"
+	"bikeshare_stations:testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv:testdata/sqllogictests_datasources_common/data/bikeshare_stations-bq-schema.json:CSV"
+	#"bikeshare_trips:testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv:testdata/sqllogictests_datasources_common/data/bikeshare_trips-bq-schema.json:CSV"
 )
 for TABLE_INFO in "${TABLES_TO_LOAD[@]}"; do
 	# Create all the tables from their schema represented as JSON.
@@ -37,12 +37,19 @@ for TABLE_INFO in "${TABLES_TO_LOAD[@]}"; do
 	TABLE=$(echo "$TABLE_INFO" | cut -d ':' -f1)
 	DATA_FILE=$(echo "$TABLE_INFO" | cut -d ':' -f2)
 	SCHEMA_FILE=$(echo "$TABLE_INFO" | cut -d ':' -f3)
+	DATA_FILE_TYPE=$(echo "$TABLE_INFO" | cut -d ':' -f4)
+	SKIP_LEADING_ROWS=""
+
+	if [ "$DATA_FILE_TYPE" == "CSV" ]
+	then
+		SKIP_LEADING_ROWS="--skip_leading_rows=1"
+	fi
 
 	echo "Uploading table '$TABLE' from '$DATA_FILE' using schema from '$SCHEMA_FILE'" 1>&2
 
 	$BQ load --replace \
-	  --source_format=CSV \
-	  --skip_leading_rows=1 \
+	  --source_format=${DATA_FILE_TYPE} \
+	  ${SKIP_LEADING_ROWS} \
 		"${BQ_DATASET}.${TABLE}" \
 		"$DATA_FILE" \
 		"$SCHEMA_FILE" 1>&2
