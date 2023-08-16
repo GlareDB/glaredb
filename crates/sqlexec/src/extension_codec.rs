@@ -150,7 +150,6 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 drop_credentials.into_extension()
             }
-<<<<<<< HEAD
             PlanType::DropDatabase(drop_database) => {
                 let drop_database: plan::DropDatabase = drop_database
                     .try_into()
@@ -179,8 +178,6 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 drop_views.into_extension()
             }
-=======
->>>>>>> 6dc89c6 (wip)
         })
     }
 

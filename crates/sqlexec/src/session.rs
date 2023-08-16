@@ -368,7 +368,27 @@ impl Session {
             ExtensionType::DropCredentials => {
                 let drop_credentials = DropCredentials::try_decode_extension(extension)?;
                 self.drop_credentials(drop_credentials).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
+                Ok(ExecutionResult::DropCredentials)
+            }
+            ExtensionType::DropDatabase => {
+                let drop_database = DropDatabase::try_decode_extension(extension)?;
+                self.drop_database(drop_database).await?;
+                Ok(ExecutionResult::DropDatabase)
+            }
+            ExtensionType::DropSchemas => {
+                let drop_schemas = DropSchemas::try_decode_extension(extension)?;
+                self.drop_schemas(drop_schemas).await?;
+                Ok(ExecutionResult::DropSchemas)
+            }
+            ExtensionType::DropTunnel => {
+                let drop_tunnel = DropTunnel::try_decode_extension(extension)?;
+                self.drop_tunnel(drop_tunnel).await?;
+                Ok(ExecutionResult::DropTunnel)
+            }
+            ExtensionType::DropViews => {
+                let drop_views = DropViews::try_decode_extension(extension)?;
+                self.drop_views(drop_views).await?;
+                Ok(ExecutionResult::DropViews)
             }
         }
     }
@@ -691,7 +711,6 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-
             LogicalPlan::Write(WritePlan::Insert(plan)) => {
                 self.insert_into(plan).await?;
                 ExecutionResult::WriteSuccess
