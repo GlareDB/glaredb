@@ -7,20 +7,6 @@ pub struct AlterTunnelRotateKeys {
     pub new_ssh_key: Vec<u8>,
 }
 
-impl TryFrom<protogen::gen::metastore::service::AlterTunnelRotateKeys> for AlterTunnelRotateKeys {
-    type Error = ProtoConvError;
-
-    fn try_from(
-        proto: protogen::gen::metastore::service::AlterTunnelRotateKeys,
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            name: proto.name,
-            if_exists: proto.if_exists,
-            new_ssh_key: proto.new_ssh_key,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for AlterTunnelRotateKeys {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -52,8 +38,19 @@ impl UserDefinedLogicalNodeCore for AlterTunnelRotateKeys {
 }
 
 impl ExtensionNode for AlterTunnelRotateKeys {
+    type ProtoRepr = protogen::gen::metastore::service::AlterTunnelRotateKeys;
     const EXTENSION_NAME: &'static str = "AlterTunnelRotateKeys";
-
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        Ok(Self {
+            name: proto.name,
+            if_exists: proto.if_exists,
+            new_ssh_key: proto.new_ssh_key,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

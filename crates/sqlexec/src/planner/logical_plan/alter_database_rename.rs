@@ -1,22 +1,11 @@
+use datafusion::prelude::SessionContext;
+
 use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct AlterDatabaseRename {
     pub name: String,
     pub new_name: String,
-}
-
-impl TryFrom<protogen::gen::metastore::service::AlterDatabaseRename> for AlterDatabaseRename {
-    type Error = ProtoConvError;
-
-    fn try_from(
-        proto: protogen::gen::metastore::service::AlterDatabaseRename,
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            name: proto.name,
-            new_name: proto.new_name,
-        })
-    }
 }
 
 impl UserDefinedLogicalNodeCore for AlterDatabaseRename {
@@ -50,8 +39,18 @@ impl UserDefinedLogicalNodeCore for AlterDatabaseRename {
 }
 
 impl ExtensionNode for AlterDatabaseRename {
+    type ProtoRepr = protogen::gen::metastore::service::AlterDatabaseRename;
     const EXTENSION_NAME: &'static str = "AlterDatabaseRename";
-
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        Ok(Self {
+            name: proto.name,
+            new_name: proto.new_name,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

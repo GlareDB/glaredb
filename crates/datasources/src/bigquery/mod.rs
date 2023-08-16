@@ -10,8 +10,8 @@ use bigquery_storage::yup_oauth2::{
     ServiceAccountAuthenticator,
 };
 use bigquery_storage::{BufferedArrowIpcReader, Client};
-use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::{datatypes::Fields, ipc::reader::StreamReader as ArrowStreamReader};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -31,6 +31,7 @@ use datafusion::{
 };
 use errors::{BigQueryError, Result};
 use futures::{Stream, StreamExt};
+use gcp_bigquery_client::model::table_field_schema::TableFieldSchema as BigQuerySchema;
 use gcp_bigquery_client::Client as BigQueryClient;
 use gcp_bigquery_client::{
     dataset,
@@ -476,35 +477,65 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
         .ok_or(BigQueryError::UnknownFieldsForTable)?;
 
     let mut arrow_fields = Vec::with_capacity(fields.len());
+    for field in fields {
+        let mode = field.mode.clone();
+        let resolved_field = if let Some(mode) = mode {
+            if mode == *"REPEATED" {
+                handle_repeatable_fields(field)?
+            } else {
+                table_field_schema_to_arrow_datatype(field)?
+            }
+        } else {
+            table_field_schema_to_arrow_datatype(field)?
+        };
+        arrow_fields.push(resolved_field);
+    }
+    Ok(ArrowSchema::new(arrow_fields))
+}
+
+fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field> {
     // See <https://cloud.google.com/bigquery/docs/reference/storage#arrow_schema_details>
     // for how BigQuery types map to Arrow types.
-    for field in fields {
-        let arrow_typ = match &field.r#type {
-            FieldType::Bool | FieldType::Boolean => DataType::Boolean,
-            FieldType::String => DataType::Utf8,
-            FieldType::Integer | FieldType::Int64 => DataType::Int64,
-            FieldType::Float | FieldType::Float64 => DataType::Float64,
-            FieldType::Bytes => DataType::Binary,
-            FieldType::Date => DataType::Date32,
-            // BigQuery actually returns times with microsecond precision. We
-            // aim to work only with nanoseconds to have uniformity accross the
-            // codebase. It's also easier to have interop with datafusion since
-            // with many things like type inference datafusion uses nanosecond.
-            // This cast is done when the stream is received by using the
-            // `crate::common::util::normalize_batch` function.
-            FieldType::Datetime => DataType::Timestamp(TimeUnit::Nanosecond, None),
-            FieldType::Timestamp => DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
-            FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),
-            FieldType::Numeric => DataType::Decimal128(38, 9),
-            FieldType::Geography => DataType::Utf8,
-            other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
-        };
+    let arrow_typ = match &field.r#type {
+        FieldType::Bool | FieldType::Boolean => DataType::Boolean,
+        FieldType::String => DataType::Utf8,
+        FieldType::Integer | FieldType::Int64 => DataType::Int64,
+        FieldType::Float | FieldType::Float64 => DataType::Float64,
+        FieldType::Bytes => DataType::Binary,
+        FieldType::Date => DataType::Date32,
+        // BigQuery actually returns times with microsecond precision. We
+        // aim to work only with nanoseconds to have uniformity accross the
+        // codebase. It's also easier to have interop with datafusion since
+        // with many things like type inference datafusion uses nanosecond.
+        // This cast is done when the stream is received by using the
+        // `crate::common::util::normalize_batch` function.
+        FieldType::Datetime => DataType::Timestamp(TimeUnit::Nanosecond, None),
+        FieldType::Timestamp => DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+        FieldType::Time => DataType::Time64(TimeUnit::Nanosecond),
+        FieldType::Numeric => DataType::Decimal128(38, 9),
+        FieldType::Bignumeric => DataType::Decimal256(76, 38),
+        FieldType::Geography => DataType::Utf8,
+        FieldType::Record | FieldType::Struct => {
+            let mut record: Vec<Field> = Vec::new();
+            let fields = field.fields.clone();
+            if let Some(fields) = fields {
+                for field in fields.iter() {
+                    let resolved_field = table_field_schema_to_arrow_datatype(field);
+                    if let Ok(resolved_field) = resolved_field {
+                        record.push(resolved_field);
+                    }
+                }
+            }
+            DataType::Struct(Fields::from(record))
+        }
+        other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
+    };
+    Ok(Field::new(&field.name, arrow_typ, true))
+}
 
-        let field = Field::new(&field.name, arrow_typ, true);
-        arrow_fields.push(field);
-    }
-
-    Ok(ArrowSchema::new(arrow_fields))
+fn handle_repeatable_fields(field: &BigQuerySchema) -> Result<Field> {
+    let arrow_typ = DataType::List(Arc::new(table_field_schema_to_arrow_datatype(field)?));
+    Ok(Field::new(&field.name, arrow_typ, true))
 }
 
 /// Convert filtering expressions to a predicate string usable with BigQuery's

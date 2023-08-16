@@ -10,25 +10,6 @@ pub struct CreateExternalDatabase {
     pub tunnel: Option<String>,
 }
 
-impl TryFrom<protogen::gen::metastore::service::CreateExternalDatabase> for CreateExternalDatabase {
-    type Error = ProtoConvError;
-
-    fn try_from(
-        value: protogen::gen::metastore::service::CreateExternalDatabase,
-    ) -> Result<Self, Self::Error> {
-        let database_name = value.name;
-        let if_not_exists = value.if_not_exists;
-        let options = value.options.required("options")?;
-
-        Ok(Self {
-            database_name,
-            if_not_exists,
-            options,
-            tunnel: value.tunnel,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for CreateExternalDatabase {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -60,7 +41,24 @@ impl UserDefinedLogicalNodeCore for CreateExternalDatabase {
 }
 
 impl ExtensionNode for CreateExternalDatabase {
+    type ProtoRepr = protogen::gen::metastore::service::CreateExternalDatabase;
     const EXTENSION_NAME: &'static str = "CreateExternalDatabase";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let database_name = proto.name;
+        let if_not_exists = proto.if_not_exists;
+        let options = proto.options.required("options")?;
+
+        Ok(Self {
+            database_name,
+            if_not_exists,
+            options,
+            tunnel: proto.tunnel,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

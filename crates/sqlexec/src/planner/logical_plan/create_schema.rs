@@ -6,24 +6,6 @@ pub struct CreateSchema {
     pub if_not_exists: bool,
 }
 
-impl TryFrom<protogen::sqlexec::logical_plan::CreateSchema> for CreateSchema {
-    type Error = ProtoConvError;
-
-    fn try_from(proto: protogen::sqlexec::logical_plan::CreateSchema) -> Result<Self, Self::Error> {
-        let schema_name = proto
-            .schema_name
-            .ok_or(ProtoConvError::RequiredField(
-                "schema name is required".to_string(),
-            ))?
-            .try_into()?;
-
-        Ok(Self {
-            schema_name,
-            if_not_exists: proto.if_not_exists,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for CreateSchema {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -55,7 +37,25 @@ impl UserDefinedLogicalNodeCore for CreateSchema {
 }
 
 impl ExtensionNode for CreateSchema {
+    type ProtoRepr = protogen::sqlexec::logical_plan::CreateSchema;
     const EXTENSION_NAME: &'static str = "CreateSchema";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let schema_name = proto
+            .schema_name
+            .ok_or(ProtoConvError::RequiredField(
+                "schema name is required".to_string(),
+            ))?
+            .try_into()?;
+
+        Ok(Self {
+            schema_name,
+            if_not_exists: proto.if_not_exists,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

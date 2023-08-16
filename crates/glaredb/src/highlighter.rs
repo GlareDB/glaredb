@@ -13,7 +13,7 @@ pub(crate) struct SQLHighlighter;
 pub(crate) struct SQLValidator;
 impl Validator for SQLValidator {
     fn validate(&self, line: &str) -> reedline::ValidationResult {
-        if line.trim_end().ends_with(';') || is_client_cmd(line) {
+        if line.trim().is_empty() || line.trim_end().ends_with(';') || is_client_cmd(line) {
             reedline::ValidationResult::Complete
         } else {
             reedline::ValidationResult::Incomplete
@@ -108,11 +108,16 @@ fn colorize_sql(query: &str, st: &mut StyledText) -> std::io::Result<()> {
                 | Keyword::INSERT
                 | Keyword::INTO
                 | Keyword::DATABASE
+                | Keyword::DROP
+                | Keyword::CREDENTIALS
+                | Keyword::OPTIONS
                 | Keyword::VALUES => {
                     st.push((Style::new().fg(Color::LightGreen), format!("{w}")));
                 }
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
-                    "TUNNEL" => st.push((Style::new().fg(Color::LightGreen), format!("{w}"))),
+                    "TUNNEL" | "PROVIDER" => {
+                        st.push((Style::new().fg(Color::LightGreen), format!("{w}")))
+                    }
                     _ => st.push((Style::new(), format!("{w}"))),
                 },
                 // TODO: add more keywords

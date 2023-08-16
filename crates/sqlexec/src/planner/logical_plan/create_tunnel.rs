@@ -1,27 +1,10 @@
 use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-
 pub struct CreateTunnel {
     pub name: String,
     pub if_not_exists: bool,
     pub options: TunnelOptions,
-}
-impl TryFrom<protogen::gen::metastore::service::CreateTunnel> for CreateTunnel {
-    type Error = ProtoConvError;
-    fn try_from(
-        value: protogen::gen::metastore::service::CreateTunnel,
-    ) -> Result<Self, Self::Error> {
-        let options = value
-            .options
-            .ok_or(ProtoConvError::RequiredField("options".to_string()))?;
-
-        Ok(Self {
-            name: value.name,
-            if_not_exists: value.if_not_exists,
-            options: options.try_into()?,
-        })
-    }
 }
 
 impl UserDefinedLogicalNodeCore for CreateTunnel {
@@ -55,7 +38,23 @@ impl UserDefinedLogicalNodeCore for CreateTunnel {
 }
 
 impl ExtensionNode for CreateTunnel {
+    type ProtoRepr = protogen::gen::metastore::service::CreateTunnel;
     const EXTENSION_NAME: &'static str = "CreateTunnel";
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let options = proto
+            .options
+            .ok_or(ProtoConvError::RequiredField("options".to_string()))?;
+
+        Ok(Self {
+            name: proto.name,
+            if_not_exists: proto.if_not_exists,
+            options: options.try_into()?,
+        })
+    }
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),

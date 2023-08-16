@@ -6,23 +6,6 @@ pub struct CreateCredentials {
     pub comment: String,
 }
 
-impl TryFrom<protogen::gen::metastore::service::CreateCredentials> for CreateCredentials {
-    type Error = ProtoConvError;
-    fn try_from(
-        value: protogen::gen::metastore::service::CreateCredentials,
-    ) -> Result<Self, Self::Error> {
-        let options = value
-            .options
-            .ok_or(ProtoConvError::RequiredField("options".to_string()))?;
-
-        Ok(Self {
-            name: value.name,
-            options: options.try_into()?,
-            comment: value.comment,
-        })
-    }
-}
-
 impl UserDefinedLogicalNodeCore for CreateCredentials {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -54,7 +37,25 @@ impl UserDefinedLogicalNodeCore for CreateCredentials {
 }
 
 impl ExtensionNode for CreateCredentials {
+    type ProtoRepr = protogen::gen::metastore::service::CreateCredentials;
     const EXTENSION_NAME: &'static str = "CreateCredentials";
+
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _ctx: &SessionContext,
+        _codec: &dyn LogicalExtensionCodec,
+    ) -> std::result::Result<Self, ProtoConvError> {
+        let options = proto
+            .options
+            .ok_or(ProtoConvError::RequiredField("options".to_string()))?;
+
+        Ok(Self {
+            name: proto.name,
+            options: options.try_into()?,
+            comment: proto.comment,
+        })
+    }
+
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
