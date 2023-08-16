@@ -11,7 +11,7 @@ use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLog
 use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, DropTables,
+    CreateTunnel, CreateView, DropCredentials, DropTables,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -30,6 +30,7 @@ pub enum ExtensionType {
     CreateTunnel,
     CreateView,
     DropTables,
+    DropCredentials,
 }
 
 impl FromStr for ExtensionType {
@@ -48,6 +49,7 @@ impl FromStr for ExtensionType {
             CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
             CreateView::EXTENSION_NAME => Self::CreateView,
             DropTables::EXTENSION_NAME => Self::DropTables,
+            DropCredentials::EXTENSION_NAME => Self::DropCredentials,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

@@ -143,6 +143,13 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_view.into_extension()
             }
+            PlanType::DropCredentials(drop_credentials) => {
+                let drop_credentials: plan::DropCredentials = drop_credentials
+                    .try_into()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                drop_credentials.into_extension()
+            }
         })
     }
 
@@ -188,6 +195,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 plan::CreateTempTable::try_encode_extension(node, buf, self)
             }
             ExtensionType::CreateView => plan::CreateView::try_encode_extension(node, buf, self),
+            ExtensionType::DropCredentials => {
+                plan::DropCredentials::try_encode_extension(node, buf, self)
+            }
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())

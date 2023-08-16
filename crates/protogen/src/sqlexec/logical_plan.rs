@@ -14,6 +14,14 @@ use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference}
 use prost::{Message, Oneof};
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DropCredentials {
+    #[prost(string, repeated, tag = "1")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "2")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct CreateTable {
     #[prost(message, tag = "1")]
     pub table_name: Option<OwnedTableReference>,
@@ -89,7 +97,7 @@ pub struct AlterTableRename {
 pub struct LogicalPlanExtension {
     #[prost(
         oneof = "LogicalPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13"
     )]
     pub inner: Option<LogicalPlanExtensionType>,
 }
@@ -121,6 +129,8 @@ pub enum LogicalPlanExtensionType {
     CreateTempTable(CreateTempTable),
     #[prost(message, tag = "12")]
     CreateView(CreateView),
+    #[prost(message, tag = "13")]
+    DropCredentials(DropCredentials),
 }
 
 // -----
