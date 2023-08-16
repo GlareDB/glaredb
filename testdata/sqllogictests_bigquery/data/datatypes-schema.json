@@ -53,5 +53,27 @@
     "mode": "NULLABLE",
     "name": "c11",
     "type": "GEOGRAPHY"
+  },
+  {
+    "mode": "REPEATED",
+    "name": "c12",
+    "type": "RECORD",
+    "fields": [
+      {
+        "mode": "NULLABLE",
+        "name": "c13",
+        "type": "STRING"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "c14",
+        "type": "INTEGER"
+      }
+    ]
+  },
+  {
+    "mode": "REPEATED",
+    "name": "c15",
+    "type": "INTEGER"
   }
 ]
