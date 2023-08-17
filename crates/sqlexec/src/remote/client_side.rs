@@ -19,16 +19,17 @@ use super::client::RemoteSessionClient;
 
 #[derive(Clone, Default)]
 pub struct ClientExecRef {
-    /// The exec for client send.
+    /// The execs for client send.
     ///
-    /// Note that this is only set after a call to scan.
-    pub exec: Arc<Mutex<Option<ClientExchangeSendExec>>>,
+    /// Each call to `scan` will push a new send exec. Each send exec will send
+    /// on its own stream to the remote node.
+    execs: Arc<Mutex<Vec<ClientExchangeSendExec>>>,
 }
 
 impl ClientExecRef {
-    pub fn take_exec(&self) -> Option<ClientExchangeSendExec> {
-        let mut exec = self.exec.lock();
-        exec.take()
+    pub fn take_execs(&self) -> Vec<ClientExchangeSendExec> {
+        let mut execs = self.execs.lock();
+        std::mem::take(execs.as_mut())
     }
 }
 
@@ -100,8 +101,8 @@ impl TableProvider for ClientSideTableProvider {
         let input = self.inner.scan(state, projection, filters, limit).await?;
         let send = ClientExchangeSendExec::new(broadcast_id, self.client.clone(), input);
 
-        let mut exec_ref = self.exec_ref.exec.lock();
-        *exec_ref = Some(send); // TODO: Error if already Some?
+        let mut execs = self.exec_ref.execs.lock();
+        execs.push(send);
 
         Ok(Arc::new(recv))
     }
