@@ -45,7 +45,7 @@ use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
     ConnectionString(String),
     Parameters {
@@ -87,17 +87,52 @@ impl PostgresDbConnection {
     }
 }
 
-/// Information needed for accessing an external Postgres table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostgresTableAccess {
-    /// The schema the table belongs to within postgres.
-    pub schema: String,
-    /// The table or view name inside of postgres.
-    pub name: String,
+/// Information needed for create a postgres client.
+#[derive(Debug, Clone)]
+pub struct PostgresAccess {
+    /// Connection string to the postgres instance.
+    pub conn_str: PostgresDbConnection,
+    /// Tunnel to use to access instance.
+    pub tunnel: Option<TunnelOptions>,
+}
+
+impl PostgresAccess {
+    pub fn new_from_conn_str(
+        conn_str: impl Into<String>,
+        tunnel: Option<TunnelOptions>,
+    ) -> PostgresAccess {
+        PostgresAccess {
+            conn_str: PostgresDbConnection::ConnectionString(conn_str.into()),
+            tunnel,
+        }
+    }
+
+    /// Connect to an instance using these connection details.
+    pub async fn connect(&self) -> Result<PostgresAccessState> {
+        let state =
+            PostgresAccessState::connect(&self.conn_str.connection_string(), self.tunnel.clone())
+                .await?;
+        Ok(state)
+    }
+
+    /// Validates access to the postgres instance.
+    pub async fn validate_access(&self) -> Result<()> {
+        let state = self.connect().await?;
+        state.client.execute("SELECT 1", &[]).await?;
+        Ok(())
+    }
+
+    /// Validates access to a single table.
+    pub async fn validate_table_access(&self, schema: &str, table: &str) -> Result<()> {
+        let state = self.connect().await?;
+        let query = format!("SELECT * FROM {}.{} where false", schema, table);
+        state.client.execute(query.as_str(), &[]).await?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
-pub struct PostgresAccessor {
+pub struct PostgresAccessState {
     /// The Postgres client.
     client: tokio_postgres::Client,
     /// Handle for the underlying Postgres connection.
@@ -108,12 +143,12 @@ pub struct PostgresAccessor {
     conn_handle: JoinHandle<()>,
 }
 
-impl PostgresAccessor {
+impl PostgresAccessState {
     /// Connect to a postgres instance.
-    pub async fn connect(connection_string: &str, tunnel: Option<TunnelOptions>) -> Result<Self> {
+    async fn connect(connection_string: &str, tunnel: Option<TunnelOptions>) -> Result<Self> {
         let (client, conn_handle) = Self::connect_internal(connection_string, tunnel).await?;
 
-        Ok(PostgresAccessor {
+        Ok(PostgresAccessState {
             client,
             conn_handle,
         })
@@ -282,38 +317,8 @@ impl PostgresAccessor {
         Ok((client, handle))
     }
 
-    /// Validate postgres external database
-    pub async fn validate_external_database(
-        connection_string: &str,
-        tunnel: Option<TunnelOptions>,
-    ) -> Result<()> {
-        let (client, _) = Self::connect_internal(connection_string, tunnel).await?;
-
-        client.execute("SELECT 1", &[]).await?;
-        Ok(())
-    }
-
-    /// Validate postgres connection and access to table and retrieve arrow schema
-    pub async fn validate_table_access(
-        connection_string: &str,
-        access: &PostgresTableAccess,
-        tunnel: Option<TunnelOptions>,
-    ) -> Result<ArrowSchema> {
-        let (client, _) = Self::connect_internal(connection_string, tunnel).await?;
-
-        let query = format!(
-            "SELECT * FROM {}.{} where false",
-            access.schema, access.name
-        );
-        client.execute(query.as_str(), &[]).await?;
-
-        let (arrow_schema, _) =
-            Self::get_table_schema(&client, &access.schema, &access.name).await?;
-        Ok(arrow_schema)
-    }
-
     async fn get_table_schema(
-        client: &tokio_postgres::Client,
+        &self,
         schema: &str,
         name: &str,
     ) -> Result<(ArrowSchema, Vec<PostgresType>)> {
@@ -322,7 +327,8 @@ impl PostgresAccessor {
         // don't have to guess.
 
         // Get oid of table, and approx number of pages for the relation.
-        let mut rows = client
+        let mut rows = self
+            .client
             .query(
                 "
 SELECT
@@ -351,7 +357,8 @@ WHERE nspname=$1 AND relname=$2;
         // let approx_pages: i64 = row.try_get(1)?;
 
         // Get table schema.
-        let rows = client
+        let rows = self
+            .client
             .query(
                 "
 SELECT
@@ -382,36 +389,10 @@ ORDER BY attnum;
         let arrow_schema = try_create_arrow_schema(names, &pg_types)?;
         Ok((arrow_schema, pg_types))
     }
-
-    pub async fn into_table_provider(
-        self,
-        access: PostgresTableAccess,
-        predicate_pushdown: bool,
-    ) -> Result<PostgresTableProvider> {
-        // Every operation in this accessor will happen in a single transaction.
-        // The transaction will remain open until the end of the table scan.
-        self.client
-            .execute(
-                "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
-                &[],
-            )
-            .await?;
-
-        let (arrow_schema, pg_types) =
-            Self::get_table_schema(&self.client, &access.schema, &access.name).await?;
-
-        Ok(PostgresTableProvider {
-            predicate_pushdown,
-            table_access: access,
-            accessor: Arc::new(self),
-            arrow_schema: Arc::new(arrow_schema),
-            pg_types: Arc::new(pg_types),
-        })
-    }
 }
 
 #[async_trait]
-impl VirtualLister for PostgresAccessor {
+impl VirtualLister for PostgresAccessState {
     async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
@@ -461,12 +442,49 @@ WHERE
     }
 }
 
+/// Table provider for a single postgres table.
 pub struct PostgresTableProvider {
-    predicate_pushdown: bool,
-    table_access: PostgresTableAccess,
-    accessor: Arc<PostgresAccessor>,
+    /// Schema name of table we're accessing.
+    schema: String,
+    /// Table we're accessing.
+    table: String,
+    state: Arc<PostgresAccessState>,
     arrow_schema: ArrowSchemaRef,
     pg_types: Arc<Vec<PostgresType>>,
+}
+
+impl PostgresTableProvider {
+    /// Try to create a new postgres table provider.
+    ///
+    /// If postgres access state (client) isn't provided, a new one will be
+    /// created.
+    pub async fn try_new(
+        access: PostgresAccess,
+        state: Option<Arc<PostgresAccessState>>,
+        schema: impl Into<String>,
+        table: impl Into<String>,
+    ) -> Result<Self> {
+        let state = match state {
+            Some(state) => state,
+            None => {
+                let state = access.connect().await?;
+                Arc::new(state)
+            }
+        };
+
+        let schema = schema.into();
+        let table = table.into();
+
+        let (arrow_schema, pg_types) = state.get_table_schema(&schema, &table).await?;
+
+        Ok(PostgresTableProvider {
+            schema,
+            table,
+            state,
+            arrow_schema: Arc::new(arrow_schema),
+            pg_types: Arc::new(pg_types),
+        })
+    }
 }
 
 #[async_trait]
@@ -533,20 +551,16 @@ impl TableProvider for PostgresTableProvider {
         // TODO: This may produce an invalid clause. We'll likely only want to
         // convert some predicates.
         let predicate_string = {
-            if self.predicate_pushdown {
-                exprs_to_predicate_string(filters)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?
-            } else {
-                String::new()
-            }
+            exprs_to_predicate_string(filters)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
         };
 
         // Build copy query.
         let query = format!(
             "COPY (SELECT {} FROM {}.{} {} {} {}) TO STDOUT (FORMAT binary)",
-            projection_string,        // SELECT <str>
-            self.table_access.schema, // FROM <schema>
-            self.table_access.name,   // .<table>
+            projection_string, // SELECT <str>
+            self.schema,       // FROM <schema>
+            self.table,        // .<table>
             // [WHERE]
             if predicate_string.is_empty() {
                 ""
@@ -557,31 +571,81 @@ impl TableProvider for PostgresTableProvider {
             limit_string,              // [LIMIT ..]
         );
 
-        let opener = StreamOpener {
+        let exec = PostgresBinaryCopyExec::try_new(BinaryCopyConfig::State {
             copy_query: query,
-            accessor: self.accessor.clone(),
-        };
-
-        Ok(Arc::new(BinaryCopyExec {
-            predicate: predicate_string,
-            table_access: self.table_access.clone(),
+            state: self.state.clone(),
             pg_types: projected_types,
             arrow_schema: projected_schema,
-            opener,
-        }))
+        })
+        .await
+        .unwrap(); // Should never error.
+
+        Ok(Arc::new(exec))
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum BinaryCopyConfig {
+    /// Serializable config.
+    AccessOnly {
+        access: Box<PostgresAccess>,
+        schema: String,
+        table: String,
+        copy_query: String,
+    },
+    /// Not serializable config.
+    State {
+        copy_query: String,
+        state: Arc<PostgresAccessState>,
+        pg_types: Arc<Vec<PostgresType>>,
+        arrow_schema: ArrowSchemaRef,
+    },
+}
+
 /// Copy data from the source Postgres table using the binary copy protocol.
-struct BinaryCopyExec {
-    predicate: String,
-    table_access: PostgresTableAccess,
+pub struct PostgresBinaryCopyExec {
     pg_types: Arc<Vec<PostgresType>>,
     arrow_schema: ArrowSchemaRef,
     opener: StreamOpener,
 }
 
-impl ExecutionPlan for BinaryCopyExec {
+impl PostgresBinaryCopyExec {
+    /// Try to create a new binary copy exec using the provided config.
+    pub async fn try_new(conf: BinaryCopyConfig) -> Result<Self> {
+        match conf {
+            BinaryCopyConfig::AccessOnly {
+                access,
+                schema,
+                table,
+                copy_query,
+            } => {
+                let state = Arc::new(access.connect().await?);
+                let (arrow_schema, pg_types) = state.get_table_schema(&schema, &table).await?;
+                let opener = StreamOpener { copy_query, state };
+                Ok(PostgresBinaryCopyExec {
+                    pg_types: Arc::new(pg_types),
+                    arrow_schema: Arc::new(arrow_schema),
+                    opener,
+                })
+            }
+            BinaryCopyConfig::State {
+                copy_query,
+                state,
+                pg_types,
+                arrow_schema,
+            } => {
+                let opener = StreamOpener { copy_query, state };
+                Ok(PostgresBinaryCopyExec {
+                    pg_types,
+                    arrow_schema,
+                    opener,
+                })
+            }
+        }
+    }
+}
+
+impl ExecutionPlan for PostgresBinaryCopyExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -630,23 +694,13 @@ impl ExecutionPlan for BinaryCopyExec {
     }
 }
 
-impl DisplayAs for BinaryCopyExec {
+impl DisplayAs for PostgresBinaryCopyExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "BinaryCopyExec: schema={}, name={}, predicate={}",
-            self.table_access.schema,
-            self.table_access.name,
-            if self.predicate.is_empty() {
-                "None"
-            } else {
-                self.predicate.as_str()
-            }
-        )
+        write!(f, "BinaryCopyExec",)
     }
 }
 
-impl fmt::Debug for BinaryCopyExec {
+impl fmt::Debug for PostgresBinaryCopyExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BinaryCopyExec")
             .field("pg_types", &self.pg_types)
@@ -660,14 +714,14 @@ impl fmt::Debug for BinaryCopyExec {
 struct StreamOpener {
     /// Query used to initiate the binary copy.
     copy_query: String,
-    accessor: Arc<PostgresAccessor>,
+    state: Arc<PostgresAccessState>,
 }
 
 impl StreamOpener {
     /// Build a future that returns the copy stream.
     fn open(&self) -> BoxFuture<'static, Result<CopyOutStream, tokio_postgres::Error>> {
         let query = self.copy_query.clone();
-        let accessor = self.accessor.clone();
+        let accessor = self.state.clone();
         Box::pin(async move {
             let query = query;
             accessor.client.copy_out(&query).await

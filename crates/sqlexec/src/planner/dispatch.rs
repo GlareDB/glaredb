@@ -23,7 +23,7 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
-use datasources::postgres::{PostgresAccessor, PostgresTableAccess};
+use datasources::postgres::{PostgresAccess, PostgresTableProvider};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
@@ -214,14 +214,9 @@ impl<'a> SessionDispatcher<'a> {
                 Ok(provider.into_table_provider(tunnel.as_ref()))
             }
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
-                let table_access = PostgresTableAccess {
-                    schema: schema.to_string(),
-                    name: name.to_string(),
-                };
-
-                let accessor = PostgresAccessor::connect(connection_string, tunnel).await?;
-                let provider = accessor.into_table_provider(table_access, true).await?;
-                Ok(Arc::new(provider))
+                let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
+                let prov = PostgresTableProvider::try_new(access, None, schema, name).await?;
+                Ok(Arc::new(prov))
             }
             DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
                 service_account_key,
@@ -321,14 +316,9 @@ impl<'a> SessionDispatcher<'a> {
                 schema,
                 table,
             }) => {
-                let table_access = PostgresTableAccess {
-                    schema: schema.clone(),
-                    name: table.clone(),
-                };
-
-                let accessor = PostgresAccessor::connect(connection_string, tunnel).await?;
-                let provider = accessor.into_table_provider(table_access, true).await?;
-                Ok(Arc::new(provider))
+                let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
+                let prov = PostgresTableProvider::try_new(access, None, schema, table).await?;
+                Ok(Arc::new(prov))
             }
             TableOptions::BigQuery(TableOptionsBigQuery {
                 service_account_key,
