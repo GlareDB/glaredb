@@ -96,9 +96,15 @@ fn connect(
             }
         };
 
-        let engine = Engine::new(metastore_client, storage_conf, tracker, spill_path)
-            .await
-            .map_err(PyGlareDbError::from)?;
+        let engine = Engine::new(
+            metastore_client,
+            storage_conf,
+            tracker,
+            spill_path,
+            /* integration_testing = */ false,
+        )
+        .await
+        .map_err(PyGlareDbError::from)?;
 
         let mut session = engine
             .new_session(

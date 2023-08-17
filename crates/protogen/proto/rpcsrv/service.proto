@@ -50,6 +50,9 @@ message InitializeSessionRequestFromClient {
   // Where's the auth? Auth params are always set in the request metadata. This
   // goes for all requests, not just for initializing a session. See comment at
   // top.
+
+  // Database ID that can be set by an integration test (bypassing proxy).
+  optional bytes test_db_id = 1;
 }
 
 // Request for initializing a session from the proxy.

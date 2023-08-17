@@ -43,14 +43,18 @@ pub struct RpcHandler {
     ///
     /// By default only messages from proxy are accepted.
     allow_client_init: bool,
+
+    /// Whether we're running in itegration testing mode.
+    integration_testing: bool,
 }
 
 impl RpcHandler {
-    pub fn new(engine: Arc<Engine>, allow_client_init: bool) -> Self {
+    pub fn new(engine: Arc<Engine>, allow_client_init: bool, integration_testing: bool) -> Self {
         RpcHandler {
             engine,
             sessions: DashMap::new(),
             allow_client_init,
+            integration_testing,
         }
     }
 
@@ -69,8 +73,14 @@ impl RpcHandler {
                 };
                 (req.db_id, storage_conf)
             }
-            InitializeSessionRequest::Client(_req) if self.allow_client_init => {
-                (Uuid::nil(), SessionStorageConfig::default())
+            InitializeSessionRequest::Client(req) if self.allow_client_init => {
+                let mut db_id = Uuid::nil();
+                if let Some(test_db_id) = req.test_db_id {
+                    if self.integration_testing {
+                        db_id = test_db_id;
+                    }
+                }
+                (db_id, SessionStorageConfig::default())
             }
             _ => {
                 return Err(RpcsrvError::SessionInitalizeError(

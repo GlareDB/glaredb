@@ -32,7 +32,6 @@ use datafusion::sql::TableReference;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::init_session_registry;
-use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -204,6 +203,15 @@ impl SessionContext {
             background_jobs,
             remote_ctx,
         })
+    }
+
+    /// Close this session. This is only relevant for sessions connecting to
+    /// remote clients.
+    pub async fn close(&mut self) -> Result<()> {
+        if let Some(mut client) = self.exec_client() {
+            client.close_session().await?;
+        }
+        Ok(())
     }
 
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
@@ -1054,14 +1062,6 @@ impl SessionContext {
         self.search_path_iter()
             .next()
             .ok_or(ExecError::EmptySearchPath)
-    }
-}
-
-impl Drop for SessionContext {
-    fn drop(&mut self) {
-        if let Some(mut client) = self.exec_client.clone() {
-            let _ = executor::block_on(client.close_session());
-        }
     }
 }
 

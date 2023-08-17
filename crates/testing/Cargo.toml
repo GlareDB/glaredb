@@ -19,9 +19,14 @@ async-trait = "0.1.72"
 regex = "1.8.1"
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 openssh = "0.9.9"
+futures = "0.3.28"
 logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }
 pgsrv = { path = "../pgsrv" }
+sqlexec = { path = "../sqlexec" }
+pgrepr = { path = "../pgrepr" }
+telemetry = { path = "../telemetry" }
+datafusion_ext = { path = "../datafusion_ext" }
 
 [[test]]
 harness = false

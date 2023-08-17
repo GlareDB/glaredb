@@ -241,6 +241,10 @@ impl Session {
         Ok(Session { ctx })
     }
 
+    pub async fn close(&mut self) -> Result<()> {
+        self.ctx.close().await
+    }
+
     pub fn get_session_catalog(&self) -> &SessionCatalog {
         self.ctx.get_session_catalog()
     }
