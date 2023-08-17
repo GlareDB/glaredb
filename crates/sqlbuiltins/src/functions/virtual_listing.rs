@@ -13,7 +13,7 @@ use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::MongoAccessor;
 use datasources::mysql::MysqlAccessor;
-use datasources::postgres::PostgresAccessor;
+use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
@@ -120,10 +120,13 @@ async fn get_db_lister(
         DatabaseOptions::Internal(_) => unimplemented!(), // TODO: https://github.com/GlareDB/glaredb/issues/1153
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
-            let accessor = PostgresAccessor::connect(connection_string, None)
+            // TODO: We're not using the configured tunnel?
+            let access = PostgresAccess::new_from_conn_str(connection_string.clone(), None);
+            let state = access
+                .connect()
                 .await
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-            Box::new(accessor)
+            Box::new(state)
         }
         DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
             service_account_key,

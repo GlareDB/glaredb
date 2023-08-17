@@ -25,7 +25,7 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
-use datasources::postgres::{PostgresAccessor, PostgresDbConnection, PostgresTableAccess};
+use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
@@ -133,7 +133,10 @@ impl<'a> SessionPlanner<'a> {
         let db_options = match datasource.as_str() {
             DatabaseOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
-                PostgresAccessor::validate_external_database(&connection_string, tunnel_options)
+                let access =
+                    PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
+                access
+                    .validate_access()
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
@@ -288,28 +291,22 @@ impl<'a> SessionPlanner<'a> {
         let external_table_options = match datasource.as_str() {
             TableOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
-                let schema = m.remove_required("schema")?;
-                let table = m.remove_required("table")?;
+                let schema: String = m.remove_required("schema")?;
+                let table: String = m.remove_required("table")?;
 
-                let access = PostgresTableAccess {
-                    schema,
-                    name: table,
-                };
-
-                let _ = PostgresAccessor::validate_table_access(
-                    &connection_string,
-                    &access,
-                    tunnel_options,
-                )
-                .await
-                .map_err(|e| PlanError::InvalidExternalTable {
-                    source: Box::new(e),
-                })?;
+                let access =
+                    PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
+                access
+                    .validate_table_access(&schema, &table)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
 
                 TableOptions::Postgres(TableOptionsPostgres {
                     connection_string,
-                    schema: access.schema,
-                    table: access.name,
+                    schema,
+                    table,
                 })
             }
             TableOptions::BIGQUERY => {
