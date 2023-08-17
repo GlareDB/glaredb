@@ -14,7 +14,7 @@ use std::{any::Any, sync::Arc};
 ///
 /// This can be used to swap out the provider with one that's able to do hybrid
 /// execution between local and remote nodes.
-pub fn is_local_table_hint(provider: Arc<dyn TableProvider>) -> bool {
+pub fn is_local_table_hint(provider: &Arc<dyn TableProvider>) -> bool {
     provider
         .as_ref()
         .as_any()

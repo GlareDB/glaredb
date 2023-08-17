@@ -8,6 +8,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::local_hint::LocalTableHint;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::LakeStorageOptions;
@@ -33,8 +34,13 @@ impl TableFunc for IcebergScan {
         let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
 
         let store = opts.into_object_store(&loc).map_err(box_err)?;
-        let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
-        let reader = table.table_reader().await.map_err(box_err)?;
+        let table = IcebergTable::open(loc.clone(), store)
+            .await
+            .map_err(box_err)?;
+        let mut reader = table.table_reader().await.map_err(box_err)?;
+        if loc.datasource_url_type() == DatasourceUrlType::File {
+            reader = Arc::new(LocalTableHint(reader));
+        }
 
         Ok(reader)
     }
