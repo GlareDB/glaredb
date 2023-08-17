@@ -1,9 +1,14 @@
 //! Server and session variables.
+mod constants;
+mod value;
+use constants::*;
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result};
+use datafusion::variable::VarType;
 use once_cell::sync::Lazy;
+use parking_lot::{RwLock, RwLockReadGuard};
 use regex::Regex;
 use std::borrow::{Borrow, ToOwned};
 use std::fmt::Display;
@@ -11,6 +16,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::error;
 use uuid::Uuid;
+use value::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum VarError {
@@ -22,6 +28,9 @@ pub enum VarError {
 
     #[error("Unknown variable: {0}")]
     UnknownVariable(String),
+
+    #[error("Empty search path, unable to resolve schema")]
+    EmptySearchPath,
 }
 
 impl From<VarError> for DataFusionError {
@@ -30,197 +39,9 @@ impl From<VarError> for DataFusionError {
     }
 }
 
-// TODO: Decide proper postgres version to spoof/support
-const SERVER_VERSION: ServerVar<str> = ServerVar {
-    name: "server_version",
-    value: "15.1",
-    group: "postgres",
-    user_configurable: false,
-    description: "Version of the server",
-};
-
-const APPLICATION_NAME: ServerVar<str> = ServerVar {
-    name: "application_name",
-    value: "",
-    group: "postgres",
-    user_configurable: true,
-    description: "Name of the application",
-};
-
-const CLIENT_ENCODING: ServerVar<str> = ServerVar {
-    name: "client_encoding",
-    value: "UTF8",
-    group: "postgres",
-    user_configurable: true,
-    description: "Encoding of the client",
-};
-
-const EXTRA_FLOAT_DIGITS: ServerVar<i32> = ServerVar {
-    name: "extra_float_digits",
-    value: &1,
-    group: "postgres",
-    user_configurable: true,
-    description: "Extra precision in float values",
-};
-
-const STATEMENT_TIMEOUT: ServerVar<i32> = ServerVar {
-    name: "statement_timeout",
-    value: &0,
-    group: "postgres",
-    user_configurable: true,
-    description: "Statement timeout in milliseconds",
-};
-
-const TIMEZONE: ServerVar<str> = ServerVar {
-    name: "TimeZone",
-    value: "UTC",
-    group: "postgres",
-    user_configurable: true,
-    description: "Timezone of the client, default UTC",
-};
-
-const DATESTYLE: ServerVar<str> = ServerVar {
-    name: "DateStyle",
-    value: "ISO",
-    group: "postgres",
-    user_configurable: true,
-    description: "Date style of the client, default ISO",
-};
-
-const TRANSACTION_ISOLATION: ServerVar<str> = ServerVar {
-    name: "transaction_isolation",
-    value: "read uncommitted",
-    group: "postgres",
-    user_configurable: false,
-    description: "Transaction isolation level, defaults to 'read uncommitted'",
-};
-
-static DEFAULT_SEARCH_PATH: Lazy<[String; 1]> = Lazy::new(|| ["public".to_owned()]);
-static SEARCH_PATH: Lazy<ServerVar<[String]>> = Lazy::new(|| ServerVar {
-    name: "search_path",
-    value: &*DEFAULT_SEARCH_PATH,
-    group: "postgres",
-    user_configurable: true,
-    description: "Search path for schemas",
-});
-
-static GLAREDB_VERSION_OWNED: Lazy<String> =
-    Lazy::new(|| format!("v{}", env!("CARGO_PKG_VERSION")));
-static GLAREDB_VERSION: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {
-    name: "glaredb_version",
-    value: &GLAREDB_VERSION_OWNED,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Version of glaredb",
-});
-
-const ENABLE_DEBUG_DATASOURCES: ServerVar<bool> = ServerVar {
-    name: "enable_debug_datasources",
-    value: &false,
-    group: "glaredb",
-    user_configurable: true,
-    description: "Enable debug datasources",
-};
-
-const FORCE_CATALOG_REFRESH: ServerVar<bool> = ServerVar {
-    name: "force_catalog_refresh",
-    value: &false,
-    group: "glaredb",
-    user_configurable: true,
-    description: "Force catalog refresh",
-};
-
-const DATABASE_ID: ServerVar<Uuid> = ServerVar {
-    name: "database_id",
-    value: &Uuid::nil(),
-    group: "glaredb",
-    user_configurable: false,
-    description: "Database ID",
-};
-
-const CONNECTION_ID: ServerVar<Uuid> = ServerVar {
-    name: "connection_id",
-    value: &Uuid::nil(),
-    group: "glaredb",
-    user_configurable: false,
-    description: "Connection ID",
-};
-
-const REMOTE_SESSION_ID: ServerVar<Option<Uuid>> = ServerVar {
-    name: "remote_session_id",
-    value: &None,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Session ID on remote service.",
-};
-
-const USER_ID: ServerVar<Uuid> = ServerVar {
-    name: "user_id",
-    value: &Uuid::nil(),
-    group: "glaredb",
-    user_configurable: false,
-    description: "User ID",
-};
-
-const USER_NAME: ServerVar<str> = ServerVar {
-    name: "user_name",
-    value: "",
-    group: "glaredb",
-    user_configurable: false,
-    description: "User name",
-};
-
-const DATABASE_NAME: ServerVar<str> = ServerVar {
-    name: "database_name",
-    value: "",
-    group: "glaredb",
-    user_configurable: false,
-    description: "Database name",
-};
-
-const MAX_DATASOURCE_COUNT: ServerVar<Option<usize>> = ServerVar {
-    name: "max_datasource_count",
-    value: &None,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Max datasource count",
-};
-
-const MEMORY_LIMIT_BYTES: ServerVar<Option<usize>> = ServerVar {
-    name: "memory_limit_bytes",
-    value: &None,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Memory limit in bytes",
-};
-
-const MAX_TUNNEL_COUNT: ServerVar<Option<usize>> = ServerVar {
-    name: "max_tunnel_count",
-    value: &None,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Max tunnel count",
-};
-
-const MAX_CREDENTIALS_COUNT: ServerVar<Option<usize>> = ServerVar {
-    name: "max_credentials_count",
-    value: &None,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Max credentials allowed",
-};
-
-const IS_CLOUD_INSTANCE: ServerVar<bool> = ServerVar {
-    name: "is_cloud_instance",
-    value: &false,
-    group: "glaredb",
-    user_configurable: false,
-    description: "Determines if the server is local or cloud",
-};
-
 /// Variables for a session.
 #[derive(Debug)]
-pub struct SessionVars {
+pub struct SessionVarsInner {
     pub server_version: SessionVar<str>,
     pub application_name: SessionVar<str>,
     pub client_encoding: SessionVar<str>,
@@ -245,8 +66,95 @@ pub struct SessionVars {
     pub max_credentials_count: SessionVar<Option<usize>>,
     pub is_cloud_instance: SessionVar<bool>,
 }
+#[derive(Debug)]
+pub struct SessionVars {
+    inner: Arc<RwLock<SessionVarsInner>>,
+}
 
 impl SessionVars {
+    pub fn new(vars: SessionVarsInner) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(vars)),
+        }
+    }
+}
+
+macro_rules! generate_getters {
+    ($($name:ident : $type:ty),* $(,)?) => {
+        $(
+            pub fn $name(&self) -> $type {
+                self.inner.read().$name.value().to_owned()
+            }
+
+        )*
+
+    };
+}
+
+impl SessionVars {
+    generate_getters! {
+     server_version: String,
+     application_name: String,
+     client_encoding: String,
+     extra_floating_digits: i32,
+     statement_timeout: i32,
+     timezone: String,
+     datestyle: String,
+     transaction_isolation: String,
+     search_path: Vec<String>,
+     enable_debug_datasources: bool,
+     force_catalog_refresh: bool,
+     glaredb_version: String,
+     database_id: Uuid,
+     connection_id: Uuid,
+     remote_session_id: Option<Uuid>,
+     user_id: Uuid,
+     user_name: String,
+     database_name: String,
+     max_datasource_count: Option<usize>,
+     memory_limit_bytes: Option<usize>,
+     max_tunnel_count: Option<usize>,
+     max_credentials_count: Option<usize>,
+     is_cloud_instance: bool,
+    }
+}
+
+impl SessionVars {
+    pub fn inner(&self) -> Arc<RwLock<SessionVarsInner>> {
+        self.inner.clone()
+    }
+
+    pub fn read(&self) -> RwLockReadGuard<SessionVarsInner> {
+        self.inner.read()
+    }
+
+    pub fn write(&self) -> parking_lot::RwLockWriteGuard<SessionVarsInner> {
+        self.inner.write()
+    }
+
+    /// Iterate over the implicit search path. This will have all implicit
+    /// schemas prepended to the iterator.
+    ///
+    /// This should be used when trying to resolve existing items.
+    pub fn implicit_search_path(&self) -> Vec<String> {
+        IMPLICIT_SCHEMAS
+            .into_iter()
+            .map(|s| s.to_string())
+            .chain(self.search_path().into_iter())
+            .collect()
+    }
+
+    /// Get the first non-implicit schema.
+    pub fn first_nonimplicit_schema(&self) -> Option<String> {
+        self.search_path().get(0).cloned()
+    }
+
+    pub fn set(&mut self, name: &str, val: &str, setter: VarType) -> Result<()> {
+        self.inner.write().set(name, val, setter)
+    }
+}
+
+impl SessionVarsInner {
     /// Return an iterator to the variables that should be sent to the client on
     /// session start.
     pub fn startup_vars_iter(&self) -> impl Iterator<Item = &dyn AnyVar> {
@@ -312,7 +220,7 @@ impl SessionVars {
     }
 
     /// Try to set a value for a variable.
-    pub fn set(&mut self, name: &str, val: &str, setter: VarSetter) -> Result<()> {
+    pub fn set(&mut self, name: &str, val: &str, setter: VarType) -> Result<()> {
         if name.eq_ignore_ascii_case(SERVER_VERSION.name) {
             self.server_version.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(APPLICATION_NAME.name) {
@@ -363,9 +271,9 @@ impl SessionVars {
     }
 }
 
-impl Default for SessionVars {
+impl Default for SessionVarsInner {
     fn default() -> Self {
-        SessionVars {
+        SessionVarsInner {
             server_version: SessionVar::new(&SERVER_VERSION),
             application_name: SessionVar::new(&APPLICATION_NAME),
             client_encoding: SessionVar::new(&CLIENT_ENCODING),
@@ -407,18 +315,6 @@ pub trait AnyVar {
         let schema = Schema::new(vec![Field::new(self.name(), DataType::Utf8, false)]);
         RecordBatch::try_new(Arc::new(schema), vec![Arc::new(arr)]).unwrap()
     }
-}
-
-/// Who's trying to set the variable.
-#[derive(Debug, Clone, Copy)]
-pub enum VarSetter {
-    /// The user is trying to set the variable.
-    ///
-    /// Attempting to set a variable that's not user-configurable as a user
-    /// should return an error.
-    User,
-    /// The system is trying to set the variable.
-    System,
 }
 
 /// Static configuration variables. These are all defined in code and are not
@@ -475,7 +371,7 @@ where
 #[derive(Debug)]
 pub struct SessionVar<T>
 where
-    T: Value + ?Sized + 'static,
+    T: Value + ?Sized + 'static + std::fmt::Debug,
 {
     inherit: &'static ServerVar<T>,
     value: Option<T::Owned>,
@@ -483,7 +379,7 @@ where
 
 impl<T> SessionVar<T>
 where
-    T: Value + ?Sized + 'static,
+    T: Value + ?Sized + 'static + std::fmt::Debug,
 {
     pub fn new(inherit: &'static ServerVar<T>) -> Self {
         SessionVar {
@@ -502,8 +398,8 @@ where
     }
 
     /// Set the value for a variable directly.
-    pub fn set_raw(&mut self, v: T::Owned, setter: VarSetter) -> Result<()> {
-        if !self.inherit.user_configurable && matches!(setter, VarSetter::User) {
+    pub fn set_raw(&mut self, v: T::Owned, setter: VarType) -> Result<()> {
+        if !self.inherit.user_configurable && matches!(setter, VarType::UserDefined) {
             return Err(VarError::VariableReadonly(self.inherit.name.to_string()).into());
         }
         self.value = Some(v);
@@ -511,14 +407,14 @@ where
     }
 
     /// Set a value for a variable directly, emitting an error log if it's not able to be set.
-    pub fn set_and_log(&mut self, v: T::Owned, setter: VarSetter) {
+    pub fn set_and_log(&mut self, v: T::Owned, setter: VarType) {
         if let Err(e) = self.set_raw(v, setter) {
             error!(%e, "unable to set session variable");
         }
     }
 
     /// Parse a string as a variable value and set it.
-    fn set_from_str(&mut self, s: &str, setter: VarSetter) -> Result<()> {
+    fn set_from_str(&mut self, s: &str, setter: VarType) -> Result<()> {
         match T::try_parse(s) {
             Some(v) => self.set_raw(v, setter)?,
             None => {
@@ -549,92 +445,6 @@ where
         match &self.value {
             Some(v) => v.borrow().format(),
             None => self.inherit.formatted_value(),
-        }
-    }
-}
-
-pub trait Value: ToOwned {
-    fn try_parse(s: &str) -> Option<Self::Owned>;
-    fn format(&self) -> String;
-}
-
-impl Value for str {
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        Some(s.to_string())
-    }
-
-    fn format(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl Value for String {
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        Some(s.to_string())
-    }
-
-    fn format(&self) -> String {
-        self.clone()
-    }
-}
-
-impl Value for bool {
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        match s {
-            "t" | "true" => Some(true),
-            "f" | "false" => Some(false),
-            _ => None,
-        }
-    }
-
-    fn format(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl Value for i32 {
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        s.parse().ok()
-    }
-
-    fn format(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl Value for usize {
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        s.parse().ok()
-    }
-
-    fn format(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl Value for Uuid {
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        s.parse().ok()
-    }
-
-    fn format(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl<V> Value for Option<V>
-where
-    V: Value + ?Sized + 'static + ToOwned + Clone + FromStr + Display,
-{
-    fn try_parse(s: &str) -> Option<Self::Owned> {
-        let v = s.parse::<V>().ok()?;
-        Some(Some(v))
-    }
-
-    fn format(&self) -> String {
-        match self {
-            Some(v) => v.to_string(),
-            None => "None".to_string(),
         }
     }
 }
@@ -711,11 +521,11 @@ mod tests {
             user_configurable: true,
         };
         let mut var = SessionVar::new(&SETTABLE);
-        var.set_from_str("user", VarSetter::User).unwrap();
+        var.set_from_str("user", VarType::UserDefined).unwrap();
         assert_eq!("user", var.value());
 
         // Should also be able to be set by the system.
-        var.set_from_str("system", VarSetter::System).unwrap();
+        var.set_from_str("system", VarType::System).unwrap();
         assert_eq!("system", var.value());
     }
 
@@ -729,13 +539,13 @@ mod tests {
             user_configurable: false,
         };
         let mut var = SessionVar::new(&UNSETTABLE);
-        var.set_from_str("custom", VarSetter::User)
+        var.set_from_str("custom", VarType::UserDefined)
             .expect_err("Unsettable var should not be allowed to be set by user");
 
         assert_eq!("test", var.value());
 
         // System should be able to set the var.
-        var.set_from_str("custom", VarSetter::System).unwrap();
+        var.set_from_str("custom", VarType::System).unwrap();
         assert_eq!("custom", var.value());
     }
 }

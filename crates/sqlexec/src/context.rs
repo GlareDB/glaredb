@@ -28,7 +28,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::vars::{SessionVars, SessionVarsInner};
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::init_session_registry;
 use futures::executor;
@@ -81,8 +81,6 @@ pub struct SessionContext {
     current_session_tables: HashMap<String, Arc<MemTable>>,
     /// Native tables.
     tables: NativeTableStorage,
-    /// Session variables.
-    vars: SessionVars,
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
@@ -110,7 +108,7 @@ impl SessionContext {
     /// created with the max set to this value.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        vars: SessionVars,
+        vars: SessionVarsInner,
         catalog: SessionCatalog,
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
@@ -131,7 +129,6 @@ impl SessionContext {
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
         let config: SessionConfig = config_opts.into();
-
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
         let mut conf = RuntimeConfig::default();
@@ -145,7 +142,9 @@ impl SessionContext {
                 conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
             }
         }
+        let mut_sess_vars = SessionVars::new(vars);
 
+        let config = config.with_extension(Arc::new(mut_sess_vars));
         let runtime = RuntimeEnv::new(conf)?;
 
         // Register the object store in the registry for all the tables.
@@ -191,7 +190,6 @@ impl SessionContext {
             catalog,
             current_session_tables: HashMap::new(),
             tables: native_tables,
-            vars,
             prepared: HashMap::new(),
             portals: HashMap::new(),
             metrics,
@@ -482,7 +480,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if let &Some(limit) = self.vars.max_datasource_count.value() {
+        if let Some(limit) = self.get_session_vars().max_datasource_count() {
             if self.get_datasource_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "datasources",
@@ -522,7 +520,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        if let &Some(limit) = self.vars.max_datasource_count.value() {
+        if let Some(limit) = self.get_session_vars().max_datasource_count() {
             if self.get_datasource_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "datasources",
@@ -546,7 +544,7 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        if let &Some(limit) = self.vars.max_tunnel_count.value() {
+        if let Some(limit) = self.get_session_vars().max_tunnel_count() {
             if self.get_tunnel_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "tunnels",
@@ -567,7 +565,7 @@ impl SessionContext {
     }
 
     pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        if let &Some(limit) = self.vars.max_credentials_count.value() {
+        if let Some(limit) = self.get_session_vars().max_credentials_count() {
             if self.get_credentials_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "credentials",
@@ -783,13 +781,20 @@ impl SessionContext {
     }
 
     /// Get a reference to the session variables.
-    pub fn get_session_vars(&self) -> &SessionVars {
-        &self.vars
+    pub fn get_session_vars(&self) -> Arc<SessionVars> {
+        let vars = self
+            .df_ctx
+            .copied_config()
+            .get_extension::<SessionVars>()
+            .unwrap();
+
+        vars
     }
 
     /// Get a mutable reference to the session variables.
     pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
-        &mut self.vars
+        todo!()
+        // &mut self.get_session_vars()
     }
 
     /// Get a reference to the session catalog.
@@ -806,7 +811,7 @@ impl SessionContext {
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
         self.catalog
-            .maybe_refresh_state(*self.vars.force_catalog_refresh.value())
+            .maybe_refresh_state(self.get_session_vars().force_catalog_refresh())
             .await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
@@ -1017,25 +1022,23 @@ impl SessionContext {
     }
 
     /// Iterate over all values in the search path.
-    pub(crate) fn search_path_iter(&self) -> impl Iterator<Item = &str> {
-        self.vars.search_path.value().iter().map(|s| s.as_str())
+    pub(crate) fn search_paths(&self) -> Vec<String> {
+        self.get_session_vars().search_path()
     }
 
     /// Iterate over the implicit search path. This will have all implicit
     /// schemas prepended to the iterator.
     ///
     /// This should be used when trying to resolve existing items.
-    pub(crate) fn implicit_search_path_iter(&self) -> impl Iterator<Item = &str> {
-        IMPLICIT_SCHEMAS
-            .into_iter()
-            .chain(self.vars.search_path.value().iter().map(|s| s.as_str()))
+    pub(crate) fn implicit_search_paths(&self) -> Vec<String> {
+        self.get_session_vars().implicit_search_path()
     }
 
     /// Get the first non-implicit schema.
-    fn first_nonimplicit_schema(&self) -> Result<&str> {
-        self.search_path_iter()
-            .next()
-            .ok_or(ExecError::EmptySearchPath)
+    fn first_nonimplicit_schema(&self) -> Result<String> {
+        self.get_session_vars()
+            .first_nonimplicit_schema()
+            .ok_or_else(|| ExecError::EmptySearchPath)
     }
 }
 

@@ -109,10 +109,9 @@ impl BuiltinScalarFunction {
             BuiltinScalarFunction::CurrentSchemas => {
                 let schemas: Vec<_> = sess
                     .get_session_vars()
-                    .search_path
-                    .value()
-                    .iter()
-                    .map(|path| ScalarValue::Utf8(Some(path.to_string())))
+                    .search_path()
+                    .into_iter()
+                    .map(|path| ScalarValue::Utf8(Some(path)))
                     .collect();
                 Arc::new(move |_| {
                     // TODO: Actually look at argument.
@@ -128,7 +127,7 @@ impl BuiltinScalarFunction {
                 })
             }
             BuiltinScalarFunction::ConnectionId => {
-                let id = *sess.get_session_vars().connection_id.value();
+                let id = sess.get_session_vars().connection_id();
                 Arc::new(move |_| {
                     Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
                         id.to_string(),
@@ -180,11 +179,13 @@ impl PgFunctionBuilder {
         let func = match name {
             "array_to_string" => pg_array_to_string(),
             "current_database" | "current_catalog" => {
-                pg_current_database(ctx.get_session_vars().database_name.value())
+                let db_name = ctx.get_session_vars().database_name();
+                pg_current_database(&db_name)
             }
-            "current_schema" => pg_current_schema(ctx.search_path_iter().next()),
+            "current_schema" => pg_current_schema(ctx.search_paths().get(0).map(|s| s.as_str())),
             "current_user" | "current_role" | "user" => {
-                pg_current_user(ctx.get_session_vars().user_name.value())
+                let user = ctx.get_session_vars().user_name();
+                pg_current_user(&user)
             }
             "has_database_privilege" => pg_has_database_privilege(),
             "has_schema_privilege" => pg_has_schema_privilege(),
@@ -192,7 +193,10 @@ impl PgFunctionBuilder {
             "pg_encoding_to_char" => pg_encoding_to_char(),
             "pg_get_userbyid" => pg_get_userbyid(),
             "pg_table_is_visible" => pg_table_is_visible(),
-            "version" => pg_version(ctx.get_session_vars().glaredb_version.value()),
+            "version" => {
+                let version = ctx.get_session_vars().glaredb_version();
+                pg_version(&version)
+            }
             _ => return None,
         };
 
