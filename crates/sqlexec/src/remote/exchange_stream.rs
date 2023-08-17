@@ -12,6 +12,8 @@ use std::{collections::VecDeque, sync::Arc};
 use tonic::Streaming;
 use uuid::Uuid;
 
+use crate::errors::{ExecError, Result};
+
 /// A stream for reading record batches from a client.
 ///
 /// The first message is used to get the session id. It's assumed that the
