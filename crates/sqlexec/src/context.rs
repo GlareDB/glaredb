@@ -14,7 +14,7 @@ use crate::remote::planner::RemoteLogicalPlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
-use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
+use datafusion::config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions};
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
@@ -128,7 +128,7 @@ impl SessionContext {
 
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
-        let config: SessionConfig = config_opts.into();
+
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
         let mut conf = RuntimeConfig::default();
@@ -143,7 +143,12 @@ impl SessionContext {
             }
         }
 
-        let config = config.with_extension(Arc::new(vars));
+        let mut e = Extensions::new();
+        e.insert(vars);
+        config_opts = config_opts.with_extensions(e);
+        let config: SessionConfig = config_opts.into();
+
+        // let config = config.with_extension(Arc::new(vars));
         let runtime = RuntimeEnv::new(conf)?;
 
         // Register the object store in the registry for all the tables.
@@ -780,20 +785,12 @@ impl SessionContext {
     }
 
     /// Get a reference to the session variables.
-    pub fn get_session_vars(&self) -> Arc<SessionVars> {
-        let vars = self
-            .df_ctx
-            .copied_config()
-            .get_extension::<SessionVars>()
-            .unwrap();
-
-        vars
-    }
-
-    /// Get a mutable reference to the session variables.
-    pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
-        todo!()
-        // &mut self.get_session_vars()
+    pub fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        // i'm pretty sure it's safe to unwrap.
+        // we don't expose any way to initialize the session without setting the session vars.
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
     }
 
     /// Get a reference to the session catalog.

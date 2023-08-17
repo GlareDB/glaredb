@@ -1,6 +1,7 @@
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::config::ConfigEntry;
 use datafusion::error::Result;
 use datafusion::variable::VarType;
 use std::borrow::Borrow;
@@ -153,6 +154,33 @@ impl SessionVarsInner {
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
+    }
+    pub(super) fn entries(&self) -> Vec<ConfigEntry> {
+        vec![
+            self.server_version.config_entry(),
+            self.application_name.config_entry(),
+            self.client_encoding.config_entry(),
+            self.extra_floating_digits.config_entry(),
+            self.statement_timeout.config_entry(),
+            self.timezone.config_entry(),
+            self.datestyle.config_entry(),
+            self.transaction_isolation.config_entry(),
+            self.search_path.config_entry(),
+            self.enable_debug_datasources.config_entry(),
+            self.force_catalog_refresh.config_entry(),
+            self.glaredb_version.config_entry(),
+            self.database_id.config_entry(),
+            self.user_id.config_entry(),
+            self.connection_id.config_entry(),
+            self.remote_session_id.config_entry(),
+            self.user_name.config_entry(),
+            self.database_name.config_entry(),
+            self.max_datasource_count.config_entry(),
+            self.memory_limit_bytes.config_entry(),
+            self.max_tunnel_count.config_entry(),
+            self.max_credentials_count.config_entry(),
+            self.is_cloud_instance.config_entry(),
+        ]
     }
 }
 impl Default for SessionVarsInner {
@@ -314,6 +342,14 @@ where
 
     pub fn description(&self) -> &'static str {
         self.inherit.description
+    }
+
+    fn config_entry(&self) -> ConfigEntry {
+        ConfigEntry {
+            key: self.inherit.name.to_string(),
+            value: Some(self.formatted_value()),
+            description: self.description(),
+        }
     }
 }
 

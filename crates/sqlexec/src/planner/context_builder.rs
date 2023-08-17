@@ -258,7 +258,7 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
         self.ctx.get_session_catalog().resolve_credentials(name)
     }
 
-    fn get_session_vars(&self) -> Arc<SessionVars> {
+    fn get_session_vars(&self) -> SessionVars {
         self.ctx.get_session_vars()
     }
 

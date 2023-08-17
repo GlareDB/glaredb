@@ -618,8 +618,8 @@ impl Session {
         Ok(Box::pin(stream))
     }
 
-    pub fn get_session_vars(&self) -> Arc<SessionVars> {
-        self.ctx.get_session_vars()
+    pub fn get_session_vars(&self) -> SessionVars {
+        self.ctx.get_session_vars().clone()
     }
 
     /// Prepare a parsed statement for future execution.

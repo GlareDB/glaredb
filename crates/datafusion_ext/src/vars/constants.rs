@@ -196,16 +196,6 @@ pub(super) const IMPLICIT_SCHEMAS: [&str; 2] = [
     CURRENT_SESSION_SCHEMA,
 ];
 
-/// The default catalog that exists in all GlareDB databases.
-pub const DEFAULT_CATALOG: &str = "default";
-
-/// Default schema that's created on every startup.
-pub const DEFAULT_SCHEMA: &str = "public";
-
-/// Internal schema for system tables.
-pub const INTERNAL_SCHEMA: &str = "glare_catalog";
-
-pub const INFORMATION_SCHEMA: &str = "information_schema";
 pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 
 /// Schema to store temporary objects (only valid for current session).
