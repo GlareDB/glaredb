@@ -6,9 +6,12 @@ use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
+use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::remote::client::RemoteSessionClient;
+use crate::remote::rewriter::LocalSideTableRewriter;
 use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::Schema;
+use datafusion::common::tree_node::TreeNode;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};
@@ -255,7 +258,6 @@ impl Session {
     }
 
     /// Create a physical plan for a given datafusion logical plan.
-
     pub async fn create_physical_plan(
         &mut self,
         plan: DfLogicalPlan,
@@ -270,8 +272,35 @@ impl Session {
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             plan => {
-                let plan = state.create_physical_plan(&plan).await?;
-                Ok(plan)
+                // If we're connected to a remote session, do some plan
+                // rewriting.
+                match self.ctx.exec_client() {
+                    Some(client) => {
+                        // Rewrite logical plan to ensure tables that have a
+                        // "local" hint have their providers replaced with ones
+                        // that will produce client recv and send execs.
+                        let mut rewriter = LocalSideTableRewriter::new(client);
+                        let plan = plan.rewrite(&mut rewriter)?;
+
+                        // Create the physical plans. This will call `scan` on
+                        // the custom table providers meaning we'll have the
+                        // correct exec refs.
+                        let physical = state.create_physical_plan(&plan).await?;
+
+                        // Create a wrapper physical plan which drives both the
+                        // result stream, and the send execs
+                        //
+                        // At this point, the send execs should have been
+                        // populated.
+                        let physical = SendRecvJoinExec::new(physical, rewriter.exec_refs);
+
+                        Ok(Arc::new(physical))
+                    }
+                    None => {
+                        let plan = state.create_physical_plan(&plan).await?;
+                        Ok(plan)
+                    }
+                }
             }
         }
     }
@@ -675,6 +704,7 @@ impl Session {
         self.ctx
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
+
     pub fn is_main_instance(&self) -> bool {
         self.ctx
             .get_session_vars()

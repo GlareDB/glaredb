@@ -18,7 +18,7 @@ use uuid::Uuid;
 use super::client::RemoteSessionClient;
 
 #[derive(Clone, Default)]
-pub struct ClientExecRef {
+pub struct ClientSendExecsRef {
     /// The execs for client send.
     ///
     /// Each call to `scan` will push a new send exec. Each send exec will send
@@ -26,14 +26,15 @@ pub struct ClientExecRef {
     execs: Arc<Mutex<Vec<ClientExchangeSendExec>>>,
 }
 
-impl ClientExecRef {
+impl ClientSendExecsRef {
     pub fn take_execs(&self) -> Vec<ClientExchangeSendExec> {
         let mut execs = self.execs.lock();
         std::mem::take(execs.as_mut())
     }
 }
 
-/// A table provider that requires scanning to happen on the client side.
+/// A table provider that requires scanning to happen locally and not on the
+/// server.
 ///
 /// What this means is that during a scan, the execution plan will be a recv
 /// exec which should get sent over to the remote node. The client will make a
@@ -41,7 +42,7 @@ impl ClientExecRef {
 ///
 /// This should only be used when running glaredb in a distributed mode
 /// (client+server).
-pub struct ClientSideTableProvider {
+pub struct LocalSideTableProvider {
     /// The inner table for the data.
     ///
     /// The client will be reading this table to send on the stream.
@@ -49,25 +50,25 @@ pub struct ClientSideTableProvider {
     /// Client to the remote node.
     client: RemoteSessionClient,
     /// Exec reference to populate after scan.
-    exec_ref: ClientExecRef,
+    exec_ref: ClientSendExecsRef,
 }
 
-impl ClientSideTableProvider {
+impl LocalSideTableProvider {
     pub fn new(inner: Arc<dyn TableProvider>, client: RemoteSessionClient) -> Self {
         Self {
             inner,
             client,
-            exec_ref: ClientExecRef::default(),
+            exec_ref: ClientSendExecsRef::default(),
         }
     }
 
-    pub fn get_exec_ref(&self) -> ClientExecRef {
+    pub fn get_exec_ref(&self) -> ClientSendExecsRef {
         self.exec_ref.clone()
     }
 }
 
 #[async_trait]
-impl TableProvider for ClientSideTableProvider {
+impl TableProvider for LocalSideTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }
