@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
 use datafusion::variable::VarType;
-use datafusion_ext::vars::SessionVarsInner;
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use object_store_util::conf::StorageConfig;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
@@ -138,12 +138,12 @@ impl Engine {
     /// variables.
     pub async fn new_session(
         &self,
-        vars: SessionVarsInner,
+        vars: SessionVars,
         storage: SessionStorageConfig,
         remote_ctx: bool,
     ) -> Result<TrackedSession> {
-        let conn_id = *vars.connection_id.value();
-        let database_id = *vars.database_id.value();
+        let conn_id = vars.connection_id();
+        let database_id = vars.database_id();
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
         let native = self
             .storage
@@ -177,7 +177,7 @@ impl Engine {
     /// The provided exec client will be used to create the remote session.
     pub async fn new_session_with_remote_connection(
         &self,
-        mut vars: SessionVarsInner,
+        vars: SessionVars,
         mut exec_client: RemoteClient,
     ) -> Result<TrackedSession> {
         // TODO: Figure out storage. The nil ID doesn't matter here (yet) since
@@ -193,7 +193,8 @@ impl Engine {
             ))
             .await?;
 
-        vars.remote_session_id
+        vars.write()
+            .remote_session_id
             .set_raw(Some(remote_sess_client.session_id()), VarType::System)?;
 
         let session = Session::new(

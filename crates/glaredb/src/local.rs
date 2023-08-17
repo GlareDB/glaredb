@@ -16,7 +16,7 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
-use datafusion_ext::vars::SessionVarsInner;
+use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
@@ -164,12 +164,12 @@ impl LocalSession {
                 RemoteClient::connect_with_proxy_destination(url.try_into()?).await?
             };
             engine
-                .new_session_with_remote_connection(SessionVarsInner::default(), exec_client)
+                .new_session_with_remote_connection(SessionVars::default(), exec_client)
                 .await?
         } else {
             engine
                 .new_session(
-                    SessionVarsInner::default(),
+                    SessionVars::default(),
                     SessionStorageConfig::default(),
                     /* remote_ctx = */ false,
                 )

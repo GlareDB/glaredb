@@ -4,10 +4,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use dashmap::DashMap;
-use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion_ext::vars::SessionVarsInner;
+use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
+use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service,
@@ -80,10 +80,9 @@ impl RpcHandler {
         let conn_id = Uuid::new_v4();
         info!(session_id=%conn_id, "initializing remote session");
 
-        let mut vars = SessionVarsInner::default();
-        // TODO: handle error instead
-        vars.database_id.set_and_log(db_id, VarType::System);
-        vars.connection_id.set_and_log(conn_id, VarType::System);
+        let vars = SessionVars::default()
+            .with_database_id(db_id, VarType::System)
+            .with_connection_id(conn_id, VarType::System);
 
         let sess = self
             .engine

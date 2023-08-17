@@ -28,7 +28,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datafusion_ext::vars::{SessionVars, SessionVarsInner};
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::init_session_registry;
 use futures::executor;
@@ -108,7 +108,7 @@ impl SessionContext {
     /// created with the max set to this value.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        vars: SessionVarsInner,
+        vars: SessionVars,
         catalog: SessionCatalog,
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
@@ -136,15 +136,14 @@ impl SessionContext {
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
-        if let &Some(mem_limit) = vars.memory_limit_bytes.value() {
+        if let Some(mem_limit) = vars.memory_limit_bytes() {
             // TODO: Make this actually have optional semantics.
             if mem_limit > 0 {
                 conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
             }
         }
-        let mut_sess_vars = SessionVars::new(vars);
 
-        let config = config.with_extension(Arc::new(mut_sess_vars));
+        let config = config.with_extension(Arc::new(vars));
         let runtime = RuntimeEnv::new(conf)?;
 
         // Register the object store in the registry for all the tables.

@@ -20,7 +20,7 @@ use std::{
 };
 use tokio::runtime::Builder;
 
-use datafusion_ext::vars::SessionVarsInner;
+use datafusion_ext::vars::SessionVars;
 use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig};
@@ -102,7 +102,7 @@ fn connect(
 
         let mut session = engine
             .new_session(
-                SessionVarsInner::default(),
+                SessionVars::default(),
                 SessionStorageConfig::default(),
                 /* remote_ctx = */ false,
             )

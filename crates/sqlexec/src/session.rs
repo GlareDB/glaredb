@@ -18,7 +18,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
-use datafusion_ext::vars::{SessionVars, SessionVarsInner};
+use datafusion_ext::vars::SessionVars;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -211,7 +211,7 @@ impl Session {
     /// the provided catalog.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        vars: SessionVarsInner,
+        vars: SessionVars,
         catalog: SessionCatalog,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
@@ -221,9 +221,9 @@ impl Session {
         remote_ctx: bool,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
-            *vars.user_id.value(),
-            *vars.database_id.value(),
-            *vars.connection_id.value(),
+            vars.user_id(),
+            vars.database_id(),
+            vars.connection_id(),
             tracker,
         );
 
