@@ -38,23 +38,13 @@ use pgrepr::types::arrow_to_pg_type;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
-use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG, POSTGRES_SCHEMA};
+use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 use tracing::info;
-
-/// Implicity schemas that are consulted during object resolution.
-///
-/// Note that these are not normally shown in the search path.
-const IMPLICIT_SCHEMAS: [&str; 2] = [
-    POSTGRES_SCHEMA,
-    // Objects stored in current session will always have a priority over the
-    // schemas in search path.
-    CURRENT_SESSION_SCHEMA,
-];
 
 /// Context for a remote session.
 struct RemoteSessionContext {
@@ -145,10 +135,9 @@ impl SessionContext {
         let mut e = Extensions::new();
         e.insert(vars);
         config_opts = config_opts.with_extensions(e);
-        
+
         let mut config: SessionConfig = config_opts.into();
         config = config.with_extension(Arc::new(StagedClientStreams::default()));
-
 
         // let config = config.with_extension(Arc::new(vars));
         let runtime = RuntimeEnv::new(conf)?;
