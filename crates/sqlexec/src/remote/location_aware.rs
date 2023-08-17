@@ -1,6 +1,4 @@
-use crate::planner::physical_plan::{
-    client_recv::ClientExchangeRecvExec, client_send::ClientExchangeInputSendExec,
-};
+use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
 use async_trait::async_trait;
 use datafusion::error::Result;
 use datafusion::{

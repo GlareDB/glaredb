@@ -10,9 +10,6 @@ use datafusion::prelude::Expr;
 
 use std::sync::Arc;
 
-use crate::planner::extension::ExtensionNode;
-use crate::planner::physical_plan::client_send::ClientExchangeInputSendExec;
-
 use super::client::RemoteSessionClient;
 
 /// A planner that executes everything on a remote service.
@@ -95,14 +92,12 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
 impl ExtensionPlanner for RemotePhysicalPlanner {
     async fn plan_extension(
         &self,
-        planner: &dyn PhysicalPlanner,
-        node: &dyn UserDefinedLogicalNode,
+        _planner: &dyn PhysicalPlanner,
+        _node: &dyn UserDefinedLogicalNode,
         _logical_inputs: &[&DfLogicalPlan],
         _physical_inputs: &[Arc<dyn ExecutionPlan>],
-        session_state: &SessionState,
+        _session_state: &SessionState,
     ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
-        match node.name() {
-            _ => Ok(None),
-        }
+        Ok(None)
     }
 }

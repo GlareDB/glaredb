@@ -30,6 +30,7 @@ pub struct ClientExchangeInputSendExec {
 }
 
 impl ClientExchangeInputSendExec {
+    #[allow(dead_code)]
     pub fn new(
         broadcast_id: Uuid,
         client: RemoteSessionClient,

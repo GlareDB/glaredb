@@ -1,4 +1,3 @@
-use crate::errors::{ExecError, Result};
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
