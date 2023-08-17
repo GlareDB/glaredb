@@ -4,6 +4,7 @@ use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
 use crate::planner::dispatch::SessionDispatcher;
 use crate::planner::errors::PlanError;
+use crate::remote::client_side::ClientExecRef;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::OwnedTableReference;
@@ -30,14 +31,19 @@ use tracing::error;
 /// Partial context provider with table providers required to fulfill a single
 /// query.
 ///
-/// NOTE: While `ContextProvider` is for _logical_ planning, DataFusion will
-/// actually try to downcast the `TableSource` to a `TableProvider` during
+/// NOTE: While `PartialContextProvider` is for _logical_ planning, DataFusion
+/// will actually try to downcast the `TableSource` to a `TableProvider` during
 /// physical planning. This only works with `DefaultTableSource` which is what
 /// this adapter uses.
 pub struct PartialContextProvider<'a> {
+    /// Providers we've seen so far.
     providers: HashMap<OwnedTableReference, Arc<dyn TableProvider>>,
+    /// Datafusion session state.
     state: &'a SessionState,
+    /// Glaredb session context.
     ctx: &'a SessionContext,
+    /// Send execs that should be executed after scan.
+    send_execs: Vec<ClientExecRef>,
 }
 
 impl<'a> PartialContextProvider<'a> {
@@ -46,6 +52,7 @@ impl<'a> PartialContextProvider<'a> {
             providers: HashMap::new(),
             state,
             ctx,
+            send_execs: Vec::new(),
         })
     }
 
