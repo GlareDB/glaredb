@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use testing::slt::runner::Hook;
+use testing::slt::runner::{Hook, TestClient};
 use tokio::{
     net::TcpListener,
     process::Command,
@@ -25,7 +25,7 @@ impl Hook for AllTestsHook {
     async fn pre(
         &self,
         config: &Config,
-        _: &Client,
+        _: TestClient,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
         // Create a unique temp dir and set the variable instead of using the
@@ -48,7 +48,7 @@ impl Hook for AllTestsHook {
     async fn post(
         &self,
         _config: &Config,
-        _client: &Client,
+        _client: TestClient,
         vars: &HashMap<String, String>,
     ) -> Result<()> {
         if let Some(tmp_dir) = vars.get(Self::TMP_DIR) {
@@ -187,13 +187,18 @@ impl Hook for SshTunnelHook {
     async fn pre(
         &self,
         _: &Config,
-        client: &Client,
+        client: TestClient,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
+        let client = match client {
+            TestClient::Pg(client) => client,
+            TestClient::Rpc(_) => return Err(anyhow!("cannot run SSH tunnel test on rpc")),
+        };
+
         let mut err = None;
         // Try upto 5 times
         for try_num in 0..5 {
-            match Self::try_create_tunnel(try_num, client).await {
+            match Self::try_create_tunnel(try_num, &client).await {
                 Ok((container_id, tunnel_name)) => {
                     Self::wait_for_container_start(&container_id).await?;
                     vars.insert("CONTAINER_ID".to_owned(), container_id);
@@ -213,7 +218,7 @@ impl Hook for SshTunnelHook {
     async fn post(
         &self,
         _config: &Config,
-        _client: &Client,
+        _client: TestClient,
         vars: &HashMap<String, String>,
     ) -> Result<()> {
         Command::new("docker")

@@ -33,17 +33,27 @@ impl From<SessionStorageConfig> for service::SessionStorageConfig {
     }
 }
 
-pub struct InitializeSessionRequestFromClient {}
+pub struct InitializeSessionRequestFromClient {
+    pub test_db_id: Option<Uuid>,
+}
 
-impl From<service::InitializeSessionRequestFromClient> for InitializeSessionRequestFromClient {
-    fn from(_value: service::InitializeSessionRequestFromClient) -> Self {
-        Self {}
+impl TryFrom<service::InitializeSessionRequestFromClient> for InitializeSessionRequestFromClient {
+    type Error = ProtoConvError;
+    fn try_from(value: service::InitializeSessionRequestFromClient) -> Result<Self, Self::Error> {
+        Ok(Self {
+            test_db_id: value
+                .test_db_id
+                .map(|id| Uuid::from_slice(&id))
+                .transpose()?,
+        })
     }
 }
 
 impl From<InitializeSessionRequestFromClient> for service::InitializeSessionRequestFromClient {
-    fn from(_value: InitializeSessionRequestFromClient) -> Self {
-        Self {}
+    fn from(value: InitializeSessionRequestFromClient) -> Self {
+        Self {
+            test_db_id: value.test_db_id.map(|id| id.into_bytes().into()),
+        }
     }
 }
 
@@ -81,7 +91,7 @@ impl TryFrom<service::initialize_session_request::Request> for InitializeSession
     fn try_from(value: service::initialize_session_request::Request) -> Result<Self, Self::Error> {
         Ok(match value {
             service::initialize_session_request::Request::Client(c) => {
-                InitializeSessionRequest::Client(c.into())
+                InitializeSessionRequest::Client(c.try_into()?)
             }
             service::initialize_session_request::Request::Proxy(c) => {
                 InitializeSessionRequest::Proxy(c.try_into()?)

@@ -1,6 +1,7 @@
 use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
+    path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
@@ -8,16 +9,11 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use glaredb::server::{ComputeServer, ServerConfig};
-use tokio::{
-    net::TcpListener,
-    runtime::Builder,
-    sync::{mpsc, oneshot},
-    time::Instant,
-};
-use tokio_postgres::{config::Config as ClientConfig, NoTls};
+use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
+use tokio_postgres::config::Config as ClientConfig;
 use uuid::Uuid;
 
-use crate::slt::test::{Test, TestHooks};
+use crate::slt::test::{PgTestClient, RpcTestClient, Test, TestClient, TestHooks};
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
@@ -70,6 +66,10 @@ pub struct Cli {
     /// Exclude these tests from the run.
     #[clap(short, long, value_parser)]
     exclude: Vec<String>,
+
+    /// Run the tests in RPC mode.
+    #[clap(long, value_parser)]
+    rpc_test: bool,
 
     /// Tests to run.
     ///
@@ -145,34 +145,6 @@ impl Cli {
         mut tests: Vec<(String, Test)>,
         hooks: TestHooks,
     ) -> Result<()> {
-        // Break up into batches.
-        //
-        // Rust doesn't have a good way of breaking a Vec into a Vec of Vecs
-        // with owned references, so do it manually.
-        let mut batches = Vec::new();
-        loop {
-            let batch: Vec<_> = tests
-                .drain(0..usize::min(batch_size, tests.len()))
-                .collect();
-            if batch.is_empty() {
-                break;
-            }
-            batches.push(batch)
-        }
-
-        let start = Instant::now();
-
-        for batch in batches {
-            self.run_tests(batch, hooks.clone()).await?;
-        }
-
-        let time_taken = Instant::now().duration_since(start);
-        eprintln!("Tests took {time_taken:?} to run");
-
-        Ok(())
-    }
-
-    async fn run_tests(&self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
         // Temp directory for metastore
         let temp_dir = tempfile::tempdir()?;
 
@@ -194,7 +166,11 @@ impl Cli {
                 let pg_addr = pg_listener.local_addr()?;
                 let server_conf = ServerConfig {
                     pg_listener,
-                    rpc_addr: None,
+                    rpc_addr: if self.rpc_test {
+                        Some("0.0.0.0:6789".parse().unwrap())
+                    } else {
+                        None
+                    },
                 };
 
                 let server = ComputeServer::connect(
@@ -208,7 +184,7 @@ impl Cli {
                     None,
                     None,
                     /* integration_testing = */ true,
-                    /* disable_rpc_auth = */ false,
+                    /* disable_rpc_auth = */ self.rpc_test,
                 )
                 .await?;
                 tokio::spawn(server.serve(server_conf));
@@ -234,6 +210,41 @@ impl Cli {
                 configs
             };
 
+        // Break up into batches.
+        //
+        // Rust doesn't have a good way of breaking a Vec into a Vec of Vecs
+        // with owned references, so do it manually.
+        let mut batches = Vec::new();
+        loop {
+            let batch: Vec<_> = tests
+                .drain(0..usize::min(batch_size, tests.len()))
+                .collect();
+            if batch.is_empty() {
+                break;
+            }
+            batches.push(batch)
+        }
+
+        let start = Instant::now();
+
+        for batch in batches {
+            self.run_tests(&configs, batch, hooks.clone(), temp_dir.path())
+                .await?;
+        }
+
+        let time_taken = Instant::now().duration_since(start);
+        eprintln!("Tests took {time_taken:?} to run");
+
+        Ok(())
+    }
+
+    async fn run_tests(
+        &self,
+        configs: &HashMap<String, ClientConfig>,
+        tests: Vec<(String, Test)>,
+        hooks: TestHooks,
+        data_dir: &Path,
+    ) -> Result<()> {
         let (jobs_tx, mut jobs_rx) = mpsc::unbounded_channel();
         let mut total_jobs = if self.jobs > 0 { self.jobs } else { u8::MAX };
 
@@ -266,8 +277,10 @@ impl Cli {
             let cfg = configs.get(&test_name).unwrap().clone();
             let tx = jobs_tx.clone();
             let hooks = Arc::clone(&hooks);
+            let rpc_test = self.rpc_test;
+            let data_dir = data_dir.to_path_buf();
             tokio::spawn(async move {
-                let res = Self::run_test(&test_name, test, cfg, hooks).await;
+                let res = Self::run_test(rpc_test, data_dir, &test_name, test, cfg, hooks).await;
                 tx.send((test_name.clone(), res)).unwrap();
             });
         }
@@ -323,54 +336,63 @@ impl Cli {
     }
 
     async fn run_test(
+        rpc_test: bool,
+        data_dir: PathBuf,
         test_name: &str,
         test: Test,
         client_config: ClientConfig,
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
-        let start = Instant::now();
+        let client = if rpc_test {
+            TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?)
+        } else {
+            TestClient::Pg(PgTestClient::new(&client_config).await?)
+        };
 
-        let mut local_vars = HashMap::new();
+        async fn run_test_inner(
+            client: TestClient,
+            test_name: &str,
+            test: Test,
+            client_config: ClientConfig,
+            hooks: Arc<TestHooks>,
+        ) -> Result<()> {
+            let start = Instant::now();
 
-        // Run the actual test
-        let (client, conn) = client_config.connect(NoTls).await?;
-        let client = Arc::new(client);
-        let (conn_err_tx, mut conn_err_rx) = oneshot::channel();
-        tokio::spawn(async move { conn_err_tx.send(conn.await) });
+            let mut local_vars = HashMap::new();
 
-        let hooks = hooks
-            .iter()
-            .filter(|(pattern, _)| pattern.matches(test_name));
+            // Run the actual test
+            let hooks = hooks
+                .iter()
+                .filter(|(pattern, _)| pattern.matches(test_name));
 
-        tracing::info!(%test_name, "Running test");
-
-        // Run the pre-test hooks
-        for (pattern, hook) in hooks.clone() {
-            tracing::debug!(%pattern, %test_name, "Running pre hook for test");
-            hook.pre(&client_config, &client, &mut local_vars).await?;
-        }
-
-        // Run the actual test
-        test.execute(&client_config, client.clone(), &mut local_vars)
-            .await?;
-
-        // Run the post-test hooks
-        for (pattern, hook) in hooks {
-            tracing::debug!(%pattern, %test_name, "Running post hook for test");
-            hook.post(&client_config, &client, &local_vars).await?;
-        }
-
-        if let Ok(result) = conn_err_rx.try_recv() {
-            // Handle connection error
-            match result {
-                Ok(()) => return Err(anyhow!("Client connection unexpectedly closed")),
-                Err(e) => return Err(e.into()),
+            // Run the pre-test hooks
+            for (pattern, hook) in hooks.clone() {
+                tracing::debug!(%pattern, %test_name, "Running pre hook for test");
+                hook.pre(&client_config, client.clone(), &mut local_vars)
+                    .await?;
             }
+
+            // Run the actual test
+            test.execute(&client_config, client.clone(), &mut local_vars)
+                .await?;
+
+            // Run the post-test hooks
+            for (pattern, hook) in hooks {
+                tracing::debug!(%pattern, %test_name, "Running post hook for test");
+                hook.post(&client_config, client.clone(), &local_vars)
+                    .await?;
+            }
+
+            let time_taken = Instant::now().duration_since(start);
+            tracing::info!(?time_taken, %test_name, "Done executing");
+
+            Ok(())
         }
 
-        let time_taken = Instant::now().duration_since(start);
-        tracing::info!(?time_taken, %test_name, "Done executing");
-
-        Ok(())
+        let res = run_test_inner(client.clone(), test_name, test, client_config, hooks).await;
+        // No need to wait for session's close handler since we don't wait for
+        // sessions to end in integration testing mode while closing the server.
+        let _ = client.close().await;
+        res
     }
 }
