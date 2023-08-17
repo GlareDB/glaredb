@@ -373,6 +373,14 @@ impl RemoteSessionClient {
         Ok(resp)
     }
 
+    pub async fn broadcast_exchange(
+        &mut self,
+        stream: impl tonic::IntoStreamingRequest<Message = service::BroadcastExchangeRequest>,
+    ) -> Result<()> {
+        let _req = self.inner.client.broadcast_exchange(stream).await?;
+        Ok(())
+    }
+
     pub async fn close_session(&mut self) -> Result<()> {
         let mut request = service::CloseSessionRequest::from(CloseSessionRequest {
             session_id: self.session_id(),

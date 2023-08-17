@@ -94,6 +94,7 @@ impl ComputeServer {
                 storage_conf,
                 Arc::new(tracker),
                 spill_path,
+                integration_testing,
             )
             .await?,
         );
@@ -161,7 +162,11 @@ impl ComputeServer {
 
         // Start rpc service.
         if let Some(addr) = conf.rpc_addr {
-            let handler = RpcHandler::new(self.engine.clone(), self.disable_rpc_auth);
+            let handler = RpcHandler::new(
+                self.engine.clone(),
+                self.disable_rpc_auth,
+                self.integration_testing,
+            );
             info!("Starting rpc service");
             tokio::spawn(async move {
                 if let Err(e) = Server::builder()

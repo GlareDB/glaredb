@@ -103,6 +103,8 @@ pub struct Engine {
     session_counter: Arc<AtomicU64>,
     /// Background jobs to run.
     background_jobs: JobRunner,
+    /// Running in integration_testing mode.
+    integration_testing: bool,
 }
 
 impl Engine {
@@ -112,6 +114,7 @@ impl Engine {
         storage: EngineStorageConfig,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
+        integration_testing: bool,
     ) -> Result<Engine> {
         Ok(Engine {
             supervisor: Supervisor::new(metastore, DEFAULT_WORKER_CONFIG),
@@ -120,6 +123,7 @@ impl Engine {
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
             background_jobs: JobRunner::new(Default::default()),
+            integration_testing,
         })
     }
 
@@ -186,10 +190,16 @@ impl Engine {
             .storage
             .new_native_tables_storage(Uuid::nil(), &SessionStorageConfig::default())?;
 
+        let test_db_id = if self.integration_testing {
+            Some(Uuid::new_v4())
+        } else {
+            None
+        };
+
         // Set up remote session.
         let (remote_sess_client, catalog) = exec_client
             .initialize_session(InitializeSessionRequest::Client(
-                InitializeSessionRequestFromClient {},
+                InitializeSessionRequestFromClient { test_db_id },
             ))
             .await?;
 

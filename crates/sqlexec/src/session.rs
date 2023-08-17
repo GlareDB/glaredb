@@ -7,6 +7,7 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteSessionClient;
+use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
@@ -241,6 +242,10 @@ impl Session {
         Ok(Session { ctx })
     }
 
+    pub async fn close(&mut self) -> Result<()> {
+        self.ctx.close().await
+    }
+
     pub fn get_session_catalog(&self) -> &SessionCatalog {
         self.ctx.get_session_catalog()
     }
@@ -274,6 +279,10 @@ impl Session {
                 Ok(plan)
             }
         }
+    }
+
+    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
+        self.ctx.staged_streams()
     }
 
     pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {

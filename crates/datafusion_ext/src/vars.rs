@@ -5,7 +5,7 @@ mod inner;
 mod utils;
 mod value;
 use constants::*;
-use datafusion::config::{ExtensionOptions, ConfigExtension};
+use datafusion::config::{ConfigExtension, ExtensionOptions};
 use utils::*;
 
 use datafusion::variable::VarType;
