@@ -124,7 +124,7 @@ async fn execute_remote(
 }
 
 /// Converts a response stream from the service into a record batch stream.
-// TODO: StreamReader
+// TODO: StreamReader instead of FileReader.
 struct ExecutionResponseBatchStream {
     /// Stream we're reading from.
     stream: Streaming<RecordBatchResponse>,

@@ -11,6 +11,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::RemoteSessionClient;
 use crate::remote::planner::RemoteLogicalPlanner;
+use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
@@ -130,7 +131,10 @@ impl SessionContext {
 
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
-        let config: SessionConfig = config_opts.into();
+        let mut config: SessionConfig = config_opts.into();
+
+        // Add in custom extensions. These will be accessible during execution.
+        config = config.with_extension(Arc::new(StagedClientStreams::default()));
 
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
@@ -327,6 +331,20 @@ impl SessionContext {
                     "cannot create extension codec for non-remote session".to_string(),
                 )
             })
+    }
+
+    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
+        match self
+            .df_ctx
+            .state()
+            .config()
+            .get_extension::<StagedClientStreams>()
+        {
+            Some(streams) => Ok(streams),
+            None => Err(internal!(
+                "cannot access client streams for a non-remote session"
+            )),
+        }
     }
 
     /// Create a temp table.

@@ -103,7 +103,7 @@ message TableProviderScanRequest {
   // Scan parameters.
   repeated uint64 projection = 3;
   repeated bytes filters = 4;
-  optional uint64 limit = 5; 
+  optional uint64 limit = 5;
 }
 
 // To `insert_into` a table provider.
@@ -142,6 +142,26 @@ message TableReference {
   string table = 3;
 }
 
+message BroadcastExchangeRequest {
+  // Session id.
+  bytes session_id = 1;
+  // Input id;
+  bytes broadcast_input_id = 2;
+  // Input batches.
+  bytes arrow_ipc = 3;
+
+  // TODO: Error flag to indicate if the stream errored on the client side. We
+  // don't need the error itself, we just need to know that we did error.
+  //
+  // Note that an error *inside* the message would indicated we had trouble
+  // reading from the stream or encoding to IPC. The client will already have
+  // access to the error.
+  //
+  // This would be used to just drop the stream to release resources.
+}
+
+message BroadcastExchangeResponse {}
+
 message CloseSessionRequest {
   // ID of session that we are closing.
   bytes session_id = 1;
@@ -172,6 +192,9 @@ service ExecutionService {
   // Execute a physical plan.
   rpc PhysicalPlanExecute(PhysicalPlanExecuteRequest)
       returns (stream RecordBatchResponse);
+
+  rpc BroadcastExchange(stream BroadcastExchangeRequest)
+      returns (BroadcastExchangeResponse);
 
   // Close the remote session.
   rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);

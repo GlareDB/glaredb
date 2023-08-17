@@ -148,6 +148,7 @@ pub struct LogicalPlanExtension {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Oneof)]
 pub enum LogicalPlanExtensionType {
+    // DDLs
     #[prost(message, tag = "1")]
     CreateTable(CreateTable),
     #[prost(message, tag = "2")]
