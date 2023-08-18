@@ -114,7 +114,7 @@ impl TableFunc for ObjScanTableFunc {
             (Arc<dyn ObjStoreAccess>, Vec<DatasourceUrl>),
         > = HashMap::new();
         for source_url in urls {
-            let access = get_store_access(ctx, &source_url, args.clone(), opts.clone())?;
+            let access = get_store_access(ctx, &source_url, args.clone(), opts.clone()).await?;
             let base_url = access
                 .base_url()
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
@@ -182,7 +182,7 @@ async fn get_table_provider(
         .map_err(|e| ExtensionError::Access(Box::new(e)))
 }
 
-fn get_store_access(
+async fn get_store_access(
     ctx: &dyn TableFuncContextProvider,
     source_url: &DatasourceUrl,
     mut args: vec::IntoIter<FuncParamValue>,
@@ -220,11 +220,12 @@ fn get_store_access(
         1 => {
             // Credentials object
             let creds: IdentValue = args.next().unwrap().param_into()?;
-            let creds = ctx
-                .get_credentials_entry(creds.as_str())
-                .ok_or(ExtensionError::String(format!(
-                    "missing credentials object: {creds}"
-                )))?;
+            let creds =
+                ctx.get_credentials_entry(creds.as_str())
+                    .await
+                    .ok_or(ExtensionError::String(format!(
+                        "missing credentials object: {creds}"
+                    )))?;
 
             match source_url.datasource_url_type() {
                 DatasourceUrlType::Gcs => {

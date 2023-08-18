@@ -1,6 +1,6 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{AsyncSessionCatalog, SessionCatalog};
 use datafusion::arrow::array::{
     BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
 };
@@ -141,10 +141,10 @@ impl<'a> SessionDispatcher<'a> {
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
         let catalog = self.ctx.get_session_catalog();
-
+        // let catalog = catalog.read();
         // "External" database.
         if database != DEFAULT_CATALOG {
-            let db = match catalog.resolve_database(database) {
+            let db = match catalog.resolve_database(database).await {
                 Some(db) => db,
                 None => {
                     return Err(DispatchError::MissingDatabase {
@@ -152,7 +152,7 @@ impl<'a> SessionDispatcher<'a> {
                     })
                 }
             };
-            return self.dispatch_external_database(db, schema, name).await;
+            return self.dispatch_external_database(&db, schema, name).await;
         }
 
         if schema == CURRENT_SESSION_SCHEMA {
@@ -167,6 +167,7 @@ impl<'a> SessionDispatcher<'a> {
 
         let ent = catalog
             .resolve_entry(database, schema, name)
+            .await
             .ok_or_else(|| DispatchError::MissingEntry {
                 schema: schema.to_string(),
                 name: name.to_string(),
@@ -178,11 +179,11 @@ impl<'a> SessionDispatcher<'a> {
             return Err(DispatchError::InvalidEntryTypeForDispatch(ent.entry_type()));
         }
 
-        match ent {
+        match &ent {
             CatalogEntry::View(view) => self.dispatch_view(view).await,
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.ctx).dispatch(schema, name)
+                SystemTableDispatcher::new(self.ctx).dispatch(schema, name).await
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {
@@ -204,7 +205,7 @@ impl<'a> SessionDispatcher<'a> {
         schema: &str,
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
-        let tunnel = self.get_tunnel_opts(db.tunnel_id)?;
+        let tunnel = self.get_tunnel_opts(db.tunnel_id).await?;
 
         match &db.options {
             DatabaseOptions::Internal(_) => unimplemented!(),
@@ -303,7 +304,7 @@ impl<'a> SessionDispatcher<'a> {
     }
 
     async fn dispatch_external_table(&self, table: &TableEntry) -> Result<Arc<dyn TableProvider>> {
-        let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
+        let tunnel = self.get_tunnel_opts(table.tunnel_id).await?;
 
         match &table.options {
             TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
@@ -505,12 +506,13 @@ impl<'a> SessionDispatcher<'a> {
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 
-    fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {
+    async fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {
         let tunnel_options = if let Some(tunnel_id) = tunnel_id {
-            let ent = self
-                .ctx
-                .get_session_catalog()
+            let catalog = self.ctx.catalog();
+
+            let ent = catalog
                 .get_by_oid(tunnel_id)
+                .await
                 .ok_or(DispatchError::MissingTunnel(tunnel_id))?;
 
             let ent = match ent {
@@ -535,33 +537,33 @@ impl<'a> SystemTableDispatcher<'a> {
         SystemTableDispatcher { ctx }
     }
 
-    fn catalog(&self) -> &SessionCatalog {
+    fn catalog(&self) -> Arc<AsyncSessionCatalog> {
         self.ctx.get_session_catalog()
     }
 
-    fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+    async fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
         Ok(if GLARE_DATABASES.matches(schema, name) {
-            Arc::new(self.build_glare_databases())
+            Arc::new(self.build_glare_databases().await)
         } else if GLARE_TUNNELS.matches(schema, name) {
-            Arc::new(self.build_glare_tunnels())
+            Arc::new(self.build_glare_tunnels().await)
         } else if GLARE_CREDENTIALS.matches(schema, name) {
-            Arc::new(self.build_glare_credentials())
+            Arc::new(self.build_glare_credentials().await)
         } else if GLARE_TABLES.matches(schema, name) {
-            Arc::new(self.build_glare_tables())
+            Arc::new(self.build_glare_tables().await)
         } else if GLARE_COLUMNS.matches(schema, name) {
-            Arc::new(self.build_glare_columns())
+            Arc::new(self.build_glare_columns().await)
         } else if GLARE_VIEWS.matches(schema, name) {
-            Arc::new(self.build_glare_views())
+            Arc::new(self.build_glare_views().await)
         } else if GLARE_SCHEMAS.matches(schema, name) {
-            Arc::new(self.build_glare_schemas())
+            Arc::new(self.build_glare_schemas().await)
         } else if GLARE_FUNCTIONS.matches(schema, name) {
-            Arc::new(self.build_glare_functions())
+            Arc::new(self.build_glare_functions().await)
         } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
             Arc::new(self.build_session_query_metrics())
         } else if GLARE_SSH_KEYS.matches(schema, name) {
-            Arc::new(self.build_ssh_keys()?)
+            Arc::new(self.build_ssh_keys().await?)
         } else if GLARE_DEPLOYMENT_METADATA.matches(schema, name) {
-            Arc::new(self.build_glare_deployment_metadata()?)
+            Arc::new(self.build_glare_deployment_metadata().await?)
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
@@ -570,7 +572,7 @@ impl<'a> SystemTableDispatcher<'a> {
         })
     }
 
-    fn build_glare_databases(&self) -> MemTable {
+    async fn build_glare_databases(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_DATABASES.arrow_schema());
 
         let mut oid = UInt32Builder::new();
@@ -578,9 +580,10 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
         let mut datasource = StringBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for db in self
-            .catalog()
+        for db in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Database)
         {
@@ -611,16 +614,17 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_tunnels(&self) -> MemTable {
+    async fn build_glare_tunnels(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_TUNNELS.arrow_schema());
 
         let mut oid = UInt32Builder::new();
         let mut tunnel_name = StringBuilder::new();
         let mut builtin = BooleanBuilder::new();
         let mut tunnel_type = StringBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for tunnel in self
-            .catalog()
+        for tunnel in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Tunnel)
         {
@@ -649,7 +653,7 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_credentials(&self) -> MemTable {
+    async fn build_glare_credentials(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_CREDENTIALS.arrow_schema());
 
         let mut oid = UInt32Builder::new();
@@ -657,9 +661,9 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut provider = StringBuilder::new();
         let mut comment = StringBuilder::new();
-
-        for creds in self
-            .catalog()
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
+        for creds in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Credentials)
         {
@@ -690,7 +694,7 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_schemas(&self) -> MemTable {
+    async fn build_glare_schemas(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_SCHEMAS.arrow_schema());
 
         let mut oid = UInt32Builder::new();
@@ -698,9 +702,10 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut database_name = StringBuilder::new();
         let mut schema_name = StringBuilder::new();
         let mut builtin = BooleanBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for schema in self
-            .catalog()
+        for schema in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Schema)
         {
@@ -729,7 +734,7 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_tables(&self) -> MemTable {
+    async fn build_glare_tables(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_TABLES.arrow_schema());
 
         let mut oid = UInt32Builder::new();
@@ -740,9 +745,10 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
         let mut datasource = StringBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for table in self
-            .catalog()
+        for table in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Table)
         {
@@ -803,7 +809,7 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_columns(&self) -> MemTable {
+    async fn build_glare_columns(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_COLUMNS.arrow_schema());
 
         let mut schema_oid = UInt32Builder::new();
@@ -813,9 +819,10 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut column_ordinal = UInt32Builder::new();
         let mut data_type = StringBuilder::new();
         let mut is_nullable = BooleanBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for table in self
-            .catalog()
+        for table in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Table)
         {
@@ -862,7 +869,7 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_views(&self) -> MemTable {
+    async fn build_glare_views(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_VIEWS.arrow_schema());
 
         let mut oid = UInt32Builder::new();
@@ -872,9 +879,10 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut view_name = StringBuilder::new();
         let mut builtin = BooleanBuilder::new();
         let mut sql = StringBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for view in self
-            .catalog()
+        for view in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::View)
         {
@@ -917,7 +925,7 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_glare_functions(&self) -> MemTable {
+    async fn build_glare_functions(&self) -> MemTable {
         let arrow_schema = Arc::new(GLARE_FUNCTIONS.arrow_schema());
 
         let mut oid = UInt32Builder::new();
@@ -927,9 +935,10 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut parameters = ListBuilder::new(StringBuilder::new());
         let mut parameter_types = ListBuilder::new(StringBuilder::new());
         let mut builtin = BooleanBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for func in self
-            .catalog()
+        for func in catalog
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Function)
         {
@@ -1003,14 +1012,16 @@ impl<'a> SystemTableDispatcher<'a> {
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
-    fn build_ssh_keys(&self) -> Result<MemTable> {
+    async fn build_ssh_keys(&self) -> Result<MemTable> {
         let arrow_schema = Arc::new(GLARE_SSH_KEYS.arrow_schema());
 
         let mut ssh_tunnel_oid = UInt32Builder::new();
         let mut ssh_tunnel_name = StringBuilder::new();
         let mut public_key = StringBuilder::new();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
 
-        for t in self.catalog().iter_entries().filter(|ent| match ent.entry {
+        for t in catalog.iter_entries().filter(|ent| match ent.entry {
             CatalogEntry::Tunnel(tunnel_entry) => {
                 matches!(tunnel_entry.options, TunnelOptions::Ssh(_))
             }
@@ -1048,9 +1059,12 @@ impl<'a> SystemTableDispatcher<'a> {
         Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
     }
 
-    fn build_glare_deployment_metadata(&self) -> Result<MemTable> {
+    async fn build_glare_deployment_metadata(&self) -> Result<MemTable> {
         let arrow_schema = Arc::new(GLARE_DEPLOYMENT_METADATA.arrow_schema());
-        let deployment = self.catalog().deployment_metadata();
+        let catalog = self.catalog();
+        let catalog = catalog.read().await;
+
+        let deployment = catalog.deployment_metadata();
 
         let (mut key, mut value): (StringBuilder, StringBuilder) = [(
             Some("storage_size"),

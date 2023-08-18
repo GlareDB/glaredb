@@ -118,54 +118,59 @@ impl<'a> PartialContextProvider<'a> {
         }
     }
 
-    /// Find a table function with the given reference, taking into account the
-    /// session's search path.
-    fn table_function_for_reference(
+    async fn resolve_entry(
         &self,
-        reference: TableReference<'_>,
+        schema: impl AsRef<str>,
+        name: &str,
     ) -> Option<Arc<dyn TableFunc>> {
         let catalog = self.ctx.get_session_catalog();
 
-        let resolve_func = |schema: String, name| {
-            match catalog.resolve_entry(DEFAULT_CATALOG, &schema, name) {
-                Some(CatalogEntry::Function(func)) => {
-                    if func.meta.builtin {
-                        if let Some(func_impl) = BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
-                        {
-                            Some(func_impl)
-                        } else {
-                            // This can happen if we're in the middle of
-                            // a deploy and builtin functions were
-                            // added/removed.
-                            error!(name = %func.meta.name, "missing builtin function impl");
-                            None
-                        }
+        match catalog
+            .resolve_entry(DEFAULT_CATALOG, schema.as_ref(), name)
+            .await
+        {
+            Some(CatalogEntry::Function(func)) => {
+                if func.meta.builtin {
+                    if let Some(func_impl) = BUILTIN_TABLE_FUNCS.find_function(&func.meta.name) {
+                        Some(func_impl)
                     } else {
-                        // We only have builtin functions right now.
+                        // This can happen if we're in the middle of
+                        // a deploy and builtin functions were
+                        // added/removed.
+                        error!(name = %func.meta.name, "missing builtin function impl");
                         None
                     }
+                } else {
+                    // We only have builtin functions right now.
+                    None
                 }
-                _ => None,
             }
-        };
-
+            _ => None,
+        }
+    }
+    /// Find a table function with the given reference, taking into account the
+    /// session's search path.
+    async fn table_function_for_reference(
+        &self,
+        reference: TableReference<'_>,
+    ) -> Option<Arc<dyn TableFunc>> {
         match &reference {
             TableReference::Bare { table } => {
                 for schema in self.ctx.implicit_search_paths() {
-                    if let Some(func_impl) = resolve_func(schema, table) {
+                    if let Some(func_impl) = self.resolve_entry(&schema, table).await {
                         return Some(func_impl);
                     }
                 }
                 None
             }
-            TableReference::Partial { schema, table } => resolve_func(schema.to_string(), table),
+            TableReference::Partial { schema, table } => self.resolve_entry(schema, table).await,
             TableReference::Full {
                 catalog,
                 schema,
                 table,
             } => {
                 if catalog == DEFAULT_CATALOG {
-                    resolve_func(schema.to_string(), table)
+                    self.resolve_entry(schema, table).await
                 } else {
                     None
                 }
@@ -228,8 +233,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         None
     }
 
-    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>> {
-        self.table_function_for_reference(name)
+    async fn get_table_func(&self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>> {
+        self.table_function_for_reference(name).await
     }
 
     fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider {
@@ -249,13 +254,17 @@ pub struct TableFnCtxProvider<'a> {
     state: &'a SessionState,
 }
 
+#[async_trait]
 impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
-        self.ctx.get_session_catalog().resolve_database(name)
+    async fn get_database_entry(&self, name: &str) -> Option<DatabaseEntry> {
+        self.ctx.get_session_catalog().resolve_database(name).await
     }
 
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
-        self.ctx.get_session_catalog().resolve_credentials(name)
+    async fn get_credentials_entry(&self, name: &str) -> Option<CredentialsEntry> {
+        self.ctx
+            .get_session_catalog()
+            .resolve_credentials(name)
+            .await
     }
 
     fn get_session_vars(&self) -> SessionVars {

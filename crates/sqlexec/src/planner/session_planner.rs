@@ -108,7 +108,7 @@ impl<'a> SessionPlanner<'a> {
         let datasource = normalize_ident(stmt.datasource);
 
         let tunnel = stmt.tunnel.map(normalize_ident);
-        let tunnel_options = self.get_tunnel_opts(&tunnel)?;
+        let tunnel_options = self.get_tunnel_opts(&tunnel).await?;
         if let Some(tunnel_options) = &tunnel_options {
             // Validate if the tunnel type is supported by the datasource
             validate_database_tunnel_support(&datasource, tunnel_options.as_str()).map_err(
@@ -119,7 +119,7 @@ impl<'a> SessionPlanner<'a> {
         }
 
         let creds = stmt.credentials.map(normalize_ident);
-        let creds_options = self.get_credentials_opts(&creds)?;
+        let creds_options = self.get_credentials_opts(&creds).await?;
         if let Some(creds_options) = &creds_options {
             validate_database_creds_support(&datasource, creds_options.as_str()).map_err(|e| {
                 PlanError::InvalidExternalDatabase {
@@ -266,7 +266,7 @@ impl<'a> SessionPlanner<'a> {
         let datasource = normalize_ident(stmt.datasource);
 
         let tunnel = stmt.tunnel.map(normalize_ident);
-        let tunnel_options = self.get_tunnel_opts(&tunnel)?;
+        let tunnel_options = self.get_tunnel_opts(&tunnel).await?;
         if let Some(tunnel_options) = &tunnel_options {
             // Validate if the tunnel type is supported by the datasource
             validate_table_tunnel_support(&datasource, tunnel_options.as_str()).map_err(|e| {
@@ -277,7 +277,7 @@ impl<'a> SessionPlanner<'a> {
         }
 
         let creds = stmt.credentials.map(normalize_ident);
-        let creds_options = self.get_credentials_opts(&creds)?;
+        let creds_options = self.get_credentials_opts(&creds).await?;
         if let Some(creds_options) = &creds_options {
             validate_table_creds_support(&datasource, creds_options.as_str()).map_err(|e| {
                 PlanError::InvalidExternalTable {
@@ -1199,7 +1199,7 @@ impl<'a> SessionPlanner<'a> {
         };
 
         let creds = stmt.credentials.map(normalize_ident);
-        let creds_options = self.get_credentials_opts(&creds)?;
+        let creds_options = self.get_credentials_opts(&creds).await?;
         if let Some(creds_options) = &creds_options {
             validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
                 PlanError::InvalidExternalTable {
@@ -1339,13 +1339,14 @@ impl<'a> SessionPlanner<'a> {
         .into())
     }
 
-    fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {
+    async fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {
         // Check if the tunnel exists, get tunnel options and pass them on for
         // connection validation.
         let tunnel_options = if let Some(tunnel) = &tunnel {
-            let ent = self
-                .ctx
-                .get_session_catalog()
+            let catalog = self.ctx.catalog();
+            let catalog = catalog.read().await;
+
+            let ent = catalog
                 .resolve_tunnel(tunnel)
                 .ok_or(PlanError::InvalidTunnel {
                     tunnel: tunnel.to_owned(),
@@ -1358,21 +1359,23 @@ impl<'a> SessionPlanner<'a> {
         Ok(tunnel_options)
     }
 
-    fn get_credentials_opts(
+    async fn get_credentials_opts(
         &self,
         credentials: &Option<String>,
     ) -> Result<Option<CredentialsOptions>> {
         // Check if the credentials exists, get credentials options and pass
         // them on for connection validation.
         let credentials_options = if let Some(credentials) = &credentials {
-            let ent = self
-                .ctx
-                .get_session_catalog()
-                .resolve_credentials(credentials)
-                .ok_or(PlanError::InvalidCredentials {
-                    credentials: credentials.to_owned(),
-                    reason: "does not exist".to_string(),
-                })?;
+            let catalog = self.ctx.catalog();
+            let catalog = catalog.read().await;
+            
+            let ent =
+                catalog
+                    .resolve_credentials(credentials)
+                    .ok_or(PlanError::InvalidCredentials {
+                        credentials: credentials.to_owned(),
+                        reason: "does not exist".to_string(),
+                    })?;
             Some(ent.options.clone())
         } else {
             None

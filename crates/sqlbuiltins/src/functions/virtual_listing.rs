@@ -111,6 +111,7 @@ async fn get_db_lister(
 ) -> Result<Box<dyn VirtualLister>> {
     let db = ctx
         .get_database_entry(&dbname)
+        .await
         .ok_or(ExtensionError::MissingObject {
             obj_typ: "database",
             name: dbname,

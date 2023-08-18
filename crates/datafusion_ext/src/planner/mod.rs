@@ -74,7 +74,7 @@ pub trait AsyncContextProvider: Send + Sync {
     ///
     /// Note that this accepts a table reference since these functions are
     /// namespaced similiarly to tables.
-    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>>;
+    async fn get_table_func(&self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>>;
 
     /// Get the table func context provider.
     fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider;

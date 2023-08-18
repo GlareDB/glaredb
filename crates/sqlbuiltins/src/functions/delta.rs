@@ -58,7 +58,7 @@ impl TableFunc for DeltaScan {
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
                 let creds: IdentValue = args.next().unwrap().param_into()?;
-                let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
+                let creds = ctx.get_credentials_entry(creds.as_str()).await.ok_or(
                     ExtensionError::String(format!("missing credentials object: {creds}")),
                 )?;
 

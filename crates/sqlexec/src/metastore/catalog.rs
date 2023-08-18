@@ -7,6 +7,7 @@ use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::Mutation;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::debug;
 
 use super::client::{SupervisorClient, WorkerError};
@@ -46,6 +47,98 @@ pub struct SessionCatalog {
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
     schema_objects: HashMap<u32, SchemaObjects>,
+}
+pub struct AsyncSessionCatalog {
+    inner: Arc<RwLock<SessionCatalog>>,
+}
+
+impl From<SessionCatalog> for AsyncSessionCatalog {
+    fn from(catalog: SessionCatalog) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(catalog)),
+        }
+    }
+}
+
+impl AsyncSessionCatalog {
+    pub fn new(state: Arc<CatalogState>) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(SessionCatalog::new(state))),
+        }
+    }
+    pub fn new_with_client(state: Arc<CatalogState>, client: SupervisorClient) -> Self {
+        SessionCatalog::new_with_client(state, client).into()
+    }
+
+    pub async fn read(&self) -> RwLockReadGuard<'_, SessionCatalog> {
+        self.inner.read().await
+    }
+
+    pub async fn write(&self) -> RwLockWriteGuard<'_, SessionCatalog> {
+        self.inner.write().await
+    }
+
+    pub async fn mutate(&self, mutations: impl IntoIterator<Item = Mutation>) -> Result<()> {
+        let mut catalog = self.write().await;
+        catalog.mutate(mutations).await
+    }
+
+    pub async fn resolve_native_table(
+        &self,
+        _database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Option<TableEntry> {
+        let catalog = self.read().await;
+        let schema_id = catalog.schema_names.get(schema)?;
+        let obj = catalog.schema_objects.get(schema_id)?;
+        let obj_id = obj.objects.get(name)?;
+
+        let ent = catalog.state.entries.get(obj_id)?;
+
+        match ent {
+            CatalogEntry::Table(table) => match &table.options {
+                TableOptions::Internal(_) => Some(table.clone()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub async fn resolve_entry(
+        &self,
+        _database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Option<CatalogEntry> {
+        let catalog = self.read().await;
+        catalog.resolve_entry(_database, schema, name).cloned()
+    }
+
+    pub async fn resolve_database(&self, name: &str) -> Option<DatabaseEntry> {
+        let catalog = self.read().await;
+        catalog.resolve_database(name).cloned()
+    }
+
+    pub async fn resolve_credentials(&self, name: &str) -> Option<CredentialsEntry> {
+        let catalog = self.read().await;
+        catalog.resolve_credentials(name).cloned()
+    }
+
+    pub async fn get_metastore_client(&self) -> Option<SupervisorClient> {
+        let catalog = self.read().await;
+        catalog.get_metastore_client().cloned()
+    }
+
+    pub async fn maybe_refresh_state(&self, force_refresh: bool) -> Result<()> {
+        let mut catalog = self.write().await;
+        catalog.maybe_refresh_state(force_refresh).await
+    }
+
+    pub async fn get_by_oid(&self, oid: u32) -> Option<CatalogEntry> {
+        let catalog = self.read().await;
+        catalog.state.entries.get(&oid).cloned()
+    }
 }
 
 impl SessionCatalog {

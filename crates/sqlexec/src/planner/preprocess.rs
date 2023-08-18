@@ -37,10 +37,11 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
             let catalog = ctx.get_session_catalog();
             for schema in ctx.implicit_search_paths() {
                 // TODO
-                if let Some(ent) = catalog.resolve_entry(DEFAULT_CATALOG, &schema, rel) {
-                    // Table found.
-                    return Some(ent.get_meta().id);
-                }
+                todo!("wip")
+                // if let Some(ent) = catalog.resolve_entry(DEFAULT_CATALOG, &schema, rel).await {
+                //     // Table found.
+                //     return Some(ent.get_meta().id);
+                // }
             }
             None
         }

@@ -30,7 +30,7 @@ impl TableFunc for IcebergScan {
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         // TODO: Reduce duplication
-        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
+        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts).await?;
 
         let store = opts.into_object_store(&loc).map_err(box_err)?;
         let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
@@ -57,7 +57,7 @@ impl TableFunc for IcebergSnapshots {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
+        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts).await?;
 
         let store = opts.into_object_store(&loc).map_err(box_err)?;
         let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
@@ -116,7 +116,7 @@ impl TableFunc for IcebergDataFiles {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
+        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts).await?;
 
         let store = opts.into_object_store(&loc).map_err(box_err)?;
         let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
@@ -184,7 +184,7 @@ impl TableFunc for IcebergDataFiles {
 }
 
 /// Get the datasoruce url and options for an iceberg table.
-fn iceberg_location_and_opts(
+async fn iceberg_location_and_opts(
     ctx: &dyn TableFuncContextProvider,
     args: Vec<FuncParamValue>,
     opts: &mut HashMap<String, FuncParamValue>,
@@ -211,7 +211,7 @@ fn iceberg_location_and_opts(
             let url: DatasourceUrl = first.param_into()?;
             let creds: IdentValue = args.next().unwrap().param_into()?;
 
-            let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
+            let creds = ctx.get_credentials_entry(creds.as_str()).await.ok_or(
                 ExtensionError::String("missing credentials object".to_string()),
             )?;
 

@@ -33,7 +33,13 @@ impl RemoteSession {
     /// session.
     pub async fn get_catalog_state(&self) -> CatalogState {
         let session = self.session.lock().await;
-        session.get_session_catalog().get_state().as_ref().clone()
+        session
+            .get_session_catalog()
+            .read()
+            .await
+            .get_state()
+            .as_ref()
+            .clone()
     }
 
     pub async fn create_physical_plan(
