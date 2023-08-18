@@ -478,22 +478,30 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
 
     let mut arrow_fields = Vec::with_capacity(fields.len());
     for field in fields {
-        let mode = field.mode.clone();
-        let resolved_field = if let Some(mode) = mode {
-            if mode == *"REPEATED" {
-                handle_repeatable_fields(field)?
-            } else {
-                table_field_schema_to_arrow_datatype(field)?
-            }
-        } else {
-            table_field_schema_to_arrow_datatype(field)?
-        };
-        arrow_fields.push(resolved_field);
+        arrow_fields.push(table_field_schema_to_arrow_datatype(field)?);
     }
     Ok(ArrowSchema::new(arrow_fields))
 }
 
 fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field> {
+    let mode = field.mode.clone();
+    if let Some(mode) = mode {
+        if mode == *"REPEATED" {
+            return handle_repeatable_fields(field);
+        } else {
+            return handle_nullable_fields(field);
+        }
+    } else {
+        return handle_nullable_fields(field);
+    };
+}
+
+fn handle_repeatable_fields(field: &BigQuerySchema) -> Result<Field> {
+    let arrow_typ = DataType::List(Arc::new(handle_nullable_fields(field)?));
+    Ok(Field::new(&field.name, arrow_typ, true))
+}
+
+fn handle_nullable_fields(field: &BigQuerySchema) -> Result<Field> {
     // See <https://cloud.google.com/bigquery/docs/reference/storage#arrow_schema_details>
     // for how BigQuery types map to Arrow types.
     let arrow_typ = match &field.r#type {
@@ -520,21 +528,14 @@ fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field>
             let fields = field.fields.clone();
             if let Some(fields) = fields {
                 for field in fields.iter() {
-                    let resolved_field = table_field_schema_to_arrow_datatype(field);
-                    if let Ok(resolved_field) = resolved_field {
-                        record.push(resolved_field);
-                    }
+                    let resolved_field = table_field_schema_to_arrow_datatype(field)?;
+                    record.push(resolved_field);
                 }
             }
             DataType::Struct(Fields::from(record))
         }
         other => return Err(BigQueryError::UnsupportedBigQueryType(other.clone())),
     };
-    Ok(Field::new(&field.name, arrow_typ, true))
-}
-
-fn handle_repeatable_fields(field: &BigQuerySchema) -> Result<Field> {
-    let arrow_typ = DataType::List(Arc::new(table_field_schema_to_arrow_datatype(field)?));
     Ok(Field::new(&field.name, arrow_typ, true))
 }
 
