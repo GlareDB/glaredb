@@ -487,13 +487,13 @@ fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field>
     let mode = field.mode.clone();
     if let Some(mode) = mode {
         if mode == *"REPEATED" {
-            return handle_repeatable_fields(field);
+            handle_repeatable_fields(field)
         } else {
-            return handle_nullable_fields(field);
+            handle_nullable_fields(field)
         }
     } else {
-        return handle_nullable_fields(field);
-    };
+        handle_nullable_fields(field)
+    }
 }
 
 fn handle_repeatable_fields(field: &BigQuerySchema) -> Result<Field> {
