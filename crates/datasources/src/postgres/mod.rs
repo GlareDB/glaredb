@@ -28,6 +28,7 @@ use datafusion::physical_plan::{
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
+use protogen::{FromOptionalField, ProtoConvError};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -128,6 +129,27 @@ impl PostgresAccess {
         let query = format!("SELECT * FROM {}.{} where false", schema, table);
         state.client.execute(query.as_str(), &[]).await?;
         Ok(())
+    }
+}
+
+impl TryFrom<protogen::sqlexec::common::PostgresAccess> for PostgresAccess {
+    type Error = ProtoConvError;
+    fn try_from(
+        value: protogen::sqlexec::common::PostgresAccess,
+    ) -> std::result::Result<Self, Self::Error> {
+        Ok(Self::new_from_conn_str(
+            value.conn_str,
+            value.tunnel.map(|t| t.try_into()).transpose()?,
+        ))
+    }
+}
+
+impl From<PostgresAccess> for protogen::sqlexec::common::PostgresAccess {
+    fn from(value: PostgresAccess) -> Self {
+        Self {
+            conn_str: value.conn_str.connection_string(),
+            tunnel: value.tunnel.map(|t| t.into()),
+        }
     }
 }
 
@@ -442,6 +464,39 @@ WHERE
     }
 }
 
+pub struct PostgresTableProviderConfig {
+    pub access: PostgresAccess,
+    pub schema: String,
+    pub table: String,
+}
+
+impl TryFrom<protogen::sqlexec::table_provider::PostgresTableProviderConfig>
+    for PostgresTableProviderConfig
+{
+    type Error = ProtoConvError;
+    fn try_from(
+        value: protogen::sqlexec::table_provider::PostgresTableProviderConfig,
+    ) -> std::result::Result<Self, Self::Error> {
+        Ok(Self {
+            access: value.access.required("postgres access")?,
+            schema: value.schema,
+            table: value.table,
+        })
+    }
+}
+
+impl From<PostgresTableProviderConfig>
+    for protogen::sqlexec::table_provider::PostgresTableProviderConfig
+{
+    fn from(value: PostgresTableProviderConfig) -> Self {
+        Self {
+            access: Some(value.access.into()),
+            schema: value.schema,
+            table: value.table,
+        }
+    }
+}
+
 /// Table provider for a single postgres table.
 pub struct PostgresTableProvider {
     /// Schema name of table we're accessing.
@@ -458,23 +513,14 @@ impl PostgresTableProvider {
     ///
     /// If postgres access state (client) isn't provided, a new one will be
     /// created.
-    pub async fn try_new(
-        access: PostgresAccess,
-        state: Option<Arc<PostgresAccessState>>,
-        schema: impl Into<String>,
-        table: impl Into<String>,
-    ) -> Result<Self> {
-        let state = match state {
-            Some(state) => state,
-            None => {
-                let state = access.connect().await?;
-                Arc::new(state)
-            }
-        };
+    pub async fn try_new(conf: PostgresTableProviderConfig) -> Result<Self> {
+        let PostgresTableProviderConfig {
+            access,
+            schema,
+            table,
+        } = conf;
 
-        let schema = schema.into();
-        let table = table.into();
-
+        let state = Arc::new(access.connect().await?);
         let (arrow_schema, pg_types) = state.get_table_schema(&schema, &table).await?;
 
         Ok(PostgresTableProvider {
@@ -600,6 +646,42 @@ pub enum BinaryCopyConfig {
         pg_types: Arc<Vec<PostgresType>>,
         arrow_schema: ArrowSchemaRef,
     },
+}
+
+impl TryFrom<protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig> for BinaryCopyConfig {
+    type Error = ProtoConvError;
+    fn try_from(
+        value: protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig,
+    ) -> std::result::Result<Self, Self::Error> {
+        Ok(Self::AccessOnly {
+            access: Box::new(value.access.required("postgres access")?),
+            schema: value.schema,
+            table: value.table,
+            copy_query: value.copy_query,
+        })
+    }
+}
+
+impl TryFrom<BinaryCopyConfig> for protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig {
+    type Error = ProtoConvError;
+    fn try_from(value: BinaryCopyConfig) -> std::result::Result<Self, Self::Error> {
+        match value {
+            BinaryCopyConfig::State { .. } => Err(ProtoConvError::UnsupportedSerialization(
+                "cannot serialize a stateful binary copy config",
+            )),
+            BinaryCopyConfig::AccessOnly {
+                access,
+                schema,
+                table,
+                copy_query,
+            } => Ok(Self {
+                access: Some((*access).into()),
+                schema,
+                table,
+                copy_query,
+            }),
+        }
+    }
 }
 
 /// Copy data from the source Postgres table using the binary copy protocol.
