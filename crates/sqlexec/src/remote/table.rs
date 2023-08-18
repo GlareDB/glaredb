@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::errors::{ExecError, Result};
 
-use super::{client::RemoteSessionClient, exec::RemoteExecutionPlan};
+use super::{client::RemoteSessionClient, exec::RemoteExecutionExec};
 
 #[derive(Debug)]
 pub struct RemoteTableProvider {
@@ -78,7 +78,7 @@ impl TableProvider for RemoteTableProvider {
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
         let input = input
             .as_any()
-            .downcast_ref::<RemoteExecutionPlan>()
+            .downcast_ref::<RemoteExecutionExec>()
             .ok_or_else(|| {
                 DataFusionError::External(Box::new(ExecError::Internal(
                     "`ExecutionPlan` not a `RemoteExecutionPlan` for remote `insert_into`"

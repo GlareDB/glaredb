@@ -4,8 +4,13 @@ use std::sync::Arc;
 
 use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
+use datafusion::error::Result as DataFusionResult;
+use datafusion::execution::FunctionRegistry;
+use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::SessionContext;
-use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use datafusion_proto::{
+    logical_plan::LogicalExtensionCodec, physical_plan::PhysicalExtensionCodec,
+};
 use uuid::Uuid;
 
 use crate::errors::ExecError;
@@ -274,5 +279,20 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 "can only encode `RemoteTableProvider`".to_string(),
             ))))
         }
+    }
+}
+
+impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
+    fn try_decode(
+        &self,
+        buf: &[u8],
+        inputs: &[Arc<dyn ExecutionPlan>],
+        registry: &dyn FunctionRegistry,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        unimplemented!()
+    }
+
+    fn try_encode(&self, node: Arc<dyn ExecutionPlan>, buf: &mut Vec<u8>) -> DataFusionResult<()> {
+        unimplemented!()
     }
 }

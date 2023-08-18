@@ -272,6 +272,8 @@ impl Session {
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             plan => {
+                // TODO: This should go into planner.
+
                 // If we're connected to a remote session, do some plan
                 // rewriting.
                 match self.ctx.exec_client() {

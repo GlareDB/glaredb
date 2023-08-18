@@ -9,6 +9,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::{FutureExt, Stream, StreamExt};
+use protogen::ProtoConvError;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
@@ -23,8 +24,8 @@ use crate::remote::staged_stream::{ResolveClientStreamFut, StagedClientStreams};
 /// Expects the task context to have `StagedClientStreams` available.
 #[derive(Debug)]
 pub struct ClientExchangeRecvExec {
-    schema: Arc<Schema>,
     broadcast_id: Uuid,
+    schema: Arc<Schema>,
 }
 
 impl ClientExchangeRecvExec {
