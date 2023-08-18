@@ -1,6 +1,6 @@
 //! Adapter types for dispatching to table sources.
 use crate::context::SessionContext;
-use crate::metastore::catalog::{AsyncSessionCatalog, SessionCatalog};
+use crate::metastore::catalog::AsyncSessionCatalog;
 use datafusion::arrow::array::{
     BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
 };
@@ -183,7 +183,9 @@ impl<'a> SessionDispatcher<'a> {
             CatalogEntry::View(view) => self.dispatch_view(view).await,
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.ctx).dispatch(schema, name).await
+                SystemTableDispatcher::new(self.ctx)
+                    .dispatch(schema, name)
+                    .await
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {

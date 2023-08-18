@@ -3,9 +3,9 @@ use datafusion::arrow::datatypes::Schema;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
-use datafusion::logical_expr::{LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
-use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
 
 use std::sync::Arc;
@@ -85,19 +85,5 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
             input_schema,
             session_state,
         )
-    }
-}
-
-#[async_trait]
-impl ExtensionPlanner for RemotePhysicalPlanner {
-    async fn plan_extension(
-        &self,
-        _planner: &dyn PhysicalPlanner,
-        _node: &dyn UserDefinedLogicalNode,
-        _logical_inputs: &[&DfLogicalPlan],
-        _physical_inputs: &[Arc<dyn ExecutionPlan>],
-        _session_state: &SessionState,
-    ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
-        Ok(None)
     }
 }

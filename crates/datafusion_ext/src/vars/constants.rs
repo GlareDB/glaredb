@@ -200,3 +200,4 @@ pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 
 /// Schema to store temporary objects (only valid for current session).
 pub const CURRENT_SESSION_SCHEMA: &str = "current_session";
+pub const DEFAULT_CATALOG: &str = "default";

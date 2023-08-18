@@ -7,6 +7,7 @@ use crate::metastore::catalog::{AsyncSessionCatalog, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteSessionClient;
+
 use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
@@ -269,6 +270,19 @@ impl Session {
 
         // TODO!: these should be pushed down to physical execs,
         // currently we need to early exit on extension nodes as we don't have a physical exec for them.
+        
+        //---
+        // just swap out the default planner with an extension aware physical planner.
+        // use crate::planner::extension_planner::GlareExtensionPlanner;
+        // use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
+        // let planner =
+        //     DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(GlareExtensionPlanner)]);
+        // planner
+        //     .create_physical_plan(&plan, &state)
+        //     .await
+        //     .map_err(|e| e.into())
+        // ---
+
         match plan {
             DfLogicalPlan::Extension(ref extension) if self.is_main_instance() => {
                 let _exec_res = self.execute_extension(extension).await?;

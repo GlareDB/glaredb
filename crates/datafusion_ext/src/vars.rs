@@ -6,6 +6,7 @@ mod utils;
 mod value;
 use constants::*;
 use datafusion::config::{ConfigExtension, ExtensionOptions};
+use datafusion::sql::TableReference;
 use utils::*;
 
 use datafusion::variable::VarType;
@@ -192,6 +193,32 @@ impl SessionVars {
     }
     pub fn with_is_cloud_instance(self, value: bool, setter: VarType) -> Self {
         with_property!(self, is_cloud_instance, setter, value)
+    }
+    pub fn resolve_table_ref(
+        &self,
+        r: &TableReference<'_>,
+    ) -> crate::errors::Result<(String, String, String)> {
+        let r = match r {
+            TableReference::Bare { table } => {
+                let schema = self.first_nonimplicit_schema().unwrap();
+                (
+                    DEFAULT_CATALOG.to_string(),
+                    schema.to_string(),
+                    table.to_string(),
+                )
+            }
+            TableReference::Partial { schema, table } => (
+                DEFAULT_CATALOG.to_string(),
+                schema.to_string(),
+                table.to_string(),
+            ),
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => (catalog.to_string(), schema.to_string(), table.to_string()),
+        };
+        Ok(r)
     }
 }
 
