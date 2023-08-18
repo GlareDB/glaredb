@@ -1762,6 +1762,7 @@ dependencies = [
  "env_logger",
  "futures",
  "once_cell",
+ "parking_lot",
  "paste",
  "protogen",
  "regex",

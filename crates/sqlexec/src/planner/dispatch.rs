@@ -404,7 +404,7 @@ impl<'a> SessionDispatcher<'a> {
                 file_type,
                 compression,
             }) => {
-                if *self.ctx.get_session_vars().is_cloud_instance.value() {
+                if self.ctx.get_session_vars().is_cloud_instance() {
                     return Err(DispatchError::InvalidDispatch(
                         "Local file access is not supported in cloud mode",
                     ));

@@ -14,7 +14,8 @@ use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
-use datafusion_ext::vars::{SessionVars, VarSetter};
+use datafusion::variable::VarType;
+use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
@@ -235,28 +236,17 @@ impl ProtocolHandler {
                 }
             }
         }
-
-        let mut vars = SessionVars::default();
-        // Set "system" variables first.
-        // Info
-        vars.user_id.set_and_log(user_id, VarSetter::System);
-        vars.user_name.set_and_log(user_name, VarSetter::System);
-        vars.connection_id.set_and_log(conn_id, VarSetter::System);
-        vars.database_id.set_and_log(db_id, VarSetter::System);
-        vars.database_name
-            .set_and_log(database_name, VarSetter::System);
-        // Limits
-        vars.max_datasource_count
-            .set_and_log(Some(max_datasource_count), VarSetter::System);
-        vars.memory_limit_bytes
-            .set_and_log(Some(memory_limit_bytes), VarSetter::System);
-        vars.max_tunnel_count
-            .set_and_log(Some(max_tunnel_count), VarSetter::System);
-        vars.max_credentials_count
-            .set_and_log(Some(max_credentials_count), VarSetter::System);
-
-        vars.is_cloud_instance
-            .set_and_log(is_cloud_instance, VarSetter::System);
+        let mut vars = SessionVars::default()
+            .with_user_id(user_id, VarType::System)
+            .with_user_name(user_name, VarType::System)
+            .with_connection_id(conn_id, VarType::System)
+            .with_database_id(db_id, VarType::System)
+            .with_database_name(database_name, VarType::System)
+            .with_max_datasource_count(max_datasource_count, VarType::System)
+            .with_memory_limit_bytes(memory_limit_bytes, VarType::System)
+            .with_max_tunnel_count(max_tunnel_count, VarType::System)
+            .with_max_credentials_count(max_credentials_count, VarType::System)
+            .with_is_cloud_instance(is_cloud_instance, VarType::System);
 
         // Set other params provided on startup. Note that these are all set as
         // the "user" since these include values set in options.
@@ -264,7 +254,7 @@ impl ProtocolHandler {
         // Note that we're ignoring unknown params, or params that we're unable
         // to set as a user.
         for (key, val) in &params {
-            if let Err(e) = vars.set(key, val, VarSetter::User) {
+            if let Err(e) = vars.set(key, val, VarType::UserDefined) {
                 debug!(%e, %key, %val, "unable to set session variable from startup param");
             }
         }
@@ -295,6 +285,7 @@ impl ProtocolHandler {
         // Send server parameters.
         let msgs: Vec<_> = sess
             .get_session_vars()
+            .read()
             .startup_vars_iter()
             .map(|var| BackendMessage::ParameterStatus {
                 key: var.name().to_string(),
