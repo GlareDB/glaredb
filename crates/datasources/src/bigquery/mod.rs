@@ -484,15 +484,9 @@ fn bigquery_table_to_arrow_schema(table: &Table) -> Result<ArrowSchema> {
 }
 
 fn table_field_schema_to_arrow_datatype(field: &BigQuerySchema) -> Result<Field> {
-    let mode = field.mode.clone();
-    if let Some(mode) = mode {
-        if mode == *"REPEATED" {
-            handle_repeatable_fields(field)
-        } else {
-            handle_nullable_fields(field)
-        }
-    } else {
-        handle_nullable_fields(field)
+    match field.mode.as_deref() {
+        Some("REPEATED") => handle_repeatable_fields(field),
+        _ => handle_nullable_fields(field),
     }
 }
 
