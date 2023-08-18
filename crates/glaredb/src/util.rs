@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
 use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use std::fs;
 use std::path::PathBuf;
-use tonic::transport::Channel;
+use std::{fs, time::Duration};
+use tonic::transport::{Channel, Endpoint};
 use tracing::info;
 
 /// Determine how to connect to metastore.
@@ -34,7 +34,13 @@ impl MetastoreClientMode {
         match self {
             MetastoreClientMode::Remote { addr } => {
                 info!(%addr, "connecting to remote metastore");
-                Ok(MetastoreServiceClient::connect(addr).await?)
+                let channel = Endpoint::new(addr)?
+                    .tcp_keepalive(Some(Duration::from_secs(600)))
+                    .tcp_nodelay(true)
+                    .keep_alive_while_idle(true)
+                    .connect()
+                    .await?;
+                Ok(MetastoreServiceClient::new(channel))
             }
             Self::LocalDisk { path } => {
                 if !path.exists() {

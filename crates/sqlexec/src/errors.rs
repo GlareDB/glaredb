@@ -140,7 +140,7 @@ pub enum ExecError {
     DispatchError(#[from] crate::planner::dispatch::DispatchError),
 
     #[error(transparent)]
-    MetastoreWorker(#[from] crate::metastore::client::WorkerError),
+    MetastoreWorker(#[from] crate::metastore::client::MetastoreClientError),
 
     #[error(transparent)]
     SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
