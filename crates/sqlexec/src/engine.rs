@@ -1,6 +1,6 @@
 use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
-use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
+use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use crate::remote::client::RemoteClient;
 use crate::session::Session;
 
@@ -92,7 +92,7 @@ impl EngineStorageConfig {
 /// Hold configuration and clients needed to create database sessions.
 pub struct Engine {
     /// Metastore client supervisor.
-    supervisor: Supervisor,
+    supervisor: MetastoreClientSupervisor,
     /// Telemetry.
     tracker: Arc<Tracker>,
     /// Storage configuration.
@@ -117,7 +117,7 @@ impl Engine {
         integration_testing: bool,
     ) -> Result<Engine> {
         Ok(Engine {
-            supervisor: Supervisor::new(metastore, DEFAULT_WORKER_CONFIG),
+            supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
             tracker,
             storage,
             spill_path,
