@@ -1,8 +1,7 @@
-use crate::ProtoConvError;
-use std::borrow::Cow;
+use datafusion_proto::protobuf::DfSchema;
+use prost::Message;
 
-use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};
-use prost::{Message, Oneof};
+use super::common::PostgresAccess;
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
@@ -12,9 +11,14 @@ pub struct ClientExchangeRecvExec {
     pub schema: Option<DfSchema>,
 }
 
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, Oneof)]
-pub enum PhysicalPlanExtensionType {
+#[derive(Clone, PartialEq, Message)]
+pub struct PostgresBinaryCopyConfig {
     #[prost(message, tag = "1")]
-    ClientExchangeRecvExec(ClientExchangeRecvExec),
+    pub access: Option<PostgresAccess>,
+    #[prost(string, tag = "2")]
+    pub schema: String,
+    #[prost(string, tag = "3")]
+    pub table: String,
+    #[prost(string, tag = "4")]
+    pub copy_query: String,
 }

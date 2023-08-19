@@ -154,6 +154,7 @@ impl LocalSession {
             storage_conf,
             tracker,
             opts.spill_path.clone(),
+            /* integration_testing = */ false,
         )
         .await?;
 
@@ -185,6 +186,11 @@ impl LocalSession {
         } else {
             self.run_interactive().await
         };
+
+        // Wait for the session to close.
+        if let Err(err) = self.sess.close().await {
+            error!(%err, "unable to close the remote session");
+        }
 
         // Try to shutdown the engine gracefully.
         if let Err(err) = self.engine.shutdown().await {

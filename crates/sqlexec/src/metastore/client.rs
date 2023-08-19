@@ -1,4 +1,53 @@
 //! Module for facilitating interaction with the Metastore.
+//!
+//! # Architecture
+//!
+//! Communication to metastore is facilitated through a supervisor and some
+//! background tasks. Each "database" will have its own worker, and each worker
+//! will have its own copy of the GRPC client to metastore. Workers also hold a
+//! cached copy of the catalog for their respective database.
+//!
+//! When making a request to metastore, a session will send a request to the
+//! worker for the database they belong to, and the worker is responsible for
+//! translating and making the actual request to metastore.
+//!
+//! To illustrate, let's say we have three sessions for the same database:
+//!
+//! ```text
+//! Session 1 -------+
+//!                  |
+//!                  ▼
+//! Session 2 ----> Supervisor/Worker ----> Metastore (HA)
+//!                  ▲
+//!                  |
+//! Session 3 -------+
+//! ```
+//!
+//! Sessions 1, 2, and 3 all have a handle to the supervisor that allows them to
+//! submit requests to metastore like getting the updated version of a catalog
+//! or mutating a catalog. Each session will initially share a reference to the
+//! same cached catalog (Arc).
+//!
+//! When a session requests a mutation, that request is submitted to the
+//! supervisor, then to metastore itself. If metastore successfully mutates the
+//! catalog, it will return the updated catalog, and the worker will replace its
+//! cached catalog with the updated catalog. The session that made the request
+//! will get the updated catalog back from the worker. The other sessions will
+//! still have references to the old catalog until they get the updated cached
+//! catalog from the worker (which happens during the "prepare" phase of query
+//! execution).
+//!
+//! # Rationale
+//!
+//! The worker per database model helps us keep the overhead of storing cached
+//! catalogs in memory low. By having one worker per database that's responsible
+//! for making requests, we're able to store a single copy of the catalog in
+//! memory that gets shared across all sessions for a database, cutting down
+//! memory usage.
+//!
+//! Note that executing a single request at a time for a database was the
+//! easiest way to accomplish the desired catalog caching behavior, and not due
+//! to any limitations in metastore itself.
 
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::gen::metastore::service::{
@@ -18,7 +67,7 @@ use tracing::{debug_span, error, info, warn, Instrument};
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
-pub enum WorkerError {
+pub enum MetastoreClientError {
     #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
     MetastoreDatabaseWorkerOverload {
         request_type_tag: &'static str,
@@ -55,7 +104,7 @@ pub enum WorkerError {
     Internal(String),
 }
 
-impl From<tonic::Status> for WorkerError {
+impl From<tonic::Status> for MetastoreClientError {
     fn from(value: tonic::Status) -> Self {
         // Try to get the strategy from the response from metastore. This can be
         // used to try to resolve the error automatically.
@@ -72,38 +121,38 @@ impl From<tonic::Status> for WorkerError {
     }
 }
 
-type Result<T, E = WorkerError> = std::result::Result<T, E>;
+type Result<T, E = MetastoreClientError> = std::result::Result<T, E>;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
 
 /// Configuration values used when starting up a worker.
 #[derive(Debug, Clone, Copy)]
-pub struct WorkerRunConfig {
+pub struct MetastoreClientConfig {
     /// How often to fetch the latest catalog from Metastore.
     fetch_tick_dur: Duration,
     /// Number of ticks with no session references before the worker exits.
     max_ticks_before_exit: usize,
 }
 
-pub const DEFAULT_WORKER_CONFIG: WorkerRunConfig = WorkerRunConfig {
+pub const DEFAULT_METASTORE_CLIENT_CONFIG: MetastoreClientConfig = MetastoreClientConfig {
     fetch_tick_dur: Duration::from_secs(60 * 5),
     max_ticks_before_exit: 3,
 };
 
-/// Worker client. This client can only make requests for a single database.
+/// Handle to a metastore client.
 #[derive(Debug, Clone)]
-pub struct SupervisorClient {
+pub struct MetastoreClientHandle {
     /// Shared with worker. Used to hint if this client should get the latest
     /// state from the worker.
     ///
     /// Used to prevent unecessary requests and locking.
     version_hint: Arc<AtomicU64>,
     conn_id: Uuid,
-    send: mpsc::Sender<WorkerRequest>,
+    send: mpsc::Sender<ClientRequest>,
 }
 
-impl SupervisorClient {
+impl MetastoreClientHandle {
     /// Get the likely version of the cached catalog state.
     ///
     /// If subsequent calls to this return the same version, it's likely that
@@ -119,7 +168,7 @@ impl SupervisorClient {
     pub async fn ping(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
         self.send(
-            WorkerRequest::Ping {
+            ClientRequest::Ping {
                 conn_id: self.conn_id,
                 response: tx,
             },
@@ -132,7 +181,7 @@ impl SupervisorClient {
     pub async fn refresh_cached_state(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
         self.send(
-            WorkerRequest::RefreshCachedState {
+            ClientRequest::RefreshCachedState {
                 conn_id: self.conn_id,
                 response: tx,
             },
@@ -145,7 +194,7 @@ impl SupervisorClient {
     pub async fn get_cached_state(&self) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
         self.send(
-            WorkerRequest::GetCachedState {
+            ClientRequest::GetCachedState {
                 conn_id: self.conn_id,
                 response: tx,
             },
@@ -166,7 +215,7 @@ impl SupervisorClient {
     ) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
         self.send(
-            WorkerRequest::ExecMutations {
+            ClientRequest::ExecMutations {
                 conn_id: self.conn_id,
                 version: current_version,
                 mutations,
@@ -178,24 +227,24 @@ impl SupervisorClient {
         .and_then(std::convert::identity) // Flatten
     }
 
-    async fn send<R>(&self, req: WorkerRequest, rx: oneshot::Receiver<R>) -> Result<R> {
+    async fn send<R>(&self, req: ClientRequest, rx: oneshot::Receiver<R>) -> Result<R> {
         let tag = req.tag();
         let result = match self.send.try_send(req) {
             Ok(_) => match rx.await {
                 Ok(result) => Ok(result),
-                Err(_) => Err(WorkerError::MetastoreResponseChannelClosed {
+                Err(_) => Err(MetastoreClientError::MetastoreResponseChannelClosed {
                     request_type_tag: tag,
                     conn_id: self.conn_id,
                 }),
             },
             Err(mpsc::error::TrySendError::Full(_)) => {
-                Err(WorkerError::MetastoreDatabaseWorkerOverload {
+                Err(MetastoreClientError::MetastoreDatabaseWorkerOverload {
                     request_type_tag: tag,
                     conn_id: self.conn_id,
                 })
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
-                Err(WorkerError::MetastoreRequestChannelClosed {
+                Err(MetastoreClientError::MetastoreRequestChannelClosed {
                     request_type_tag: tag,
                     conn_id: self.conn_id,
                 })
@@ -214,7 +263,7 @@ impl SupervisorClient {
 }
 
 /// Possible requests to the worker.
-enum WorkerRequest {
+enum ClientRequest {
     /// Ping the worker, ensuring it's still running.
     Ping {
         conn_id: Uuid,
@@ -244,50 +293,46 @@ enum WorkerRequest {
     },
 }
 
-impl WorkerRequest {
+impl ClientRequest {
     fn tag(&self) -> &'static str {
         match self {
-            WorkerRequest::Ping { .. } => "ping",
-            WorkerRequest::GetCachedState { .. } => "get_cached_state",
-            WorkerRequest::ExecMutations { .. } => "exec_mutations",
-            WorkerRequest::RefreshCachedState { .. } => "refresh_cached_state",
+            ClientRequest::Ping { .. } => "ping",
+            ClientRequest::GetCachedState { .. } => "get_cached_state",
+            ClientRequest::ExecMutations { .. } => "exec_mutations",
+            ClientRequest::RefreshCachedState { .. } => "refresh_cached_state",
         }
     }
 
     fn conn_id(&self) -> &Uuid {
         match self {
-            WorkerRequest::Ping { conn_id, .. } => conn_id,
-            WorkerRequest::GetCachedState { conn_id, .. } => conn_id,
-            WorkerRequest::ExecMutations { conn_id, .. } => conn_id,
-            WorkerRequest::RefreshCachedState { conn_id, .. } => conn_id,
+            ClientRequest::Ping { conn_id, .. } => conn_id,
+            ClientRequest::GetCachedState { conn_id, .. } => conn_id,
+            ClientRequest::ExecMutations { conn_id, .. } => conn_id,
+            ClientRequest::RefreshCachedState { conn_id, .. } => conn_id,
         }
     }
 }
 
 /// Supervisor of all database workers.
-pub struct Supervisor {
-    /// All database workers.
-    ///
-    /// Note that our current architecture has a one-to-one mapping with
-    /// database to node, but this would make it very easy to support
-    /// multi-tenant.
+pub struct MetastoreClientSupervisor {
+    /// All database workers keyed by database ids.
     // TODO: We will want to occasionally clear out dead workers.
-    workers: RwLock<HashMap<Uuid, WorkerHandle>>,
+    workers: RwLock<HashMap<Uuid, StatefulWorkerHandle>>,
 
     /// Configuration to use for all workers.
-    worker_conf: WorkerRunConfig,
+    worker_conf: MetastoreClientConfig,
 
     /// GRPC client to metastore. Cloned for each database worker.
     client: MetastoreServiceClient<Channel>,
 }
 
-impl Supervisor {
+impl MetastoreClientSupervisor {
     /// Create a new worker supervisor.
     pub fn new(
         client: MetastoreServiceClient<Channel>,
-        worker_conf: WorkerRunConfig,
-    ) -> Supervisor {
-        Supervisor {
+        worker_conf: MetastoreClientConfig,
+    ) -> MetastoreClientSupervisor {
+        MetastoreClientSupervisor {
             workers: RwLock::new(HashMap::new()),
             client,
             worker_conf,
@@ -297,7 +342,7 @@ impl Supervisor {
     /// Initialize a client for a single database.
     ///
     /// This will initialize a database worker as appropriate.
-    pub async fn init_client(&self, conn_id: Uuid, db_id: Uuid) -> Result<SupervisorClient> {
+    pub async fn init_client(&self, conn_id: Uuid, db_id: Uuid) -> Result<MetastoreClientHandle> {
         let client = self.init_client_inner(conn_id, db_id).await?;
         match client.ping().await {
             Ok(_) => Ok(client),
@@ -313,13 +358,13 @@ impl Supervisor {
         }
     }
 
-    async fn init_client_inner(&self, conn_id: Uuid, db_id: Uuid) -> Result<SupervisorClient> {
+    async fn init_client_inner(&self, conn_id: Uuid, db_id: Uuid) -> Result<MetastoreClientHandle> {
         // Fast path, already have a worker.
         {
             let workers = self.workers.read().await;
             match workers.get(&db_id) {
                 Some(worker) if !worker.is_finished() => {
-                    return Ok(SupervisorClient {
+                    return Ok(MetastoreClientHandle {
                         version_hint: worker.version_hint.clone(),
                         conn_id,
                         send: worker.send.clone(),
@@ -330,13 +375,13 @@ impl Supervisor {
         }
 
         // Slow path, need to initialize a worker.
-        let (worker, send) = DatabaseWorker::init(db_id, self.client.clone()).await?;
+        let (worker, send) = StatefulWorker::init(db_id, self.client.clone()).await?;
 
         let mut workers = self.workers.write().await;
         // Raced or the worker is finished.
         match workers.get(&db_id) {
             Some(worker) if !worker.is_finished() => {
-                return Ok(SupervisorClient {
+                return Ok(MetastoreClientHandle {
                     version_hint: worker.version_hint.clone(),
                     conn_id,
                     send: worker.send.clone(),
@@ -347,14 +392,14 @@ impl Supervisor {
 
         // Insert handle.
         let version_hint = worker.version_hint.clone();
-        let handle = WorkerHandle {
+        let handle = StatefulWorkerHandle {
             handle: tokio::spawn(worker.run(self.worker_conf)),
             version_hint: version_hint.clone(),
             send: send.clone(),
         };
         workers.insert(db_id, handle);
 
-        Ok(SupervisorClient {
+        Ok(MetastoreClientHandle {
             version_hint,
             conn_id,
             send,
@@ -387,24 +432,24 @@ impl Supervisor {
 }
 
 /// Handle to a database worker.
-struct WorkerHandle {
+struct StatefulWorkerHandle {
     /// Handle to the database worker.
     handle: JoinHandle<()>,
     /// Version hint shared with clients.
     version_hint: Arc<AtomicU64>,
     /// Sender channel for client requests.
-    send: mpsc::Sender<WorkerRequest>,
+    send: mpsc::Sender<ClientRequest>,
 }
 
-impl WorkerHandle {
+impl StatefulWorkerHandle {
     /// Check if a handle to a worker is done.
     fn is_finished(&self) -> bool {
         self.handle.is_finished()
     }
 }
 
-/// Worker for a single database.
-struct DatabaseWorker {
+/// Stateful client for a single database.
+struct StatefulWorker {
     /// ID of the database we're working with.
     db_id: Uuid,
 
@@ -425,15 +470,15 @@ struct DatabaseWorker {
     client: MetastoreServiceClient<Channel>,
 
     /// Receive requests from sessions.
-    recv: mpsc::Receiver<WorkerRequest>,
+    recv: mpsc::Receiver<ClientRequest>,
 }
 
-impl DatabaseWorker {
+impl StatefulWorker {
     /// Intialize a worker for a database.
     async fn init(
         db_id: Uuid,
         mut client: MetastoreServiceClient<Channel>,
-    ) -> Result<(DatabaseWorker, mpsc::Sender<WorkerRequest>)> {
+    ) -> Result<(StatefulWorker, mpsc::Sender<ClientRequest>)> {
         let _ = client
             .initialize_catalog(tonic::Request::new(InitializeCatalogRequest {
                 db_id: db_id.into_bytes().to_vec(),
@@ -450,7 +495,7 @@ impl DatabaseWorker {
         let catalog: CatalogState = match resp.catalog {
             Some(c) => c.try_into()?,
             None => {
-                return Err(WorkerError::Internal(
+                return Err(MetastoreClientError::Internal(
                     "missing field: 'catalog'".to_string(),
                 ))
             }
@@ -459,7 +504,7 @@ impl DatabaseWorker {
         let (send, recv) = mpsc::channel(PER_DATABASE_BUFFER);
 
         Ok((
-            DatabaseWorker {
+            StatefulWorker {
                 db_id,
                 version_hint: Arc::new(AtomicU64::new(catalog.version)),
                 cached_state: Arc::new(catalog),
@@ -483,7 +528,7 @@ impl DatabaseWorker {
     }
 
     /// Runs the worker until it exits from inactivity.
-    async fn run(mut self, run_conf: WorkerRunConfig) {
+    async fn run(mut self, run_conf: MetastoreClientConfig) {
         let mut interval = tokio::time::interval(run_conf.fetch_tick_dur);
         let mut num_ticks_no_activity = 0;
         loop {
@@ -521,19 +566,19 @@ impl DatabaseWorker {
     ///
     /// If a mutate results in a newer catalog being returned from Metastore,
     /// the local cache will be updated with that new catalog.
-    async fn handle_request(&mut self, req: WorkerRequest) {
+    async fn handle_request(&mut self, req: ClientRequest) {
         match req {
-            WorkerRequest::Ping { response, .. } => {
+            ClientRequest::Ping { response, .. } => {
                 if response.send(()).is_err() {
                     error!("failed to respond to ping");
                 }
             }
-            WorkerRequest::GetCachedState { response, .. } => {
+            ClientRequest::GetCachedState { response, .. } => {
                 if response.send(Ok(self.cached_state.clone())).is_err() {
                     error!("failed to send cached state");
                 }
             }
-            WorkerRequest::ExecMutations {
+            ClientRequest::ExecMutations {
                 version,
                 mutations,
                 response,
@@ -553,8 +598,8 @@ impl DatabaseWorker {
                             mutations,
                         }))
                         .await
-                        .map_err(WorkerError::from),
-                    Err(e) => Err(WorkerError::from(e)),
+                        .map_err(MetastoreClientError::from),
+                    Err(e) => Err(MetastoreClientError::from(e)),
                 };
 
                 let result = match result {
@@ -578,7 +623,7 @@ impl DatabaseWorker {
                     error!("failed to send result of mutate");
                 }
             }
-            WorkerRequest::RefreshCachedState { response, .. } => {
+            ClientRequest::RefreshCachedState { response, .. } => {
                 self.fetch().await;
                 if response.send(()).is_err() {
                     error!("failed to respond to refresh cached catalog state request");
@@ -646,7 +691,7 @@ mod tests {
     async fn simple_mutate() {
         let client = new_local_metastore().await;
 
-        let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
 
         let conn_id = Uuid::nil();
         let db_id = Uuid::nil();
@@ -674,7 +719,7 @@ mod tests {
     async fn out_of_date_mutate() {
         let client = new_local_metastore().await;
 
-        let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
 
         let db_id = Uuid::nil();
 
@@ -733,7 +778,7 @@ mod tests {
     async fn restart_worker() {
         let client = new_local_metastore().await;
 
-        let supervisor = Supervisor::new(client, DEFAULT_WORKER_CONFIG);
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
 
         let db_id = Uuid::nil();
         let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
@@ -757,9 +802,9 @@ mod tests {
         logutil::init_test();
 
         let client = new_local_metastore().await;
-        let supervisor = Supervisor::new(
+        let supervisor = MetastoreClientSupervisor::new(
             client,
-            WorkerRunConfig {
+            MetastoreClientConfig {
                 fetch_tick_dur: Duration::from_millis(100),
                 max_ticks_before_exit: 1,
             },

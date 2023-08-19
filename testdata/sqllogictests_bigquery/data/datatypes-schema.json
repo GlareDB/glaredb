@@ -65,7 +65,7 @@
         "type": "STRING"
       },
       {
-        "mode": "NULLABLE",
+        "mode": "REPEATED",
         "name": "c14",
         "type": "INTEGER"
       }

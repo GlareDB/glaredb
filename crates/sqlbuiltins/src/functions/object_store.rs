@@ -287,7 +287,7 @@ fn get_store_access(
 fn create_local_store_access(
     ctx: &dyn TableFuncContextProvider,
 ) -> Result<Arc<dyn ObjStoreAccess>> {
-    if *ctx.get_session_vars().is_cloud_instance.value() {
+    if ctx.get_session_vars().is_cloud_instance() {
         Err(ExtensionError::String(
             "Local file access is not supported in cloud mode".to_string(),
         ))

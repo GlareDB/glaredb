@@ -23,7 +23,7 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
-use datasources::postgres::{PostgresAccess, PostgresTableProvider};
+use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
@@ -215,7 +215,12 @@ impl<'a> SessionDispatcher<'a> {
             }
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
-                let prov = PostgresTableProvider::try_new(access, None, schema, name).await?;
+                let prov_conf = PostgresTableProviderConfig {
+                    access,
+                    schema: schema.to_owned(),
+                    table: name.to_owned(),
+                };
+                let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
             }
             DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
@@ -317,7 +322,12 @@ impl<'a> SessionDispatcher<'a> {
                 table,
             }) => {
                 let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
-                let prov = PostgresTableProvider::try_new(access, None, schema, table).await?;
+                let prov_conf = PostgresTableProviderConfig {
+                    access,
+                    schema: schema.to_owned(),
+                    table: table.to_owned(),
+                };
+                let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
             }
             TableOptions::BigQuery(TableOptionsBigQuery {
@@ -404,7 +414,7 @@ impl<'a> SessionDispatcher<'a> {
                 file_type,
                 compression,
             }) => {
-                if *self.ctx.get_session_vars().is_cloud_instance.value() {
+                if self.ctx.get_session_vars().is_cloud_instance() {
                     return Err(DispatchError::InvalidDispatch(
                         "Local file access is not supported in cloud mode",
                     ));

@@ -46,6 +46,9 @@ pub enum PostgresError {
     Common(#[from] crate::common::errors::DatasourceCommonError),
 
     #[error(transparent)]
+    ProtoConv(#[from] protogen::ProtoConvError),
+
+    #[error(transparent)]
     SshKey(#[from] crate::common::ssh::key::SshKeyError),
     #[error(transparent)]
     SshTunnel(#[from] crate::common::ssh::session::SshTunnelError),

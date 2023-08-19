@@ -21,7 +21,8 @@ use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
-use datafusion_ext::vars::{SessionVars, VarSetter};
+use datafusion::variable::VarType;
+use datafusion_ext::vars::SessionVars;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -224,9 +225,9 @@ impl Session {
         remote_ctx: bool,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
-            *vars.user_id.value(),
-            *vars.database_id.value(),
-            *vars.connection_id.value(),
+            vars.user_id(),
+            vars.database_id(),
+            vars.connection_id(),
             tracker,
         );
 
@@ -242,6 +243,10 @@ impl Session {
         )?;
 
         Ok(Session { ctx })
+    }
+
+    pub async fn close(&mut self) -> Result<()> {
+        self.ctx.close().await
     }
 
     pub fn get_session_catalog(&self) -> &SessionCatalog {
@@ -550,9 +555,11 @@ impl Session {
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx
-            .get_session_vars_mut()
-            .set(&plan.variable, &plan.values, VarSetter::User)?;
+        self.ctx.get_session_vars().write().set(
+            &plan.variable,
+            &plan.values,
+            VarType::UserDefined,
+        )?;
         Ok(())
     }
 
@@ -641,7 +648,9 @@ impl Session {
     }
 
     pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
-        let var = self.ctx.get_session_vars().get(&plan.variable)?;
+        let var = self.ctx.get_session_vars();
+        let var = var.read();
+        let var = var.get(&plan.variable)?;
         let batch = var.record_batch();
         let schema = batch.schema();
         // Creating this stream should never error.
@@ -649,12 +658,8 @@ impl Session {
         Ok(Box::pin(stream))
     }
 
-    pub fn get_session_vars(&self) -> &SessionVars {
-        self.ctx.get_session_vars()
-    }
-
-    pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
-        self.ctx.get_session_vars_mut()
+    pub fn get_session_vars(&self) -> SessionVars {
+        self.ctx.get_session_vars().clone()
     }
 
     /// Prepare a parsed statement for future execution.
@@ -708,11 +713,7 @@ impl Session {
     }
 
     pub fn is_main_instance(&self) -> bool {
-        self.ctx
-            .get_session_vars()
-            .remote_session_id
-            .value()
-            .is_none()
+        self.ctx.get_session_vars().remote_session_id().is_none()
     }
 
     pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {

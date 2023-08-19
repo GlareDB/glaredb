@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use testing::slt::runner::FnTest;
-use tokio_postgres::{Client, Config};
+use testing::slt::runner::{FnTest, TestClient};
+use tokio_postgres::Config;
 
 macro_rules! test_assert {
     ($e:expr, $err:expr) => {
@@ -20,9 +20,16 @@ impl FnTest for SshKeysTest {
     async fn run(
         &self,
         _config: &Config,
-        client: &Client,
+        client: TestClient,
         _vars: &mut HashMap<String, String>,
     ) -> Result<()> {
+        let client = match client {
+            TestClient::Pg(client) => client,
+            TestClient::Rpc(_) => {
+                return Err(anyhow!("cannot run ssh key test on rpc"));
+            }
+        };
+
         client
             .batch_execute(
                 "

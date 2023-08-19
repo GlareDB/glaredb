@@ -10,18 +10,18 @@ use protogen::metastore::types::{
 };
 use tokio::time::Instant;
 
-use crate::{errors::Result, metastore::client::SupervisorClient};
+use crate::{errors::Result, metastore::client::MetastoreClientHandle};
 
 use super::BgJob;
 
 #[derive(Debug)]
 pub struct BackgroundJobStorageTracker {
     native_store: NativeTableStorage,
-    metastore: SupervisorClient,
+    metastore: MetastoreClientHandle,
 }
 
 impl BackgroundJobStorageTracker {
-    pub fn new(native_store: NativeTableStorage, metastore: SupervisorClient) -> Arc<Self> {
+    pub fn new(native_store: NativeTableStorage, metastore: MetastoreClientHandle) -> Arc<Self> {
         Arc::new(Self {
             native_store,
             metastore,
@@ -111,7 +111,7 @@ mod tests {
 
     use crate::{
         background_jobs::JobRunner,
-        metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG},
+        metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG},
     };
 
     use super::BackgroundJobStorageTracker;
@@ -153,7 +153,7 @@ mod tests {
             .unwrap();
 
         let meta_chan = start_inprocess_inmemory().await.unwrap();
-        let metastore = Supervisor::new(meta_chan, DEFAULT_WORKER_CONFIG);
+        let metastore = MetastoreClientSupervisor::new(meta_chan, DEFAULT_METASTORE_CLIENT_CONFIG);
         let metastore = metastore.init_client(Uuid::new_v4(), db_id).await.unwrap();
 
         let tracker = BackgroundJobStorageTracker::new(storage, metastore.clone());

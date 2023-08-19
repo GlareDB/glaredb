@@ -1,6 +1,6 @@
 use crate::background_jobs::JobRunner;
 use crate::errors::{ExecError, Result};
-use crate::metastore::client::{Supervisor, DEFAULT_WORKER_CONFIG};
+use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use crate::remote::client::RemoteClient;
 use crate::session::Session;
 
@@ -12,7 +12,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
-use datafusion_ext::vars::{SessionVars, VarSetter};
+use datafusion::variable::VarType;
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use object_store_util::conf::StorageConfig;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
@@ -91,7 +92,7 @@ impl EngineStorageConfig {
 /// Hold configuration and clients needed to create database sessions.
 pub struct Engine {
     /// Metastore client supervisor.
-    supervisor: Supervisor,
+    supervisor: MetastoreClientSupervisor,
     /// Telemetry.
     tracker: Arc<Tracker>,
     /// Storage configuration.
@@ -102,6 +103,8 @@ pub struct Engine {
     session_counter: Arc<AtomicU64>,
     /// Background jobs to run.
     background_jobs: JobRunner,
+    /// Running in integration_testing mode.
+    integration_testing: bool,
 }
 
 impl Engine {
@@ -111,14 +114,16 @@ impl Engine {
         storage: EngineStorageConfig,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
+        integration_testing: bool,
     ) -> Result<Engine> {
         Ok(Engine {
-            supervisor: Supervisor::new(metastore, DEFAULT_WORKER_CONFIG),
+            supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
             tracker,
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
             background_jobs: JobRunner::new(Default::default()),
+            integration_testing,
         })
     }
 
@@ -141,8 +146,8 @@ impl Engine {
         storage: SessionStorageConfig,
         remote_ctx: bool,
     ) -> Result<TrackedSession> {
-        let conn_id = *vars.connection_id.value();
-        let database_id = *vars.database_id.value();
+        let conn_id = vars.connection_id();
+        let database_id = vars.database_id();
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
         let native = self
             .storage
@@ -176,7 +181,7 @@ impl Engine {
     /// The provided exec client will be used to create the remote session.
     pub async fn new_session_with_remote_connection(
         &self,
-        mut vars: SessionVars,
+        vars: SessionVars,
         mut exec_client: RemoteClient,
     ) -> Result<TrackedSession> {
         // TODO: Figure out storage. The nil ID doesn't matter here (yet) since
@@ -185,15 +190,22 @@ impl Engine {
             .storage
             .new_native_tables_storage(Uuid::nil(), &SessionStorageConfig::default())?;
 
+        let test_db_id = if self.integration_testing {
+            Some(Uuid::new_v4())
+        } else {
+            None
+        };
+
         // Set up remote session.
         let (remote_sess_client, catalog) = exec_client
             .initialize_session(InitializeSessionRequest::Client(
-                InitializeSessionRequestFromClient {},
+                InitializeSessionRequestFromClient { test_db_id },
             ))
             .await?;
 
-        vars.remote_session_id
-            .set_raw(Some(remote_sess_client.session_id()), VarSetter::System)?;
+        vars.write()
+            .remote_session_id
+            .set_raw(Some(remote_sess_client.session_id()), VarType::System)?;
 
         let session = Session::new(
             vars,

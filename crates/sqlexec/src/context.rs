@@ -15,7 +15,7 @@ use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::{Column as DfColumn, SchemaReference};
-use datafusion::config::{CatalogOptions, ConfigOptions, OptimizerOptions};
+use datafusion::config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions};
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
@@ -32,30 +32,19 @@ use datafusion::sql::TableReference;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::init_session_registry;
-use futures::executor;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
-use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG, POSTGRES_SCHEMA};
+use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 use tracing::info;
-
-/// Implicity schemas that are consulted during object resolution.
-///
-/// Note that these are not normally shown in the search path.
-const IMPLICIT_SCHEMAS: [&str; 2] = [
-    POSTGRES_SCHEMA,
-    // Objects stored in current session will always have a priority over the
-    // schemas in search path.
-    CURRENT_SESSION_SCHEMA,
-];
 
 /// Context for a remote session.
 struct RemoteSessionContext {
@@ -82,8 +71,6 @@ pub struct SessionContext {
     current_session_tables: HashMap<String, Arc<MemTable>>,
     /// Native tables.
     tables: NativeTableStorage,
-    /// Session variables.
-    vars: SessionVars,
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
@@ -131,11 +118,6 @@ impl SessionContext {
 
         config_opts.catalog = catalog_opts;
         config_opts.optimizer = optimizer_opts;
-        let mut config: SessionConfig = config_opts.into();
-
-        // Add in custom extensions. These will be accessible during execution.
-        config = config.with_extension(Arc::new(StagedClientStreams::default()));
-
         // Create a new datafusion runtime env with disk manager and memory pool
         // if needed.
         let mut conf = RuntimeConfig::default();
@@ -143,13 +125,21 @@ impl SessionContext {
         if let Some(spill_path) = spill_path {
             conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
         }
-        if let &Some(mem_limit) = vars.memory_limit_bytes.value() {
+        if let Some(mem_limit) = vars.memory_limit_bytes() {
             // TODO: Make this actually have optional semantics.
             if mem_limit > 0 {
                 conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
             }
         }
 
+        let mut e = Extensions::new();
+        e.insert(vars);
+        config_opts = config_opts.with_extensions(e);
+
+        let mut config: SessionConfig = config_opts.into();
+        config = config.with_extension(Arc::new(StagedClientStreams::default()));
+
+        // let config = config.with_extension(Arc::new(vars));
         let runtime = RuntimeEnv::new(conf)?;
 
         // Register the object store in the registry for all the tables.
@@ -195,7 +185,6 @@ impl SessionContext {
             catalog,
             current_session_tables: HashMap::new(),
             tables: native_tables,
-            vars,
             prepared: HashMap::new(),
             portals: HashMap::new(),
             metrics,
@@ -204,6 +193,15 @@ impl SessionContext {
             background_jobs,
             remote_ctx,
         })
+    }
+
+    /// Close this session. This is only relevant for sessions connecting to
+    /// remote clients.
+    pub async fn close(&mut self) -> Result<()> {
+        if let Some(mut client) = self.exec_client() {
+            client.close_session().await?;
+        }
+        Ok(())
     }
 
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
@@ -500,7 +498,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if let &Some(limit) = self.vars.max_datasource_count.value() {
+        if let Some(limit) = self.get_session_vars().max_datasource_count() {
             if self.get_datasource_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "datasources",
@@ -540,7 +538,7 @@ impl SessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        if let &Some(limit) = self.vars.max_datasource_count.value() {
+        if let Some(limit) = self.get_session_vars().max_datasource_count() {
             if self.get_datasource_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "datasources",
@@ -564,7 +562,7 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        if let &Some(limit) = self.vars.max_tunnel_count.value() {
+        if let Some(limit) = self.get_session_vars().max_tunnel_count() {
             if self.get_tunnel_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "tunnels",
@@ -585,7 +583,7 @@ impl SessionContext {
     }
 
     pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        if let &Some(limit) = self.vars.max_credentials_count.value() {
+        if let Some(limit) = self.get_session_vars().max_credentials_count() {
             if self.get_credentials_count() >= limit {
                 return Err(ExecError::MaxObjectCount {
                     typ: "credentials",
@@ -801,13 +799,12 @@ impl SessionContext {
     }
 
     /// Get a reference to the session variables.
-    pub fn get_session_vars(&self) -> &SessionVars {
-        &self.vars
-    }
-
-    /// Get a mutable reference to the session variables.
-    pub fn get_session_vars_mut(&mut self) -> &mut SessionVars {
-        &mut self.vars
+    pub fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        // i'm pretty sure it's safe to unwrap.
+        // we don't expose any way to initialize the session without setting the session vars.
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
     }
 
     /// Get a reference to the session catalog.
@@ -824,7 +821,7 @@ impl SessionContext {
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
         self.catalog
-            .maybe_refresh_state(*self.vars.force_catalog_refresh.value())
+            .maybe_refresh_state(self.get_session_vars().force_catalog_refresh())
             .await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
@@ -1035,33 +1032,23 @@ impl SessionContext {
     }
 
     /// Iterate over all values in the search path.
-    pub(crate) fn search_path_iter(&self) -> impl Iterator<Item = &str> {
-        self.vars.search_path.value().iter().map(|s| s.as_str())
+    pub(crate) fn search_paths(&self) -> Vec<String> {
+        self.get_session_vars().search_path()
     }
 
     /// Iterate over the implicit search path. This will have all implicit
     /// schemas prepended to the iterator.
     ///
     /// This should be used when trying to resolve existing items.
-    pub(crate) fn implicit_search_path_iter(&self) -> impl Iterator<Item = &str> {
-        IMPLICIT_SCHEMAS
-            .into_iter()
-            .chain(self.vars.search_path.value().iter().map(|s| s.as_str()))
+    pub(crate) fn implicit_search_paths(&self) -> Vec<String> {
+        self.get_session_vars().implicit_search_path()
     }
 
     /// Get the first non-implicit schema.
-    fn first_nonimplicit_schema(&self) -> Result<&str> {
-        self.search_path_iter()
-            .next()
-            .ok_or(ExecError::EmptySearchPath)
-    }
-}
-
-impl Drop for SessionContext {
-    fn drop(&mut self) {
-        if let Some(mut client) = self.exec_client.clone() {
-            let _ = executor::block_on(client.close_session());
-        }
+    fn first_nonimplicit_schema(&self) -> Result<String> {
+        self.get_session_vars()
+            .first_nonimplicit_schema()
+            .ok_or_else(|| ExecError::EmptySearchPath)
     }
 }
 

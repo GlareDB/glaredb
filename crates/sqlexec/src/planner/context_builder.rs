@@ -105,10 +105,10 @@ impl<'a> PartialContextProvider<'a> {
         let dispatcher = SessionDispatcher::new(self.ctx);
         match &reference {
             TableReference::Bare { table } => {
-                for schema in self.ctx.implicit_search_path_iter() {
+                for schema in self.ctx.implicit_search_paths() {
                     // TODO
                     match dispatcher
-                        .dispatch_access(DEFAULT_CATALOG, schema, table)
+                        .dispatch_access(DEFAULT_CATALOG, &schema, table)
                         .await
                     {
                         Ok(table) => return Ok(table),
@@ -152,8 +152,8 @@ impl<'a> PartialContextProvider<'a> {
     ) -> Option<Arc<dyn TableFunc>> {
         let catalog = self.ctx.get_session_catalog();
 
-        let resolve_func = |schema, name| {
-            match catalog.resolve_entry(DEFAULT_CATALOG, schema, name) {
+        let resolve_func = |schema: String, name| {
+            match catalog.resolve_entry(DEFAULT_CATALOG, &schema, name) {
                 Some(CatalogEntry::Function(func)) => {
                     if func.meta.builtin {
                         if let Some(func_impl) = BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
@@ -177,21 +177,21 @@ impl<'a> PartialContextProvider<'a> {
 
         match &reference {
             TableReference::Bare { table } => {
-                for schema in self.ctx.implicit_search_path_iter() {
+                for schema in self.ctx.implicit_search_paths() {
                     if let Some(func_impl) = resolve_func(schema, table) {
                         return Some(func_impl);
                     }
                 }
                 None
             }
-            TableReference::Partial { schema, table } => resolve_func(schema, table),
+            TableReference::Partial { schema, table } => resolve_func(schema.to_string(), table),
             TableReference::Full {
                 catalog,
                 schema,
                 table,
             } => {
                 if catalog == DEFAULT_CATALOG {
-                    resolve_func(schema, table)
+                    resolve_func(schema.to_string(), table)
                 } else {
                     None
                 }
@@ -265,7 +265,7 @@ impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
         self.ctx.get_session_catalog().resolve_credentials(name)
     }
 
-    fn get_session_vars(&self) -> &SessionVars {
+    fn get_session_vars(&self) -> SessionVars {
         self.ctx.get_session_vars()
     }
 

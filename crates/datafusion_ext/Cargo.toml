@@ -22,6 +22,7 @@ thiserror.workspace = true
 decimal = { path = "../decimal" }
 protogen = { path = "../protogen" }
 futures = "0.3.28"
+parking_lot = "0.12.1"
 
 [dev-dependencies]
 ctor = "0.2.4"

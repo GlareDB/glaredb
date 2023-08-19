@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
-use super::client::{SupervisorClient, WorkerError};
+use super::client::{MetastoreClientError, MetastoreClientHandle};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SessionCatalogError {
@@ -17,7 +17,7 @@ pub enum SessionCatalogError {
     MetastoreClientNotConfigured,
 
     #[error(transparent)]
-    WorkerClientError(#[from] WorkerError),
+    WorkerClientError(#[from] MetastoreClientError),
 }
 
 type Result<T, E = SessionCatalogError> = std::result::Result<T, E>;
@@ -32,7 +32,7 @@ pub struct SessionCatalog {
     /// If `None`, certain operations cannot be done.
     ///
     /// This will eventually allow other catalog sources too (like rpcsrv).
-    metastore_client: Option<SupervisorClient>,
+    metastore_client: Option<MetastoreClientHandle>,
 
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,
@@ -66,13 +66,16 @@ impl SessionCatalog {
 
     /// Create a session with an initial state along with the client to
     /// metastore.
-    pub fn new_with_client(state: Arc<CatalogState>, client: SupervisorClient) -> SessionCatalog {
+    pub fn new_with_client(
+        state: Arc<CatalogState>,
+        client: MetastoreClientHandle,
+    ) -> SessionCatalog {
         let mut catalog = Self::new(state);
         catalog.metastore_client = Some(client);
         catalog
     }
 
-    pub fn get_metastore_client(&self) -> Option<&SupervisorClient> {
+    pub fn get_metastore_client(&self) -> Option<&MetastoreClientHandle> {
         self.metastore_client.as_ref()
     }
 
@@ -304,7 +307,7 @@ impl SessionCatalog {
 
         let state = match client.try_mutate(self.version(), mutations.clone()).await {
             Ok(state) => state,
-            Err(WorkerError::MetastoreTonic {
+            Err(MetastoreClientError::MetastoreTonic {
                 strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
                 message,
             }) => {
