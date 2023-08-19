@@ -144,7 +144,7 @@ impl TableFunc for ObjScanTableFunc {
             // to a local file.
             let is_local = locations
                 .first()
-                .and_then(|loc| Some(loc.datasource_url_type() == DatasourceUrlType::File))
+                .map(|loc| loc.datasource_url_type() == DatasourceUrlType::File)
                 .unwrap_or(false);
             let mut provider =
                 get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;

@@ -1,29 +1,23 @@
 use crate::errors::Result;
-use crate::remote::client::RemoteSessionClient;
 use crate::remote::local_side::ClientSendExecsRef;
-use datafusion::arrow::array::UInt64Array;
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
-use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::RecordBatchStream;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    Statistics,
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
-use protogen::gen::rpcsrv::service;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::task::JoinHandle;
 use tokio::task::JoinSet;
-use uuid::Uuid;
 
 use super::client_send::ClientExchangeSendExec;
 
@@ -53,7 +47,7 @@ impl SendRecvJoinExec {
     /// should have already been done by creating the provided input execution
     /// plan).
     pub fn new(input: Arc<dyn ExecutionPlan>, refs: Vec<ClientSendExecsRef>) -> SendRecvJoinExec {
-        let send_execs: Vec<_> = refs.into_iter().map(|r| r.take_execs()).flatten().collect();
+        let send_execs: Vec<_> = refs.into_iter().flat_map(|r| r.take_execs()).collect();
 
         SendRecvJoinExec {
             input,
