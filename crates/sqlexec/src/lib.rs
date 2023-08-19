@@ -7,6 +7,7 @@ pub mod extension_codec;
 pub mod metastore;
 pub mod parser;
 pub mod remote;
+pub mod remote_context;
 pub mod session;
 
 mod background_jobs;

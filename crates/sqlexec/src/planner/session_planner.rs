@@ -46,7 +46,7 @@ use sqlbuiltins::validation::{
 };
 use tracing::debug;
 
-use crate::context::SessionContext;
+use crate::context::local::SessionContext;
 use crate::parser::options::StmtOptions;
 use crate::parser::{
     self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,

@@ -36,7 +36,7 @@ use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormat
 use telemetry::Tracker;
 
 use crate::background_jobs::JobRunner;
-use crate::context::{Portal, PreparedStatement, SessionContext};
+use crate::context::local::{Portal, PreparedStatement, SessionContext};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};

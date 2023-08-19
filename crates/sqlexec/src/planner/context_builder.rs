@@ -1,4 +1,4 @@
-use crate::context::SessionContext;
+use crate::context::local::SessionContext;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;

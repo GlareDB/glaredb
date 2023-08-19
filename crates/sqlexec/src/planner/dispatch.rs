@@ -1,5 +1,5 @@
 //! Adapter types for dispatching to table sources.
-use crate::context::SessionContext;
+use crate::context::local::SessionContext;
 use crate::metastore::catalog::SessionCatalog;
 use datafusion::arrow::array::{
     BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,

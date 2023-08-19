@@ -19,7 +19,7 @@ use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
-use sqlexec::context::{OutputFields, Portal, PreparedStatement};
+use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::SessionStorageConfig;
 use sqlexec::{
     engine::Engine,

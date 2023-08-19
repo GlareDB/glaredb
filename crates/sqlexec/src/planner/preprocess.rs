@@ -1,5 +1,5 @@
 //! AST visitors for preprocessing queries before planning.
-use crate::context::SessionContext;
+use crate::context::local::SessionContext;
 use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use std::ops::ControlFlow;

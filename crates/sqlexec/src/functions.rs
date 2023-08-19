@@ -1,5 +1,5 @@
 //! Built-in functions.
-use crate::context::SessionContext;
+use crate::context::local::SessionContext;
 use datafusion::arrow::array::StringBuilder;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::ScalarValue;
