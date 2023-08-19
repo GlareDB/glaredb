@@ -18,6 +18,7 @@ use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::TableFunc;
 use datafusion_ext::functions::TableFuncContextProvider;
+use datafusion_ext::local_hint::LocalTableHint;
 use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::vars::SessionVars;
 use protogen::metastore::types::catalog::{CatalogEntry, CredentialsEntry, DatabaseEntry};
@@ -30,13 +31,16 @@ use tracing::error;
 /// Partial context provider with table providers required to fulfill a single
 /// query.
 ///
-/// NOTE: While `ContextProvider` is for _logical_ planning, DataFusion will
-/// actually try to downcast the `TableSource` to a `TableProvider` during
+/// NOTE: While `PartialContextProvider` is for _logical_ planning, DataFusion
+/// will actually try to downcast the `TableSource` to a `TableProvider` during
 /// physical planning. This only works with `DefaultTableSource` which is what
 /// this adapter uses.
 pub struct PartialContextProvider<'a> {
+    /// Providers we've seen so far.
     providers: HashMap<OwnedTableReference, Arc<dyn TableProvider>>,
+    /// Datafusion session state.
     state: &'a SessionState,
+    /// Glaredb session context.
     ctx: &'a SessionContext,
 }
 
@@ -49,12 +53,48 @@ impl<'a> PartialContextProvider<'a> {
         })
     }
 
+    /// Get the table provider from the table reference.
+    pub async fn table_provider(
+        &mut self,
+        name: OwnedTableReference,
+    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        let provider = match self.providers.get(&name) {
+            Some(provider) => provider.clone(),
+            None => {
+                let provider = self
+                    .table_for_reference(TableReference::from(&name))
+                    .await?;
+                self.providers.insert(name, provider.clone());
+                provider
+            }
+        };
+
+        Ok(provider)
+    }
+
     /// Find a table provider the given reference, taking into account the
     /// session's search path.
     async fn table_for_reference(
-        &self,
+        &mut self,
         reference: TableReference<'_>,
     ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        // Try to read from the environment first.
+        //
+        // TODO: Determine if this is a behavior we want. This was move to the
+        // top to preempt reading from a remote session.
+        if let TableReference::Bare { table } = &reference {
+            if let Some(reader) = self.ctx.get_env_reader() {
+                if let Some(table) = reader
+                    .resolve_table(table)
+                    .map_err(|e| ExecError::EnvironmentTableRead(e))?
+                {
+                    // Hint that the table being scanned from the environment
+                    // should be scanned client-side.
+                    return Ok(Arc::new(LocalTableHint(table)));
+                }
+            }
+        }
+
         if let Some(mut client) = self.ctx.exec_client() {
             let provider = client
                 .dispatch_access(reference.to_owned_reference())
@@ -79,20 +119,6 @@ impl<'a> PartialContextProvider<'a> {
                                 e,
                             });
                         }
-                    }
-                }
-
-                // Try to read from the environment if we fail to find the table
-                // in the search path.
-                //
-                // TODO: We'll want to figure out how we want to handle
-                // shadowing/precedence.
-                if let Some(reader) = self.ctx.get_env_reader() {
-                    if let Some(table) = reader
-                        .resolve_table(table)
-                        .map_err(|e| ExecError::EnvironmentTableRead(e))?
-                    {
-                        return Ok(table);
                     }
                 }
 
@@ -171,25 +197,6 @@ impl<'a> PartialContextProvider<'a> {
                 }
             }
         }
-    }
-
-    /// Get the table provider from the table reference.
-    pub async fn table_provider(
-        &mut self,
-        name: OwnedTableReference,
-    ) -> Result<Arc<dyn TableProvider>, PlanError> {
-        let provider = match self.providers.get(&name) {
-            Some(provider) => provider.clone(),
-            None => {
-                let provider = self
-                    .table_for_reference(TableReference::from(&name))
-                    .await?;
-                self.providers.insert(name, provider.clone());
-                provider
-            }
-        };
-
-        Ok(provider)
     }
 }
 

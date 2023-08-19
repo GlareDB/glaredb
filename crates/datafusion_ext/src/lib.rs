@@ -4,3 +4,4 @@ pub mod vars;
 
 pub use planner::*;
 pub mod functions;
+pub mod local_hint;

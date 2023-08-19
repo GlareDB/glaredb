@@ -45,13 +45,13 @@ impl QueryPlanner for RemoteLogicalPlanner {
 #[derive(Debug, Clone)]
 pub struct RemotePhysicalPlanner {
     /// Client to remote services.
-    remote_client: RemoteSessionClient,
+    _remote_client: RemoteSessionClient,
 }
 
 impl From<&RemoteLogicalPlanner> for RemotePhysicalPlanner {
     fn from(planner: &RemoteLogicalPlanner) -> Self {
         Self {
-            remote_client: planner.remote_client.clone(),
+            _remote_client: planner.remote_client.clone(),
         }
     }
 }
@@ -61,15 +61,12 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
     async fn create_physical_plan(
         &self,
         logical_plan: &DfLogicalPlan,
-        _session_state: &SessionState,
+        session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let mut client = self.remote_client.clone();
-
-        let physical_plan = client
-            .create_physical_plan(logical_plan)
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        Ok(Arc::new(physical_plan))
+        let plan = DefaultPhysicalPlanner::default()
+            .create_physical_plan(logical_plan, session_state)
+            .await?;
+        Ok(plan)
     }
 
     fn create_physical_expr(

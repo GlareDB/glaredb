@@ -25,7 +25,7 @@ use super::client::RemoteSessionClient;
 
 /// Execute a logical plan on a remote service.
 #[derive(Debug, Clone)]
-pub struct RemoteExecutionPlan {
+pub struct RemoteExecutionExec {
     client: RemoteSessionClient,
     /// The logical plan to execute remotely.
     exec_id: Uuid,
@@ -33,9 +33,9 @@ pub struct RemoteExecutionPlan {
     schema: SchemaRef,
 }
 
-impl RemoteExecutionPlan {
+impl RemoteExecutionExec {
     pub fn new(client: RemoteSessionClient, exec_id: Uuid, schema: SchemaRef) -> Self {
-        RemoteExecutionPlan {
+        RemoteExecutionExec {
             client,
             exec_id,
             schema,
@@ -47,7 +47,7 @@ impl RemoteExecutionPlan {
     }
 }
 
-impl ExecutionPlan for RemoteExecutionPlan {
+impl ExecutionPlan for RemoteExecutionExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -100,7 +100,7 @@ impl ExecutionPlan for RemoteExecutionPlan {
     }
 }
 
-impl DisplayAs for RemoteExecutionPlan {
+impl DisplayAs for RemoteExecutionExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "RemoteExecutionPlan")
     }

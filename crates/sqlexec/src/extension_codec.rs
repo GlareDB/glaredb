@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
-use crate::planner::logical_plan::{self as plan};
+use crate::planner::logical_plan as plan;
 use crate::remote::table::RemoteTableProvider;
 use protogen::export::prost::Message;
 

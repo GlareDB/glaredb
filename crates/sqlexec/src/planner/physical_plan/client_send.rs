@@ -23,13 +23,13 @@ use uuid::Uuid;
 
 /// Execution plan for sending batches to a remote node.
 #[derive(Debug)]
-pub struct ClientExchangeInputSendExec {
+pub struct ClientExchangeSendExec {
     broadcast_id: Uuid,
     client: RemoteSessionClient, // TODO: Extension
     input: Arc<dyn ExecutionPlan>,
 }
 
-impl ClientExchangeInputSendExec {
+impl ClientExchangeSendExec {
     #[allow(dead_code)]
     pub fn new(
         broadcast_id: Uuid,
@@ -52,7 +52,7 @@ impl ClientExchangeInputSendExec {
     }
 }
 
-impl ExecutionPlan for ClientExchangeInputSendExec {
+impl ExecutionPlan for ClientExchangeSendExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -113,7 +113,7 @@ impl ExecutionPlan for ClientExchangeInputSendExec {
     }
 }
 
-impl DisplayAs for ClientExchangeInputSendExec {
+impl DisplayAs for ClientExchangeSendExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ClientExchangeInputSendExec")
     }
@@ -263,7 +263,7 @@ async fn flush_stream(
 
     // Create record batch with row count calculated by the stream.
     let batch = RecordBatch::try_new(
-        ClientExchangeInputSendExec::arrow_schema(),
+        ClientExchangeSendExec::arrow_schema(),
         vec![Arc::new(UInt64Array::new(
             vec![result.row_count as u64].into(),
             None,

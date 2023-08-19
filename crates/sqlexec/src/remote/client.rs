@@ -26,7 +26,7 @@ use tonic::{
 use url::Url;
 use uuid::Uuid;
 
-use super::{exec::RemoteExecutionPlan, table::RemoteTableProvider};
+use super::{exec::RemoteExecutionExec, table::RemoteTableProvider};
 
 const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 
@@ -219,7 +219,7 @@ impl RemoteSessionClient {
     pub async fn create_physical_plan(
         &mut self,
         logical_plan: &LogicalPlan,
-    ) -> Result<RemoteExecutionPlan> {
+    ) -> Result<RemoteExecutionExec> {
         // Encode the logical plan into a protobuf message.
         let logical_plan = {
             let node = LogicalPlanNode::try_from_logical_plan(
@@ -251,7 +251,7 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(RemoteExecutionPlan::new(
+        Ok(RemoteExecutionExec::new(
             self.clone(),
             resp.id,
             Arc::new(resp.schema),
@@ -291,7 +291,7 @@ impl RemoteSessionClient {
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         limit: Option<usize>,
-    ) -> Result<RemoteExecutionPlan> {
+    ) -> Result<RemoteExecutionExec> {
         let mut request = service::TableProviderScanRequest::try_from(TableProviderScanRequest {
             session_id: self.session_id(),
             provider_id,
@@ -311,7 +311,7 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(RemoteExecutionPlan::new(
+        Ok(RemoteExecutionExec::new(
             self.clone(),
             resp.id,
             Arc::new(resp.schema),
@@ -322,7 +322,7 @@ impl RemoteSessionClient {
         &mut self,
         provider_id: Uuid,
         input_exec_id: Uuid,
-    ) -> Result<RemoteExecutionPlan> {
+    ) -> Result<RemoteExecutionExec> {
         let mut request =
             service::TableProviderInsertIntoRequest::from(TableProviderInsertIntoRequest {
                 session_id: self.session_id(),
@@ -343,7 +343,7 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(RemoteExecutionPlan::new(
+        Ok(RemoteExecutionExec::new(
             self.clone(),
             resp.id,
             Arc::new(resp.schema),

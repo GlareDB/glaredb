@@ -15,6 +15,7 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
 };
+use datafusion_ext::local_hint::LocalTableHint;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
@@ -139,8 +140,18 @@ impl TableFunc for ObjScanTableFunc {
         let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
 
         for (access, locations) in fn_registry {
-            let provider =
+            // Wrap the provider in a "local" hint if the data source url points
+            // to a local file.
+            let is_local = locations
+                .first()
+                .map(|loc| loc.datasource_url_type() == DatasourceUrlType::File)
+                .unwrap_or(false);
+            let mut provider =
                 get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;
+            if is_local {
+                provider = Arc::new(LocalTableHint(provider));
+            }
+
             let source = Arc::new(DefaultTableSource::new(provider));
             let plan = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?.build()?;
 
