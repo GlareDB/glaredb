@@ -2,7 +2,6 @@ use crate::context::local::SessionContext;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
-use crate::planner::dispatch::SessionDispatcher;
 use crate::planner::errors::PlanError;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
@@ -102,46 +101,48 @@ impl<'a> PartialContextProvider<'a> {
             return Ok(Arc::new(provider));
         }
 
-        let dispatcher = SessionDispatcher::new(self.ctx);
-        match &reference {
-            TableReference::Bare { table } => {
-                for schema in self.ctx.implicit_search_paths() {
-                    // TODO
-                    match dispatcher
-                        .dispatch_access(DEFAULT_CATALOG, &schema, table)
-                        .await
-                    {
-                        Ok(table) => return Ok(table),
-                        Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
-                        Err(e) => {
-                            return Err(PlanError::FailedToCreateTableProvider {
-                                reference: reference.to_string(),
-                                e,
-                            });
-                        }
-                    }
-                }
+        unimplemented!()
 
-                Err(PlanError::FailedToFindTableForReference {
-                    reference: reference.to_string(),
-                })
-            }
-            TableReference::Partial { schema, table } => {
-                // TODO
-                let table = dispatcher
-                    .dispatch_access(DEFAULT_CATALOG, schema, table)
-                    .await?;
-                Ok(table)
-            }
-            TableReference::Full {
-                catalog,
-                schema,
-                table,
-            } => {
-                let table = dispatcher.dispatch_access(catalog, schema, table).await?;
-                Ok(table)
-            }
-        }
+        // let dispatcher = SessionDispatcher::new(self.ctx);
+        // match &reference {
+        //     TableReference::Bare { table } => {
+        //         for schema in self.ctx.implicit_search_paths() {
+        //             // TODO
+        //             match dispatcher
+        //                 .dispatch_access(DEFAULT_CATALOG, &schema, table)
+        //                 .await
+        //             {
+        //                 Ok(table) => return Ok(table),
+        //                 Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
+        //                 Err(e) => {
+        //                     return Err(PlanError::FailedToCreateTableProvider {
+        //                         reference: reference.to_string(),
+        //                         e,
+        //                     });
+        //                 }
+        //             }
+        //         }
+
+        //         Err(PlanError::FailedToFindTableForReference {
+        //             reference: reference.to_string(),
+        //         })
+        //     }
+        //     TableReference::Partial { schema, table } => {
+        //         // TODO
+        //         let table = dispatcher
+        //             .dispatch_access(DEFAULT_CATALOG, schema, table)
+        //             .await?;
+        //         Ok(table)
+        //     }
+        //     TableReference::Full {
+        //         catalog,
+        //         schema,
+        //         table,
+        //     } => {
+        //         let table = dispatcher.dispatch_access(catalog, schema, table).await?;
+        //         Ok(table)
+        //     }
+        // }
     }
 
     /// Find a table function with the given reference, taking into account the

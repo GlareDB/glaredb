@@ -1,3 +1,4 @@
+use datafusion::datasource::MemTable;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
@@ -22,18 +23,81 @@ pub enum SessionCatalogError {
 
 type Result<T, E = SessionCatalogError> = std::result::Result<T, E>;
 
+/// Wrapper around a metastore client for mutating the catalog.
+#[derive(Clone)]
+pub struct CatalogMutator {
+    pub client: Option<MetastoreClientHandle>,
+}
+
+impl CatalogMutator {
+    pub fn new(client: Option<MetastoreClientHandle>) -> Self {
+        CatalogMutator { client }
+    }
+
+    pub fn get_metastore_client(&self) -> Option<&MetastoreClientHandle> {
+        self.client.as_ref()
+    }
+
+    /// Mutate the catalog if possible.
+    ///
+    /// Errors if the metastore client isn't configured.
+    ///
+    /// This will retry mutations if we were working with an out of date
+    /// catalog.
+    pub async fn mutate(
+        &mut self,
+        catalog_version: u64,
+        mutations: impl IntoIterator<Item = Mutation>,
+    ) -> Result<()> {
+        let client = match &self.client {
+            Some(client) => client,
+            None => return Err(SessionCatalogError::MetastoreClientNotConfigured),
+        };
+
+        // Note that when we have transactions, these shouldn't be sent until
+        // commit.
+        let mutations: Vec<_> = mutations.into_iter().collect();
+
+        let _state = match client.try_mutate(catalog_version, mutations.clone()).await {
+            Ok(state) => state,
+            Err(MetastoreClientError::MetastoreTonic {
+                strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
+                message,
+            }) => {
+                // Go ahead and refetch the catalog and retry the mutation.
+                //
+                // Note that this relies on metastore _always_ being stricter
+                // when validating mutations. What this means is that retrying
+                // here should be semantically equivalent to manually refreshing
+                // the catalog and rerunning and replanning the query.
+                debug!(error_message = message, "retrying mutations");
+
+                client.refresh_cached_state().await?;
+                let state = client.get_cached_state().await?;
+                let version = state.version;
+
+                client.try_mutate(version, mutations).await?
+            }
+            Err(e) => return Err(e.into()),
+        };
+
+        Ok(())
+    }
+}
+
+impl From<MetastoreClientHandle> for CatalogMutator {
+    fn from(value: MetastoreClientHandle) -> Self {
+        CatalogMutator {
+            client: Some(value),
+        }
+    }
+}
+
 /// The session local catalog.
 ///
 /// This catalog should be stored on the "client" side and periodically updated
 /// from the remote state provided by metastore.
 pub struct SessionCatalog {
-    /// The client to the remote metastore.
-    ///
-    /// If `None`, certain operations cannot be done.
-    ///
-    /// This will eventually allow other catalog sources too (like rpcsrv).
-    metastore_client: Option<MetastoreClientHandle>,
-
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,
     /// Map database names to their ids.
@@ -52,7 +116,6 @@ impl SessionCatalog {
     /// Create a new session catalog with an initial state.
     pub fn new(state: Arc<CatalogState>) -> SessionCatalog {
         let mut catalog = SessionCatalog {
-            metastore_client: None,
             state,
             database_names: HashMap::new(),
             tunnel_names: HashMap::new(),
@@ -62,21 +125,6 @@ impl SessionCatalog {
         };
         catalog.rebuild_name_maps();
         catalog
-    }
-
-    /// Create a session with an initial state along with the client to
-    /// metastore.
-    pub fn new_with_client(
-        state: Arc<CatalogState>,
-        client: MetastoreClientHandle,
-    ) -> SessionCatalog {
-        let mut catalog = Self::new(state);
-        catalog.metastore_client = Some(client);
-        catalog
-    }
-
-    pub fn get_metastore_client(&self) -> Option<&MetastoreClientHandle> {
-        self.metastore_client.as_ref()
     }
 
     /// Get the version of this catalog state.
@@ -265,8 +313,12 @@ impl SessionCatalog {
     /// Maybe refresh this catalog's state using the metastore client.
     ///
     /// If the client isn't configured, nothing is done.
-    pub async fn maybe_refresh_state(&mut self, force_refresh: bool) -> Result<()> {
-        let client = match &self.metastore_client {
+    pub async fn maybe_refresh_state(
+        &mut self,
+        client: Option<&MetastoreClientHandle>,
+        force_refresh: bool,
+    ) -> Result<()> {
+        let client = match client {
             Some(client) => client,
             None => return Ok(()),
         };
@@ -286,49 +338,6 @@ impl SessionCatalog {
             self.swap_state(new_state);
         }
 
-        Ok(())
-    }
-
-    /// Mutate the catalog if possible.
-    ///
-    /// Errors if the metastore client isn't configured.
-    ///
-    /// This will retry mutations if we were working with an out of date
-    /// catalog.
-    pub async fn mutate(&mut self, mutations: impl IntoIterator<Item = Mutation>) -> Result<()> {
-        let client = match &self.metastore_client {
-            Some(client) => client.clone(), // Cloned to make the below retry stuff easier.
-            None => return Err(SessionCatalogError::MetastoreClientNotConfigured),
-        };
-
-        // Note that when we have transactions, these shouldn't be sent until
-        // commit.
-        let mutations: Vec<_> = mutations.into_iter().collect();
-
-        let state = match client.try_mutate(self.version(), mutations.clone()).await {
-            Ok(state) => state,
-            Err(MetastoreClientError::MetastoreTonic {
-                strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
-                message,
-            }) => {
-                // Go ahead and refetch the catalog and retry the mutation.
-                //
-                // Note that this relies on metastore _always_ being stricter
-                // when validating mutations. What this means is that retrying
-                // here should be semantically equivalent to manually refreshing
-                // the catalog and rerunning and replanning the query.
-                debug!(error_message = message, "retrying mutations");
-
-                client.refresh_cached_state().await?;
-                let state = client.get_cached_state().await?;
-                let version = state.version;
-                self.swap_state(state);
-
-                client.try_mutate(version, mutations).await?
-            }
-            Err(e) => return Err(e.into()),
-        };
-        self.swap_state(state);
         Ok(())
     }
 
@@ -417,5 +426,27 @@ impl NamespacedCatalogEntry<'_> {
     /// Get the entry type for this entry.
     pub fn entry_type(&self) -> EntryType {
         self.entry.get_meta().entry_type
+    }
+}
+
+/// Temporary objects that are dropped when the session is dropped.
+#[derive(Debug, Default)]
+pub struct TempObjects {
+    /// In-memory (temporary) tables.
+    current_session_tables: HashMap<String, Arc<MemTable>>,
+}
+
+impl TempObjects {
+    pub fn resolve_temp_table(&self, name: &str) -> Option<Arc<MemTable>> {
+        // TODO: Local hint
+        self.current_session_tables.get(name).cloned()
+    }
+
+    pub fn put_temp_table(&mut self, name: String, table: Arc<MemTable>) {
+        self.current_session_tables.insert(name, table);
+    }
+
+    pub fn drop_table(&mut self, name: &str) {
+        self.current_session_tables.remove(name);
     }
 }

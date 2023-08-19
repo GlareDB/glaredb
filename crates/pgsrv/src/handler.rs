@@ -261,12 +261,11 @@ impl ProtocolHandler {
 
         let sess = match self
             .engine
-            .new_session(
+            .new_local_session_context(
                 vars,
                 SessionStorageConfig {
                     gcs_bucket: storage_bucket,
                 },
-                /* remote_ctx = */ false,
             )
             .await
         {

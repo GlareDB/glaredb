@@ -251,13 +251,14 @@ impl RpcTestClient {
         .await?;
         let remote_client =
             RemoteClient::connect(format!("http://{rpc_bind}").parse().unwrap()).await?;
-        let session = engine
-            .new_session_with_remote_connection(SessionVars::default(), remote_client)
-            .await?;
-        Ok(RpcTestClient {
-            session: Arc::new(Mutex::new(session)),
-            engine: Arc::new(engine),
-        })
+        unimplemented!()
+        // let session = engine
+        //     .new_session_with_remote_connection(SessionVars::default(), remote_client)
+        //     .await?;
+        // Ok(RpcTestClient {
+        //     session: Arc::new(Mutex::new(session)),
+        //     engine: Arc::new(engine),
+        // })
     }
 
     async fn close(&self) -> Result<()> {

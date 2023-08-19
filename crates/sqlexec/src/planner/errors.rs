@@ -6,17 +6,8 @@ pub enum PlanError {
     #[error("SQL statement currently unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
-    #[error("Failed to create table provider for '{reference}': {e}")]
-    FailedToCreateTableProvider {
-        reference: String,
-        e: crate::planner::dispatch::DispatchError,
-    },
-
     #[error("Failed to find table for reference: {reference}")]
     FailedToFindTableForReference { reference: String },
-
-    #[error("Failed to dispatch to table: {0}")]
-    TableDispatch(#[from] crate::planner::dispatch::DispatchError),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),

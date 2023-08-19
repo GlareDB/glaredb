@@ -95,13 +95,13 @@ impl RpcHandler {
             .with_database_id(db_id, VarType::System)
             .with_connection_id(conn_id, VarType::System);
 
-        let sess = self
+        let context = self
             .engine
-            .new_session(vars, storage_conf, /* remote_ctx = */ true)
+            .new_remote_session_context(vars, storage_conf)
             .await?;
 
-        let sess = RemoteSession::new(sess);
-        let initial_state: CatalogState = sess.get_catalog_state().await;
+        let sess = RemoteSession::new(context);
+        let initial_state = sess.get_catalog_state().await;
 
         self.sessions.insert(conn_id, sess);
 

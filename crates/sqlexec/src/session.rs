@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::extension_codec::GlareDBExtensionCodec;
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
@@ -217,12 +217,11 @@ impl Session {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
+        catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<RemoteSessionClient>,
-        remote_ctx: bool,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             vars.user_id(),
@@ -234,12 +233,11 @@ impl Session {
         let ctx = SessionContext::new(
             vars,
             catalog,
+            catalog_mutator,
             native_tables,
             metrics,
             spill_path,
             background_jobs,
-            exec_client,
-            remote_ctx,
         )?;
 
         Ok(Session { ctx })
@@ -310,10 +308,6 @@ impl Session {
                 }
             }
         }
-    }
-
-    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
-        self.ctx.staged_streams()
     }
 
     pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {
@@ -424,26 +418,6 @@ impl Session {
         let context = self.ctx.task_context();
         let stream = execute_stream(plan, context)?;
         Ok(stream)
-    }
-
-    /// Get a table provider from session.
-    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
-        self.ctx.get_table_provider(provider_id)
-    }
-
-    /// Add a table provider to the session. Returns the ID of the provider.
-    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
-        self.ctx.add_table_provider(provider)
-    }
-
-    /// Get a physical plan from session.
-    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
-        self.ctx.get_physical_plan(exec_id)
-    }
-
-    /// Add a physical plan to the session. Returns the ID of the plan.
-    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
-        self.ctx.add_physical_plan(plan)
     }
 
     /// Returns the extension codec used for serializing and deserializing data

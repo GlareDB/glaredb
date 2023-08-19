@@ -14,7 +14,7 @@ use crate::{
     background_jobs::JobRunner,
     dispatch::external::ExternalDispatcher,
     errors::Result,
-    metastore::catalog::SessionCatalog,
+    metastore::catalog::{CatalogMutator, SessionCatalog},
     remote::staged_stream::{StagedClientStreams, StagedStreams},
 };
 
@@ -25,6 +25,7 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 pub struct RemoteSessionContext {
     /// Database catalog.
     catalog: SessionCatalog,
+    catalog_mutator: CatalogMutator,
     /// Native tables.
     tables: NativeTableStorage,
     /// Datafusion session context used for execution.
@@ -40,6 +41,7 @@ impl RemoteSessionContext {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
+        catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         background_jobs: JobRunner,
         spill_path: Option<PathBuf>,
@@ -57,11 +59,24 @@ impl RemoteSessionContext {
 
         Ok(RemoteSessionContext {
             catalog,
+            catalog_mutator,
             tables: native_tables,
             df_ctx,
             _background_jobs: background_jobs,
             cached_table_providers: HashMap::new(),
         })
+    }
+
+    pub fn get_session_catalog(&self) -> &SessionCatalog {
+        &self.catalog
+    }
+
+    pub fn staged_streams(&self) -> Arc<StagedClientStreams> {
+        self.df_ctx
+            .state()
+            .config()
+            .get_extension::<StagedClientStreams>()
+            .expect("remote contexts should have streams registered")
     }
 
     /// Execute a physical plan.

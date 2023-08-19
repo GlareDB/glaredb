@@ -10,7 +10,8 @@ use protogen::metastore::types::catalog::{CatalogEntry, EntryMeta, EntryType, Vi
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 
 use crate::{
-    dispatch::system::SystemTableDispatcher, metastore::catalog::SessionCatalog,
+    dispatch::system::SystemTableDispatcher,
+    metastore::catalog::{SessionCatalog, TempObjects},
     metrics::SessionMetrics,
 };
 
@@ -96,6 +97,7 @@ pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
     metrics: &'a SessionMetrics,
+    temp_objects: &'a TempObjects,
     // TODO: Remove need for this.
     df_ctx: &'a SessionContext,
     /// Whether or not local file system access should be disabled.
@@ -107,6 +109,7 @@ impl<'a> Dispatcher<'a> {
         catalog: &'a SessionCatalog,
         tables: &'a NativeTableStorage,
         metrics: &'a SessionMetrics,
+        temp_objects: &'a TempObjects,
         df_ctx: &'a SessionContext,
         disable_local_fs_access: bool,
     ) -> Self {
@@ -114,6 +117,7 @@ impl<'a> Dispatcher<'a> {
             catalog,
             tables,
             metrics,
+            temp_objects,
             df_ctx,
             disable_local_fs_access,
         }
@@ -146,14 +150,13 @@ impl<'a> Dispatcher<'a> {
         }
 
         if schema == CURRENT_SESSION_SCHEMA {
-            unimplemented!()
-            // return match self.ctx.resolve_temp_table(name) {
-            //     Some(table) => Ok(table),
-            //     None => Err(DispatchError::MissingEntry {
-            //         schema: schema.to_owned(),
-            //         name: name.to_owned(),
-            //     }),
-            // };
+            return match self.temp_objects.resolve_temp_table(name) {
+                Some(table) => Ok(table),
+                None => Err(DispatchError::MissingEntry {
+                    schema: schema.to_owned(),
+                    name: name.to_owned(),
+                }),
+            };
         }
 
         let ent = self

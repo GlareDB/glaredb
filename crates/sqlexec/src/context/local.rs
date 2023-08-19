@@ -3,7 +3,7 @@ use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::extension_codec::GlareDBExtensionCodec;
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
 use crate::metrics::SessionMetrics;
 use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
@@ -66,8 +66,9 @@ pub struct SessionContext {
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
-    /// In-memory (temporary) tables.
-    current_session_tables: HashMap<String, Arc<MemTable>>,
+    catalog_mutator: CatalogMutator,
+    /// Temporary objects dropped at the end of a session.
+    temp_objects: TempObjects,
     /// Native tables.
     tables: NativeTableStorage,
     /// Prepared statements.
@@ -82,8 +83,6 @@ pub struct SessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Job runner for background jobs.
     background_jobs: JobRunner,
-    /// Specific stuff for remote session.
-    remote_ctx: Option<RemoteSessionContext>,
 }
 
 impl SessionContext {
@@ -92,38 +91,24 @@ impl SessionContext {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
+        catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<RemoteSessionClient>,
-        remote_ctx: bool,
     ) -> Result<SessionContext> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(vars);
         let conf: SessionConfig = opts.into();
         let mut state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
-        if let Some(client) = exec_client.clone() {
-            let planner = RemoteLogicalPlanner::new(client);
-            state = state.with_query_planner(Arc::new(planner));
-        }
-
         let df_ctx = DfSessionContext::with_state(state);
 
-        let remote_ctx = if remote_ctx {
-            Some(RemoteSessionContext {
-                table_providers: HashMap::new(),
-                physical_plans: HashMap::new(),
-            })
-        } else {
-            None
-        };
-
         Ok(SessionContext {
-            exec_client,
+            exec_client: None,
             catalog,
-            current_session_tables: HashMap::new(),
+            catalog_mutator,
+            temp_objects: TempObjects::default(),
             tables: native_tables,
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -131,7 +116,6 @@ impl SessionContext {
             df_ctx,
             env_reader: None,
             background_jobs,
-            remote_ctx,
         })
     }
 
@@ -189,11 +173,6 @@ impl SessionContext {
             .count()
     }
 
-    /// Resolve temp table.
-    pub fn resolve_temp_table(&self, table_name: &str) -> Option<Arc<MemTable>> {
-        self.current_session_tables.get(table_name).cloned()
-    }
-
     /// Return the DF session context.
     pub fn df_ctx(&self) -> &DfSessionContext {
         &self.df_ctx
@@ -204,90 +183,27 @@ impl SessionContext {
         self.exec_client.clone()
     }
 
-    /// Get a table provider from session.
-    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
-        if let Some(ctx) = self.remote_ctx.as_ref() {
-            ctx.table_providers
-                .get(provider_id)
-                .cloned()
-                .ok_or(ExecError::MissingRemoteId("provider", *provider_id))
-        } else {
-            Err(ExecError::Internal(
-                "cannot get table provider from non-remote session".to_string(),
-            ))
-        }
-    }
-
-    /// Add a table provider to the session. Returns the ID of the provider.
-    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
-        if let Some(ctx) = self.remote_ctx.as_mut() {
-            let provider_id = uuid::Uuid::new_v4();
-            ctx.table_providers.insert(provider_id, provider);
-            Ok(provider_id)
-        } else {
-            Err(ExecError::Internal(
-                "cannot add table provider to non-remote session".to_string(),
-            ))
-        }
-    }
-
-    /// Get a physical plan from session.
-    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
-        if let Some(ctx) = self.remote_ctx.as_ref() {
-            ctx.physical_plans
-                .get(exec_id)
-                .cloned()
-                .ok_or(ExecError::MissingRemoteId("exec", *exec_id))
-        } else {
-            Err(ExecError::Internal(
-                "cannot get physical plans from non-remote session".to_string(),
-            ))
-        }
-    }
-
-    /// Add a physical plan to the session. Returns the ID of the plan.
-    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
-        if let Some(ctx) = self.remote_ctx.as_mut() {
-            let exec_id = uuid::Uuid::new_v4();
-            ctx.physical_plans.insert(exec_id, plan);
-            Ok(exec_id)
-        } else {
-            Err(ExecError::Internal(
-                "cannot add physical plans to non-remote session".to_string(),
-            ))
-        }
-    }
-
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
     pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
-        self.remote_ctx
-            .as_ref()
-            .map(|ctx| GlareDBExtensionCodec::new_decoder(&ctx.table_providers))
-            .ok_or_else(|| {
-                ExecError::Internal(
-                    "cannot create extension codec for non-remote session".to_string(),
-                )
-            })
-    }
-
-    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
-        match self
-            .df_ctx
-            .state()
-            .config()
-            .get_extension::<StagedClientStreams>()
-        {
-            Some(streams) => Ok(streams),
-            None => Err(internal!(
-                "cannot access client streams for a non-remote session"
-            )),
-        }
+        unimplemented!()
+        // self.remote_ctx
+        //     .as_ref()
+        //     .map(|ctx| GlareDBExtensionCodec::new_decoder(&ctx.table_providers))
+        //     .ok_or_else(|| {
+        //         ExecError::Internal(
+        //             "cannot create extension codec for non-remote session".to_string(),
+        //         )
+        //     })
     }
 
     /// Create a temp table.
     pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
-        if self.current_session_tables.contains_key(&plan.table_name) {
+        if self
+            .temp_objects
+            .resolve_temp_table(&plan.table_name)
+            .is_some()
+        {
             if plan.if_not_exists {
                 return Ok(());
             }
@@ -299,8 +215,8 @@ impl SessionContext {
 
         let data = RecordBatch::new_empty(schema.clone());
         let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
-        self.current_session_tables
-            .insert(plan.table_name, Arc::clone(&table));
+        self.temp_objects
+            .put_temp_table(plan.table_name, table.clone());
 
         // Write to the table if it has a source query
         if let Some(source) = plan.source {
@@ -318,13 +234,16 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
         // Insert into catalog.
-        self.catalog
-            .mutate([Mutation::CreateTable(service::CreateTable {
-                schema: schema.clone(),
-                name: name.clone(),
-                options: plan.schema.into(),
-                if_not_exists: plan.if_not_exists,
-            })])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateTable(service::CreateTable {
+                    schema: schema.clone(),
+                    name: name.clone(),
+                    options: plan.schema.into(),
+                    if_not_exists: plan.if_not_exists,
+                })],
+            )
             .await?;
 
         // Mutations should update the local catalog state, so resolve the
@@ -394,7 +313,7 @@ impl SessionContext {
         }
 
         // Add the storage tracker job once data is inserted.
-        if let Some(client) = self.catalog.get_metastore_client() {
+        if let Some(client) = &self.catalog_mutator.client {
             let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), client.clone());
             self.background_jobs.add(tracker)?;
         }
@@ -432,11 +351,6 @@ impl SessionContext {
         }
     }
 
-    /// List temporary tables.
-    pub fn list_temp_tables(&self) -> impl Iterator<Item = &str> {
-        self.current_session_tables.keys().map(|k| k.as_str())
-    }
-
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
         if let Some(limit) = self.get_session_vars().max_datasource_count() {
             if self.get_datasource_count() >= limit {
@@ -451,16 +365,19 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
         // TODO: Check if catalog is valid
 
-        self.catalog
-            .mutate([Mutation::CreateExternalTable(
-                service::CreateExternalTable {
-                    schema,
-                    name,
-                    options: plan.table_options,
-                    if_not_exists: plan.if_not_exists,
-                    tunnel: plan.tunnel,
-                },
-            )])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateExternalTable(
+                    service::CreateExternalTable {
+                        schema,
+                        name,
+                        options: plan.table_options,
+                        if_not_exists: plan.if_not_exists,
+                        tunnel: plan.tunnel,
+                    },
+                )],
+            )
             .await?;
         Ok(())
     }
@@ -468,11 +385,14 @@ impl SessionContext {
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        self.catalog
-            .mutate([Mutation::CreateSchema(service::CreateSchema {
-                name,
-                if_not_exists: plan.if_not_exists,
-            })])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateSchema(service::CreateSchema {
+                    name,
+                    if_not_exists: plan.if_not_exists,
+                })],
+            )
             .await?;
         Ok(())
     }
@@ -488,15 +408,18 @@ impl SessionContext {
             }
         }
 
-        self.catalog
-            .mutate([Mutation::CreateExternalDatabase(
-                service::CreateExternalDatabase {
-                    name: plan.database_name,
-                    if_not_exists: plan.if_not_exists,
-                    options: plan.options,
-                    tunnel: plan.tunnel,
-                },
-            )])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateExternalDatabase(
+                    service::CreateExternalDatabase {
+                        name: plan.database_name,
+                        if_not_exists: plan.if_not_exists,
+                        options: plan.options,
+                        tunnel: plan.tunnel,
+                    },
+                )],
+            )
             .await?;
         Ok(())
     }
@@ -512,12 +435,15 @@ impl SessionContext {
             }
         }
 
-        self.catalog
-            .mutate([Mutation::CreateTunnel(service::CreateTunnel {
-                name: plan.name,
-                if_not_exists: plan.if_not_exists,
-                options: plan.options,
-            })])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateTunnel(service::CreateTunnel {
+                    name: plan.name,
+                    if_not_exists: plan.if_not_exists,
+                    options: plan.options,
+                })],
+            )
             .await?;
         Ok(())
     }
@@ -533,26 +459,32 @@ impl SessionContext {
             }
         }
 
-        self.catalog
-            .mutate([Mutation::CreateCredentials(service::CreateCredentials {
-                name: plan.name,
-                options: plan.options,
-                comment: plan.comment,
-            })])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateCredentials(service::CreateCredentials {
+                    name: plan.name,
+                    options: plan.options,
+                    comment: plan.comment,
+                })],
+            )
             .await?;
         Ok(())
     }
 
     pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
         let (_, schema, name) = self.resolve_table_ref(plan.view_name)?;
-        self.catalog
-            .mutate([Mutation::CreateView(service::CreateView {
-                schema,
-                name,
-                sql: plan.sql,
-                or_replace: plan.or_replace,
-                columns: plan.columns,
-            })])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::CreateView(service::CreateView {
+                    schema,
+                    name,
+                    sql: plan.sql,
+                    or_replace: plan.or_replace,
+                    columns: plan.columns,
+                })],
+            )
             .await?;
 
         Ok(())
@@ -562,39 +494,48 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.name)?;
         let (_, _, new_name) = self.resolve_table_ref(plan.new_name)?;
         // TODO: Check that the schema and catalog names are same.
-        self.catalog
-            .mutate([Mutation::AlterTableRename(service::AlterTableRename {
-                schema,
-                name,
-                new_name,
-            })])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::AlterTableRename(service::AlterTableRename {
+                    schema,
+                    name,
+                    new_name,
+                })],
+            )
             .await?;
 
         Ok(())
     }
 
     pub async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        self.catalog
-            .mutate([Mutation::AlterDatabaseRename(
-                service::AlterDatabaseRename {
-                    name: plan.name,
-                    new_name: plan.new_name,
-                },
-            )])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::AlterDatabaseRename(
+                    service::AlterDatabaseRename {
+                        name: plan.name,
+                        new_name: plan.new_name,
+                    },
+                )],
+            )
             .await?;
 
         Ok(())
     }
 
     pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
-        self.catalog
-            .mutate([Mutation::AlterTunnelRotateKeys(
-                service::AlterTunnelRotateKeys {
-                    name: plan.name,
-                    if_exists: plan.if_exists,
-                    new_ssh_key: plan.new_ssh_key,
-                },
-            )])
+        self.catalog_mutator
+            .mutate(
+                self.catalog.version(),
+                [Mutation::AlterTunnelRotateKeys(
+                    service::AlterTunnelRotateKeys {
+                        name: plan.name,
+                        if_exists: plan.if_exists,
+                        new_ssh_key: plan.new_ssh_key,
+                    },
+                )],
+            )
             .await?;
 
         Ok(())
@@ -628,14 +569,15 @@ impl SessionContext {
                 if_exists: plan.if_exists,
             }));
         }
-        self.catalog.mutate(drops).await?;
+        self.catalog_mutator
+            .mutate(self.catalog.version(), drops)
+            .await?;
 
         // Drop the session (temp) tables after catalog has mutated successfully
         // since this step is not going to error. Ideally, we should have transactions
         // here, but this works beautifully for now.
         for temp_table in temp_table_drops {
-            let drop = self.current_session_tables.remove(&temp_table);
-            debug_assert!(drop.is_some());
+            self.temp_objects.drop_table(&temp_table);
         }
 
         // Run background jobs _after_ tables get removed from the catalog.
@@ -659,7 +601,9 @@ impl SessionContext {
             }));
         }
 
-        self.catalog.mutate(drops).await?;
+        self.catalog_mutator
+            .mutate(self.catalog.version(), drops)
+            .await?;
 
         Ok(())
     }
@@ -679,7 +623,9 @@ impl SessionContext {
             })
             .collect();
 
-        self.catalog.mutate(drops).await?;
+        self.catalog_mutator
+            .mutate(self.catalog.version(), drops)
+            .await?;
 
         Ok(())
     }
@@ -697,7 +643,9 @@ impl SessionContext {
             })
             .collect();
 
-        self.catalog.mutate(drops).await?;
+        self.catalog_mutator
+            .mutate(self.catalog.version(), drops)
+            .await?;
 
         Ok(())
     }
@@ -715,7 +663,9 @@ impl SessionContext {
             })
             .collect();
 
-        self.catalog.mutate(drops).await?;
+        self.catalog_mutator
+            .mutate(self.catalog.version(), drops)
+            .await?;
 
         Ok(())
     }
@@ -733,7 +683,9 @@ impl SessionContext {
             })
             .collect();
 
-        self.catalog.mutate(drops).await?;
+        self.catalog_mutator
+            .mutate(self.catalog.version(), drops)
+            .await?;
 
         Ok(())
     }
@@ -761,7 +713,10 @@ impl SessionContext {
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
         self.catalog
-            .maybe_refresh_state(self.get_session_vars().force_catalog_refresh())
+            .maybe_refresh_state(
+                self.catalog_mutator.get_metastore_client(),
+                self.get_session_vars().force_catalog_refresh(),
+            )
             .await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
@@ -962,7 +917,7 @@ impl SessionContext {
             }
         };
 
-        if self.current_session_tables.contains_key(table.as_ref()) {
+        if self.temp_objects.resolve_temp_table(&table).is_some() {
             Ok(table.into_owned())
         } else {
             Err(ExecError::InvalidTempTable {

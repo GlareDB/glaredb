@@ -1,4 +1,5 @@
 use crate::background_jobs::JobRunner;
+use crate::context::remote::RemoteSessionContext;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use crate::remote::client::RemoteClient;
@@ -138,13 +139,12 @@ impl Engine {
         self.session_counter.load(Ordering::Relaxed)
     }
 
-    /// Create a new session, initializing it with the provided session
+    /// Create a new local session, initializing it with the provided session
     /// variables.
-    pub async fn new_session(
+    pub async fn new_local_session_context(
         &self,
         vars: SessionVars,
         storage: SessionStorageConfig,
-        remote_ctx: bool,
     ) -> Result<TrackedSession> {
         let conn_id = vars.connection_id();
         let database_id = vars.database_id();
@@ -154,17 +154,16 @@ impl Engine {
             .new_native_tables_storage(database_id, &storage)?;
 
         let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new_with_client(state, metastore);
+        let catalog = SessionCatalog::new(state);
 
         let session = Session::new(
             vars,
             catalog,
+            metastore.into(),
             native,
             self.tracker.clone(),
             self.spill_path.clone(),
             self.background_jobs.clone(),
-            None,
-            remote_ctx,
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
@@ -176,58 +175,35 @@ impl Engine {
         })
     }
 
-    /// Create a new session that attached to remote session.
+    /// Create a new remote session for plan execution.
     ///
-    /// The provided exec client will be used to create the remote session.
-    pub async fn new_session_with_remote_connection(
+    /// Note that this isn't wrapped in a tracked session yet (to avoid hanging
+    /// since we don't guarantee that sessions get closed).
+    pub async fn new_remote_session_context(
         &self,
         vars: SessionVars,
-        mut exec_client: RemoteClient,
-    ) -> Result<TrackedSession> {
-        // TODO: Figure out storage. The nil ID doesn't matter here (yet) since
-        // native table writes should happen on the remote engine.
+        storage: SessionStorageConfig,
+    ) -> Result<RemoteSessionContext> {
+        let conn_id = vars.connection_id();
+        let database_id = vars.database_id();
+        let metastore = self.supervisor.init_client(conn_id, database_id).await?;
         let native = self
             .storage
-            .new_native_tables_storage(Uuid::nil(), &SessionStorageConfig::default())?;
+            .new_native_tables_storage(database_id, &storage)?;
 
-        let test_db_id = if self.integration_testing {
-            Some(Uuid::new_v4())
-        } else {
-            None
-        };
+        let state = metastore.get_cached_state().await?;
+        let catalog = SessionCatalog::new(state);
 
-        // Set up remote session.
-        let (remote_sess_client, catalog) = exec_client
-            .initialize_session(InitializeSessionRequest::Client(
-                InitializeSessionRequestFromClient { test_db_id },
-            ))
-            .await?;
-
-        vars.write()
-            .remote_session_id
-            .set_raw(Some(remote_sess_client.session_id()), VarType::System)?;
-
-        let session = Session::new(
+        let context = RemoteSessionContext::new(
             vars,
             catalog,
+            metastore.into(),
             native,
-            self.tracker.clone(),
-            self.spill_path.clone(),
             self.background_jobs.clone(),
-            Some(remote_sess_client),
-            /* remote_ctx = */ false,
+            self.spill_path.clone(),
         )?;
 
-        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
-        debug!(
-            session_count = prev + 1,
-            "new session opened with remote connection"
-        );
-
-        Ok(TrackedSession {
-            inner: session,
-            session_counter: self.session_counter.clone(),
-        })
+        Ok(context)
     }
 }
 
