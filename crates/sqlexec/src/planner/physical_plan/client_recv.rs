@@ -105,6 +105,25 @@ impl DisplayAs for ClientExchangeRecvExec {
     }
 }
 
+impl TryFrom<protogen::sqlexec::physical_plan::ClientExchangeRecvExec> for ClientExchangeRecvExec {
+    type Error = ProtoConvError;
+    fn try_from(
+        value: protogen::sqlexec::physical_plan::ClientExchangeRecvExec,
+    ) -> Result<Self, Self::Error> {
+        let id = Uuid::from_slice(&value.broadcast_id)?;
+        let schema = value.schema.ok_or(ProtoConvError::RequiredField(
+            "schema is required".to_string(),
+        ))?;
+        // TODO: Upstream `TryFrom` impl that doesn't need a reference.
+        let schema: Schema = (&schema).try_into()?;
+
+        Ok(Self {
+            broadcast_id: id,
+            schema: Arc::new(schema),
+        })
+    }
+}
+
 // TODO: We'll likely need to generalize this for use in some of our other
 // physical plans.
 enum ClientExchangeStateStream {
