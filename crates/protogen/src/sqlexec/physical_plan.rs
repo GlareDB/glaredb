@@ -1,5 +1,8 @@
+mod postgres;
+pub use postgres::*;
+
 use datafusion_proto::protobuf::Schema;
-use prost::Message;
+use prost::{Message, Oneof};
 
 use super::common::PostgresAccess;
 
@@ -11,14 +14,9 @@ pub struct ClientExchangeRecvExec {
     pub schema: Option<Schema>,
 }
 
-#[derive(Clone, PartialEq, Message)]
-pub struct PostgresBinaryCopyConfig {
+#[derive(Clone, PartialEq, Oneof)]
+pub enum ExecutionPlanExtensionType {
+    // DDLs
     #[prost(message, tag = "1")]
-    pub access: Option<PostgresAccess>,
-    #[prost(string, tag = "2")]
-    pub schema: String,
-    #[prost(string, tag = "3")]
-    pub table: String,
-    #[prost(string, tag = "4")]
-    pub copy_query: String,
+    ClientExchangeRecvExec(ClientExchangeRecvExec),
 }

@@ -126,8 +126,8 @@ impl RpcHandler {
         req: PhysicalPlanExecuteRequest,
     ) -> Result<ExecutionResponseBatchStream> {
         let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, exec_id=%req.exec_id, "executing physical plan");
-        let batches = session.physical_plan_execute(req.exec_id).await?;
+        info!(session_id=%req.session_id, "executing physical plan");
+        let batches = session.physical_plan_execute(req.physical_plan).await?;
         Ok(ExecutionResponseBatchStream {
             batches,
             buf: Vec::new(),

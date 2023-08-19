@@ -148,31 +148,6 @@ impl SessionContext {
         &self.tables
     }
 
-    pub fn get_datasource_count(&mut self) -> usize {
-        self.catalog
-            .iter_entries()
-            .filter(|ent| {
-                ent.entry.get_meta().external
-                    && (ent.entry.get_meta().entry_type == EntryType::Database
-                        || ent.entry.get_meta().entry_type == EntryType::Table)
-            })
-            .count()
-    }
-
-    pub fn get_tunnel_count(&mut self) -> usize {
-        self.catalog
-            .iter_entries()
-            .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Tunnel)
-            .count()
-    }
-
-    pub fn get_credentials_count(&mut self) -> usize {
-        self.catalog
-            .iter_entries()
-            .filter(|ent| ent.entry.get_meta().entry_type == EntryType::Credentials)
-            .count()
-    }
-
     /// Return the DF session context.
     pub fn df_ctx(&self) -> &DfSessionContext {
         &self.df_ctx
@@ -181,20 +156,6 @@ impl SessionContext {
     /// Returns the underlaying exec client for remote session.
     pub fn exec_client(&self) -> Option<RemoteSessionClient> {
         self.exec_client.clone()
-    }
-
-    /// Returns the extension codec used for serializing and deserializing data
-    /// over RPCs.
-    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
-        unimplemented!()
-        // self.remote_ctx
-        //     .as_ref()
-        //     .map(|ctx| GlareDBExtensionCodec::new_decoder(&ctx.table_providers))
-        //     .ok_or_else(|| {
-        //         ExecError::Internal(
-        //             "cannot create extension codec for non-remote session".to_string(),
-        //         )
-        //     })
     }
 
     /// Create a temp table.
@@ -352,16 +313,6 @@ impl SessionContext {
     }
 
     pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        if let Some(limit) = self.get_session_vars().max_datasource_count() {
-            if self.get_datasource_count() >= limit {
-                return Err(ExecError::MaxObjectCount {
-                    typ: "datasources",
-                    max: limit,
-                    current: self.get_datasource_count(),
-                });
-            }
-        }
-
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
         // TODO: Check if catalog is valid
 
@@ -398,16 +349,6 @@ impl SessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        if let Some(limit) = self.get_session_vars().max_datasource_count() {
-            if self.get_datasource_count() >= limit {
-                return Err(ExecError::MaxObjectCount {
-                    typ: "datasources",
-                    max: limit,
-                    current: self.get_datasource_count(),
-                });
-            }
-        }
-
         self.catalog_mutator
             .mutate(
                 self.catalog.version(),
@@ -425,16 +366,6 @@ impl SessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        if let Some(limit) = self.get_session_vars().max_tunnel_count() {
-            if self.get_tunnel_count() >= limit {
-                return Err(ExecError::MaxObjectCount {
-                    typ: "tunnels",
-                    max: limit,
-                    current: self.get_tunnel_count(),
-                });
-            }
-        }
-
         self.catalog_mutator
             .mutate(
                 self.catalog.version(),
@@ -449,16 +380,6 @@ impl SessionContext {
     }
 
     pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        if let Some(limit) = self.get_session_vars().max_credentials_count() {
-            if self.get_credentials_count() >= limit {
-                return Err(ExecError::MaxObjectCount {
-                    typ: "credentials",
-                    max: limit,
-                    current: self.get_tunnel_count(),
-                });
-            }
-        }
-
         self.catalog_mutator
             .mutate(
                 self.catalog.version(),

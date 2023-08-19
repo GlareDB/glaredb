@@ -111,16 +111,17 @@ async fn execute_remote(
     mut client: RemoteSessionClient,
     exec_id: Uuid,
 ) -> DataFusionResult<ExecutionResponseBatchStream> {
-    let stream = client.physical_plan_execute(exec_id).await.map_err(|e| {
-        DataFusionError::Execution(format!(
-            "failed to execute logical plan on remote service: {e}"
-        ))
-    })?;
+    unimplemented!()
+    // let stream = client.physical_plan_execute(exec_id).await.map_err(|e| {
+    //     DataFusionError::Execution(format!(
+    //         "failed to execute logical plan on remote service: {e}"
+    //     ))
+    // })?;
 
-    Ok(ExecutionResponseBatchStream {
-        stream,
-        buf: VecDeque::new(),
-    })
+    // Ok(ExecutionResponseBatchStream {
+    //     stream,
+    //     buf: VecDeque::new(),
+    // })
 }
 
 /// Converts a response stream from the service into a record batch stream.

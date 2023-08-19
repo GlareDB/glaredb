@@ -420,12 +420,6 @@ impl Session {
         Ok(stream)
     }
 
-    /// Returns the extension codec used for serializing and deserializing data
-    /// over RPCs.
-    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
-        self.ctx.extension_codec()
-    }
-
     /// Get the session dispatcher.
     pub async fn dispatch_access(
         &self,

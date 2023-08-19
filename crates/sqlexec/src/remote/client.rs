@@ -3,8 +3,15 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::SessionCatalog,
 };
-use datafusion::{common::OwnedTableReference, logical_expr::LogicalPlan, prelude::Expr};
-use datafusion_proto::{logical_plan::AsLogicalPlan, protobuf::LogicalPlanNode};
+use datafusion::{
+    common::OwnedTableReference, logical_expr::LogicalPlan, physical_plan::ExecutionPlan,
+    prelude::Expr,
+};
+use datafusion_proto::{
+    logical_plan::AsLogicalPlan,
+    physical_plan::AsExecutionPlan,
+    protobuf::{LogicalPlanNode, PhysicalPlanNode},
+};
 use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     rpcsrv::types::service::{
@@ -243,11 +250,22 @@ impl RemoteSessionClient {
 
     pub async fn physical_plan_execute(
         &mut self,
-        exec_id: Uuid,
+        physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<Streaming<service::RecordBatchResponse>> {
+        // Encode the physical plan into a protobuf message.
+        let physical_plan = {
+            let node = PhysicalPlanNode::try_from_physical_plan(
+                physical_plan,
+                &GlareDBExtensionCodec::new_encoder(),
+            )?;
+            let mut buf = Vec::new();
+            node.try_encode(&mut buf)?;
+            buf
+        };
+
         let mut request = service::PhysicalPlanExecuteRequest::from(PhysicalPlanExecuteRequest {
             session_id: self.session_id(),
-            exec_id,
+            physical_plan,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());

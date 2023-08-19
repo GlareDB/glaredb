@@ -96,7 +96,7 @@ message DispatchAccessRequest {
 message PhysicalPlanExecuteRequest {
   bytes session_id = 1;
   /// The protobuf serialized physical plan.
-  bytes plan = 2;
+  bytes physical_plan = 2;
 }
 
 message TableProviderResponse {

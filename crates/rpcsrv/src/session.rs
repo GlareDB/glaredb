@@ -4,7 +4,8 @@ use datafusion::common::OwnedTableReference;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use datafusion_proto::logical_plan::AsLogicalPlan;
-use datafusion_proto::protobuf::LogicalPlanNode;
+use datafusion_proto::physical_plan::AsExecutionPlan;
+use datafusion_proto::protobuf::{LogicalPlanNode, PhysicalPlanNode};
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::engine::TrackedSession;
@@ -46,12 +47,21 @@ impl RemoteSession {
         // Ok((provider_id, Schema::clone(&schema)))
     }
 
-    pub async fn physical_plan_execute(&self, exec_id: Uuid) -> Result<SendableRecordBatchStream> {
-        unimplemented!()
-        // let session = self.session.lock().await;
-        // let plan = session.get_physical_plan(&exec_id)?;
-        // let stream = session.execute_physical(plan)?;
-        // Ok(stream)
+    pub async fn physical_plan_execute(
+        &self,
+        physical_plan: impl AsRef<[u8]>,
+    ) -> Result<SendableRecordBatchStream> {
+        let session = self.session.lock().await;
+
+        let codec = session.extension_codec();
+        let plan = PhysicalPlanNode::try_decode(physical_plan.as_ref())?.try_into_physical_plan(
+            session.get_datafusion_context(),
+            session.get_datafusion_context().runtime_env().as_ref(),
+            &codec,
+        )?;
+
+        let stream = session.execute_physical(plan)?;
+        Ok(stream)
     }
 
     pub async fn register_broadcast_stream(&self, stream: ClientExchangeRecvStream) -> Result<()> {

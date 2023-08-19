@@ -14,6 +14,7 @@ use crate::{
     background_jobs::JobRunner,
     dispatch::external::ExternalDispatcher,
     errors::Result,
+    extension_codec::GlareDBExtensionCodec,
     metastore::catalog::{CatalogMutator, SessionCatalog},
     remote::staged_stream::{StagedClientStreams, StagedStreams},
 };
@@ -67,8 +68,18 @@ impl RemoteSessionContext {
         })
     }
 
+    pub fn get_datafusion_context(&self) -> &DfSessionContext {
+        &self.df_ctx
+    }
+
     pub fn get_session_catalog(&self) -> &SessionCatalog {
         &self.catalog
+    }
+
+    /// Returns the extension codec used for serializing and deserializing data
+    /// over RPCs.
+    pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
+        GlareDBExtensionCodec::new_decoder(&self.cached_table_providers)
     }
 
     pub fn staged_streams(&self) -> Arc<StagedClientStreams> {
@@ -95,12 +106,17 @@ impl RemoteSessionContext {
     /// entry resolution happens client-side.
     // TODO: We should be providing the catalog version as well to ensure we're
     // getting the correct entries from the catalog.
+    // TODO: All tables
     pub async fn load_and_cache_external_table(
         &mut self,
         database: &str,
         schema: &str,
         name: &str,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
+        self.catalog
+            .maybe_refresh_state(self.catalog_mutator.get_metastore_client(), false)
+            .await?;
+
         // Since this is operating on a remote node, always disable local fs
         // access.
         let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);

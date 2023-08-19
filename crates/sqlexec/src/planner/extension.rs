@@ -76,28 +76,35 @@ impl FromStr for ExtensionType {
 pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
     type ProtoRepr;
     const EXTENSION_NAME: &'static str;
+
     fn into_extension(self) -> LogicalPlanExtension {
         LogicalPlanExtension {
             node: Arc::new(self),
         }
     }
+
     fn into_logical_plan(self) -> LogicalPlan {
         LogicalPlan::Datafusion(datafusion::logical_expr::LogicalPlan::Extension(
             self.into_extension(),
         ))
     }
+
     fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self>;
+
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()>;
+
     fn try_decode(
         proto: Self::ProtoRepr,
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
-    ) -> std::result::Result<Self, ProtoConvError>;
+    ) -> Result<Self, ProtoConvError>;
+
     fn try_encode_extension(
         extension: &LogicalPlanExtension,
         buf: &mut Vec<u8>,
         codec: &dyn LogicalExtensionCodec,
     ) -> Result<()> {
+        // TODO: ?
         let extension = Self::try_decode_extension(extension)?;
         extension.try_encode(buf, codec)
     }

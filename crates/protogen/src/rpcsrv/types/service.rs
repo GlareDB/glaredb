@@ -175,27 +175,25 @@ impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
 
 pub struct PhysicalPlanExecuteRequest {
     pub session_id: Uuid,
-    pub exec_id: Uuid,
+    pub physical_plan: Vec<u8>,
 }
 
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
     type Error = ProtoConvError;
     fn try_from(value: service::PhysicalPlanExecuteRequest) -> Result<Self, Self::Error> {
-        unimplemented!()
-        // Ok(Self {
-        //     session_id: Uuid::from_slice(&value.session_id)?,
-        //     exec_id: Uuid::from_slice(&value.exec_id)?,
-        // })
+        Ok(Self {
+            session_id: Uuid::from_slice(&value.session_id)?,
+            physical_plan: value.physical_plan,
+        })
     }
 }
 
 impl From<PhysicalPlanExecuteRequest> for service::PhysicalPlanExecuteRequest {
     fn from(value: PhysicalPlanExecuteRequest) -> Self {
-        unimplemented!()
-        // Self {
-        //     session_id: value.session_id.into_bytes().into(),
-        //     exec_id: value.exec_id.into_bytes().into(),
-        // }
+        Self {
+            session_id: value.session_id.into_bytes().into(),
+            physical_plan: value.physical_plan,
+        }
     }
 }
 
