@@ -62,13 +62,15 @@ impl TableProvider for RemoteTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        let remote_plan = self
-            .client
-            .clone()
-            .table_provider_scan(self.provider_id, projection, filters, limit)
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        Ok(Arc::new(remote_plan))
+        // TODO: Replace with error
+        unimplemented!()
+        // let remote_plan = self
+        //     .client
+        //     .clone()
+        //     .table_provider_scan(self.provider_id, projection, filters, limit)
+        //     .await
+        //     .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        // Ok(Arc::new(remote_plan))
     }
 
     async fn insert_into(
@@ -76,22 +78,24 @@ impl TableProvider for RemoteTableProvider {
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        let input = input
-            .as_any()
-            .downcast_ref::<RemoteExecutionExec>()
-            .ok_or_else(|| {
-                DataFusionError::External(Box::new(ExecError::Internal(
-                    "`ExecutionPlan` not a `RemoteExecutionPlan` for remote `insert_into`"
-                        .to_string(),
-                )))
-            })?;
+        // TODO: Replace with error
+        unimplemented!()
+        // let input = input
+        //     .as_any()
+        //     .downcast_ref::<RemoteExecutionExec>()
+        //     .ok_or_else(|| {
+        //         DataFusionError::External(Box::new(ExecError::Internal(
+        //             "`ExecutionPlan` not a `RemoteExecutionPlan` for remote `insert_into`"
+        //                 .to_string(),
+        //         )))
+        //     })?;
 
-        let remote_plan = self
-            .client
-            .clone()
-            .table_provider_insert_into(self.provider_id, input.id())
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        Ok(Arc::new(remote_plan))
+        // let remote_plan = self
+        //     .client
+        //     .clone()
+        //     .table_provider_insert_into(self.provider_id, input.id())
+        //     .await
+        //     .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        // Ok(Arc::new(remote_plan))
     }
 }

@@ -149,30 +149,6 @@ impl TryFrom<InitializeSessionResponse> for service::InitializeSessionResponse {
     }
 }
 
-pub struct CreatePhysicalPlanRequest {
-    pub session_id: Uuid,
-    pub logical_plan: Vec<u8>,
-}
-
-impl TryFrom<service::CreatePhysicalPlanRequest> for CreatePhysicalPlanRequest {
-    type Error = ProtoConvError;
-    fn try_from(value: service::CreatePhysicalPlanRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
-            logical_plan: value.logical_plan,
-        })
-    }
-}
-
-impl From<CreatePhysicalPlanRequest> for service::CreatePhysicalPlanRequest {
-    fn from(value: CreatePhysicalPlanRequest) -> Self {
-        Self {
-            session_id: value.session_id.into_bytes().into(),
-            logical_plan: value.logical_plan,
-        }
-    }
-}
-
 pub struct DispatchAccessRequest {
     pub session_id: Uuid,
     pub table_ref: OwnedTableReference,
@@ -197,86 +173,6 @@ impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
     }
 }
 
-pub struct TableProviderScanRequest {
-    pub session_id: Uuid,
-    pub provider_id: Uuid,
-    pub projection: Option<Vec<usize>>,
-    pub filters: Vec<Expr>,
-    pub limit: Option<usize>,
-}
-
-impl TryFrom<service::TableProviderScanRequest> for TableProviderScanRequest {
-    type Error = ProtoConvError;
-    fn try_from(value: service::TableProviderScanRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
-            provider_id: Uuid::from_slice(&value.provider_id)?,
-            projection: if value.projection.is_empty() {
-                None
-            } else {
-                Some(value.projection.into_iter().map(|p| p as usize).collect())
-            },
-            filters: {
-                value
-                    .filters
-                    .into_iter()
-                    .map(|bytes| Expr::from_bytes(&bytes))
-                    .collect::<Result<Vec<_>, DataFusionError>>()?
-            },
-            limit: value.limit.map(|l| l as usize),
-        })
-    }
-}
-
-impl TryFrom<TableProviderScanRequest> for service::TableProviderScanRequest {
-    type Error = ProtoConvError;
-    fn try_from(value: TableProviderScanRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: value.session_id.into_bytes().into(),
-            provider_id: value.provider_id.into_bytes().into(),
-            projection: value
-                .projection
-                .map(|projection| projection.into_iter().map(|p| p as u64).collect())
-                .unwrap_or_default(),
-            filters: {
-                value
-                    .filters
-                    .into_iter()
-                    .map(|expr| expr.to_bytes().map(|bytes| bytes.to_vec()))
-                    .collect::<Result<Vec<_>, DataFusionError>>()?
-            },
-            limit: value.limit.map(|l| l as u64),
-        })
-    }
-}
-
-pub struct TableProviderInsertIntoRequest {
-    pub session_id: Uuid,
-    pub provider_id: Uuid,
-    pub input_exec_id: Uuid,
-}
-
-impl TryFrom<service::TableProviderInsertIntoRequest> for TableProviderInsertIntoRequest {
-    type Error = ProtoConvError;
-    fn try_from(value: service::TableProviderInsertIntoRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
-            provider_id: Uuid::from_slice(&value.provider_id)?,
-            input_exec_id: Uuid::from_slice(&value.input_exec_id)?,
-        })
-    }
-}
-
-impl From<TableProviderInsertIntoRequest> for service::TableProviderInsertIntoRequest {
-    fn from(value: TableProviderInsertIntoRequest) -> Self {
-        Self {
-            session_id: value.session_id.into_bytes().into(),
-            provider_id: value.provider_id.into_bytes().into(),
-            input_exec_id: value.input_exec_id.into_bytes().into(),
-        }
-    }
-}
-
 pub struct PhysicalPlanExecuteRequest {
     pub session_id: Uuid,
     pub exec_id: Uuid,
@@ -285,19 +181,21 @@ pub struct PhysicalPlanExecuteRequest {
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
     type Error = ProtoConvError;
     fn try_from(value: service::PhysicalPlanExecuteRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
-            exec_id: Uuid::from_slice(&value.exec_id)?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     session_id: Uuid::from_slice(&value.session_id)?,
+        //     exec_id: Uuid::from_slice(&value.exec_id)?,
+        // })
     }
 }
 
 impl From<PhysicalPlanExecuteRequest> for service::PhysicalPlanExecuteRequest {
     fn from(value: PhysicalPlanExecuteRequest) -> Self {
-        Self {
-            session_id: value.session_id.into_bytes().into(),
-            exec_id: value.exec_id.into_bytes().into(),
-        }
+        unimplemented!()
+        // Self {
+        //     session_id: value.session_id.into_bytes().into(),
+        //     exec_id: value.exec_id.into_bytes().into(),
+        // }
     }
 }
 
@@ -321,34 +219,6 @@ impl TryFrom<service::TableProviderResponse> for TableProviderResponse {
 impl TryFrom<TableProviderResponse> for service::TableProviderResponse {
     type Error = ProtoConvError;
     fn try_from(value: TableProviderResponse) -> Result<Self, Self::Error> {
-        let schema = datafusion_proto::protobuf::Schema::try_from(&value.schema)?;
-        Ok(Self {
-            id: value.id.into_bytes().into(),
-            schema: schema.encode_to_vec(),
-        })
-    }
-}
-
-pub struct PhysicalPlanResponse {
-    pub id: Uuid,
-    pub schema: Schema,
-}
-
-impl TryFrom<service::PhysicalPlanResponse> for PhysicalPlanResponse {
-    type Error = ProtoConvError;
-    fn try_from(value: service::PhysicalPlanResponse) -> Result<Self, Self::Error> {
-        let schema = datafusion_proto::protobuf::Schema::decode(value.schema.as_slice())?;
-        let schema = (&schema).try_into()?;
-        Ok(Self {
-            id: Uuid::from_slice(&value.id)?,
-            schema,
-        })
-    }
-}
-
-impl TryFrom<PhysicalPlanResponse> for service::PhysicalPlanResponse {
-    type Error = ProtoConvError;
-    fn try_from(value: PhysicalPlanResponse) -> Result<Self, Self::Error> {
         let schema = datafusion_proto::protobuf::Schema::try_from(&value.schema)?;
         Ok(Self {
             id: value.id.into_bytes().into(),

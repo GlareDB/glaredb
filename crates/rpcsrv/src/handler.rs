@@ -13,10 +13,8 @@ use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
     metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
-        CloseSessionRequest, CloseSessionResponse, CreatePhysicalPlanRequest,
-        DispatchAccessRequest, InitializeSessionRequest, InitializeSessionResponse,
-        PhysicalPlanExecuteRequest, PhysicalPlanResponse, TableProviderInsertIntoRequest,
-        TableProviderResponse, TableProviderScanRequest,
+        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use sqlexec::{
@@ -113,21 +111,6 @@ impl RpcHandler {
         })
     }
 
-    async fn create_physical_plan_inner(
-        &self,
-        req: CreatePhysicalPlanRequest,
-    ) -> Result<PhysicalPlanResponse> {
-        // TODO(perf): This actually ends being two/three locks that we need to acquire.
-        // 1. The hashmap
-        // 2. The session itself
-        // 3. (soon) Datafusion's context once we start using that
-
-        let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, "creating physical plan");
-        let (id, schema) = session.create_physical_plan(req.logical_plan).await?;
-        Ok(PhysicalPlanResponse { id, schema })
-    }
-
     async fn dispatch_access_inner(
         &self,
         req: DispatchAccessRequest,
@@ -136,35 +119,6 @@ impl RpcHandler {
         info!(session_id=%req.session_id, table_ref=%req.table_ref, "dispatching table access");
         let (id, schema) = session.dispatch_access(req.table_ref).await?;
         Ok(TableProviderResponse { id, schema })
-    }
-
-    async fn table_provider_scan_inner(
-        &self,
-        req: TableProviderScanRequest,
-    ) -> Result<PhysicalPlanResponse> {
-        let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, provider_id=%req.provider_id, "scanning table provider");
-        let (id, schema) = session
-            .table_provider_scan(
-                req.provider_id,
-                req.projection.as_ref(),
-                &req.filters,
-                req.limit,
-            )
-            .await?;
-        Ok(PhysicalPlanResponse { id, schema })
-    }
-
-    async fn table_provider_insert_into_inner(
-        &self,
-        req: TableProviderInsertIntoRequest,
-    ) -> Result<PhysicalPlanResponse> {
-        let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, provider_id=%req.provider_id, "insert into table provider");
-        let (id, schema) = session
-            .table_provider_insert_into(req.provider_id, req.input_exec_id)
-            .await?;
-        Ok(PhysicalPlanResponse { id, schema })
     }
 
     async fn physical_plan_execute_inner(
@@ -225,42 +179,12 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         Ok(Response::new(resp.try_into()?))
     }
 
-    async fn create_physical_plan(
-        &self,
-        request: Request<service::CreatePhysicalPlanRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        let resp = self
-            .create_physical_plan_inner(request.into_inner().try_into()?)
-            .await?;
-        Ok(Response::new(resp.try_into()?))
-    }
-
     async fn dispatch_access(
         &self,
         request: Request<service::DispatchAccessRequest>,
     ) -> Result<Response<service::TableProviderResponse>, Status> {
         let resp = self
             .dispatch_access_inner(request.into_inner().try_into()?)
-            .await?;
-        Ok(Response::new(resp.try_into()?))
-    }
-
-    async fn table_provider_scan(
-        &self,
-        request: Request<service::TableProviderScanRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        let resp = self
-            .table_provider_scan_inner(request.into_inner().try_into()?)
-            .await?;
-        Ok(Response::new(resp.try_into()?))
-    }
-
-    async fn table_provider_insert_into(
-        &self,
-        request: Request<service::TableProviderInsertIntoRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        let resp = self
-            .table_provider_insert_into_inner(request.into_inner().try_into()?)
             .await?;
         Ok(Response::new(resp.try_into()?))
     }
