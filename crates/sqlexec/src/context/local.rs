@@ -31,7 +31,6 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
-use datasources::object_store::init_session_registry;
 use futures::{future::BoxFuture, StreamExt};
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
@@ -45,6 +44,8 @@ use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 use tracing::info;
+
+use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
 /// Context for a remote session.
 struct RemoteSessionContext {
@@ -62,8 +63,6 @@ struct RemoteSessionContext {
 // this crate relies on it, make test setup a pain.
 pub struct SessionContext {
     /// The execution client for remote sessions.
-    // TODO: This is currently unused, but we'll likely need it for running some
-    // of our custom plans on a remote service.
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
@@ -89,13 +88,6 @@ pub struct SessionContext {
 
 impl SessionContext {
     /// Create a new session context with the given catalog.
-    ///
-    /// If `spill_path` is provided, a new disk manager will be created pointing
-    /// to that path. Otherwise the manager will be kept as default (request
-    /// temp files from the OS).
-    ///
-    /// If `info.memory_limit_bytes` is non-zero, a new memory pool will be
-    /// created with the max set to this value.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         vars: SessionVars,
@@ -107,56 +99,10 @@ impl SessionContext {
         exec_client: Option<RemoteSessionClient>,
         remote_ctx: bool,
     ) -> Result<SessionContext> {
-        // NOTE: We handle catalog/schema defaults and information schemas
-        // ourselves.
-        let mut catalog_opts = CatalogOptions::default();
-        catalog_opts.create_default_catalog_and_schema = false;
-        catalog_opts.information_schema = false;
-        let mut optimizer_opts = OptimizerOptions::default();
-        optimizer_opts.prefer_hash_join = true;
-        let mut config_opts = ConfigOptions::new();
-
-        config_opts.catalog = catalog_opts;
-        config_opts.optimizer = optimizer_opts;
-        // Create a new datafusion runtime env with disk manager and memory pool
-        // if needed.
-        let mut conf = RuntimeConfig::default();
-
-        if let Some(spill_path) = spill_path {
-            conf = conf.with_disk_manager(DiskManagerConfig::NewSpecified(vec![spill_path]));
-        }
-        if let Some(mem_limit) = vars.memory_limit_bytes() {
-            // TODO: Make this actually have optional semantics.
-            if mem_limit > 0 {
-                conf = conf.with_memory_pool(Arc::new(GreedyMemoryPool::new(mem_limit)));
-            }
-        }
-
-        let mut e = Extensions::new();
-        e.insert(vars);
-        config_opts = config_opts.with_extensions(e);
-
-        let mut config: SessionConfig = config_opts.into();
-        config = config.with_extension(Arc::new(StagedClientStreams::default()));
-
-        // let config = config.with_extension(Arc::new(vars));
-        let runtime = RuntimeEnv::new(conf)?;
-
-        // Register the object store in the registry for all the tables.
-        let entries = catalog.iter_entries().filter_map(|e| {
-            if !e.builtin {
-                if let CatalogEntry::Table(entry) = e.entry {
-                    Some(&entry.options)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
-        init_session_registry(&runtime, entries)?;
-
-        let mut state = SessionState::with_config_rt(config, Arc::new(runtime));
+        let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
+        let opts = new_datafusion_session_config_opts(vars);
+        let conf: SessionConfig = opts.into();
+        let mut state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         if let Some(client) = exec_client.clone() {
             let planner = RemoteLogicalPlanner::new(client);
@@ -173,12 +119,6 @@ impl SessionContext {
         } else {
             None
         };
-
-        // Note that we do not replace the default catalog list on the state. We
-        // should never be referencing it during planning or execution.
-        //
-        // Ideally we can reduce the need to rely on datafusion's session state
-        // as much as possible. It makes way too many assumptions.
 
         Ok(SessionContext {
             exec_client,

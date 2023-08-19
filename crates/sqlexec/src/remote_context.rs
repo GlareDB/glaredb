@@ -55,5 +55,4 @@ pub struct RemoteSessionContext {
     /// Job runner for background jobs.
     background_jobs: JobRunner,
 }
-
 impl RemoteSessionContext {}
