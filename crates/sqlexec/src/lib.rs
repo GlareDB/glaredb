@@ -10,6 +10,7 @@ pub mod remote;
 pub mod session;
 
 mod background_jobs;
+mod dispatch;
 mod functions;
 mod metrics;
 mod planner;

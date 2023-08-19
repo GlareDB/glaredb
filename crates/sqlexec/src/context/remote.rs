@@ -1,8 +1,10 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use datafusion::{
+    common::TableReference,
     datasource::TableProvider,
     execution::context::{SessionConfig, SessionContext as DfSessionContext},
+    physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream},
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
@@ -10,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     background_jobs::JobRunner,
+    dispatch::external::ExternalDispatcher,
     errors::Result,
     metastore::catalog::SessionCatalog,
     remote::staged_stream::{StagedClientStreams, StagedStreams},
@@ -27,7 +30,7 @@ pub struct RemoteSessionContext {
     /// Datafusion session context used for execution.
     df_ctx: DfSessionContext,
     /// Job runner for background jobs.
-    background_jobs: JobRunner,
+    _background_jobs: JobRunner,
     /// Cached table providers.
     cached_table_providers: HashMap<Uuid, Arc<dyn TableProvider>>,
 }
@@ -56,8 +59,42 @@ impl RemoteSessionContext {
             catalog,
             tables: native_tables,
             df_ctx,
-            background_jobs,
+            _background_jobs: background_jobs,
             cached_table_providers: HashMap::new(),
         })
+    }
+
+    /// Execute a physical plan.
+    pub fn execute_physical(
+        &self,
+        plan: Arc<dyn ExecutionPlan>,
+    ) -> Result<SendableRecordBatchStream> {
+        let context = self.df_ctx.task_ctx();
+        let stream = execute_stream(plan, context)?;
+        Ok(stream)
+    }
+
+    /// Load an external table, and cache it on the context.
+    ///
+    /// All parts of the table reference must be provided. It's expected that
+    /// entry resolution happens client-side.
+    // TODO: We should be providing the catalog version as well to ensure we're
+    // getting the correct entries from the catalog.
+    pub async fn load_and_cache_external_table(
+        &mut self,
+        database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
+        // Since this is operating on a remote node, always disable local fs
+        // access.
+        let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
+        let table = dispatcher.dispatch_external(database, schema, name).await?;
+
+        let id = Uuid::new_v4();
+
+        self.cached_table_providers.insert(id, table.clone());
+
+        Ok((id, table))
     }
 }

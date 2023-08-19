@@ -36,22 +36,6 @@ impl RemoteSession {
         session.get_session_catalog().get_state().as_ref().clone()
     }
 
-    pub async fn create_physical_plan(
-        &self,
-        logical_plan: impl AsRef<[u8]>,
-    ) -> Result<(Uuid, Schema)> {
-        let mut session = self.session.lock().await;
-
-        let codec = session.extension_codec()?;
-        let plan = LogicalPlanNode::try_decode(logical_plan.as_ref())?
-            .try_into_logical_plan(session.df_ctx(), &codec)?;
-
-        let physical = session.create_physical_plan(plan).await?;
-        let schema = physical.schema();
-        let exec_id = session.add_physical_plan(physical)?;
-        Ok((exec_id, Schema::clone(&schema)))
-    }
-
     pub async fn dispatch_access(&self, table_ref: OwnedTableReference) -> Result<(Uuid, Schema)> {
         let mut session = self.session.lock().await;
         let provider = session.dispatch_access(table_ref).await?;
