@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
-use datasources::postgres::{PostgresAccess, PostgresTableProvider};
+use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadPostgres;
@@ -30,7 +30,12 @@ impl TableFunc for ReadPostgres {
                 let table: String = args.next().unwrap().param_into()?;
 
                 let access = PostgresAccess::new_from_conn_str(conn_str, None);
-                let prov = PostgresTableProvider::try_new(access, None, schema, table)
+                let prov_conf = PostgresTableProviderConfig {
+                    access,
+                    schema,
+                    table,
+                };
+                let prov = PostgresTableProvider::try_new(prov_conf)
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
