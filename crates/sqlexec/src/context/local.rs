@@ -829,7 +829,7 @@ impl LocalSessionContext {
     }
 
     /// Get the first non-implicit schema.
-    fn first_nonimplicit_schema(&self) -> Result<String> {
+    pub(crate) fn first_nonimplicit_schema(&self) -> Result<String> {
         self.get_session_vars()
             .first_nonimplicit_schema()
             .ok_or_else(|| ExecError::EmptySearchPath)

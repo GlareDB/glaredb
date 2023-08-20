@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use datafusion::{
     datasource::TableProvider,
@@ -15,25 +15,28 @@ use crate::{
     errors::Result,
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::{CatalogMutator, SessionCatalog},
-    remote::staged_stream::StagedClientStreams,
+    remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
 /// A lightweight session context used during remote execution of physical
 /// plans.
+///
+/// Datafusion extensions:
+/// - StagedClientStreams
 pub struct RemoteSessionContext {
     /// Database catalog.
     catalog: SessionCatalog,
     catalog_mutator: CatalogMutator,
     /// Native tables.
-    _tables: NativeTableStorage,
+    tables: NativeTableStorage,
     /// Datafusion session context used for execution.
     df_ctx: DfSessionContext,
     /// Job runner for background jobs.
     _background_jobs: JobRunner,
     /// Cached table providers.
-    cached_table_providers: HashMap<Uuid, Arc<dyn TableProvider>>,
+    provider_cache: ProviderCache,
 }
 
 impl RemoteSessionContext {
@@ -60,10 +63,10 @@ impl RemoteSessionContext {
         Ok(RemoteSessionContext {
             catalog,
             catalog_mutator,
-            _tables: native_tables,
+            tables: native_tables,
             df_ctx,
             _background_jobs: background_jobs,
-            cached_table_providers: HashMap::new(),
+            provider_cache: ProviderCache::default(),
         })
     }
 
@@ -78,7 +81,7 @@ impl RemoteSessionContext {
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
     pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
-        GlareDBExtensionCodec::new_decoder(&self.cached_table_providers)
+        GlareDBExtensionCodec::new_decoder(&self.provider_cache)
     }
 
     pub fn staged_streams(&self) -> Arc<StagedClientStreams> {
@@ -99,13 +102,15 @@ impl RemoteSessionContext {
         Ok(stream)
     }
 
-    /// Load an external table, and cache it on the context.
+    /// Load a table provider, and cache it on the context.
+    ///
+    /// This will only attempt to load "native" tables and external tables.
     ///
     /// All parts of the table reference must be provided. It's expected that
     /// entry resolution happens client-side.
     // TODO: We should be providing the catalog version as well to ensure we're
     // getting the correct entries from the catalog.
-    pub async fn load_and_cache_external_table(
+    pub async fn load_and_cache_table(
         &mut self,
         database: &str,
         schema: &str,
@@ -115,15 +120,19 @@ impl RemoteSessionContext {
             .maybe_refresh_state(self.catalog_mutator.get_metastore_client(), false)
             .await?;
 
-        // Since this is operating on a remote node, always disable local fs
-        // access.
-        let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
-        let table = dispatcher.dispatch_external(database, schema, name).await?;
+        let prov: Arc<dyn TableProvider> =
+            if let Some(tbl) = self.catalog.resolve_native_table(database, schema, name) {
+                self.tables.load_table(tbl).await?.into_table_provider()
+            } else {
+                // Since this is operating on a remote node, always disable local fs
+                // access.
+                let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
+                dispatcher.dispatch_external(database, schema, name).await?
+            };
 
         let id = Uuid::new_v4();
+        self.provider_cache.put(id, prov.clone());
 
-        self.cached_table_providers.insert(id, table.clone());
-
-        Ok((id, table))
+        Ok((id, prov))
     }
 }
