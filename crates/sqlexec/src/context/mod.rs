@@ -1,3 +1,11 @@
+//! Module for providing execution contexts.
+//!
+//! During local (or single node) execution, the `LocalSessionContext` is used
+//! for query planning and execution. A `LocalSessionContext` may optionally be
+//! connected to a `RemoteSessionContext` that's running on another machine. The
+//! remote context is minimal, and serves only execute query plans. The bulk of
+//! query planning should continue to happen locally.
+
 pub mod local;
 pub mod remote;
 

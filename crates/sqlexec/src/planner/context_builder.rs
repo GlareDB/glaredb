@@ -1,4 +1,4 @@
-use crate::context::local::SessionContext;
+use crate::context::local::LocalSessionContext;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
@@ -41,11 +41,11 @@ pub struct PartialContextProvider<'a> {
     /// Datafusion session state.
     state: &'a SessionState,
     /// Glaredb session context.
-    ctx: &'a SessionContext,
+    ctx: &'a LocalSessionContext,
 }
 
 impl<'a> PartialContextProvider<'a> {
-    pub fn new(ctx: &'a SessionContext, state: &'a SessionState) -> Result<Self, PlanError> {
+    pub fn new(ctx: &'a LocalSessionContext, state: &'a SessionState) -> Result<Self, PlanError> {
         Ok(Self {
             providers: HashMap::new(),
             state,
@@ -256,7 +256,7 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
 }
 
 pub struct TableFnCtxProvider<'a> {
-    ctx: &'a SessionContext,
+    ctx: &'a LocalSessionContext,
     state: &'a SessionState,
 }
 

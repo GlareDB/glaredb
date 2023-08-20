@@ -48,7 +48,7 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// be executed remotely. When attaching a remote context, the query planner is
 /// switched out to one that's able to generate plans to send to remote
 /// contexts.
-pub struct SessionContext {
+pub struct LocalSessionContext {
     /// The execution client for remote sessions.
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
@@ -72,7 +72,7 @@ pub struct SessionContext {
     background_jobs: JobRunner,
 }
 
-impl SessionContext {
+impl LocalSessionContext {
     /// Create a new session context with the given catalog.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -83,7 +83,7 @@ impl SessionContext {
         metrics: SessionMetrics,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-    ) -> Result<SessionContext> {
+    ) -> Result<LocalSessionContext> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(vars);
         let conf: SessionConfig = opts.into();
@@ -91,7 +91,7 @@ impl SessionContext {
 
         let df_ctx = DfSessionContext::with_state(state);
 
-        Ok(SessionContext {
+        Ok(LocalSessionContext {
             exec_client: None,
             catalog,
             catalog_mutator,
@@ -856,7 +856,7 @@ impl PreparedStatement {
     // TODO: Not sure if we want to delay the planning portion.
     async fn build(
         mut stmt: Option<StatementWithExtensions>,
-        ctx: &SessionContext,
+        ctx: &LocalSessionContext,
     ) -> Result<Self> {
         if let Some(inner) = stmt.take() {
             // Go ahead and plan using the session context.

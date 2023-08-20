@@ -32,7 +32,7 @@ use telemetry::Tracker;
 use uuid::Uuid;
 
 use crate::background_jobs::JobRunner;
-use crate::context::local::{Portal, PreparedStatement, SessionContext};
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
@@ -201,7 +201,7 @@ impl fmt::Display for ExecutionResult {
 /// pgsrv and actual execution against the catalog allows for easy extensibility
 /// in the future (e.g. consensus).
 pub struct Session {
-    pub(crate) ctx: SessionContext,
+    pub(crate) ctx: LocalSessionContext,
 }
 
 impl Session {
@@ -226,7 +226,7 @@ impl Session {
             tracker,
         );
 
-        let ctx = SessionContext::new(
+        let ctx = LocalSessionContext::new(
             vars,
             catalog,
             catalog_mutator,

@@ -13,7 +13,7 @@ use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryMeta, EntryType, ViewEntry};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 
-use crate::context::local::SessionContext;
+use crate::context::local::LocalSessionContext;
 use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
@@ -116,7 +116,7 @@ pub trait ViewPlanner: Send + Sync {
 }
 
 #[async_trait]
-impl ViewPlanner for SessionContext {
+impl ViewPlanner for LocalSessionContext {
     async fn plan_view(&self, sql: &str, col_aliases: &[String]) -> Result<LogicalPlan, PlanError> {
         // TODO: Instead of doing late planning, we should instead try to insert
         // the contents of the view into the parent query prior to any planning.
