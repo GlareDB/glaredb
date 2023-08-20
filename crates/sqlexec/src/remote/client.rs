@@ -275,7 +275,9 @@ impl RemoteSessionClient {
         &mut self,
         stream: impl tonic::IntoStreamingRequest<Message = service::BroadcastExchangeRequest>,
     ) -> Result<()> {
-        let _req = self.inner.client.broadcast_exchange(stream).await?;
+        let mut req = stream.into_streaming_request();
+        self.inner.append_auth_metadata(req.metadata_mut());
+        let _resp = self.inner.client.broadcast_exchange(req).await?;
         Ok(())
     }
 
