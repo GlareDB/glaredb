@@ -96,22 +96,12 @@ fn connect(
             }
         };
 
-        let engine = Engine::new(
-            metastore_client,
-            storage_conf,
-            tracker,
-            spill_path,
-            /* integration_testing = */ false,
-        )
-        .await
-        .map_err(PyGlareDbError::from)?;
+        let engine = Engine::new(metastore_client, storage_conf, tracker, spill_path)
+            .await
+            .map_err(PyGlareDbError::from)?;
 
         let mut session = engine
-            .new_session(
-                SessionVars::default(),
-                SessionStorageConfig::default(),
-                /* remote_ctx = */ false,
-            )
+            .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
             .await
             .map_err(PyGlareDbError::from)?;
 

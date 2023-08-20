@@ -12,26 +12,29 @@ use datafusion::{
 };
 use uuid::Uuid;
 
-use crate::errors::{ExecError, Result};
+use crate::errors::Result;
 
-use super::{client::RemoteSessionClient, exec::RemoteExecutionExec};
-
+/// A stub table provider for getting the schema of a remote table.
+///
+/// When the local session needs information for a table that exists in an
+/// external system (e.g. Postgres), it will call out to the remote session. The
+/// remote session loads the actual table, but than sends back this stubbed
+/// provider so that the local session can use it for query planning.
+///
+/// Attempting to scan or insert will error.
 #[derive(Debug)]
-pub struct RemoteTableProvider {
+pub struct StubRemoteTableProvider {
     /// ID for this table provider.
     provider_id: Uuid,
     /// Schema for the table provider.
     schema: Arc<Schema>,
-    /// Client for remote services.
-    client: RemoteSessionClient,
 }
 
-impl RemoteTableProvider {
-    pub fn new(client: RemoteSessionClient, provider_id: Uuid, schema: SchemaRef) -> Self {
+impl StubRemoteTableProvider {
+    pub fn new(provider_id: Uuid, schema: SchemaRef) -> Self {
         Self {
             provider_id,
             schema,
-            client,
         }
     }
 
@@ -42,7 +45,7 @@ impl RemoteTableProvider {
 }
 
 #[async_trait]
-impl TableProvider for RemoteTableProvider {
+impl TableProvider for StubRemoteTableProvider {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -58,40 +61,22 @@ impl TableProvider for RemoteTableProvider {
     async fn scan(
         &self,
         _state: &SessionState,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
+        _projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        let remote_plan = self
-            .client
-            .clone()
-            .table_provider_scan(self.provider_id, projection, filters, limit)
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        Ok(Arc::new(remote_plan))
+        Err(DataFusionError::NotImplemented(
+            "scan called on a stub provider".to_string(),
+        ))
     }
 
     async fn insert_into(
         &self,
         _state: &SessionState,
-        input: Arc<dyn ExecutionPlan>,
+        _input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        let input = input
-            .as_any()
-            .downcast_ref::<RemoteExecutionExec>()
-            .ok_or_else(|| {
-                DataFusionError::External(Box::new(ExecError::Internal(
-                    "`ExecutionPlan` not a `RemoteExecutionPlan` for remote `insert_into`"
-                        .to_string(),
-                )))
-            })?;
-
-        let remote_plan = self
-            .client
-            .clone()
-            .table_provider_insert_into(self.provider_id, input.id())
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        Ok(Arc::new(remote_plan))
+        Err(DataFusionError::NotImplemented(
+            "insert_into called on a stub provider".to_string(),
+        ))
     }
 }

@@ -137,7 +137,7 @@ pub enum ExecError {
     PlanError(#[from] crate::planner::errors::PlanError),
 
     #[error(transparent)]
-    DispatchError(#[from] crate::planner::dispatch::DispatchError),
+    DispatchError(#[from] crate::dispatch::DispatchError),
 
     #[error(transparent)]
     MetastoreWorker(#[from] crate::metastore::client::MetastoreClientError),

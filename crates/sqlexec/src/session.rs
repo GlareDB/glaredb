@@ -2,16 +2,11 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::extension_codec::GlareDBExtensionCodec;
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
-use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
-use crate::remote::client::RemoteSessionClient;
-use crate::remote::rewriter::LocalSideTableRewriter;
-use crate::remote::staged_stream::StagedClientStreams;
+use crate::remote::client::RemoteClient;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::tree_node::TreeNode;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};
@@ -34,9 +29,10 @@ use datasources::object_store::ObjStoreAccess;
 use pgrepr::format::Format;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
+use uuid::Uuid;
 
 use crate::background_jobs::JobRunner;
-use crate::context::{Portal, PreparedStatement, SessionContext};
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
@@ -205,7 +201,7 @@ impl fmt::Display for ExecutionResult {
 /// pgsrv and actual execution against the catalog allows for easy extensibility
 /// in the future (e.g. consensus).
 pub struct Session {
-    pub(crate) ctx: SessionContext,
+    pub(crate) ctx: LocalSessionContext,
 }
 
 impl Session {
@@ -217,12 +213,11 @@ impl Session {
     pub fn new(
         vars: SessionVars,
         catalog: SessionCatalog,
+        catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
-        exec_client: Option<RemoteSessionClient>,
-        remote_ctx: bool,
     ) -> Result<Session> {
         let metrics = SessionMetrics::new(
             vars.user_id(),
@@ -231,18 +226,25 @@ impl Session {
             tracker,
         );
 
-        let ctx = SessionContext::new(
+        let ctx = LocalSessionContext::new(
             vars,
             catalog,
+            catalog_mutator,
             native_tables,
             metrics,
             spill_path,
             background_jobs,
-            exec_client,
-            remote_ctx,
         )?;
 
         Ok(Session { ctx })
+    }
+
+    pub async fn attach_remote_session(
+        &mut self,
+        client: RemoteClient,
+        test_db_id: Option<Uuid>,
+    ) -> Result<()> {
+        self.ctx.attach_remote_session(client, test_db_id).await
     }
 
     pub async fn close(&mut self) -> Result<()> {
@@ -277,43 +279,10 @@ impl Session {
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             plan => {
-                // TODO: This should go into planner.
-
-                // If we're connected to a remote session, do some plan
-                // rewriting.
-                match self.ctx.exec_client() {
-                    Some(client) => {
-                        // Rewrite logical plan to ensure tables that have a
-                        // "local" hint have their providers replaced with ones
-                        // that will produce client recv and send execs.
-                        let mut rewriter = LocalSideTableRewriter::new(client);
-                        let plan = plan.rewrite(&mut rewriter)?;
-
-                        // Create the physical plans. This will call `scan` on
-                        // the custom table providers meaning we'll have the
-                        // correct exec refs.
-                        let physical = state.create_physical_plan(&plan).await?;
-
-                        // Create a wrapper physical plan which drives both the
-                        // result stream, and the send execs
-                        //
-                        // At this point, the send execs should have been
-                        // populated.
-                        let physical = SendRecvJoinExec::new(physical, rewriter.exec_refs);
-
-                        Ok(Arc::new(physical))
-                    }
-                    None => {
-                        let plan = state.create_physical_plan(&plan).await?;
-                        Ok(plan)
-                    }
-                }
+                let plan = state.create_physical_plan(&plan).await?;
+                Ok(plan)
             }
         }
-    }
-
-    pub fn staged_streams(&self) -> Result<Arc<StagedClientStreams>> {
-        self.ctx.staged_streams()
     }
 
     pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {
@@ -424,32 +393,6 @@ impl Session {
         let context = self.ctx.task_context();
         let stream = execute_stream(plan, context)?;
         Ok(stream)
-    }
-
-    /// Get a table provider from session.
-    pub fn get_table_provider(&self, provider_id: &uuid::Uuid) -> Result<Arc<dyn TableProvider>> {
-        self.ctx.get_table_provider(provider_id)
-    }
-
-    /// Add a table provider to the session. Returns the ID of the provider.
-    pub fn add_table_provider(&mut self, provider: Arc<dyn TableProvider>) -> Result<uuid::Uuid> {
-        self.ctx.add_table_provider(provider)
-    }
-
-    /// Get a physical plan from session.
-    pub fn get_physical_plan(&self, exec_id: &uuid::Uuid) -> Result<Arc<dyn ExecutionPlan>> {
-        self.ctx.get_physical_plan(exec_id)
-    }
-
-    /// Add a physical plan to the session. Returns the ID of the plan.
-    pub fn add_physical_plan(&mut self, plan: Arc<dyn ExecutionPlan>) -> Result<uuid::Uuid> {
-        self.ctx.add_physical_plan(plan)
-    }
-
-    /// Returns the extension codec used for serializing and deserializing data
-    /// over RPCs.
-    pub fn extension_codec(&self) -> Result<GlareDBExtensionCodec<'_>> {
-        self.ctx.extension_codec()
     }
 
     /// Get the session dispatcher.

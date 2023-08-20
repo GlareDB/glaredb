@@ -1,7 +1,8 @@
-use datafusion_proto::protobuf::Schema;
-use prost::Message;
+mod postgres;
+pub use postgres::*;
 
-use super::common::PostgresAccess;
+use datafusion_proto::protobuf::Schema;
+use prost::{Message, Oneof};
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
@@ -12,13 +13,14 @@ pub struct ClientExchangeRecvExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct PostgresBinaryCopyConfig {
+pub struct ExecutionPlanExtension {
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1")]
+    pub inner: Option<ExecutionPlanExtensionType>,
+}
+
+#[derive(Clone, PartialEq, Oneof)]
+pub enum ExecutionPlanExtensionType {
+    // Exchanges
     #[prost(message, tag = "1")]
-    pub access: Option<PostgresAccess>,
-    #[prost(string, tag = "2")]
-    pub schema: String,
-    #[prost(string, tag = "3")]
-    pub table: String,
-    #[prost(string, tag = "4")]
-    pub copy_query: String,
+    ClientExchangeRecvExec(ClientExchangeRecvExec),
 }

@@ -140,17 +140,8 @@ impl TableFunc for ObjScanTableFunc {
         let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
 
         for (access, locations) in fn_registry {
-            // Wrap the provider in a "local" hint if the data source url points
-            // to a local file.
-            let is_local = locations
-                .first()
-                .map(|loc| loc.datasource_url_type() == DatasourceUrlType::File)
-                .unwrap_or(false);
-            let mut provider =
+            let provider =
                 get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;
-            if is_local {
-                provider = Arc::new(LocalTableHint(provider));
-            }
 
             let source = Arc::new(DefaultTableSource::new(provider));
             let plan = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?.build()?;
@@ -163,6 +154,10 @@ impl TableFunc for ObjScanTableFunc {
     }
 }
 
+/// Gets a table provider for the files at location.
+///
+/// If the file is detected to be local, the table provider will be wrapped in a
+/// local table hint.
 async fn get_table_provider(
     ctx: &dyn TableFuncContextProvider,
     ft: Arc<dyn FileFormat>,
@@ -174,7 +169,9 @@ async fn get_table_provider(
         ObjStoreAccessor::new(access).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
     let mut objects = Vec::new();
+    let mut is_local = true; // Sets to false if any of the data sources aren't a file.
     for loc in locations {
+        is_local = loc.datasource_url_type() == DatasourceUrlType::File && is_local;
         let list = accessor
             .list_globbed(loc.path())
             .await
@@ -182,7 +179,7 @@ async fn get_table_provider(
         objects.push(list);
     }
 
-    accessor
+    let provider = accessor
         .into_table_provider(
             state,
             ft,
@@ -190,7 +187,13 @@ async fn get_table_provider(
             /* predicate_pushdown = */ true,
         )
         .await
-        .map_err(|e| ExtensionError::Access(Box::new(e)))
+        .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+    if is_local {
+        Ok(Arc::new(LocalTableHint(provider)))
+    } else {
+        Ok(provider)
+    }
 }
 
 fn get_store_access(

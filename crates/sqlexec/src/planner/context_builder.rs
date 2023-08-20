@@ -1,8 +1,8 @@
-use crate::context::SessionContext;
+use crate::context::local::LocalSessionContext;
+use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
-use crate::planner::dispatch::SessionDispatcher;
 use crate::planner::errors::PlanError;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
@@ -41,11 +41,11 @@ pub struct PartialContextProvider<'a> {
     /// Datafusion session state.
     state: &'a SessionState,
     /// Glaredb session context.
-    ctx: &'a SessionContext,
+    ctx: &'a LocalSessionContext,
 }
 
 impl<'a> PartialContextProvider<'a> {
-    pub fn new(ctx: &'a SessionContext, state: &'a SessionState) -> Result<Self, PlanError> {
+    pub fn new(ctx: &'a LocalSessionContext, state: &'a SessionState) -> Result<Self, PlanError> {
         Ok(Self {
             providers: HashMap::new(),
             state,
@@ -95,22 +95,28 @@ impl<'a> PartialContextProvider<'a> {
             }
         }
 
-        if let Some(mut client) = self.ctx.exec_client() {
-            let provider = client
-                .dispatch_access(reference.to_owned_reference())
-                .await?;
-            return Ok(Arc::new(provider));
-        }
+        // TODO: Add this back in, but don't default to always reading from remote.
+        // if let Some(mut client) = self.ctx.exec_client() {
+        //     let provider = client
+        //         .dispatch_access(reference.to_owned_reference())
+        //         .await?;
+        //     return Ok(Arc::new(provider));
+        // }
 
-        let dispatcher = SessionDispatcher::new(self.ctx);
+        let dispatcher = Dispatcher::new(
+            self.ctx.get_session_catalog(),
+            self.ctx.get_native_tables(),
+            self.ctx.get_metrics(),
+            self.ctx.get_temp_objects(),
+            self.ctx,
+            self.ctx.df_ctx(),
+            self.ctx.get_session_vars().is_cloud_instance(),
+        );
         match &reference {
             TableReference::Bare { table } => {
                 for schema in self.ctx.implicit_search_paths() {
-                    // TODO
-                    match dispatcher
-                        .dispatch_access(DEFAULT_CATALOG, &schema, table)
-                        .await
-                    {
+                    // TODO: Allow defaulting to some other database.
+                    match dispatcher.dispatch(DEFAULT_CATALOG, &schema, table).await {
                         Ok(table) => return Ok(table),
                         Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
                         Err(e) => {
@@ -127,10 +133,8 @@ impl<'a> PartialContextProvider<'a> {
                 })
             }
             TableReference::Partial { schema, table } => {
-                // TODO
-                let table = dispatcher
-                    .dispatch_access(DEFAULT_CATALOG, schema, table)
-                    .await?;
+                // TODO: Allow defaulting to some other database.
+                let table = dispatcher.dispatch(DEFAULT_CATALOG, schema, table).await?;
                 Ok(table)
             }
             TableReference::Full {
@@ -138,7 +142,7 @@ impl<'a> PartialContextProvider<'a> {
                 schema,
                 table,
             } => {
-                let table = dispatcher.dispatch_access(catalog, schema, table).await?;
+                let table = dispatcher.dispatch(catalog, schema, table).await?;
                 Ok(table)
             }
         }
@@ -252,7 +256,7 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
 }
 
 pub struct TableFnCtxProvider<'a> {
-    ctx: &'a SessionContext,
+    ctx: &'a LocalSessionContext,
     state: &'a SessionState,
 }
 

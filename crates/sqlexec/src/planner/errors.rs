@@ -9,20 +9,20 @@ pub enum PlanError {
     #[error("Failed to create table provider for '{reference}': {e}")]
     FailedToCreateTableProvider {
         reference: String,
-        e: crate::planner::dispatch::DispatchError,
+        e: crate::dispatch::DispatchError,
     },
 
     #[error("Failed to find table for reference: {reference}")]
     FailedToFindTableForReference { reference: String },
-
-    #[error("Failed to dispatch to table: {0}")]
-    TableDispatch(#[from] crate::planner::dispatch::DispatchError),
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
 
     #[error(transparent)]
     Preprocess(#[from] crate::planner::preprocess::PreprocessError),
+
+    #[error(transparent)]
+    Dispatch(#[from] crate::dispatch::DispatchError),
 
     #[error("Invalid tunnel '{tunnel}': {reason}")]
     InvalidTunnel { tunnel: String, reason: String },

@@ -11,12 +11,9 @@ use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
-    metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
-        CloseSessionRequest, CloseSessionResponse, CreatePhysicalPlanRequest,
-        DispatchAccessRequest, InitializeSessionRequest, InitializeSessionResponse,
-        PhysicalPlanExecuteRequest, PhysicalPlanResponse, TableProviderInsertIntoRequest,
-        TableProviderResponse, TableProviderScanRequest,
+        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use sqlexec::{
@@ -97,13 +94,13 @@ impl RpcHandler {
             .with_database_id(db_id, VarType::System)
             .with_connection_id(conn_id, VarType::System);
 
-        let sess = self
+        let context = self
             .engine
-            .new_session(vars, storage_conf, /* remote_ctx = */ true)
+            .new_remote_session_context(vars, storage_conf)
             .await?;
 
-        let sess = RemoteSession::new(sess);
-        let initial_state: CatalogState = sess.get_catalog_state().await;
+        let sess = RemoteSession::new(context);
+        let initial_state = sess.get_catalog_state().await;
 
         self.sessions.insert(conn_id, sess);
 
@@ -111,21 +108,6 @@ impl RpcHandler {
             session_id: conn_id,
             catalog: initial_state,
         })
-    }
-
-    async fn create_physical_plan_inner(
-        &self,
-        req: CreatePhysicalPlanRequest,
-    ) -> Result<PhysicalPlanResponse> {
-        // TODO(perf): This actually ends being two/three locks that we need to acquire.
-        // 1. The hashmap
-        // 2. The session itself
-        // 3. (soon) Datafusion's context once we start using that
-
-        let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, "creating physical plan");
-        let (id, schema) = session.create_physical_plan(req.logical_plan).await?;
-        Ok(PhysicalPlanResponse { id, schema })
     }
 
     async fn dispatch_access_inner(
@@ -138,42 +120,13 @@ impl RpcHandler {
         Ok(TableProviderResponse { id, schema })
     }
 
-    async fn table_provider_scan_inner(
-        &self,
-        req: TableProviderScanRequest,
-    ) -> Result<PhysicalPlanResponse> {
-        let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, provider_id=%req.provider_id, "scanning table provider");
-        let (id, schema) = session
-            .table_provider_scan(
-                req.provider_id,
-                req.projection.as_ref(),
-                &req.filters,
-                req.limit,
-            )
-            .await?;
-        Ok(PhysicalPlanResponse { id, schema })
-    }
-
-    async fn table_provider_insert_into_inner(
-        &self,
-        req: TableProviderInsertIntoRequest,
-    ) -> Result<PhysicalPlanResponse> {
-        let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, provider_id=%req.provider_id, "insert into table provider");
-        let (id, schema) = session
-            .table_provider_insert_into(req.provider_id, req.input_exec_id)
-            .await?;
-        Ok(PhysicalPlanResponse { id, schema })
-    }
-
     async fn physical_plan_execute_inner(
         &self,
         req: PhysicalPlanExecuteRequest,
     ) -> Result<ExecutionResponseBatchStream> {
         let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, exec_id=%req.exec_id, "executing physical plan");
-        let batches = session.physical_plan_execute(req.exec_id).await?;
+        info!(session_id=%req.session_id, "executing physical plan");
+        let batches = session.physical_plan_execute(req.physical_plan).await?;
         Ok(ExecutionResponseBatchStream {
             batches,
             buf: Vec::new(),
@@ -225,42 +178,12 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         Ok(Response::new(resp.try_into()?))
     }
 
-    async fn create_physical_plan(
-        &self,
-        request: Request<service::CreatePhysicalPlanRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        let resp = self
-            .create_physical_plan_inner(request.into_inner().try_into()?)
-            .await?;
-        Ok(Response::new(resp.try_into()?))
-    }
-
     async fn dispatch_access(
         &self,
         request: Request<service::DispatchAccessRequest>,
     ) -> Result<Response<service::TableProviderResponse>, Status> {
         let resp = self
             .dispatch_access_inner(request.into_inner().try_into()?)
-            .await?;
-        Ok(Response::new(resp.try_into()?))
-    }
-
-    async fn table_provider_scan(
-        &self,
-        request: Request<service::TableProviderScanRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        let resp = self
-            .table_provider_scan_inner(request.into_inner().try_into()?)
-            .await?;
-        Ok(Response::new(resp.try_into()?))
-    }
-
-    async fn table_provider_insert_into(
-        &self,
-        request: Request<service::TableProviderInsertIntoRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        let resp = self
-            .table_provider_insert_into_inner(request.into_inner().try_into()?)
             .await?;
         Ok(Response::new(resp.try_into()?))
     }

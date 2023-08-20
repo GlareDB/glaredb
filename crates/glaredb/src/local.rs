@@ -154,7 +154,6 @@ impl LocalSession {
             storage_conf,
             tracker,
             opts.spill_path.clone(),
-            /* integration_testing = */ false,
         )
         .await?;
 
@@ -164,16 +163,14 @@ impl LocalSession {
             } else {
                 RemoteClient::connect_with_proxy_destination(url.try_into()?).await?
             };
-            engine
-                .new_session_with_remote_connection(SessionVars::default(), exec_client)
-                .await?
+            let mut sess = engine
+                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
+                .await?;
+            sess.attach_remote_session(exec_client, None).await?;
+            sess
         } else {
             engine
-                .new_session(
-                    SessionVars::default(),
-                    SessionStorageConfig::default(),
-                    /* remote_ctx = */ false,
-                )
+                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
                 .await?
         };
 

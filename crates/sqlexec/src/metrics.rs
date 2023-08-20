@@ -1,4 +1,4 @@
-use crate::context::Portal;
+use crate::context::local::Portal;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result as DatafusionResult;

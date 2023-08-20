@@ -3,15 +3,13 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::SessionCatalog,
 };
-use datafusion::{common::OwnedTableReference, logical_expr::LogicalPlan, prelude::Expr};
-use datafusion_proto::{logical_plan::AsLogicalPlan, protobuf::LogicalPlanNode};
+use datafusion::{common::OwnedTableReference, physical_plan::ExecutionPlan};
+use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     rpcsrv::types::service::{
-        CloseSessionRequest, CreatePhysicalPlanRequest, DispatchAccessRequest,
-        InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
-        PhysicalPlanResponse, TableProviderInsertIntoRequest, TableProviderResponse,
-        TableProviderScanRequest,
+        CloseSessionRequest, DispatchAccessRequest, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use proxyutil::metadata_constants::{
@@ -26,7 +24,7 @@ use tonic::{
 use url::Url;
 use uuid::Uuid;
 
-use super::{exec::RemoteExecutionExec, table::RemoteTableProvider};
+use super::table::StubRemoteTableProvider;
 
 const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 
@@ -216,52 +214,10 @@ impl RemoteSessionClient {
         self.session_id
     }
 
-    pub async fn create_physical_plan(
-        &mut self,
-        logical_plan: &LogicalPlan,
-    ) -> Result<RemoteExecutionExec> {
-        // Encode the logical plan into a protobuf message.
-        let logical_plan = {
-            let node = LogicalPlanNode::try_from_logical_plan(
-                logical_plan,
-                &GlareDBExtensionCodec::new_encoder(),
-            )?;
-            let mut buf = Vec::new();
-            node.try_encode(&mut buf)?;
-            buf
-        };
-
-        let mut request = service::CreatePhysicalPlanRequest::from(CreatePhysicalPlanRequest {
-            session_id: self.session_id(),
-            logical_plan,
-        })
-        .into_request();
-        self.inner.append_auth_metadata(request.metadata_mut());
-        // send the request
-        let resp: PhysicalPlanResponse = self
-            .inner
-            .client
-            .create_physical_plan(request)
-            .await
-            .map_err(|e| {
-                ExecError::RemoteSession(format!(
-                    "cannot create physical plan from logical plan: {e}"
-                ))
-            })?
-            .into_inner()
-            .try_into()?;
-
-        Ok(RemoteExecutionExec::new(
-            self.clone(),
-            resp.id,
-            Arc::new(resp.schema),
-        ))
-    }
-
     pub async fn dispatch_access(
         &mut self,
         table_ref: OwnedTableReference,
-    ) -> Result<RemoteTableProvider> {
+    ) -> Result<StubRemoteTableProvider> {
         let mut request = service::DispatchAccessRequest::from(DispatchAccessRequest {
             session_id: self.session_id(),
             table_ref,
@@ -278,85 +234,27 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(RemoteTableProvider::new(
-            self.clone(),
-            resp.id,
-            Arc::new(resp.schema),
-        ))
-    }
-
-    pub async fn table_provider_scan(
-        &mut self,
-        provider_id: Uuid,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
-    ) -> Result<RemoteExecutionExec> {
-        let mut request = service::TableProviderScanRequest::try_from(TableProviderScanRequest {
-            session_id: self.session_id(),
-            provider_id,
-            projection: projection.cloned(),
-            filters: filters.to_vec(),
-            limit,
-        })?
-        .into_request();
-        self.inner.append_auth_metadata(request.metadata_mut());
-
-        let resp: PhysicalPlanResponse = self
-            .inner
-            .client
-            .table_provider_scan(request)
-            .await
-            .map_err(|e| ExecError::RemoteSession(format!("unable to scan table provider: {e}")))?
-            .into_inner()
-            .try_into()?;
-
-        Ok(RemoteExecutionExec::new(
-            self.clone(),
-            resp.id,
-            Arc::new(resp.schema),
-        ))
-    }
-
-    pub async fn table_provider_insert_into(
-        &mut self,
-        provider_id: Uuid,
-        input_exec_id: Uuid,
-    ) -> Result<RemoteExecutionExec> {
-        let mut request =
-            service::TableProviderInsertIntoRequest::from(TableProviderInsertIntoRequest {
-                session_id: self.session_id(),
-                provider_id,
-                input_exec_id,
-            })
-            .into_request();
-        self.inner.append_auth_metadata(request.metadata_mut());
-
-        let resp: PhysicalPlanResponse = self
-            .inner
-            .client
-            .table_provider_insert_into(request)
-            .await
-            .map_err(|e| {
-                ExecError::RemoteSession(format!("unable to insert into table provider: {e}"))
-            })?
-            .into_inner()
-            .try_into()?;
-
-        Ok(RemoteExecutionExec::new(
-            self.clone(),
-            resp.id,
-            Arc::new(resp.schema),
-        ))
+        Ok(StubRemoteTableProvider::new(resp.id, Arc::new(resp.schema)))
     }
 
     pub async fn physical_plan_execute(
         &mut self,
-        exec_id: Uuid,
+        physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<Streaming<service::RecordBatchResponse>> {
+        // Encode the physical plan into a protobuf message.
+        let physical_plan = {
+            let node = PhysicalPlanNode::try_from_physical_plan(
+                physical_plan,
+                &GlareDBExtensionCodec::new_encoder(),
+            )?;
+            let mut buf = Vec::new();
+            node.try_encode(&mut buf)?;
+            buf
+        };
+
         let mut request = service::PhysicalPlanExecuteRequest::from(PhysicalPlanExecuteRequest {
             session_id: self.session_id(),
-            exec_id,
+            physical_plan,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());

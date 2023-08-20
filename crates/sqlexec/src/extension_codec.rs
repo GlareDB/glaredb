@@ -2,16 +2,23 @@ use core::fmt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::datasource::TableProvider;
-use datafusion::error::DataFusionError;
+use datafusion::error::{DataFusionError, Result};
+use datafusion::execution::FunctionRegistry;
+use datafusion::logical_expr::{Extension, LogicalPlan};
+use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::SessionContext;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
-use crate::remote::table::RemoteTableProvider;
+use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
+use crate::remote::table::StubRemoteTableProvider;
+
 use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
@@ -42,9 +49,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
     fn try_decode(
         &self,
         buf: &[u8],
-        _inputs: &[datafusion::logical_expr::LogicalPlan],
+        _inputs: &[LogicalPlan],
         ctx: &SessionContext,
-    ) -> datafusion::error::Result<datafusion::logical_expr::Extension> {
+    ) -> Result<Extension> {
         use protogen::sqlexec::logical_plan::{
             self as proto_plan, LogicalPlanExtensionType as PlanType,
         };
@@ -180,11 +187,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
         })
     }
 
-    fn try_encode(
-        &self,
-        node: &datafusion::logical_expr::Extension,
-        buf: &mut Vec<u8>,
-    ) -> datafusion::error::Result<()> {
+    fn try_encode(&self, node: &Extension, buf: &mut Vec<u8>) -> Result<()> {
         let extension = node
             .node
             .name()
@@ -241,9 +244,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
     fn try_decode_table_provider(
         &self,
         buf: &[u8],
-        _schema: datafusion::arrow::datatypes::SchemaRef,
+        _schema: SchemaRef,
         _ctx: &SessionContext,
-    ) -> datafusion::error::Result<Arc<dyn datafusion::datasource::TableProvider>> {
+    ) -> Result<Arc<dyn TableProvider>> {
         let provider_id = Uuid::from_slice(buf).map_err(|e| {
             DataFusionError::External(Box::new(ExecError::InvalidRemoteId("provider", e)))
         })?;
@@ -262,10 +265,10 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
     fn try_encode_table_provider(
         &self,
-        node: Arc<dyn datafusion::datasource::TableProvider>,
+        node: Arc<dyn TableProvider>,
         buf: &mut Vec<u8>,
-    ) -> datafusion::error::Result<()> {
-        if let Some(remote_provider) = node.as_any().downcast_ref::<RemoteTableProvider>() {
+    ) -> Result<()> {
+        if let Some(remote_provider) = node.as_any().downcast_ref::<StubRemoteTableProvider>() {
             remote_provider
                 .encode(buf)
                 .map_err(|e| DataFusionError::External(Box::new(e)))
@@ -274,5 +277,65 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 "can only encode `RemoteTableProvider`".to_string(),
             ))))
         }
+    }
+}
+
+impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
+    fn try_decode(
+        &self,
+        buf: &[u8],
+        _inputs: &[Arc<dyn ExecutionPlan>],
+        _registry: &dyn FunctionRegistry,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        use protogen::sqlexec::physical_plan as proto;
+
+        let ext = proto::ExecutionPlanExtension::decode(buf)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        let ext = ext
+            .inner
+            .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
+
+        let plan = match ext {
+            proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
+                let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
+                    DataFusionError::Plan(format!("failed to decode broadcast id: {e}"))
+                })?;
+                let schema = ext
+                    .schema
+                    .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
+                // TODO: Upstream `TryFrom` impl that doesn't need a reference.
+                let schema: Schema = (&schema).try_into()?;
+
+                Arc::new(ClientExchangeRecvExec {
+                    broadcast_id,
+                    schema: Arc::new(schema),
+                })
+            }
+        };
+
+        Ok(plan)
+    }
+
+    fn try_encode(&self, node: Arc<dyn ExecutionPlan>, buf: &mut Vec<u8>) -> Result<()> {
+        use protogen::sqlexec::physical_plan as proto;
+
+        let inner = if let Some(exec) = node.as_any().downcast_ref::<ClientExchangeRecvExec>() {
+            proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(
+                proto::ClientExchangeRecvExec {
+                    broadcast_id: exec.broadcast_id.into_bytes().to_vec(),
+                    schema: Some(exec.schema.clone().try_into()?),
+                },
+            )
+        } else {
+            return Err(DataFusionError::NotImplemented(format!(
+                "encoding not implemented for physical plan: {node:?}"
+            )));
+        };
+
+        let enc = proto::ExecutionPlanExtension { inner: Some(inner) };
+
+        enc.encode(buf)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 }

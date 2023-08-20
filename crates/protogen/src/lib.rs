@@ -61,6 +61,12 @@ pub mod errors {
             Self::from_error(Box::new(value))
         }
     }
+
+    impl From<ProtoConvError> for datafusion::error::DataFusionError {
+        fn from(value: ProtoConvError) -> Self {
+            Self::External(Box::new(value))
+        }
+    }
 }
 
 /// Generated code.

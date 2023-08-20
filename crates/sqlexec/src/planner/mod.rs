@@ -1,4 +1,3 @@
-pub mod dispatch;
 pub mod errors;
 pub mod extension;
 pub mod logical_plan;

@@ -1,5 +1,5 @@
 //! Built-in functions.
-use crate::context::SessionContext;
+use crate::context::local::LocalSessionContext;
 use datafusion::arrow::array::StringBuilder;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::ScalarValue;
@@ -53,7 +53,7 @@ impl BuiltinScalarFunction {
 
     /// Build the scalar function. The session context is used for functions
     /// that rely on session state.
-    pub fn build_scalar_udf(self, sess: &SessionContext) -> ScalarUDF {
+    pub fn build_scalar_udf(self, sess: &LocalSessionContext) -> ScalarUDF {
         ScalarUDF {
             name: self.name().to_string(),
             signature: self.signature(),
@@ -104,7 +104,7 @@ impl BuiltinScalarFunction {
     ///
     /// Accepts a session context for functions that rely on values set inside
     /// the session (e.g. retrieving configuration values).
-    fn impl_function(&self, sess: &SessionContext) -> ScalarFunctionImplementation {
+    fn impl_function(&self, sess: &LocalSessionContext) -> ScalarFunctionImplementation {
         match self {
             BuiltinScalarFunction::CurrentSchemas => {
                 let schemas: Vec<_> = sess
@@ -147,7 +147,7 @@ impl PgFunctionBuilder {
     /// If `implicit_pg_schema` is true, try to resolve the function as if the
     /// postgres schema is in the search path.
     pub fn try_from_name(
-        ctx: &SessionContext,
+        ctx: &LocalSessionContext,
         name: &str,
         implicit_pg_schema: bool,
     ) -> Option<Arc<ScalarUDF>> {
@@ -175,7 +175,7 @@ impl PgFunctionBuilder {
         Self::try_from_unqualified(ctx, idents[1])
     }
 
-    fn try_from_unqualified(ctx: &SessionContext, name: &str) -> Option<Arc<ScalarUDF>> {
+    fn try_from_unqualified(ctx: &LocalSessionContext, name: &str) -> Option<Arc<ScalarUDF>> {
         let func = match name {
             "array_to_string" => pg_array_to_string(),
             "current_database" | "current_catalog" => {

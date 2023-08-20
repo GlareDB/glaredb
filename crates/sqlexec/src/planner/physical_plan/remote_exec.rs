@@ -1,4 +1,4 @@
-use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef};
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -19,31 +19,20 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tonic::Streaming;
-use uuid::Uuid;
 
-use super::client::RemoteSessionClient;
+use crate::remote::client::RemoteSessionClient;
 
-/// Execute a logical plan on a remote service.
+/// Execute a physical plan on a remote service.
 #[derive(Debug, Clone)]
 pub struct RemoteExecutionExec {
     client: RemoteSessionClient,
-    /// The logical plan to execute remotely.
-    exec_id: Uuid,
-    /// Schema for the execution plan.
-    schema: SchemaRef,
+    /// The plan to send to the remote service.
+    plan: Arc<dyn ExecutionPlan>,
 }
 
 impl RemoteExecutionExec {
-    pub fn new(client: RemoteSessionClient, exec_id: Uuid, schema: SchemaRef) -> Self {
-        RemoteExecutionExec {
-            client,
-            exec_id,
-            schema,
-        }
-    }
-
-    pub fn id(&self) -> Uuid {
-        self.exec_id
+    pub fn new(client: RemoteSessionClient, plan: Arc<dyn ExecutionPlan>) -> Self {
+        RemoteExecutionExec { client, plan }
     }
 }
 
@@ -53,42 +42,41 @@ impl ExecutionPlan for RemoteExecutionExec {
     }
 
     fn schema(&self) -> Arc<ArrowSchema> {
-        self.schema.clone()
+        self.plan.schema()
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
+        self.plan.output_partitioning()
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        None
+        self.plan.output_ordering()
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        Vec::new()
+        vec![self.plan.clone()]
     }
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Plan(
-            "replacing children for RemoteLogicalExec not supported".to_string(),
-        ))
+        Ok(Arc::new(RemoteExecutionExec {
+            client: self.client.clone(),
+            plan: children[0].clone(),
+        }))
     }
 
     fn execute(
         &self,
-        partition: usize,
+        _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
-        if partition != 0 {
-            return Err(DataFusionError::Execution(
-                "RemoteLocalExec only supports 1 partition".to_string(),
-            ));
-        }
+        // TODO: Behavior is unknown when executing with more than one
+        // partition.
 
-        let stream = stream::once(execute_remote(self.client.clone(), self.exec_id)).try_flatten();
+        let stream =
+            stream::once(execute_remote(self.client.clone(), self.plan.clone())).try_flatten();
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
             stream,
@@ -96,7 +84,7 @@ impl ExecutionPlan for RemoteExecutionExec {
     }
 
     fn statistics(&self) -> Statistics {
-        Statistics::default()
+        self.plan.statistics()
     }
 }
 
@@ -109,11 +97,11 @@ impl DisplayAs for RemoteExecutionExec {
 /// Execute the encoded logical plan on the remote service.
 async fn execute_remote(
     mut client: RemoteSessionClient,
-    exec_id: Uuid,
+    plan: Arc<dyn ExecutionPlan>,
 ) -> DataFusionResult<ExecutionResponseBatchStream> {
-    let stream = client.physical_plan_execute(exec_id).await.map_err(|e| {
+    let stream = client.physical_plan_execute(plan).await.map_err(|e| {
         DataFusionError::Execution(format!(
-            "failed to execute logical plan on remote service: {e}"
+            "failed to execute physical plan on remote service: {e}"
         ))
     })?;
 

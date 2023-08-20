@@ -178,15 +178,6 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         Ok(Response::new(resp.try_into()?))
     }
 
-    async fn create_physical_plan(
-        &self,
-        request: Request<service::CreatePhysicalPlanRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        info!("create physical plan (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
-        client.create_physical_plan(request).await
-    }
-
     async fn dispatch_access(
         &self,
         request: Request<service::DispatchAccessRequest>,
@@ -194,24 +185,6 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         info!("dispatch access (proxy)");
         let (_, mut client) = self.connect(request.metadata()).await?;
         client.dispatch_access(request).await
-    }
-
-    async fn table_provider_scan(
-        &self,
-        request: Request<service::TableProviderScanRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        info!("table provider scan (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
-        client.table_provider_scan(request).await
-    }
-
-    async fn table_provider_insert_into(
-        &self,
-        request: Request<service::TableProviderInsertIntoRequest>,
-    ) -> Result<Response<service::PhysicalPlanResponse>, Status> {
-        info!("table provider insert into (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
-        client.table_provider_insert_into(request).await
     }
 
     async fn physical_plan_execute(

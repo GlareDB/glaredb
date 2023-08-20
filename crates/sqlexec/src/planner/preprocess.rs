@@ -1,5 +1,5 @@
 //! AST visitors for preprocessing queries before planning.
-use crate::context::SessionContext;
+use crate::context::local::LocalSessionContext;
 use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use std::ops::ControlFlow;
@@ -26,14 +26,14 @@ where
 /// Replace `CAST('table_name' as REGCLASS)` expressions with the oid of the
 /// table.
 pub struct CastRegclassReplacer<'a> {
-    pub ctx: &'a SessionContext,
+    pub ctx: &'a LocalSessionContext,
 }
 
 impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
     type Break = PreprocessError;
 
     fn post_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
-        fn find_oid(ctx: &SessionContext, rel: &str) -> Option<u32> {
+        fn find_oid(ctx: &LocalSessionContext, rel: &str) -> Option<u32> {
             let catalog = ctx.get_session_catalog();
             for schema in ctx.implicit_search_paths() {
                 // TODO

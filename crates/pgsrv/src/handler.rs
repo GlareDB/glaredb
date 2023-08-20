@@ -19,7 +19,7 @@ use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
-use sqlexec::context::{OutputFields, Portal, PreparedStatement};
+use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::SessionStorageConfig;
 use sqlexec::{
     engine::Engine,
@@ -261,12 +261,11 @@ impl ProtocolHandler {
 
         let sess = match self
             .engine
-            .new_session(
+            .new_local_session_context(
                 vars,
                 SessionStorageConfig {
                     gcs_bucket: storage_bucket,
                 },
-                /* remote_ctx = */ false,
             )
             .await
         {

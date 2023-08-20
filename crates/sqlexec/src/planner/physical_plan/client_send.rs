@@ -24,25 +24,12 @@ use uuid::Uuid;
 /// Execution plan for sending batches to a remote node.
 #[derive(Debug)]
 pub struct ClientExchangeSendExec {
-    broadcast_id: Uuid,
-    client: RemoteSessionClient, // TODO: Extension
-    input: Arc<dyn ExecutionPlan>,
+    pub broadcast_id: Uuid,
+    pub client: RemoteSessionClient, // TODO: Extension
+    pub input: Arc<dyn ExecutionPlan>,
 }
 
 impl ClientExchangeSendExec {
-    #[allow(dead_code)]
-    pub fn new(
-        broadcast_id: Uuid,
-        client: RemoteSessionClient,
-        input: Arc<dyn ExecutionPlan>,
-    ) -> Self {
-        Self {
-            broadcast_id,
-            client,
-            input,
-        }
-    }
-
     pub fn arrow_schema() -> Arc<Schema> {
         Arc::new(Schema::new(vec![Field::new(
             "send_count",
@@ -78,7 +65,7 @@ impl ExecutionPlan for ClientExchangeSendExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Plan(
-            "Cannot change children for ClientExchangeInputReadExec".to_string(),
+            "Cannot change children for ClientExchangeSendExec".to_string(),
         ))
     }
 

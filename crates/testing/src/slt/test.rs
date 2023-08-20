@@ -8,7 +8,7 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use pgrepr::types::arrow_to_pg_type;
 use regex::{Captures, Regex};
-use sqlexec::engine::{Engine, EngineStorageConfig, TrackedSession};
+use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, TrackedSession};
 use sqlexec::errors::ExecError;
 use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
@@ -28,6 +28,7 @@ use telemetry::Tracker;
 use tokio::sync::{oneshot, Mutex};
 use tokio_postgres::types::private::BytesMut;
 use tokio_postgres::{Client, Config, NoTls, SimpleQueryMessage};
+use uuid::Uuid;
 
 #[async_trait]
 pub trait Hook: Send + Sync {
@@ -241,18 +242,15 @@ impl RpcTestClient {
     pub async fn new(data_dir: PathBuf, rpc_bind: &str) -> Result<Self> {
         let metastore = MetastoreClientMode::LocalInMemory.into_client().await?;
         let storage = EngineStorageConfig::Local { path: data_dir };
-        let engine = Engine::new(
-            metastore,
-            storage,
-            Arc::new(Tracker::Nop),
-            None,
-            /* integration_testing = */ true,
-        )
-        .await?;
+        let engine = Engine::new(metastore, storage, Arc::new(Tracker::Nop), None).await?;
         let remote_client =
             RemoteClient::connect(format!("http://{rpc_bind}").parse().unwrap()).await?;
-        let session = engine
-            .new_session_with_remote_connection(SessionVars::default(), remote_client)
+        let mut session = engine
+            .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
+            .await?;
+        let test_id = Uuid::new_v4();
+        session
+            .attach_remote_session(remote_client, Some(test_id))
             .await?;
         Ok(RpcTestClient {
             session: Arc::new(Mutex::new(session)),

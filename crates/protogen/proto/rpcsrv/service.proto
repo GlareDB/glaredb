@@ -86,50 +86,20 @@ message InitializeSessionResponse {
   metastore.catalog.CatalogState catalog = 2;
 }
 
-// Create a physical plan from the logical plan (used by `QueryPlanner`).
-message CreatePhysicalPlanRequest {
-  bytes session_id = 1;
-  bytes logical_plan = 2;
-}
-
 // Dispatch the table access on remote server.
 message DispatchAccessRequest {
   bytes session_id = 1;
   TableReference table_ref = 2;
 }
 
-// To scan the table provider.
-message TableProviderScanRequest {
-  // Provider information.
-  bytes session_id = 1;
-  bytes provider_id = 2;
-  // Scan parameters.
-  repeated uint64 projection = 3;
-  repeated bytes filters = 4;
-  optional uint64 limit = 5;
-}
-
-// To `insert_into` a table provider.
-message TableProviderInsertIntoRequest {
-  // Provider information.
-  bytes session_id = 1;
-  bytes provider_id = 2;
-  // Physical plan ID to be used as input.
-  bytes input_exec_id = 3;
-}
-
 // Execute a physical plan and get the stream.
 message PhysicalPlanExecuteRequest {
   bytes session_id = 1;
-  bytes exec_id = 2;
+  /// The protobuf serialized physical plan.
+  bytes physical_plan = 2;
 }
 
 message TableProviderResponse {
-  bytes id = 1;
-  bytes schema = 2;
-}
-
-message PhysicalPlanResponse {
   bytes id = 1;
   bytes schema = 2;
 }
@@ -177,20 +147,8 @@ service ExecutionService {
   rpc InitializeSession(InitializeSessionRequest)
       returns (InitializeSessionResponse);
 
-  // Create a physical plan on the remote server.
-  rpc CreatePhysicalPlan(CreatePhysicalPlanRequest)
-      returns (PhysicalPlanResponse);
-
   // Dispatch and create a table provider on the remote server.
   rpc DispatchAccess(DispatchAccessRequest) returns (TableProviderResponse);
-
-  // Scan the table provider.
-  rpc TableProviderScan(TableProviderScanRequest)
-      returns (PhysicalPlanResponse);
-
-  // Insert into the table provider.
-  rpc TableProviderInsertInto(TableProviderInsertIntoRequest)
-      returns (PhysicalPlanResponse);
 
   // Execute a physical plan.
   rpc PhysicalPlanExecute(PhysicalPlanExecuteRequest)

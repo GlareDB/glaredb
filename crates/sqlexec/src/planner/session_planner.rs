@@ -46,7 +46,7 @@ use sqlbuiltins::validation::{
 };
 use tracing::debug;
 
-use crate::context::SessionContext;
+use crate::context::local::LocalSessionContext;
 use crate::parser::options::StmtOptions;
 use crate::parser::{
     self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
@@ -63,11 +63,11 @@ use super::extension::ExtensionNode;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
-    ctx: &'a SessionContext,
+    ctx: &'a LocalSessionContext,
 }
 
 impl<'a> SessionPlanner<'a> {
-    pub fn new(ctx: &'a SessionContext) -> Self {
+    pub fn new(ctx: &'a LocalSessionContext) -> Self {
         SessionPlanner { ctx }
     }
 
