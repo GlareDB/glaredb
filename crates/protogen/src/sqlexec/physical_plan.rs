@@ -4,8 +4,6 @@ pub use postgres::*;
 use datafusion_proto::protobuf::Schema;
 use prost::{Message, Oneof};
 
-use super::common::PostgresAccess;
-
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
     #[prost(bytes, tag = "1")]
@@ -14,9 +12,15 @@ pub struct ClientExchangeRecvExec {
     pub schema: Option<Schema>,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct ExecutionPlanExtension {
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1")]
+    pub inner: Option<ExecutionPlanExtensionType>,
+}
+
 #[derive(Clone, PartialEq, Oneof)]
 pub enum ExecutionPlanExtensionType {
-    // DDLs
+    // Exchanges
     #[prost(message, tag = "1")]
     ClientExchangeRecvExec(ClientExchangeRecvExec),
 }

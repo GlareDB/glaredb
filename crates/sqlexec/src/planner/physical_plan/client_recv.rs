@@ -24,8 +24,8 @@ use crate::remote::staged_stream::{ResolveClientStreamFut, StagedClientStreams};
 /// Expects the task context to have `StagedClientStreams` available.
 #[derive(Debug)]
 pub struct ClientExchangeRecvExec {
-    broadcast_id: Uuid,
-    schema: Arc<Schema>,
+    pub broadcast_id: Uuid,
+    pub schema: Arc<Schema>,
 }
 
 impl ClientExchangeRecvExec {
@@ -120,6 +120,16 @@ impl TryFrom<protogen::sqlexec::physical_plan::ClientExchangeRecvExec> for Clien
         Ok(Self {
             broadcast_id: id,
             schema: Arc::new(schema),
+        })
+    }
+}
+
+impl TryFrom<ClientExchangeRecvExec> for protogen::sqlexec::physical_plan::ClientExchangeRecvExec {
+    type Error = ProtoConvError;
+    fn try_from(value: ClientExchangeRecvExec) -> Result<Self, Self::Error> {
+        Ok(Self {
+            broadcast_id: value.broadcast_id.into_bytes().to_vec(),
+            schema: Some(value.schema.try_into()?),
         })
     }
 }

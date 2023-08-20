@@ -97,8 +97,10 @@ impl TableProvider for LocalSideTableProvider {
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let broadcast_id = Uuid::new_v4();
-        println!("broadcast id: {broadcast_id}");
-        let recv = ClientExchangeRecvExec::new(broadcast_id, self.schema());
+        let recv = ClientExchangeRecvExec {
+            broadcast_id,
+            schema: self.schema(),
+        };
 
         let input = self.inner.scan(state, projection, filters, limit).await?;
         let send = ClientExchangeSendExec::new(broadcast_id, self.client.clone(), input);
