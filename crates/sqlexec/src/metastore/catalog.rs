@@ -48,7 +48,7 @@ impl CatalogMutator {
         &mut self,
         catalog_version: u64,
         mutations: impl IntoIterator<Item = Mutation>,
-    ) -> Result<()> {
+    ) -> Result<Arc<CatalogState>> {
         let client = match &self.client {
             Some(client) => client,
             None => return Err(SessionCatalogError::MetastoreClientNotConfigured),
@@ -58,7 +58,7 @@ impl CatalogMutator {
         // commit.
         let mutations: Vec<_> = mutations.into_iter().collect();
 
-        let _state = match client.try_mutate(catalog_version, mutations.clone()).await {
+        let state = match client.try_mutate(catalog_version, mutations.clone()).await {
             Ok(state) => state,
             Err(MetastoreClientError::MetastoreTonic {
                 strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
@@ -81,7 +81,7 @@ impl CatalogMutator {
             Err(e) => return Err(e.into()),
         };
 
-        Ok(())
+        Ok(state)
     }
 }
 
@@ -448,5 +448,9 @@ impl TempObjects {
 
     pub fn drop_table(&mut self, name: &str) {
         self.current_session_tables.remove(name);
+    }
+
+    pub fn iter_table_names(&self) -> impl Iterator<Item = &str> {
+        self.current_session_tables.keys().map(|s| s.as_str())
     }
 }

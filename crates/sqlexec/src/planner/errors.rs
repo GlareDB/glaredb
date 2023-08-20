@@ -6,6 +6,12 @@ pub enum PlanError {
     #[error("SQL statement currently unsupported: {0}")]
     UnsupportedSQLStatement(String),
 
+    #[error("Failed to create table provider for '{reference}': {e}")]
+    FailedToCreateTableProvider {
+        reference: String,
+        e: crate::dispatch::DispatchError,
+    },
+
     #[error("Failed to find table for reference: {reference}")]
     FailedToFindTableForReference { reference: String },
 
@@ -14,6 +20,9 @@ pub enum PlanError {
 
     #[error(transparent)]
     Preprocess(#[from] crate::planner::preprocess::PreprocessError),
+
+    #[error(transparent)]
+    Dispatch(#[from] crate::dispatch::DispatchError),
 
     #[error("Invalid tunnel '{tunnel}': {reason}")]
     InvalidTunnel { tunnel: String, reason: String },

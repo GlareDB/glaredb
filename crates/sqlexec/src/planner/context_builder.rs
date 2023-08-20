@@ -1,4 +1,5 @@
 use crate::context::local::SessionContext;
+use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
@@ -94,55 +95,57 @@ impl<'a> PartialContextProvider<'a> {
             }
         }
 
-        if let Some(mut client) = self.ctx.exec_client() {
-            let provider = client
-                .dispatch_access(reference.to_owned_reference())
-                .await?;
-            return Ok(Arc::new(provider));
-        }
-
-        unimplemented!()
-
-        // let dispatcher = SessionDispatcher::new(self.ctx);
-        // match &reference {
-        //     TableReference::Bare { table } => {
-        //         for schema in self.ctx.implicit_search_paths() {
-        //             // TODO
-        //             match dispatcher
-        //                 .dispatch_access(DEFAULT_CATALOG, &schema, table)
-        //                 .await
-        //             {
-        //                 Ok(table) => return Ok(table),
-        //                 Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
-        //                 Err(e) => {
-        //                     return Err(PlanError::FailedToCreateTableProvider {
-        //                         reference: reference.to_string(),
-        //                         e,
-        //                     });
-        //                 }
-        //             }
-        //         }
-
-        //         Err(PlanError::FailedToFindTableForReference {
-        //             reference: reference.to_string(),
-        //         })
-        //     }
-        //     TableReference::Partial { schema, table } => {
-        //         // TODO
-        //         let table = dispatcher
-        //             .dispatch_access(DEFAULT_CATALOG, schema, table)
-        //             .await?;
-        //         Ok(table)
-        //     }
-        //     TableReference::Full {
-        //         catalog,
-        //         schema,
-        //         table,
-        //     } => {
-        //         let table = dispatcher.dispatch_access(catalog, schema, table).await?;
-        //         Ok(table)
-        //     }
+        // TODO: Add this back in, but don't default to always reading from remote.
+        // if let Some(mut client) = self.ctx.exec_client() {
+        //     let provider = client
+        //         .dispatch_access(reference.to_owned_reference())
+        //         .await?;
+        //     return Ok(Arc::new(provider));
         // }
+
+        let dispatcher = Dispatcher::new(
+            self.ctx.get_session_catalog(),
+            self.ctx.get_native_tables(),
+            self.ctx.get_metrics(),
+            self.ctx.get_temp_objects(),
+            self.ctx,
+            self.ctx.df_ctx(),
+            self.ctx.get_session_vars().is_cloud_instance(),
+        );
+        match &reference {
+            TableReference::Bare { table } => {
+                for schema in self.ctx.implicit_search_paths() {
+                    // TODO: Allow defaulting to some other database.
+                    match dispatcher.dispatch(DEFAULT_CATALOG, &schema, table).await {
+                        Ok(table) => return Ok(table),
+                        Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
+                        Err(e) => {
+                            return Err(PlanError::FailedToCreateTableProvider {
+                                reference: reference.to_string(),
+                                e,
+                            });
+                        }
+                    }
+                }
+
+                Err(PlanError::FailedToFindTableForReference {
+                    reference: reference.to_string(),
+                })
+            }
+            TableReference::Partial { schema, table } => {
+                // TODO: Allow defaulting to some other database.
+                let table = dispatcher.dispatch(DEFAULT_CATALOG, schema, table).await?;
+                Ok(table)
+            }
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => {
+                let table = dispatcher.dispatch(catalog, schema, table).await?;
+                Ok(table)
+            }
+        }
     }
 
     /// Find a table function with the given reference, taking into account the

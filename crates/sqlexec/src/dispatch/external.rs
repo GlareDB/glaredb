@@ -19,9 +19,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use protogen::metastore::types::catalog::{
-    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, TableEntry, ViewEntry,
-};
+use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,

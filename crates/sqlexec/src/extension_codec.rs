@@ -17,7 +17,7 @@ use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
-use crate::remote::table::RemoteTableProvider;
+use crate::remote::table::StubRemoteTableProvider;
 
 use protogen::export::prost::Message;
 
@@ -268,7 +268,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
         node: Arc<dyn TableProvider>,
         buf: &mut Vec<u8>,
     ) -> Result<()> {
-        if let Some(remote_provider) = node.as_any().downcast_ref::<RemoteTableProvider>() {
+        if let Some(remote_provider) = node.as_any().downcast_ref::<StubRemoteTableProvider>() {
             remote_provider
                 .encode(buf)
                 .map_err(|e| DataFusionError::External(Box::new(e)))

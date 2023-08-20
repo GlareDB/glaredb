@@ -1,8 +1,4 @@
-use datafusion::{
-    arrow::datatypes::Schema, common::OwnedTableReference, error::DataFusionError, prelude::Expr,
-    sql::TableReference,
-};
-use datafusion_proto::bytes::Serializeable;
+use datafusion::{arrow::datatypes::Schema, common::OwnedTableReference, sql::TableReference};
 use prost::Message;
 use uuid::Uuid;
 

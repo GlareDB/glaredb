@@ -4,11 +4,19 @@ pub mod system;
 
 use std::sync::Arc;
 
-use datafusion::{datasource::TableProvider, prelude::SessionContext};
+use async_trait::async_trait;
+use datafusion::datasource::{TableProvider, ViewTable};
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::prelude::SessionContext as DfSessionContext;
+use datafusion::prelude::{Column, Expr};
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryMeta, EntryType, ViewEntry};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 
+use crate::context::local::SessionContext;
+use crate::parser::CustomParser;
+use crate::planner::errors::PlanError;
+use crate::planner::session_planner::SessionPlanner;
 use crate::{
     dispatch::system::SystemTableDispatcher,
     metastore::catalog::{SessionCatalog, TempObjects},
@@ -42,8 +50,8 @@ pub enum DispatchError {
     #[error("Unhandled entry for table dispatch: {0:?}")]
     UnhandledEntry(EntryMeta),
 
-    #[error("failed to do late planning: {0}")]
-    LatePlanning(Box<crate::planner::errors::PlanError>),
+    #[error("failed to plan view: {0}")]
+    ViewPlanning(Box<crate::planner::errors::PlanError>),
 
     #[error("Invalid dispatch: {0}")]
     InvalidDispatch(&'static str),
@@ -93,13 +101,61 @@ impl DispatchError {
     }
 }
 
+/// Trait for planning views.
+///
+/// Currently views aren't that sophisticated as we're only storing the SQL
+/// statement and column aliases. We don't track view dependencies.
+#[async_trait]
+pub trait ViewPlanner: Send + Sync {
+    /// Plan a view from SQL, producing a logical plan with the provided
+    /// aliases.
+    ///
+    /// If no column aliases are provided, then columns should be returned
+    /// as-is.
+    async fn plan_view(&self, sql: &str, col_aliases: &[String]) -> Result<LogicalPlan, PlanError>;
+}
+
+#[async_trait]
+impl ViewPlanner for SessionContext {
+    async fn plan_view(&self, sql: &str, col_aliases: &[String]) -> Result<LogicalPlan, PlanError> {
+        // TODO: Instead of doing late planning, we should instead try to insert
+        // the contents of the view into the parent query prior to any planning.
+        let mut statements = CustomParser::parse_sql(sql)?;
+        if statements.len() != 1 {
+            return Err(PlanError::ExpectedExactlyOneStatement(
+                statements.into_iter().collect(),
+            ));
+        }
+
+        let planner = SessionPlanner::new(self);
+
+        let plan = planner.plan_ast(statements.pop_front().unwrap()).await?;
+        let mut df_plan = plan.try_into_datafusion_plan()?;
+
+        // Wrap logical plan in projection if the view was defined with
+        // column aliases.
+        if !col_aliases.is_empty() {
+            let fields = df_plan.schema().fields().clone();
+            df_plan = LogicalPlanBuilder::from(df_plan)
+                .project(fields.iter().zip(col_aliases.iter()).map(|(field, alias)| {
+                    Expr::Column(Column::new_unqualified(field.name())).alias(alias)
+                }))?
+                .build()?;
+        }
+
+        Ok(df_plan)
+    }
+}
+
+/// Dispatch to table providers.
 pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
     metrics: &'a SessionMetrics,
     temp_objects: &'a TempObjects,
+    view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
-    df_ctx: &'a SessionContext,
+    df_ctx: &'a DfSessionContext,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
 }
@@ -110,7 +166,8 @@ impl<'a> Dispatcher<'a> {
         tables: &'a NativeTableStorage,
         metrics: &'a SessionMetrics,
         temp_objects: &'a TempObjects,
-        df_ctx: &'a SessionContext,
+        view_planner: &'a dyn ViewPlanner,
+        df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
     ) -> Self {
         Dispatcher {
@@ -118,6 +175,7 @@ impl<'a> Dispatcher<'a> {
             tables,
             metrics,
             temp_objects,
+            view_planner,
             df_ctx,
             disable_local_fs_access,
         }
@@ -177,7 +235,8 @@ impl<'a> Dispatcher<'a> {
             CatalogEntry::View(view) => self.dispatch_view(view).await,
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.metrics).dispatch(schema, name)
+                SystemTableDispatcher::new(self.catalog, self.metrics, self.temp_objects)
+                    .dispatch(schema, name)
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {
@@ -195,6 +254,11 @@ impl<'a> Dispatcher<'a> {
     }
 
     async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
-        unimplemented!()
+        let plan = self
+            .view_planner
+            .plan_view(&view.sql, &view.columns)
+            .await
+            .map_err(|e| DispatchError::ViewPlanning(Box::new(e)))?;
+        Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 }

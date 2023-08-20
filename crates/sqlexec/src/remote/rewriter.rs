@@ -59,9 +59,17 @@ impl TreeNodeRewriter for LocalSideTableRewriter {
                     let exec_ref = new_provider.get_exec_ref();
                     self.exec_refs.push(exec_ref);
 
-                    println!("replacing?");
-
                     // TODO: Use a custom node rather than changing the name.
+                    //
+                    // Datafusion implements Eq for logical plan nodes that
+                    // don't check the source. The `TreeNode` impl for logical
+                    // plan will only actually replace the node if it's not
+                    // equal to the old node.
+                    //
+                    // To get around this, we can change the name used. I'm not
+                    // totally comfortable with that, but it gets this working,
+                    // and table names aren't used when creating the physical
+                    // plan.
                     Ok(LogicalPlan::TableScan(TableScan {
                         table_name: "local_table_rewrite".into(),
                         source: Arc::new(DefaultTableSource::new(Arc::new(new_provider))),

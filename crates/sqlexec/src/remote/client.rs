@@ -3,15 +3,8 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::SessionCatalog,
 };
-use datafusion::{
-    common::OwnedTableReference, logical_expr::LogicalPlan, physical_plan::ExecutionPlan,
-    prelude::Expr,
-};
-use datafusion_proto::{
-    logical_plan::AsLogicalPlan,
-    physical_plan::AsExecutionPlan,
-    protobuf::{LogicalPlanNode, PhysicalPlanNode},
-};
+use datafusion::{common::OwnedTableReference, physical_plan::ExecutionPlan};
+use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     rpcsrv::types::service::{
@@ -31,7 +24,7 @@ use tonic::{
 use url::Url;
 use uuid::Uuid;
 
-use super::table::RemoteTableProvider;
+use super::table::StubRemoteTableProvider;
 
 const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 
@@ -224,7 +217,7 @@ impl RemoteSessionClient {
     pub async fn dispatch_access(
         &mut self,
         table_ref: OwnedTableReference,
-    ) -> Result<RemoteTableProvider> {
+    ) -> Result<StubRemoteTableProvider> {
         let mut request = service::DispatchAccessRequest::from(DispatchAccessRequest {
             session_id: self.session_id(),
             table_ref,
@@ -241,11 +234,7 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(RemoteTableProvider::new(
-            self.clone(),
-            resp.id,
-            Arc::new(resp.schema),
-        ))
+        Ok(StubRemoteTableProvider::new(resp.id, Arc::new(resp.schema)))
     }
 
     pub async fn physical_plan_execute(

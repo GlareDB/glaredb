@@ -2,28 +2,20 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
 use crate::metrics::SessionMetrics;
-use crate::parser::{CustomParser, StatementWithExtensions};
-use crate::planner::errors::PlanError;
+use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use crate::remote::planner::RemoteQueryPlanner;
-use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::{Column as DfColumn, SchemaReference};
-use datafusion::config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions};
-use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::common::SchemaReference;
+use datafusion::datasource::MemTable;
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
-use datafusion::execution::disk_manager::DiskManagerConfig;
-use datafusion::execution::memory_pool::GreedyMemoryPool;
-use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
-use datafusion::logical_expr::{Expr as DfExpr, LogicalPlanBuilder as DfLogicalPlanBuilder};
 use datafusion::physical_plan::{
     coalesce_partitions::CoalescePartitionsExec, execute_stream, ExecutionPlan,
 };
@@ -32,11 +24,9 @@ use datafusion::sql::TableReference;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
-use futures::{future::BoxFuture, StreamExt};
+use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
-use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
@@ -52,20 +42,12 @@ use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
-/// Context for a remote session.
-struct RemoteSessionContext {
-    /// Session's table providers.
-    table_providers: HashMap<uuid::Uuid, Arc<dyn TableProvider>>,
-    /// Session's physical plans.
-    physical_plans: HashMap<uuid::Uuid, Arc<dyn ExecutionPlan>>,
-}
-
-/// Context for a session used during execution.
+/// Context for a session used local execution and planning.
 ///
-/// The context generally does not have to worry about anything external to the
-/// database. Its source of truth is the in-memory catalog.
-// TODO: Need to make session context less pervasive. Pretty much everything in
-// this crate relies on it, make test setup a pain.
+/// A session may be attached to a remote context in which parts of a query can
+/// be executed remotely. When attaching a remote context, the query planner is
+/// switched out to one that's able to generate plans to send to remote
+/// contexts.
 pub struct SessionContext {
     /// The execution client for remote sessions.
     exec_client: Option<RemoteSessionClient>,
@@ -185,6 +167,10 @@ impl SessionContext {
         &self.tables
     }
 
+    pub fn get_temp_objects(&self) -> &TempObjects {
+        &self.temp_objects
+    }
+
     /// Return the DF session context.
     pub fn df_ctx(&self) -> &DfSessionContext {
         &self.df_ctx
@@ -232,7 +218,8 @@ impl SessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
         // Insert into catalog.
-        self.catalog_mutator
+        let state = self
+            .catalog_mutator
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateTable(service::CreateTable {
@@ -244,30 +231,12 @@ impl SessionContext {
             )
             .await?;
 
-        // Mutations should update the local catalog state, so resolve the
-        // entry.
-        let ent = match self.catalog.resolve_entry(DEFAULT_CATALOG, &schema, &name) {
-            Some(CatalogEntry::Table(table)) => match &table.options {
-                TableOptions::Internal(_) => table,
-                other => {
-                    return Err(ExecError::Internal(format!(
-                        "Unexpected set of table options: {:?}",
-                        other
-                    )))
-                }
-            },
-            Some(other) => {
-                return Err(ExecError::Internal(format!(
-                    "Unexpected catalog entry type: {:?}",
-                    other
-                )))
-            }
-            None => {
-                return Err(ExecError::Internal(
-                    "Missing table after catalog insert".to_string(),
-                ));
-            }
-        };
+        // Note that we're not changing out the catalog stored on the context,
+        // we're just using it here to get the new table entry easily.
+        let new_catalog = SessionCatalog::new(state);
+        let ent = new_catalog
+            .resolve_native_table(DEFAULT_CATALOG, &schema, &name)
+            .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))?;
 
         // Create native table.
         let table = self.tables.create_table(ent).await?;
@@ -767,44 +736,6 @@ impl SessionContext {
     /// Get a datafusion task context to use for physical plan execution.
     pub(crate) fn task_context(&self) -> Arc<TaskContext> {
         self.df_ctx.task_ctx()
-    }
-
-    /// Plan the body of a view.
-    pub(crate) fn late_view_plan<'a, 'b: 'a>(
-        &'a self,
-        sql: &'b str,
-        columns: &'b [String],
-    ) -> BoxFuture<Result<datafusion::logical_expr::LogicalPlan, PlanError>> {
-        // TODO: Instead of doing late planning, we should instead try to insert
-        // the contents of the view into the parent query prior to any planning.
-        //
-        // The boxed future is a quick fix to enable recursive async planning.
-        Box::pin(async move {
-            let mut statements = CustomParser::parse_sql(sql)?;
-            if statements.len() != 1 {
-                return Err(PlanError::ExpectedExactlyOneStatement(
-                    statements.into_iter().collect(),
-                ));
-            }
-
-            let planner = SessionPlanner::new(self);
-
-            let plan = planner.plan_ast(statements.pop_front().unwrap()).await?;
-            let mut df_plan = plan.try_into_datafusion_plan()?;
-
-            // Wrap logical plan in projection if the view was defined with
-            // column aliases.
-            if !columns.is_empty() {
-                let fields = df_plan.schema().fields().clone();
-                df_plan = DfLogicalPlanBuilder::from(df_plan)
-                    .project(fields.iter().zip(columns.iter()).map(|(field, alias)| {
-                        DfExpr::Column(DfColumn::new_unqualified(field.name())).alias(alias)
-                    }))?
-                    .build()?;
-            }
-
-            Ok(df_plan)
-        })
     }
 
     /// Resolve schema reference.

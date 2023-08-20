@@ -6,10 +6,6 @@ use std::{path::PathBuf, sync::Arc};
 use datafusion::{
     config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions},
     execution::{
-        context::{
-            SessionConfig as DfSessionConfig, SessionContext as DfSessionContext,
-            SessionState as DfSessionState,
-        },
         disk_manager::DiskManagerConfig,
         memory_pool::GreedyMemoryPool,
         runtime_env::{RuntimeConfig, RuntimeEnv},
@@ -19,9 +15,7 @@ use datafusion_ext::vars::SessionVars;
 use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
-use crate::{
-    errors::Result, metastore::catalog::SessionCatalog, remote::staged_stream::StagedClientStreams,
-};
+use crate::{errors::Result, metastore::catalog::SessionCatalog};
 
 /// Create a new datafusion runtime env common to both remote and local
 /// sessions.

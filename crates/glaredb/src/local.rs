@@ -154,7 +154,6 @@ impl LocalSession {
             storage_conf,
             tracker,
             opts.spill_path.clone(),
-            /* integration_testing = */ false,
         )
         .await?;
 

@@ -2,7 +2,6 @@ use crate::background_jobs::JobRunner;
 use crate::context::remote::RemoteSessionContext;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
-use crate::remote::client::RemoteClient;
 use crate::session::Session;
 
 use std::fs;
@@ -13,14 +12,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
-use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use object_store_util::conf::StorageConfig;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use protogen::rpcsrv::types::service::{
-    InitializeSessionRequest, InitializeSessionRequestFromClient,
-};
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
@@ -104,8 +99,6 @@ pub struct Engine {
     session_counter: Arc<AtomicU64>,
     /// Background jobs to run.
     background_jobs: JobRunner,
-    /// Running in integration_testing mode.
-    integration_testing: bool,
 }
 
 impl Engine {
@@ -115,7 +108,6 @@ impl Engine {
         storage: EngineStorageConfig,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
-        integration_testing: bool,
     ) -> Result<Engine> {
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
@@ -124,7 +116,6 @@ impl Engine {
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
             background_jobs: JobRunner::new(Default::default()),
-            integration_testing,
         })
     }
 

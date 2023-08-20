@@ -12,26 +12,29 @@ use datafusion::{
 };
 use uuid::Uuid;
 
-use crate::errors::{ExecError, Result};
+use crate::errors::Result;
 
-use super::client::RemoteSessionClient;
-
+/// A stub table provider for getting the schema of a remote table.
+///
+/// When the local session needs information for a table that exists in an
+/// external system (e.g. Postgres), it will call out to the remote session. The
+/// remote session loads the actual table, but than sends back this stubbed
+/// provider so that the local session can use it for query planning.
+///
+/// Attempting to scan or insert will error.
 #[derive(Debug)]
-pub struct RemoteTableProvider {
+pub struct StubRemoteTableProvider {
     /// ID for this table provider.
     provider_id: Uuid,
     /// Schema for the table provider.
     schema: Arc<Schema>,
-    /// Client for remote services.
-    client: RemoteSessionClient,
 }
 
-impl RemoteTableProvider {
-    pub fn new(client: RemoteSessionClient, provider_id: Uuid, schema: SchemaRef) -> Self {
+impl StubRemoteTableProvider {
+    pub fn new(provider_id: Uuid, schema: SchemaRef) -> Self {
         Self {
             provider_id,
             schema,
-            client,
         }
     }
 
@@ -42,7 +45,7 @@ impl RemoteTableProvider {
 }
 
 #[async_trait]
-impl TableProvider for RemoteTableProvider {
+impl TableProvider for StubRemoteTableProvider {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -70,7 +73,7 @@ impl TableProvider for RemoteTableProvider {
     async fn insert_into(
         &self,
         _state: &SessionState,
-        input: Arc<dyn ExecutionPlan>,
+        _input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::NotImplemented(
             "insert_into called on a stub provider".to_string(),

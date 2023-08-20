@@ -1,4 +1,4 @@
-use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef};
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -69,7 +69,7 @@ impl ExecutionPlan for RemoteExecutionExec {
 
     fn execute(
         &self,
-        partition: usize,
+        _partition: usize,
         _context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         // TODO: Behavior is unknown when executing with more than one

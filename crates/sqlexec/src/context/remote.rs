@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use datafusion::{
-    common::TableReference,
     datasource::TableProvider,
     execution::context::{SessionConfig, SessionContext as DfSessionContext},
     physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream},
@@ -16,7 +15,7 @@ use crate::{
     errors::Result,
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::{CatalogMutator, SessionCatalog},
-    remote::staged_stream::{StagedClientStreams, StagedStreams},
+    remote::staged_stream::StagedClientStreams,
 };
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
@@ -28,7 +27,7 @@ pub struct RemoteSessionContext {
     catalog: SessionCatalog,
     catalog_mutator: CatalogMutator,
     /// Native tables.
-    tables: NativeTableStorage,
+    _tables: NativeTableStorage,
     /// Datafusion session context used for execution.
     df_ctx: DfSessionContext,
     /// Job runner for background jobs.
@@ -54,14 +53,14 @@ impl RemoteSessionContext {
         // Add in remote only extensions.
         conf = conf.with_extension(Arc::new(StagedClientStreams::default()));
 
-        // TODO: Query planners.
+        // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
 
         Ok(RemoteSessionContext {
             catalog,
             catalog_mutator,
-            tables: native_tables,
+            _tables: native_tables,
             df_ctx,
             _background_jobs: background_jobs,
             cached_table_providers: HashMap::new(),
@@ -106,7 +105,6 @@ impl RemoteSessionContext {
     /// entry resolution happens client-side.
     // TODO: We should be providing the catalog version as well to ensure we're
     // getting the correct entries from the catalog.
-    // TODO: All tables
     pub async fn load_and_cache_external_table(
         &mut self,
         database: &str,

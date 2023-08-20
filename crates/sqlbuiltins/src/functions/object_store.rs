@@ -56,7 +56,6 @@ impl TableFunc for ObjScanTableFunc {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<LogicalPlan> {
-        println!("what");
         if args.is_empty() {
             return Err(ExtensionError::InvalidNumArgs);
         }
@@ -190,7 +189,6 @@ async fn get_table_provider(
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-    println!("is local: {is_local}");
     if is_local {
         Ok(Arc::new(LocalTableHint(provider)))
     } else {

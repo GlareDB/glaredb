@@ -2,16 +2,11 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::extension_codec::GlareDBExtensionCodec;
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
-use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
-use crate::remote::client::{RemoteClient, RemoteSessionClient};
-use crate::remote::rewriter::LocalSideTableRewriter;
-use crate::remote::staged_stream::StagedClientStreams;
+use crate::remote::client::RemoteClient;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::tree_node::TreeNode;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};

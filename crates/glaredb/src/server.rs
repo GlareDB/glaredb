@@ -94,7 +94,6 @@ impl ComputeServer {
                 storage_conf,
                 Arc::new(tracker),
                 spill_path,
-                integration_testing,
             )
             .await?,
         );

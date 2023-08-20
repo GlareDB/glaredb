@@ -11,7 +11,6 @@ use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
-    metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
         CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, InitializeSessionRequest,
         InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,

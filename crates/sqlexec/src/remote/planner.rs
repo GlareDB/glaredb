@@ -1,13 +1,12 @@
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::display::ToStringifiedPlan;
 use datafusion::common::tree_node::TreeNode;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
-use datafusion::logical_expr::{LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
-use datafusion::physical_plan::{displayable, ExecutionPlan, PhysicalExpr};
-use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
 
 use std::sync::Arc;
@@ -68,10 +67,11 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         logical_plan: &DfLogicalPlan,
         session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        // TODO: This can be refactored a bit to better handle explains.
+
         // Rewrite logical plan to ensure tables that have a
         // "local" hint have their providers replaced with ones
         // that will produce client recv and send execs.
-        println!("before: {:?}", logical_plan);
         let mut rewriter = LocalSideTableRewriter::new(self.remote_client.clone());
         // TODO: Figure out where this should actually be called to remove need
         // to clone.
@@ -86,17 +86,14 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         // optimzer rule to do this, but that kinda goes against what
         // optimzation is for. We would also need to figure out how to pass
         // around the exec refs, so probably not worth it.
-        let what_plan = logical_plan.clone();
-        let what_plan = what_plan.rewrite(&mut rewriter)?;
-
-        println!("after: {:?}", logical_plan);
-        println!("execs len: {}", rewriter.exec_refs.len());
+        let logical_plan = logical_plan.clone();
+        let logical_plan = logical_plan.rewrite(&mut rewriter)?;
 
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
         // correct exec refs.
         let physical = DefaultPhysicalPlanner::default()
-            .create_physical_plan(&what_plan, session_state)
+            .create_physical_plan(&logical_plan, session_state)
             .await?;
 
         // Wrap in exec that will send the plan to the remote machine.
@@ -111,9 +108,6 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         // At this point, the send execs should have been
         // populated.
         let physical = Arc::new(SendRecvJoinExec::new(physical, rewriter.exec_refs));
-
-        let displayable_plan = displayable(physical.as_ref());
-        println!("{}", displayable_plan.indent(true));
 
         Ok(physical)
     }

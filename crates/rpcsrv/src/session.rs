@@ -2,13 +2,10 @@ use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::OwnedTableReference;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::prelude::Expr;
-use datafusion_proto::logical_plan::AsLogicalPlan;
 use datafusion_proto::physical_plan::AsExecutionPlan;
-use datafusion_proto::protobuf::{LogicalPlanNode, PhysicalPlanNode};
+use datafusion_proto::protobuf::PhysicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::context::remote::RemoteSessionContext;
-use sqlexec::engine::TrackedSession;
 use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -38,7 +35,7 @@ impl RemoteSession {
         session.get_session_catalog().get_state().as_ref().clone()
     }
 
-    pub async fn dispatch_access(&self, table_ref: OwnedTableReference) -> Result<(Uuid, Schema)> {
+    pub async fn dispatch_access(&self, _table_ref: OwnedTableReference) -> Result<(Uuid, Schema)> {
         unimplemented!()
         // let mut session = self.session.lock().await;
         // let provider = session.dispatch_access(table_ref).await?;

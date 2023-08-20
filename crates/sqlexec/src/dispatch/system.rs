@@ -10,13 +10,12 @@ use datasources::common::ssh::SshConnectionParameters;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
-    CURRENT_SESSION_SCHEMA, DATABASE_DEFAULT, DEFAULT_CATALOG, GLARE_COLUMNS, GLARE_CREDENTIALS,
-    GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
-    GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
-    SCHEMA_CURRENT_SESSION,
+    DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
+    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
+    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{SessionCatalog, TempObjects};
 use crate::metrics::SessionMetrics;
 
 use super::{DispatchError, Result};
@@ -25,11 +24,20 @@ use super::{DispatchError, Result};
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
     metrics: &'a SessionMetrics,
+    temp_objects: &'a TempObjects,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(catalog: &'a SessionCatalog, metrics: &'a SessionMetrics) -> Self {
-        SystemTableDispatcher { catalog, metrics }
+    pub fn new(
+        catalog: &'a SessionCatalog,
+        metrics: &'a SessionMetrics,
+        temp_objects: &'a TempObjects,
+    ) -> Self {
+        SystemTableDispatcher {
+            catalog,
+            metrics,
+            temp_objects,
+        }
     }
 
     pub fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
@@ -266,35 +274,34 @@ impl<'a> SystemTableDispatcher<'a> {
         }
 
         // Append temporary tables.
-        unimplemented!()
-        // for table in self.ctx.list_temp_tables() {
-        //     // TODO: Assign OID to temporary tables
-        //     oid.append_value(0);
-        //     schema_oid.append_value(SCHEMA_CURRENT_SESSION.oid);
-        //     database_oid.append_value(DATABASE_DEFAULT.oid);
-        //     schema_name.append_value(SCHEMA_CURRENT_SESSION.name);
-        //     table_name.append_value(table);
-        //     builtin.append_value(false);
-        //     external.append_value(false);
-        //     datasource.append_value("internal");
-        // }
+        for table in self.temp_objects.iter_table_names() {
+            // TODO: Assign OID to temporary tables
+            oid.append_value(0);
+            schema_oid.append_value(SCHEMA_CURRENT_SESSION.oid);
+            database_oid.append_value(DATABASE_DEFAULT.oid);
+            schema_name.append_value(SCHEMA_CURRENT_SESSION.name);
+            table_name.append_value(table);
+            builtin.append_value(false);
+            external.append_value(false);
+            datasource.append_value("internal");
+        }
 
-        // let batch = RecordBatch::try_new(
-        //     arrow_schema.clone(),
-        //     vec![
-        //         Arc::new(oid.finish()),
-        //         Arc::new(database_oid.finish()),
-        //         Arc::new(schema_oid.finish()),
-        //         Arc::new(schema_name.finish()),
-        //         Arc::new(table_name.finish()),
-        //         Arc::new(builtin.finish()),
-        //         Arc::new(external.finish()),
-        //         Arc::new(datasource.finish()),
-        //     ],
-        // )
-        // .unwrap();
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(oid.finish()),
+                Arc::new(database_oid.finish()),
+                Arc::new(schema_oid.finish()),
+                Arc::new(schema_name.finish()),
+                Arc::new(table_name.finish()),
+                Arc::new(builtin.finish()),
+                Arc::new(external.finish()),
+                Arc::new(datasource.finish()),
+            ],
+        )
+        .unwrap();
 
-        // MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
+        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
     fn build_glare_columns(&self) -> MemTable {
