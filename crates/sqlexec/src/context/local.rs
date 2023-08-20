@@ -9,8 +9,8 @@ use crate::parser::{CustomParser, StatementWithExtensions};
 use crate::planner::errors::PlanError;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::RemoteSessionClient;
-use crate::remote::planner::RemoteLogicalPlanner;
+use crate::remote::client::{RemoteClient, RemoteSessionClient};
+use crate::remote::planner::RemoteQueryPlanner;
 use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -29,6 +29,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use futures::{future::BoxFuture, StreamExt};
@@ -37,6 +38,9 @@ use pgrepr::types::arrow_to_pg_type;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
 use protogen::metastore::types::options::TableOptions;
 use protogen::metastore::types::service::{self, Mutation};
+use protogen::rpcsrv::types::service::{
+    InitializeSessionRequest, InitializeSessionRequestFromClient,
+};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -44,6 +48,7 @@ use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 use tracing::info;
+use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
@@ -100,7 +105,7 @@ impl SessionContext {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(vars);
         let conf: SessionConfig = opts.into();
-        let mut state = SessionState::with_config_rt(conf, Arc::new(runtime));
+        let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
 
@@ -117,6 +122,38 @@ impl SessionContext {
             env_reader: None,
             background_jobs,
         })
+    }
+
+    /// Attach a remote session to this session.
+    // TODO: Remove test_db_id
+    pub async fn attach_remote_session(
+        &mut self,
+        mut client: RemoteClient,
+        test_db_id: Option<Uuid>,
+    ) -> Result<()> {
+        let (client, catalog) = client
+            .initialize_session(InitializeSessionRequest::Client(
+                InitializeSessionRequestFromClient { test_db_id },
+            ))
+            .await?;
+
+        self.get_session_vars()
+            .write()
+            .remote_session_id
+            .set_raw(Some(client.session_id()), VarType::System)
+            .unwrap();
+        self.exec_client = Some(client.clone());
+        // TODO: We _could_ do something fancy where we keep the local catalog
+        // around, but that's for another time.
+        self.catalog_mutator.client = None;
+        self.catalog = catalog;
+
+        // Replace datafusion context with the remote aware planner.
+        let planner = RemoteQueryPlanner::new(client);
+        let state = self.df_ctx.state().with_query_planner(Arc::new(planner));
+        self.df_ctx = DfSessionContext::with_state(state);
+
+        Ok(())
     }
 
     /// Close this session. This is only relevant for sessions connecting to

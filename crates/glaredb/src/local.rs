@@ -164,10 +164,11 @@ impl LocalSession {
             } else {
                 RemoteClient::connect_with_proxy_destination(url.try_into()?).await?
             };
-            // engine
-            //     .new_session_with_remote_connection(SessionVars::default(), exec_client)
-            //     .await?
-            unimplemented!()
+            let mut sess = engine
+                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
+                .await?;
+            sess.attach_remote_session(exec_client, None).await?;
+            sess
         } else {
             engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())

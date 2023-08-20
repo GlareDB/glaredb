@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::errors::{ExecError, Result};
 
-use super::{client::RemoteSessionClient, exec::RemoteExecutionExec};
+use super::client::RemoteSessionClient;
 
 #[derive(Debug)]
 pub struct RemoteTableProvider {
@@ -58,19 +58,13 @@ impl TableProvider for RemoteTableProvider {
     async fn scan(
         &self,
         _state: &SessionState,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
-        limit: Option<usize>,
+        _projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        // TODO: Replace with error
-        unimplemented!()
-        // let remote_plan = self
-        //     .client
-        //     .clone()
-        //     .table_provider_scan(self.provider_id, projection, filters, limit)
-        //     .await
-        //     .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        // Ok(Arc::new(remote_plan))
+        Err(DataFusionError::NotImplemented(
+            "scan called on a stub provider".to_string(),
+        ))
     }
 
     async fn insert_into(
@@ -78,24 +72,8 @@ impl TableProvider for RemoteTableProvider {
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        // TODO: Replace with error
-        unimplemented!()
-        // let input = input
-        //     .as_any()
-        //     .downcast_ref::<RemoteExecutionExec>()
-        //     .ok_or_else(|| {
-        //         DataFusionError::External(Box::new(ExecError::Internal(
-        //             "`ExecutionPlan` not a `RemoteExecutionPlan` for remote `insert_into`"
-        //                 .to_string(),
-        //         )))
-        //     })?;
-
-        // let remote_plan = self
-        //     .client
-        //     .clone()
-        //     .table_provider_insert_into(self.provider_id, input.id())
-        //     .await
-        //     .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        // Ok(Arc::new(remote_plan))
+        Err(DataFusionError::NotImplemented(
+            "insert_into called on a stub provider".to_string(),
+        ))
     }
 }

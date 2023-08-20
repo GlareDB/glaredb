@@ -31,7 +31,7 @@ use tonic::{
 use url::Url;
 use uuid::Uuid;
 
-use super::{exec::RemoteExecutionExec, table::RemoteTableProvider};
+use super::table::RemoteTableProvider;
 
 const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 

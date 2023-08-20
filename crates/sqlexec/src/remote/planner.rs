@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
+use datafusion::common::tree_node::TreeNode;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
@@ -10,25 +11,29 @@ use datafusion::prelude::Expr;
 
 use std::sync::Arc;
 
-use super::client::RemoteSessionClient;
+use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
+use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
-/// A planner that executes everything on a remote service.
+use super::client::RemoteSessionClient;
+use super::rewriter::LocalSideTableRewriter;
+
+/// Generates physical plans for executing on a remote service.
 #[derive(Debug, Clone)]
-pub struct RemoteLogicalPlanner {
+pub struct RemoteQueryPlanner {
     /// Client to remote services.
     remote_client: RemoteSessionClient,
 }
 
-impl RemoteLogicalPlanner {
-    pub fn new(client: RemoteSessionClient) -> RemoteLogicalPlanner {
-        RemoteLogicalPlanner {
+impl RemoteQueryPlanner {
+    pub fn new(client: RemoteSessionClient) -> RemoteQueryPlanner {
+        RemoteQueryPlanner {
             remote_client: client,
         }
     }
 }
 
 #[async_trait]
-impl QueryPlanner for RemoteLogicalPlanner {
+impl QueryPlanner for RemoteQueryPlanner {
     async fn create_physical_plan(
         &self,
         logical_plan: &DfLogicalPlan,
@@ -44,14 +49,13 @@ impl QueryPlanner for RemoteLogicalPlanner {
 
 #[derive(Debug, Clone)]
 pub struct RemotePhysicalPlanner {
-    /// Client to remote services.
-    _remote_client: RemoteSessionClient,
+    remote_client: RemoteSessionClient,
 }
 
-impl From<&RemoteLogicalPlanner> for RemotePhysicalPlanner {
-    fn from(planner: &RemoteLogicalPlanner) -> Self {
+impl From<&RemoteQueryPlanner> for RemotePhysicalPlanner {
+    fn from(planner: &RemoteQueryPlanner) -> Self {
         Self {
-            _remote_client: planner.remote_client.clone(),
+            remote_client: planner.remote_client.clone(),
         }
     }
 }
@@ -63,10 +67,44 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         logical_plan: &DfLogicalPlan,
         session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let plan = DefaultPhysicalPlanner::default()
-            .create_physical_plan(logical_plan, session_state)
-            .await?;
-        Ok(plan)
+        // Rewrite logical plan to ensure tables that have a
+        // "local" hint have their providers replaced with ones
+        // that will produce client recv and send execs.
+        let mut rewriter = LocalSideTableRewriter::new(self.remote_client.clone());
+        // TODO: Figure out where this should actually be called to remove need
+        // to clone.
+        //
+        // Datafusion steps:
+        // 1. Analyze logical
+        // 2. Optimize logical
+        // 3. Plan physical
+        // 4. Optimize physical
+        //
+        // Ideally this rewrite happens between 2 and 3. We could also add an
+        // optimzer rule to do this, but that kinda goes against what
+        // optimzation is for. We would also need to figure out how to pass
+        // around the exec refs, so probably not worth it.
+        let logical_plan = logical_plan.clone().rewrite(&mut rewriter)?;
+
+        // Create the physical plans. This will call `scan` on
+        // the custom table providers meaning we'll have the
+        // correct exec refs.
+        let physical = session_state.create_physical_plan(&logical_plan).await?;
+
+        // Wrap in exec that will send the plan to the remote machine.
+        let physical = Arc::new(RemoteExecutionExec::new(
+            self.remote_client.clone(),
+            physical,
+        ));
+
+        // Create a wrapper physical plan which drives both the
+        // result stream, and the send execs
+        //
+        // At this point, the send execs should have been
+        // populated.
+        let physical = SendRecvJoinExec::new(physical, rewriter.exec_refs);
+
+        Ok(Arc::new(physical))
     }
 
     fn create_physical_expr(
@@ -82,19 +120,5 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
             input_schema,
             session_state,
         )
-    }
-}
-
-#[async_trait]
-impl ExtensionPlanner for RemotePhysicalPlanner {
-    async fn plan_extension(
-        &self,
-        _planner: &dyn PhysicalPlanner,
-        _node: &dyn UserDefinedLogicalNode,
-        _logical_inputs: &[&DfLogicalPlan],
-        _physical_inputs: &[Arc<dyn ExecutionPlan>],
-        _session_state: &SessionState,
-    ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
-        Ok(None)
     }
 }

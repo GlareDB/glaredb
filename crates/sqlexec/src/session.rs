@@ -7,7 +7,7 @@ use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
-use crate::remote::client::RemoteSessionClient;
+use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use crate::remote::rewriter::LocalSideTableRewriter;
 use crate::remote::staged_stream::StagedClientStreams;
 use datafusion::arrow::datatypes::Schema;
@@ -34,6 +34,7 @@ use datasources::object_store::ObjStoreAccess;
 use pgrepr::format::Format;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
+use uuid::Uuid;
 
 use crate::background_jobs::JobRunner;
 use crate::context::local::{Portal, PreparedStatement, SessionContext};
@@ -243,6 +244,14 @@ impl Session {
         Ok(Session { ctx })
     }
 
+    pub async fn attach_remote_session(
+        &mut self,
+        client: RemoteClient,
+        test_db_id: Option<Uuid>,
+    ) -> Result<()> {
+        self.ctx.attach_remote_session(client, test_db_id).await
+    }
+
     pub async fn close(&mut self) -> Result<()> {
         self.ctx.close().await
     }
@@ -275,37 +284,8 @@ impl Session {
                 Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
             }
             plan => {
-                // TODO: This should go into planner.
-
-                // If we're connected to a remote session, do some plan
-                // rewriting.
-                match self.ctx.exec_client() {
-                    Some(client) => {
-                        // Rewrite logical plan to ensure tables that have a
-                        // "local" hint have their providers replaced with ones
-                        // that will produce client recv and send execs.
-                        let mut rewriter = LocalSideTableRewriter::new(client);
-                        let plan = plan.rewrite(&mut rewriter)?;
-
-                        // Create the physical plans. This will call `scan` on
-                        // the custom table providers meaning we'll have the
-                        // correct exec refs.
-                        let physical = state.create_physical_plan(&plan).await?;
-
-                        // Create a wrapper physical plan which drives both the
-                        // result stream, and the send execs
-                        //
-                        // At this point, the send execs should have been
-                        // populated.
-                        let physical = SendRecvJoinExec::new(physical, rewriter.exec_refs);
-
-                        Ok(Arc::new(physical))
-                    }
-                    None => {
-                        let plan = state.create_physical_plan(&plan).await?;
-                        Ok(plan)
-                    }
-                }
+                let plan = state.create_physical_plan(&plan).await?;
+                Ok(plan)
             }
         }
     }
