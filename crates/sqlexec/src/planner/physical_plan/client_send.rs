@@ -87,6 +87,7 @@ impl ExecutionPlan for ClientExchangeSendExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        println!("send exec");
         // Supporting multiple partitions in the future should be easy enough,
         // just make more streams.
         if partition != 0 {
@@ -210,6 +211,7 @@ impl Stream for ClientExchangeSendStream {
     type Item = service::BroadcastExchangeRequest;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        println!("sending");
         match self.stream.poll_next_unpin(cx) {
             Poll::Ready(Some(Ok(batch))) => {
                 self.row_count += batch.num_rows();

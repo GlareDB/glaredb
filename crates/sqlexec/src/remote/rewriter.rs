@@ -1,5 +1,6 @@
 use super::client::RemoteSessionClient;
 use super::local_side::{ClientSendExecsRef, LocalSideTableProvider};
+use datafusion::common::tree_node::RewriteRecursion;
 use datafusion::common::tree_node::TreeNodeRewriter;
 use datafusion::datasource::{source_as_provider, DefaultTableSource};
 use datafusion::error::Result;
@@ -30,11 +31,19 @@ impl LocalSideTableRewriter {
 impl TreeNodeRewriter for LocalSideTableRewriter {
     type N = LogicalPlan;
 
+    fn pre_visit(&mut self, node: &Self::N) -> Result<RewriteRecursion> {
+        if matches!(node, LogicalPlan::TableScan(..)) {
+            Ok(RewriteRecursion::Mutate)
+        } else {
+            Ok(RewriteRecursion::Continue)
+        }
+    }
+
     fn mutate(&mut self, node: Self::N) -> Result<Self::N> {
         match node {
             LogicalPlan::TableScan(TableScan {
                 table_name,
-                mut source,
+                source,
                 projection,
                 projected_schema,
                 filters,
@@ -50,17 +59,27 @@ impl TreeNodeRewriter for LocalSideTableRewriter {
                     let exec_ref = new_provider.get_exec_ref();
                     self.exec_refs.push(exec_ref);
 
-                    source = Arc::new(DefaultTableSource::new(Arc::new(new_provider)));
-                }
+                    println!("replacing?");
 
-                Ok(LogicalPlan::TableScan(TableScan {
-                    table_name,
-                    source,
-                    projection,
-                    projected_schema,
-                    fetch,
-                    filters,
-                }))
+                    // TODO: Use a custom node rather than changing the name.
+                    Ok(LogicalPlan::TableScan(TableScan {
+                        table_name: "local_table_rewrite".into(),
+                        source: Arc::new(DefaultTableSource::new(Arc::new(new_provider))),
+                        projection,
+                        projected_schema,
+                        fetch,
+                        filters,
+                    }))
+                } else {
+                    Ok(LogicalPlan::TableScan(TableScan {
+                        table_name,
+                        source,
+                        projection,
+                        projected_schema,
+                        fetch,
+                        filters,
+                    }))
+                }
             }
             other => Ok(other),
         }

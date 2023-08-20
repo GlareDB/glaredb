@@ -164,6 +164,7 @@ impl Stream for SendRecvJoinStream {
         }
 
         loop {
+            println!("receiving");
             // Try poll stream first.
             match this.stream.poll_next_unpin(cx) {
                 // Stream has data (batch or error)
