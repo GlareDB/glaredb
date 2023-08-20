@@ -166,7 +166,15 @@ impl LocalSession {
             let mut sess = engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
                 .await?;
-            sess.attach_remote_session(exec_client, None).await?;
+            sess.attach_remote_session(exec_client.clone(), None)
+                .await?;
+
+            let info = format!(
+                "Connected to Cloud deployment: {}",
+                exec_client.get_deployment_name()
+            );
+            println!("{}", info.bold());
+
             sess
         } else {
             engine

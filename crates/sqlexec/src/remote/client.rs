@@ -137,6 +137,15 @@ impl RemoteClient {
         })
     }
 
+    /// Get the deployment name that we're connected to from the stored metadata
+    /// map.
+    pub fn get_deployment_name(&self) -> &str {
+        self.auth_metadata
+            .get(DB_NAME_KEY)
+            .map(|m| m.to_str().unwrap_or_default())
+            .unwrap_or("unknown")
+    }
+
     /// Connect to a proxy destination.
     pub async fn connect_with_proxy_destination(dst: ProxyDestination) -> Result<Self> {
         Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params).await
