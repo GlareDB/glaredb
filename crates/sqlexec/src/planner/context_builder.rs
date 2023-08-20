@@ -95,13 +95,40 @@ impl<'a> PartialContextProvider<'a> {
             }
         }
 
-        // TODO: Add this back in, but don't default to always reading from remote.
-        // if let Some(mut client) = self.ctx.exec_client() {
-        //     let provider = client
-        //         .dispatch_access(reference.to_owned_reference())
-        //         .await?;
-        //     return Ok(Arc::new(provider));
-        // }
+        // TODO: Be a bit more discerning about which tables to dispatch
+        // remotely. We want system tables and temp tables to resolve locally,
+        // while external and native tables get dispatches remotely.
+        //
+        // Also this is missing search path semantics.
+        if let Some(mut client) = self.ctx.exec_client() {
+            let owned = match reference {
+                TableReference::Bare { table } => {
+                    let schema = self.ctx.first_nonimplicit_schema()?;
+                    TableReference::Full {
+                        catalog: DEFAULT_CATALOG.into(),
+                        schema: schema.into(),
+                        table,
+                    }
+                }
+                TableReference::Partial { schema, table } => TableReference::Full {
+                    catalog: DEFAULT_CATALOG.into(),
+                    schema,
+                    table,
+                },
+                TableReference::Full {
+                    catalog,
+                    schema,
+                    table,
+                } => TableReference::Full {
+                    catalog,
+                    schema,
+                    table,
+                },
+            };
+            let owned = owned.to_owned_reference();
+            let prov = client.dispatch_access(owned).await?;
+            return Ok(Arc::new(prov));
+        }
 
         let dispatcher = Dispatcher::new(
             self.ctx.get_session_catalog(),

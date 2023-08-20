@@ -1,6 +1,6 @@
-use crate::errors::Result;
+use crate::errors::{Result, RpcsrvError};
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::OwnedTableReference;
+use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_proto::physical_plan::AsExecutionPlan;
 use datafusion_proto::protobuf::PhysicalPlanNode;
@@ -35,13 +35,25 @@ impl RemoteSession {
         session.get_session_catalog().get_state().as_ref().clone()
     }
 
-    pub async fn dispatch_access(&self, _table_ref: OwnedTableReference) -> Result<(Uuid, Schema)> {
-        unimplemented!()
-        // let mut session = self.session.lock().await;
-        // let provider = session.dispatch_access(table_ref).await?;
-        // let schema = provider.schema();
-        // let provider_id = session.add_table_provider(provider)?;
-        // Ok((provider_id, Schema::clone(&schema)))
+    pub async fn dispatch_access(&self, table_ref: OwnedTableReference) -> Result<(Uuid, Schema)> {
+        let (db, schema, name) = match table_ref {
+            TableReference::Bare { .. } | TableReference::Partial { .. } => {
+                return Err(RpcsrvError::Internal(
+                    "Full table reference required".to_string(),
+                ));
+            }
+            TableReference::Full {
+                catalog,
+                schema,
+                table,
+            } => (catalog, schema, table),
+        };
+
+        let mut session = self.session.lock().await;
+        let (id, prov) = session.load_and_cache_table(&db, &schema, &name).await?;
+        let schema = prov.schema().as_ref().clone();
+
+        Ok((id, schema))
     }
 
     pub async fn physical_plan_execute(

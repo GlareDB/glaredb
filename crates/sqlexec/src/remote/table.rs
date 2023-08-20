@@ -12,7 +12,10 @@ use datafusion::{
 };
 use uuid::Uuid;
 
-use crate::errors::Result;
+use crate::{
+    errors::Result,
+    planner::physical_plan::remote_scan::{ProviderReference, RemoteScanExec},
+};
 
 /// A stub table provider for getting the schema of a remote table.
 ///
@@ -20,8 +23,6 @@ use crate::errors::Result;
 /// external system (e.g. Postgres), it will call out to the remote session. The
 /// remote session loads the actual table, but than sends back this stubbed
 /// provider so that the local session can use it for query planning.
-///
-/// Attempting to scan or insert will error.
 #[derive(Debug)]
 pub struct StubRemoteTableProvider {
     /// ID for this table provider.
@@ -61,13 +62,25 @@ impl TableProvider for StubRemoteTableProvider {
     async fn scan(
         &self,
         _state: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::NotImplemented(
-            "scan called on a stub provider".to_string(),
-        ))
+        let provider = ProviderReference::RemoteReference(self.provider_id);
+        let projected_schema = match projection {
+            Some(proj) => Arc::new(self.schema.project(proj)?),
+            None => self.schema.clone(),
+        };
+
+        let exec = RemoteScanExec {
+            provider,
+            projected_schema,
+            projection: projection.cloned(),
+            filters: filters.to_vec(),
+            limit,
+        };
+
+        Ok(Arc::new(exec))
     }
 
     async fn insert_into(

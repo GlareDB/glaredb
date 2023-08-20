@@ -1,5 +1,4 @@
 use core::fmt;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
@@ -8,7 +7,8 @@ use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::FunctionRegistry;
 use datafusion::logical_expr::{Extension, LogicalPlan};
 use datafusion::physical_plan::ExecutionPlan;
-use datafusion::prelude::SessionContext;
+use datafusion::prelude::{Expr, SessionContext};
+use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use uuid::Uuid;
@@ -16,17 +16,21 @@ use uuid::Uuid;
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
-use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
+use crate::planner::physical_plan::remote_scan::ProviderReference;
+use crate::planner::physical_plan::{
+    client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
+};
+use crate::remote::provider_cache::ProviderCache;
 use crate::remote::table::StubRemoteTableProvider;
 
 use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
-    table_providers: Option<&'a HashMap<Uuid, Arc<dyn TableProvider>>>,
+    table_providers: Option<&'a ProviderCache>,
 }
 
 impl<'a> GlareDBExtensionCodec<'a> {
-    pub fn new_decoder(table_providers: &'a HashMap<Uuid, Arc<dyn TableProvider>>) -> Self {
+    pub fn new_decoder(table_providers: &'a ProviderCache) -> Self {
         Self {
             table_providers: Some(table_providers),
         }
@@ -260,7 +264,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 ))))
             })?;
 
-        Ok(Arc::clone(provider))
+        Ok(provider)
     }
 
     fn try_encode_table_provider(
@@ -285,7 +289,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         &self,
         buf: &[u8],
         _inputs: &[Arc<dyn ExecutionPlan>],
-        _registry: &dyn FunctionRegistry,
+        registry: &dyn FunctionRegistry,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         use protogen::sqlexec::physical_plan as proto;
 
@@ -296,7 +300,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
 
-        let plan = match ext {
+        let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
                 let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
                     DataFusionError::Plan(format!("failed to decode broadcast id: {e}"))
@@ -310,6 +314,47 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 Arc::new(ClientExchangeRecvExec {
                     broadcast_id,
                     schema: Arc::new(schema),
+                })
+            }
+            proto::ExecutionPlanExtensionType::RemoteScanExec(ext) => {
+                let provider_id = Uuid::from_slice(&ext.provider_id).map_err(|e| {
+                    DataFusionError::Plan(format!("failed to decode provider id: {e}"))
+                })?;
+                let projected_schema = ext
+                    .projected_schema
+                    .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
+                // TODO: Upstream `TryFrom` impl that doesn't need a reference.
+                let projected_schema: Schema = (&projected_schema).try_into()?;
+                let projection = if ext.projection.is_empty() {
+                    None
+                } else {
+                    Some(ext.projection.into_iter().map(|u| u as usize).collect())
+                };
+
+                let filters = ext
+                    .filters
+                    .iter()
+                    .map(|expr| parse_expr(expr, registry))
+                    .collect::<Result<Vec<Expr>, _>>()?;
+
+                let limit = ext.limit.map(|l| l as usize);
+
+                // We're on the remote side, get the real table provider from
+                // the cache.
+                let prov = self
+                    .table_providers
+                    .expect("remote context should have provider cache")
+                    .get(&provider_id)
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(format!("Missing proivder for id: {provider_id}"))
+                    })?;
+
+                Arc::new(RemoteScanExec {
+                    provider: ProviderReference::Provider(prov),
+                    projected_schema: Arc::new(projected_schema),
+                    projection,
+                    filters,
+                    limit,
                 })
             }
         };
@@ -327,6 +372,33 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     schema: Some(exec.schema.clone().try_into()?),
                 },
             )
+        } else if let Some(exec) = node.as_any().downcast_ref::<RemoteScanExec>() {
+            let id = match exec.provider {
+                ProviderReference::RemoteReference(id) => id,
+                ProviderReference::Provider(_) => {
+                    return Err(DataFusionError::Internal(
+                        "Unexpectedly got table provider on client side".to_string(),
+                    ))
+                }
+            };
+
+            proto::ExecutionPlanExtensionType::RemoteScanExec(proto::RemoteScanExec {
+                provider_id: id.into_bytes().to_vec(),
+                projected_schema: Some(exec.projected_schema.clone().try_into()?),
+                projection: exec
+                    .projection
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|u| u as u64)
+                    .collect(),
+                filters: exec
+                    .filters
+                    .iter()
+                    .map(|expr| expr.try_into())
+                    .collect::<Result<_, _>>()?,
+                limit: exec.limit.map(|u| u as u64),
+            })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"
