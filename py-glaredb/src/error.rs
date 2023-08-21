@@ -31,12 +31,12 @@ impl PyGlareDbError {
 impl From<PyGlareDbError> for PyErr {
     fn from(err: PyGlareDbError) -> Self {
         use PyGlareDbError::*;
-        match &err {
+        match err {
             Arrow(err) => ArrowErrorException::new_err(format!("{err:?}")),
             Metastore(err) => MetastoreException::new_err(err.to_string()),
             Exec(err) => ExecutionException::new_err(err.to_string()),
             Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
-            Other(msg) => PyRuntimeError::new_err(format!("{msg}")),
+            Other(msg) => PyRuntimeError::new_err(msg),
         }
     }
 }
