@@ -50,9 +50,7 @@
 //! to any limitations in metastore itself.
 
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use protogen::gen::metastore::service::{
-    FetchCatalogRequest, InitializeCatalogRequest, MutateRequest,
-};
+use protogen::gen::metastore::service::{FetchCatalogRequest, MutateRequest};
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::{catalog::CatalogState, service::Mutation};
 use std::collections::HashMap;
@@ -479,12 +477,6 @@ impl StatefulWorker {
         db_id: Uuid,
         mut client: MetastoreServiceClient<Channel>,
     ) -> Result<(StatefulWorker, mpsc::Sender<ClientRequest>)> {
-        let _ = client
-            .initialize_catalog(tonic::Request::new(InitializeCatalogRequest {
-                db_id: db_id.into_bytes().to_vec(),
-            }))
-            .await?;
-
         let resp = client
             .fetch_catalog(tonic::Request::new(FetchCatalogRequest {
                 db_id: db_id.into_bytes().to_vec(),

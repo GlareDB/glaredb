@@ -7,23 +7,6 @@ package metastore.service;
 import "metastore/catalog.proto";
 import "metastore/options.proto";
 
-message InitializeCatalogRequest {
-  // ID of the catalog to initialize.
-  bytes db_id = 1;
-}
-
-message InitializeCatalogResponse {
-  enum Status {
-    UNKNOWN = 0;
-    // Catalog initialized.
-    INITIALIZED = 1;
-    // Catalog already loaded.
-    ALREADY_LOADED = 2;
-  }
-
-  Status status = 1;
-}
-
 message FetchCatalogRequest {
   // ID of the database catalog to fetch.
   bytes db_id = 1;
@@ -190,17 +173,12 @@ message MutateResponse {
 }
 
 service MetastoreService {
-  // Initialize a database catalog.
-  //
-  // Idempotent, safe to call multiple times.
-  rpc InitializeCatalog(InitializeCatalogRequest)
-      returns (InitializeCatalogResponse);
-
   // Fetch the catalog for some database.
   //
   // The returned catalog will be the latest catalog that this metastore node
   // knows about.
-  // TODO: Could be streaming.
+  // TODO: Could be streaming for returning updated catalogs as they get
+  // mutated.
   rpc FetchCatalog(FetchCatalogRequest) returns (FetchCatalogResponse);
 
   // Mutate a database's catalog.
