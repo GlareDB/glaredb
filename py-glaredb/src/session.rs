@@ -46,6 +46,7 @@ impl LocalSession {
                 .map_err(PyGlareDbError::from)?)
         })
     }
+
     fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
         const UNNAMED: String = String::new();
 
@@ -85,6 +86,7 @@ impl LocalSession {
             }
         })
     }
+
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         wait_for_future(py, async move {
             if let Err(err) = self.sess.lock().await.close().await {
@@ -94,6 +96,7 @@ impl LocalSession {
         })
     }
 }
+
 fn to_arrow_batches_and_schema(
     result: &mut ExecutionResult,
     py: Python<'_>,

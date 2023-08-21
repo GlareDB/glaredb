@@ -23,6 +23,7 @@ pgsrv = { path = "../crates/pgsrv" }
 pgrepr = { path = "../crates/pgrepr" }
 datafusion_ext = { path = "../crates/datafusion_ext" }
 arrow_util = { path = "../crates/arrow_util" }
+glaredb = { path = "../crates/glaredb" }
 futures = "0.3.28"
 uuid = "1.4.1"
 async-trait = "0.1.72"
