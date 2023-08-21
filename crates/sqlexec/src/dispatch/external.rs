@@ -29,7 +29,7 @@ use protogen::metastore::types::options::{
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 
-use crate::metastore::catalog::{AsyncSessionCatalog, SessionCatalog};
+use crate::metastore::catalog::AsyncSessionCatalog;
 
 use super::{DispatchError, Result};
 
