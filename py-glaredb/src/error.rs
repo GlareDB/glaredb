@@ -17,6 +17,8 @@ pub enum PyGlareDbError {
     Metastore(#[from] MetastoreError),
     #[error(transparent)]
     Exec(#[from] ExecError),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
     #[error("{0}")]
     Other(String),
 }
@@ -33,7 +35,8 @@ impl From<PyGlareDbError> for PyErr {
             Arrow(err) => ArrowErrorException::new_err(format!("{err:?}")),
             Metastore(err) => MetastoreException::new_err(err.to_string()),
             Exec(err) => ExecutionException::new_err(err.to_string()),
-            Other(msg) => PyRuntimeError::new_err(format!("{:?}", &msg)),
+            Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
+            Other(msg) => PyRuntimeError::new_err(format!("{msg}")),
         }
     }
 }
