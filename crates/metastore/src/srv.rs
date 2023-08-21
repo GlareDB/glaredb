@@ -2,16 +2,14 @@ use crate::database::DatabaseCatalog;
 use crate::errors::MetastoreError;
 use crate::storage::persist::Storage;
 use async_trait::async_trait;
+use dashmap::DashMap;
 use object_store::ObjectStore;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
 use protogen::gen::metastore::service::{
-    self, FetchCatalogRequest, FetchCatalogResponse, InitializeCatalogRequest,
-    InitializeCatalogResponse, MutateRequest, MutateResponse,
+    self, FetchCatalogRequest, FetchCatalogResponse, MutateRequest, MutateResponse,
 };
 use protogen::metastore::types::service::Mutation;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -29,7 +27,7 @@ pub struct Service {
     /// database catalog. Catalog mutations are synchronized at the storage
     /// layer. It is possible for Metastore to serve out of date catalogs, but
     /// it's not possible to make mutations against an out of date catalog.
-    catalogs: RwLock<HashMap<Uuid, DatabaseCatalog>>,
+    catalogs: DashMap<Uuid, Arc<DatabaseCatalog>>,
 }
 
 impl Service {
@@ -40,63 +38,46 @@ impl Service {
         let storage = Arc::new(Storage::new(process_id, store));
         Service {
             storage,
-            catalogs: RwLock::new(HashMap::new()),
+            catalogs: DashMap::new(),
         }
+    }
+
+    /// Get an already loaded catalog, or load it into memory.
+    async fn get_or_load_catalog(
+        &self,
+        db_id: Uuid,
+    ) -> Result<Arc<DatabaseCatalog>, MetastoreError> {
+        // Fast path, already have the catalog.
+        if let Some(catalog) = self.catalogs.get(&db_id) {
+            return Ok(catalog.value().clone());
+        }
+
+        let catalog = Arc::new(DatabaseCatalog::open(db_id, self.storage.clone()).await?);
+
+        if self.catalogs.insert(db_id, catalog.clone()).is_some() {
+            // If there's an entry, it means we raced. However this isn't an
+            // issue since the in-memory catalog is really a reference to what's
+            // in object store. Every attempt to mutate the catalog will ensure
+            // that it's in sync with object store.
+            debug!(%db_id, "catalog init raced");
+        }
+
+        Ok(catalog)
     }
 }
 
 #[async_trait]
 impl MetastoreService for Service {
-    async fn initialize_catalog(
-        &self,
-        request: Request<InitializeCatalogRequest>,
-    ) -> Result<Response<InitializeCatalogResponse>, Status> {
-        let req = request.into_inner();
-        debug!(?req, "initializing catalog");
-
-        let id = Uuid::from_slice(&req.db_id)
-            .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
-
-        let catalogs = self.catalogs.read().await;
-        if catalogs.contains_key(&id) {
-            return Ok(Response::new(InitializeCatalogResponse {
-                status: service::initialize_catalog_response::Status::AlreadyLoaded as i32,
-            }));
-        }
-        std::mem::drop(catalogs);
-
-        let catalog = DatabaseCatalog::open(id, self.storage.clone()).await?;
-        let mut catalogs = self.catalogs.write().await;
-
-        // We raced, catalog inserted between locks.
-        if catalogs.contains_key(&id) {
-            return Ok(Response::new(InitializeCatalogResponse {
-                status: service::initialize_catalog_response::Status::AlreadyLoaded as i32,
-            }));
-        }
-
-        catalogs.insert(id, catalog);
-
-        Ok(Response::new(InitializeCatalogResponse {
-            status: service::initialize_catalog_response::Status::Initialized as i32,
-        }))
-    }
-
     async fn fetch_catalog(
         &self,
         request: Request<FetchCatalogRequest>,
     ) -> Result<Response<FetchCatalogResponse>, Status> {
         let req = request.into_inner();
         debug!(?req, "fetch catalog");
-
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
-        let catalogs = self.catalogs.read().await;
 
-        let catalog = catalogs
-            .get(&id)
-            .ok_or(MetastoreError::MissingCatalog(id))?;
-
+        let catalog = self.get_or_load_catalog(id).await?;
         let state = catalog.get_state().await?;
 
         Ok(Response::new(FetchCatalogResponse {
@@ -110,15 +91,10 @@ impl MetastoreService for Service {
     ) -> Result<Response<MutateResponse>, Status> {
         let req = request.into_inner();
         debug!(?req, "mutate catalog");
-
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
 
-        let catalogs = self.catalogs.read().await;
-        let catalog = catalogs
-            .get(&id)
-            .ok_or(MetastoreError::MissingCatalog(id))?;
-
+        let catalog = self.get_or_load_catalog(id).await?;
         let mutations = req
             .mutations
             .into_iter()
@@ -149,29 +125,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fetch_before_init() {
+    async fn first_fetch() {
         let svc = new_service();
         svc.fetch_catalog(Request::new(FetchCatalogRequest {
             db_id: Uuid::new_v4().into_bytes().to_vec(),
         }))
         .await
-        .unwrap_err();
-    }
-
-    #[tokio::test]
-    async fn init_idempotent() {
-        let svc = new_service();
-        let id_bs = Uuid::new_v4().into_bytes().to_vec();
-
-        svc.initialize_catalog(Request::new(InitializeCatalogRequest {
-            db_id: id_bs.clone(),
-        }))
-        .await
         .unwrap();
-
-        svc.initialize_catalog(Request::new(InitializeCatalogRequest { db_id: id_bs }))
-            .await
-            .unwrap();
     }
 
     #[tokio::test]
@@ -179,13 +139,6 @@ mod tests {
         let svc = new_service();
         let id = Uuid::new_v4();
         let id_bs = id.into_bytes().to_vec();
-
-        // Initialize.
-        svc.initialize_catalog(Request::new(InitializeCatalogRequest {
-            db_id: id_bs.clone(),
-        }))
-        .await
-        .unwrap();
 
         // Fetch initial catalog.
         let resp = svc

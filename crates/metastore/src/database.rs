@@ -39,6 +39,14 @@ const MAX_DATABASE_OBJECTS: usize = 2048;
 static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new().unwrap());
 
 /// Catalog for a single database.
+///
+/// This struct may be concurrently accessed via its public methods.
+/// Synchronization happens at two levels:
+///
+/// 1. The in-memory catalog state is wrapped in a mutex.
+/// 2. Persistence is managed via leases in object storage.
+///
+/// The source of truth for a database catalog is always what's in object store.
 pub struct DatabaseCatalog {
     db_id: Uuid,
 

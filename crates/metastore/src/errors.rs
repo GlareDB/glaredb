@@ -23,9 +23,6 @@ pub enum MetastoreError {
     #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
     BuiltinObjectPersisted(protogen::metastore::types::catalog::EntryMeta),
 
-    #[error("Missing database catalog: {0}")]
-    MissingCatalog(uuid::Uuid),
-
     #[error("Missing database: {0}")]
     MissingDatabase(String),
 
