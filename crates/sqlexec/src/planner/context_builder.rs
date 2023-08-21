@@ -288,11 +288,11 @@ pub struct TableFnCtxProvider<'a> {
 }
 
 impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
+    fn get_database_entry(&self, name: &str) -> Option<DatabaseEntry> {
         self.ctx.get_session_catalog().resolve_database(name)
     }
 
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
+    fn get_credentials_entry(&self, name: &str) -> Option<CredentialsEntry> {
         self.ctx.get_session_catalog().resolve_credentials(name)
     }
 

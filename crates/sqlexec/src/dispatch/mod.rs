@@ -14,12 +14,12 @@ use protogen::metastore::types::catalog::{CatalogEntry, EntryMeta, EntryType, Vi
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 
 use crate::context::local::LocalSessionContext;
+use crate::metastore::catalog::AsyncSessionCatalog;
 use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
 use crate::{
-    dispatch::system::SystemTableDispatcher,
-    metastore::catalog::{SessionCatalog, TempObjects},
+    dispatch::system::SystemTableDispatcher, metastore::catalog::TempObjects,
     metrics::SessionMetrics,
 };
 
@@ -149,7 +149,7 @@ impl ViewPlanner for LocalSessionContext {
 
 /// Dispatch to table providers.
 pub struct Dispatcher<'a> {
-    catalog: &'a SessionCatalog,
+    catalog: Arc<AsyncSessionCatalog>,
     tables: &'a NativeTableStorage,
     metrics: &'a SessionMetrics,
     temp_objects: &'a TempObjects,
@@ -162,7 +162,7 @@ pub struct Dispatcher<'a> {
 
 impl<'a> Dispatcher<'a> {
     pub fn new(
-        catalog: &'a SessionCatalog,
+        catalog: Arc<AsyncSessionCatalog>,
         tables: &'a NativeTableStorage,
         metrics: &'a SessionMetrics,
         temp_objects: &'a TempObjects,
@@ -199,11 +199,11 @@ impl<'a> Dispatcher<'a> {
                 }
             };
             return ExternalDispatcher::new(
-                self.catalog,
+                self.catalog.clone(),
                 self.df_ctx,
                 self.disable_local_fs_access,
             )
-            .dispatch_external_database(db, schema, name)
+            .dispatch_external_database(&db, schema, name)
             .await;
         }
 
@@ -231,18 +231,22 @@ impl<'a> Dispatcher<'a> {
             return Err(DispatchError::InvalidEntryTypeForDispatch(ent.entry_type()));
         }
 
-        match ent {
+        match &ent {
             CatalogEntry::View(view) => self.dispatch_view(view).await,
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.metrics, self.temp_objects)
+                SystemTableDispatcher::new(self.catalog.clone(), self.metrics, self.temp_objects)
                     .dispatch(schema, name)
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {
-                ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
-                    .dispatch_external_table(tbl)
-                    .await
+                ExternalDispatcher::new(
+                    self.catalog.clone(),
+                    self.df_ctx,
+                    self.disable_local_fs_access,
+                )
+                .dispatch_external_table(tbl)
+                .await
             }
             // Dispatch to native tables.
             CatalogEntry::Table(tbl) => {

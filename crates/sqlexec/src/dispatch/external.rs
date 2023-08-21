@@ -29,13 +29,13 @@ use protogen::metastore::types::options::{
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{AsyncSessionCatalog, SessionCatalog};
 
 use super::{DispatchError, Result};
 
 /// Dispatch to external tables and databases.
 pub struct ExternalDispatcher<'a> {
-    catalog: &'a SessionCatalog,
+    catalog: Arc<AsyncSessionCatalog>,
     // TODO: Remove need for this.
     df_ctx: &'a SessionContext,
     /// Whether or not local file system access should be disabled.
@@ -44,7 +44,7 @@ pub struct ExternalDispatcher<'a> {
 
 impl<'a> ExternalDispatcher<'a> {
     pub fn new(
-        catalog: &'a SessionCatalog,
+        catalog: Arc<AsyncSessionCatalog>,
         df_ctx: &'a SessionContext,
         disable_local_fs_access: bool,
     ) -> Self {
@@ -70,7 +70,7 @@ impl<'a> ExternalDispatcher<'a> {
                     })
                 }
             };
-            return self.dispatch_external_database(db, schema, name).await;
+            return self.dispatch_external_database(&db, schema, name).await;
         }
 
         let ent = self
@@ -90,7 +90,7 @@ impl<'a> ExternalDispatcher<'a> {
             _ => return Err(DispatchError::InvalidDispatch("entry is not a table")),
         };
 
-        self.dispatch_external_table(table).await
+        self.dispatch_external_table(&table).await
     }
 
     pub(super) async fn dispatch_external_database(

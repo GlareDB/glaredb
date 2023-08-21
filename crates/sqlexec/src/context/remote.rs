@@ -14,7 +14,7 @@ use crate::{
     dispatch::external::ExternalDispatcher,
     errors::Result,
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
+    metastore::catalog::{AsyncSessionCatalog, CatalogMutator, SessionCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
@@ -27,7 +27,6 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// - StagedClientStreams
 pub struct RemoteSessionContext {
     /// Database catalog.
-    catalog: SessionCatalog,
     catalog_mutator: CatalogMutator,
     /// Native tables.
     tables: NativeTableStorage,
@@ -55,13 +54,13 @@ impl RemoteSessionContext {
 
         // Add in remote only extensions.
         conf = conf.with_extension(Arc::new(StagedClientStreams::default()));
+        conf = conf.with_extension(Arc::new(AsyncSessionCatalog::new(catalog)));
 
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
 
         Ok(RemoteSessionContext {
-            catalog,
             catalog_mutator,
             tables: native_tables,
             df_ctx,
@@ -74,8 +73,11 @@ impl RemoteSessionContext {
         &self.df_ctx
     }
 
-    pub fn get_session_catalog(&self) -> &SessionCatalog {
-        &self.catalog
+    pub fn get_session_catalog(&self) -> Arc<AsyncSessionCatalog> {
+        self.df_ctx
+            .copied_config()
+            .get_extension::<AsyncSessionCatalog>()
+            .unwrap()
     }
 
     /// Returns the extension codec used for serializing and deserializing data
@@ -116,19 +118,22 @@ impl RemoteSessionContext {
         schema: &str,
         name: &str,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
-        self.catalog
+        self.get_session_catalog()
             .maybe_refresh_state(self.catalog_mutator.get_metastore_client(), false)
             .await?;
 
-        let prov: Arc<dyn TableProvider> =
-            if let Some(tbl) = self.catalog.resolve_native_table(database, schema, name) {
-                self.tables.load_table(tbl).await?.into_table_provider()
-            } else {
-                // Since this is operating on a remote node, always disable local fs
-                // access.
-                let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
-                dispatcher.dispatch_external(database, schema, name).await?
-            };
+        let prov: Arc<dyn TableProvider> = if let Some(ref tbl) = self
+            .get_session_catalog()
+            .resolve_native_table(database, schema, name)
+        {
+            self.tables.load_table(tbl).await?.into_table_provider()
+        } else {
+            // Since this is operating on a remote node, always disable local fs
+            // access.
+            let dispatcher =
+                ExternalDispatcher::new(self.get_session_catalog(), &self.df_ctx, true);
+            dispatcher.dispatch_external(database, schema, name).await?
+        };
 
         let id = Uuid::new_v4();
         self.provider_cache.put(id, prov.clone());

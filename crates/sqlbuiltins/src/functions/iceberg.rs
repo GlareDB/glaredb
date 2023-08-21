@@ -217,9 +217,11 @@ fn iceberg_location_and_opts(
             let url: DatasourceUrl = first.param_into()?;
             let creds: IdentValue = args.next().unwrap().param_into()?;
 
-            let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
-                ExtensionError::String("missing credentials object".to_string()),
-            )?;
+            let creds = ctx
+                .get_credentials_entry(creds.as_str())
+                .ok_or(ExtensionError::String(
+                    "missing credentials object".to_string(),
+                ))?;
 
             match url.datasource_url_type() {
                 DatasourceUrlType::Gcs => {

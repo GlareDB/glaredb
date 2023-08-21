@@ -45,8 +45,8 @@ pub trait TableFunc: Sync + Send {
     }
 }
 pub trait TableFuncContextProvider: Sync + Send {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
+    fn get_database_entry(&self, name: &str) -> Option<DatabaseEntry>;
+    fn get_credentials_entry(&self, name: &str) -> Option<CredentialsEntry>;
     fn get_session_vars(&self) -> SessionVars;
     fn get_session_state(&self) -> &SessionState;
 }

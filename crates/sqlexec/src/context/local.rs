@@ -2,7 +2,7 @@ use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobSto
 use crate::background_jobs::{BgJob, JobRunner};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
+use crate::metastore::catalog::{AsyncSessionCatalog, CatalogMutator, SessionCatalog, TempObjects};
 use crate::metrics::SessionMetrics;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -52,7 +52,6 @@ pub struct LocalSessionContext {
     /// The execution client for remote sessions.
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
-    catalog: SessionCatalog,
     catalog_mutator: CatalogMutator,
     /// Temporary objects dropped at the end of a session.
     temp_objects: TempObjects,
@@ -86,14 +85,14 @@ impl LocalSessionContext {
     ) -> Result<LocalSessionContext> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(vars);
-        let conf: SessionConfig = opts.into();
+        let mut conf: SessionConfig = opts.into();
+        conf = conf.with_extension(Arc::new(AsyncSessionCatalog::new(catalog)));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
 
         Ok(LocalSessionContext {
             exec_client: None,
-            catalog,
             catalog_mutator,
             temp_objects: TempObjects::default(),
             tables: native_tables,
@@ -128,11 +127,15 @@ impl LocalSessionContext {
         // TODO: We _could_ do something fancy where we keep the local catalog
         // around, but that's for another time.
         self.catalog_mutator.client = None;
-        self.catalog = catalog;
 
         // Replace datafusion context with the remote aware planner.
         let planner = RemoteQueryPlanner::new(client);
-        let state = self.df_ctx.state().with_query_planner(Arc::new(planner));
+        let state = self
+            .df_ctx
+            .state()
+            .with_query_planner(Arc::new(planner))
+            .with_config_extension(Arc::new(AsyncSessionCatalog::new(catalog)));
+
         self.df_ctx = DfSessionContext::with_state(state);
 
         Ok(())
@@ -221,7 +224,7 @@ impl LocalSessionContext {
         let state = self
             .catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateTable(service::CreateTable {
                     schema: schema.clone(),
                     name: name.clone(),
@@ -291,10 +294,13 @@ impl LocalSessionContext {
     pub async fn delete(&mut self, plan: Delete) -> Result<usize> {
         let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
-        if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
+        if let Some(table_entry) = self
+            .get_session_catalog()
+            .resolve_native_table(&database, &schema, &name)
+        {
             Ok(self
                 .tables
-                .delete_rows_where(table_entry, plan.where_expr)
+                .delete_rows_where(&table_entry, plan.where_expr)
                 .await?)
         } else {
             Err(ExecError::UnsupportedSQLStatement(
@@ -306,10 +312,13 @@ impl LocalSessionContext {
     pub async fn update(&mut self, plan: Update) -> Result<usize> {
         let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
 
-        if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
+        if let Some(table_entry) = self
+            .get_session_catalog()
+            .resolve_native_table(&database, &schema, &name)
+        {
             Ok(self
                 .tables
-                .update_rows_where(table_entry, plan.updates, plan.where_expr)
+                .update_rows_where(&table_entry, plan.updates, plan.where_expr)
                 .await?)
         } else {
             Err(ExecError::UnsupportedSQLStatement(
@@ -324,7 +333,7 @@ impl LocalSessionContext {
 
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateExternalTable(
                     service::CreateExternalTable {
                         schema,
@@ -344,7 +353,7 @@ impl LocalSessionContext {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateSchema(service::CreateSchema {
                     name,
                     if_not_exists: plan.if_not_exists,
@@ -357,7 +366,7 @@ impl LocalSessionContext {
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateExternalDatabase(
                     service::CreateExternalDatabase {
                         name: plan.database_name,
@@ -374,7 +383,7 @@ impl LocalSessionContext {
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateTunnel(service::CreateTunnel {
                     name: plan.name,
                     if_not_exists: plan.if_not_exists,
@@ -388,7 +397,7 @@ impl LocalSessionContext {
     pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateCredentials(service::CreateCredentials {
                     name: plan.name,
                     options: plan.options,
@@ -403,7 +412,7 @@ impl LocalSessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.view_name)?;
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::CreateView(service::CreateView {
                     schema,
                     name,
@@ -423,7 +432,7 @@ impl LocalSessionContext {
         // TODO: Check that the schema and catalog names are same.
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::AlterTableRename(service::AlterTableRename {
                     schema,
                     name,
@@ -438,7 +447,7 @@ impl LocalSessionContext {
     pub async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::AlterDatabaseRename(
                     service::AlterDatabaseRename {
                         name: plan.name,
@@ -454,7 +463,7 @@ impl LocalSessionContext {
     pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
         self.catalog_mutator
             .mutate(
-                self.catalog.version(),
+                self.get_session_catalog().version(),
                 [Mutation::AlterTunnelRotateKeys(
                     service::AlterTunnelRotateKeys {
                         name: plan.name,
@@ -483,7 +492,9 @@ impl LocalSessionContext {
 
             let (database, schema, name) = self.resolve_table_ref(r)?;
 
-            if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name)
+            if let Some(table_entry) = self
+                .get_session_catalog()
+                .resolve_native_table(&database, &schema, &name)
             {
                 let job: Arc<dyn BgJob> =
                     BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
@@ -497,7 +508,7 @@ impl LocalSessionContext {
             }));
         }
         self.catalog_mutator
-            .mutate(self.catalog.version(), drops)
+            .mutate(self.get_session_catalog().version(), drops)
             .await?;
 
         // Drop the session (temp) tables after catalog has mutated successfully
@@ -529,7 +540,7 @@ impl LocalSessionContext {
         }
 
         self.catalog_mutator
-            .mutate(self.catalog.version(), drops)
+            .mutate(self.get_session_catalog().version(), drops)
             .await?;
 
         Ok(())
@@ -551,7 +562,7 @@ impl LocalSessionContext {
             .collect();
 
         self.catalog_mutator
-            .mutate(self.catalog.version(), drops)
+            .mutate(self.get_session_catalog().version(), drops)
             .await?;
 
         Ok(())
@@ -571,7 +582,7 @@ impl LocalSessionContext {
             .collect();
 
         self.catalog_mutator
-            .mutate(self.catalog.version(), drops)
+            .mutate(self.get_session_catalog().version(), drops)
             .await?;
 
         Ok(())
@@ -591,7 +602,7 @@ impl LocalSessionContext {
             .collect();
 
         self.catalog_mutator
-            .mutate(self.catalog.version(), drops)
+            .mutate(self.get_session_catalog().version(), drops)
             .await?;
 
         Ok(())
@@ -611,7 +622,7 @@ impl LocalSessionContext {
             .collect();
 
         self.catalog_mutator
-            .mutate(self.catalog.version(), drops)
+            .mutate(self.get_session_catalog().version(), drops)
             .await?;
 
         Ok(())
@@ -627,8 +638,11 @@ impl LocalSessionContext {
     }
 
     /// Get a reference to the session catalog.
-    pub fn get_session_catalog(&self) -> &SessionCatalog {
-        &self.catalog
+    pub fn get_session_catalog(&self) -> Arc<AsyncSessionCatalog> {
+        self.df_ctx
+            .copied_config()
+            .get_extension::<AsyncSessionCatalog>()
+            .unwrap()
     }
 
     /// Create a prepared statement.
@@ -639,7 +653,7 @@ impl LocalSessionContext {
         _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
-        self.catalog
+        self.get_session_catalog()
             .maybe_refresh_state(
                 self.catalog_mutator.get_metastore_client(),
                 self.get_session_vars().force_catalog_refresh(),

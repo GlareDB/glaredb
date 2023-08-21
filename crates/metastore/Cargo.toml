@@ -27,7 +27,7 @@ proptest = "1.2"
 proptest-derive = "0.3"
 tower = "0.4"
 futures = "0.3.28"
-dashmap = "5.5.0"
+dashmap = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.9"

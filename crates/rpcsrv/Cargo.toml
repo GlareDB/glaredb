@@ -25,4 +25,4 @@ prost-types = "0.11"
 tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 bytes = "1.4"
 futures = "0.3.28"
-dashmap = "5.5.0"
+dashmap = { workspace = true }

@@ -2,7 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
+use crate::metastore::catalog::{AsyncSessionCatalog, CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteClient;
@@ -251,7 +251,7 @@ impl Session {
         self.ctx.close().await
     }
 
-    pub fn get_session_catalog(&self) -> &SessionCatalog {
+    pub fn get_session_catalog(&self) -> Arc<AsyncSessionCatalog> {
         self.ctx.get_session_catalog()
     }
 

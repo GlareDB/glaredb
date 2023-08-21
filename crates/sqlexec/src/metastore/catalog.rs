@@ -1,4 +1,5 @@
 use datafusion::datasource::MemTable;
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
@@ -310,37 +311,6 @@ impl SessionCatalog {
             .map(|entry| self.as_namespaced_entry(entry))
     }
 
-    /// Maybe refresh this catalog's state using the metastore client.
-    ///
-    /// If the client isn't configured, nothing is done.
-    pub async fn maybe_refresh_state(
-        &mut self,
-        client: Option<&MetastoreClientHandle>,
-        force_refresh: bool,
-    ) -> Result<()> {
-        let client = match client {
-            Some(client) => client,
-            None => return Ok(()),
-        };
-
-        if force_refresh {
-            debug!("refreshed cached catalog state as per force_catalog_refresh");
-            client.refresh_cached_state().await?;
-        }
-
-        // Swap out cached catalog if a newer one was fetched.
-        //
-        // Note that when we have transactions, we should move this to only
-        // swapping states between transactions.
-        if client.version_hint() != self.version() {
-            debug!(version = %self.version(), "swapping catalog state for session");
-            let new_state = client.get_cached_state().await?;
-            self.swap_state(new_state);
-        }
-
-        Ok(())
-    }
-
     /// Swap the underlying state of the catalog.
     fn swap_state(&mut self, new_state: Arc<CatalogState>) {
         self.state = new_state;
@@ -452,5 +422,125 @@ impl TempObjects {
 
     pub fn iter_table_names(&self) -> impl Iterator<Item = &str> {
         self.current_session_tables.keys().map(|s| s.as_str())
+    }
+}
+
+pub struct AsyncSessionCatalog {
+    inner: Arc<RwLock<SessionCatalog>>,
+}
+
+impl From<SessionCatalog> for AsyncSessionCatalog {
+    fn from(catalog: SessionCatalog) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(catalog)),
+        }
+    }
+}
+
+impl AsyncSessionCatalog {
+    pub fn new(catalog: SessionCatalog) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(catalog)),
+        }
+    }
+
+    pub fn read(&self) -> RwLockReadGuard<'_, SessionCatalog> {
+        self.inner.read()
+    }
+
+    pub fn write(&self) -> RwLockWriteGuard<'_, SessionCatalog> {
+        self.inner.write()
+    }
+
+    pub fn resolve_native_table(
+        &self,
+        _database: &str,
+        schema: &str,
+        name: &str,
+    ) -> Option<TableEntry> {
+        let catalog = self.read();
+        let schema_id = catalog.schema_names.get(schema)?;
+        let obj = catalog.schema_objects.get(schema_id)?;
+        let obj_id = obj.objects.get(name)?;
+
+        let ent = catalog.state.entries.get(obj_id)?;
+
+        match ent {
+            CatalogEntry::Table(table) => match &table.options {
+                TableOptions::Internal(_) => Some(table.clone()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn resolve_entry(&self, _database: &str, schema: &str, name: &str) -> Option<CatalogEntry> {
+        let catalog = self.read();
+        catalog.resolve_entry(_database, schema, name).cloned()
+    }
+
+    pub fn resolve_database(&self, name: &str) -> Option<DatabaseEntry> {
+        let catalog = self.read();
+        catalog.resolve_database(name).cloned()
+    }
+
+    pub fn resolve_credentials(&self, name: &str) -> Option<CredentialsEntry> {
+        let catalog = self.read();
+        catalog.resolve_credentials(name).cloned()
+    }
+
+    /// Maybe refresh this catalog's state using the metastore client.
+    ///
+    /// If the client isn't configured, nothing is done.
+    pub async fn maybe_refresh_state(
+        &self,
+        client: Option<&MetastoreClientHandle>,
+        force_refresh: bool,
+    ) -> Result<()> {
+        let client = match client {
+            Some(client) => client,
+            None => return Ok(()),
+        };
+
+        if force_refresh {
+            debug!("refreshed cached catalog state as per force_catalog_refresh");
+            client.refresh_cached_state().await?;
+        }
+
+        // Swap out cached catalog if a newer one was fetched.
+        //
+        // Note that when we have transactions, we should move this to only
+        // swapping states between transactions.
+        if client.version_hint() != self.version() {
+            debug!(version = %self.version(), "swapping catalog state for session");
+            let new_state = client.get_cached_state().await?;
+            self.write().swap_state(new_state);
+        }
+
+        Ok(())
+    }
+
+    pub fn get_by_oid(&self, oid: u32) -> Option<CatalogEntry> {
+        let catalog = self.read();
+
+        catalog.state.entries.get(&oid).cloned()
+    }
+
+    pub fn version(&self) -> u64 {
+        self.read().version()
+    }
+
+    /// Returns the deployment metadata.
+    pub fn deployment_metadata(&self) -> DeploymentMetadata {
+        self.read().deployment_metadata()
+    }
+
+    pub fn get_state(&self) -> Arc<CatalogState> {
+        self.read().get_state().clone()
+    }
+
+    pub fn resolve_tunnel(&self, name: &str) -> Option<TunnelEntry> {
+        let catalog = self.read();
+        catalog.resolve_tunnel(name).cloned()
     }
 }

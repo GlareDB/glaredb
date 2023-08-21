@@ -80,6 +80,7 @@ pub(crate) fn new_datafusion_session_config_opts(vars: SessionVars) -> ConfigOpt
     // NOTE: We handle catalog/schema defaults and information schemas
     // ourselves.
     let mut catalog_opts = CatalogOptions::default();
+
     catalog_opts.create_default_catalog_and_schema = false;
     catalog_opts.information_schema = false;
     let mut optimizer_opts = OptimizerOptions::default();

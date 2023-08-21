@@ -15,21 +15,21 @@ use sqlbuiltins::builtins::{
     GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 
-use crate::metastore::catalog::{SessionCatalog, TempObjects};
+use crate::metastore::catalog::{AsyncSessionCatalog, TempObjects};
 use crate::metrics::SessionMetrics;
 
 use super::{DispatchError, Result};
 
 /// Dispatch to builtin system tables.
 pub struct SystemTableDispatcher<'a> {
-    catalog: &'a SessionCatalog,
+    catalog: Arc<AsyncSessionCatalog>,
     metrics: &'a SessionMetrics,
     temp_objects: &'a TempObjects,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
     pub fn new(
-        catalog: &'a SessionCatalog,
+        catalog: Arc<AsyncSessionCatalog>,
         metrics: &'a SessionMetrics,
         temp_objects: &'a TempObjects,
     ) -> Self {
@@ -82,6 +82,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for db in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Database)
         {
@@ -122,6 +123,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for tunnel in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Tunnel)
         {
@@ -161,6 +163,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for creds in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Credentials)
         {
@@ -202,6 +205,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for schema in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Schema)
         {
@@ -244,6 +248,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for table in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Table)
         {
@@ -317,6 +322,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for table in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Table)
         {
@@ -376,6 +382,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for view in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::View)
         {
@@ -431,6 +438,7 @@ impl<'a> SystemTableDispatcher<'a> {
 
         for func in self
             .catalog
+            .read()
             .iter_entries()
             .filter(|ent| ent.entry_type() == EntryType::Function)
         {
@@ -511,12 +519,17 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut ssh_tunnel_name = StringBuilder::new();
         let mut public_key = StringBuilder::new();
 
-        for t in self.catalog.iter_entries().filter(|ent| match ent.entry {
-            CatalogEntry::Tunnel(tunnel_entry) => {
-                matches!(tunnel_entry.options, TunnelOptions::Ssh(_))
-            }
-            _ => false,
-        }) {
+        for t in self
+            .catalog
+            .read()
+            .iter_entries()
+            .filter(|ent| match ent.entry {
+                CatalogEntry::Tunnel(tunnel_entry) => {
+                    matches!(tunnel_entry.options, TunnelOptions::Ssh(_))
+                }
+                _ => false,
+            })
+        {
             ssh_tunnel_oid.append_value(t.oid);
             ssh_tunnel_name.append_value(&t.entry.get_meta().name);
 
