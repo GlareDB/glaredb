@@ -16,11 +16,11 @@ use uuid::Uuid;
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
 use crate::planner::logical_plan as plan;
-use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
@@ -367,13 +367,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
-            proto::ExecutionPlanExtensionType::CreateSchema(ext) => {
-                Arc::new(CreateSchemaExec {
-                    catalog_version: ext.catalog_version,
-                    schema_name: ext.schema_name,
-                    if_not_exists: ext.if_not_exists,
-                })
-            }
+            proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
+                catalog_version: ext.catalog_version,
+                schema_name: ext.schema_name,
+                if_not_exists: ext.if_not_exists,
+            }),
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
                 let exec = CreateCredentialsExec::try_decode(create_credentials, self)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
@@ -468,7 +466,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
             })
-
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateSchemaExec>() {
             proto::ExecutionPlanExtensionType::CreateSchema(proto::CreateSchema {
                 catalog_version: exec.catalog_version,
