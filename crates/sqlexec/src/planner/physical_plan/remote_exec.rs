@@ -69,11 +69,14 @@ impl ExecutionPlan for RemoteExecutionExec {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         // TODO: Behavior is unknown when executing with more than one
         // partition.
+        if partition != 0 {
+            return Err(DataFusionError::Execution(format!("RemoteExecutionExec only supports 1 partition, got request for partition {partition}")));
+        }
 
         let stream =
             stream::once(execute_remote(self.client.clone(), self.plan.clone())).try_flatten();
@@ -90,7 +93,11 @@ impl ExecutionPlan for RemoteExecutionExec {
 
 impl DisplayAs for RemoteExecutionExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RemoteExecutionPlan")
+        write!(
+            f,
+            "RemoteExecutionExec: deployment={}",
+            self.client.get_deployment_name()
+        )
     }
 }
 

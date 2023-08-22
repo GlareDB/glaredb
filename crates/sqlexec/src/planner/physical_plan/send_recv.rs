@@ -92,6 +92,12 @@ impl ExecutionPlan for SendRecvJoinExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "SendRecvJoinExec only supports 1 partition".to_string(),
+            ));
+        }
+
         // Set up send exec tokio tasks.
         //
         // Will be empty if this isn't the first call to execute, which is fine

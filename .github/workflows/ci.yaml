@@ -129,6 +129,11 @@ jobs:
           just sql-logic-tests -v --exclude '*/tunnels/ssh'
           just sql-logic-tests -v '*/tunnels/ssh'
 
+      - name: SQL Logic Tests (RPC)
+        run: |
+          just sql-logic-tests -v 'sqllogictests/rpc' \
+                                  'sqllogictests/time'
+
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh
 
