@@ -101,7 +101,7 @@ async fn alter_database_rename(
             )],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to create schema: {e}")))?;
+        .map_err(|e| DataFusionError::Execution(format!("failed to rename database: {e}")))?;
 
     Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
 }
