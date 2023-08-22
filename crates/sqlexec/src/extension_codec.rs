@@ -367,11 +367,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
-            proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
-                catalog_version: ext.catalog_version,
-                schema_name: ext.schema_name,
-                if_not_exists: ext.if_not_exists,
-              })
+            proto::ExecutionPlanExtensionType::CreateSchema(ext) => {
+                Arc::new(CreateSchemaExec {
+                    catalog_version: ext.catalog_version,
+                    schema_name: ext.schema_name,
+                    if_not_exists: ext.if_not_exists,
+                })
             }
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
                 let exec = CreateCredentialsExec::try_decode(create_credentials, self)
