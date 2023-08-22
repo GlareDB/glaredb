@@ -1,7 +1,7 @@
 mod postgres;
 pub use postgres::*;
 
-use datafusion_proto::protobuf::{LogicalExprNode, Schema};
+use datafusion_proto::protobuf::{LogicalExprNode, PhysicalPlanNode, Schema};
 use prost::{Message, Oneof};
 
 use super::common::{FullObjectReference, FullSchemaReference};
@@ -27,6 +27,20 @@ pub struct RemoteScanExec {
     #[prost(uint64, optional, tag = "5")]
     pub limit: Option<u64>,
 }
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateTableExec {
+    #[prost(string, tag = "1")]
+    pub schema: String,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(bool, tag = "3")]
+    pub if_not_exists: bool,
+    #[prost(message, tag = "4")]
+    pub arrow_schema: Option<Schema>,
+    #[prost(message, tag = "5")]
+    pub source: Option<PhysicalPlanNode>,
+}
+
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateCredentialsExec {
     #[prost(string, tag = "1")]
@@ -127,7 +141,7 @@ pub struct CreateSchema {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -159,4 +173,6 @@ pub enum ExecutionPlanExtensionType {
     DropViewsExec(DropViewsExec),
     #[prost(message, tag = "11")]
     CreateSchema(CreateSchema),
+    #[prost(message, tag = "12")]
+    CreateTableExec(CreateTableExec),
 }

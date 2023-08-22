@@ -22,7 +22,7 @@ use crate::planner::logical_plan::{
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
-use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
