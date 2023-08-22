@@ -18,6 +18,7 @@ use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionN
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
@@ -303,7 +304,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
 
-        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here. 
+        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here.
         let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
                 let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
@@ -381,6 +382,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     schema: ext.schema,
                 })
             }
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(ext) => {
+                Arc::new(AlterTunnelRotateKeysExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    if_exists: ext.if_exists,
+                    new_ssh_key: ext.new_ssh_key,
+                })
+            }
         };
 
         Ok(plan)
@@ -442,6 +451,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 new_name: exec.new_name.clone(),
                 schema: exec.schema.clone(),
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
+                proto::AlterTunnelRotateKeysExec {
+                    catalog_version: exec.catalog_version,
+                    name: exec.name.clone(),
+                    if_exists: exec.if_exists,
+                    new_ssh_key: exec.new_ssh_key.clone(),
+                },
+            )
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"

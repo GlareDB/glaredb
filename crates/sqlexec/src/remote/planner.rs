@@ -15,7 +15,12 @@ use std::sync::Arc;
 use crate::errors::internal;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
-use crate::planner::logical_plan::CreateCredentials;
+use crate::planner::logical_plan::{
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+};
+use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
+use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
@@ -49,9 +54,57 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
         match extension_type {
-            ExtensionType::AlterDatabaseRename => todo!(),
-            ExtensionType::AlterTableRename => todo!(),
-            ExtensionType::AlterTunnelRotateKeys => todo!(),
+            ExtensionType::AlterDatabaseRename => {
+                let alter_database_rename_lp =
+                    match node.as_any().downcast_ref::<AlterDatabaseRename>() {
+                        Some(s) => Ok(s.clone()),
+                        None => Err(internal!(
+                            "AlterDatabaseRename::try_decode_extension failed",
+                        )),
+                    }
+                    .unwrap();
+
+                let exec: AlterDatabaseRenameExec = AlterDatabaseRenameExec {
+                    catalog_version: self.catalog_version,
+                    name: alter_database_rename_lp.name,
+                    new_name: alter_database_rename_lp.new_name,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::AlterTableRename => {
+                let alter_table_rename_lp =
+                    match node.as_any().downcast_ref::<AlterTableRename>() {
+                        Some(s) => Ok(s.clone()),
+                        None => Err(internal!("AlterTableRename::try_decode_extension failed",)),
+                    }
+                    .unwrap();
+
+                let exec: AlterTableRenameExec = AlterTableRenameExec {
+                    catalog_version: self.catalog_version,
+                    name: alter_table_rename_lp.name.table().to_string(),
+                    new_name: alter_table_rename_lp.new_name.table().to_string(),
+                    schema: alter_table_rename_lp.schema().to_string(),
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::AlterTunnelRotateKeys => {
+                let alter_tunnel_rotate_keys_lp =
+                    match node.as_any().downcast_ref::<AlterTunnelRotateKeys>() {
+                        Some(s) => Ok(s.clone()),
+                        None => Err(internal!(
+                            "AlterTunnelRotateKeys::try_decode_extension failed",
+                        )),
+                    }
+                    .unwrap();
+
+                let exec: AlterTunnelRotateKeysExec = AlterTunnelRotateKeysExec {
+                    catalog_version: self.catalog_version,
+                    name: alter_tunnel_rotate_keys_lp.name,
+                    if_exists: alter_tunnel_rotate_keys_lp.if_exists,
+                    new_ssh_key: alter_tunnel_rotate_keys_lp.new_ssh_key,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
             ExtensionType::CreateCredentials => {
                 let create_credentials_lp = match node.as_any().downcast_ref::<CreateCredentials>()
                 {
