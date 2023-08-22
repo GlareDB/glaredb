@@ -126,7 +126,6 @@ impl LocalSessionContext {
             .unwrap();
         self.exec_client = Some(client.clone());
 
-
         self.catalog = catalog;
 
         // Replace datafusion context with the remote aware planner.
