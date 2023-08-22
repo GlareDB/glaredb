@@ -277,6 +277,7 @@ impl Session {
                 catalog: self.ctx.get_session_catalog(),
             };
             let plan = planner.create_physical_plan(&plan, &state).await?;
+            println!("plan: {:?}", plan);
             Ok(plan)
         } else {
             let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());

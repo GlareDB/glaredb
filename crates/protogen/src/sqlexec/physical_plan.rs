@@ -38,8 +38,30 @@ pub struct CreateCredentialsExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct AlterDatabaseRenameExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(string, tag = "3")]
+    pub new_name: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct AlterTableRenameExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(string, tag = "3")]
+    pub new_name: String,
+    #[prost(string, tag = "4")]
+    pub schema: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2")]
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3, 4")]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -50,9 +72,12 @@ pub enum ExecutionPlanExtensionType {
     ClientExchangeRecvExec(ClientExchangeRecvExec),
     // Scans
     #[prost(message, tag = "2")]
-    RemoteScanExec(RemoteScanExec),
-
-    // DDL
+    RemoteScanExec(RemoteScanExec),    
+    // DDLs
     #[prost(message, tag = "3")]
+    AlterDatabaseRenameExec(AlterDatabaseRenameExec),
+    #[prost(message, tag = "4")]
+    AlterTableRenameExec(AlterTableRenameExec),
+    #[prost(message, tag = "5")]
     CreateCredentialsExec(CreateCredentialsExec),
 }
