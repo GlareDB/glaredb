@@ -177,7 +177,6 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         )])
         .create_physical_plan(&logical_plan, session_state)
         .await?;
-        println!("physical: {:#?}", physical);
 
         // Temporary coalesce exec until our custom plans support partition.
         let physical = Arc::new(CoalescePartitionsExec::new(physical));

@@ -45,7 +45,6 @@ impl PhysicalExtensionNode for CreateCredentialsExec {
         extension
             .encode(buf)
             .map_err(|e| internal!("{}", e.to_string()))?;
-        println!("encoded: {:?}", extension);
         Ok(())
     }
 

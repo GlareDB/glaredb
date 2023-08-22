@@ -28,7 +28,6 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 pub struct RemoteSessionContext {
     /// Database catalog.
     catalog: SessionCatalog,
-    catalog_mutator: CatalogMutator,
     /// Native tables.
     tables: NativeTableStorage,
     /// Datafusion session context used for execution.
@@ -55,6 +54,7 @@ impl RemoteSessionContext {
 
         // Add in remote only extensions.
         conf = conf.with_extension(Arc::new(StagedClientStreams::default()));
+        conf = conf.with_extension(Arc::new(catalog_mutator));
 
         // TODO: Query planners for handling custom plans.
 
@@ -62,7 +62,6 @@ impl RemoteSessionContext {
 
         Ok(RemoteSessionContext {
             catalog,
-            catalog_mutator,
             tables: native_tables,
             df_ctx,
             _background_jobs: background_jobs,
@@ -82,6 +81,14 @@ impl RemoteSessionContext {
     /// over RPCs.
     pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
         GlareDBExtensionCodec::new_decoder(&self.provider_cache)
+    }
+
+    fn catalog_mutator(&self) -> Arc<CatalogMutator> {
+        self.df_ctx
+            .state()
+            .config()
+            .get_extension::<CatalogMutator>()
+            .unwrap()
     }
 
     pub fn staged_streams(&self) -> Arc<StagedClientStreams> {
@@ -117,7 +124,7 @@ impl RemoteSessionContext {
         name: &str,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
         self.catalog
-            .maybe_refresh_state(self.catalog_mutator.get_metastore_client(), false)
+            .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
             .await?;
 
         let prov: Arc<dyn TableProvider> =

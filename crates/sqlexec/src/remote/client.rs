@@ -264,7 +264,6 @@ impl RemoteSessionClient {
             node.try_encode(&mut buf)?;
             buf
         };
-        println!("physical plan: {:?}", physical_plan);
 
         let mut request = service::PhysicalPlanExecuteRequest::from(PhysicalPlanExecuteRequest {
             session_id: self.session_id(),

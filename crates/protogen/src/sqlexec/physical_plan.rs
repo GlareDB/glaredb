@@ -61,7 +61,7 @@ pub struct AlterTableRenameExec {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3, 4")]
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3, 4, 5")]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -72,7 +72,7 @@ pub enum ExecutionPlanExtensionType {
     ClientExchangeRecvExec(ClientExchangeRecvExec),
     // Scans
     #[prost(message, tag = "2")]
-    RemoteScanExec(RemoteScanExec),    
+    RemoteScanExec(RemoteScanExec),
     // DDLs
     #[prost(message, tag = "3")]
     AlterDatabaseRenameExec(AlterDatabaseRenameExec),
