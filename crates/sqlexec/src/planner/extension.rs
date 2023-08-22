@@ -10,6 +10,7 @@ use crate::{
     LogicalPlan,
 };
 use datafusion::{
+    execution::{runtime_env::RuntimeEnv, FunctionRegistry},
     logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore},
     physical_plan::ExecutionPlan,
     prelude::SessionContext,
@@ -120,6 +121,8 @@ pub trait PhysicalExtensionNode: Sized + ExecutionPlan {
 
     fn try_decode(
         proto: Self::ProtoRepr,
-        _codec: &dyn PhysicalExtensionCodec,
+        registry: &dyn FunctionRegistry,
+        runtime: &RuntimeEnv,
+        extension_codec: &dyn PhysicalExtensionCodec,
     ) -> Result<Self, ProtoConvError>;
 }

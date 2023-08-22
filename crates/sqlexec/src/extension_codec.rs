@@ -1,11 +1,13 @@
 use core::fmt;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
+use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::FunctionRegistry;
-use datafusion::logical_expr::{Extension, LogicalPlan};
+use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::{Expr, SessionContext};
 use datafusion_proto::logical_plan::from_proto::parse_expr;
@@ -18,7 +20,8 @@ use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionN
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
-use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
+use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -30,18 +33,46 @@ use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a ProviderCache>,
+    runtime: Option<Arc<RuntimeEnv>>,
+}
+struct EmptyFunctionRegistry;
+
+impl FunctionRegistry for EmptyFunctionRegistry {
+    fn udfs(&self) -> HashSet<String> {
+        HashSet::new()
+    }
+
+    fn udf(&self, name: &str) -> Result<Arc<ScalarUDF>> {
+        Err(DataFusionError::Plan(
+            format!("No function registry provided to deserialize, so can not deserialize User Defined Function '{name}'"))
+        )
+    }
+
+    fn udaf(&self, name: &str) -> Result<Arc<AggregateUDF>> {
+        Err(DataFusionError::Plan(
+            format!("No function registry provided to deserialize, so can not deserialize User Defined Aggregate Function '{name}'"))
+        )
+    }
+
+    fn udwf(&self, name: &str) -> Result<Arc<WindowUDF>> {
+        Err(DataFusionError::Plan(
+            format!("No function registry provided to deserialize, so can not deserialize User Defined Window Function '{name}'"))
+        )
+    }
 }
 
 impl<'a> GlareDBExtensionCodec<'a> {
-    pub fn new_decoder(table_providers: &'a ProviderCache) -> Self {
+    pub fn new_decoder(table_providers: &'a ProviderCache, runtime: Arc<RuntimeEnv>) -> Self {
         Self {
             table_providers: Some(table_providers),
+            runtime: Some(runtime),
         }
     }
 
     pub fn new_encoder() -> Self {
         Self {
             table_providers: None,
+            runtime: None,
         }
     }
 }
@@ -303,7 +334,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
 
-        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here. 
+        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here.
         let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
                 let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
@@ -362,8 +393,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 })
             }
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
-                let exec = CreateCredentialsExec::try_decode(create_credentials, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let exec = CreateCredentialsExec::try_decode(
+                    create_credentials,
+                    &EmptyFunctionRegistry,
+                    self.runtime
+                        .as_ref()
+                        .expect("runtime should be set on decoder"),
+                    self,
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
                 Arc::new(exec)
             }
             proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(ext) => {
@@ -380,6 +418,18 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     new_name: ext.new_name,
                     schema: ext.schema,
                 })
+            }
+            proto::ExecutionPlanExtensionType::CreateTableExec(ext) => {
+                let exec = CreateTableExec::try_decode(
+                    ext,
+                    &EmptyFunctionRegistry,
+                    self.runtime
+                        .as_ref()
+                        .expect("runtime should be set on decoder"),
+                    self,
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
             }
         };
 
@@ -424,6 +474,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 limit: exec.limit.map(|u| u as u64),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
+            return exec
+                .try_encode(buf, self)
+                .map_err(|e| DataFusionError::External(Box::new(e)));
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
             return exec
                 .try_encode(buf, self)
                 .map_err(|e| DataFusionError::External(Box::new(e)));
