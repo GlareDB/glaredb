@@ -303,6 +303,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
 
+        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here. 
         let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
                 let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
