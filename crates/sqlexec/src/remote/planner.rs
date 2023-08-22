@@ -16,12 +16,13 @@ use crate::errors::internal;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, DropDatabase,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
@@ -130,7 +131,20 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateView => todo!(),
             ExtensionType::DropTables => todo!(),
             ExtensionType::DropCredentials => todo!(),
-            ExtensionType::DropDatabase => todo!(),
+            ExtensionType::DropDatabase => {
+                let drop_database_lp = match node.as_any().downcast_ref::<DropDatabase>() {
+                    Some(s) => Ok(s.clone()),
+                    None => Err(internal!("DropDatabase::try_decode_extension failed",)),
+                }
+                .unwrap();
+
+                let exec: DropDatabaseExec = DropDatabaseExec {
+                    catalog_version: self.catalog_version,
+                    names: drop_database_lp.names,
+                    if_exists: drop_database_lp.if_exists,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
             ExtensionType::DropSchemas => todo!(),
             ExtensionType::DropTunnel => todo!(),
             ExtensionType::DropViews => todo!(),

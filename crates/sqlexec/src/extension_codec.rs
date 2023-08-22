@@ -20,6 +20,7 @@ use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExe
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -390,6 +391,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     new_ssh_key: ext.new_ssh_key,
                 })
             }
+            proto::ExecutionPlanExtensionType::DropDatabaseExec(ext) => {
+                Arc::new(DropDatabaseExec {
+                    catalog_version: ext.catalog_version,
+                    names: ext.names,
+                    if_exists: ext.if_exists,
+                })
+            }
         };
 
         Ok(plan)
@@ -460,6 +468,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     new_ssh_key: exec.new_ssh_key.clone(),
                 },
             )
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropDatabaseExec>() {
+            proto::ExecutionPlanExtensionType::DropDatabaseExec(proto::DropDatabaseExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"
