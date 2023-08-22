@@ -73,9 +73,9 @@ pub struct Cli {
 
     /// Tests to run.
     ///
-    /// Provide a glob like regex for test name. If ommitted, runs all the
+    /// Provide glob like regexes for test names. If ommitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
-    tests_pattern: Option<String>,
+    tests_pattern: Option<Vec<String>>,
 }
 
 impl Cli {
@@ -116,12 +116,15 @@ impl Cli {
     }
 
     fn collect_tests(&self, tests: BTreeMap<String, Test>) -> Result<Vec<(String, Test)>> {
-        let mut tests: Vec<_> = if let Some(pattern) = &self.tests_pattern {
-            let pattern = glob::Pattern::new(pattern)
-                .map_err(|e| anyhow!("Invalid glob pattern `{pattern}`: {e}"))?;
+        let mut tests: Vec<_> = if let Some(patterns) = &self.tests_pattern {
+            let patterns = patterns
+                .iter()
+                .map(|p| glob::Pattern::new(p))
+                .collect::<Result<Vec<_>, _>>()?;
+
             tests
                 .into_iter()
-                .filter(|(k, _v)| pattern.matches(k))
+                .filter(|(k, _v)| patterns.iter().any(|p| p.matches(k)))
                 .collect()
         } else {
             tests.into_iter().collect()
