@@ -25,6 +25,95 @@ pub struct RemoteScanExec {
     #[prost(uint64, optional, tag = "5")]
     pub limit: Option<u64>,
 }
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateCredentialsExec {
+    #[prost(string, tag = "1")]
+    pub name: String,
+    #[prost(uint64, tag = "2")]
+    pub catalog_version: u64,
+    #[prost(message, tag = "3")]
+    pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
+    #[prost(string, tag = "4")]
+    pub comment: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct AlterDatabaseRenameExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(string, tag = "3")]
+    pub new_name: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct AlterTableRenameExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(string, tag = "3")]
+    pub new_name: String,
+    #[prost(string, tag = "4")]
+    pub schema: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct AlterTunnelRotateKeysExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+    #[prost(bytes = "vec", tag = "4")]
+    pub new_ssh_key: ::prost::alloc::vec::Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropDatabaseExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropSchemasExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+    #[prost(bool, tag = "4")]
+    pub cascade: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropTunnelExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropViewsExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+    #[prost(string, tag = "4")]
+    pub schema: String,
+}
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateSchema {
@@ -38,7 +127,10 @@ pub struct CreateSchema {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3")]
+    #[prost(
+        oneof = "ExecutionPlanExtensionType",
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11"
+    )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -52,5 +144,21 @@ pub enum ExecutionPlanExtensionType {
     RemoteScanExec(RemoteScanExec),
     // DDLs
     #[prost(message, tag = "3")]
+    AlterDatabaseRenameExec(AlterDatabaseRenameExec),
+    #[prost(message, tag = "4")]
+    AlterTableRenameExec(AlterTableRenameExec),
+    #[prost(message, tag = "5")]
+    CreateCredentialsExec(CreateCredentialsExec),
+    #[prost(message, tag = "6")]
+    AlterTunnelRotateKeysExec(AlterTunnelRotateKeysExec),
+    #[prost(message, tag = "7")]
+    DropDatabaseExec(DropDatabaseExec),
+    #[prost(message, tag = "8")]
+    DropSchemasExec(DropSchemasExec),
+    #[prost(message, tag = "9")]
+    DropTunnelExec(DropTunnelExec),
+    #[prost(message, tag = "10")]
+    DropViewsExec(DropViewsExec),
+    #[prost(message, tag = "11")]
     CreateSchema(CreateSchema),
 }

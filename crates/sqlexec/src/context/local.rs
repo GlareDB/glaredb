@@ -8,7 +8,6 @@ use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
-use crate::remote::planner::RemoteQueryPlanner;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::SchemaReference;
@@ -129,11 +128,9 @@ impl LocalSessionContext {
         self.catalog = catalog;
 
         // Replace datafusion context with the remote aware planner.
-        let planner = RemoteQueryPlanner::new(client);
         let state = self
             .df_ctx
             .state()
-            .with_query_planner(Arc::new(planner))
             // TODO: We _could_ do something fancy where we keep the local catalog
             // around, but that's for another time.
             .with_config_extension(Arc::new(CatalogMutator::empty()));

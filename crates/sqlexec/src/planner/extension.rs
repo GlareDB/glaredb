@@ -1,5 +1,7 @@
 /// extension implementations for converting our logical plan into datafusion logical plan
-use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use datafusion_proto::{
+    logical_plan::LogicalExtensionCodec, physical_plan::PhysicalExtensionCodec,
+};
 use protogen::ProtoConvError;
 use std::{str::FromStr, sync::Arc};
 
@@ -9,6 +11,7 @@ use crate::{
 };
 use datafusion::{
     logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore},
+    physical_plan::ExecutionPlan,
     prelude::SessionContext,
 };
 
@@ -108,4 +111,15 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
         let extension = Self::try_decode_extension(extension)?;
         extension.try_encode(buf, codec)
     }
+}
+
+pub trait PhysicalExtensionNode: Sized + ExecutionPlan {
+    type ProtoRepr;
+
+    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn PhysicalExtensionCodec) -> Result<()>;
+
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _codec: &dyn PhysicalExtensionCodec,
+    ) -> Result<Self, ProtoConvError>;
 }

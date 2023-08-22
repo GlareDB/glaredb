@@ -14,9 +14,17 @@ use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
-use crate::planner::extension::{ExtensionNode, ExtensionType};
+use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
+use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
+use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
+use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::drop_database::DropDatabaseExec;
+use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
+use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -301,6 +309,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
 
+        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here.
         let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
                 let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
@@ -362,6 +371,59 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: ext.catalog_version,
                 schema_name: ext.schema_name,
                 if_not_exists: ext.if_not_exists,
+              })
+            }
+            proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
+                let exec = CreateCredentialsExec::try_decode(create_credentials, self)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
+            }
+            proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(ext) => {
+                Arc::new(AlterDatabaseRenameExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    new_name: ext.new_name,
+                })
+            }
+            proto::ExecutionPlanExtensionType::AlterTableRenameExec(ext) => {
+                Arc::new(AlterTableRenameExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    new_name: ext.new_name,
+                    schema: ext.schema,
+                })
+            }
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(ext) => {
+                Arc::new(AlterTunnelRotateKeysExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    if_exists: ext.if_exists,
+                    new_ssh_key: ext.new_ssh_key,
+                })
+            }
+            proto::ExecutionPlanExtensionType::DropDatabaseExec(ext) => {
+                Arc::new(DropDatabaseExec {
+                    catalog_version: ext.catalog_version,
+                    names: ext.names,
+                    if_exists: ext.if_exists,
+                })
+            }
+            proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+                cascade: ext.cascade,
+            }),
+            proto::ExecutionPlanExtensionType::DropTunnelExec(ext) => Arc::new(DropTunnelExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+            }),
+            proto::ExecutionPlanExtensionType::DropViewsExec(ext) => Arc::new(DropViewsExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+                schema: ext.schema,
             }),
         };
 
@@ -405,11 +467,66 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
             })
+
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateSchemaExec>() {
             proto::ExecutionPlanExtensionType::CreateSchema(proto::CreateSchema {
                 catalog_version: exec.catalog_version,
                 schema_name: exec.schema_name.clone(),
                 if_not_exists: exec.if_not_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
+            return exec
+                .try_encode(buf, self)
+                .map_err(|e| DataFusionError::External(Box::new(e)));
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
+            proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(
+                proto::AlterDatabaseRenameExec {
+                    catalog_version: exec.catalog_version,
+                    name: exec.name.clone(),
+                    new_name: exec.new_name.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableRenameExec>() {
+            proto::ExecutionPlanExtensionType::AlterTableRenameExec(proto::AlterTableRenameExec {
+                catalog_version: exec.catalog_version,
+                name: exec.name.clone(),
+                new_name: exec.new_name.clone(),
+                schema: exec.schema.clone(),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
+                proto::AlterTunnelRotateKeysExec {
+                    catalog_version: exec.catalog_version,
+                    name: exec.name.clone(),
+                    if_exists: exec.if_exists,
+                    new_ssh_key: exec.new_ssh_key.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropDatabaseExec>() {
+            proto::ExecutionPlanExtensionType::DropDatabaseExec(proto::DropDatabaseExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropSchemasExec>() {
+            proto::ExecutionPlanExtensionType::DropSchemasExec(proto::DropSchemasExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+                cascade: exec.cascade,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropTunnelExec>() {
+            proto::ExecutionPlanExtensionType::DropTunnelExec(proto::DropTunnelExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropViewsExec>() {
+            proto::ExecutionPlanExtensionType::DropViewsExec(proto::DropViewsExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+                schema: exec.schema.clone(),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

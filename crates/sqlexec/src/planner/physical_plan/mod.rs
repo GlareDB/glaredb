@@ -1,6 +1,14 @@
+pub mod alter_database_rename;
+pub mod alter_table_rename;
+pub mod alter_tunnel_rotate_keys;
 pub mod client_recv;
 pub mod client_send;
 pub mod create_schema;
+pub mod create_credentials_exec;
+pub mod drop_database;
+pub mod drop_schemas;
+pub mod drop_tunnel;
+pub mod drop_views;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;

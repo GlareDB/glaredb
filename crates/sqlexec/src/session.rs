@@ -4,17 +4,16 @@ use std::sync::Arc;
 
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
-use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteClient;
-use datafusion::arrow::datatypes::Schema;
+use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};
-use datafusion::physical_plan::empty::EmptyExec;
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
@@ -34,7 +33,7 @@ use uuid::Uuid;
 use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
-use crate::errors::{internal, Result};
+use crate::errors::Result;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -270,118 +269,19 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
-
-        // TODO!: these should be pushed down to physical execs,
-        // currently we need to early exit on extension nodes as we don't have a physical exec for them.
-        match plan {
-            DfLogicalPlan::Extension(ref extension) if self.is_main_instance() => {
-                let _exec_res = self.execute_extension(extension).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
-            }
-            plan => {
-                let plan = state.create_physical_plan(&plan).await?;
-                Ok(plan)
-            }
-        }
-    }
-
-    pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {
-        let node = extension.node.name().parse::<ExtensionType>()?;
-
-        match node {
-            ExtensionType::CreateTable => {
-                let create_table = CreateTable::try_decode_extension(extension)?;
-                self.create_table(create_table).await?;
-                Ok(ExecutionResult::CreateTable)
-            }
-            ExtensionType::CreateExternalTable => {
-                let create_table = CreateExternalTable::try_decode_extension(extension)?;
-                self.create_external_table(create_table).await?;
-                Ok(ExecutionResult::CreateTable)
-            }
-            ExtensionType::CreateSchema => {
-                let create_schema = CreateSchema::try_decode_extension(extension)?;
-                self.create_schema(create_schema).await?;
-                Ok(ExecutionResult::CreateSchema)
-            }
-            ExtensionType::DropTables => {
-                let drop_tables = DropTables::try_decode_extension(extension)?;
-                self.drop_tables(drop_tables).await?;
-                Ok(ExecutionResult::DropTables)
-            }
-            ExtensionType::AlterTableRename => {
-                let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
-                self.alter_table_rename(alter_table_rename).await?;
-                Ok(ExecutionResult::AlterTableRename)
-            }
-            ExtensionType::AlterDatabaseRename => {
-                let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
-                self.alter_database_rename(alter_database_rename).await?;
-                Ok(ExecutionResult::AlterDatabaseRename)
-            }
-            ExtensionType::AlterTunnelRotateKeys => {
-                let alter_tunnel_rotate_keys =
-                    AlterTunnelRotateKeys::try_decode_extension(extension)?;
-                self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
-                    .await?;
-                Ok(ExecutionResult::AlterTunnelRotateKeys)
-            }
-            ExtensionType::CreateCredentials => {
-                let create_credentials = CreateCredentials::try_decode_extension(extension)?;
-                self.create_credentials(create_credentials).await?;
-                Ok(ExecutionResult::CreateCredentials)
-            }
-            ExtensionType::CreateExternalDatabase => {
-                let create_database = CreateExternalDatabase::try_decode_extension(extension)?;
-                self.create_database(create_database).await?;
-                Ok(ExecutionResult::CreateDatabase)
-            }
-            ExtensionType::CreateTunnel => {
-                let create_tunnel = CreateTunnel::try_decode_extension(extension)?;
-                self.create_tunnel(create_tunnel).await?;
-                Ok(ExecutionResult::CreateTunnel)
-            }
-            ExtensionType::CreateTempTable => {
-                let create_temp_table = CreateTempTable::try_decode_extension(extension)?;
-                self.create_temp_table(create_temp_table).await?;
-                Ok(ExecutionResult::CreateTable)
-            }
-            ExtensionType::CreateView => {
-                let create_view = CreateView::try_decode_extension(extension)?;
-                self.create_view(create_view).await?;
-                Ok(ExecutionResult::CreateView)
-            }
-            ExtensionType::DropCredentials => {
-                let drop_credentials = DropCredentials::try_decode_extension(extension)?;
-                self.drop_credentials(drop_credentials).await?;
-                Ok(ExecutionResult::DropCredentials)
-            }
-            ExtensionType::DropDatabase => {
-                let drop_database = DropDatabase::try_decode_extension(extension)?;
-                self.drop_database(drop_database).await?;
-                Ok(ExecutionResult::DropDatabase)
-            }
-            ExtensionType::DropSchemas => {
-                let drop_schemas = DropSchemas::try_decode_extension(extension)?;
-                self.drop_schemas(drop_schemas).await?;
-                Ok(ExecutionResult::DropSchemas)
-            }
-            ExtensionType::DropTunnel => {
-                let drop_tunnel = DropTunnel::try_decode_extension(extension)?;
-                self.drop_tunnel(drop_tunnel).await?;
-                Ok(ExecutionResult::DropTunnel)
-            }
-            ExtensionType::DropViews => {
-                let drop_views = DropViews::try_decode_extension(extension)?;
-                self.drop_views(drop_views).await?;
-                Ok(ExecutionResult::DropViews)
-            }
-            ExtensionType::SetVariable => {
-                let set_variable = SetVariable::try_decode_extension(extension)?;
-                self.set_variable(set_variable)?;
-                Ok(ExecutionResult::SetLocal)
-            }
-            other => Err(internal!("Unsupported extension node type: {:?}", other)),
+        if let Some(client) = self.ctx.exec_client() {
+            let planner = RemotePhysicalPlanner {
+                remote_client: client,
+                catalog: self.ctx.get_session_catalog(),
+            };
+            let plan = planner.create_physical_plan(&plan, &state).await?;
+            Ok(plan)
+        } else {
+            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());
+            let planner =
+                DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
+            let plan = planner.create_physical_plan(&plan, &state).await?;
+            Ok(plan)
         }
     }
 
@@ -403,98 +303,6 @@ impl Session {
         let state = self.ctx.df_ctx().state();
         let mut ctx_provider = PartialContextProvider::new(&self.ctx, &state)?;
         Ok(ctx_provider.table_provider(table_ref).await?)
-    }
-
-    pub(crate) async fn create_table(
-        &mut self,
-        plan: CreateTable,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        let schema = plan.schema.as_ref().clone();
-        self.ctx.create_table(plan).await?;
-        Ok(Arc::new(EmptyExec::new(false, schema.into())))
-    }
-
-    pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
-        self.ctx.create_temp_table(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        self.ctx.create_external_table(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
-        self.ctx.create_schema(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        self.ctx.create_external_database(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        self.ctx.create_tunnel(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        self.ctx.create_credentials(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_view(&mut self, plan: CreateView) -> Result<()> {
-        self.ctx.create_view(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
-        self.ctx.alter_table_rename(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        self.ctx.alter_database_rename(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn alter_tunnel_rotate_keys(
-        &mut self,
-        plan: AlterTunnelRotateKeys,
-    ) -> Result<()> {
-        self.ctx.alter_tunnel_rotate_keys(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
-        self.ctx.drop_tables(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
-        self.ctx.drop_views(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
-        self.ctx.drop_schemas(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
-        self.ctx.drop_database(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_tunnel(&mut self, plan: DropTunnel) -> Result<()> {
-        self.ctx.drop_tunnel(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_credentials(&mut self, plan: DropCredentials) -> Result<()> {
-        self.ctx.drop_credentials(plan).await?;
-        Ok(())
     }
 
     pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
