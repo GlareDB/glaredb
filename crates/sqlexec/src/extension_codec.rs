@@ -21,6 +21,9 @@ use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
+use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
+use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -398,6 +401,23 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_exists: ext.if_exists,
                 })
             }
+            proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+                cascade: ext.cascade,
+            }),
+            proto::ExecutionPlanExtensionType::DropTunnelExec(ext) => Arc::new(DropTunnelExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+            }),
+            proto::ExecutionPlanExtensionType::DropViewsExec(ext) => Arc::new(DropViewsExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+                schema: ext.schema,
+            }),
         };
 
         Ok(plan)
@@ -473,6 +493,26 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: exec.catalog_version,
                 names: exec.names.clone(),
                 if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropSchemasExec>() {
+            proto::ExecutionPlanExtensionType::DropSchemasExec(proto::DropSchemasExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+                cascade: exec.cascade,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropTunnelExec>() {
+            proto::ExecutionPlanExtensionType::DropTunnelExec(proto::DropTunnelExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropViewsExec>() {
+            proto::ExecutionPlanExtensionType::DropViewsExec(proto::DropViewsExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+                schema: exec.schema.clone(),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

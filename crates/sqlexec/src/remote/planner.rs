@@ -17,12 +17,16 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, DropDatabase,
+    DropSchemas, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
+use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
+use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
@@ -145,9 +149,63 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::DropSchemas => todo!(),
-            ExtensionType::DropTunnel => todo!(),
-            ExtensionType::DropViews => todo!(),
+            ExtensionType::DropSchemas => {
+                let drop_schemas_lp = match node.as_any().downcast_ref::<DropSchemas>() {
+                    Some(s) => Ok(s.clone()),
+                    None => Err(internal!("DropSchemas::try_decode_extension failed",)),
+                }
+                .unwrap();
+
+                let exec: DropSchemasExec = DropSchemasExec {
+                    catalog_version: self.catalog_version,
+                    names: drop_schemas_lp
+                        .names
+                        .into_iter()
+                        .map(|n| n.schema_name().to_string())
+                        .collect(),
+                    if_exists: drop_schemas_lp.if_exists,
+                    cascade: drop_schemas_lp.cascade,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::DropTunnel => {
+                let drop_tunnel_lp = match node.as_any().downcast_ref::<DropTunnel>() {
+                    Some(s) => Ok(s.clone()),
+                    None => Err(internal!("DropTunnel::try_decode_extension failed",)),
+                }
+                .unwrap();
+
+                let exec: DropTunnelExec = DropTunnelExec {
+                    catalog_version: self.catalog_version,
+                    names: drop_tunnel_lp.names,
+                    if_exists: drop_tunnel_lp.if_exists,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::DropViews => {
+                let drop_views_lp = match node.as_any().downcast_ref::<DropViews>() {
+                    Some(s) => Ok(s.clone()),
+                    None => Err(internal!("DropViews::try_decode_extension failed",)),
+                }
+                .unwrap();
+
+                let exec: DropViewsExec = DropViewsExec {
+                    catalog_version: self.catalog_version,
+                    names: drop_views_lp
+                        .names
+                        .clone()
+                        .into_iter()
+                        .map(|n| n.table().to_string())
+                        .collect(),
+                    if_exists: drop_views_lp.if_exists,
+                    schema: drop_views_lp
+                        .names
+                        .into_iter()
+                        .map(|n| n.schema().unwrap_or_default().to_string())
+                        .collect(),
+                };
+                Ok(Some(Arc::new(exec)))
+            }
             ExtensionType::SetVariable => todo!(),
             ExtensionType::CopyTo => todo!(),
         }

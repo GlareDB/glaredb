@@ -82,8 +82,45 @@ pub struct DropDatabaseExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DropSchemasExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+    #[prost(bool, tag = "4")]
+    pub cascade: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropTunnelExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropViewsExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+    #[prost(string, tag = "4")]
+    pub schema: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(
+        oneof = "ExecutionPlanExtensionType",
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+    )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -106,4 +143,10 @@ pub enum ExecutionPlanExtensionType {
     AlterTunnelRotateKeysExec(AlterTunnelRotateKeysExec),
     #[prost(message, tag = "7")]
     DropDatabaseExec(DropDatabaseExec),
+    #[prost(message, tag = "8")]
+    DropSchemasExec(DropSchemasExec),
+    #[prost(message, tag = "9")]
+    DropTunnelExec(DropTunnelExec),
+    #[prost(message, tag = "10")]
+    DropViewsExec(DropViewsExec),
 }
