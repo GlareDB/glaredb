@@ -121,8 +121,8 @@ pub trait PhysicalExtensionNode: Sized + ExecutionPlan {
 
     fn try_decode(
         proto: Self::ProtoRepr,
-        registry: &dyn FunctionRegistry,
-        runtime: &RuntimeEnv,
-        extension_codec: &dyn PhysicalExtensionCodec,
+        _registry: &dyn FunctionRegistry,
+        _runtime: &RuntimeEnv,
+        _extension_codec: &dyn PhysicalExtensionCodec,
     ) -> Result<Self, ProtoConvError>;
 }

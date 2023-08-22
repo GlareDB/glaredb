@@ -3,8 +3,13 @@ use protogen::{
     metastore::types::{service, service::Mutation},
     ProtoConvError,
 };
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
 
-use crate::metastore::catalog::CatalogMutator;
+use crate::{
+    errors::ExecError,
+    metastore::catalog::{CatalogMutator, SessionCatalog},
+    planner::errors::internal,
+};
 
 use super::*;
 
@@ -24,9 +29,29 @@ impl PhysicalExtensionNode for CreateTableExec {
     fn try_encode(
         &self,
         buf: &mut Vec<u8>,
-        _codec: &dyn PhysicalExtensionCodec,
+        codec: &dyn PhysicalExtensionCodec,
     ) -> crate::errors::Result<()> {
-        todo!()
+        let proto = protogen::sqlexec::physical_plan::CreateTableExec {
+            catalog_version: self.catalog_version,
+            schema: self.schema.clone(),
+            name: self.name.clone(),
+            if_not_exists: self.if_not_exists,
+            arrow_schema: Some(self.arrow_schema.clone().try_into().unwrap()),
+            source: self
+                .source
+                .clone()
+                .map(|src| PhysicalPlanNode::try_from_physical_plan(src, codec))
+                .transpose()?,
+        };
+
+        let ty =
+            protogen::sqlexec::physical_plan::ExecutionPlanExtensionType::CreateTableExec(proto);
+        let extension =
+            protogen::sqlexec::physical_plan::ExecutionPlanExtension { inner: Some(ty) };
+        extension
+            .encode(buf)
+            .map_err(|e| internal!("{}", e.to_string()))?;
+        Ok(())
     }
 
     fn try_decode(
@@ -40,7 +65,20 @@ impl PhysicalExtensionNode for CreateTableExec {
             .map(|src| src.try_into_physical_plan(registry, runtime, extension_codec))
             .transpose()
             .map_err(ProtoConvError::DataFusionError)?;
-        todo!()
+
+        let arrow_schema = &proto.arrow_schema.ok_or(ProtoConvError::RequiredField(
+            "schema name is required".to_string(),
+        ))?;
+        let arrow_schema: Schema = arrow_schema.try_into()?;
+
+        Ok(Self {
+            catalog_version: proto.catalog_version,
+            schema: proto.schema,
+            name: proto.name,
+            if_not_exists: proto.if_not_exists,
+            arrow_schema: Arc::new(arrow_schema),
+            source,
+        })
     }
 }
 
@@ -75,14 +113,14 @@ impl ExecutionPlan for CreateTableExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        children: Vec<Arc<dyn ExecutionPlan>>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         todo!()
     }
 
     fn execute(
         &self,
-        partition: usize,
+        _partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         let catalog_mutator = context
@@ -105,18 +143,22 @@ async fn create_table(
     plan: CreateTableExec,
     mutator: Arc<CatalogMutator>,
 ) -> DataFusionResult<RecordBatch> {
-    mutator
+    let state = mutator
         .mutate(
             plan.catalog_version,
             [Mutation::CreateTable(service::CreateTable {
-                schema: plan.schema,
-                name: plan.name,
+                schema: plan.schema.clone(),
+                name: plan.name.clone(),
                 options: plan.arrow_schema.into(),
                 if_not_exists: plan.if_not_exists,
             })],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to create credentials: {e}")))?;
-
-    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+        .map_err(|e| DataFusionError::Execution(format!("failed to create table: {e}")))?;
+    let new_catalog = SessionCatalog::new(state);
+    let ent = new_catalog
+        .resolve_native_table(DEFAULT_CATALOG, &plan.schema, &plan.name)
+        .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
+        .unwrap();
+    todo!("need access to native tables");
 }

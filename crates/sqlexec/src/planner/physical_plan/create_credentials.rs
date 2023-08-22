@@ -1,6 +1,5 @@
 use super::*;
 
-
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
 use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
@@ -41,9 +40,9 @@ impl PhysicalExtensionNode for CreateCredentialsExec {
 
     fn try_decode(
         proto: Self::ProtoRepr,
-        registry: &dyn FunctionRegistry,
-        runtime: &RuntimeEnv,
-        extension_codec: &dyn PhysicalExtensionCodec,
+        _registry: &dyn FunctionRegistry,
+        _runtime: &RuntimeEnv,
+        _extension_codec: &dyn PhysicalExtensionCodec,
     ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
         let options = proto
             .options
