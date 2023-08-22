@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
+use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -357,6 +358,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
+            proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
+                catalog_version: ext.catalog_version,
+                schema_name: ext.schema_name,
+                if_not_exists: ext.if_not_exists,
+            }),
         };
 
         Ok(plan)
@@ -398,6 +404,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .map(|expr| expr.try_into())
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateSchemaExec>() {
+            proto::ExecutionPlanExtensionType::CreateSchema(proto::CreateSchema {
+                catalog_version: exec.catalog_version,
+                schema_name: exec.schema_name.clone(),
+                if_not_exists: exec.if_not_exists,
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
