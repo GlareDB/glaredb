@@ -74,8 +74,20 @@ pub struct AlterTableRenameExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct AlterTunnelRotateKeysExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+    #[prost(bytes = "vec", tag = "4")]
+    pub new_ssh_key: ::prost::alloc::vec::Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -91,9 +103,11 @@ pub enum ExecutionPlanExtensionType {
     #[prost(message, tag = "3")]
     AlterDatabaseRenameExec(AlterDatabaseRenameExec),
     #[prost(message, tag = "4")]
-    AlterTableRenameExec(AlterTableRenameExec),
+    AlterTunnelRotateKeysExec(AlterTunnelRotateKeysExec),
     #[prost(message, tag = "5")]
-    CreateCredentialsExec(CreateCredentialsExec),
+    AlterTableRenameExec(AlterTableRenameExec),
     #[prost(message, tag = "6")]
+    CreateCredentialsExec(CreateCredentialsExec),
+    #[prost(message, tag = "7")]
     CreateTableExec(CreateTableExec),
 }

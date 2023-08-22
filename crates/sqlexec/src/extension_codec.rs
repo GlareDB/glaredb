@@ -20,6 +20,7 @@ use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionN
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
@@ -419,6 +420,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     schema: ext.schema,
                 })
             }
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(ext) => {
+                Arc::new(AlterTunnelRotateKeysExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    if_exists: ext.if_exists,
+                    new_ssh_key: ext.new_ssh_key,
+                })
+            }
             proto::ExecutionPlanExtensionType::CreateTableExec(ext) => {
                 let exec = CreateTableExec::try_decode(
                     ext,
@@ -496,6 +505,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 new_name: exec.new_name.clone(),
                 schema: exec.schema.clone(),
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
+                proto::AlterTunnelRotateKeysExec {
+                    catalog_version: exec.catalog_version,
+                    name: exec.name.clone(),
+                    if_exists: exec.if_exists,
+                    new_ssh_key: exec.new_ssh_key.clone(),
+                },
+            )
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"
