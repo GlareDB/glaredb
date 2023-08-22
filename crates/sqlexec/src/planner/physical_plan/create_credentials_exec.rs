@@ -26,7 +26,6 @@ pub struct CreateCredentialsExec {
 
 impl PhysicalExtensionNode for CreateCredentialsExec {
     type ProtoRepr = protogen::sqlexec::physical_plan::CreateCredentialsExec;
-    const EXTENSION_NAME: &'static str = "CreateCredentialsExec";
 
     fn try_encode(
         &self,

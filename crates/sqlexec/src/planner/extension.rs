@@ -115,7 +115,6 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
 
 pub trait PhysicalExtensionNode: Sized + ExecutionPlan {
     type ProtoRepr;
-    const EXTENSION_NAME: &'static str;
 
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn PhysicalExtensionCodec) -> Result<()>;
 
