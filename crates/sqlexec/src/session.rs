@@ -6,7 +6,7 @@ use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::remote::client::RemoteClient;
-use datafusion::arrow::datatypes::Schema;
+use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};
@@ -15,6 +15,7 @@ use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
     execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
 };
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
@@ -270,18 +271,19 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
-
-        // TODO!: these should be pushed down to physical execs,
-        // currently we need to early exit on extension nodes as we don't have a physical exec for them.
-        match plan {
-            DfLogicalPlan::Extension(ref extension) if self.is_main_instance() => {
-                let _exec_res = self.execute_extension(extension).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
-            }
-            plan => {
-                let plan = state.create_physical_plan(&plan).await?;
-                Ok(plan)
-            }
+        if let Some(client) = self.ctx.exec_client() {
+            let planner = RemotePhysicalPlanner {
+                remote_client: client,
+                catalog: self.ctx.get_session_catalog(),
+            };
+            let plan = planner.create_physical_plan(&plan, &state).await?;
+            Ok(plan)
+        } else {
+            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());
+            let planner =
+                DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
+            let plan = planner.create_physical_plan(&plan, &state).await?;
+            Ok(plan)
         }
     }
 

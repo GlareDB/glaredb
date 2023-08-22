@@ -3,8 +3,8 @@ use datafusion::arrow::datatypes::Schema;
 use datafusion::common::tree_node::TreeNode;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::context::{QueryPlanner, SessionState};
-use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::{LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
@@ -13,6 +13,7 @@ use datafusion::prelude::Expr;
 use std::sync::Arc;
 
 use crate::errors::internal;
+use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::CreateCredentials;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
@@ -22,58 +23,28 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use super::client::RemoteSessionClient;
 use super::rewriter::LocalSideTableRewriter;
 
-/// Generates physical plans for executing on a remote service.
-#[derive(Debug, Clone)]
-pub struct RemoteQueryPlanner {
-    /// Client to remote services.
-    remote_client: RemoteSessionClient,
+pub struct RemotePhysicalPlanner<'a> {
+    pub remote_client: RemoteSessionClient,
+    pub catalog: &'a SessionCatalog,
 }
 
-impl RemoteQueryPlanner {
-    pub fn new(client: RemoteSessionClient) -> RemoteQueryPlanner {
-        RemoteQueryPlanner {
-            remote_client: client,
-        }
+pub struct DDLExtensionPlanner {
+    catalog_version: u64,
+}
+impl DDLExtensionPlanner {
+    pub fn new(catalog_version: u64) -> Self {
+        Self { catalog_version }
     }
 }
-
-#[async_trait]
-impl QueryPlanner for RemoteQueryPlanner {
-    async fn create_physical_plan(
-        &self,
-        logical_plan: &DfLogicalPlan,
-        session_state: &SessionState,
-    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let physical_planner = RemotePhysicalPlanner::from(self);
-        // Delegate most work of physical planning to the default physical planner
-        physical_planner
-            .create_physical_plan(logical_plan, session_state)
-            .await
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RemotePhysicalPlanner {
-    remote_client: RemoteSessionClient,
-}
-
-impl From<&RemoteQueryPlanner> for RemotePhysicalPlanner {
-    fn from(planner: &RemoteQueryPlanner) -> Self {
-        Self {
-            remote_client: planner.remote_client.clone(),
-        }
-    }
-}
-pub struct DDLExtensionPlanner;
 #[async_trait]
 impl ExtensionPlanner for DDLExtensionPlanner {
     async fn plan_extension(
         &self,
-        planner: &dyn PhysicalPlanner,
+        _planner: &dyn PhysicalPlanner,
         node: &dyn UserDefinedLogicalNode,
-        logical_inputs: &[&DfLogicalPlan],
-        physical_inputs: &[Arc<dyn ExecutionPlan>],
-        session_state: &SessionState,
+        _logical_inputs: &[&DfLogicalPlan],
+        _physical_inputs: &[Arc<dyn ExecutionPlan>],
+        _session_state: &SessionState,
     ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
@@ -90,6 +61,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 .unwrap();
 
                 let exec = CreateCredentialsExec {
+                    catalog_version: self.catalog_version,
                     name: create_credentials_lp.name,
                     options: create_credentials_lp.options,
                     comment: create_credentials_lp.comment,
@@ -116,7 +88,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
 }
 
 #[async_trait]
-impl PhysicalPlanner for RemotePhysicalPlanner {
+impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
     async fn create_physical_plan(
         &self,
         logical_plan: &DfLogicalPlan,
@@ -147,10 +119,12 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
         // correct exec refs.
-        let physical =
-            DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(DDLExtensionPlanner)])
-                .create_physical_plan(&logical_plan, session_state)
-                .await?;
+        let catalog_version = self.catalog.version();
+        let physical = DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(
+            DDLExtensionPlanner::new(catalog_version),
+        )])
+        .create_physical_plan(&logical_plan, session_state)
+        .await?;
 
         // Temporary coalesce exec until our custom plans support partition.
         let physical = Arc::new(CoalescePartitionsExec::new(physical));

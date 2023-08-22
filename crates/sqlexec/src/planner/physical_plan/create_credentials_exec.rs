@@ -1,6 +1,11 @@
-use datafusion::arrow::datatypes::Schema;
-use datafusion::physical_plan::empty::EmptyExec;
+use std::sync::Arc;
+
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{stream::RecordBatchStreamAdapter, DisplayAs, ExecutionPlan};
+use datafusion::physical_plan::{Partitioning, Statistics};
 use futures::stream;
 use futures::StreamExt;
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
@@ -10,6 +15,7 @@ use crate::metastore::catalog::CatalogMutator;
 #[derive(Clone, Debug)]
 pub struct CreateCredentialsExec {
     pub name: String,
+    pub catalog_version: u64,
     pub options: CredentialsOptions,
     pub comment: String,
 }
@@ -20,67 +26,76 @@ impl DisplayAs for CreateCredentialsExec {
         t: datafusion::physical_plan::DisplayFormatType,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        todo!()
+        write!(f, "CreateCredentialsExec")
     }
 }
 
 impl ExecutionPlan for CreateCredentialsExec {
     fn as_any(&self) -> &dyn std::any::Any {
-        todo!()
+        self
     }
 
-    fn schema(&self) -> datafusion::arrow::datatypes::SchemaRef {
-        todo!()
+    fn schema(&self) -> SchemaRef {
+        Arc::new(Schema::empty())
     }
 
-    fn output_partitioning(&self) -> datafusion::physical_plan::Partitioning {
-        todo!()
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
     }
 
-    fn output_ordering(&self) -> Option<&[datafusion::physical_expr::PhysicalSortExpr]> {
-        todo!()
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
     }
 
-    fn children(&self) -> Vec<std::sync::Arc<dyn ExecutionPlan>> {
-        todo!()
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        vec![]
     }
 
     fn with_new_children(
-        self: std::sync::Arc<Self>,
-        children: Vec<std::sync::Arc<dyn ExecutionPlan>>,
-    ) -> datafusion::error::Result<std::sync::Arc<dyn ExecutionPlan>> {
-        todo!()
+        self: Arc<Self>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        Err(DataFusionError::Plan(
+            "Cannot change children for CreateCredentialsExec".to_string(),
+        ))
     }
 
     fn execute(
         &self,
-        partition: usize,
-        context: std::sync::Arc<datafusion::execution::TaskContext>,
-    ) -> datafusion::error::Result<datafusion::physical_plan::SendableRecordBatchStream> {
+        _partition: usize,
+        context: Arc<datafusion::execution::TaskContext>,
+    ) -> DataFusionResult<datafusion::physical_plan::SendableRecordBatchStream> {
         let catalog_mutator = context
             .session_config()
             .get_extension::<CatalogMutator>()
             .unwrap();
-        let output = stream::once(execute_impl(self, catalog_mutator.as_ref())).boxed();
-        // todo (execute output)
-        EmptyExec::new(false, Schema::empty().into()).execute(partition, context)
+        let stream = stream::once(create_credentials(self.clone(), catalog_mutator)).boxed();
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            self.schema(),
+            stream,
+        )))
     }
 
-    fn statistics(&self) -> datafusion::physical_plan::Statistics {
-        todo!()
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
     }
 }
 
-pub async fn execute_impl(exec: &CreateCredentialsExec, mutator: &CatalogMutator) {
+async fn create_credentials(
+    plan: CreateCredentialsExec,
+    mutator: Arc<CatalogMutator>,
+) -> DataFusionResult<RecordBatch> {
     mutator
         .mutate(
-            1u64,
+            plan.catalog_version,
             [Mutation::CreateCredentials(service::CreateCredentials {
-                name: exec.name.clone(),
-                options: exec.options.clone(),
-                comment: exec.comment.clone(),
+                name: plan.name,
+                options: plan.options,
+                comment: plan.comment,
             })],
         )
         .await
-        .unwrap();
+        .map_err(|e| DataFusionError::Execution(format!("failed to create schema: {e}")))?;
+
+    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
 }
