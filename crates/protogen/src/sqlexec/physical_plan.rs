@@ -27,8 +27,18 @@ pub struct RemoteScanExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct AlterDatabaseRenameExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(string, tag = "3")]
+    pub new_name: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2")]
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3")]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -40,4 +50,7 @@ pub enum ExecutionPlanExtensionType {
     // Scans
     #[prost(message, tag = "2")]
     RemoteScanExec(RemoteScanExec),
+    // DDLs
+    #[prost(message, tag = "3")]
+    AlterDatabaseRenameExec(AlterDatabaseRenameExec),
 }
