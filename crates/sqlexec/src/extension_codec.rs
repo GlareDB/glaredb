@@ -17,6 +17,7 @@ use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
+use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -365,6 +366,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     new_name: ext.new_name,
                 })
             }
+            proto::ExecutionPlanExtensionType::AlterTableRenameExec(ext) => {
+                Arc::new(AlterTableRenameExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    new_name: ext.new_name,
+                    schema: ext.schema,
+                })
+            }
         };
 
         Ok(plan)
@@ -415,6 +424,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     new_name: exec.new_name.clone(),
                 },
             )
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableRenameExec>() {
+            proto::ExecutionPlanExtensionType::AlterTableRenameExec(proto::AlterTableRenameExec {
+                catalog_version: exec.catalog_version,
+                name: exec.name.clone(),
+                new_name: exec.new_name.clone(),
+                schema: exec.schema.clone(),
+            })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"
