@@ -38,3 +38,18 @@ select count(*) from parquet_scan([
 ]);
 ----
 2000
+
+# Ambiguous name.
+# query I
+# select count(*)
+#   from parquet_scan('../../testdata/parquet/userdata1.parquet') p
+#   inner join (values ('Sweden')) as c(country) on p.country = c.country
+# ----
+# 1000
+
+# query I
+# select count(*)
+#   from parquet_scan('../../testdata/parquet/userdata1.parquet') p
+#   inner join (select 'Sweden') as c(country) on p.country = c.country
+# ----
+# 1000

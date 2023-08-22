@@ -13,6 +13,7 @@ use datafusion::{
 };
 use parking_lot::Mutex;
 use std::{any::Any, sync::Arc};
+use tracing::debug;
 use uuid::Uuid;
 
 use super::client::RemoteSessionClient;
@@ -99,15 +100,20 @@ impl TableProvider for LocalSideTableProvider {
         let input = self.inner.scan(state, projection, filters, limit).await?;
 
         let broadcast_id = Uuid::new_v4();
+        debug!(%broadcast_id, "creating send and recv execs");
+
+        // Create the receive exec. This will be executed on the remote node.
+        let recv = ClientExchangeRecvExec {
+            broadcast_id,
+            schema: input.schema(),
+        };
+
+        // And create the associated send exec. This will be executed locally,
+        // and pushes batches over the broadcast endpoint.
         let send = ClientExchangeSendExec {
             broadcast_id,
             client: self.client.clone(),
             input,
-        };
-
-        let recv = ClientExchangeRecvExec {
-            broadcast_id,
-            schema: self.schema(),
         };
 
         let mut execs = self.exec_ref.execs.lock();

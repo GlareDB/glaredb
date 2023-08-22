@@ -1,0 +1,51 @@
+# Test cases specific to RPC regressions.
+#
+# Since we're still developing RPC, it's easiest to just put regression cases
+# in a single file. We can split this up later.
+
+# This triggered a few different errors during testing, mostly around our execs
+# not supporting partitioning (while also not ensuring there's only 1
+# partition).
+statement ok
+select *
+  from parquet_scan('../../testdata/parquet/userdata1.parquet') p
+  inner join (select 'Sweden') c(country2) on p.country = country2
+
+query I
+select count(*)
+  from parquet_scan('../../testdata/parquet/userdata1.parquet') p
+  inner join (select 'Sweden') c(country2) on p.country = country2
+----
+25
+
+# Ensure projection works (#1597 and #1602)
+query T
+select first_name
+  from parquet_scan('../../testdata/parquet/userdata1.parquet')
+  order by id
+  limit 3
+----
+Amanda
+Albert
+Evelyn
+
+query T
+select p.first_name
+  from parquet_scan('../../testdata/parquet/userdata1.parquet') p
+  order by p.id
+  limit 3
+----
+Amanda
+Albert
+Evelyn
+
+query TT
+select p.first_name, country2
+  from parquet_scan('../../testdata/parquet/userdata1.parquet') p
+  inner join (select 'Sweden') c(country2) on p.country = country2
+  order by p.id
+  limit 3;
+----
+John     Sweden
+Aaron    Sweden
+Kathryn  Sweden
