@@ -86,6 +86,52 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         }
     }
 }
+pub struct RemoteExtensionPlanner {
+    remote_client: RemoteSessionClient,
+    extension_planner: Arc<dyn ExtensionPlanner + Send + Sync>,
+}
+
+impl RemoteExtensionPlanner {
+    pub fn new(
+        remote_client: RemoteSessionClient,
+        extension_planner: Arc<dyn ExtensionPlanner + Send + Sync>,
+    ) -> Self {
+        Self {
+            remote_client,
+            extension_planner,
+        }
+    }
+}
+
+#[async_trait]
+impl ExtensionPlanner for RemoteExtensionPlanner {
+    async fn plan_extension(
+        &self,
+        planner: &dyn PhysicalPlanner,
+        node: &dyn UserDefinedLogicalNode,
+        logical_inputs: &[&DfLogicalPlan],
+        physical_inputs: &[Arc<dyn ExecutionPlan>],
+        session_state: &SessionState,
+    ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
+        let inner = self
+            .extension_planner
+            .plan_extension(
+                planner,
+                node,
+                logical_inputs,
+                physical_inputs,
+                session_state,
+            )
+            .await?;
+        match inner {
+            Some(exec) => {
+                let exec = RemoteExecutionExec::new(self.remote_client.clone(), exec);
+                Ok(Some(Arc::new(exec)))
+            }
+            None => Ok(None),
+        }
+    }
+}
 
 #[async_trait]
 impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
@@ -120,6 +166,12 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         // the custom table providers meaning we'll have the
         // correct exec refs.
         let catalog_version = self.catalog.version();
+
+        // let ext_planner = RemoteExtensionPlanner::new(
+        //     self.remote_client.clone(),
+        //     Arc::new(DDLExtensionPlanner::new(catalog_version)),
+        // );
+
         let physical = DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(
             DDLExtensionPlanner::new(catalog_version),
         )])

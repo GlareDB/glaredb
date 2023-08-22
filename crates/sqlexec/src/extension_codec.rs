@@ -14,8 +14,9 @@ use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
-use crate::planner::extension::{ExtensionNode, ExtensionType};
+use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
 use crate::planner::logical_plan as plan;
+use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -357,6 +358,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
+            proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
+                let exec = CreateCredentialsExec::try_decode(create_credentials, self)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
+            }
         };
 
         Ok(plan)
@@ -399,6 +405,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
+            return exec
+                .try_encode(buf, self)
+                .map_err(|e| DataFusionError::External(Box::new(e)));
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"

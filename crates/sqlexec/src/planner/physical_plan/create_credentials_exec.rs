@@ -5,12 +5,16 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{stream::RecordBatchStreamAdapter, DisplayAs, ExecutionPlan};
-use datafusion::physical_plan::{Partitioning, Statistics};
+use datafusion::physical_plan::{DisplayFormatType, Partitioning, Statistics};
 use futures::stream;
 use futures::StreamExt;
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
+use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
 use crate::metastore::catalog::CatalogMutator;
+use crate::planner::errors::internal;
+use crate::planner::extension::PhysicalExtensionNode;
+use protogen::export::prost::Message;
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialsExec {
@@ -20,12 +24,52 @@ pub struct CreateCredentialsExec {
     pub comment: String,
 }
 
-impl DisplayAs for CreateCredentialsExec {
-    fn fmt_as(
+impl PhysicalExtensionNode for CreateCredentialsExec {
+    type ProtoRepr = protogen::sqlexec::physical_plan::CreateCredentialsExec;
+    const EXTENSION_NAME: &'static str = "CreateCredentialsExec";
+
+    fn try_encode(
         &self,
-        t: datafusion::physical_plan::DisplayFormatType,
-        f: &mut std::fmt::Formatter,
-    ) -> std::fmt::Result {
+        buf: &mut Vec<u8>,
+        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
+    ) -> crate::errors::Result<()> {
+        let proto = protogen::sqlexec::physical_plan::CreateCredentialsExec {
+            name: self.name.clone(),
+            catalog_version: self.catalog_version,
+            options: Some(self.options.clone().into()),
+            comment: self.comment.clone(),
+        };
+        let ty = ExecutionPlanExtensionType::CreateCredentialsExec(proto);
+        let extension =
+            protogen::sqlexec::physical_plan::ExecutionPlanExtension { inner: Some(ty) };
+        extension
+            .encode(buf)
+            .map_err(|e| internal!("{}", e.to_string()))?;
+        println!("encoded: {:?}", extension);
+        Ok(())
+    }
+
+    fn try_decode(
+        proto: Self::ProtoRepr,
+        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
+    ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
+        let options = proto
+            .options
+            .ok_or(protogen::ProtoConvError::RequiredField(
+                "options".to_string(),
+            ))?;
+
+        Ok(Self {
+            name: proto.name,
+            catalog_version: proto.catalog_version,
+            options: options.try_into()?,
+            comment: proto.comment,
+        })
+    }
+}
+
+impl DisplayAs for CreateCredentialsExec {
+    fn fmt_as(&self, _: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "CreateCredentialsExec")
     }
 }

@@ -25,6 +25,17 @@ pub struct RemoteScanExec {
     #[prost(uint64, optional, tag = "5")]
     pub limit: Option<u64>,
 }
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateCredentialsExec {
+    #[prost(string, tag = "1")]
+    pub name: String,
+    #[prost(uint64, tag = "2")]
+    pub catalog_version: u64,
+    #[prost(message, tag = "3")]
+    pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
+    #[prost(string, tag = "4")]
+    pub comment: String,
+}
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
@@ -40,4 +51,8 @@ pub enum ExecutionPlanExtensionType {
     // Scans
     #[prost(message, tag = "2")]
     RemoteScanExec(RemoteScanExec),
+
+    // DDL
+    #[prost(message, tag = "3")]
+    CreateCredentialsExec(CreateCredentialsExec),
 }
