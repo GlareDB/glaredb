@@ -37,6 +37,8 @@ pub struct CreateTableExec {
     pub arrow_schema: Option<Schema>,
     #[prost(message, tag = "5")]
     pub source: Option<PhysicalPlanNode>,
+    #[prost(uint64, tag = "6")]
+    pub catalog_version: u64,
 }
 
 #[derive(Clone, PartialEq, Message)]

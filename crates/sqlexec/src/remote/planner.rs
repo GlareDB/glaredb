@@ -15,8 +15,9 @@ use std::sync::Arc;
 use crate::errors::internal;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
-use crate::planner::logical_plan::CreateCredentials;
+use crate::planner::logical_plan::{CreateCredentials, CreateTable};
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
+use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
@@ -71,7 +72,11 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateExternalDatabase => todo!(),
             ExtensionType::CreateExternalTable => todo!(),
             ExtensionType::CreateSchema => todo!(),
-            ExtensionType::CreateTable => todo!(),
+            ExtensionType::CreateTable => {
+                let create_table_lp = node.as_any().downcast_ref::<CreateTable>().unwrap();
+
+                todo!()
+            }
             ExtensionType::CreateTempTable => todo!(),
             ExtensionType::CreateTunnel => todo!(),
             ExtensionType::CreateView => todo!(),

@@ -12,6 +12,8 @@ pub(self) use crate::planner::extension::PhysicalExtensionNode;
 pub(self) use datafusion::arrow::datatypes::{Schema, SchemaRef};
 pub(self) use datafusion::arrow::record_batch::RecordBatch;
 pub(self) use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::execution::FunctionRegistry;
 pub(self) use datafusion::execution::TaskContext;
 pub(self) use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub(self) use datafusion::{
@@ -25,6 +27,5 @@ pub(self) use datafusion_proto::physical_plan::AsExecutionPlan;
 pub(self) use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 pub(self) use futures::stream;
 pub(self) use futures::StreamExt;
+use protogen::export::prost::Message;
 pub(self) use std::sync::Arc;
-use datafusion::execution::FunctionRegistry;
-use datafusion::execution::runtime_env::RuntimeEnv;
