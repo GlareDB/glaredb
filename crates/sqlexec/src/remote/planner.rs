@@ -12,12 +12,14 @@ use datafusion::prelude::Expr;
 
 use std::sync::Arc;
 
-use crate::errors::internal;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
-use crate::planner::logical_plan::{CreateCredentials, CreateTable};
+use crate::planner::logical_plan::{
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable,
+};
+use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
-use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
@@ -47,33 +49,90 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         _physical_inputs: &[Arc<dyn ExecutionPlan>],
         _session_state: &SessionState,
     ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
-        let extension_type = node.name().parse::<ExtensionType>().unwrap();
+        let extension_type = node.name().parse::<ExtensionType>().map_err(|e| {
+            DataFusionError::Plan(format!(
+                "Failed to parse extension type from node name: {}",
+                e
+            ))
+        })?;
 
+        // Safety: it's safe to unwrap the downcast because the type is already checked by the node name
         match extension_type {
-            ExtensionType::AlterDatabaseRename => todo!(),
-            ExtensionType::AlterTableRename => todo!(),
-            ExtensionType::AlterTunnelRotateKeys => todo!(),
-            ExtensionType::CreateCredentials => {
-                let create_credentials_lp = match node.as_any().downcast_ref::<CreateCredentials>()
-                {
-                    Some(s) => Ok(s.clone()),
-                    None => Err(internal!("CreateCredentials::try_decode_extension failed",)),
-                }
-                .unwrap();
+            ExtensionType::AlterDatabaseRename => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<AlterDatabaseRename>()
+                    .unwrap()
+                    .clone();
 
-                let exec = CreateCredentialsExec {
+                let exec = AlterDatabaseRenameExec {
                     catalog_version: self.catalog_version,
-                    name: create_credentials_lp.name,
-                    options: create_credentials_lp.options,
-                    comment: create_credentials_lp.comment,
+                    name: lp.name,
+                    new_name: lp.new_name,
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::CreateExternalDatabase => todo!(),
-            ExtensionType::CreateExternalTable => todo!(),
-            ExtensionType::CreateSchema => todo!(),
+            ExtensionType::AlterTableRename => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<AlterTableRename>()
+                    .unwrap()
+                    .clone();
+
+                todo!()
+            }
+            ExtensionType::AlterTunnelRotateKeys => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<AlterTunnelRotateKeys>()
+                    .unwrap()
+                    .clone();
+                todo!()
+            }
+            ExtensionType::CreateCredentials => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<CreateCredentials>()
+                    .unwrap()
+                    .clone();
+
+                let exec = CreateCredentialsExec {
+                    catalog_version: self.catalog_version,
+                    name: lp.name,
+                    options: lp.options,
+                    comment: lp.comment,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::CreateExternalDatabase => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<CreateExternalDatabase>()
+                    .unwrap()
+                    .clone();
+
+                todo!()
+            }
+            ExtensionType::CreateExternalTable => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<CreateExternalTable>()
+                    .unwrap()
+                    .clone();
+
+                todo!()
+            }
+            ExtensionType::CreateSchema => {
+                let lp = node
+                    .as_any()
+                    .downcast_ref::<CreateSchema>()
+                    .unwrap()
+                    .clone();
+
+                todo!()
+            }
             ExtensionType::CreateTable => {
-                let create_table_lp = node.as_any().downcast_ref::<CreateTable>().unwrap();
+                let lp = node.as_any().downcast_ref::<CreateTable>().unwrap().clone();
 
                 todo!()
             }
