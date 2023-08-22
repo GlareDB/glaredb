@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
+use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -357,6 +358,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
+            proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(ext) => {
+                Arc::new(AlterDatabaseRenameExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    new_name: ext.new_name,
+                })
+            }
         };
 
         Ok(plan)
@@ -399,6 +407,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
+            proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(
+                proto::AlterDatabaseRenameExec {
+                    catalog_version: exec.catalog_version,
+                    name: exec.name.clone(),
+                    new_name: exec.new_name.clone(),
+                },
+            )
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"
