@@ -30,6 +30,9 @@ pub struct CatalogMutator {
 }
 
 impl CatalogMutator {
+    pub fn empty() -> Self {
+        CatalogMutator { client: None }
+    }
     pub fn new(client: Option<MetastoreClientHandle>) -> Self {
         CatalogMutator { client }
     }
@@ -45,7 +48,7 @@ impl CatalogMutator {
     /// This will retry mutations if we were working with an out of date
     /// catalog.
     pub async fn mutate(
-        &mut self,
+        &self,
         catalog_version: u64,
         mutations: impl IntoIterator<Item = Mutation>,
     ) -> Result<Arc<CatalogState>> {

@@ -53,7 +53,6 @@ pub struct LocalSessionContext {
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
-    catalog_mutator: CatalogMutator,
     /// Temporary objects dropped at the end of a session.
     temp_objects: TempObjects,
     /// Native tables.
@@ -86,7 +85,8 @@ impl LocalSessionContext {
     ) -> Result<LocalSessionContext> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(vars);
-        let conf: SessionConfig = opts.into();
+        let mut conf: SessionConfig = opts.into();
+        conf = conf.with_extension(Arc::new(catalog_mutator));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
@@ -94,7 +94,7 @@ impl LocalSessionContext {
         Ok(LocalSessionContext {
             exec_client: None,
             catalog,
-            catalog_mutator,
+
             temp_objects: TempObjects::default(),
             tables: native_tables,
             prepared: HashMap::new(),
@@ -125,14 +125,19 @@ impl LocalSessionContext {
             .set_raw(Some(client.session_id()), VarType::System)
             .unwrap();
         self.exec_client = Some(client.clone());
-        // TODO: We _could_ do something fancy where we keep the local catalog
-        // around, but that's for another time.
-        self.catalog_mutator.client = None;
+
         self.catalog = catalog;
 
         // Replace datafusion context with the remote aware planner.
         let planner = RemoteQueryPlanner::new(client);
-        let state = self.df_ctx.state().with_query_planner(Arc::new(planner));
+        let state = self
+            .df_ctx
+            .state()
+            .with_query_planner(Arc::new(planner))
+            // TODO: We _could_ do something fancy where we keep the local catalog
+            // around, but that's for another time.
+            .with_config_extension(Arc::new(CatalogMutator::empty()));
+
         self.df_ctx = DfSessionContext::with_state(state);
 
         Ok(())
@@ -181,6 +186,14 @@ impl LocalSessionContext {
         self.exec_client.clone()
     }
 
+    fn catalog_mutator(&self) -> Arc<CatalogMutator> {
+        self.df_ctx
+            .state()
+            .config()
+            .get_extension::<CatalogMutator>()
+            .unwrap()
+    }
+
     /// Create a temp table.
     pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self
@@ -219,7 +232,7 @@ impl LocalSessionContext {
 
         // Insert into catalog.
         let state = self
-            .catalog_mutator
+            .catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateTable(service::CreateTable {
@@ -280,7 +293,7 @@ impl LocalSessionContext {
         }
 
         // Add the storage tracker job once data is inserted.
-        if let Some(client) = &self.catalog_mutator.client {
+        if let Some(client) = &self.catalog_mutator().client {
             let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), client.clone());
             self.background_jobs.add(tracker)?;
         }
@@ -322,7 +335,7 @@ impl LocalSessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
         // TODO: Check if catalog is valid
 
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateExternalTable(
@@ -342,7 +355,7 @@ impl LocalSessionContext {
     /// Create a schema.
     pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
         let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateSchema(service::CreateSchema {
@@ -355,7 +368,7 @@ impl LocalSessionContext {
     }
 
     pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateExternalDatabase(
@@ -372,7 +385,7 @@ impl LocalSessionContext {
     }
 
     pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateTunnel(service::CreateTunnel {
@@ -386,7 +399,7 @@ impl LocalSessionContext {
     }
 
     pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateCredentials(service::CreateCredentials {
@@ -401,7 +414,7 @@ impl LocalSessionContext {
 
     pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
         let (_, schema, name) = self.resolve_table_ref(plan.view_name)?;
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateView(service::CreateView {
@@ -421,7 +434,7 @@ impl LocalSessionContext {
         let (_, schema, name) = self.resolve_table_ref(plan.name)?;
         let (_, _, new_name) = self.resolve_table_ref(plan.new_name)?;
         // TODO: Check that the schema and catalog names are same.
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::AlterTableRename(service::AlterTableRename {
@@ -436,7 +449,7 @@ impl LocalSessionContext {
     }
 
     pub async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::AlterDatabaseRename(
@@ -452,7 +465,7 @@ impl LocalSessionContext {
     }
 
     pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::AlterTunnelRotateKeys(
@@ -496,7 +509,7 @@ impl LocalSessionContext {
                 if_exists: plan.if_exists,
             }));
         }
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(self.catalog.version(), drops)
             .await?;
 
@@ -528,7 +541,7 @@ impl LocalSessionContext {
             }));
         }
 
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(self.catalog.version(), drops)
             .await?;
 
@@ -550,7 +563,7 @@ impl LocalSessionContext {
             })
             .collect();
 
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(self.catalog.version(), drops)
             .await?;
 
@@ -570,7 +583,7 @@ impl LocalSessionContext {
             })
             .collect();
 
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(self.catalog.version(), drops)
             .await?;
 
@@ -590,7 +603,7 @@ impl LocalSessionContext {
             })
             .collect();
 
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(self.catalog.version(), drops)
             .await?;
 
@@ -610,7 +623,7 @@ impl LocalSessionContext {
             })
             .collect();
 
-        self.catalog_mutator
+        self.catalog_mutator()
             .mutate(self.catalog.version(), drops)
             .await?;
 
@@ -639,11 +652,11 @@ impl LocalSessionContext {
         _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
+        let mutator = self.catalog_mutator();
+        let client = mutator.get_metastore_client();
+
         self.catalog
-            .maybe_refresh_state(
-                self.catalog_mutator.get_metastore_client(),
-                self.get_session_vars().force_catalog_refresh(),
-            )
+            .maybe_refresh_state(client, self.get_session_vars().force_catalog_refresh())
             .await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
