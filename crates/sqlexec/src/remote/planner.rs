@@ -4,14 +4,18 @@ use datafusion::common::tree_node::TreeNode;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
-use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
-use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
+use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
 
 use std::sync::Arc;
 
+use crate::errors::internal;
+use crate::planner::extension::ExtensionType;
+use crate::planner::logical_plan::CreateCredentials;
+use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
@@ -60,6 +64,56 @@ impl From<&RemoteQueryPlanner> for RemotePhysicalPlanner {
         }
     }
 }
+pub struct DDLExtensionPlanner;
+#[async_trait]
+impl ExtensionPlanner for DDLExtensionPlanner {
+    async fn plan_extension(
+        &self,
+        planner: &dyn PhysicalPlanner,
+        node: &dyn UserDefinedLogicalNode,
+        logical_inputs: &[&DfLogicalPlan],
+        physical_inputs: &[Arc<dyn ExecutionPlan>],
+        session_state: &SessionState,
+    ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
+        let extension_type = node.name().parse::<ExtensionType>().unwrap();
+
+        match extension_type {
+            ExtensionType::AlterDatabaseRename => todo!(),
+            ExtensionType::AlterTableRename => todo!(),
+            ExtensionType::AlterTunnelRotateKeys => todo!(),
+            ExtensionType::CreateCredentials => {
+                let create_credentials_lp = match node.as_any().downcast_ref::<CreateCredentials>()
+                {
+                    Some(s) => Ok(s.clone()),
+                    None => Err(internal!("CreateCredentials::try_decode_extension failed",)),
+                }
+                .unwrap();
+
+                let exec = CreateCredentialsExec {
+                    name: create_credentials_lp.name,
+                    options: create_credentials_lp.options,
+                    comment: create_credentials_lp.comment,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::CreateExternalDatabase => todo!(),
+            ExtensionType::CreateExternalTable => todo!(),
+            ExtensionType::CreateSchema => todo!(),
+            ExtensionType::CreateTable => todo!(),
+            ExtensionType::CreateTempTable => todo!(),
+            ExtensionType::CreateTunnel => todo!(),
+            ExtensionType::CreateView => todo!(),
+            ExtensionType::DropTables => todo!(),
+            ExtensionType::DropCredentials => todo!(),
+            ExtensionType::DropDatabase => todo!(),
+            ExtensionType::DropSchemas => todo!(),
+            ExtensionType::DropTunnel => todo!(),
+            ExtensionType::DropViews => todo!(),
+            ExtensionType::SetVariable => todo!(),
+            ExtensionType::CopyTo => todo!(),
+        }
+    }
+}
 
 #[async_trait]
 impl PhysicalPlanner for RemotePhysicalPlanner {
@@ -93,9 +147,10 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
         // correct exec refs.
-        let physical = DefaultPhysicalPlanner::default()
-            .create_physical_plan(&logical_plan, session_state)
-            .await?;
+        let physical =
+            DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(DDLExtensionPlanner)])
+                .create_physical_plan(&logical_plan, session_state)
+                .await?;
 
         // Temporary coalesce exec until our custom plans support partition.
         let physical = Arc::new(CoalescePartitionsExec::new(physical));
