@@ -5,6 +5,7 @@ use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::{QueryPlanner, SessionState};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
@@ -95,6 +96,9 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         let physical = DefaultPhysicalPlanner::default()
             .create_physical_plan(&logical_plan, session_state)
             .await?;
+
+        // Temporary coalesce exec until our custom plans support partition.
+        let physical = Arc::new(CoalescePartitionsExec::new(physical));
 
         // Wrap in exec that will send the plan to the remote machine.
         let physical = Arc::new(RemoteExecutionExec::new(

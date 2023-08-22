@@ -14,6 +14,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::remote::staged_stream::{ResolveClientStreamFut, StagedClientStreams};
@@ -62,6 +63,7 @@ impl ExecutionPlan for ClientExchangeRecvExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        debug!(%partition, %self.broadcast_id, "executing client exchange recv exec");
         if partition != 0 {
             return Err(DataFusionError::Execution(
                 "ClientExchangeRecvExec only supports 1 partition".to_string(),
@@ -91,7 +93,11 @@ impl ExecutionPlan for ClientExchangeRecvExec {
 
 impl DisplayAs for ClientExchangeRecvExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ClientExchangeRecvExec")
+        write!(
+            f,
+            "ClientExchangeRecvExec: broadcast_id={}",
+            self.broadcast_id
+        )
     }
 }
 

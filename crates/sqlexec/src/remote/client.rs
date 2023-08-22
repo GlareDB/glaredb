@@ -223,6 +223,10 @@ impl RemoteSessionClient {
         self.session_id
     }
 
+    pub fn get_deployment_name(&self) -> &str {
+        self.inner.get_deployment_name()
+    }
+
     pub async fn dispatch_access(
         &mut self,
         table_ref: OwnedTableReference,
