@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::{
-    arrow::datatypes::{Schema, SchemaRef},
+    arrow::datatypes::{DataType, Field, Schema, SchemaRef},
     datasource::TableProvider,
     error::{DataFusionError, Result as DfResult},
     execution::context::SessionState,
@@ -14,8 +14,17 @@ use uuid::Uuid;
 
 use crate::{
     errors::Result,
-    planner::physical_plan::remote_scan::{ProviderReference, RemoteScanExec},
+    planner::physical_plan::{
+        client_recv::ClientExchangeRecvExec,
+        client_send::ClientExchangeSendExec,
+        remote_exec::RemoteExecutionExec,
+        remote_insert::{RemoteInsertExec, INSERT_PLAN_SCHEMA},
+        remote_scan::{ProviderReference, RemoteScanExec},
+        send_recv::SendRecvJoinExec,
+    },
 };
+
+use super::{client::RemoteSessionClient, local_side::ClientSendExecsRef};
 
 /// A stub table provider for getting the schema of a remote table.
 ///
@@ -29,13 +38,16 @@ pub struct StubRemoteTableProvider {
     provider_id: Uuid,
     /// Schema for the table provider.
     schema: Arc<Schema>,
+    /// Client for connecting to remote.
+    client: RemoteSessionClient,
 }
 
 impl StubRemoteTableProvider {
-    pub fn new(provider_id: Uuid, schema: SchemaRef) -> Self {
+    pub fn new(provider_id: Uuid, schema: SchemaRef, client: RemoteSessionClient) -> Self {
         Self {
             provider_id,
             schema,
+            client,
         }
     }
 
@@ -86,10 +98,24 @@ impl TableProvider for StubRemoteTableProvider {
     async fn insert_into(
         &self,
         _state: &SessionState,
-        _input: Arc<dyn ExecutionPlan>,
+        input: Arc<dyn ExecutionPlan>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::NotImplemented(
-            "insert_into called on a stub provider".to_string(),
-        ))
+        let broadcast_id = Uuid::new_v4();
+        let send = ClientExchangeSendExec {
+            broadcast_id,
+            client: self.client.clone(),
+            input,
+        };
+
+        let recv = RemoteExecutionExec::new(
+            self.client.clone(),
+            Arc::new(RemoteInsertExec::from_broadcast(
+                broadcast_id,
+                ProviderReference::RemoteReference(self.provider_id),
+            )),
+        );
+
+        let exec = SendRecvJoinExec::from_send_execs(Arc::new(recv), vec![send]);
+        Ok(Arc::new(exec))
     }
 }

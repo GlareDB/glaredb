@@ -107,7 +107,10 @@ impl PhysicalPlanner for RemotePhysicalPlanner {
         //
         // At this point, the send execs should have been
         // populated.
-        let physical = Arc::new(SendRecvJoinExec::new(physical, rewriter.exec_refs));
+        let physical = Arc::new(SendRecvJoinExec::from_send_exec_refs(
+            physical,
+            rewriter.exec_refs,
+        ));
 
         Ok(physical)
     }

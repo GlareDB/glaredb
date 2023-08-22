@@ -46,9 +46,18 @@ impl SendRecvJoinExec {
     /// have been populated by calling `LocalSideTableProvider::scan` (which
     /// should have already been done by creating the provided input execution
     /// plan).
-    pub fn new(input: Arc<dyn ExecutionPlan>, refs: Vec<ClientSendExecsRef>) -> SendRecvJoinExec {
+    pub fn from_send_exec_refs(
+        input: Arc<dyn ExecutionPlan>,
+        refs: Vec<ClientSendExecsRef>,
+    ) -> SendRecvJoinExec {
         let send_execs: Vec<_> = refs.into_iter().flat_map(|r| r.take_execs()).collect();
+        Self::from_send_execs(input, send_execs)
+    }
 
+    pub fn from_send_execs(
+        input: Arc<dyn ExecutionPlan>,
+        send_execs: Vec<ClientExchangeSendExec>,
+    ) -> SendRecvJoinExec {
         SendRecvJoinExec {
             input,
             send_execs: Arc::new(Mutex::new(send_execs)),

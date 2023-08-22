@@ -243,7 +243,11 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(StubRemoteTableProvider::new(resp.id, Arc::new(resp.schema)))
+        Ok(StubRemoteTableProvider::new(
+            resp.id,
+            Arc::new(resp.schema),
+            self.clone(),
+        ))
     }
 
     pub async fn physical_plan_execute(

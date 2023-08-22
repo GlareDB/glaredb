@@ -27,8 +27,16 @@ pub struct RemoteScanExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct RemoteInsertExec {
+    #[prost(bytes, tag = "1")]
+    pub provider_id: Vec<u8>, // UUID
+    #[prost(message, tag = "2")]
+    pub input: Option<ClientExchangeRecvExec>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
-    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2")]
+    #[prost(oneof = "ExecutionPlanExtensionType", tags = "1, 2, 3")]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
 
@@ -40,4 +48,7 @@ pub enum ExecutionPlanExtensionType {
     // Scans
     #[prost(message, tag = "2")]
     RemoteScanExec(RemoteScanExec),
+    // Inserts
+    #[prost(message, tag = "3")]
+    RemoteInsertExec(RemoteInsertExec),
 }

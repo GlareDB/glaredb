@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
+use crate::planner::physical_plan::remote_insert::RemoteInsertExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -357,6 +358,36 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
+            proto::ExecutionPlanExtensionType::RemoteInsertExec(ext) => {
+                let provider_id = Uuid::from_slice(&ext.provider_id).map_err(|e| {
+                    DataFusionError::Plan(format!("failed to decode provider id: {e}"))
+                })?;
+                let input = ext.input.ok_or_else(|| {
+                    DataFusionError::Plan("input is required to insert data".to_string())
+                })?;
+                let schema = input
+                    .schema
+                    .ok_or_else(|| DataFusionError::Plan("schema is required".to_string()))?;
+                let input = ClientExchangeRecvExec {
+                    broadcast_id: Uuid::from_slice(&input.broadcast_id).map_err(|e| {
+                        DataFusionError::Plan(format!("failed to decode broadcast id: {e}"))
+                    })?,
+                    schema: Arc::new((&schema).try_into()?),
+                };
+
+                let provider = self
+                    .table_providers
+                    .expect("remote context should have provider cache")
+                    .get(&provider_id)
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(format!("Missing proivder for id: {provider_id}"))
+                    })?;
+
+                Arc::new(RemoteInsertExec {
+                    provider: ProviderReference::Provider(provider),
+                    input: Arc::new(input),
+                })
+            }
         };
 
         Ok(plan)
@@ -398,6 +429,23 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .map(|expr| expr.try_into())
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<RemoteInsertExec>() {
+            let id = match exec.provider {
+                ProviderReference::RemoteReference(id) => id,
+                ProviderReference::Provider(_) => {
+                    return Err(DataFusionError::Internal(
+                        "Unexpectedly got table provider on client side".to_string(),
+                    ))
+                }
+            };
+
+            proto::ExecutionPlanExtensionType::RemoteInsertExec(proto::RemoteInsertExec {
+                provider_id: id.into_bytes().to_vec(),
+                input: Some(proto::ClientExchangeRecvExec {
+                    broadcast_id: exec.input.broadcast_id.into_bytes().to_vec(),
+                    schema: Some(exec.input.schema.clone().try_into()?),
+                }),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
