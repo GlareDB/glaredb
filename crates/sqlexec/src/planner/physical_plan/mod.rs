@@ -4,6 +4,7 @@ pub mod alter_tunnel_rotate_keys;
 pub mod client_recv;
 pub mod client_send;
 pub mod create_credentials_exec;
+pub mod create_schema;
 pub mod drop_database;
 pub mod drop_schemas;
 pub mod drop_tunnel;

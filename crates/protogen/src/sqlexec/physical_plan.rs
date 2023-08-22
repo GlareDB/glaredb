@@ -116,10 +116,20 @@ pub struct DropViewsExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct CreateSchema {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub schema_name: String,
+    #[prost(bool, tag = "3")]
+    pub if_not_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -149,4 +159,6 @@ pub enum ExecutionPlanExtensionType {
     DropTunnelExec(DropTunnelExec),
     #[prost(message, tag = "10")]
     DropViewsExec(DropViewsExec),
+    #[prost(message, tag = "11")]
+    CreateSchema(CreateSchema),
 }
