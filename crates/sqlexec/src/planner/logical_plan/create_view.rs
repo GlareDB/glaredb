@@ -1,7 +1,7 @@
 use super::*;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateView {
-    pub view_name: OwnedTableReference,
+    pub reference: OwnedFullObjectReference,
     pub sql: String,
     pub columns: Vec<String>,
     pub or_replace: bool,
@@ -46,15 +46,15 @@ impl ExtensionNode for CreateView {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let view_name = proto
-            .view_name
+        let reference = proto
+            .reference
             .ok_or(ProtoConvError::RequiredField(
-                "view_name is required".to_string(),
+                "reference is required".to_string(),
             ))?
-            .try_into()?;
+            .into();
 
         Ok(CreateView {
-            view_name,
+            reference,
             sql: proto.sql,
             columns: proto.columns,
             or_replace: proto.or_replace,
@@ -73,7 +73,7 @@ impl ExtensionNode for CreateView {
         use protogen::sqlexec::logical_plan as protogen;
 
         let proto = protogen::CreateView {
-            view_name: Some(self.view_name.clone().into()),
+            reference: Some(self.reference.clone().into()),
             sql: self.sql.clone(),
             columns: self.columns.clone(),
             or_replace: self.or_replace,

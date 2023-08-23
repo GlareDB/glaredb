@@ -369,7 +369,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
                 catalog_version: ext.catalog_version,
-                schema_name: ext.schema_name,
+                reference: ext
+                    .reference
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing schema references".to_string())
+                    })?
+                    .into(),
                 if_not_exists: ext.if_not_exists,
             }),
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
@@ -387,9 +392,18 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::AlterTableRenameExec(ext) => {
                 Arc::new(AlterTableRenameExec {
                     catalog_version: ext.catalog_version,
-                    name: ext.name,
-                    new_name: ext.new_name,
-                    schema: ext.schema,
+                    reference: ext
+                        .reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    new_reference: ext
+                        .new_reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing new table references".to_string())
+                        })?
+                        .into(),
                 })
             }
             proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(ext) => {
@@ -409,7 +423,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
                 catalog_version: ext.catalog_version,
-                names: ext.names,
+                references: ext.references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
                 cascade: ext.cascade,
             }),
@@ -420,9 +434,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }),
             proto::ExecutionPlanExtensionType::DropViewsExec(ext) => Arc::new(DropViewsExec {
                 catalog_version: ext.catalog_version,
-                names: ext.names,
+                references: ext.references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
-                schema: ext.schema,
             }),
         };
 
@@ -469,7 +482,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateSchemaExec>() {
             proto::ExecutionPlanExtensionType::CreateSchema(proto::CreateSchema {
                 catalog_version: exec.catalog_version,
-                schema_name: exec.schema_name.clone(),
+                reference: Some(exec.reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
@@ -487,9 +500,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableRenameExec>() {
             proto::ExecutionPlanExtensionType::AlterTableRenameExec(proto::AlterTableRenameExec {
                 catalog_version: exec.catalog_version,
-                name: exec.name.clone(),
-                new_name: exec.new_name.clone(),
-                schema: exec.schema.clone(),
+                reference: Some(exec.reference.clone().into()),
+                new_reference: Some(exec.new_reference.clone().into()),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
             proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
@@ -509,7 +521,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<DropSchemasExec>() {
             proto::ExecutionPlanExtensionType::DropSchemasExec(proto::DropSchemasExec {
                 catalog_version: exec.catalog_version,
-                names: exec.names.clone(),
+                references: exec
+                    .references
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
                 if_exists: exec.if_exists,
                 cascade: exec.cascade,
             })
@@ -522,9 +539,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<DropViewsExec>() {
             proto::ExecutionPlanExtensionType::DropViewsExec(proto::DropViewsExec {
                 catalog_version: exec.catalog_version,
-                names: exec.names.clone(),
+                references: exec
+                    .references
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
                 if_exists: exec.if_exists,
-                schema: exec.schema.clone(),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

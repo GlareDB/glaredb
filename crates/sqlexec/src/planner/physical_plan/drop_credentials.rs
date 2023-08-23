@@ -1,5 +1,4 @@
 use crate::metastore::catalog::CatalogMutator;
-use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -16,13 +15,13 @@ use std::fmt;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub struct AlterTableRenameExec {
+pub struct DropCredentialsExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullObjectReference,
-    pub new_reference: OwnedFullObjectReference,
+    pub names: Vec<String>,
+    pub if_exists: bool,
 }
 
-impl ExecutionPlan for AlterTableRenameExec {
+impl ExecutionPlan for DropCredentialsExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -48,7 +47,7 @@ impl ExecutionPlan for AlterTableRenameExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Plan(
-            "Cannot change children for AlterTableRenameExec".to_string(),
+            "Cannot change children for DropCredentialsExec".to_string(),
         ))
     }
 
@@ -59,7 +58,7 @@ impl ExecutionPlan for AlterTableRenameExec {
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
-                "AlterTableRenameExec only supports 1 partition".to_string(),
+                "DropCredentialsExec only supports 1 partition".to_string(),
             ));
         }
 
@@ -68,7 +67,7 @@ impl ExecutionPlan for AlterTableRenameExec {
             .get_extension::<CatalogMutator>()
             .expect("context should have catalog mutator");
 
-        let stream = stream::once(alter_table_rename(mutator, self.clone()));
+        let stream = stream::once(drop_credentials(mutator, self.clone()));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -81,28 +80,31 @@ impl ExecutionPlan for AlterTableRenameExec {
     }
 }
 
-impl DisplayAs for AlterTableRenameExec {
+impl DisplayAs for DropCredentialsExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AlterTableRenameExec")
+        write!(f, "DropCredentialsExec")
     }
 }
 
-async fn alter_table_rename(
+async fn drop_credentials(
     mutator: Arc<CatalogMutator>,
-    plan: AlterTableRenameExec,
+    plan: DropCredentialsExec,
 ) -> DataFusionResult<RecordBatch> {
-    // TODO: Error if schemas between references differ.
+    let drops: Vec<_> = plan
+        .names
+        .into_iter()
+        .map(|name| {
+            Mutation::DropCredentials(service::DropCredentials {
+                name,
+                if_exists: plan.if_exists,
+            })
+        })
+        .collect();
+
     mutator
-        .mutate(
-            plan.catalog_version,
-            [Mutation::AlterTableRename(service::AlterTableRename {
-                name: plan.reference.name.into_owned(),
-                new_name: plan.new_reference.name.into_owned(),
-                schema: plan.reference.schema.into_owned(),
-            })],
-        )
+        .mutate(plan.catalog_version, drops)
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
+        .map_err(|e| DataFusionError::Execution(format!("failed to drop credentials: {e}")))?;
 
     Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
 }

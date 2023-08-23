@@ -49,3 +49,19 @@ select p.first_name, country2
 John     Sweden
 Aaron    Sweden
 Kathryn  Sweden
+
+# One off tests for #1599
+
+statement ok
+create schema hello_world;
+
+statement ok
+drop schema hello_world;
+
+statement ok
+create view my_view as select 1;
+
+query I
+select * from my_view;
+----
+1

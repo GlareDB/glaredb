@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateExternalTable {
-    pub table_name: OwnedTableReference,
+    pub reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
@@ -46,19 +46,19 @@ impl ExtensionNode for CreateExternalTable {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let table_name = proto
-            .table_name
+        let reference = proto
+            .reference
             .ok_or(ProtoConvError::RequiredField(
                 "table_name is required".to_string(),
             ))?
-            .try_into()?;
+            .into();
 
         let tbl_options = proto.table_options.ok_or(ProtoConvError::RequiredField(
             "table_options is required".to_string(),
         ))?;
 
         Ok(Self {
-            table_name,
+            reference,
             if_not_exists: proto.if_not_exists,
             table_options: tbl_options.try_into()?,
             tunnel: proto.tunnel,
@@ -78,7 +78,7 @@ impl ExtensionNode for CreateExternalTable {
         use protogen::sqlexec::logical_plan as protogen;
 
         let create_table = protogen::CreateExternalTable {
-            table_name: self.table_name.clone().try_into().ok(),
+            reference: Some(self.reference.clone().into()),
             if_not_exists: self.if_not_exists,
             table_options: Some(self.table_options.clone().try_into().ok().ok_or(
                 ProtoConvError::RequiredField("table_options is required".to_string()),

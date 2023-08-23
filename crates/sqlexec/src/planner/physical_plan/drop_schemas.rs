@@ -1,4 +1,5 @@
 use crate::metastore::catalog::CatalogMutator;
+use crate::planner::logical_plan::OwnedFullSchemaReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -17,7 +18,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct DropSchemasExec {
     pub catalog_version: u64,
-    pub names: Vec<String>,
+    pub references: Vec<OwnedFullSchemaReference>,
     pub if_exists: bool,
     pub cascade: bool,
 }
@@ -92,11 +93,11 @@ async fn drop_schemas(
     plan: DropSchemasExec,
 ) -> DataFusionResult<RecordBatch> {
     let drops: Vec<_> = plan
-        .names
+        .references
         .into_iter()
-        .map(|name| {
+        .map(|r| {
             Mutation::DropSchema(service::DropSchema {
-                name,
+                name: r.schema.into_owned(),
                 if_exists: plan.if_exists,
                 cascade: plan.cascade,
             })

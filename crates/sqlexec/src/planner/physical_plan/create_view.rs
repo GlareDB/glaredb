@@ -16,13 +16,15 @@ use std::fmt;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub struct AlterTableRenameExec {
+pub struct CreateViewExec {
     pub catalog_version: u64,
     pub reference: OwnedFullObjectReference,
-    pub new_reference: OwnedFullObjectReference,
+    pub sql: String,
+    pub columns: Vec<String>,
+    pub or_replace: bool,
 }
 
-impl ExecutionPlan for AlterTableRenameExec {
+impl ExecutionPlan for CreateViewExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -48,7 +50,7 @@ impl ExecutionPlan for AlterTableRenameExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Plan(
-            "Cannot change children for AlterTableRenameExec".to_string(),
+            "Cannot change children for CreateViewExec".to_string(),
         ))
     }
 
@@ -59,7 +61,7 @@ impl ExecutionPlan for AlterTableRenameExec {
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
-                "AlterTableRenameExec only supports 1 partition".to_string(),
+                "CreateViewExec only supports 1 partition".to_string(),
             ));
         }
 
@@ -68,7 +70,7 @@ impl ExecutionPlan for AlterTableRenameExec {
             .get_extension::<CatalogMutator>()
             .expect("context should have catalog mutator");
 
-        let stream = stream::once(alter_table_rename(mutator, self.clone()));
+        let stream = stream::once(create_view(mutator, self.clone()));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -81,28 +83,29 @@ impl ExecutionPlan for AlterTableRenameExec {
     }
 }
 
-impl DisplayAs for AlterTableRenameExec {
+impl DisplayAs for CreateViewExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AlterTableRenameExec")
+        write!(f, "CreateViewExec")
     }
 }
 
-async fn alter_table_rename(
+async fn create_view(
     mutator: Arc<CatalogMutator>,
-    plan: AlterTableRenameExec,
+    plan: CreateViewExec,
 ) -> DataFusionResult<RecordBatch> {
-    // TODO: Error if schemas between references differ.
     mutator
         .mutate(
             plan.catalog_version,
-            [Mutation::AlterTableRename(service::AlterTableRename {
-                name: plan.reference.name.into_owned(),
-                new_name: plan.new_reference.name.into_owned(),
+            [Mutation::CreateView(service::CreateView {
                 schema: plan.reference.schema.into_owned(),
+                name: plan.reference.name.into_owned(),
+                sql: plan.sql,
+                or_replace: plan.or_replace,
+                columns: plan.columns,
             })],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
+        .map_err(|e| DataFusionError::Execution(format!("failed to create view: {e}")))?;
 
     Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
 }

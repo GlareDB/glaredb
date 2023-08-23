@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DropSchemas {
-    pub names: Vec<OwnedSchemaReference>,
+    pub references: Vec<OwnedFullSchemaReference>,
     pub if_exists: bool,
     pub cascade: bool,
 }
@@ -45,14 +45,14 @@ impl ExtensionNode for DropSchemas {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let names = proto
-            .names
+        let references = proto
+            .references
             .into_iter()
-            .map(OwnedSchemaReference::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|r| r.into())
+            .collect::<Vec<_>>();
 
         Ok(Self {
-            names,
+            references,
             if_exists: proto.if_exists,
             cascade: proto.cascade,
         })
@@ -66,14 +66,15 @@ impl ExtensionNode for DropSchemas {
 
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
-        let names = self
-            .names
-            .iter()
-            .map(|name| name.clone().try_into())
-            .collect::<Result<Vec<_>, _>>()?;
+        let references = self
+            .references
+            .clone()
+            .into_iter()
+            .map(|r| r.into())
+            .collect::<Vec<_>>();
 
         let create_schema = protogen::DropSchemas {
-            names,
+            references,
             if_exists: self.if_exists,
             cascade: self.cascade,
         };

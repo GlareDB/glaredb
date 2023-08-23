@@ -1,4 +1,5 @@
 use crate::metastore::catalog::CatalogMutator;
+use crate::planner::logical_plan::OwnedFullSchemaReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -17,7 +18,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct CreateSchemaExec {
     pub catalog_version: u64,
-    pub schema_name: String,
+    pub reference: OwnedFullSchemaReference,
     pub if_not_exists: bool,
 }
 
@@ -94,7 +95,7 @@ async fn create_schema(
         .mutate(
             plan.catalog_version,
             [Mutation::CreateSchema(service::CreateSchema {
-                name: plan.schema_name,
+                name: plan.reference.schema.into_owned(),
                 if_not_exists: plan.if_not_exists,
             })],
         )

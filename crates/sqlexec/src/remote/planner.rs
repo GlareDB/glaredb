@@ -12,19 +12,26 @@ use datafusion::prelude::Expr;
 
 use std::sync::Arc;
 
-use crate::errors::internal;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, DropDatabase,
-    DropSchemas, DropTunnel, DropViews,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTunnel, CreateView,
+    DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
+use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
+use crate::planner::physical_plan::create_schema::CreateSchemaExec;
+use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
+use crate::planner::physical_plan::create_view::CreateViewExec;
+use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tables::DropTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
@@ -60,149 +67,144 @@ impl ExtensionPlanner for DDLExtensionPlanner {
 
         match extension_type {
             ExtensionType::AlterDatabaseRename => {
-                let alter_database_rename_lp =
-                    match node.as_any().downcast_ref::<AlterDatabaseRename>() {
-                        Some(s) => Ok(s.clone()),
-                        None => Err(internal!(
-                            "AlterDatabaseRename::try_decode_extension failed",
-                        )),
-                    }
-                    .unwrap();
-
-                let exec: AlterDatabaseRenameExec = AlterDatabaseRenameExec {
+                let lp = require_downcast_lp::<AlterDatabaseRename>(node);
+                let exec = AlterDatabaseRenameExec {
                     catalog_version: self.catalog_version,
-                    name: alter_database_rename_lp.name,
-                    new_name: alter_database_rename_lp.new_name,
+                    name: lp.name.to_string(),
+                    new_name: lp.new_name.to_string(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::AlterTableRename => {
-                let alter_table_rename_lp =
-                    match node.as_any().downcast_ref::<AlterTableRename>() {
-                        Some(s) => Ok(s.clone()),
-                        None => Err(internal!("AlterTableRename::try_decode_extension failed",)),
-                    }
-                    .unwrap();
-
-                let exec: AlterTableRenameExec = AlterTableRenameExec {
+                let lp = require_downcast_lp::<AlterTableRename>(node);
+                let exec = AlterTableRenameExec {
                     catalog_version: self.catalog_version,
-                    name: alter_table_rename_lp.name.table().to_string(),
-                    new_name: alter_table_rename_lp.new_name.table().to_string(),
-                    schema: alter_table_rename_lp.schema().to_string(),
+                    reference: lp.reference.clone(),
+                    new_reference: lp.reference.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::AlterTunnelRotateKeys => {
-                let alter_tunnel_rotate_keys_lp =
-                    match node.as_any().downcast_ref::<AlterTunnelRotateKeys>() {
-                        Some(s) => Ok(s.clone()),
-                        None => Err(internal!(
-                            "AlterTunnelRotateKeys::try_decode_extension failed",
-                        )),
-                    }
-                    .unwrap();
-
-                let exec: AlterTunnelRotateKeysExec = AlterTunnelRotateKeysExec {
+                let lp = require_downcast_lp::<AlterTunnelRotateKeys>(node);
+                let exec = AlterTunnelRotateKeysExec {
                     catalog_version: self.catalog_version,
-                    name: alter_tunnel_rotate_keys_lp.name,
-                    if_exists: alter_tunnel_rotate_keys_lp.if_exists,
-                    new_ssh_key: alter_tunnel_rotate_keys_lp.new_ssh_key,
+                    name: lp.name.to_string(),
+                    if_exists: lp.if_exists,
+                    new_ssh_key: lp.new_ssh_key.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::CreateCredentials => {
-                let create_credentials_lp = match node.as_any().downcast_ref::<CreateCredentials>()
-                {
-                    Some(s) => Ok(s.clone()),
-                    None => Err(internal!("CreateCredentials::try_decode_extension failed",)),
-                }
-                .unwrap();
-
+                let lp = require_downcast_lp::<CreateCredentials>(node);
                 let exec = CreateCredentialsExec {
                     catalog_version: self.catalog_version,
-                    name: create_credentials_lp.name,
-                    options: create_credentials_lp.options,
-                    comment: create_credentials_lp.comment,
+                    name: lp.name.clone(),
+                    options: lp.options.clone(),
+                    comment: lp.comment.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::CreateExternalDatabase => todo!(),
-            ExtensionType::CreateExternalTable => todo!(),
-            ExtensionType::CreateSchema => todo!(),
+            ExtensionType::CreateExternalDatabase => {
+                let lp = require_downcast_lp::<CreateExternalDatabase>(node);
+                Ok(Some(Arc::new(CreateExternalDatabaseExec {
+                    catalog_version: self.catalog_version,
+                    database_name: lp.database_name.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    options: lp.options.clone(),
+                    tunnel: lp.tunnel.clone(),
+                })))
+            }
+            ExtensionType::CreateExternalTable => {
+                let lp = require_downcast_lp::<CreateExternalTable>(node);
+                Ok(Some(Arc::new(CreateExternalTableExec {
+                    catalog_version: self.catalog_version,
+                    reference: lp.reference.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    tunnel: lp.tunnel.clone(),
+                    table_options: lp.table_options.clone(),
+                })))
+            }
+            ExtensionType::CreateSchema => {
+                let lp = require_downcast_lp::<CreateSchema>(node);
+                Ok(Some(Arc::new(CreateSchemaExec {
+                    catalog_version: self.catalog_version,
+                    reference: lp.reference.clone(),
+                    if_not_exists: lp.if_not_exists,
+                })))
+            }
             ExtensionType::CreateTable => todo!(),
             ExtensionType::CreateTempTable => todo!(),
-            ExtensionType::CreateTunnel => todo!(),
-            ExtensionType::CreateView => todo!(),
-            ExtensionType::DropTables => todo!(),
-            ExtensionType::DropCredentials => todo!(),
-            ExtensionType::DropDatabase => {
-                let drop_database_lp = match node.as_any().downcast_ref::<DropDatabase>() {
-                    Some(s) => Ok(s.clone()),
-                    None => Err(internal!("DropDatabase::try_decode_extension failed",)),
-                }
-                .unwrap();
-
-                let exec: DropDatabaseExec = DropDatabaseExec {
+            ExtensionType::CreateTunnel => {
+                let lp = require_downcast_lp::<CreateTunnel>(node);
+                Ok(Some(Arc::new(CreateTunnelExec {
                     catalog_version: self.catalog_version,
-                    names: drop_database_lp.names,
-                    if_exists: drop_database_lp.if_exists,
+                    name: lp.name.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    options: lp.options.clone(),
+                })))
+            }
+            ExtensionType::CreateView => {
+                let lp = require_downcast_lp::<CreateView>(node);
+                Ok(Some(Arc::new(CreateViewExec {
+                    catalog_version: self.catalog_version,
+                    reference: lp.reference.clone(),
+                    sql: lp.sql.clone(),
+                    columns: lp.columns.clone(),
+                    or_replace: lp.or_replace,
+                })))
+            }
+            ExtensionType::DropTables => {
+                let lp = require_downcast_lp::<DropTables>(node);
+                Ok(Some(Arc::new(DropTablesExec {
+                    catalog_version: self.catalog_version,
+                    references: lp.references.clone(),
+                    if_exists: lp.if_exists,
+                })))
+            }
+            ExtensionType::DropCredentials => {
+                let lp = require_downcast_lp::<DropCredentials>(node);
+                Ok(Some(Arc::new(DropCredentialsExec {
+                    catalog_version: self.catalog_version,
+                    names: lp.names.clone(),
+                    if_exists: lp.if_exists,
+                })))
+            }
+            ExtensionType::DropDatabase => {
+                let lp = require_downcast_lp::<DropDatabase>(node);
+                let exec = DropDatabaseExec {
+                    catalog_version: self.catalog_version,
+                    names: lp.names.clone(),
+                    if_exists: lp.if_exists,
                 };
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::DropSchemas => {
-                let drop_schemas_lp = match node.as_any().downcast_ref::<DropSchemas>() {
-                    Some(s) => Ok(s.clone()),
-                    None => Err(internal!("DropSchemas::try_decode_extension failed",)),
-                }
-                .unwrap();
-
-                let exec: DropSchemasExec = DropSchemasExec {
+                let lp = require_downcast_lp::<DropSchemas>(node);
+                // TODO: Error if catalog provided in names.
+                let exec = DropSchemasExec {
                     catalog_version: self.catalog_version,
-                    names: drop_schemas_lp
-                        .names
-                        .into_iter()
-                        .map(|n| n.schema_name().to_string())
-                        .collect(),
-                    if_exists: drop_schemas_lp.if_exists,
-                    cascade: drop_schemas_lp.cascade,
+                    references: lp.references.clone(),
+                    if_exists: lp.if_exists,
+                    cascade: lp.cascade,
                 };
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::DropTunnel => {
-                let drop_tunnel_lp = match node.as_any().downcast_ref::<DropTunnel>() {
-                    Some(s) => Ok(s.clone()),
-                    None => Err(internal!("DropTunnel::try_decode_extension failed",)),
-                }
-                .unwrap();
-
+                let lp = require_downcast_lp::<DropTunnel>(node);
                 let exec: DropTunnelExec = DropTunnelExec {
                     catalog_version: self.catalog_version,
-                    names: drop_tunnel_lp.names,
-                    if_exists: drop_tunnel_lp.if_exists,
+                    names: lp.names.clone(),
+                    if_exists: lp.if_exists,
                 };
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::DropViews => {
-                let drop_views_lp = match node.as_any().downcast_ref::<DropViews>() {
-                    Some(s) => Ok(s.clone()),
-                    None => Err(internal!("DropViews::try_decode_extension failed",)),
-                }
-                .unwrap();
-
-                let exec: DropViewsExec = DropViewsExec {
+                let lp = require_downcast_lp::<DropViews>(node);
+                // TODO: Fix this.
+                let exec = DropViewsExec {
                     catalog_version: self.catalog_version,
-                    names: drop_views_lp
-                        .names
-                        .clone()
-                        .into_iter()
-                        .map(|n| n.table().to_string())
-                        .collect(),
-                    if_exists: drop_views_lp.if_exists,
-                    schema: drop_views_lp
-                        .names
-                        .into_iter()
-                        .map(|n| n.schema().unwrap_or_default().to_string())
-                        .collect(),
+                    references: lp.references.clone(),
+                    if_exists: lp.if_exists,
                 };
                 Ok(Some(Arc::new(exec)))
             }
@@ -283,5 +285,12 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
             input_schema,
             session_state,
         )
+    }
+}
+
+fn require_downcast_lp<P: 'static>(plan: &dyn UserDefinedLogicalNode) -> &P {
+    match plan.as_any().downcast_ref::<P>() {
+        Some(p) => p,
+        None => panic!("Invalid downcast reference for plan: {}", plan.name()),
     }
 }

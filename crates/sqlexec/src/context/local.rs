@@ -1,5 +1,5 @@
-use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobStorageTracker};
-use crate::background_jobs::{BgJob, JobRunner};
+use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
@@ -30,7 +30,7 @@ use protogen::metastore::types::service::{self, Mutation};
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
-use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
@@ -127,16 +127,6 @@ impl LocalSessionContext {
 
         self.catalog = catalog;
 
-        // Replace datafusion context with the remote aware planner.
-        let state = self
-            .df_ctx
-            .state()
-            // TODO: We _could_ do something fancy where we keep the local catalog
-            // around, but that's for another time.
-            .with_config_extension(Arc::new(CatalogMutator::empty()));
-
-        self.df_ctx = DfSessionContext::with_state(state);
-
         Ok(())
     }
 
@@ -195,13 +185,15 @@ impl LocalSessionContext {
     pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self
             .temp_objects
-            .resolve_temp_table(&plan.table_name)
+            .resolve_temp_table(&plan.reference.name)
             .is_some()
         {
             if plan.if_not_exists {
                 return Ok(());
             }
-            return Err(ExecError::DuplicateObjectName(plan.table_name));
+            return Err(ExecError::DuplicateObjectName(
+                plan.reference.name.clone().into_owned(),
+            ));
         }
 
         let schema = plan.schema.as_ref();
@@ -210,7 +202,7 @@ impl LocalSessionContext {
         let data = RecordBatch::new_empty(schema.clone());
         let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
         self.temp_objects
-            .put_temp_table(plan.table_name, table.clone());
+            .put_temp_table(plan.reference.name.into_owned(), table.clone());
 
         // Write to the table if it has a source query
         if let Some(source) = plan.source {
@@ -225,16 +217,14 @@ impl LocalSessionContext {
     }
 
     pub async fn create_table(&mut self, plan: CreateTable) -> Result<()> {
-        let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
-
         // Insert into catalog.
         let state = self
             .catalog_mutator()
             .mutate(
                 self.catalog.version(),
                 [Mutation::CreateTable(service::CreateTable {
-                    schema: schema.clone(),
-                    name: name.clone(),
+                    schema: plan.reference.schema.clone().into_owned(),
+                    name: plan.reference.name.clone().into_owned(),
                     options: plan.schema.into(),
                     if_not_exists: plan.if_not_exists,
                 })],
@@ -245,7 +235,11 @@ impl LocalSessionContext {
         // we're just using it here to get the new table entry easily.
         let new_catalog = SessionCatalog::new(state);
         let ent = new_catalog
-            .resolve_native_table(DEFAULT_CATALOG, &schema, &name)
+            .resolve_native_table(
+                DEFAULT_CATALOG,
+                plan.reference.schema.as_ref(),
+                plan.reference.name.as_ref(),
+            )
             .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))?;
 
         // Create native table.
@@ -299,7 +293,11 @@ impl LocalSessionContext {
     }
 
     pub async fn delete(&mut self, plan: Delete) -> Result<usize> {
-        let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
+        let FullObjectReference {
+            database,
+            schema,
+            name,
+        } = self.resolve_table_ref(plan.table_name)?;
 
         if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
             Ok(self
@@ -314,7 +312,11 @@ impl LocalSessionContext {
     }
 
     pub async fn update(&mut self, plan: Update) -> Result<usize> {
-        let (database, schema, name) = self.resolve_table_ref(plan.table_name)?;
+        let FullObjectReference {
+            database,
+            schema,
+            name,
+        } = self.resolve_table_ref(plan.table_name)?;
 
         if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
             Ok(self
@@ -326,305 +328,6 @@ impl LocalSessionContext {
                 "Update for external tables".to_string(),
             ))
         }
-    }
-
-    pub async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        let (_, schema, name) = self.resolve_table_ref(plan.table_name)?;
-        // TODO: Check if catalog is valid
-
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateExternalTable(
-                    service::CreateExternalTable {
-                        schema,
-                        name,
-                        options: plan.table_options,
-                        if_not_exists: plan.if_not_exists,
-                        tunnel: plan.tunnel,
-                    },
-                )],
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Create a schema.
-    pub async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
-        let (_, name) = Self::resolve_schema_ref(plan.schema_name);
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateSchema(service::CreateSchema {
-                    name,
-                    if_not_exists: plan.if_not_exists,
-                })],
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn create_external_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateExternalDatabase(
-                    service::CreateExternalDatabase {
-                        name: plan.database_name,
-                        if_not_exists: plan.if_not_exists,
-                        options: plan.options,
-                        tunnel: plan.tunnel,
-                    },
-                )],
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateTunnel(service::CreateTunnel {
-                    name: plan.name,
-                    if_not_exists: plan.if_not_exists,
-                    options: plan.options,
-                })],
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateCredentials(service::CreateCredentials {
-                    name: plan.name,
-                    options: plan.options,
-                    comment: plan.comment,
-                })],
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn create_view(&mut self, plan: CreateView) -> Result<()> {
-        let (_, schema, name) = self.resolve_table_ref(plan.view_name)?;
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateView(service::CreateView {
-                    schema,
-                    name,
-                    sql: plan.sql,
-                    or_replace: plan.or_replace,
-                    columns: plan.columns,
-                })],
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
-        let (_, schema, name) = self.resolve_table_ref(plan.name)?;
-        let (_, _, new_name) = self.resolve_table_ref(plan.new_name)?;
-        // TODO: Check that the schema and catalog names are same.
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::AlterTableRename(service::AlterTableRename {
-                    schema,
-                    name,
-                    new_name,
-                })],
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::AlterDatabaseRename(
-                    service::AlterDatabaseRename {
-                        name: plan.name,
-                        new_name: plan.new_name,
-                    },
-                )],
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn alter_tunnel_rotate_keys(&mut self, plan: AlterTunnelRotateKeys) -> Result<()> {
-        self.catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::AlterTunnelRotateKeys(
-                    service::AlterTunnelRotateKeys {
-                        name: plan.name,
-                        if_exists: plan.if_exists,
-                        new_ssh_key: plan.new_ssh_key,
-                    },
-                )],
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more tables.
-    pub async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
-        let mut drops = Vec::with_capacity(plan.names.len());
-        let mut jobs = Vec::with_capacity(plan.names.len());
-        let mut temp_table_drops = Vec::with_capacity(plan.names.len());
-
-        for r in plan.names {
-            if let Ok(table) = self.resolve_temp_table_ref(r.clone()) {
-                // This is a temp table.
-                temp_table_drops.push(table);
-                continue;
-            }
-
-            let (database, schema, name) = self.resolve_table_ref(r)?;
-
-            if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name)
-            {
-                let job: Arc<dyn BgJob> =
-                    BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
-                jobs.push(job);
-            }
-
-            drops.push(Mutation::DropObject(service::DropObject {
-                schema,
-                name,
-                if_exists: plan.if_exists,
-            }));
-        }
-        self.catalog_mutator()
-            .mutate(self.catalog.version(), drops)
-            .await?;
-
-        // Drop the session (temp) tables after catalog has mutated successfully
-        // since this step is not going to error. Ideally, we should have transactions
-        // here, but this works beautifully for now.
-        for temp_table in temp_table_drops {
-            self.temp_objects.drop_table(&temp_table);
-        }
-
-        // Run background jobs _after_ tables get removed from the catalog.
-        //
-        // Note: If/when we have transactions, background jobs should be stored
-        // on the session until transaction commit.
-        self.background_jobs.add_many(jobs)?;
-
-        Ok(())
-    }
-
-    /// Drop one or more views.
-    pub async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
-        let mut drops = Vec::with_capacity(plan.names.len());
-        for name in plan.names {
-            let (_, schema, name) = self.resolve_table_ref(name)?;
-            drops.push(Mutation::DropObject(service::DropObject {
-                schema,
-                name,
-                if_exists: plan.if_exists,
-            }));
-        }
-
-        self.catalog_mutator()
-            .mutate(self.catalog.version(), drops)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more schemas.
-    pub async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
-        let drops: Vec<_> = plan
-            .names
-            .into_iter()
-            .map(|name| {
-                let (_, name) = Self::resolve_schema_ref(name);
-                Mutation::DropSchema(service::DropSchema {
-                    name,
-                    if_exists: plan.if_exists,
-                    cascade: plan.cascade,
-                })
-            })
-            .collect();
-
-        self.catalog_mutator()
-            .mutate(self.catalog.version(), drops)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more databases.
-    pub async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
-        let drops: Vec<_> = plan
-            .names
-            .into_iter()
-            .map(|name| {
-                Mutation::DropDatabase(service::DropDatabase {
-                    name,
-                    if_exists: plan.if_exists,
-                })
-            })
-            .collect();
-
-        self.catalog_mutator()
-            .mutate(self.catalog.version(), drops)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more tunnels.
-    pub async fn drop_tunnel(&mut self, plan: DropTunnel) -> Result<()> {
-        let drops: Vec<_> = plan
-            .names
-            .into_iter()
-            .map(|name| {
-                Mutation::DropTunnel(service::DropTunnel {
-                    name,
-                    if_exists: plan.if_exists,
-                })
-            })
-            .collect();
-
-        self.catalog_mutator()
-            .mutate(self.catalog.version(), drops)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Drop one or more credentials.
-    pub async fn drop_credentials(&mut self, plan: DropCredentials) -> Result<()> {
-        let drops: Vec<_> = plan
-            .names
-            .into_iter()
-            .map(|name| {
-                Mutation::DropCredentials(service::DropCredentials {
-                    name,
-                    if_exists: plan.if_exists,
-                })
-            })
-            .collect();
-
-        self.catalog_mutator()
-            .mutate(self.catalog.version(), drops)
-            .await?;
-
-        Ok(())
     }
 
     /// Get a reference to the session variables.
@@ -749,80 +452,45 @@ impl LocalSessionContext {
     }
 
     /// Resolve schema reference.
-    fn resolve_schema_ref(r: SchemaReference<'_>) -> (String, String) {
+    pub fn resolve_schema_ref(&self, r: SchemaReference<'_>) -> OwnedFullSchemaReference {
         match r {
-            SchemaReference::Bare { schema } => (DEFAULT_CATALOG.to_owned(), schema.into_owned()),
-            SchemaReference::Full { schema, catalog } => {
-                (catalog.into_owned(), schema.into_owned())
-            }
+            SchemaReference::Bare { schema } => FullSchemaReference {
+                database: DEFAULT_CATALOG.into(),
+                schema: schema.into_owned().into(),
+            },
+            SchemaReference::Full { catalog, schema } => FullSchemaReference {
+                database: catalog.into_owned().into(),
+                schema: schema.into_owned().into(),
+            },
         }
     }
 
-    /// Resolve table reference for objects that live inside a schema.
-    fn resolve_table_ref(&self, r: TableReference<'_>) -> Result<(String, String, String)> {
+    pub fn resolve_table_ref(&self, r: TableReference<'_>) -> Result<OwnedFullObjectReference> {
         let r = match r {
             TableReference::Bare { table } => {
                 let schema = self.first_nonimplicit_schema()?;
-                (
-                    DEFAULT_CATALOG.to_owned(),
-                    schema.to_owned(),
-                    table.into_owned(),
-                )
+                FullObjectReference {
+                    database: DEFAULT_CATALOG.into(),
+                    schema: schema.into(),
+                    name: table.into_owned().into(),
+                }
             }
-            TableReference::Partial { schema, table } => (
-                DEFAULT_CATALOG.to_owned(),
-                schema.into_owned(),
-                table.into_owned(),
-            ),
+            TableReference::Partial { schema, table } => FullObjectReference {
+                database: DEFAULT_CATALOG.into(),
+                schema: schema.into_owned().into(),
+                name: table.into_owned().into(),
+            },
             TableReference::Full {
                 catalog,
                 schema,
                 table,
-            } => (
-                catalog.into_owned(),
-                schema.into_owned(),
-                table.into_owned(),
-            ),
+            } => FullObjectReference {
+                database: catalog.into_owned().into(),
+                schema: schema.into_owned().into(),
+                name: table.into_owned().into(),
+            },
         };
         Ok(r)
-    }
-
-    /// Resolve temp table reference for objects that live in the session.
-    fn resolve_temp_table_ref(&self, r: TableReference<'_>) -> Result<String> {
-        let table = match r {
-            TableReference::Bare { table } => table,
-            TableReference::Partial { schema, table } => {
-                if schema.as_ref() == CURRENT_SESSION_SCHEMA {
-                    table
-                } else {
-                    return Err(ExecError::InvalidTempTable {
-                        reason: format!("can only have '{CURRENT_SESSION_SCHEMA}' schema"),
-                    });
-                }
-            }
-            TableReference::Full {
-                catalog,
-                schema,
-                table,
-            } => {
-                if catalog.as_ref() == DEFAULT_CATALOG && schema.as_ref() == CURRENT_SESSION_SCHEMA
-                {
-                    table
-                } else {
-                    return Err(ExecError::InvalidTempTable {
-                        reason: format!("can only have '{DEFAULT_CATALOG}' catalog and '{CURRENT_SESSION_SCHEMA}' schema")
-                    });
-                }
-            }
-        };
-
-        if self.temp_objects.resolve_temp_table(&table).is_some() {
-            Ok(table.into_owned())
-        } else {
-            Err(ExecError::InvalidTempTable {
-                reason: format!("does not exist: {table}"),
-            })
-        }
     }
 
     /// Iterate over all values in the search path.

@@ -4,6 +4,8 @@ pub use postgres::*;
 use datafusion_proto::protobuf::{LogicalExprNode, Schema};
 use prost::{Message, Oneof};
 
+use super::common::{FullObjectReference, FullSchemaReference};
+
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
     #[prost(bytes, tag = "1")]
@@ -51,12 +53,10 @@ pub struct AlterDatabaseRenameExec {
 pub struct AlterTableRenameExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(string, tag = "2")]
-    pub name: String,
-    #[prost(string, tag = "3")]
-    pub new_name: String,
-    #[prost(string, tag = "4")]
-    pub schema: String,
+    #[prost(message, tag = "2")]
+    pub reference: Option<FullObjectReference>,
+    #[prost(message, tag = "3")]
+    pub new_reference: Option<FullObjectReference>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -85,8 +85,8 @@ pub struct DropDatabaseExec {
 pub struct DropSchemasExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(string, repeated, tag = "2")]
-    pub names: Vec<String>,
+    #[prost(message, repeated, tag = "2")]
+    pub references: Vec<FullSchemaReference>,
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
     #[prost(bool, tag = "4")]
@@ -107,20 +107,18 @@ pub struct DropTunnelExec {
 pub struct DropViewsExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(string, repeated, tag = "2")]
-    pub names: Vec<String>,
+    #[prost(message, repeated, tag = "2")]
+    pub references: Vec<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
-    #[prost(string, tag = "4")]
-    pub schema: String,
 }
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateSchema {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(string, tag = "2")]
-    pub schema_name: String,
+    #[prost(message, tag = "2")]
+    pub reference: Option<FullSchemaReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
 }

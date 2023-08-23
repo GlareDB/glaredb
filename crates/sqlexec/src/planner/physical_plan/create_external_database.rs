@@ -1,5 +1,4 @@
 use crate::metastore::catalog::CatalogMutator;
-use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -10,19 +9,22 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::stream;
+use protogen::metastore::types::options::DatabaseOptions;
 use protogen::metastore::types::service::{self, Mutation};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub struct AlterTableRenameExec {
+pub struct CreateExternalDatabaseExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullObjectReference,
-    pub new_reference: OwnedFullObjectReference,
+    pub database_name: String,
+    pub if_not_exists: bool,
+    pub options: DatabaseOptions,
+    pub tunnel: Option<String>,
 }
 
-impl ExecutionPlan for AlterTableRenameExec {
+impl ExecutionPlan for CreateExternalDatabaseExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -48,7 +50,7 @@ impl ExecutionPlan for AlterTableRenameExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Plan(
-            "Cannot change children for AlterTableRenameExec".to_string(),
+            "Cannot change children for CreateExternalDatabaseExec".to_string(),
         ))
     }
 
@@ -59,7 +61,7 @@ impl ExecutionPlan for AlterTableRenameExec {
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
-                "AlterTableRenameExec only supports 1 partition".to_string(),
+                "CreateExternalDatabaseExec only supports 1 partition".to_string(),
             ));
         }
 
@@ -68,7 +70,7 @@ impl ExecutionPlan for AlterTableRenameExec {
             .get_extension::<CatalogMutator>()
             .expect("context should have catalog mutator");
 
-        let stream = stream::once(alter_table_rename(mutator, self.clone()));
+        let stream = stream::once(create_external_database(mutator, self.clone()));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -81,28 +83,32 @@ impl ExecutionPlan for AlterTableRenameExec {
     }
 }
 
-impl DisplayAs for AlterTableRenameExec {
+impl DisplayAs for CreateExternalDatabaseExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AlterTableRenameExec")
+        write!(f, "CreateExternalDatabaseExec")
     }
 }
 
-async fn alter_table_rename(
+async fn create_external_database(
     mutator: Arc<CatalogMutator>,
-    plan: AlterTableRenameExec,
+    plan: CreateExternalDatabaseExec,
 ) -> DataFusionResult<RecordBatch> {
-    // TODO: Error if schemas between references differ.
     mutator
         .mutate(
             plan.catalog_version,
-            [Mutation::AlterTableRename(service::AlterTableRename {
-                name: plan.reference.name.into_owned(),
-                new_name: plan.new_reference.name.into_owned(),
-                schema: plan.reference.schema.into_owned(),
-            })],
+            [Mutation::CreateExternalDatabase(
+                service::CreateExternalDatabase {
+                    name: plan.database_name,
+                    if_not_exists: plan.if_not_exists,
+                    options: plan.options,
+                    tunnel: plan.tunnel,
+                },
+            )],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
+        .map_err(|e| {
+            DataFusionError::Execution(format!("failed to create external database: {e}"))
+        })?;
 
     Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
 }
