@@ -16,13 +16,14 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, CreateSchema,
-    DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
+    DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews, CreateView,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
+use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
@@ -112,7 +113,16 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateTable => todo!(),
             ExtensionType::CreateTempTable => todo!(),
             ExtensionType::CreateTunnel => todo!(),
-            ExtensionType::CreateView => todo!(),
+            ExtensionType::CreateView => {
+                let lp = require_downcast_lp::<CreateView>(node);
+                Ok(Some(Arc::new(CreateViewExec {
+                    catalog_version: self.catalog_version,
+                    reference: lp.reference.clone(),
+                    sql: lp.sql.clone(),
+                    columns: lp.columns.clone(),
+                    or_replace: lp.or_replace,
+                })))
+            }
             ExtensionType::DropTables => {
                 let lp = require_downcast_lp::<DropTables>(node);
                 Ok(Some(Arc::new(DropTablesExec {

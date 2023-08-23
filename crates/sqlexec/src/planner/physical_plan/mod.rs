@@ -5,6 +5,7 @@ pub mod client_recv;
 pub mod client_send;
 pub mod create_credentials_exec;
 pub mod create_schema;
+pub mod create_view;
 pub mod drop_credentials;
 pub mod drop_database;
 pub mod drop_schemas;
