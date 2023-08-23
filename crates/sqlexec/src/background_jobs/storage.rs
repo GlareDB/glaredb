@@ -67,6 +67,7 @@ pub struct BackgroundJobDeleteTable {
 }
 
 impl BackgroundJobDeleteTable {
+    #[allow(dead_code)]
     pub fn new(native_store: NativeTableStorage, table_entry: TableEntry) -> Arc<Self> {
         Arc::new(Self {
             native_store,

@@ -23,7 +23,7 @@ use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
+use datafusion::common::{DFSchema, DFSchemaRef, OwnedTableReference};
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};

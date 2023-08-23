@@ -371,7 +371,9 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: ext.catalog_version,
                 reference: ext
                     .reference
-                    .ok_or_else(|| DataFusionError::Internal(format!("missing schema references")))?
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing schema references".to_string())
+                    })?
                     .into(),
                 if_not_exists: ext.if_not_exists,
             }),
@@ -393,13 +395,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     reference: ext
                         .reference
                         .ok_or_else(|| {
-                            DataFusionError::Internal(format!("missing table references"))
+                            DataFusionError::Internal("missing table references".to_string())
                         })?
                         .into(),
                     new_reference: ext
                         .new_reference
                         .ok_or_else(|| {
-                            DataFusionError::Internal(format!("missing new table references"))
+                            DataFusionError::Internal("missing new table references".to_string())
                         })?
                         .into(),
                 })

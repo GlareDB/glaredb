@@ -1,5 +1,5 @@
-use crate::background_jobs::storage::{BackgroundJobDeleteTable, BackgroundJobStorageTracker};
-use crate::background_jobs::{BgJob, JobRunner};
+use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
@@ -30,7 +30,7 @@ use protogen::metastore::types::service::{self, Mutation};
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
-use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
@@ -126,16 +126,6 @@ impl LocalSessionContext {
         self.exec_client = Some(client.clone());
 
         self.catalog = catalog;
-
-        // Replace datafusion context with the remote aware planner.
-        let state = self
-            .df_ctx
-            .state()
-            // TODO: We _could_ do something fancy where we keep the local catalog
-            // around, but that's for another time.
-            .with_config_extension(Arc::new(CatalogMutator::empty()));
-
-        self.df_ctx = DfSessionContext::with_state(state);
 
         Ok(())
     }
@@ -501,44 +491,6 @@ impl LocalSessionContext {
             },
         };
         Ok(r)
-    }
-
-    /// Resolve temp table reference for objects that live in the session.
-    fn resolve_temp_table_ref(&self, r: TableReference<'_>) -> Result<String> {
-        let table = match r {
-            TableReference::Bare { table } => table,
-            TableReference::Partial { schema, table } => {
-                if schema.as_ref() == CURRENT_SESSION_SCHEMA {
-                    table
-                } else {
-                    return Err(ExecError::InvalidTempTable {
-                        reason: format!("can only have '{CURRENT_SESSION_SCHEMA}' schema"),
-                    });
-                }
-            }
-            TableReference::Full {
-                catalog,
-                schema,
-                table,
-            } => {
-                if catalog.as_ref() == DEFAULT_CATALOG && schema.as_ref() == CURRENT_SESSION_SCHEMA
-                {
-                    table
-                } else {
-                    return Err(ExecError::InvalidTempTable {
-                        reason: format!("can only have '{DEFAULT_CATALOG}' catalog and '{CURRENT_SESSION_SCHEMA}' schema")
-                    });
-                }
-            }
-        };
-
-        if self.temp_objects.resolve_temp_table(&table).is_some() {
-            Ok(table.into_owned())
-        } else {
-            Err(ExecError::InvalidTempTable {
-                reason: format!("does not exist: {table}"),
-            })
-        }
     }
 
     /// Iterate over all values in the search path.

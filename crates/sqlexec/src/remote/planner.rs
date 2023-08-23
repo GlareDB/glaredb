@@ -288,7 +288,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
     }
 }
 
-fn require_downcast_lp<'a, P: 'static>(plan: &'a dyn UserDefinedLogicalNode) -> &'a P {
+fn require_downcast_lp<P: 'static>(plan: &dyn UserDefinedLogicalNode) -> &P {
     match plan.as_any().downcast_ref::<P>() {
         Some(p) => p,
         None => panic!("Invalid downcast reference for plan: {}", plan.name()),

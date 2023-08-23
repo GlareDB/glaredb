@@ -10,10 +10,9 @@ use crate::{
     sqlexec::common::{FullObjectReference, FullSchemaReference},
     ProtoConvError,
 };
-use std::borrow::Cow;
 
 pub use copy_to::*;
-use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode, OwnedTableReference};
+use datafusion_proto::protobuf::{DfSchema, LogicalPlanNode};
 use prost::{Message, Oneof};
 
 #[derive(Clone, PartialEq, Message)]
