@@ -16,13 +16,14 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, CreateSchema,
-    DropDatabase, DropSchemas, DropTunnel, DropViews,
+    DropCredentials, DropDatabase, DropSchemas, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
+use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
@@ -113,10 +114,17 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateTunnel => todo!(),
             ExtensionType::CreateView => todo!(),
             ExtensionType::DropTables => todo!(),
-            ExtensionType::DropCredentials => todo!(),
+            ExtensionType::DropCredentials => {
+                let lp = require_downcast_lp::<DropCredentials>(node);
+                Ok(Some(Arc::new(DropCredentialsExec {
+                    catalog_version: self.catalog_version,
+                    names: lp.names.clone(),
+                    if_exists: lp.if_exists,
+                })))
+            }
             ExtensionType::DropDatabase => {
                 let lp = require_downcast_lp::<DropDatabase>(node);
-                let exec: DropDatabaseExec = DropDatabaseExec {
+                let exec = DropDatabaseExec {
                     catalog_version: self.catalog_version,
                     names: lp.names.clone(),
                     if_exists: lp.if_exists,
