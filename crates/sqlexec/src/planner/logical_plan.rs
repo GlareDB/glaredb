@@ -39,6 +39,7 @@ use protogen::metastore::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
 use protogen::ProtoConvError;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -148,6 +149,63 @@ impl LogicalPlan {
 impl From<DfLogicalPlan> for LogicalPlan {
     fn from(plan: DfLogicalPlan) -> Self {
         LogicalPlan::Datafusion(plan)
+    }
+}
+
+/// A fully qualified reference to a database object.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FullObjectReference<'a> {
+    pub database: Cow<'a, str>,
+    pub schema: Cow<'a, str>,
+    pub name: Cow<'a, str>,
+}
+
+pub type OwnedFullObjectReference = FullObjectReference<'static>;
+
+impl<'a> From<protogen::sqlexec::common::FullObjectReference> for FullObjectReference<'a> {
+    fn from(value: protogen::sqlexec::common::FullObjectReference) -> Self {
+        FullObjectReference {
+            database: value.database.into(),
+            schema: value.schema.into(),
+            name: value.name.into(),
+        }
+    }
+}
+
+impl<'a> From<FullObjectReference<'a>> for protogen::sqlexec::common::FullObjectReference {
+    fn from(value: FullObjectReference) -> Self {
+        Self {
+            database: value.database.into(),
+            schema: value.schema.into(),
+            name: value.name.into(),
+        }
+    }
+}
+
+/// A fully qualified reference to a database schema.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FullSchemaReference<'a> {
+    pub database: Cow<'a, str>,
+    pub schema: Cow<'a, str>,
+}
+
+pub type OwnedFullSchemaReference = FullSchemaReference<'static>;
+
+impl<'a> From<protogen::sqlexec::common::FullSchemaReference> for FullSchemaReference<'a> {
+    fn from(value: protogen::sqlexec::common::FullSchemaReference) -> Self {
+        FullSchemaReference {
+            database: value.database.into(),
+            schema: value.schema.into(),
+        }
+    }
+}
+
+impl<'a> From<FullSchemaReference<'a>> for protogen::sqlexec::common::FullSchemaReference {
+    fn from(value: FullSchemaReference) -> Self {
+        Self {
+            database: value.database.into(),
+            schema: value.schema.into(),
+        }
     }
 }
 

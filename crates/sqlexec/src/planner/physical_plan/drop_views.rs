@@ -1,4 +1,5 @@
 use crate::metastore::catalog::CatalogMutator;
+use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -17,9 +18,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct DropViewsExec {
     pub catalog_version: u64,
-    pub names: Vec<String>,
+    pub references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
-    pub schema: String,
 }
 
 impl ExecutionPlan for DropViewsExec {
@@ -92,13 +92,13 @@ async fn drop_views(
     plan: DropViewsExec,
 ) -> DataFusionResult<RecordBatch> {
     let drops: Vec<_> = plan
-        .names
+        .references
         .into_iter()
-        .map(|name| {
+        .map(|r| {
             Mutation::DropObject(service::DropObject {
-                name,
+                name: r.name.into_owned(),
+                schema: r.schema.into_owned(),
                 if_exists: plan.if_exists,
-                schema: plan.schema.clone(),
             })
         })
         .collect();

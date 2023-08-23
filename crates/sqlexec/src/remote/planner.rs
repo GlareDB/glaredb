@@ -16,7 +16,7 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, CreateSchema,
-    DropCredentials, DropDatabase, DropSchemas, DropTunnel, DropViews,
+    DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
@@ -26,6 +26,7 @@ use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tables::DropTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
@@ -73,9 +74,8 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<AlterTableRename>(node);
                 let exec = AlterTableRenameExec {
                     catalog_version: self.catalog_version,
-                    name: lp.name.table().to_string(),
-                    new_name: lp.new_name.table().to_string(),
-                    schema: lp.schema().to_string(),
+                    reference: lp.reference.clone(),
+                    new_reference: lp.reference.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
@@ -105,7 +105,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<CreateSchema>(node);
                 Ok(Some(Arc::new(CreateSchemaExec {
                     catalog_version: self.catalog_version,
-                    schema_name: lp.schema_name.schema_name().to_string(), // TODO: error if catalog provided
+                    reference: lp.reference.clone(),
                     if_not_exists: lp.if_not_exists,
                 })))
             }
@@ -113,7 +113,14 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateTempTable => todo!(),
             ExtensionType::CreateTunnel => todo!(),
             ExtensionType::CreateView => todo!(),
-            ExtensionType::DropTables => todo!(),
+            ExtensionType::DropTables => {
+                let lp = require_downcast_lp::<DropTables>(node);
+                Ok(Some(Arc::new(DropTablesExec {
+                    catalog_version: self.catalog_version,
+                    references: lp.references.clone(),
+                    if_exists: lp.if_exists,
+                })))
+            }
             ExtensionType::DropCredentials => {
                 let lp = require_downcast_lp::<DropCredentials>(node);
                 Ok(Some(Arc::new(DropCredentialsExec {
@@ -136,11 +143,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 // TODO: Error if catalog provided in names.
                 let exec = DropSchemasExec {
                     catalog_version: self.catalog_version,
-                    names: lp
-                        .names
-                        .iter()
-                        .map(|n| n.schema_name().to_string())
-                        .collect(),
+                    references: lp.references.clone(),
                     if_exists: lp.if_exists,
                     cascade: lp.cascade,
                 };
@@ -160,13 +163,8 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 // TODO: Fix this.
                 let exec = DropViewsExec {
                     catalog_version: self.catalog_version,
-                    names: lp.names.iter().map(|n| n.table().to_string()).collect(),
+                    references: lp.references.clone(),
                     if_exists: lp.if_exists,
-                    schema: lp
-                        .names
-                        .iter()
-                        .map(|n| n.schema().unwrap_or_default().to_string())
-                        .collect(),
                 };
                 Ok(Some(Arc::new(exec)))
             }

@@ -8,6 +8,7 @@ pub mod create_schema;
 pub mod drop_credentials;
 pub mod drop_database;
 pub mod drop_schemas;
+pub mod drop_tables;
 pub mod drop_tunnel;
 pub mod drop_views;
 pub mod remote_exec;

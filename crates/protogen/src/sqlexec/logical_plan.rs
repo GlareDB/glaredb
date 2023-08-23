@@ -7,6 +7,7 @@ use crate::{
             CreateTunnel,
         },
     },
+    sqlexec::common::{FullObjectReference, FullSchemaReference},
     ProtoConvError,
 };
 use std::borrow::Cow;
@@ -18,7 +19,7 @@ use prost::{Message, Oneof};
 #[derive(Clone, PartialEq, Message)]
 pub struct DropCredentials {
     #[prost(string, repeated, tag = "1")]
-    pub names: Vec<String>,
+    pub names: Vec<String>, // TODO: Do these live in schemas?
     #[prost(bool, tag = "2")]
     pub if_exists: bool,
 }
@@ -33,7 +34,7 @@ pub struct DropDatabase {
 #[derive(Clone, PartialEq, Message)]
 pub struct DropSchemas {
     #[prost(message, repeated, tag = "1")]
-    pub names: Vec<OwnedSchemaReference>,
+    pub references: Vec<FullSchemaReference>,
     #[prost(bool, tag = "2")]
     pub if_exists: bool,
     #[prost(bool, tag = "3")]
@@ -43,7 +44,7 @@ pub struct DropSchemas {
 #[derive(Clone, PartialEq, Message)]
 pub struct DropTunnel {
     #[prost(string, repeated, tag = "1")]
-    pub names: Vec<String>,
+    pub names: Vec<String>, // TODO: Do these live in schemas?
     #[prost(bool, tag = "2")]
     pub if_exists: bool,
 }
@@ -51,7 +52,7 @@ pub struct DropTunnel {
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTable {
     #[prost(message, tag = "1")]
-    pub table_name: Option<OwnedTableReference>,
+    pub reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
     #[prost(message, optional, tag = "3")]
@@ -61,8 +62,8 @@ pub struct CreateTable {
 }
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTempTable {
-    #[prost(string, tag = "1")]
-    pub table_name: String,
+    #[prost(message, tag = "1")]
+    pub reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
     #[prost(message, tag = "3")]
@@ -74,7 +75,7 @@ pub struct CreateTempTable {
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateExternalTable {
     #[prost(message, tag = "1")]
-    pub table_name: Option<OwnedTableReference>,
+    pub reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
     #[prost(message, tag = "3")]
@@ -86,7 +87,7 @@ pub struct CreateExternalTable {
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateView {
     #[prost(message, tag = "1")]
-    pub view_name: Option<OwnedTableReference>,
+    pub reference: Option<FullObjectReference>,
     #[prost(string, tag = "2")]
     pub sql: String,
     #[prost(message, repeated, tag = "3")]
@@ -98,7 +99,7 @@ pub struct CreateView {
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateSchema {
     #[prost(message, tag = "1")]
-    pub schema_name: Option<OwnedSchemaReference>,
+    pub reference: Option<FullSchemaReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
 }
@@ -106,7 +107,7 @@ pub struct CreateSchema {
 #[derive(Clone, PartialEq, Message)]
 pub struct DropTables {
     #[prost(message, repeated, tag = "1")]
-    pub names: Vec<OwnedTableReference>,
+    pub references: Vec<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_exists: bool,
 }
@@ -114,7 +115,7 @@ pub struct DropTables {
 #[derive(Clone, PartialEq, Message)]
 pub struct DropViews {
     #[prost(message, repeated, tag = "1")]
-    pub names: Vec<OwnedTableReference>,
+    pub references: Vec<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_exists: bool,
 }
@@ -122,9 +123,9 @@ pub struct DropViews {
 #[derive(Clone, PartialEq, Message)]
 pub struct AlterTableRename {
     #[prost(message, tag = "1")]
-    pub name: Option<OwnedTableReference>,
+    pub reference: Option<FullObjectReference>,
     #[prost(message, tag = "2")]
-    pub new_name: Option<OwnedTableReference>,
+    pub new_reference: Option<FullObjectReference>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -187,84 +188,4 @@ pub enum LogicalPlanExtensionType {
     SetVariable(SetVariable),
     #[prost(message, tag = "19")]
     CopyTo(CopyTo),
-}
-
-// -----
-// boilerplate below here
-// -----
-
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, Message)]
-pub struct OwnedSchemaReference {
-    #[prost(oneof = "SchemaReferenceEnum", tags = "1, 2")]
-    pub schema_reference_enum: Option<SchemaReferenceEnum>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, Message)]
-pub struct BareSchemaReference {
-    #[prost(string, tag = "1")]
-    pub table: String,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, Message)]
-pub struct FullSchemaReference {
-    #[prost(string, tag = "1")]
-    pub schema: String,
-    #[prost(string, tag = "2")]
-    pub catalog: String,
-}
-
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, Oneof)]
-pub enum SchemaReferenceEnum {
-    #[prost(message, tag = "1")]
-    Bare(BareSchemaReference),
-    #[prost(message, tag = "2")]
-    Full(FullSchemaReference),
-}
-
-impl TryFrom<OwnedSchemaReference> for datafusion::common::OwnedSchemaReference {
-    type Error = crate::errors::ProtoConvError;
-
-    fn try_from(value: OwnedSchemaReference) -> Result<Self, Self::Error> {
-        let table_reference_enum = value
-            .schema_reference_enum
-            .ok_or_else(|| ProtoConvError::RequiredField("schema_reference_enum".to_string()))?;
-
-        match table_reference_enum {
-            SchemaReferenceEnum::Bare(BareSchemaReference { table }) => {
-                Ok(datafusion::common::OwnedSchemaReference::Bare {
-                    schema: Cow::Owned(table),
-                })
-            }
-            SchemaReferenceEnum::Full(FullSchemaReference { catalog, schema }) => {
-                Ok(datafusion::common::OwnedSchemaReference::Full {
-                    catalog: Cow::Owned(catalog),
-                    schema: Cow::Owned(schema),
-                })
-            }
-        }
-    }
-}
-
-impl TryFrom<datafusion::common::OwnedSchemaReference> for OwnedSchemaReference {
-    type Error = crate::errors::ProtoConvError;
-
-    fn try_from(value: datafusion::common::OwnedSchemaReference) -> Result<Self, Self::Error> {
-        match value {
-            datafusion::common::SchemaReference::Bare { schema } => Ok(OwnedSchemaReference {
-                schema_reference_enum: Some(SchemaReferenceEnum::Bare(BareSchemaReference {
-                    table: schema.into_owned(),
-                })),
-            }),
-            datafusion::common::SchemaReference::Full { schema, catalog } => {
-                Ok(OwnedSchemaReference {
-                    schema_reference_enum: Some(SchemaReferenceEnum::Full(FullSchemaReference {
-                        schema: schema.into_owned(),
-                        catalog: catalog.into_owned(),
-                    })),
-                })
-            }
-        }
-    }
 }
