@@ -16,14 +16,15 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
-    CreateExternalDatabase, CreateSchema, CreateView, DropCredentials, DropDatabase, DropSchemas,
-    DropTables, DropTunnel, DropViews,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropCredentials,
+    DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
+use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
@@ -112,7 +113,16 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     tunnel: lp.tunnel.clone(),
                 })))
             }
-            ExtensionType::CreateExternalTable => todo!(),
+            ExtensionType::CreateExternalTable => {
+                let lp = require_downcast_lp::<CreateExternalTable>(node);
+                Ok(Some(Arc::new(CreateExternalTableExec {
+                    catalog_version: self.catalog_version,
+                    reference: lp.reference.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    tunnel: lp.tunnel.clone(),
+                    table_options: lp.table_options.clone(),
+                })))
+            }
             ExtensionType::CreateSchema => {
                 let lp = require_downcast_lp::<CreateSchema>(node);
                 Ok(Some(Arc::new(CreateSchemaExec {
