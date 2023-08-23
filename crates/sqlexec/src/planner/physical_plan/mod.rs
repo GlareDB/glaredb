@@ -15,3 +15,4 @@ pub mod drop_views;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;
+pub mod create_external_database;

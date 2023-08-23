@@ -15,13 +15,15 @@ use std::sync::Arc;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials, CreateSchema,
-    DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews, CreateView,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    CreateExternalDatabase, CreateSchema, CreateView, DropCredentials, DropDatabase, DropSchemas,
+    DropTables, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
@@ -100,7 +102,16 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::CreateExternalDatabase => todo!(),
+            ExtensionType::CreateExternalDatabase => {
+                let lp = require_downcast_lp::<CreateExternalDatabase>(node);
+                Ok(Some(Arc::new(CreateExternalDatabaseExec {
+                    catalog_version: self.catalog_version,
+                    database_name: lp.database_name.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    options: lp.options.clone(),
+                    tunnel: lp.tunnel.clone(),
+                })))
+            }
             ExtensionType::CreateExternalTable => todo!(),
             ExtensionType::CreateSchema => {
                 let lp = require_downcast_lp::<CreateSchema>(node);
