@@ -10,6 +10,7 @@ mod create_table;
 mod create_temp_table;
 mod create_tunnel;
 mod create_view;
+mod delete;
 mod drop_credentials;
 mod drop_database;
 mod drop_schemas;
@@ -25,7 +26,7 @@ use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{DFSchema, DFSchemaRef, OwnedTableReference};
+use datafusion::common::{DFSchema, DFSchemaRef};
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 use datafusion::prelude::SessionContext;
@@ -57,6 +58,7 @@ pub use create_table::*;
 pub use create_temp_table::*;
 pub use create_tunnel::*;
 pub use create_view::*;
+pub use delete::*;
 pub use drop_credentials::*;
 pub use drop_database::*;
 pub use drop_schemas::*;
@@ -228,27 +230,11 @@ impl<'a> From<FullSchemaReference<'a>> for protogen::sqlexec::common::FullSchema
 #[derive(Clone, Debug)]
 pub enum WritePlan {
     CopyTo(CopyTo),
-    Delete(Delete),
 }
 
 impl From<WritePlan> for LogicalPlan {
     fn from(plan: WritePlan) -> Self {
         LogicalPlan::Write(plan)
-    }
-}
-
-#[derive(Clone)]
-pub struct Delete {
-    pub table_name: OwnedTableReference,
-    pub where_expr: Option<Expr>,
-}
-
-impl std::fmt::Debug for Delete {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Delete")
-            .field("table_name", &self.table_name.schema())
-            .field("where_expr", &self.where_expr)
-            .finish()
     }
 }
 

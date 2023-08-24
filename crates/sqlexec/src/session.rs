@@ -385,10 +385,6 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn delete(&mut self, plan: Delete) -> Result<usize> {
-        self.ctx.delete(plan).await
-    }
-
     pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
         let var = self.ctx.get_session_vars();
         let var = var.read();
@@ -473,10 +469,6 @@ impl Session {
             LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
                 self.plan_copy_to(plan).await?;
                 ExecutionResult::CopySuccess
-            }
-            LogicalPlan::Write(WritePlan::Delete(plan)) => {
-                let deleted_rows = self.delete(plan).await?;
-                ExecutionResult::DeleteSuccess { deleted_rows }
             }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;

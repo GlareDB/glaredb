@@ -240,6 +240,14 @@ pub struct UpdateExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DeleteExec {
+    #[prost(message, tag = "1")]
+    pub table: Option<TableEntry>,
+    #[prost(message, optional, tag = "2")]
+    pub where_expr: Option<LogicalExprNode>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct InsertExec {
     #[prost(message, tag = "1")]
     pub table: Option<TableEntry>,
@@ -249,7 +257,7 @@ pub struct InsertExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -302,4 +310,6 @@ pub enum ExecutionPlanExtensionType {
     UpdateExec(UpdateExec),
     #[prost(message, tag = "21")]
     InsertExec(InsertExec),
+    #[prost(message, tag = "22")]
+    DeleteExec(DeleteExec),
 }
