@@ -17,8 +17,8 @@ use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
-    DropViews, Insert, Update,
+    CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
+    DropTunnel, DropViews, Insert, Update,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
@@ -31,6 +31,7 @@ use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
+use crate::planner::physical_plan::delete::DeleteExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
@@ -240,6 +241,13 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 Ok(Some(Arc::new(InsertExec {
                     table: lp.table.clone(),
                     source: physical_inputs.get(0).unwrap().clone(),
+                })))
+            }
+            ExtensionType::Delete => {
+                let lp = require_downcast_lp::<Delete>(node);
+                Ok(Some(Arc::new(DeleteExec {
+                    table: lp.table.clone(),
+                    where_expr: lp.where_expr.clone(),
                 })))
             }
         }

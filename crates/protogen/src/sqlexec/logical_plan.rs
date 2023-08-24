@@ -139,6 +139,9 @@ pub struct SetVariable {
 pub struct Update {}
 
 #[derive(Clone, PartialEq, Message)]
+pub struct Delete {}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct Insert {}
 
 #[allow(clippy::derive_partial_eq_without_eq)]

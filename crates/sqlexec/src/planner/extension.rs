@@ -19,8 +19,8 @@ use datafusion::{
 use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
-    DropViews, Insert, SetVariable, Update,
+    CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
+    DropTunnel, DropViews, Insert, SetVariable, Update,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -49,6 +49,7 @@ pub enum ExtensionType {
     CopyTo,
     Update,
     Insert,
+    Delete,
 }
 
 impl FromStr for ExtensionType {
@@ -76,6 +77,7 @@ impl FromStr for ExtensionType {
             CopyTo::EXTENSION_NAME => Self::CopyTo,
             Update::EXTENSION_NAME => Self::Update,
             Insert::EXTENSION_NAME => Self::Insert,
+            Delete::EXTENSION_NAME => Self::Delete,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

@@ -11,6 +11,7 @@ pub mod create_table;
 pub mod create_temp_table;
 pub mod create_tunnel;
 pub mod create_view;
+pub mod delete;
 pub mod drop_credentials;
 pub mod drop_database;
 pub mod drop_schemas;

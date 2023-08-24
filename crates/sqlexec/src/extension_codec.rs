@@ -29,6 +29,7 @@ use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
+use crate::planner::physical_plan::delete::DeleteExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
@@ -290,6 +291,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
             ExtensionType::CopyTo => plan::CopyTo::try_encode_extension(node, buf, self),
             ExtensionType::Update => plan::Update::try_encode_extension(node, buf, self),
+            ExtensionType::Delete => plan::Update::try_encode_extension(node, buf, self),
             ExtensionType::Insert => plan::Insert::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
@@ -618,6 +620,19 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .try_into()?,
                 source: inputs.get(0).unwrap().clone(),
             }),
+            proto::ExecutionPlanExtensionType::DeleteExec(ext) => {
+                let where_expr: Option<Expr> = ext
+                    .where_expr
+                    .map(|expr| parse_expr(&expr, registry))
+                    .transpose()?;
+                Arc::new(DeleteExec {
+                    table: ext
+                        .table
+                        .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
+                        .try_into()?,
+                    where_expr,
+                })
+            }
         };
 
         Ok(plan)
@@ -814,6 +829,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<InsertExec>() {
             proto::ExecutionPlanExtensionType::InsertExec(proto::InsertExec {
                 table: Some(exec.table.clone().try_into()?),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DeleteExec>() {
+            proto::ExecutionPlanExtensionType::DeleteExec(proto::DeleteExec {
+                table: Some(exec.table.clone().try_into()?),
+                where_expr: exec
+                    .where_expr
+                    .as_ref()
+                    .map(|expr| expr.try_into())
+                    .transpose()?,
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

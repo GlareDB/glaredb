@@ -1027,11 +1027,19 @@ impl<'a> SessionPlanner<'a> {
                     None
                 };
 
-                Ok(WritePlan::Delete(Delete {
-                    table_name,
+                // TODO: More proper resolving.
+                let r = self.ctx.resolve_table_ref(table_name)?;
+                let ent = self
+                    .ctx
+                    .get_session_catalog()
+                    .resolve_native_table(&r.database, &r.schema, &r.name)
+                    .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
+
+                Ok(Delete {
+                    table: ent.clone(),
                     where_expr,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // "UPDATE <table_name> SET <col1> = <value_expression> WHERE <expression>"
