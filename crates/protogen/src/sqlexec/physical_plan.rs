@@ -1,7 +1,7 @@
 mod postgres;
 pub use postgres::*;
 
-use datafusion_proto::protobuf::{LogicalExprNode, PhysicalPlanNode, Schema};
+use datafusion_proto::protobuf::{LogicalExprNode, Schema};
 use prost::{Message, Oneof};
 
 use super::common::{FullObjectReference, FullSchemaReference};
@@ -29,18 +29,14 @@ pub struct RemoteScanExec {
 }
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTableExec {
-    #[prost(string, tag = "1")]
-    pub schema: String,
-    #[prost(string, tag = "2")]
-    pub name: String,
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(message, tag = "2")]
+    pub reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
     #[prost(message, tag = "4")]
     pub arrow_schema: Option<Schema>,
-    #[prost(message, tag = "5")]
-    pub source: Option<PhysicalPlanNode>,
-    #[prost(uint64, tag = "6")]
-    pub catalog_version: u64,
 }
 
 #[derive(Clone, PartialEq, Message)]

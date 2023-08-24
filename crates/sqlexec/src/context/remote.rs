@@ -53,8 +53,10 @@ impl RemoteSessionContext {
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
-        conf = conf.with_extension(Arc::new(StagedClientStreams::default()));
-        conf = conf.with_extension(Arc::new(catalog_mutator));
+        conf = conf
+            .with_extension(Arc::new(StagedClientStreams::default()))
+            .with_extension(Arc::new(catalog_mutator))
+            .with_extension(Arc::new(native_tables.clone()));
 
         // TODO: Query planners for handling custom plans.
 

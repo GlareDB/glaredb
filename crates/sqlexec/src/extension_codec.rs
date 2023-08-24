@@ -328,7 +328,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
     fn try_decode(
         &self,
         buf: &[u8],
-        _inputs: &[Arc<dyn ExecutionPlan>],
+        inputs: &[Arc<dyn ExecutionPlan>],
         registry: &dyn FunctionRegistry,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         use protogen::sqlexec::physical_plan as proto;
@@ -460,16 +460,23 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 })
             }
             proto::ExecutionPlanExtensionType::CreateTableExec(ext) => {
-                let exec = CreateTableExec::try_decode(
-                    ext,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let schema = ext
+                    .arrow_schema
+                    .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
+                let schema: Schema = (&schema).try_into()?;
+
+                Arc::new(CreateTableExec {
+                    catalog_version: ext.catalog_version,
+                    reference: ext
+                        .reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    if_not_exists: ext.if_not_exists,
+                    arrow_schema: Arc::new(schema),
+                    source: inputs.get(0).cloned(),
+                })
             }
             proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
                 catalog_version: ext.catalog_version,
@@ -540,9 +547,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 .try_encode(buf, self)
                 .map_err(|e| DataFusionError::External(Box::new(e)));
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
-            return exec
-                .try_encode(buf, self)
-                .map_err(|e| DataFusionError::External(Box::new(e)));
+            proto::ExecutionPlanExtensionType::CreateTableExec(proto::CreateTableExec {
+                catalog_version: exec.catalog_version,
+                reference: Some(exec.reference.clone().into()),
+                if_not_exists: exec.if_not_exists,
+                arrow_schema: Some(exec.schema().try_into()?),
+            })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
             proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(
                 proto::AlterDatabaseRenameExec {

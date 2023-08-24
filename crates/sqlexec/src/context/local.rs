@@ -85,7 +85,9 @@ impl LocalSessionContext {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(vars);
         let mut conf: SessionConfig = opts.into();
-        conf = conf.with_extension(Arc::new(catalog_mutator));
+        conf = conf
+            .with_extension(Arc::new(catalog_mutator))
+            .with_extension(Arc::new(native_tables.clone()));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);

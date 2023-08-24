@@ -233,6 +233,13 @@ impl NativeTable {
     pub fn into_table_provider(self) -> Arc<dyn TableProvider> {
         Arc::new(self)
     }
+
+    /// Create a new execution plan for inserting `input` into the table.
+    pub fn insert_exec(&self, input: Arc<dyn ExecutionPlan>) -> Arc<dyn ExecutionPlan> {
+        let store = self.delta.object_store();
+        let snapshot = self.delta.state.clone();
+        Arc::new(NativeTableInsertExec::new(input, store, snapshot))
+    }
 }
 
 #[async_trait]
@@ -284,9 +291,7 @@ impl TableProvider for NativeTable {
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        let store = self.delta.object_store();
-        let snapshot = self.delta.state.clone();
-        Ok(Arc::new(NativeTableInsertExec::new(input, store, snapshot)))
+        Ok(self.insert_exec(input))
     }
 }
 

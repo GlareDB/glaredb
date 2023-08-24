@@ -35,9 +35,7 @@ pub(self) use datafusion::{
         Statistics,
     },
 };
-pub(self) use datafusion_proto::physical_plan::AsExecutionPlan;
 pub(self) use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 pub(self) use futures::stream;
 pub(self) use futures::StreamExt;
-use protogen::export::prost::Message;
 pub(self) use std::sync::Arc;
