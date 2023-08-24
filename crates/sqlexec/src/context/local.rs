@@ -87,7 +87,8 @@ impl LocalSessionContext {
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()));
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(TempObjects::default()));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
@@ -95,7 +96,6 @@ impl LocalSessionContext {
         Ok(LocalSessionContext {
             exec_client: None,
             catalog,
-
             temp_objects: TempObjects::default(),
             tables: native_tables,
             prepared: HashMap::new(),

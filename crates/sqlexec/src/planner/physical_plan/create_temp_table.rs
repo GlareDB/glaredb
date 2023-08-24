@@ -90,6 +90,19 @@ async fn create_temp_table(
         .get_extension::<TempObjects>()
         .unwrap();
 
+    if temp_objects
+        .resolve_temp_table(&plan.reference.name)
+        .is_some()
+    {
+        if plan.if_not_exists {
+            return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
+        }
+        return Err(DataFusionError::Execution(format!(
+            "Duplicate object name: '{}' already exists",
+            plan.reference.name.clone().into_owned()
+        )));
+    }
+
     let schema = plan.arrow_schema;
 
     let data = RecordBatch::new_empty(schema.clone());
