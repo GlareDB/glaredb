@@ -24,6 +24,7 @@ use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKe
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::create_table::CreateTableExec;
+use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
@@ -480,6 +481,24 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     source: inputs.get(0).cloned(),
                 })
             }
+            proto::ExecutionPlanExtensionType::CreateTempTableExec(ext) => {
+                let schema = ext
+                    .arrow_schema
+                    .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
+                let schema: Schema = (&schema).try_into()?;
+
+                Arc::new(CreateTempTableExec {
+                    reference: ext
+                        .reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    if_not_exists: ext.if_not_exists,
+                    arrow_schema: Arc::new(schema),
+                    source: inputs.get(0).cloned(),
+                })
+            }
             proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
                 catalog_version: ext.catalog_version,
                 references: ext.references.into_iter().map(|r| r.into()).collect(),
@@ -573,6 +592,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTableExec(proto::CreateTableExec {
                 catalog_version: exec.catalog_version,
+                reference: Some(exec.reference.clone().into()),
+                if_not_exists: exec.if_not_exists,
+                arrow_schema: Some(exec.schema().try_into()?),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateTempTableExec>() {
+            proto::ExecutionPlanExtensionType::CreateTempTableExec(proto::CreateTempTableExec {
                 reference: Some(exec.reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
                 arrow_schema: Some(exec.schema().try_into()?),

@@ -16,9 +16,9 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
-    CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
-    Update,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
+    CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
+    DropViews, Update,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
@@ -28,6 +28,7 @@ use crate::planner::physical_plan::create_external_database::CreateExternalDatab
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::create_table::CreateTableExec;
+use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
@@ -140,7 +141,15 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     source: physical_inputs.get(0).cloned(),
                 })))
             }
-            ExtensionType::CreateTempTable => todo!(),
+            ExtensionType::CreateTempTable => {
+                let lp = require_downcast_lp::<CreateTempTable>(node);
+                Ok(Some(Arc::new(CreateTempTableExec {
+                    reference: lp.reference.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    arrow_schema: Arc::new(lp.schema.as_ref().into()),
+                    source: physical_inputs.get(0).cloned(),
+                })))
+            }
             ExtensionType::CreateTunnel => {
                 let lp = require_downcast_lp::<CreateTunnel>(node);
                 Ok(Some(Arc::new(CreateTunnelExec {

@@ -28,6 +28,7 @@ pub struct RemoteScanExec {
     #[prost(uint64, optional, tag = "5")]
     pub limit: Option<u64>,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTableExec {
     #[prost(uint64, tag = "1")]
@@ -137,6 +138,16 @@ pub struct CreateSchema {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct CreateTempTableExec {
+    #[prost(message, tag = "2")]
+    pub reference: Option<FullObjectReference>,
+    #[prost(bool, tag = "3")]
+    pub if_not_exists: bool,
+    #[prost(message, tag = "4")]
+    pub arrow_schema: Option<Schema>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct UpdateSelector {
     #[prost(string, tag = "1")]
     pub column: String,
@@ -158,7 +169,7 @@ pub struct UpdateExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -192,7 +203,9 @@ pub enum ExecutionPlanExtensionType {
     CreateSchema(CreateSchema),
     #[prost(message, tag = "12")]
     CreateTableExec(CreateTableExec),
-    // DML
     #[prost(message, tag = "13")]
+    CreateTempTableExec(CreateTempTableExec),
+    // DML
+    #[prost(message, tag = "14")]
     UpdateExec(UpdateExec),
 }

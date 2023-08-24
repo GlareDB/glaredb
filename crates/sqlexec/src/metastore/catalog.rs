@@ -1,4 +1,5 @@
 use datafusion::datasource::MemTable;
+use parking_lot::RwLock;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
@@ -436,24 +437,28 @@ impl NamespacedCatalogEntry<'_> {
 #[derive(Debug, Default)]
 pub struct TempObjects {
     /// In-memory (temporary) tables.
-    current_session_tables: HashMap<String, Arc<MemTable>>,
+    current_session_tables: RwLock<HashMap<String, Arc<MemTable>>>,
 }
 
 impl TempObjects {
     pub fn resolve_temp_table(&self, name: &str) -> Option<Arc<MemTable>> {
         // TODO: Local hint
-        self.current_session_tables.get(name).cloned()
+        self.current_session_tables.read().get(name).cloned()
     }
 
-    pub fn put_temp_table(&mut self, name: String, table: Arc<MemTable>) {
-        self.current_session_tables.insert(name, table);
+    pub fn put_temp_table(&self, name: String, table: Arc<MemTable>) {
+        self.current_session_tables.write().insert(name, table);
     }
 
-    pub fn drop_table(&mut self, name: &str) {
-        self.current_session_tables.remove(name);
+    pub fn drop_table(&self, name: &str) {
+        self.current_session_tables.write().remove(name);
     }
 
-    pub fn iter_table_names(&self) -> impl Iterator<Item = &str> {
-        self.current_session_tables.keys().map(|s| s.as_str())
+    pub fn iter_table_names(&self) -> Vec<String> {
+        self.current_session_tables
+            .read()
+            .keys()
+            .map(|s| s.to_owned())
+            .collect()
     }
 }
