@@ -835,13 +835,19 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
-                let table_provider = context_provider.table_provider(table_name).await?;
+                // TODO: More proper resolving.
+                let r = self.ctx.resolve_table_ref(table_name)?;
+                let ent = self
+                    .ctx
+                    .get_session_catalog()
+                    .resolve_native_table(&r.database, &r.schema, &r.name)
+                    .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
 
-                Ok(WritePlan::Insert(Insert {
-                    table_provider,
+                Ok(Insert {
+                    table: ent.clone(),
                     source,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             ast::Statement::AlterTable {

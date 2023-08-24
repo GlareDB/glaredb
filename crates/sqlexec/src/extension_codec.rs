@@ -28,6 +28,7 @@ use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
+use crate::planner::physical_plan::insert::InsertExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::update::UpdateExec;
 use crate::planner::physical_plan::{
@@ -282,6 +283,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
             ExtensionType::CopyTo => plan::CopyTo::try_encode_extension(node, buf, self),
             ExtensionType::Update => plan::Update::try_encode_extension(node, buf, self),
+            ExtensionType::Insert => plan::Insert::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())
@@ -518,6 +520,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     where_expr,
                 })
             }
+            proto::ExecutionPlanExtensionType::InsertExec(ext) => Arc::new(InsertExec {
+                table: ext
+                    .table
+                    .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
+                    .try_into()?,
+                source: inputs.get(0).unwrap().clone(),
+            }),
         };
 
         Ok(plan)
@@ -652,6 +661,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .as_ref()
                     .map(|expr| expr.try_into())
                     .transpose()?,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<InsertExec>() {
+            proto::ExecutionPlanExtensionType::InsertExec(proto::InsertExec {
+                table: Some(exec.table.clone().try_into()?),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

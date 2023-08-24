@@ -21,6 +21,7 @@ pub struct BackgroundJobStorageTracker {
 }
 
 impl BackgroundJobStorageTracker {
+    #[allow(dead_code)]
     pub fn new(native_store: NativeTableStorage, metastore: MetastoreClientHandle) -> Arc<Self> {
         Arc::new(Self {
             native_store,
