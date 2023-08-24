@@ -1,6 +1,7 @@
 use datafusion::{
     datasource::{MemTable, TableProvider},
     execution::context::SessionState,
+    physical_plan::coalesce_partitions::CoalescePartitionsExec,
 };
 use futures::StreamExt;
 
@@ -110,6 +111,14 @@ async fn create_temp_table(
     temp_objects.put_temp_table(plan.reference.name.into_owned(), table.clone());
 
     if let Some(source) = plan.source {
+        let source: Arc<dyn ExecutionPlan> = match source.output_partitioning().partition_count() {
+            1 => source,
+            _ => {
+                // merge into a single partition
+                Arc::new(CoalescePartitionsExec::new(source))
+            }
+        };
+
         let state =
             SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
 
@@ -121,8 +130,6 @@ async fn create_temp_table(
             let _ = res?;
         }
     }
-
-    // TODO: Add storage tracking job.
 
     Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
 }

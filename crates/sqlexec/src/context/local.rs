@@ -52,8 +52,6 @@ pub struct LocalSessionContext {
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
-    /// Temporary objects dropped at the end of a session.
-    temp_objects: TempObjects,
     /// Native tables.
     tables: NativeTableStorage,
     /// Prepared statements.
@@ -88,7 +86,7 @@ impl LocalSessionContext {
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempObjects::default()));
+            .with_extension(Arc::new(TempObjects::new()));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
@@ -96,7 +94,6 @@ impl LocalSessionContext {
         Ok(LocalSessionContext {
             exec_client: None,
             catalog,
-            temp_objects: TempObjects::default(),
             tables: native_tables,
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -161,8 +158,12 @@ impl LocalSessionContext {
         &self.tables
     }
 
-    pub fn get_temp_objects(&self) -> &TempObjects {
-        &self.temp_objects
+    pub fn get_temp_objects(&self) -> Arc<TempObjects> {
+        self.df_ctx
+            .state()
+            .config()
+            .get_extension::<TempObjects>()
+            .expect("local contexts should have temp objects")
     }
 
     /// Return the DF session context.
@@ -186,7 +187,7 @@ impl LocalSessionContext {
     /// Create a temp table.
     pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
         if self
-            .temp_objects
+            .get_temp_objects()
             .resolve_temp_table(&plan.reference.name)
             .is_some()
         {
@@ -203,7 +204,7 @@ impl LocalSessionContext {
 
         let data = RecordBatch::new_empty(schema.clone());
         let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
-        self.temp_objects
+        self.get_temp_objects()
             .put_temp_table(plan.reference.name.into_owned(), table.clone());
 
         // Write to the table if it has a source query

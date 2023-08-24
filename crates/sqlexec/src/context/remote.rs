@@ -57,7 +57,7 @@ impl RemoteSessionContext {
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempObjects::default()));
+            .with_extension(Arc::new(TempObjects::new()));
 
         // TODO: Query planners for handling custom plans.
 

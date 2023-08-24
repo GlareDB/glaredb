@@ -441,6 +441,12 @@ pub struct TempObjects {
 }
 
 impl TempObjects {
+    pub fn new() -> Self {
+        TempObjects {
+            current_session_tables: RwLock::new(HashMap::new()),
+        }
+    }
+
     pub fn resolve_temp_table(&self, name: &str) -> Option<Arc<MemTable>> {
         // TODO: Local hint
         self.current_session_tables.read().get(name).cloned()
