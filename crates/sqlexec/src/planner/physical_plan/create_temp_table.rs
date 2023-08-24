@@ -1,7 +1,7 @@
 use datafusion::{
     datasource::{MemTable, TableProvider},
-    execution::context::SessionState,
-    physical_plan::coalesce_partitions::CoalescePartitionsExec,
+    execution::{context::SessionState, TaskContext},
+    physical_plan::{coalesce_partitions::CoalescePartitionsExec, SendableRecordBatchStream},
 };
 use futures::StreamExt;
 
