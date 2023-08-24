@@ -18,6 +18,7 @@ mod drop_tunnel;
 mod drop_views;
 mod set_variable;
 mod show_variable;
+mod update;
 
 use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
@@ -41,6 +42,7 @@ use protogen::metastore::types::options::{
 use protogen::ProtoConvError;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 pub use alter_database_rename::*;
@@ -63,6 +65,7 @@ pub use drop_tunnel::*;
 pub use drop_views::*;
 pub use set_variable::*;
 pub use show_variable::*;
+pub use update::*;
 
 static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
 
@@ -162,6 +165,12 @@ pub struct FullObjectReference<'a> {
 
 pub type OwnedFullObjectReference = FullObjectReference<'static>;
 
+impl<'a> fmt::Display for FullObjectReference<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.database, self.schema, self.name)
+    }
+}
+
 impl<'a> From<protogen::sqlexec::common::FullObjectReference> for FullObjectReference<'a> {
     fn from(value: protogen::sqlexec::common::FullObjectReference) -> Self {
         FullObjectReference {
@@ -191,6 +200,12 @@ pub struct FullSchemaReference<'a> {
 
 pub type OwnedFullSchemaReference = FullSchemaReference<'static>;
 
+impl<'a> fmt::Display for FullSchemaReference<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}", self.database, self.schema)
+    }
+}
+
 impl<'a> From<protogen::sqlexec::common::FullSchemaReference> for FullSchemaReference<'a> {
     fn from(value: protogen::sqlexec::common::FullSchemaReference) -> Self {
         FullSchemaReference {
@@ -214,7 +229,6 @@ pub enum WritePlan {
     Insert(Insert),
     CopyTo(CopyTo),
     Delete(Delete),
-    Update(Update),
 }
 
 impl From<WritePlan> for LogicalPlan {
@@ -248,26 +262,6 @@ impl std::fmt::Debug for Delete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Delete")
             .field("table_name", &self.table_name.schema())
-            .field("where_expr", &self.where_expr)
-            .finish()
-    }
-}
-
-#[derive(Clone)]
-pub struct Update {
-    pub table_name: OwnedTableReference,
-    pub updates: Vec<(String, Expr)>,
-    pub where_expr: Option<Expr>,
-}
-
-impl std::fmt::Debug for Update {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Update")
-            .field("table_name", &self.table_name.schema())
-            .field(
-                "updates",
-                &self.updates.iter().map(|(k, v)| (k, v.to_string())),
-            )
             .field("where_expr", &self.where_expr)
             .finish()
     }

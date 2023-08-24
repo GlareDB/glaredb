@@ -19,6 +19,7 @@ pub mod drop_views;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;
+pub mod update;
 
 pub(self) use crate::planner::extension::PhysicalExtensionNode;
 pub(self) use datafusion::arrow::datatypes::{Schema, SchemaRef};

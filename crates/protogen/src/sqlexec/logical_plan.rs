@@ -135,6 +135,9 @@ pub struct SetVariable {
     pub values: String,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct Update {}
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, Message)]
 pub struct LogicalPlanExtension {

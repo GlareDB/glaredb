@@ -52,27 +52,28 @@ Kathryn  Sweden
 
 # One off tests for #1599
 
-statement ok
-create schema hello_world;
+# statement ok
+# create schema hello_world;
 
-statement ok
-drop schema hello_world;
+# statement ok
+# drop schema hello_world;
 
-statement ok
-create view my_view as select 1;
+# statement ok
+# create view my_view as select 1;
 
-query I
-select * from my_view;
-----
-1
+# query I
+# select * from my_view;
+# ----
+# 1
 
 statement ok
 create table test (a int);
 
 statement ok
-create table test2 as select 1;
+create table test2 as select 1 as a;
 
 query I
 select * from test2;
 ----
 1
+

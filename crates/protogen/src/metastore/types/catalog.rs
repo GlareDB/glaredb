@@ -176,7 +176,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
 pub enum EntryType {
     Database,
     Schema,
@@ -253,7 +253,7 @@ impl fmt::Display for EntryType {
 }
 
 /// Metadata associated with every entry in the catalog.
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct EntryMeta {
     pub entry_type: EntryType,
     pub id: u32,
@@ -341,7 +341,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,

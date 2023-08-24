@@ -29,6 +29,7 @@ use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
+use crate::planner::physical_plan::update::UpdateExec;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
 };
@@ -280,6 +281,7 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
             ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
             ExtensionType::CopyTo => plan::CopyTo::try_encode_extension(node, buf, self),
+            ExtensionType::Update => plan::Update::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())
@@ -494,6 +496,28 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 references: ext.references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
             }),
+            proto::ExecutionPlanExtensionType::UpdateExec(ext) => {
+                let mut updates = Vec::with_capacity(ext.updates.len());
+                for update in ext.updates {
+                    let expr = update.expr.ok_or_else(|| {
+                        DataFusionError::Internal("missing expression".to_string())
+                    })?;
+                    let expr = parse_expr(&expr, registry)?;
+                    updates.push((update.column.clone(), expr));
+                }
+                let where_expr: Option<Expr> = ext
+                    .where_expr
+                    .map(|expr| parse_expr(&expr, registry))
+                    .transpose()?;
+                Arc::new(UpdateExec {
+                    table: ext
+                        .table
+                        .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
+                        .try_into()?,
+                    updates,
+                    where_expr,
+                })
+            }
         };
 
         Ok(plan)
@@ -610,6 +634,24 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .map(|r| r.into())
                     .collect(),
                 if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<UpdateExec>() {
+            let mut updates = Vec::with_capacity(exec.updates.len());
+            for (col, expr) in &exec.updates {
+                updates.push(proto::UpdateSelector {
+                    column: col.clone(),
+                    expr: Some(expr.try_into()?),
+                });
+            }
+
+            proto::ExecutionPlanExtensionType::UpdateExec(proto::UpdateExec {
+                table: Some(exec.table.clone().try_into()?),
+                updates,
+                where_expr: exec
+                    .where_expr
+                    .as_ref()
+                    .map(|expr| expr.try_into())
+                    .transpose()?,
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

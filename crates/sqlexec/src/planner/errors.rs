@@ -78,6 +78,9 @@ pub enum PlanError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error("{0}")]
+    String(String),
 }
 
 pub type Result<T, E = PlanError> = std::result::Result<T, E>;
