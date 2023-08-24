@@ -8,6 +8,7 @@ pub mod create_external_database;
 pub mod create_external_table;
 pub mod create_schema;
 pub mod create_table;
+pub mod create_temp_table;
 pub mod create_tunnel;
 pub mod create_view;
 pub mod drop_credentials;

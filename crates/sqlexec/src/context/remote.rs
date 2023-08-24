@@ -14,7 +14,7 @@ use crate::{
     dispatch::external::ExternalDispatcher,
     errors::Result,
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
+    metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
@@ -56,7 +56,8 @@ impl RemoteSessionContext {
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()));
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(TempObjects::new()));
 
         // TODO: Query planners for handling custom plans.
 

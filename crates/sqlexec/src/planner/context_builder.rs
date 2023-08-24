@@ -130,11 +130,13 @@ impl<'a> PartialContextProvider<'a> {
             return Ok(Arc::new(prov));
         }
 
+        let temp_objects = self.ctx.get_temp_objects();
+
         let dispatcher = Dispatcher::new(
             self.ctx.get_session_catalog(),
             self.ctx.get_native_tables(),
             self.ctx.get_metrics(),
-            self.ctx.get_temp_objects(),
+            &temp_objects,
             self.ctx,
             self.ctx.df_ctx(),
             self.ctx.get_session_vars().is_cloud_instance(),
