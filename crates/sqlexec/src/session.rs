@@ -265,7 +265,7 @@ impl Session {
 
     /// Create a physical plan for a given datafusion logical plan.
     pub async fn create_physical_plan(
-        &mut self,
+        &self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();

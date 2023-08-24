@@ -53,8 +53,10 @@ impl RemoteSessionContext {
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
-        conf = conf.with_extension(Arc::new(StagedClientStreams::default()));
-        conf = conf.with_extension(Arc::new(catalog_mutator));
+        conf = conf
+            .with_extension(Arc::new(StagedClientStreams::default()))
+            .with_extension(Arc::new(catalog_mutator))
+            .with_extension(Arc::new(native_tables.clone()));
 
         // TODO: Query planners for handling custom plans.
 
@@ -80,7 +82,7 @@ impl RemoteSessionContext {
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
     pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
-        GlareDBExtensionCodec::new_decoder(&self.provider_cache)
+        GlareDBExtensionCodec::new_decoder(&self.provider_cache, self.df_ctx.runtime_env())
     }
 
     fn catalog_mutator(&self) -> Arc<CatalogMutator> {

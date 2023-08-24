@@ -1,0 +1,155 @@
+use datasources::native::access::NativeTableStorage;
+use futures::StreamExt;
+use protogen::metastore::types::{service, service::Mutation};
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
+use tracing::info;
+
+use crate::{
+    errors::ExecError,
+    metastore::catalog::{CatalogMutator, SessionCatalog},
+    planner::logical_plan::OwnedFullObjectReference,
+};
+
+use super::*;
+
+#[derive(Debug, Clone)]
+pub struct CreateTableExec {
+    pub catalog_version: u64,
+    pub reference: OwnedFullObjectReference,
+    pub if_not_exists: bool,
+    pub arrow_schema: SchemaRef,
+    pub source: Option<Arc<dyn ExecutionPlan>>,
+}
+
+impl ExecutionPlan for CreateTableExec {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.arrow_schema.clone()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        match &self.source {
+            Some(source) => vec![source.clone()],
+            None => vec![],
+        }
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        Ok(Arc::new(CreateTableExec {
+            catalog_version: self.catalog_version,
+            reference: self.reference.clone(),
+            if_not_exists: self.if_not_exists,
+            arrow_schema: self.arrow_schema.clone(),
+            source: children.get(0).cloned(),
+        }))
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> DataFusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "CreateTableExec only supports 1 partition".to_string(),
+            ));
+        }
+
+        let catalog_mutator = context
+            .session_config()
+            .get_extension::<CatalogMutator>()
+            .unwrap();
+        let storage = context
+            .session_config()
+            .get_extension::<NativeTableStorage>()
+            .unwrap();
+
+        let stream = stream::once(create_table(
+            self.clone(),
+            catalog_mutator,
+            storage,
+            context,
+        ));
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            self.schema(),
+            stream,
+        )))
+    }
+
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for CreateTableExec {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "CreateTableExec")
+    }
+}
+
+async fn create_table(
+    plan: CreateTableExec,
+    mutator: Arc<CatalogMutator>,
+    storage: Arc<NativeTableStorage>,
+    context: Arc<TaskContext>,
+) -> DataFusionResult<RecordBatch> {
+    let state = mutator
+        .mutate(
+            plan.catalog_version,
+            [Mutation::CreateTable(service::CreateTable {
+                schema: plan.reference.schema.clone().into_owned(),
+                name: plan.reference.name.clone().into_owned(),
+                options: plan.arrow_schema.into(),
+                if_not_exists: plan.if_not_exists,
+            })],
+        )
+        .await
+        .map_err(|e| {
+            DataFusionError::Execution(format!("failed to create table in catalog: {e}"))
+        })?;
+
+    // Note that we're not changing out the catalog stored on the context,
+    // we're just using it here to get the new table entry easily.
+    let new_catalog = SessionCatalog::new(state);
+    let ent = new_catalog
+        .resolve_native_table(
+            DEFAULT_CATALOG,
+            &plan.reference.schema,
+            &plan.reference.name,
+        )
+        .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
+        .unwrap();
+
+    let table = storage.create_table(ent).await.map_err(|e| {
+        DataFusionError::Execution(format!("failed to create table in storage: {e}"))
+    })?;
+    info!(loc = %table.storage_location(), "native table created");
+
+    if let Some(source) = plan.source {
+        let exec = table.insert_exec(source);
+        let mut stream = exec.execute(0, context)?;
+
+        // Drain stream to write everything.
+        while let Some(res) = stream.next().await {
+            let _ = res?;
+        }
+    }
+
+    // TODO: Add storage tracking job.
+
+    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+}

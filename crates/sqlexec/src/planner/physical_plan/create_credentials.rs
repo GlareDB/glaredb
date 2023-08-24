@@ -1,19 +1,10 @@
-use std::sync::Arc;
+use super::*;
 
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::{stream::RecordBatchStreamAdapter, DisplayAs, ExecutionPlan};
-use datafusion::physical_plan::{DisplayFormatType, Partitioning, Statistics};
-use futures::stream;
-use futures::StreamExt;
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
 use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
 use crate::metastore::catalog::CatalogMutator;
 use crate::planner::errors::internal;
-use crate::planner::extension::PhysicalExtensionNode;
 use protogen::export::prost::Message;
 
 #[derive(Clone, Debug)]
@@ -49,7 +40,9 @@ impl PhysicalExtensionNode for CreateCredentialsExec {
 
     fn try_decode(
         proto: Self::ProtoRepr,
-        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
+        _registry: &dyn FunctionRegistry,
+        _runtime: &RuntimeEnv,
+        _extension_codec: &dyn PhysicalExtensionCodec,
     ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
         let options = proto
             .options

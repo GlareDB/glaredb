@@ -1,6 +1,7 @@
 use crate::gen::common::arrow;
 use crate::gen::metastore::options;
 use crate::{FromOptionalField, ProtoConvError};
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::{
     arrow::datatypes::{DataType, Field},
     common::DFSchemaRef,
@@ -536,6 +537,22 @@ pub struct TableOptionsInternal {
 
 impl From<DFSchemaRef> for TableOptionsInternal {
     fn from(value: DFSchemaRef) -> Self {
+        TableOptionsInternal {
+            columns: value
+                .fields()
+                .iter()
+                .map(|col| InternalColumnDefinition {
+                    name: col.name().clone(),
+                    nullable: col.is_nullable(),
+                    arrow_type: col.data_type().clone(),
+                })
+                .collect::<Vec<_>>(),
+        }
+    }
+}
+
+impl From<SchemaRef> for TableOptionsInternal {
+    fn from(value: SchemaRef) -> Self {
         TableOptionsInternal {
             columns: value
                 .fields()

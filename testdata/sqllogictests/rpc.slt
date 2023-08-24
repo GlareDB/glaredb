@@ -65,3 +65,14 @@ query I
 select * from my_view;
 ----
 1
+
+statement ok
+create table test (a int);
+
+statement ok
+create table test2 as select 1;
+
+query I
+select * from test2;
+----
+1

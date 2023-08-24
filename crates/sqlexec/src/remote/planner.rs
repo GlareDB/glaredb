@@ -16,16 +16,17 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTunnel, CreateView,
-    DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
+    CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
-use crate::planner::physical_plan::create_credentials_exec::CreateCredentialsExec;
+use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
+use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
@@ -39,11 +40,6 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 
 use super::client::RemoteSessionClient;
 use super::rewriter::LocalSideTableRewriter;
-
-pub struct RemotePhysicalPlanner<'a> {
-    pub remote_client: RemoteSessionClient,
-    pub catalog: &'a SessionCatalog,
-}
 
 pub struct DDLExtensionPlanner {
     catalog_version: u64,
@@ -60,7 +56,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         _planner: &dyn PhysicalPlanner,
         node: &dyn UserDefinedLogicalNode,
         _logical_inputs: &[&DfLogicalPlan],
-        _physical_inputs: &[Arc<dyn ExecutionPlan>],
+        physical_inputs: &[Arc<dyn ExecutionPlan>],
         _session_state: &SessionState,
     ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
@@ -132,7 +128,16 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     if_not_exists: lp.if_not_exists,
                 })))
             }
-            ExtensionType::CreateTable => todo!(),
+            ExtensionType::CreateTable => {
+                let lp = require_downcast_lp::<CreateTable>(node);
+                Ok(Some(Arc::new(CreateTableExec {
+                    catalog_version: self.catalog_version,
+                    reference: lp.reference.clone(),
+                    if_not_exists: lp.if_not_exists,
+                    arrow_schema: Arc::new(lp.schema.as_ref().into()),
+                    source: physical_inputs.get(0).cloned(),
+                })))
+            }
             ExtensionType::CreateTempTable => todo!(),
             ExtensionType::CreateTunnel => {
                 let lp = require_downcast_lp::<CreateTunnel>(node);
@@ -212,6 +217,11 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CopyTo => todo!(),
         }
     }
+}
+
+pub struct RemotePhysicalPlanner<'a> {
+    pub remote_client: RemoteSessionClient,
+    pub catalog: &'a SessionCatalog,
 }
 
 #[async_trait]
