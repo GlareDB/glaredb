@@ -313,25 +313,6 @@ impl LocalSessionContext {
         }
     }
 
-    pub async fn update(&mut self, plan: Update) -> Result<usize> {
-        let FullObjectReference {
-            database,
-            schema,
-            name,
-        } = self.resolve_table_ref(plan.table_name)?;
-
-        if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name) {
-            Ok(self
-                .tables
-                .update_rows_where(table_entry, plan.updates, plan.where_expr)
-                .await?)
-        } else {
-            Err(ExecError::UnsupportedSQLStatement(
-                "Update for external tables".to_string(),
-            ))
-        }
-    }
-
     /// Get a reference to the session variables.
     pub fn get_session_vars(&self) -> SessionVars {
         let cfg = self.df_ctx.copied_config();

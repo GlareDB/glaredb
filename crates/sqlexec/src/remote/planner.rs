@@ -18,6 +18,7 @@ use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTunnel,
     CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews,
+    Update,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
@@ -37,6 +38,7 @@ use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
+use crate::planner::physical_plan::update::UpdateExec;
 
 use super::client::RemoteSessionClient;
 use super::rewriter::LocalSideTableRewriter;
@@ -215,6 +217,14 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             }
             ExtensionType::SetVariable => todo!(),
             ExtensionType::CopyTo => todo!(),
+            ExtensionType::Update => {
+                let lp = require_downcast_lp::<Update>(node);
+                Ok(Some(Arc::new(UpdateExec {
+                    table: lp.table.clone(),
+                    updates: lp.updates.clone(),
+                    where_expr: lp.where_expr.clone(),
+                })))
+            }
         }
     }
 }

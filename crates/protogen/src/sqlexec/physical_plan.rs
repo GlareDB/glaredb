@@ -1,6 +1,7 @@
 mod postgres;
 pub use postgres::*;
 
+use crate::gen::metastore::catalog::TableEntry;
 use datafusion_proto::protobuf::{LogicalExprNode, Schema};
 use prost::{Message, Oneof};
 
@@ -136,10 +137,28 @@ pub struct CreateSchema {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct UpdateSelector {
+    #[prost(string, tag = "1")]
+    pub column: String,
+    #[prost(message, tag = "2")]
+    pub expr: Option<LogicalExprNode>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct UpdateExec {
+    #[prost(message, tag = "1")]
+    pub table: Option<TableEntry>,
+    #[prost(message, repeated, tag = "2")]
+    pub updates: Vec<UpdateSelector>,
+    #[prost(message, optional, tag = "3")]
+    pub where_expr: Option<LogicalExprNode>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -173,4 +192,7 @@ pub enum ExecutionPlanExtensionType {
     CreateSchema(CreateSchema),
     #[prost(message, tag = "12")]
     CreateTableExec(CreateTableExec),
+    // DML
+    #[prost(message, tag = "13")]
+    UpdateExec(UpdateExec),
 }
