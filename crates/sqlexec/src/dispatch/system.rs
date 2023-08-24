@@ -274,7 +274,7 @@ impl<'a> SystemTableDispatcher<'a> {
         }
 
         // Append temporary tables.
-        for table in self.temp_objects.iter_table_names() {
+        for table in self.temp_objects.table_names() {
             // TODO: Assign OID to temporary tables
             oid.append_value(0);
             schema_oid.append_value(SCHEMA_CURRENT_SESSION.oid);

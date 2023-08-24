@@ -22,11 +22,17 @@ use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExe
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
+use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
+use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
 use crate::planner::physical_plan::create_schema::CreateSchemaExec;
 use crate::planner::physical_plan::create_table::CreateTableExec;
 use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
+use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
+use crate::planner::physical_plan::create_view::CreateViewExec;
+use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tables::DropTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
@@ -515,6 +521,72 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 references: ext.references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
             }),
+            proto::ExecutionPlanExtensionType::CreateExternalDatabaseExec(ext) => {
+                let options = ext.options.ok_or(protogen::ProtoConvError::RequiredField(
+                    "options".to_string(),
+                ))?;
+                Arc::new(CreateExternalDatabaseExec {
+                    catalog_version: ext.catalog_version,
+                    database_name: ext.database_name,
+                    if_not_exists: ext.if_not_exists,
+                    options: options.try_into()?,
+                    tunnel: ext.tunnel,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateExternalTableExec(ext) => {
+                let table_options =
+                    ext.table_options
+                        .ok_or(protogen::ProtoConvError::RequiredField(
+                            "table_options".to_string(),
+                        ))?;
+                Arc::new(CreateExternalTableExec {
+                    catalog_version: ext.catalog_version,
+                    reference: ext
+                        .reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    if_not_exists: ext.if_not_exists,
+                    table_options: table_options.try_into()?,
+                    tunnel: ext.tunnel,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateTunnelExec(ext) => {
+                let options = ext.options.ok_or(protogen::ProtoConvError::RequiredField(
+                    "options".to_string(),
+                ))?;
+                Arc::new(CreateTunnelExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    if_not_exists: ext.if_not_exists,
+                    options: options.try_into()?,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateViewExec(ext) => Arc::new(CreateViewExec {
+                catalog_version: ext.catalog_version,
+                reference: ext
+                    .reference
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing table references".to_string())
+                    })?
+                    .into(),
+                sql: ext.sql,
+                columns: ext.columns,
+                or_replace: ext.or_replace,
+            }),
+            proto::ExecutionPlanExtensionType::DropCredentialsExec(ext) => {
+                Arc::new(DropCredentialsExec {
+                    catalog_version: ext.catalog_version,
+                    names: ext.names,
+                    if_exists: ext.if_exists,
+                })
+            }
+            proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {
+                catalog_version: ext.catalog_version,
+                references: ext.references.into_iter().map(|r| r.into()).collect(),
+                if_exists: ext.if_exists,
+            }),
             proto::ExecutionPlanExtensionType::UpdateExec(ext) => {
                 let mut updates = Vec::with_capacity(ext.updates.len());
                 for update in ext.updates {
@@ -651,6 +723,58 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DropViewsExec>() {
             proto::ExecutionPlanExtensionType::DropViewsExec(proto::DropViewsExec {
+                catalog_version: exec.catalog_version,
+                references: exec
+                    .references
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateExternalDatabaseExec>() {
+            proto::ExecutionPlanExtensionType::CreateExternalDatabaseExec(
+                proto::CreateExternalDatabaseExec {
+                    catalog_version: exec.catalog_version,
+                    database_name: exec.database_name.clone(),
+                    options: Some(exec.options.clone().into()),
+                    if_not_exists: exec.if_not_exists,
+                    tunnel: exec.tunnel.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateExternalTableExec>() {
+            proto::ExecutionPlanExtensionType::CreateExternalTableExec(
+                proto::CreateExternalTableExec {
+                    catalog_version: exec.catalog_version,
+                    reference: Some(exec.reference.clone().into()),
+                    if_not_exists: exec.if_not_exists,
+                    table_options: Some(exec.table_options.clone().try_into()?),
+                    tunnel: exec.tunnel.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateTunnelExec>() {
+            proto::ExecutionPlanExtensionType::CreateTunnelExec(proto::CreateTunnelExec {
+                catalog_version: exec.catalog_version,
+                name: exec.name.clone(),
+                options: Some(exec.options.clone().into()),
+                if_not_exists: exec.if_not_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateViewExec>() {
+            proto::ExecutionPlanExtensionType::CreateViewExec(proto::CreateViewExec {
+                catalog_version: exec.catalog_version,
+                reference: Some(exec.reference.clone().into()),
+                sql: exec.sql.clone(),
+                columns: exec.columns.clone(),
+                or_replace: exec.or_replace,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropCredentialsExec>() {
+            proto::ExecutionPlanExtensionType::DropCredentialsExec(proto::DropCredentialsExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropTablesExec>() {
+            proto::ExecutionPlanExtensionType::DropTablesExec(proto::DropTablesExec {
                 catalog_version: exec.catalog_version,
                 references: exec
                     .references

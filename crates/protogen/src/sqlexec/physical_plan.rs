@@ -139,12 +139,86 @@ pub struct CreateSchema {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTempTableExec {
+    #[prost(message, tag = "1")]
+    pub reference: Option<FullObjectReference>,
+    #[prost(bool, tag = "2")]
+    pub if_not_exists: bool,
+    #[prost(message, tag = "3")]
+    pub arrow_schema: Option<Schema>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateExternalDatabaseExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub database_name: String,
+    #[prost(message, tag = "3")]
+    pub options: Option<crate::gen::metastore::options::DatabaseOptions>,
+    #[prost(bool, tag = "4")]
+    pub if_not_exists: bool,
+    #[prost(string, optional, tag = "5")]
+    pub tunnel: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateExternalTableExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
     #[prost(message, tag = "2")]
     pub reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
     #[prost(message, tag = "4")]
-    pub arrow_schema: Option<Schema>,
+    pub table_options: Option<crate::gen::metastore::options::TableOptions>,
+    #[prost(message, optional, tag = "5")]
+    pub tunnel: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateTunnelExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, tag = "2")]
+    pub name: String,
+    #[prost(message, tag = "3")]
+    pub options: Option<crate::gen::metastore::options::TunnelOptions>,
+    #[prost(bool, tag = "4")]
+    pub if_not_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateViewExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(message, tag = "2")]
+    pub reference: Option<FullObjectReference>,
+    #[prost(string, tag = "3")]
+    pub sql: String,
+    #[prost(message, repeated, tag = "4")]
+    pub columns: Vec<String>,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropCredentialsExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(string, repeated, tag = "2")]
+    pub names: Vec<String>, // TODO: Do these live in schemas?
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DropTablesExec {
+    #[prost(uint64, tag = "1")]
+    pub catalog_version: u64,
+    #[prost(message, repeated, tag = "2")]
+    pub references: Vec<FullObjectReference>,
+    #[prost(bool, tag = "3")]
+    pub if_exists: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -169,7 +243,7 @@ pub struct UpdateExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -205,7 +279,19 @@ pub enum ExecutionPlanExtensionType {
     CreateTableExec(CreateTableExec),
     #[prost(message, tag = "13")]
     CreateTempTableExec(CreateTempTableExec),
-    // DML
     #[prost(message, tag = "14")]
+    CreateExternalDatabaseExec(CreateExternalDatabaseExec),
+    #[prost(message, tag = "15")]
+    CreateExternalTableExec(CreateExternalTableExec),
+    #[prost(message, tag = "16")]
+    CreateTunnelExec(CreateTunnelExec),
+    #[prost(message, tag = "17")]
+    CreateViewExec(CreateViewExec),
+    #[prost(message, tag = "18")]
+    DropCredentialsExec(DropCredentialsExec),
+    #[prost(message, tag = "19")]
+    DropTablesExec(DropTablesExec),
+    // DML
+    #[prost(message, tag = "20")]
     UpdateExec(UpdateExec),
 }

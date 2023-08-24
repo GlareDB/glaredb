@@ -454,7 +454,7 @@ impl TempObjects {
         self.current_session_tables.write().remove(name);
     }
 
-    pub fn iter_table_names(&self) -> Vec<String> {
+    pub fn table_names(&self) -> Vec<String> {
         self.current_session_tables
             .read()
             .keys()
