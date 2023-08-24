@@ -314,11 +314,6 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) async fn insert_into(&mut self, plan: Insert) -> Result<()> {
-        self.ctx.insert(plan).await?;
-        Ok(())
-    }
-
     pub(crate) async fn plan_copy_to(&mut self, plan: CopyTo) -> Result<()> {
         fn get_sink_for_obj(
             format: CopyToFormatOptions,
@@ -475,10 +470,6 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-            LogicalPlan::Write(WritePlan::Insert(plan)) => {
-                self.insert_into(plan).await?;
-                ExecutionResult::WriteSuccess
-            }
             LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
                 self.plan_copy_to(plan).await?;
                 ExecutionResult::CopySuccess

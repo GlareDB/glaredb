@@ -1,4 +1,3 @@
-use crate::background_jobs::storage::BackgroundJobStorageTracker;
 use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
@@ -15,15 +14,11 @@ use datafusion::datasource::MemTable;
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
-use datafusion::physical_plan::{
-    coalesce_partitions::CoalescePartitionsExec, execute_stream, ExecutionPlan,
-};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
-use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 use protogen::metastore::types::service::{self, Mutation};
@@ -65,7 +60,7 @@ pub struct LocalSessionContext {
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Job runner for background jobs.
-    background_jobs: JobRunner,
+    _background_jobs: JobRunner,
 }
 
 impl LocalSessionContext {
@@ -100,7 +95,7 @@ impl LocalSessionContext {
             metrics,
             df_ctx,
             env_reader: None,
-            background_jobs,
+            _background_jobs: background_jobs,
         })
     }
 
@@ -207,14 +202,15 @@ impl LocalSessionContext {
         self.get_temp_objects()
             .put_temp_table(plan.reference.name.into_owned(), table.clone());
 
+        // TODO:
         // Write to the table if it has a source query
-        if let Some(source) = plan.source {
-            let insert_plan = Insert {
-                source,
-                table_provider: table,
-            };
-            self.insert(insert_plan).await?;
-        }
+        // if let Some(source) = plan.source {
+        //     let insert_plan = Insert {
+        //         source,
+        //         table_provider: table,
+        //     };
+        //     self.insert(insert_plan).await?;
+        // }
 
         Ok(())
     }
@@ -249,48 +245,15 @@ impl LocalSessionContext {
         let table = self.tables.create_table(ent).await?;
         info!(loc = %table.storage_location(), "native table created");
 
+        // TODO: No need for this function?
         // Write to the table if it has a source query
-        if let Some(source) = plan.source {
-            let insert_plan = Insert {
-                source,
-                table_provider: table.into_table_provider(),
-            };
-            self.insert(insert_plan).await?;
-        }
-
-        Ok(())
-    }
-
-    pub async fn insert(&mut self, plan: Insert) -> Result<()> {
-        let state = self.df_ctx.state();
-
-        let physical = state.create_physical_plan(&plan.source).await?;
-
-        // Ensure physical plan has one output partition.
-        let physical: Arc<dyn ExecutionPlan> =
-            match physical.output_partitioning().partition_count() {
-                1 => physical,
-                _ => {
-                    // merge into a single partition
-                    Arc::new(CoalescePartitionsExec::new(physical))
-                }
-            };
-
-        let physical = plan.table_provider.insert_into(&state, physical).await?;
-
-        let context = self.task_context();
-        let mut stream = execute_stream(physical, context)?;
-
-        // Drain the stream to actually "write" successfully.
-        while let Some(res) = stream.next().await {
-            let _ = res?;
-        }
-
-        // Add the storage tracker job once data is inserted.
-        if let Some(client) = &self.catalog_mutator().client {
-            let tracker = BackgroundJobStorageTracker::new(self.tables.clone(), client.clone());
-            self.background_jobs.add(tracker)?;
-        }
+        // if let Some(source) = plan.source {
+        //     let insert_plan = Insert {
+        //         source,
+        //         table_provider: table.into_table_provider(),
+        //     };
+        //     self.insert(insert_plan).await?;
+        // }
 
         Ok(())
     }

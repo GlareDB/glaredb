@@ -17,6 +17,7 @@ pub mod drop_schemas;
 pub mod drop_tables;
 pub mod drop_tunnel;
 pub mod drop_views;
+pub mod insert;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;
@@ -28,14 +29,10 @@ pub(self) use datafusion::arrow::record_batch::RecordBatch;
 pub(self) use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::FunctionRegistry;
-pub(self) use datafusion::execution::TaskContext;
 pub(self) use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub(self) use datafusion::{
     physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-        Statistics,
-    },
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, Statistics},
 };
 pub(self) use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 pub(self) use futures::stream;

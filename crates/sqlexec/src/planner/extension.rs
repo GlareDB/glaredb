@@ -20,7 +20,7 @@ use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel,
-    DropViews, SetVariable, Update,
+    DropViews, Insert, SetVariable, Update,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -48,6 +48,7 @@ pub enum ExtensionType {
     SetVariable,
     CopyTo,
     Update,
+    Insert,
 }
 
 impl FromStr for ExtensionType {
@@ -74,6 +75,7 @@ impl FromStr for ExtensionType {
             SetVariable::EXTENSION_NAME => Self::SetVariable,
             CopyTo::EXTENSION_NAME => Self::CopyTo,
             Update::EXTENSION_NAME => Self::Update,
+            Insert::EXTENSION_NAME => Self::Insert,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

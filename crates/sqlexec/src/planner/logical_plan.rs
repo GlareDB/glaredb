@@ -16,6 +16,7 @@ mod drop_schemas;
 mod drop_tables;
 mod drop_tunnel;
 mod drop_views;
+mod insert;
 mod set_variable;
 mod show_variable;
 mod update;
@@ -25,7 +26,6 @@ use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
 use datafusion::common::{DFSchema, DFSchemaRef, OwnedTableReference};
-use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 use datafusion::prelude::SessionContext;
@@ -63,6 +63,7 @@ pub use drop_schemas::*;
 pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
+pub use insert::*;
 pub use set_variable::*;
 pub use show_variable::*;
 pub use update::*;
@@ -226,7 +227,6 @@ impl<'a> From<FullSchemaReference<'a>> for protogen::sqlexec::common::FullSchema
 
 #[derive(Clone, Debug)]
 pub enum WritePlan {
-    Insert(Insert),
     CopyTo(CopyTo),
     Delete(Delete),
 }
@@ -234,21 +234,6 @@ pub enum WritePlan {
 impl From<WritePlan> for LogicalPlan {
     fn from(plan: WritePlan) -> Self {
         LogicalPlan::Write(plan)
-    }
-}
-
-#[derive(Clone)]
-pub struct Insert {
-    pub table_provider: Arc<dyn TableProvider>,
-    pub source: DfLogicalPlan,
-}
-
-impl std::fmt::Debug for Insert {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Insert")
-            .field("source", &self.source)
-            .field("table_provider", &self.table_provider.schema())
-            .finish()
     }
 }
 
