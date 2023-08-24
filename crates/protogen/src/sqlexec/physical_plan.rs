@@ -28,6 +28,7 @@ pub struct RemoteScanExec {
     #[prost(uint64, optional, tag = "5")]
     pub limit: Option<u64>,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTableExec {
     #[prost(uint64, tag = "1")]
@@ -155,10 +156,16 @@ pub struct UpdateExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct InsertExec {
+    #[prost(message, tag = "1")]
+    pub table: Option<TableEntry>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -195,4 +202,6 @@ pub enum ExecutionPlanExtensionType {
     // DML
     #[prost(message, tag = "13")]
     UpdateExec(UpdateExec),
+    #[prost(message, tag = "14")]
+    InsertExec(InsertExec),
 }
