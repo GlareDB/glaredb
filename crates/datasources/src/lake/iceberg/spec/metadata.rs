@@ -134,7 +134,7 @@ impl FromStr for Transform {
                 // Regex that matches:
                 // bucket[16]
                 static BUCKET_RE: Lazy<Regex> =
-                    Lazy::new(|| Regex::new(r#"^bucket\[(?P<n>\d+)\]$"#).unwrap());
+                    Lazy::new(|| Regex::new(r"^bucket\[(?P<n>\d+)\]$").unwrap());
 
                 let captures = BUCKET_RE.captures(other).ok_or_else(|| {
                     IcebergError::DataInvalid(format!("Invalid bucket transform: {other}"))
@@ -157,7 +157,7 @@ impl FromStr for Transform {
                 // Regex that matches:
                 // bucket[16]
                 static BUCKET_RE: Lazy<Regex> =
-                    Lazy::new(|| Regex::new(r#"^truncate\[(?P<n>\d+)\]$"#).unwrap());
+                    Lazy::new(|| Regex::new(r"^truncate\[(?P<n>\d+)\]$").unwrap());
 
                 let captures = BUCKET_RE.captures(other).ok_or_else(|| {
                     IcebergError::DataInvalid(format!("Invalid truncate transform: {other}"))

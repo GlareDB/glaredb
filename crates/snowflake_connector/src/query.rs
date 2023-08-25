@@ -711,7 +711,10 @@ fn json_to_arrow(schema: SchemaRef, rows: Vec<Vec<Option<String>>>) -> Result<Re
     for (col_idx, field) in schema.fields.iter().enumerate() {
         let col: ArrayRef = match field.data_type() {
             DataType::Boolean => {
-                make_json_column!(BooleanBuilder, rows, col_idx, |s| s == "1")
+                fn parse_bool(s: &String) -> bool {
+                    s == "1"
+                }
+                make_json_column!(BooleanBuilder, rows, col_idx, parse_bool)
             }
             DataType::Utf8 => {
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
