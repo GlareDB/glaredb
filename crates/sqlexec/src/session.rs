@@ -10,12 +10,9 @@ use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::{
-    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
-};
+use datafusion::physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
-use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
@@ -305,15 +302,6 @@ impl Session {
         Ok(ctx_provider.table_provider(table_ref).await?)
     }
 
-    pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx.get_session_vars().write().set(
-            &plan.variable,
-            &plan.values,
-            VarType::UserDefined,
-        )?;
-        Ok(())
-    }
-
     pub(crate) async fn plan_copy_to(&mut self, plan: CopyTo) -> Result<()> {
         fn get_sink_for_obj(
             format: CopyToFormatOptions,
@@ -383,17 +371,6 @@ impl Session {
         let stream = self.execute_physical(physical)?;
         sink.write_all(stream, &self.ctx.task_context()).await?;
         Ok(())
-    }
-
-    pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
-        let var = self.ctx.get_session_vars();
-        let var = var.read();
-        let var = var.get(&plan.variable)?;
-        let batch = var.record_batch();
-        let schema = batch.schema();
-        // Creating this stream should never error.
-        let stream = MemoryStream::try_new(vec![batch], schema, None).unwrap();
-        Ok(Box::pin(stream))
     }
 
     pub fn get_session_vars(&self) -> SessionVars {
@@ -477,14 +454,6 @@ impl Session {
                     stream,
                     plan: physical,
                 }
-            }
-            LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
-                self.set_variable(plan)?;
-                ExecutionResult::SetLocal
-            }
-            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
-                let stream = self.show_variable(plan)?;
-                ExecutionResult::ShowVariable { stream }
             }
         };
 

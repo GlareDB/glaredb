@@ -25,7 +25,7 @@ mod update;
 use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
-use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
 use datafusion::common::{DFSchema, DFSchemaRef};
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
@@ -81,8 +81,6 @@ pub enum LogicalPlan {
     Datafusion(DfLogicalPlan),
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
-    /// Plans related to altering the state or runtime of the session.
-    Variable(VariablePlan),
 }
 
 impl LogicalPlan {
@@ -102,9 +100,6 @@ impl LogicalPlan {
                 let schema: ArrowSchema = plan.schema().as_ref().into();
                 Some(schema)
             }
-            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => Some(ArrowSchema::new(
-                vec![Field::new(&plan.variable, DataType::Utf8, false)],
-            )),
             _ => None,
         }
     }
@@ -248,17 +243,5 @@ pub enum TransactionPlan {
 impl From<TransactionPlan> for LogicalPlan {
     fn from(plan: TransactionPlan) -> Self {
         LogicalPlan::Transaction(plan)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum VariablePlan {
-    SetVariable(SetVariable),
-    ShowVariable(ShowVariable),
-}
-
-impl From<VariablePlan> for LogicalPlan {
-    fn from(plan: VariablePlan) -> Self {
-        LogicalPlan::Variable(plan)
     }
 }

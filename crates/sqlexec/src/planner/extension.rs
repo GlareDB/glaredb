@@ -20,7 +20,7 @@ use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
-    DropTunnel, DropViews, Insert, SetVariable, Update,
+    DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -46,6 +46,7 @@ pub enum ExtensionType {
     DropTunnel,
     DropViews,
     SetVariable,
+    ShowVariable,
     CopyTo,
     Update,
     Insert,
@@ -74,6 +75,7 @@ impl FromStr for ExtensionType {
             DropTunnel::EXTENSION_NAME => Self::DropTunnel,
             DropViews::EXTENSION_NAME => Self::DropViews,
             SetVariable::EXTENSION_NAME => Self::SetVariable,
+            ShowVariable::EXTENSION_NAME => Self::ShowVariable,
             CopyTo::EXTENSION_NAME => Self::CopyTo,
             Update::EXTENSION_NAME => Self::Update,
             Insert::EXTENSION_NAME => Self::Insert,

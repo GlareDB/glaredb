@@ -38,6 +38,8 @@ use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
+use crate::planner::physical_plan::set_var::SetVarExec;
+use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
@@ -289,6 +291,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::DropTunnel => plan::DropTunnel::try_encode_extension(node, buf, self),
             ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
             ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
+            ExtensionType::ShowVariable => {
+                plan::ShowVariable::try_encode_extension(node, buf, self)
+            }
             ExtensionType::CopyTo => plan::CopyTo::try_encode_extension(node, buf, self),
             ExtensionType::Update => plan::Update::try_encode_extension(node, buf, self),
             ExtensionType::Delete => plan::Update::try_encode_extension(node, buf, self),
@@ -591,6 +596,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 references: ext.references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
             }),
+            proto::ExecutionPlanExtensionType::SetVarExec(ext) => Arc::new(SetVarExec {
+                variable: ext.variable,
+                values: ext.values,
+            }),
+            proto::ExecutionPlanExtensionType::ShowVarExec(ext) => Arc::new(ShowVarExec {
+                variable: ext.variable,
+            }),
             proto::ExecutionPlanExtensionType::UpdateExec(ext) => {
                 let mut updates = Vec::with_capacity(ext.updates.len());
                 for update in ext.updates {
@@ -807,6 +819,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .map(|r| r.into())
                     .collect(),
                 if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<SetVarExec>() {
+            proto::ExecutionPlanExtensionType::SetVarExec(proto::SetVarExec {
+                variable: exec.variable.clone(),
+                values: exec.values.clone(),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<ShowVarExec>() {
+            proto::ExecutionPlanExtensionType::ShowVarExec(proto::ShowVarExec {
+                variable: exec.variable.clone(),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<UpdateExec>() {
             let mut updates = Vec::with_capacity(exec.updates.len());

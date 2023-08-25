@@ -22,6 +22,8 @@ pub mod insert;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;
+pub mod set_var;
+pub mod show_var;
 pub mod update;
 
 pub(self) use crate::planner::extension::PhysicalExtensionNode;

@@ -18,7 +18,7 @@ use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
-    DropTunnel, DropViews, Insert, Update,
+    DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
@@ -41,6 +41,8 @@ use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
+use crate::planner::physical_plan::set_var::SetVarExec;
+use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 
 use super::client::RemoteSessionClient;
@@ -226,7 +228,21 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::SetVariable => todo!(),
+            ExtensionType::SetVariable => {
+                let lp = require_downcast_lp::<SetVariable>(node);
+                let exec = SetVarExec {
+                    variable: lp.variable.clone(),
+                    values: lp.values.clone(),
+                };
+                Ok(Some(Arc::new(exec)))
+            }
+            ExtensionType::ShowVariable => {
+                let lp = require_downcast_lp::<ShowVariable>(node);
+                let exec = ShowVarExec {
+                    variable: lp.variable.clone(),
+                };
+                Ok(Some(Arc::new(exec)))
+            }
             ExtensionType::CopyTo => todo!(),
             ExtensionType::Update => {
                 let lp = require_downcast_lp::<Update>(node);

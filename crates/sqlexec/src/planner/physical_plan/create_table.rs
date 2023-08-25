@@ -43,9 +43,9 @@ impl ExecutionPlan for CreateTableExec {
 
     fn schema(&self) -> SchemaRef {
         if self.source.is_some() {
-            Arc::new(Schema::empty())
-        } else {
             INSERT_COUNT_SCHEMA.clone()
+        } else {
+            Arc::new(Schema::empty())
         }
     }
 
