@@ -9,21 +9,12 @@ use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
-use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::vars::SessionVars;
-use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
-use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
-use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::native::access::NativeTableStorage;
-use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::ObjStoreAccess;
 use pgrepr::format::Format;
-use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
 use uuid::Uuid;
 
@@ -302,77 +293,6 @@ impl Session {
         Ok(ctx_provider.table_provider(table_ref).await?)
     }
 
-    pub(crate) async fn plan_copy_to(&mut self, plan: CopyTo) -> Result<()> {
-        fn get_sink_for_obj(
-            format: CopyToFormatOptions,
-            access: &dyn ObjStoreAccess,
-            location: &str,
-        ) -> Result<Box<dyn DataSink>> {
-            let store = access.create_store()?;
-            let path = access.path(location)?;
-
-            let sink: Box<dyn DataSink> = match format {
-                CopyToFormatOptions::Csv(csv_opts) => Box::new(CsvSink::from_obj_store(
-                    store,
-                    path,
-                    CsvSinkOpts {
-                        delim: csv_opts.delim,
-                        header: csv_opts.header,
-                    },
-                )),
-                CopyToFormatOptions::Parquet(parquet_opts) => {
-                    Box::new(ParquetSink::from_obj_store(
-                        store,
-                        path,
-                        ParquetSinkOpts {
-                            row_group_size: parquet_opts.row_group_size,
-                        },
-                    ))
-                }
-                CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
-                    store,
-                    path,
-                    JsonSinkOpts {
-                        array: json_opts.array,
-                    },
-                )),
-            };
-            Ok(sink)
-        }
-
-        let sink = match (plan.dest, plan.format) {
-            (CopyToDestinationOptions::Local(local_options), format) => {
-                {
-                    // Create the path if it doesn't exist (for local).
-                    let _ = tokio::fs::File::create(&local_options.location).await?;
-                }
-                let access = LocalStoreAccess;
-                get_sink_for_obj(format, &access, &local_options.location)?
-            }
-            (CopyToDestinationOptions::Gcs(gcs_options), format) => {
-                let access = GcsStoreAccess {
-                    bucket: gcs_options.bucket,
-                    service_account_key: gcs_options.service_account_key,
-                };
-                get_sink_for_obj(format, &access, &gcs_options.location)?
-            }
-            (CopyToDestinationOptions::S3(s3_options), format) => {
-                let access = S3StoreAccess {
-                    region: s3_options.region,
-                    bucket: s3_options.bucket,
-                    access_key_id: s3_options.access_key_id,
-                    secret_access_key: s3_options.secret_access_key,
-                };
-                get_sink_for_obj(format, &access, &s3_options.location)?
-            }
-        };
-
-        let physical = self.create_physical_plan(plan.source).await?;
-        let stream = self.execute_physical(physical)?;
-        sink.write_all(stream, &self.ctx.task_context()).await?;
-        Ok(())
-    }
-
     pub fn get_session_vars(&self) -> SessionVars {
         self.ctx.get_session_vars().clone()
     }
@@ -443,10 +363,6 @@ impl Session {
                 TransactionPlan::Commit => ExecutionResult::Commit,
                 TransactionPlan::Abort => ExecutionResult::Rollback,
             },
-            LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
-                self.plan_copy_to(plan).await?;
-                ExecutionResult::CopySuccess
-            }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
                 let stream = self.execute_physical(physical.clone())?;
