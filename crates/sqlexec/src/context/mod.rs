@@ -20,7 +20,7 @@ use datafusion::{
     },
 };
 use datafusion_ext::vars::SessionVars;
-use datasources::object_store::init_session_registry;
+use datasources::object_store::HttpAwareObjectStoreRegistry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
 use crate::{errors::Result, metastore::catalog::SessionCatalog};
@@ -55,7 +55,6 @@ pub(crate) fn new_datafusion_runtime_env(
     }
 
     // let config = config.with_extension(Arc::new(vars));
-    let runtime = RuntimeEnv::new(runtime_conf)?;
 
     // Register the object store in the registry for all the tables.
     let entries = catalog.iter_entries().filter_map(|e| {
@@ -69,7 +68,11 @@ pub(crate) fn new_datafusion_runtime_env(
             None
         }
     });
-    init_session_registry(&runtime, entries)?;
+
+    let registry = HttpAwareObjectStoreRegistry::try_new(entries)?;
+    runtime_conf = runtime_conf.with_object_store_registry(Arc::new(registry));
+
+    let runtime = RuntimeEnv::new(runtime_conf)?;
 
     Ok(runtime)
 }

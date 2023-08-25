@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::datasource::file_format::file_type::FileType;
 use datafusion::datasource::file_format::FileFormat;
@@ -10,19 +11,20 @@ use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
-use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::execution::object_store::{ObjectStoreRegistry, ObjectStoreUrl};
 use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use errors::ObjectStoreSourceError;
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
+use object_store::http::HttpBuilder;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::TableOptions;
 
 use errors::Result;
+use url::{Position, Url};
 
 use crate::common::exprs_to_phys_exprs;
 use crate::object_store::gcs::GcsStoreAccess;
@@ -222,39 +224,85 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
         .map_err(ObjectStoreSourceError::DataFusion)
 }
 
-pub fn init_session_registry<'a>(
-    runtime: &RuntimeEnv,
-    entries: impl Iterator<Item = &'a TableOptions>,
-) -> Result<()> {
-    for opts in entries {
-        let access: Arc<dyn ObjStoreAccess> = match opts {
-            TableOptions::Local(_) => Arc::new(LocalStoreAccess),
-            TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
-                bucket: opts.bucket.clone(),
-                service_account_key: opts.service_account_key.clone(),
-            }),
-            TableOptions::S3(opts) => Arc::new(S3StoreAccess {
-                region: opts.region.clone(),
-                bucket: opts.bucket.clone(),
-                access_key_id: opts.access_key_id.clone(),
-                secret_access_key: opts.secret_access_key.clone(),
-            }),
-            // Continue on all others. Explicityly mentioning all the left
-            // over options so we don't forget adding object stores that are
-            // supported in the furure (like azure).
-            TableOptions::Internal(_)
-            | TableOptions::Debug(_)
-            | TableOptions::Postgres(_)
-            | TableOptions::BigQuery(_)
-            | TableOptions::Mysql(_)
-            | TableOptions::Mongo(_)
-            | TableOptions::Snowflake(_) => continue,
-        };
-
-        let base_url = access.base_url()?;
-        let store = access.create_store()?;
-        runtime.register_object_store(base_url.as_ref(), store);
+#[derive(Debug, Clone)]
+pub struct HttpAwareObjectStoreRegistry {
+    object_stores: DashMap<Url, Arc<dyn ObjectStore>>,
+}
+impl HttpAwareObjectStoreRegistry {
+    fn is_http_src(&self, url: &Url) -> bool {
+        url.scheme() == "http" || url.scheme() == "https"
     }
 
-    Ok(())
+    fn get_http_store(&self, url: &Url) -> datafusion::error::Result<Arc<dyn ObjectStore>> {
+        let scheme = url.scheme();
+        let path = &url[Position::BeforeUsername..];
+        let path = path.replace("__slash__", "/");
+        let path = path.replace("__percent__", "%");
+        let path = path.trim_matches('/');
+        let url = format!("{}://{}", scheme, path);
+        let builder = HttpBuilder::new().with_url(url);
+        let store = builder.build()?;
+        Ok(Arc::new(store))
+    }
+
+    pub fn try_new<'a>(entries: impl Iterator<Item = &'a TableOptions>) -> Result<Self> {
+        let object_stores: DashMap<Url, Arc<dyn ObjectStore>> = DashMap::new();
+        for opts in entries {
+            let access: Arc<dyn ObjStoreAccess> = match opts {
+                TableOptions::Local(_) => Arc::new(LocalStoreAccess),
+                TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
+                    bucket: opts.bucket.clone(),
+                    service_account_key: opts.service_account_key.clone(),
+                }),
+                TableOptions::S3(opts) => Arc::new(S3StoreAccess {
+                    region: opts.region.clone(),
+                    bucket: opts.bucket.clone(),
+                    access_key_id: opts.access_key_id.clone(),
+                    secret_access_key: opts.secret_access_key.clone(),
+                }),
+                // Continue on all others. Explicityly mentioning all the left
+                // over options so we don't forget adding object stores that are
+                // supported in the furure (like azure).
+                TableOptions::Internal(_)
+                | TableOptions::Debug(_)
+                | TableOptions::Postgres(_)
+                | TableOptions::BigQuery(_)
+                | TableOptions::Mysql(_)
+                | TableOptions::Mongo(_)
+                | TableOptions::Snowflake(_) => continue,
+            };
+
+            let base_url = access.base_url()?;
+            let store = access.create_store()?;
+            let url: &Url = base_url.as_ref();
+
+            object_stores.insert(url.clone(), store);
+        }
+        Ok(Self { object_stores })
+    }
+}
+
+// We need a custom registry because of how we are mapping http URLs to ObjectStores.
+// we don't need any previous entry for http, as the HttpStore is created on the fly.
+// the default registry will try to get the store from the registry (which will never exist on a remote instance.)
+impl ObjectStoreRegistry for HttpAwareObjectStoreRegistry {
+    fn register_store(
+        &self,
+        url: &Url,
+        store: Arc<dyn ObjectStore>,
+    ) -> Option<Arc<dyn ObjectStore>> {
+        self.object_stores.insert(url.clone(), store)
+    }
+
+    fn get_store(&self, url: &Url) -> datafusion::error::Result<Arc<dyn ObjectStore>> {
+        if self.is_http_src(url) {
+            return self.get_http_store(url);
+        }
+        self.object_stores
+            .get(url)
+            .map(|o| o.value().clone())
+            .ok_or_else(|| {
+                DataFusionError::Internal(format!("No suitable object store found for {url}"))
+            })
+    }
 }
