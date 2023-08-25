@@ -21,6 +21,7 @@ use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
+use crate::planner::physical_plan::copy_to::CopyToExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -630,7 +631,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .table
                     .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
                     .try_into()?,
-                source: inputs.get(0).unwrap().clone(),
+                source: inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
+                    .clone(),
             }),
             proto::ExecutionPlanExtensionType::DeleteExec(ext) => {
                 let where_expr: Option<Expr> = ext
@@ -645,6 +649,22 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     where_expr,
                 })
             }
+            proto::ExecutionPlanExtensionType::CopyToExec(ext) => Arc::new(CopyToExec {
+                format: ext
+                    .format
+                    .ok_or_else(|| DataFusionError::Internal("missing format options".to_string()))?
+                    .try_into()?,
+                dest: ext
+                    .dest
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing destination options".to_string())
+                    })?
+                    .try_into()?,
+                source: inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
+                    .clone(),
+            }),
         };
 
         Ok(plan)
@@ -859,6 +879,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .as_ref()
                     .map(|expr| expr.try_into())
                     .transpose()?,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CopyToExec>() {
+            proto::ExecutionPlanExtensionType::CopyToExec(proto::CopyToExec {
+                format: Some(exec.format.clone().try_into()?),
+                dest: Some(exec.dest.clone().try_into()?),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

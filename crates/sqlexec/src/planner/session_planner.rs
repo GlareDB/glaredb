@@ -1359,12 +1359,13 @@ impl<'a> SessionPlanner<'a> {
                 source: Box::new(e),
             }
         })?;
-        Ok(WritePlan::CopyTo(CopyTo {
-            source,
-            dest,
+
+        Ok(CopyTo {
             format,
-        })
-        .into())
+            dest,
+            source,
+        }
+        .into_logical_plan())
     }
 
     fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {

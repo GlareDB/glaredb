@@ -74,8 +74,6 @@ static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
-    /// Write plans.
-    Write(WritePlan),
     /// Plans related to querying the underlying data store. This will run
     /// through datafusion.
     Datafusion(DfLogicalPlan),
@@ -219,17 +217,6 @@ impl<'a> From<FullSchemaReference<'a>> for protogen::sqlexec::common::FullSchema
             database: value.database.into(),
             schema: value.schema.into(),
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum WritePlan {
-    CopyTo(CopyTo),
-}
-
-impl From<WritePlan> for LogicalPlan {
-    fn from(plan: WritePlan) -> Self {
-        LogicalPlan::Write(plan)
     }
 }
 

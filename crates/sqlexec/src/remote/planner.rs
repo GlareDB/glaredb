@@ -15,7 +15,7 @@ use std::sync::Arc;
 use crate::metastore::catalog::SessionCatalog;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CreateCredentials,
+    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
     DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
@@ -23,6 +23,7 @@ use crate::planner::logical_plan::{
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
+use crate::planner::physical_plan::copy_to::CopyToExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -243,7 +244,14 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::CopyTo => todo!(),
+            ExtensionType::CopyTo => {
+                let lp = require_downcast_lp::<CopyTo>(node);
+                Ok(Some(Arc::new(CopyToExec {
+                    format: lp.format.clone(),
+                    dest: lp.dest.clone(),
+                    source: physical_inputs.get(0).unwrap().clone(),
+                })))
+            }
             ExtensionType::Update => {
                 let lp = require_downcast_lp::<Update>(node);
                 Ok(Some(Arc::new(UpdateExec {

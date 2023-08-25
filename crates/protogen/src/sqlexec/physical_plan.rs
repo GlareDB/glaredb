@@ -5,7 +5,10 @@ use crate::gen::metastore::catalog::TableEntry;
 use datafusion_proto::protobuf::{LogicalExprNode, Schema};
 use prost::{Message, Oneof};
 
-use super::common::{FullObjectReference, FullSchemaReference};
+use super::{
+    common::{FullObjectReference, FullSchemaReference},
+    logical_plan::{CopyToDestinationOptions, CopyToFormatOptions},
+};
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
@@ -268,10 +271,18 @@ pub struct InsertExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct CopyToExec {
+    #[prost(message, tag = "1")]
+    pub format: Option<CopyToFormatOptions>,
+    #[prost(message, tag = "2")]
+    pub dest: Option<CopyToDestinationOptions>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -330,4 +341,6 @@ pub enum ExecutionPlanExtensionType {
     InsertExec(InsertExec),
     #[prost(message, tag = "24")]
     DeleteExec(DeleteExec),
+    #[prost(message, tag = "25")]
+    CopyToExec(CopyToExec),
 }
