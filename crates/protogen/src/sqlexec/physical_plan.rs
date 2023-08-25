@@ -222,6 +222,20 @@ pub struct DropTablesExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct SetVarExec {
+    #[prost(string, tag = "1")]
+    pub variable: String,
+    #[prost(string, tag = "2")]
+    pub values: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct ShowVarExec {
+    #[prost(string, tag = "1")]
+    pub variable: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct UpdateSelector {
     #[prost(string, tag = "1")]
     pub column: String,
@@ -257,7 +271,7 @@ pub struct InsertExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -305,11 +319,15 @@ pub enum ExecutionPlanExtensionType {
     DropCredentialsExec(DropCredentialsExec),
     #[prost(message, tag = "19")]
     DropTablesExec(DropTablesExec),
-    // DML
     #[prost(message, tag = "20")]
-    UpdateExec(UpdateExec),
+    SetVarExec(SetVarExec),
     #[prost(message, tag = "21")]
-    InsertExec(InsertExec),
+    ShowVarExec(ShowVarExec),
+    // DML
     #[prost(message, tag = "22")]
+    UpdateExec(UpdateExec),
+    #[prost(message, tag = "23")]
+    InsertExec(InsertExec),
+    #[prost(message, tag = "24")]
     DeleteExec(DeleteExec),
 }

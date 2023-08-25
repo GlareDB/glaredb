@@ -950,10 +950,7 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(
-                VariablePlan::SetVariable(SetVariable::try_new(variable.to_string(), value)?)
-                    .into(),
-            ),
+            } => Ok(SetVariable::try_new(variable.to_string(), value)?.into_logical_plan()),
 
             // "SHOW ..."
             //
@@ -974,7 +971,7 @@ impl<'a> SessionPlanner<'a> {
                     variable.pop().unwrap()
                 };
 
-                Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
+                Ok(ShowVariable { variable }.into_logical_plan())
             }
 
             // "DELETE FROM <table> WHERE <expression>"

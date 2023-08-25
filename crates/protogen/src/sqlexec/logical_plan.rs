@@ -136,6 +136,12 @@ pub struct SetVariable {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct ShowVariable {
+    #[prost(string, tag = "1")]
+    pub variable: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct Update {}
 
 #[derive(Clone, PartialEq, Message)]
