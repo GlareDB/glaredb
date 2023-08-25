@@ -257,6 +257,7 @@ impl Session {
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
+        let plan = state.optimize(&plan)?;
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
                 remote_client: client,
