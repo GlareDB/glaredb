@@ -25,7 +25,7 @@ use crate::{
     planner::{logical_plan::OwnedFullObjectReference, physical_plan::insert::InsertExec},
 };
 
-use super::insert::INSERT_COUNT_SCHEMA;
+use super::insert::INSERT_PHYSICAL_SCHEMA;
 
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
@@ -43,7 +43,7 @@ impl ExecutionPlan for CreateTableExec {
 
     fn schema(&self) -> SchemaRef {
         if self.source.is_some() {
-            INSERT_COUNT_SCHEMA.clone()
+            INSERT_PHYSICAL_SCHEMA.clone()
         } else {
             Arc::new(Schema::empty())
         }

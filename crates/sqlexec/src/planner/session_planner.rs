@@ -971,7 +971,7 @@ impl<'a> SessionPlanner<'a> {
                     variable.pop().unwrap()
                 };
 
-                Ok(ShowVariable { variable }.into_logical_plan())
+                Ok(ShowVariable::new(variable).into_logical_plan())
             }
 
             // "DELETE FROM <table> WHERE <expression>"

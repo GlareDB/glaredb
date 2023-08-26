@@ -3,6 +3,25 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ShowVariable {
     pub variable: String,
+    /// Schema of the logical plan output. Note that this is hacky, but this is
+    /// needed to return a reference to the Arc, and the schema needs to be dynamic.
+    pub df_schema: DFSchemaRef,
+}
+
+impl ShowVariable {
+    pub fn new(variable: String) -> ShowVariable {
+        let df_schema = Arc::new(
+            DFSchema::new_with_metadata(
+                vec![DFField::new_unqualified(&variable, DataType::Utf8, false)],
+                HashMap::new(),
+            )
+            .expect("creating df schema for SHOW should not fail"),
+        );
+        ShowVariable {
+            variable,
+            df_schema,
+        }
+    }
 }
 
 impl UserDefinedLogicalNodeCore for ShowVariable {
@@ -15,7 +34,7 @@ impl UserDefinedLogicalNodeCore for ShowVariable {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &self.df_schema
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

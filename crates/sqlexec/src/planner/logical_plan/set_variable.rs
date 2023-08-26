@@ -41,8 +41,8 @@ impl UserDefinedLogicalNodeCore for SetVariable {
         vec![]
     }
 
-    fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+    fn schema(&self) -> &DFSchemaRef {
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

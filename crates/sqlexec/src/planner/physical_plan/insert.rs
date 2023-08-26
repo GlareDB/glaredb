@@ -20,12 +20,13 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-pub static INSERT_COUNT_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
-    Arc::new(Schema::new(vec![Field::new(
-        "count",
-        DataType::UInt64,
-        false,
-    )]))
+use super::new_operation_with_count_batch;
+
+pub static INSERT_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("operation", DataType::Utf8, false),
+        Field::new("count", DataType::UInt64, false),
+    ]))
 });
 
 #[derive(Debug, Clone)]
@@ -40,7 +41,7 @@ impl ExecutionPlan for InsertExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        INSERT_COUNT_SCHEMA.clone()
+        INSERT_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -146,11 +147,6 @@ impl InsertExec {
             }
         }
 
-        let batch = RecordBatch::try_new(
-            INSERT_COUNT_SCHEMA.clone(),
-            vec![Arc::new(UInt64Array::from(vec![inserted_rows]))],
-        )?;
-
-        Ok(batch)
+        Ok(new_operation_with_count_batch("insert", inserted_rows))
     }
 }

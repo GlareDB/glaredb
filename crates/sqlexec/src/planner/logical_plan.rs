@@ -26,7 +26,7 @@ use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
-use datafusion::common::{DFSchema, DFSchemaRef};
+use datafusion::common::{DFField, DFSchema, DFSchemaRef};
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 use datafusion::prelude::SessionContext;
@@ -70,7 +70,31 @@ pub use set_variable::*;
 pub use show_variable::*;
 pub use update::*;
 
+use super::physical_plan::{
+    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA, GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
+
 static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
+
+pub static GENERIC_OPERATION_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
+    Arc::new(
+        GENERIC_OPERATION_PHYSICAL_SCHEMA
+            .as_ref()
+            .clone()
+            .try_into()
+            .unwrap(),
+    )
+});
+
+pub static GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
+    Arc::new(
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA
+            .as_ref()
+            .clone()
+            .try_into()
+            .unwrap(),
+    )
+});
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {

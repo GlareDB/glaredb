@@ -2,15 +2,9 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use datafusion::prelude::SessionContext;
-use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::TableEntry;
 
 use super::*;
-
-use crate::planner::physical_plan::insert::INSERT_COUNT_SCHEMA;
-
-pub static INSERT_LOGICAL_SCHEMA: Lazy<DFSchemaRef> =
-    Lazy::new(|| Arc::new(INSERT_COUNT_SCHEMA.as_ref().clone().try_into().unwrap()));
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Insert {
@@ -28,7 +22,7 @@ impl UserDefinedLogicalNodeCore for Insert {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &INSERT_LOGICAL_SCHEMA
+        &GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

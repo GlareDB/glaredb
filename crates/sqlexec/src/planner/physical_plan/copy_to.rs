@@ -23,7 +23,7 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use super::insert::INSERT_COUNT_SCHEMA;
+use super::insert::INSERT_PHYSICAL_SCHEMA;
 
 #[derive(Debug, Clone)]
 pub struct CopyToExec {
@@ -38,7 +38,7 @@ impl ExecutionPlan for CopyToExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        INSERT_COUNT_SCHEMA.clone()
+        INSERT_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {

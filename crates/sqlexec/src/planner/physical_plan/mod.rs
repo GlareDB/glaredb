@@ -28,7 +28,7 @@ pub mod show_var;
 pub mod update;
 
 pub(self) use crate::planner::extension::PhysicalExtensionNode;
-pub(self) use datafusion::arrow::datatypes::{Schema, SchemaRef};
+pub(self) use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 pub(self) use datafusion::arrow::record_batch::RecordBatch;
 pub(self) use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::runtime_env::RuntimeEnv;
@@ -42,3 +42,45 @@ pub(self) use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 pub(self) use futures::stream;
 pub(self) use futures::StreamExt;
 pub(self) use std::sync::Arc;
+
+use datafusion::arrow::array::{StringArray, UInt64Array};
+use once_cell::sync::Lazy;
+
+pub static GENERIC_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![Field::new(
+        "operation",
+        DataType::Utf8,
+        false,
+    )]))
+});
+
+/// Create a new single-row record batch representing the ouptput for some
+/// command (most DDL).
+pub fn new_operation_batch(operation: impl Into<String>) -> RecordBatch {
+    RecordBatch::try_new(
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone(),
+        vec![Arc::new(StringArray::from(vec![Some(operation.into())]))],
+    )
+    .unwrap()
+}
+
+/// Arrow schema for dml (excluding select) output streams.
+pub static GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("operation", DataType::Utf8, false),
+        Field::new("count", DataType::UInt64, false),
+    ]))
+});
+
+/// Create a new single-row record batch representing the ouptput for updates
+/// and deletes where count is rows affected.
+pub fn new_operation_with_count_batch(operation: impl Into<String>, count: u64) -> RecordBatch {
+    RecordBatch::try_new(
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA.clone(),
+        vec![
+            Arc::new(StringArray::from(vec![Some(operation.into())])),
+            Arc::new(UInt64Array::from(vec![count])),
+        ],
+    )
+    .unwrap()
+}
