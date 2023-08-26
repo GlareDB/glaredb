@@ -27,21 +27,21 @@ pub mod set_var;
 pub mod show_var;
 pub mod update;
 
-pub(self) use crate::planner::extension::PhysicalExtensionNode;
-pub(self) use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-pub(self) use datafusion::arrow::record_batch::RecordBatch;
-pub(self) use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use crate::planner::extension::PhysicalExtensionNode;
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::FunctionRegistry;
-pub(self) use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-pub(self) use datafusion::{
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::{
     physical_expr::PhysicalSortExpr,
     physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, Statistics},
 };
-pub(self) use datafusion_proto::physical_plan::PhysicalExtensionCodec;
-pub(self) use futures::stream;
-pub(self) use futures::StreamExt;
-pub(self) use std::sync::Arc;
+use datafusion_proto::physical_plan::PhysicalExtensionCodec;
+use futures::stream;
+use futures::StreamExt;
+use std::sync::Arc;
 
 use datafusion::arrow::array::{StringArray, UInt64Array};
 use once_cell::sync::Lazy;
