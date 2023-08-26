@@ -466,12 +466,15 @@ where
             };
 
             // Describe statement and get number of fields...
+            fn get_num_fields(s: &PreparedStatement) -> usize {
+                s.output_fields().map(|f| f.len()).unwrap_or(0)
+            }
             let num_fields = session_do!(
                 self,
                 session,
                 get_prepared_statement,
                 &UNNAMED,
-                |s: &PreparedStatement| s.output_fields().map(|f| f.len()).unwrap_or(0)
+                get_num_fields
             );
 
             // Bind...

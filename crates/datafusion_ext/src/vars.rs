@@ -112,7 +112,7 @@ impl SessionVars {
         IMPLICIT_SCHEMAS
             .into_iter()
             .map(|s| s.to_string())
-            .chain(self.search_path().into_iter())
+            .chain(self.search_path())
             .collect()
     }
 
