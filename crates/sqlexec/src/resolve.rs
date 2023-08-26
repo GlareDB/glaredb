@@ -115,7 +115,7 @@ impl<'a> EntryResolver<'a> {
                     return Ok(ResolvedEntry::NeedsExternalResolution {
                         db_ent,
                         schema: schema.clone(),
-                        name: schema.clone(),
+                        name: table.clone(),
                     });
                 }
 
