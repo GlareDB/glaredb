@@ -119,6 +119,13 @@ impl<'a> EntryResolver<'a> {
                     });
                 }
 
+                // We also support referencing fully qualified temp table names.
+                if schema == CURRENT_SESSION_SCHEMA {
+                    if let Some(table) = self.temp_objects.resolve_temp_table(table) {
+                        return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
+                    }
+                }
+
                 // Otherwise just try to get the full qualified entry.
                 if let Some(ent) = self.catalog.resolve_entry(catalog, schema, table) {
                     return Ok(ResolvedEntry::Entry(ent.clone()));

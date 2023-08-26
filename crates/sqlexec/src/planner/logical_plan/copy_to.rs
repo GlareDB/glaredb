@@ -43,7 +43,6 @@ impl UserDefinedLogicalNodeCore for CopyTo {
         _exprs: &[datafusion::prelude::Expr],
         _inputs: &[DfLogicalPlan],
     ) -> Self {
-        println!("CopyTo from_template");
         self.clone()
     }
 }
