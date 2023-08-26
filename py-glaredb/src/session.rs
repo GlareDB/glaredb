@@ -47,7 +47,7 @@ impl LocalSession {
         })
     }
 
-    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
+    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<()> {
         const UNNAMED: String = String::new();
 
         let mut statements = parser::parse_sql(query).map_err(PyGlareDbError::from)?;
@@ -60,9 +60,12 @@ impl LocalSession {
                 1 => {
                     let stmt = statements.pop_front().unwrap();
 
+                    println!("statement: {stmt}");
+
                     sess.prepare_statement(UNNAMED, Some(stmt), Vec::new())
                         .await
                         .map_err(PyGlareDbError::from)?;
+
                     let prepared = sess
                         .get_prepared_statement(&UNNAMED)
                         .map_err(PyGlareDbError::from)?;
@@ -74,11 +77,22 @@ impl LocalSession {
                         vec![Format::Text; num_fields],
                     )
                     .map_err(PyGlareDbError::from)?;
-                    Ok(sess
+                    let exec_result = sess
                         .execute_portal(&UNNAMED, 0)
                         .await
-                        .map_err(PyGlareDbError::from)?
-                        .into())
+                        .map_err(PyGlareDbError::from)?;
+
+                    // TODO: Currently a bit hacky until we refactor/remove the
+                    // execution result. Everything is tied to execution of the
+                    // stream.
+                    if let ExecutionResult::Query { mut stream, .. } = exec_result {
+                        // Execute the stream to completion.
+                        while let Some(result) = stream.next().await {
+                            let _ = result?;
+                        }
+                    }
+
+                    Ok(())
                 }
                 _ => {
                     todo!()
