@@ -352,7 +352,7 @@ impl AsyncDB for TestClient {
             }
             Self::Pg(client) => {
                 let rows = client.simple_query(sql).await.map_err(|e| {
-                    ExecError::Internal(format!("cannot execute postgres query: {e}"))
+                    ExecError::Internal(format!("cannot execute simple query: {e}"))
                 })?;
                 for row in rows {
                     match row {

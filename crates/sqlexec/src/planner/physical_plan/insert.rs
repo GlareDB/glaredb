@@ -7,11 +7,14 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::coalesce_batches::CoalesceBatchesExec;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::scalar::ScalarValue;
+use datafusion_proto::protobuf::CoalescePartitionsExecNode;
 use datasources::native::access::NativeTableStorage;
 use futures::{stream, StreamExt};
 use once_cell::sync::Lazy;
@@ -19,6 +22,8 @@ use protogen::metastore::types::catalog::TableEntry;
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
+
+use crate::metastore::catalog::TempCatalog;
 
 use super::new_operation_with_count_batch;
 
@@ -78,7 +83,13 @@ impl ExecutionPlan for InsertExec {
         }
 
         let this = self.clone();
-        let stream = stream::once(this.insert_native(context));
+        let stream = stream::once(async move {
+            if this.table.meta.is_temp {
+                this.insert_temp(context).await
+            } else {
+                this.insert_native(context).await
+            }
+        });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -115,6 +126,26 @@ impl InsertExec {
         Self::do_insert(table, self.source, context).await
 
         // TODO: Add background job for storage size
+    }
+
+    async fn insert_temp(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
+        let temp = context
+            .session_config()
+            .get_extension::<TempCatalog>()
+            .expect("context should have temp catalog");
+
+        let provider = temp
+            .get_temp_table_provider(&self.table.meta.name)
+            .ok_or_else(|| DataFusionError::Execution("missing temp table".to_string()))?;
+
+        // InsertExec for mem table expects only a single input partition.
+        let source = if self.source.output_partitioning().partition_count() != 1 {
+            Arc::new(CoalescePartitionsExec::new(self.source))
+        } else {
+            self.source
+        };
+
+        Self::do_insert(provider, source, context).await
     }
 
     pub async fn do_insert(

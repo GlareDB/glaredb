@@ -58,6 +58,7 @@ use crate::parser::{
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::resolve::{EntryResolver, ResolvedEntry};
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
@@ -835,19 +836,12 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
-                // TODO: More proper resolving.
-                let r = self.ctx.resolve_table_ref(table_name)?;
-                let ent = self
-                    .ctx
-                    .get_session_catalog()
-                    .resolve_table(&r.database, &r.schema, &r.name)
-                    .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
 
-                Ok(Insert {
-                    table: ent.clone(),
-                    source,
-                }
-                .into_logical_plan())
+                Ok(Insert { table: ent, source }.into_logical_plan())
             }
 
             ast::Statement::AlterTable {
@@ -1024,16 +1018,13 @@ impl<'a> SessionPlanner<'a> {
                     None
                 };
 
-                // TODO: More proper resolving.
-                let r = self.ctx.resolve_table_ref(table_name)?;
-                let ent = self
-                    .ctx
-                    .get_session_catalog()
-                    .resolve_table(&r.database, &r.schema, &r.name)
-                    .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
 
                 Ok(Delete {
-                    table: ent.clone(),
+                    table: ent,
                     where_expr,
                 }
                 .into_logical_plan())
@@ -1090,16 +1081,13 @@ impl<'a> SessionPlanner<'a> {
                     None
                 };
 
-                // TODO: More proper resolving.
-                let r = self.ctx.resolve_table_ref(table_name)?;
-                let ent = self
-                    .ctx
-                    .get_session_catalog()
-                    .resolve_table(&r.database, &r.schema, &r.name)
-                    .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
 
                 Ok(Update {
-                    table: ent.clone(),
+                    table: ent,
                     updates,
                     where_expr,
                 }

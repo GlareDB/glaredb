@@ -1,8 +1,12 @@
 use datafusion::{datasource::MemTable, sql::TableReference};
-use protogen::metastore::types::catalog::{DatabaseEntry, TableEntry};
+use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
+use std::sync::Arc;
 
-use crate::metastore::catalog::{SessionCatalog, TempCatalog};
+use crate::{
+    context::local::LocalSessionContext,
+    metastore::catalog::{SessionCatalog, TempCatalog},
+};
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("failed to resolve: {0}")]
@@ -10,51 +14,78 @@ pub struct ResolveError(String);
 
 type Result<T, E = ResolveError> = std::result::Result<T, E>;
 
-pub enum ResolvedTableEntry {
-    /// We have a table in the catalog.
-    Table(TableEntry),
-    /// We have a table in the temporary session-scoped catalog.
-    TempTable(TableEntry),
-    /// Table reference points to external database, and we don't know if the
-    /// table exists or not. The external database needs to be contacted.
-    NeedsExternalResolution(DatabaseEntry),
+pub enum ResolvedEntry {
+    /// We have an entry in the catalog.
+    Entry(CatalogEntry),
+    /// Reference points to external database, and we don't know if the entry
+    /// exists or not. The external database needs to be contacted.
+    NeedsExternalResolution {
+        db_ent: DatabaseEntry,
+        schema: String,
+        name: String,
+    },
+}
+
+impl ResolvedEntry {
+    pub fn try_into_table_entry(self) -> Result<TableEntry> {
+        match self {
+            Self::Entry(CatalogEntry::Table(ent)) => Ok(ent),
+            Self::Entry(ent) => Err(ResolveError(format!(
+                "{} is not a table entry",
+                ent.get_meta().name
+            ))),
+            Self::NeedsExternalResolution { .. } => Err(ResolveError(
+                "entry type unknown, external resolution needed".to_string(),
+            )),
+        }
+    }
 }
 
 /// Resolves entries in the catalog and session temp objects while taking into
 /// account the search path.
+// TODO: Remove Arc and Vec. (rethink how we handle storing things on
+// datafusion's context).
 pub struct EntryResolver<'a> {
     /// Catalog to lookup entries in.
     pub catalog: &'a SessionCatalog,
     /// Temp objects scoped to a session.
-    pub temp_objects: &'a TempCatalog,
+    pub temp_objects: Arc<TempCatalog>,
     /// Schemas to use when looking up a table.
-    pub schema_search_path: &'a [String],
+    pub schema_search_path: Vec<String>,
 }
 
 impl<'a> EntryResolver<'a> {
-    pub fn resolve_table_entry_from_reference(
+    pub fn from_context(ctx: &'a LocalSessionContext) -> Self {
+        EntryResolver {
+            catalog: ctx.get_session_catalog(),
+            temp_objects: ctx.get_temp_objects(),
+            schema_search_path: ctx.get_session_vars().implicit_search_path(),
+        }
+    }
+
+    pub fn resolve_entry_from_reference(
         &self,
         reference: TableReference<'_>,
-    ) -> Result<ResolvedTableEntry> {
+    ) -> Result<ResolvedEntry> {
         match &reference {
             TableReference::Bare { table } => {
                 // Check for temp table first. This matches Postgres behavior.
                 if let Some(table) = self.temp_objects.resolve_temp_table(&table) {
-                    return Ok(ResolvedTableEntry::TempTable(table));
+                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
 
                 // Iterate through all schemas in the search path looking for
                 // our table.
                 for schema in self.schema_search_path.iter() {
                     if let Some(ent) = self.catalog.resolve_table(DEFAULT_CATALOG, schema, table) {
-                        return Ok(ResolvedTableEntry::Table(ent.clone()));
+                        return Ok(ResolvedEntry::Entry(CatalogEntry::Table(ent.clone())));
                     }
                     // Continue on, trying the next schema.
                 }
             }
             TableReference::Partial { schema, table } => {
                 if let Some(ent) = self.catalog.resolve_table(DEFAULT_CATALOG, schema, table) {
-                    return Ok(ResolvedTableEntry::Table(ent.clone()));
+                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(ent.clone())));
                 }
             }
             TableReference::Full {
@@ -69,12 +100,16 @@ impl<'a> EntryResolver<'a> {
                     let db_ent = self.catalog.resolve_database(&catalog).ok_or_else(|| {
                         ResolveError(format!("unable to find database entry for '{catalog}'"))
                     })?;
-                    return Ok(ResolvedTableEntry::NeedsExternalResolution(db_ent.clone()));
+                    return Ok(ResolvedEntry::NeedsExternalResolution {
+                        db_ent: db_ent.clone(),
+                        schema: schema.clone().into_owned(),
+                        name: table.clone().into_owned(),
+                    });
                 }
 
                 // Otherwise just try to get the full qualified table.
                 if let Some(ent) = self.catalog.resolve_table(catalog, schema, table) {
-                    return Ok(ResolvedTableEntry::Table(ent.clone()));
+                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(ent.clone())));
                 }
             }
         }

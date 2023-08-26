@@ -7,7 +7,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
-use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
+use protogen::metastore::types::catalog::{CatalogEntry, EntryType, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
     DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
@@ -40,7 +40,14 @@ impl<'a> SystemTableDispatcher<'a> {
         }
     }
 
-    pub fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+    pub fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+        let schema_ent = self
+            .catalog
+            .get_by_oid(ent.meta.parent)
+            .ok_or_else(|| DispatchError::MissingObjectWithOid(ent.meta.parent))?;
+        let name = &ent.meta.name;
+        let schema = &schema_ent.get_meta().name;
+
         Ok(if GLARE_DATABASES.matches(schema, name) {
             Arc::new(self.build_glare_databases())
         } else if GLARE_TUNNELS.matches(schema, name) {

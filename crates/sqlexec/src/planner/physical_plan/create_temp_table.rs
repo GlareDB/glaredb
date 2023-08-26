@@ -23,7 +23,7 @@ impl ExecutionPlan for CreateTempTableExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.arrow_schema.clone()
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -105,7 +105,6 @@ async fn create_temp_table(
     }
 
     let schema = plan.arrow_schema;
-
     let data = RecordBatch::new_empty(schema.clone());
     let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
     temp_objects.put_temp_table(plan.reference.name.into_owned(), table.clone());
@@ -131,5 +130,5 @@ async fn create_temp_table(
         }
     }
 
-    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+    Ok(new_operation_batch("create_temp_table"))
 }

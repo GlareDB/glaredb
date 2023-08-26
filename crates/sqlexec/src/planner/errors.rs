@@ -77,6 +77,9 @@ pub enum PlanError {
     ParseIntError(#[from] std::num::ParseIntError),
 
     #[error(transparent)]
+    ResolveError(#[from] crate::resolve::ResolveError),
+
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error("{0}")]
