@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use datafusion::{
     arrow::{
-        datatypes::{Schema, SchemaRef},
+        datatypes::{SchemaRef},
         record_batch::RecordBatch,
     },
     error::{DataFusionError, Result as DataFusionResult},

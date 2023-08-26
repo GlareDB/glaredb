@@ -1,6 +1,4 @@
-use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
@@ -15,7 +13,6 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use super::show_var::create_show_var_schema;
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]

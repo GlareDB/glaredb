@@ -1,7 +1,7 @@
-use datafusion::{datasource::MemTable, sql::TableReference};
+use datafusion::sql::TableReference;
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use crate::{
     context::local::LocalSessionContext,
@@ -14,19 +14,21 @@ pub struct ResolveError(String);
 
 type Result<T, E = ResolveError> = std::result::Result<T, E>;
 
-pub enum ResolvedEntry {
+pub enum ResolvedEntry<'a> {
     /// We have an entry in the catalog.
+    // NOTE: Not a reference since a `TableEntry` is created on-demand when
+    // getting the entry for a temp table.
     Entry(CatalogEntry),
     /// Reference points to external database, and we don't know if the entry
     /// exists or not. The external database needs to be contacted.
     NeedsExternalResolution {
-        db_ent: DatabaseEntry,
-        schema: String,
-        name: String,
+        db_ent: &'a DatabaseEntry,
+        schema: Cow<'a, str>,
+        name: Cow<'a, str>,
     },
 }
 
-impl ResolvedEntry {
+impl<'a> ResolvedEntry<'a> {
     pub fn try_into_table_entry(self) -> Result<TableEntry> {
         match self {
             Self::Entry(CatalogEntry::Table(ent)) => Ok(ent),
@@ -63,9 +65,9 @@ impl<'a> EntryResolver<'a> {
         }
     }
 
-    pub fn resolve_entry_from_reference(
-        &self,
-        reference: TableReference<'_>,
+    pub fn resolve_entry_from_reference<'b: 'a>(
+        &'a self,
+        reference: TableReference<'b>,
     ) -> Result<ResolvedEntry> {
         match &reference {
             TableReference::Bare { table } => {
@@ -73,7 +75,7 @@ impl<'a> EntryResolver<'a> {
                 // where if there exists a persist table named "t1" and a temp
                 // table also named "t1", the temp table is what gets used in
                 // the query.
-                if let Some(table) = self.temp_objects.resolve_temp_table(&table) {
+                if let Some(table) = self.temp_objects.resolve_temp_table(table) {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
 
@@ -89,7 +91,7 @@ impl<'a> EntryResolver<'a> {
             TableReference::Partial { schema, table } => {
                 // "current_session" references the temp catalog.
                 if schema == CURRENT_SESSION_SCHEMA {
-                    if let Some(table) = self.temp_objects.resolve_temp_table(&table) {
+                    if let Some(table) = self.temp_objects.resolve_temp_table(table) {
                         return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                     }
                 }
@@ -107,13 +109,13 @@ impl<'a> EntryResolver<'a> {
                 // external resolution since we don't store info about
                 // individual tables.
                 if catalog != DEFAULT_CATALOG {
-                    let db_ent = self.catalog.resolve_database(&catalog).ok_or_else(|| {
+                    let db_ent = self.catalog.resolve_database(catalog).ok_or_else(|| {
                         ResolveError(format!("unable to find database entry for '{catalog}'"))
                     })?;
                     return Ok(ResolvedEntry::NeedsExternalResolution {
-                        db_ent: db_ent.clone(),
-                        schema: schema.clone().into_owned(),
-                        name: table.clone().into_owned(),
+                        db_ent,
+                        schema: schema.clone(),
+                        name: schema.clone(),
                     });
                 }
 

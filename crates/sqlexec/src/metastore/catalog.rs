@@ -154,9 +154,7 @@ impl SessionCatalog {
         let ent = self.state.entries.get(obj_id)?;
 
         match ent {
-            CatalogEntry::Table(table) => match &table.options {
-                _ => Some(table),
-            },
+            CatalogEntry::Table(table) => Some(table),
             _ => None,
         }
     }
@@ -481,7 +479,7 @@ impl TempCatalog {
     pub fn get_table_entries(&self) -> Vec<TableEntry> {
         let inner = self.inner.lock();
         let mut ents = Vec::with_capacity(inner.tables.len());
-        for (name, _) in &inner.tables {
+        for name in inner.tables.keys() {
             ents.push(TableEntry {
                 meta: EntryMeta {
                     entry_type: EntryType::Table,

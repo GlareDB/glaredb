@@ -13,13 +13,11 @@ use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, ViewEntry,
 };
-use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 
 use crate::context::local::LocalSessionContext;
 use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
-use crate::resolve::EntryResolver;
 use crate::{
     dispatch::system::SystemTableDispatcher,
     metastore::catalog::{SessionCatalog, TempCatalog},
@@ -230,7 +228,7 @@ impl<'a> Dispatcher<'a> {
     /// Dispatch to an external system.
     pub async fn dispatch_external(
         &self,
-        db_ent: DatabaseEntry,
+        db_ent: &DatabaseEntry,
         schema: &str,
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {

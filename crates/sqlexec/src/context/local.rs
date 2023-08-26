@@ -8,9 +8,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::SchemaReference;
-use datafusion::datasource::MemTable;
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
@@ -21,7 +19,7 @@ use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::metastore::types::service::{self, Mutation};
+
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
@@ -31,7 +29,7 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tracing::info;
+
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};

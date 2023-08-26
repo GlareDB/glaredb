@@ -74,8 +74,6 @@ use super::physical_plan::{
     GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA, GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
 
-static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
-
 pub static GENERIC_OPERATION_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
     Arc::new(
         GENERIC_OPERATION_PHYSICAL_SCHEMA

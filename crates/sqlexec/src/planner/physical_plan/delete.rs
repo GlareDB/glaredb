@@ -1,6 +1,4 @@
-use datafusion::arrow::array::UInt64Array;
-use datafusion::arrow::datatypes::DataType;
-use datafusion::arrow::datatypes::{Field, Schema};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;

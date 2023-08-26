@@ -1,4 +1,3 @@
-use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -97,7 +96,6 @@ impl DisplayAs for CopyToExec {
 
 impl CopyToExec {
     async fn copy_to(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
-        let schema = self.schema();
         let sink = match (self.dest, self.format) {
             (CopyToDestinationOptions::Local(local_options), format) => {
                 {
