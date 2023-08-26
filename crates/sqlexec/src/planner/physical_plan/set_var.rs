@@ -16,6 +16,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use super::show_var::create_show_var_schema;
+use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
 pub struct SetVarExec {
@@ -29,7 +30,7 @@ impl ExecutionPlan for SetVarExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        Arc::new(create_show_var_schema(&self.variable))
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -72,13 +73,11 @@ impl ExecutionPlan for SetVarExec {
                 .extensions
                 .get::<SessionVars>()
                 .expect("context should have SessionVars extension");
-            let values = {
-                let mut vars = vars.write();
-                vars.set(&this.variable, &this.values, VarType::UserDefined)?;
-                vars.get(&this.variable)?.formatted_value()
-            };
-            let values = StringArray::from_iter_values([values]);
-            Ok(RecordBatch::try_new(this.schema(), vec![Arc::new(values)])?)
+
+            let mut vars = vars.write();
+            vars.set(&this.variable, &this.values, VarType::UserDefined)?;
+
+            Ok(new_operation_batch("set"))
         });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(

@@ -14,7 +14,7 @@ SELECT * FROM test_schema.test_view;
 2
 3
 
-statement error Failed to find table for reference
+statement error failed to find table
 SELECT * FROM test_view;
 
 statement ok

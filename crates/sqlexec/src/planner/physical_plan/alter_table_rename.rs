@@ -15,6 +15,8 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
+use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
+
 #[derive(Debug, Clone)]
 pub struct AlterTableRenameExec {
     pub catalog_version: u64,
@@ -28,7 +30,7 @@ impl ExecutionPlan for AlterTableRenameExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        Arc::new(Schema::empty())
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -104,5 +106,5 @@ async fn alter_table_rename(
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
 
-    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+    Ok(new_operation_batch("alter table rename"))
 }

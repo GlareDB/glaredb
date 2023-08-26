@@ -1022,6 +1022,10 @@ impl<'a> SessionPlanner<'a> {
                 let ent = resolver
                     .resolve_entry_from_reference(table_name)?
                     .try_into_table_entry()?;
+                // External deletes not supported yet.
+                if ent.meta.external {
+                    return Err(PlanError::UnsupportedFeature("DELETE with external tables"));
+                }
 
                 Ok(Delete {
                     table: ent,
@@ -1085,6 +1089,10 @@ impl<'a> SessionPlanner<'a> {
                 let ent = resolver
                     .resolve_entry_from_reference(table_name)?
                     .try_into_table_entry()?;
+                // External updates not supported yet.
+                if ent.meta.external {
+                    return Err(PlanError::UnsupportedFeature("UPDATE with external tables"));
+                }
 
                 Ok(Update {
                     table: ent,

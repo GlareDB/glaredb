@@ -25,14 +25,7 @@ use std::sync::Arc;
 
 use crate::metastore::catalog::TempCatalog;
 
-use super::new_operation_with_count_batch;
-
-pub static INSERT_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
-    Arc::new(Schema::new(vec![
-        Field::new("operation", DataType::Utf8, false),
-        Field::new("count", DataType::UInt64, false),
-    ]))
-});
+use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
 pub struct InsertExec {
@@ -46,7 +39,7 @@ impl ExecutionPlan for InsertExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        INSERT_PHYSICAL_SCHEMA.clone()
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {

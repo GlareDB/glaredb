@@ -23,7 +23,7 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use super::insert::INSERT_PHYSICAL_SCHEMA;
+use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
 pub struct CopyToExec {
@@ -38,7 +38,7 @@ impl ExecutionPlan for CopyToExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        INSERT_PHYSICAL_SCHEMA.clone()
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -127,8 +127,8 @@ impl CopyToExec {
 
         let stream = execute_stream(self.source, context.clone())?;
         let count = sink.write_all(stream, &context).await?;
-        let count = UInt64Array::from_iter_values([count]);
-        Ok(RecordBatch::try_new(schema, vec![Arc::new(count)])?)
+
+        Ok(new_operation_with_count_batch("copy to", count))
     }
 }
 

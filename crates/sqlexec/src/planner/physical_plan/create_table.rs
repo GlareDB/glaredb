@@ -22,10 +22,13 @@ use tracing::info;
 use crate::{
     errors::ExecError,
     metastore::catalog::{CatalogMutator, SessionCatalog},
-    planner::{logical_plan::OwnedFullObjectReference, physical_plan::insert::InsertExec},
+    planner::{
+        logical_plan::OwnedFullObjectReference,
+        physical_plan::{insert::InsertExec, new_operation_batch},
+    },
 };
 
-use super::insert::INSERT_PHYSICAL_SCHEMA;
+use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
@@ -42,11 +45,7 @@ impl ExecutionPlan for CreateTableExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        if self.source.is_some() {
-            INSERT_PHYSICAL_SCHEMA.clone()
-        } else {
-            Arc::new(Schema::empty())
-        }
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -124,8 +123,6 @@ impl CreateTableExec {
         storage: Arc<NativeTableStorage>,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<RecordBatch> {
-        let schema = self.schema();
-
         let state = mutator
             .mutate(
                 self.catalog_version,
@@ -158,14 +155,12 @@ impl CreateTableExec {
         })?;
         info!(loc = %table.storage_location(), "native table created");
 
-        let res = if let Some(source) = self.source {
-            InsertExec::do_insert(table.into_table_provider(), source, context).await?
-        } else {
-            RecordBatch::new_empty(schema)
-        };
+        if let Some(source) = self.source {
+            InsertExec::do_insert(table.into_table_provider(), source, context).await?;
+        }
 
         // TODO: Add storage tracking job.
 
-        Ok(res)
+        Ok(new_operation_batch("create table"))
     }
 }

@@ -1,6 +1,6 @@
 use datafusion::{datasource::MemTable, sql::TableReference};
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
-use sqlbuiltins::builtins::DEFAULT_CATALOG;
+use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use std::sync::Arc;
 
 use crate::{
@@ -69,7 +69,10 @@ impl<'a> EntryResolver<'a> {
     ) -> Result<ResolvedEntry> {
         match &reference {
             TableReference::Bare { table } => {
-                // Check for temp table first. This matches Postgres behavior.
+                // Check for temp table first. This matches Postgres behavior
+                // where if there exists a persist table named "t1" and a temp
+                // table also named "t1", the temp table is what gets used in
+                // the query.
                 if let Some(table) = self.temp_objects.resolve_temp_table(&table) {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
@@ -77,15 +80,22 @@ impl<'a> EntryResolver<'a> {
                 // Iterate through all schemas in the search path looking for
                 // our table.
                 for schema in self.schema_search_path.iter() {
-                    if let Some(ent) = self.catalog.resolve_table(DEFAULT_CATALOG, schema, table) {
-                        return Ok(ResolvedEntry::Entry(CatalogEntry::Table(ent.clone())));
+                    if let Some(ent) = self.catalog.resolve_entry(DEFAULT_CATALOG, schema, table) {
+                        return Ok(ResolvedEntry::Entry(ent.clone()));
                     }
                     // Continue on, trying the next schema.
                 }
             }
             TableReference::Partial { schema, table } => {
-                if let Some(ent) = self.catalog.resolve_table(DEFAULT_CATALOG, schema, table) {
-                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(ent.clone())));
+                // "current_session" references the temp catalog.
+                if schema == CURRENT_SESSION_SCHEMA {
+                    if let Some(table) = self.temp_objects.resolve_temp_table(&table) {
+                        return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
+                    }
+                }
+
+                if let Some(ent) = self.catalog.resolve_entry(DEFAULT_CATALOG, schema, table) {
+                    return Ok(ResolvedEntry::Entry(ent.clone()));
                 }
             }
             TableReference::Full {
@@ -107,9 +117,9 @@ impl<'a> EntryResolver<'a> {
                     });
                 }
 
-                // Otherwise just try to get the full qualified table.
-                if let Some(ent) = self.catalog.resolve_table(catalog, schema, table) {
-                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(ent.clone())));
+                // Otherwise just try to get the full qualified entry.
+                if let Some(ent) = self.catalog.resolve_entry(catalog, schema, table) {
+                    return Ok(ResolvedEntry::Entry(ent.clone()));
                 }
             }
         }
