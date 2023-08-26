@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::{
-    arrow::{
-        datatypes::{SchemaRef},
-        record_batch::RecordBatch,
-    },
+    arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     error::{DataFusionError, Result as DataFusionResult},
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,

@@ -58,7 +58,7 @@ use crate::parser::{
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
-use crate::resolve::{EntryResolver};
+use crate::resolve::EntryResolver;
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;

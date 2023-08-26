@@ -7,7 +7,7 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
-  
+
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
 python cmd *args: protoc
   just py-glaredb/{{cmd}} {{args}}
