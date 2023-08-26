@@ -145,7 +145,7 @@ impl CreateTableExec {
         // we're just using it here to get the new table entry easily.
         let new_catalog = SessionCatalog::new(state);
         let ent = new_catalog
-            .resolve_native_table(
+            .resolve_table(
                 DEFAULT_CATALOG,
                 &self.reference.schema,
                 &self.reference.name,

@@ -1,7 +1,7 @@
 use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
+use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use crate::metrics::SessionMetrics;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -81,7 +81,7 @@ impl LocalSessionContext {
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempObjects::new()));
+            .with_extension(Arc::new(TempCatalog::default()));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
@@ -153,11 +153,11 @@ impl LocalSessionContext {
         &self.tables
     }
 
-    pub fn get_temp_objects(&self) -> Arc<TempObjects> {
+    pub fn get_temp_objects(&self) -> Arc<TempCatalog> {
         self.df_ctx
             .state()
             .config()
-            .get_extension::<TempObjects>()
+            .get_extension::<TempCatalog>()
             .expect("local contexts should have temp objects")
     }
 
@@ -234,7 +234,7 @@ impl LocalSessionContext {
         // we're just using it here to get the new table entry easily.
         let new_catalog = SessionCatalog::new(state);
         let ent = new_catalog
-            .resolve_native_table(
+            .resolve_table(
                 DEFAULT_CATALOG,
                 plan.reference.schema.as_ref(),
                 plan.reference.name.as_ref(),

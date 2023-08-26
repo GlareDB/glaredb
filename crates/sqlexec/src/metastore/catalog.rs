@@ -1,12 +1,13 @@
 use datafusion::datasource::MemTable;
-use parking_lot::RwLock;
+use parking_lot::Mutex;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryType,
-    SchemaEntry, TableEntry, TunnelEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
+    EntryType, SchemaEntry, TableEntry, TunnelEntry,
 };
-use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
 use protogen::metastore::types::service::Mutation;
+use sqlbuiltins::builtins::SCHEMA_CURRENT_SESSION;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
@@ -145,12 +146,7 @@ impl SessionCatalog {
         &self.state
     }
 
-    pub fn resolve_native_table(
-        &self,
-        _database: &str,
-        schema: &str,
-        name: &str,
-    ) -> Option<&TableEntry> {
+    pub fn resolve_table(&self, _database: &str, schema: &str, name: &str) -> Option<&TableEntry> {
         let schema_id = self.schema_names.get(schema)?;
         let obj = self.schema_objects.get(schema_id)?;
         let obj_id = obj.objects.get(name)?;
@@ -159,8 +155,7 @@ impl SessionCatalog {
 
         match ent {
             CatalogEntry::Table(table) => match &table.options {
-                TableOptions::Internal(_) => Some(table),
-                _ => None,
+                _ => Some(table),
             },
             _ => None,
         }
@@ -435,36 +430,75 @@ impl NamespacedCatalogEntry<'_> {
 
 /// Temporary objects that are dropped when the session is dropped.
 #[derive(Debug, Default)]
-pub struct TempObjects {
-    /// In-memory (temporary) tables.
-    current_session_tables: RwLock<HashMap<String, Arc<MemTable>>>,
+pub struct TempCatalog {
+    inner: Mutex<TempObjectsInner>,
 }
 
-impl TempObjects {
-    pub fn new() -> Self {
-        TempObjects {
-            current_session_tables: RwLock::new(HashMap::new()),
-        }
-    }
+#[derive(Debug, Default)]
+struct TempObjectsInner {
+    tables: HashMap<String, Arc<MemTable>>,
+}
 
-    pub fn resolve_temp_table(&self, name: &str) -> Option<Arc<MemTable>> {
-        // TODO: Local hint
-        self.current_session_tables.read().get(name).cloned()
+impl TempCatalog {
+    pub fn resolve_temp_table(&self, name: &str) -> Option<TableEntry> {
+        let inner = self.inner.lock();
+        if inner.tables.contains_key(name) {
+            // TODO: We can be a bit more sophisticated with what we're putting
+            // in meta and table options.
+            return Some(TableEntry {
+                meta: EntryMeta {
+                    entry_type: EntryType::Table,
+                    id: 0,
+                    parent: SCHEMA_CURRENT_SESSION.oid,
+                    name: name.to_string(),
+                    builtin: false,
+                    external: false,
+                    is_temp: true,
+                },
+                options: TableOptions::Internal(TableOptionsInternal {
+                    columns: Vec::new(),
+                }),
+                tunnel_id: None,
+            });
+        }
+        None
     }
 
     pub fn put_temp_table(&self, name: String, table: Arc<MemTable>) {
-        self.current_session_tables.write().insert(name, table);
+        let mut inner = self.inner.lock();
+        inner.tables.insert(name, table);
+    }
+
+    pub fn get_temp_table_provider(&self, name: &str) -> Option<Arc<MemTable>> {
+        self.inner.lock().tables.get(name).cloned()
     }
 
     pub fn drop_table(&self, name: &str) {
-        self.current_session_tables.write().remove(name);
+        let mut inner = self.inner.lock();
+        inner.tables.remove(name);
     }
 
-    pub fn table_names(&self) -> Vec<String> {
-        self.current_session_tables
-            .read()
-            .keys()
-            .map(|s| s.to_owned())
-            .collect()
+    pub fn get_table_entries(&self) -> Vec<TableEntry> {
+        let inner = self.inner.lock();
+        let mut ents = Vec::with_capacity(inner.tables.len());
+        for (name, _) in &inner.tables {
+            ents.push(TableEntry {
+                meta: EntryMeta {
+                    entry_type: EntryType::Table,
+                    id: 0,
+                    parent: SCHEMA_CURRENT_SESSION.oid,
+                    name: name.to_string(),
+                    builtin: false,
+                    external: false,
+                    is_temp: true,
+                },
+                options: TableOptions::Internal(TableOptionsInternal {
+                    columns: Vec::new(),
+                }),
+                tunnel_id: None,
+            });
+        }
+
+        ents
     }
 }

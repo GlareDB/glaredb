@@ -261,6 +261,7 @@ pub struct EntryMeta {
     pub name: String,
     pub builtin: bool,
     pub external: bool,
+    pub is_temp: bool,
 }
 
 impl From<EntryMeta> for catalog::EntryMeta {
@@ -273,6 +274,7 @@ impl From<EntryMeta> for catalog::EntryMeta {
             name: value.name,
             builtin: value.builtin,
             external: value.external,
+            is_temp: value.is_temp,
         }
     }
 }
@@ -287,6 +289,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
             name: value.name,
             builtin: value.builtin,
             external: value.external,
+            is_temp: value.is_temp,
         })
     }
 }

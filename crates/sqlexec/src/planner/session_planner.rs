@@ -840,7 +840,7 @@ impl<'a> SessionPlanner<'a> {
                 let ent = self
                     .ctx
                     .get_session_catalog()
-                    .resolve_native_table(&r.database, &r.schema, &r.name)
+                    .resolve_table(&r.database, &r.schema, &r.name)
                     .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
 
                 Ok(Insert {
@@ -1029,7 +1029,7 @@ impl<'a> SessionPlanner<'a> {
                 let ent = self
                     .ctx
                     .get_session_catalog()
-                    .resolve_native_table(&r.database, &r.schema, &r.name)
+                    .resolve_table(&r.database, &r.schema, &r.name)
                     .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
 
                 Ok(Delete {
@@ -1095,7 +1095,7 @@ impl<'a> SessionPlanner<'a> {
                 let ent = self
                     .ctx
                     .get_session_catalog()
-                    .resolve_native_table(&r.database, &r.schema, &r.name)
+                    .resolve_table(&r.database, &r.schema, &r.name)
                     .ok_or_else(|| PlanError::String(format!("missing table: {r}")))?;
 
                 Ok(Update {

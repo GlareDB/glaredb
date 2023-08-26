@@ -19,7 +19,7 @@ use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
 use crate::{
     dispatch::system::SystemTableDispatcher,
-    metastore::catalog::{SessionCatalog, TempObjects},
+    metastore::catalog::{SessionCatalog, TempCatalog},
     metrics::SessionMetrics,
 };
 
@@ -152,7 +152,7 @@ pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
     metrics: &'a SessionMetrics,
-    temp_objects: &'a TempObjects,
+    temp_objects: &'a TempCatalog,
     view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
     df_ctx: &'a DfSessionContext,
@@ -165,7 +165,7 @@ impl<'a> Dispatcher<'a> {
         catalog: &'a SessionCatalog,
         tables: &'a NativeTableStorage,
         metrics: &'a SessionMetrics,
-        temp_objects: &'a TempObjects,
+        temp_objects: &'a TempCatalog,
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
@@ -208,7 +208,7 @@ impl<'a> Dispatcher<'a> {
         }
 
         if schema == CURRENT_SESSION_SCHEMA {
-            return match self.temp_objects.resolve_temp_table(name) {
+            return match self.temp_objects.get_temp_table_provider(name) {
                 Some(table) => Ok(table),
                 None => Err(DispatchError::MissingEntry {
                     schema: schema.to_owned(),

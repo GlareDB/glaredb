@@ -5,7 +5,7 @@ use datafusion::{
 };
 use futures::StreamExt;
 
-use crate::{metastore::catalog::TempObjects, planner::logical_plan::OwnedFullObjectReference};
+use crate::{metastore::catalog::TempCatalog, planner::logical_plan::OwnedFullObjectReference};
 
 use super::*;
 
@@ -88,7 +88,7 @@ async fn create_temp_table(
 ) -> DataFusionResult<RecordBatch> {
     let temp_objects = context
         .session_config()
-        .get_extension::<TempObjects>()
+        .get_extension::<TempCatalog>()
         .unwrap();
 
     if temp_objects
